@@ -27,3 +27,9 @@ other projects. The local copy stays for `/graphify query`.
 Adopted the llm-wiki pattern (Karpathy gist) to record work and
 decisions: `wiki/` with schema, index, this log, four decision pages,
 and the Phase 0 record. `CLAUDE.md` now requires agents to maintain it.
+
+## 2026-08-31 — project-plan.md marked Phase 0 complete
+
+Added a status banner and a Phase 0 completion note to
+`project-plan.md` so an executor starts at Phase 1. Closes the open
+item in [phases/phase-0.md](phases/phase-0.md).

@@ -1,8 +1,15 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
+> **Status**: Phase 0 is complete ([wiki/phases/phase-0.md](wiki/phases/phase-0.md)).
+> Execution starts at Phase 1. `wiki/` records work and decisions; an
+> executor MUST read `CLAUDE.md` and `wiki/index.md` before starting.
+> The delegation sections assume Claude Code (Agent tool, skills,
+> worktrees); another executor follows the phases, deliverables, and
+> verification steps directly.
+
 ## Context
 
-The `fewia` repo holds only `docs/`. The proposal ([writing-block.md](docs/writing-block.md)) and the MVP plan ([CAP6938_MVP_PROJECT_PLAN.md](docs/CAP6938_MVP_PROJECT_PLAN.md)) define the Financial and Environmental Wellness Intelligence Agent for CAP 6938. The goal is a working MVP that runs one narrow path end to end: synthetic data → PostgreSQL → typed FastAPI tools → three prediction models → a Bedrock tool-use agent → a grounded, evidence-cited answer.
+At the start of this plan, the `fewia` repo held only `docs/`. The proposal ([writing-block.md](docs/writing-block.md)) and the MVP plan ([CAP6938_MVP_PROJECT_PLAN.md](docs/CAP6938_MVP_PROJECT_PLAN.md)) define the Financial and Environmental Wellness Intelligence Agent for CAP 6938. The goal is a working MVP that runs one narrow path end to end: synthetic data → PostgreSQL → typed FastAPI tools → three prediction models → a Bedrock tool-use agent → a grounded, evidence-cited answer.
 
 Decisions made with the user:
 
@@ -43,7 +50,12 @@ fewia/
 └── docs/
 ```
 
-## Phase 0 — Repo bootstrap and the agent team
+## Phase 0 — Repo bootstrap and the agent team ✅ COMPLETE
+
+Completed 2026-08-31. All five deliverables shipped: private GitHub
+repo `emanuelGitCodes/fewia`, `CLAUDE.md`, the six agents in
+`.claude/agents/`, `docs/DELEGATION.md`, and the seeded knowledge
+graph. Record: [wiki/phases/phase-0.md](wiki/phases/phase-0.md).
 
 Deliverables (mostly config/docs; PR cap does not bind):
 
