@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: postgresql+psycopg://fewia:fewia@localhost:5432/fewia
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fewia
+          POSTGRES_PASSWORD: fewia
+          POSTGRES_DB: fewia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fewia -d fewia -p 5432"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install the dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check app tests
+
+      - name: Check the format
+        run: uv run ruff format --check app tests
+
+      - name: Type check
+        run: uv run mypy --strict app
+
+      - name: Migrate the database
+        run: uv run alembic upgrade head
+
+      - name: Test
+        run: uv run pytest
