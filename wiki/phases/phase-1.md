@@ -23,6 +23,10 @@ Four stacked branches, in merge order:
 4. `feat/phase1-ci` (`7adfa4e`) — `.github/workflows/ci.yml` and
    `backend/tests/test_database.py`. 60 code lines.
 
+Pull requests #1, #2, #3, and #4 carried the four branches. `main` now
+holds all four work items at commit `82cbd70`. The four branches are
+deleted, local and remote.
+
 The six tables are `users`, `daily_finance`, `daily_environment`,
 `daily_health`, `model_runs`, and `predictions`.
 
@@ -42,7 +46,14 @@ Run on 2026-08-31 with Docker Desktop 29.6.1 and an empty volume:
 - `uv run ruff check app tests`, `uv run ruff format --check app tests`,
   `uv run mypy --strict app`, and `uv run pytest` all passed. 9 tests
   pass.
-- GitHub Actions did not run. Nothing was pushed, so CI stays unproven.
+- GitHub Actions passed on the first run against pull request #4 (run
+  `33437696369`, 35 seconds) and again on `main` after the merge (run
+  `33438805479`, 41 seconds). The job runs ruff, `ruff format --check`,
+  `mypy --strict app`, and pytest against a Postgres service container.
+- After the merge, the tree of `main` and the tree of the stack tip are
+  identical. A clean rebuild of `main` served HTTP 200 on `/healthz`,
+  built the six tables with `alembic upgrade head`, and passed 9 tests
+  with no skips.
 
 ## Decisions inside the phase
 
@@ -56,13 +67,32 @@ Run on 2026-08-31 with Docker Desktop 29.6.1 and an empty volume:
   `compose.yaml` and in CI. AWS MUST read `DATABASE_URL` from Secrets
   Manager instead.
 
+## The merge order failure
+
+The four pull requests merged into each other, not into `main`. Each
+child pull request kept its parent branch as its base, so #2 merged
+into `feat/phase1-compose-health`, #3 into `feat/phase1-schema`, and #4
+into `feat/phase1-migration`. Only #1 reached `main`. GitHub marked all
+four MERGED, which hid the gap.
+
+Pull request #5 corrected the state. It merged `feat/phase1-ci` into
+`main` and kept a linear history, because the tree of `feat/phase1-ci`
+equals the tree of the stack tip.
+
+A stack MUST retarget each child pull request to `main` after the
+parent merges. `gh pr merge` does this retarget by itself.
+
 ## Open items
 
-- CI is unverified. The user MUST push the branches and watch the first
-  run.
 - `.github/workflows/ci.yml` lints `app` and `tests` only. It does not
   lint `backend/alembic`.
 - `starlette.testclient` warns that it deprecates `httpx`. Pin `httpx2`
   when the test client moves.
 - The root `.dockerignore` does nothing today. The `api` build context
   is `./backend`.
+- `actions/checkout@v4` and `astral-sh/setup-uv@v6` target Node.js 20,
+  which GitHub deprecates. The runner forces Node.js 24. Move to the
+  next major of each action.
+- `backend/tests/test_database.py` skips, and does not fail, when the
+  database is unreachable. In CI, `alembic upgrade head` is the only
+  hard gate on database reachability.
