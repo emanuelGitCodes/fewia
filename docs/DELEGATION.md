@@ -53,6 +53,26 @@ spawn:
 
 A new spawn starts cold; a follow-up message does not.
 
+## Codex as the writer
+
+Codex writes the code; Claude verifies it. `AGENTS.md` binds Codex to
+the same rules as `CLAUDE.md`.
+
+The loop, driven by Claude:
+
+1. Claude decomposes the work item and starts Codex non-interactively:
+   `codex exec "<self-contained assignment>"`. The assignment names the
+   goal, files, interfaces, verification command, and branch.
+2. Codex writes the code on the branch and runs the checks.
+3. Claude verifies independently: reads the diff, reruns the checks,
+   and tests whether the tests catch a regression.
+4. Findings go back to Codex with `codex exec resume --last`. The loop
+   repeats until the findings are closed.
+5. Claude reports the reviewed PR. You merge.
+
+The verifier MUST NOT fix the code it reviews. Claude reports findings;
+Codex or the user applies them. This keeps the review independent.
+
 ## Retro: how the agents learn
 
 The agent files stay thin and stable. Lessons land in three layers:

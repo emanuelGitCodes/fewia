@@ -74,3 +74,11 @@ through dedicated agent-file PRs, mechanical rules as hooks. Added the
 retro step to tech-lead, the rule to `CLAUDE.md`, and the layer guide
 to `docs/DELEGATION.md`. Decision:
 [decisions/0005-human-gated-agent-learning.md](decisions/0005-human-gated-agent-learning.md).
+
+## 2026-08-31 — Decision 0006: Codex writes, Claude verifies
+
+Adopted the writer/verifier split: Claude drives Codex through
+`codex exec`, verifies the diff independently, and reports findings
+until they close. `AGENTS.md` now binds Codex to the repo rules.
+Decision:
+[decisions/0006-codex-writes-claude-verifies.md](decisions/0006-codex-writes-claude-verifies.md).
