@@ -6,6 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from app.synth.records import (
     DATA_VERSION,
+    DEFAULT_END_DATE,
     PROFILES,
     Dataset,
     EnvironmentRow,
@@ -34,7 +35,12 @@ def _count(rng: random.Random, base: int, deviation: float = 1.0) -> int:
     return max(0, round(rng.gauss(base, deviation)))
 
 
-def generate(*, seed: int, days: int, end_date: date) -> Dataset:
+def generate(
+    *,
+    seed: int = 42,
+    days: int = 90,
+    end_date: date = DEFAULT_END_DATE,
+) -> Dataset:
     """Generate daily synthetic data through end_date."""
 
     if days < 1:

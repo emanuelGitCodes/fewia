@@ -1,7 +1,14 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from app.synth import DATA_VERSION, PROFILES, Dataset, HealthRow, generate
+from app.synth import (
+    DATA_VERSION,
+    DEFAULT_END_DATE,
+    PROFILES,
+    Dataset,
+    HealthRow,
+    generate,
+)
 
 END_DATE = date(2026, 6, 30)
 DAYS = 90
@@ -27,6 +34,18 @@ def _discretionary_mean(dataset: Dataset, user_id: int) -> float:
 
 def test_generate_is_reproducible() -> None:
     assert _dataset(42) == _dataset(42)
+
+
+def test_default_generation_has_a_stable_date_range() -> None:
+    first = generate()
+    second = generate()
+    first_dates = {row.observation_date for row in first.finance}
+    second_dates = {row.observation_date for row in second.finance}
+
+    assert DEFAULT_END_DATE == date(2026, 6, 30)
+    assert first_dates == second_dates
+    assert min(first_dates) == DEFAULT_END_DATE - timedelta(days=89)
+    assert max(first_dates) == DEFAULT_END_DATE
 
 
 def test_different_seeds_produce_different_datasets() -> None:

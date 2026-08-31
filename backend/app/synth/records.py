@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 DATA_VERSION: str = "synthetic-v1"
+DEFAULT_END_DATE: date = date(2026, 6, 30)
 
 
 @dataclass(frozen=True)
