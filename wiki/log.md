@@ -42,3 +42,20 @@ Actions workflow. `docker compose up` serves HTTP 200 on `/healthz`,
 `alembic upgrade head` builds the six tables of MVP doc §4 on a clean
 database, and ruff, mypy, and pytest pass. CI stays unproven until the
 user pushes. Details in [phases/phase-1.md](phases/phase-1.md).
+
+## 2026-08-31 — Phase 1 merged to main
+
+Pushed the four Phase 1 branches and opened pull requests #1 to #4. CI
+ran for the first time and passed. The stack then merged into itself,
+not into `main`: only #1 reached `main`, because each child pull
+request kept its parent branch as its base. Pull request #5 corrected
+the state and put all four work items on `main` at `82cbd70`. CI passed
+again on `main`. A clean rebuild served HTTP 200 on `/healthz`, built
+the six tables, and passed 9 tests. The four `feat/phase1-*` branches
+are deleted, local and remote. Details in
+[phases/phase-1.md](phases/phase-1.md).
+
+## 2026-08-31 — project-plan.md marked Phase 1 complete
+
+Moved the status banner to Phase 2 and added a Phase 1 completion note
+to `project-plan.md`, so an executor does not rebuild the skeleton.

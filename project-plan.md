@@ -1,7 +1,9 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Status**: Phase 0 is complete ([wiki/phases/phase-0.md](wiki/phases/phase-0.md)).
-> Execution starts at Phase 1. `wiki/` records work and decisions; an
+> **Status**: Phase 0 and Phase 1 are complete
+> ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
+> [wiki/phases/phase-1.md](wiki/phases/phase-1.md)).
+> Execution starts at Phase 2. `wiki/` records work and decisions; an
 > executor MUST read `CLAUDE.md` and `wiki/index.md` before starting.
 > The delegation sections assume Claude Code (Agent tool, skills,
 > worktrees); another executor follows the phases, deliverables, and
@@ -71,7 +73,13 @@ Deliverables (mostly config/docs; PR cap does not bind):
 4. A short `docs/DELEGATION.md`: how the user hands work to agents (`Agent tool with subagent_type`, `SendMessage` to continue one, worktrees, background runs) — this is the learning deliverable.
 5. Run `/graphify` on `docs/` to seed the knowledge graph; re-run at each phase checkpoint.
 
-## Phase 1 — Skeleton: Compose, schema, CI  *(owner: aws-infra + backend-dev)*
+## Phase 1 — Skeleton: Compose, schema, CI ✅ COMPLETE  *(owner: aws-infra + backend-dev)*
+
+Completed 2026-08-31. Four stacked branches shipped through pull
+requests #1 to #5 and sit on `main` at `82cbd70`: Compose plus
+`/healthz`, the six SQLAlchemy models, the first Alembic migration, and
+the GitHub Actions workflow. CI passes on `main`. Record:
+[wiki/phases/phase-1.md](wiki/phases/phase-1.md).
 
 - PR 1: `compose.yaml` (FastAPI + Postgres 16), `backend/pyproject.toml`, health endpoint `GET /healthz`, Dockerfile.
 - PR 2 (stacked): SQLAlchemy models + Alembic migration for the six tables in the MVP doc §4 (`users`, `daily_finance`, `daily_environment`, `daily_health`, `model_runs`, `predictions`).
