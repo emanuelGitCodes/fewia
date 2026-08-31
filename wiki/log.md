@@ -33,3 +33,12 @@ and the Phase 0 record. `CLAUDE.md` now requires agents to maintain it.
 Added a status banner and a Phase 0 completion note to
 `project-plan.md` so an executor starts at Phase 1. Closes the open
 item in [phases/phase-0.md](phases/phase-0.md).
+
+## 2026-08-31 — Phase 1 complete
+
+Shipped the skeleton as four stacked branches: Compose plus `/healthz`,
+the six SQLAlchemy models, the first Alembic migration, and the GitHub
+Actions workflow. `docker compose up` serves HTTP 200 on `/healthz`,
+`alembic upgrade head` builds the six tables of MVP doc §4 on a clean
+database, and ruff, mypy, and pytest pass. CI stays unproven until the
+user pushes. Details in [phases/phase-1.md](phases/phase-1.md).

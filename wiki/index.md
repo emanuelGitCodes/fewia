@@ -13,3 +13,4 @@ chronological record lives in [log.md](log.md).
 ## Phases
 
 - [Phase 0 — Repo bootstrap and the agent team](phases/phase-0.md)
+- [Phase 1 — Skeleton: Compose, schema, CI](phases/phase-1.md)
