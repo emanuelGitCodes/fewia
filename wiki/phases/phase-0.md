@@ -29,6 +29,3 @@
 
 - Phase 1 has not started. First delegation: "Use the tech-lead agent
   to run Phase 1 of the plan."
-- `project-plan.md` still describes the repo as docs-only and does not
-  mark Phase 0 complete. An executor reading it cold would redo
-  Phase 0.
