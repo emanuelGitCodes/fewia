@@ -29,6 +29,14 @@ delegation guide lives in `docs/DELEGATION.md`.
 - Floci results are integration evidence only. They MUST NOT stand in
   for real Bedrock or real AWS evidence.
 
+## Wiki
+
+`wiki/` records the work done and the decisions made. The conventions
+live in `wiki/schema.md`. After a work item merges or a decision lands,
+the agent that did the work MUST append a `wiki/log.md` entry and
+update the pages it touched. History, dates, status, and justification
+go in the wiki, not in code comments.
+
 ## Commands
 
 ```bash
