@@ -59,3 +59,10 @@ are deleted, local and remote. Details in
 
 Moved the status banner to Phase 2 and added a Phase 1 completion note
 to `project-plan.md`, so an executor does not rebuild the skeleton.
+
+## 2026-08-31 — Phase 1 cleanup
+
+Closed the three review findings on the Phase 1 skeleton: uvicorn now
+reloads in Compose so the bind mount takes effect, CI push runs only on
+`main`, and revision `0002` adds `uq_predictions_run_user_date` on
+`predictions`.

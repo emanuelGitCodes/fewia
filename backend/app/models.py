@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -111,6 +112,14 @@ class Prediction(Base):
     """One predicted step count from one model run."""
 
     __tablename__ = "predictions"
+    __table_args__ = (
+        UniqueConstraint(
+            "model_run_id",
+            "user_id",
+            "observation_date",
+            name="uq_predictions_run_user_date",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     model_run_id: Mapped[int] = mapped_column(
