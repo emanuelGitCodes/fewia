@@ -1,5 +1,6 @@
-"""Synthetic data record exports."""
+"""Synthetic data generator exports."""
 
+from app.synth.generator import generate
 from app.synth.records import (
     DATA_VERSION,
     PROFILES,
@@ -18,4 +19,5 @@ __all__ = (
     "FinanceRow",
     "HealthRow",
     "Profile",
+    "generate",
 )
