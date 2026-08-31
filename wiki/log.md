@@ -82,3 +82,8 @@ Adopted the writer/verifier split: Claude drives Codex through
 until they close. `AGENTS.md` now binds Codex to the repo rules.
 Decision:
 [decisions/0006-codex-writes-claude-verifies.md](decisions/0006-codex-writes-claude-verifies.md).
+
+## 2026-08-31 — Phase 2 loader and CLI
+
+Added a loader that replaces generated rows by primary key. Added the
+synthetic-data CLI. The CLI prints the loaded row counts.
