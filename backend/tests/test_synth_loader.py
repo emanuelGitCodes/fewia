@@ -4,12 +4,12 @@ from collections.abc import Iterator
 from datetime import date
 
 import pytest
-from sqlalchemy import Engine, create_engine, func, select
+from sqlalchemy import Engine, create_engine, delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import DailyEnvironment, DailyFinance, DailyHealth
+from app.models import DailyEnvironment, DailyFinance, DailyHealth, Prediction, User
 from app.synth import PROFILES, generate
 from app.synth.loader import load
 
@@ -71,6 +71,28 @@ def _counts(session: Session) -> tuple[int, int, int]:
         select(func.count()).select_from(DailyHealth).where(*filter_(DailyHealth))
     )
     return int(finance or 0), int(environment or 0), int(health or 0)
+
+
+def _clear_profile_rows(session: Session) -> None:
+    for model in (Prediction, DailyHealth, DailyFinance, DailyEnvironment):
+        session.execute(delete(model).where(model.user_id.in_(USER_IDS)))
+    session.execute(delete(User).where(User.id.in_(USER_IDS)))
+    session.flush()
+
+
+def test_load_writes_users_and_advances_identity(session: Session) -> None:
+    _clear_profile_rows(session)
+    load(session, DATASET)
+
+    users = session.scalars(select(User).where(User.id.in_(USER_IDS))).all()
+    later_user = User(display_name="Later user")
+    session.add(later_user)
+    session.flush()
+
+    assert {(user.id, user.display_name) for user in users} == {
+        (profile.user_id, profile.display_name) for profile in PROFILES
+    }
+    assert later_user.id > max(USER_IDS)
 
 
 def test_load_writes_expected_row_counts(session: Session) -> None:

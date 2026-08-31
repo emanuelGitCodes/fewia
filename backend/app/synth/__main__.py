@@ -6,6 +6,7 @@ from datetime import date
 from app.db import SessionLocal
 from app.synth.generator import generate
 from app.synth.loader import load
+from app.synth.records import DEFAULT_END_DATE, PROFILES
 
 
 def _parse_date(value: str) -> date:
@@ -26,8 +27,8 @@ def main() -> None:
     parser.add_argument(
         "--end-date",
         type=_parse_date,
-        default=date.today(),
-        help="Last generated date in ISO format (default: today).",
+        default=DEFAULT_END_DATE,
+        help=f"Last generated date in ISO format (default: {DEFAULT_END_DATE}).",
     )
     arguments = parser.parse_args()
     dataset = generate(
@@ -37,7 +38,7 @@ def main() -> None:
         load(session, dataset)
         session.commit()
     print(
-        f"users=4 finance={len(dataset.finance)} "
+        f"users={len(PROFILES)} finance={len(dataset.finance)} "
         f"environment={len(dataset.environment)} "
         f"health={len(dataset.health)}"
     )

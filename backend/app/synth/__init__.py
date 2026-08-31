@@ -3,6 +3,7 @@
 from app.synth.generator import generate
 from app.synth.records import (
     DATA_VERSION,
+    DEFAULT_END_DATE,
     PROFILES,
     Dataset,
     EnvironmentRow,
@@ -13,6 +14,7 @@ from app.synth.records import (
 
 __all__ = (
     "DATA_VERSION",
+    "DEFAULT_END_DATE",
     "PROFILES",
     "Dataset",
     "EnvironmentRow",

@@ -83,7 +83,8 @@ until they close. `AGENTS.md` now binds Codex to the repo rules.
 Decision:
 [decisions/0006-codex-writes-claude-verifies.md](decisions/0006-codex-writes-claude-verifies.md).
 
-## 2026-08-31 — Phase 2 loader and CLI
+## 2026-08-31 — Phase 2 synthetic data stack
 
-Added a loader that replaces generated rows by primary key. Added the
-synthetic-data CLI. The CLI prints the loaded row counts.
+Added versioned records, a seeded generator, a PostgreSQL loader, and a
+CLI. With seed 42, 90 days, and end date 2026-06-30, the loader writes
+4 users, 360 finance rows, 360 environment rows, and 341 health rows.
