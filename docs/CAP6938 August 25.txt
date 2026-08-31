@@ -1,0 +1,1555 @@
+Okay.
+
+So, in this sheet, I've lived just about 15 vendors. That provide a public area.
+
+Okay?
+
+So if you decide to do a woodworking, right, with ages, even a top Asian, Mr. Asian, I want to go to this club in Orlando, downtown, whatever, right?
+
+Boom.
+
+It goes get a Uber, blah, blah.
+
+You're gonna show that whole engine, right?
+
+So I listed this.
+
+I did some homework myself and make sure that these guys is less as public API.
+
+Some companies like Walmart. Right?
+
+This does, as far as I know, I can't research it, as far as I know, they do.
+
+So you can...
+
+How are you gonna do?
+
+Adriana, they can do both, right?
+
+You can do an age, that's how this works. Just you talk to it, right?
+
+Um, No, the instruction.
+
+Which is here also, is that for each road that are listed, no more than 3 students should be doing that.
+
+Okay?
+
+There's 15 of them, more than 3 students should be doing that.
+
+So just go to that sheet and enter your knee.
+
+Now you can always propose your own agent.
+
+But do not add it to the sheet yourself.
+
+Just come and talk to me.
+
+I can add it for you, your name there.
+
+Is that okay?
+
+Just email me.
+
+Okay?
+
+But I have done homework for you and that list has public API.
+
+So for example, if you want to do a Kroger, There's no Kroger in Florida.
+
+I think they do, but you can do an agent that, you know, That has this conversation and then you want to talk to the agents, Mr. Agent, I want to make career for 5 people.
+
+Boom, the agent said, okay, 5 people, spicy or not, blah, boom.
+
+The agent figure out, okay.
+
+This is the ingredients.
+
+And then order it from Kroger.
+
+It goes into the car.
+
+Check out, block.
+
+But think about it.
+
+Think about details, right?
+
+Or you check out, you need an agent that does the payment.
+
+Um, How do you get into Kroger?
+
+You need a credential, a login agent that login for grandma, right?
+
+And things like that, right?
+
+So, so, so that details here, right?
+
+So you need to think about how to do this, right?
+
+Make sense?
+
+So, you're gonna do this agent, which is the system track.
+
+And then you're gonna, same thing, describe what you have done, 8 page, maximum 8 page.
+
+You don't have a right page.
+
+I'm just saying maximum pages, right?
+
+Two columns, double columns, and then you're going to create a GitHub for the agents, right?
+
+If you're doing the agents, um, and then you're gonna record a video. Of how the agent works.
+
+Makes sense.
+
+So this is gonna be a term product.
+
+Individual, do not study a term project in November.
+
+I tell you it's going to be a problem.
+
+Start it early, think about it early, right?
+
+And then and then try to get it done, buddy.
+
+There's not going to be any finals. Has have to be based on a A or with.
+
+I mean, You need the agent.
+
+So if you are doing a grocery agent, it's very hard to go and do a Walmart agent, right?
+
+Because Walmart let them provide a public API unless you know the CEO of Walmart and say, can you give me access to your API?
+
+I don't know.
+
+The list I gave you, I researched a lot of that and they all have API, meaning you can call in, I think a card or call a cab or Uber and things like that.
+
+Does that answer the question or?
+
+I we have access to a private AGI or something.
+
+Like which company?
+
+That'll be great.
+
+If you have access to Walmart, that'd be great. Right?
+
+So, But the whole idea is like to walk through this thing, right?
+
+Because The sanctuary, right?
+
+There is going to be complications as you go along, right?
+
+Because You're gonna run all the coding issues and stuff.
+
+That's fine.
+
+You can ask Claudia, right?
+
+And stuff.
+
+But think through it, design it properly.
+
+So that's to track some of your PSGs, so maybe you're under a scientific tribe, which is more like, hey, I went to the MBFN, or whatever, this guy's experience, I'm young man, ever.
+
+And, um, I have a novel improvement, I think, I'm thinking of.
+
+Let me run some experiments.
+
+Let me set up the baselines, right?
+
+And, oh, we improve.
+
+Oh, great.
+
+So I made an 8 page paper on that and then use your term product.
+
+Okay.
+
+Both side has challenges. Native results from the research.
+
+I still develop, I mean, as...
+
+I was waiting for one student to answer this question.
+
+Usually if it's negative results, it's almost like you don't report it, right?
+
+Like if you make, you, if you, They're trying to make an atomic bomb, right?
+
+You don't report like, hey, this, you don't want this anymore, right?
+
+You just report one book, right?
+
+So that's the process.
+
+Go through it.
+
+Oh, this works.
+
+So there's gonna be iterations, scientific iterations, things like that, right?
+
+Okay, so...
+
+Um, so that.
+
+So, um, I'm gonna talk about a little bit about integrity.
+
+Um, the other individual, you know that.
+
+Oh, this, oh, 3 to 4 rules.
+
+Do the assignment yourself.
+
+It's not that I don't want you guys to collaborate.
+
+It's just that it's more like an experience for what you guys do kind of get in depth, right?
+
+And learn yourself.
+
+Um, no, I'm not strict, like, you cannot talk to each other, but you can ask, but do not, like, gather and then do the project together and stuff like that.
+
+That's not gonna help you a lot, right?
+
+I'm not gonna police it very closely, but just don't try not to do it, right?
+
+Yeah.
+
+Okay, so, um, you can use any AI too.
+
+I believe in using AI too.
+
+The idea is for you to use.
+
+You write code, you don't write a code, you ask about, hey, how do I write this code?
+
+Boom.
+
+Go ahead.
+
+I don't care, right?
+
+The only thing I ask is that when you produce a report, don't ask Clara to, or whatever.
+
+ChatGPT will generate a whole report from script for you.
+
+Right?
+
+And basic yourself, again, you can use A, can you beauty primary language?
+
+You make it minds and stuff like that.
+
+That's fine.
+
+But if you are ChatGPT, you can generate a whole paper for you, then that's not fine, okay?
+
+So just use it sensibly, right?
+
+Any other questions?
+
+Yeah.
+
+Anything that you think is vital to the reproducing of...
+
+That makes it...
+
+Any other questions?
+
+So, would you care if we do something like cup parties just to have a way to document notes easily?
+
+I don't care.
+
+You can use anything you want.
+
+The only thing the only thing I ask is that don't generate the report from scratch with ChatGPT.
+
+Okay.
+
+Cool.
+
+That's fine.
+
+No, because I have a detector.
+
+Okay.
+
+All right?
+
+So dome, right?
+
+And he's not used to for you, right?
+
+Just try to go through the process. Know?
+
+Which track is more challenging?
+
+Um...
+
+I think you're asking which track is easier.
+
+I think it depends on you, right?
+
+Like, uh, if you are, like, a more like a system person, like an engineer, I think the Asian tribe is going to be a little bit easier.
+
+It's just hike, right?
+
+You just h, right?
+
+Uh, if you are thinking about novel improvement to existing technique, You probably need to possess some scientific capabilities, right?
+
+You reformulate something and so it's up to you.
+
+I can't say it's easier for you on which one is easier.
+
+You gotta decide.
+
+I don't know you well.
+
+I'm worried, um, I thought, or I'm not.
+
+Outcomes, results.
+
+The results.
+
+Because that's how the how the real world is gonna work, right?
+
+So you can go into Google.
+
+I used to, I work in Facebook for a long time.
+
+You can go to Google and Facebook and you can say, I work 50 hours, 6 hours a week and you don't produce nothing.
+
+The magic doesn't get.
+
+You can say, and you can...
+
+Why don't we have access to all eight?
+
+Today, just an outline of eight topics.
+
+So if you're interested in any one of it, then read up yourself before we even reach there.
+
+I guess that's the way it do.
+
+Are they Asian task?
+
+I think I saw like I know I saw I guess we were in there too.
+
+What if you wanted, like, combine it to, like, have an Asian, like, look at, like, the cost of, like, you're out and or, like, I think that's fine.
+
+Okay.
+
+I think that's fine.
+
+Just sign off for one.
+
+Turn off one.
+
+All right, then sign off, okay?
+
+Just...
+
+I put it there because it had both, I think, both, and Liz passed a public API, so I just, there's one more option for students to pick up.
+
+I mean, you can also think of something kind of interesting, right?
+
+Like, I love an agent that books are playful.
+
+That's a nightmare, right?
+
+Trying to go the point.
+
+You know, you have itinerans of them, and they make it useful, right?
+
+And that'll be stupid, right?
+
+If it's really useful, You know, just think of being used, you know, the agents use.
+
+Other questions?
+
+Well, part of the class be learning how to build agents, or that something you're expecting us to learn independently?
+
+Um...
+
+The class is gonna progress through eight topics, and every two to three weeks, we will have a coding assignment, so you're gonna learn from that.
+
+But at the end of the day, you probably have to have certain, uh, abilities already.
+
+Because these are great, graduate class.
+
+I know a lot of you are undergrads. Which is okay.
+
+I'm okay with that.
+
+But, uh, But when you guys ping me, I said, You know what you're getting into, right?
+
+So, uh, so, so you, you have some, you should have some ability to code up a agent.
+
+That is nothing.
+
+Listen, so, like, what was agent?
+
+I mean, it's just automation.
+
+It's really nothing, too.
+
+I mean, they put a fancy name on it.
+
+Right?
+
+It's just automation, right?
+
+It's just, uh, uh, there's a task and agent is going to carry the task through throughout.
+
+The difference today, and when I was growing up, was today there's LM.
+
+So your agent is most likely going to be a LN, but, you know, all of VLM, you know, which will study a little bit in this course.
+
+I have a quick question.
+
+Can you hear me Yes, sir.
+
+Uh, yeah, uh, so for for the final project, for the implementation track, when you say build an AI agent, are we expected to train and implement the AI model ourselves like I did in my last class using Python and Pythorch?
+
+Or are we using an existing LLM and building our agent around it?
+
+This thing is my expectation.
+
+There's no way you can train an LM.
+
+Come on.
+
+So that's why I was asking because I was thinking, trying to figure out what, because the list of projects that you have listed, if we were expected to create our own agent, that's a gigantic project.
+
+Um, you answered my question.
+
+Does that make sense?
+
+So building our agent around an existing LLM.
+
+Yes, that's right.
+
+Can you imagine?
+
+Yeah, yeah.
+
+If I want to do just for the heck of it, I want to spend the OS instance, usage maker, get a there, and then just use a rank database.
+
+I can.
+
+Or would that be outside the school?
+
+Uh, I think it broke up for, like, 10 seconds.
+
+Can you repeat?
+
+Yeah.
+
+Apologies.
+
+If I wanted to do something like, for example, to train the model or get things working, I would like to do some WS and just spin up a rank database and take care for the model that would be allowed.
+
+Yes, you can, yes.
+
+Okay, cool.
+
+That's actually it.
+
+Thank you.
+
+I think what you need to do is like, I said, drink, if you, if you, if you want to do the agent, show the path, show the path.
+
+Don't train your own LM, that's crazy.
+
+You never finish, of course.
+
+Right?
+
+Use Q1 if you want, whatever.
+
+If you want to pay money, buy some tokens from opening, whatever, right?
+
+It's, I think the gyro structure will be, you have some conversation, right?
+
+Grandma wants to make risotto. A while, right?
+
+The Asian, I mean, the album is pretty good this days, to be on, right?
+
+They, they tell, okay, you want to make risotto or 5 people, you need 5 cabbage.
+
+I'm at...
+
+But, like, you need 5 bags of rice and stuff like that, blah, blah, blah, blah.
+
+And they are very good at that.
+
+You try that now.
+
+And then the only thing is to hook up that bookflow, right, to get the Kroger.
+
+Trigger that thing or something like that, right?
+
+So and just make it easy to use.
+
+So I don't, I'm not expecting you guys to train on LLM or train light.
+
+I mean, of course, if you really want to get into it, you can train a VOA, right?
+
+Like a vision language action agent, which is much more challenging.
+
+I'm not expecting that.
+
+But if you if you do that, And it works very well.
+
+Then you probably get an A+ in the course, right?
+
+Your effort will be rewarded accordingly.
+
+But I'm not expecting them, right?
+
+One more question for the API, for the things that you listed there, like for Yelp, for example, are we expected to use the API primarily as a tool that the LLM agent calls during inference or are we also expected to use API data as part of evaluating or even improving the agent?
+
+I think that's a good question.
+
+So, depending on the agent you want to do, you probably also need to think about how to evaluate the agent in a very quantitative way, right?
+
+Qualitatively, of course, I mean, I can look at a, uh, this, for example, and say, ah, this, well, right?
+
+That's not going to work out well.
+
+So, that's why, as you think through the details, I think Ben, good question.
+
+You thought through the details.
+
+How do you evaluate your agent in a very quantitative way?
+
+Maybe you have to build a small evaluation data set.
+
+Perhaps, right?
+
+Different variation of the us.
+
+Maybe grandma want to make Rosato, grandma want to make Korean, marijuana, ramen, I don't know, right?
+
+So there's maybe a bunch of uh, evaluation data that you have to set up yourself and then you just kind of like, um, explain in the, in the, in the, in the, in the paper or report and say, that's what I did, and that's fine.
+
+Okay?
+
+And that's fine.
+
+Does that answer a question, Ben?
+
+I think, but we're not required to do that evaluation, though, right?
+
+You will have to do some form of quantitative evaluation.
+
+Okay.
+
+Right?
+
+And there's no one fixed strategy to it.
+
+It depends on what age engine.
+
+So it's a bit open-ended and meant to be, right?
+
+You're gonna design it, your agent, and you're going to design your own evaluations, and you're gonna report.
+
+I also want a guy to emphasize this, right?
+
+I think the whole point of this is to, for you guys to get into it, learn from that practical experience, and that's it.
+
+So, you know, we're not gonna be very strict in grading. Be honest.
+
+So I'm expecting most guys to get an A of this question.
+
+Yeah.
+
+So to kind of put an example of like measuring something quantitatively, like let's say we have this like voter agent that would be like trying to go through like the checkout process ourselves.
+
+Yes.
+
+Or like maybe like a, I guess, like a time to check out and then also like find your...
+
+Is that good?
+
+It's like if you are working in Google right now.
+
+And your boss comes to you and say, I need an agent at that point.
+
+How are you, how are you going to convince your boss is ready for before?
+
+Right?
+
+First, then there should be no bugs, right?
+
+Second, there should be no security issue.
+
+You're not going to take grandma's credit card and then run them.
+
+Right?
+
+Right?
+
+And then, I don't know, right, you could think through this, unfortunately, this course is not meant to be like system course. Even though the system is in it, but we're not going to teach the systematic way of coding.
+
+So if you go to meta, right, there's a land cost, the same kind of, you just came back from India from now.
+
+You know, there's a Len Kasa San Kasa, procedure.
+
+Actually, you didn't even do that.
+
+Right?
+
+Where they will run through all kinds of unit tests, system tests, blah, blah, blah, stress tests, and make it nothing wrong with it before the code can be, because it matter what they use it, they don't do team-based team centric code.
+
+You're checking the code, the whole company is using that code.
+
+Right?
+
+So they are very careful about this thing.
+
+But, um, so the point I'm trying to think is that if you are working in manner, you're working in Google, you're working in open air, how are you gonna convince your manager at this point?
+
+Um, I know it's a little bit open-ended, but it's okay as we go along, ask questions, right?
+
+We are not very strict on you have to do what this, or you have to do this, you have to do this, right?
+
+It's just making sure you guys go through the process, go through the experience, learn how to build these things, you're gonna run into some hiccups, maybe.
+
+Well, we'll we'll, you know, we'll work through it.
+
+Yeah Um, and and, you know, there's a lot different from an undergrad, uh, class where You, uh, you know, the assignment is deterministics, right?
+
+Usually, right?
+
+This is a little bit like you gotta think through, and that's how the real world works, right?
+
+Your manager come here and say, hey, I want this done.
+
+And he's like, okay.
+
+And then you think through and design and stuff.
+
+Okay.
+
+Any other questions?
+
+Okay, let's, uh, try to pile through, uh, the slides today.
+
+So, as I mentioned, AI noise systems, right?
+
+There's a lot of models out there, but a lot of time when you go into these big tech companies, for example, the models doesn't operate alone, right?
+
+There's always a database.
+
+There's always equal language that you are calling, you know, Mongol DB and stuff like that.
+
+People will get to sweet people, probably know all the states as well.
+
+If you have tap out, you know these things as well.
+
+And the world has changed a lot, right?
+
+These days everything kind of like touches AI more, right?
+
+The LMs and stuff like that, right?
+
+Um, So, so I think this course is very timely.
+
+Um, I think uh, students will learn uh, wide noise systems.
+
+So noise systems, right?
+
+We talk about noise systems, we talk about rag, right?
+
+Some students, I think Ben was mentioning, right, or something?
+
+We talk about the rack is heavily used in the industry. Heavily used, right?
+
+You have a database and then, uh, a knowledge base, and it contains all kinds of knowledge, right?
+
+So in meta, we have this huge noise crop.
+
+Right?
+
+Huge not as good.
+
+All the, you connected to Mary or, you know, your friends and stuff like that, blah, blah, blah, blah, huge.
+
+Um, no, stop, right?
+
+And they know what to recommend to you in your feed. Stuff about.
+
+So it's not just the AI mall.
+
+It not just the LLM, right?
+
+The LM is talking to the search engine.
+
+The LN is parking with this knowledge base and saying, hey, um, give me bands or give me a John's uh, uh, what he he hoveled on.
+
+Uh, recently, right?
+
+The fee that you have is on and stay there and look at, right?
+
+Maybe he's looking at a leather jacket.
+
+I don't know, right?
+
+Motorcycles, right?
+
+So there's always a system out there.
+
+And the reason that LM is solved, AIM always is solved, is not going to be sufficient in such production setting is because it's very hard to update the knowledge in LF.
+
+The other knowledge is what we call parametric knowledge.
+
+So you train a model and then, you know, it's a whole model of numbers, right?
+
+And then, um, So usually we call that parametric knowledge or, you know?
+
+Um, so a lot of these parametric models, they will actually talk to uh, uh, knowledge-based, uh, like coding agents, right?
+
+They actually always talk to another base of code, repository, GitHub, and stuff like that, right?
+
+Instagram, TikTok, recommendation system, personalization of E does the same thing as well.
+
+So the model, yeah, mall does not live alone.
+
+They live in conjunction with all these systems, noise systems, software.
+
+So this course is just to go through all different segment of this whole industrial systems.
+
+Okay?
+
+Of course, you guys know right, right?
+
+Everybody know what right is, right?
+
+So you have, like, you retrieve, right?
+
+So this flight is just trying to say like, hey, that's three products, I don't know, maybe there's four, five, six, seven, eight, nine, I don't know.
+
+Okay, we listed 3 here.
+
+Um, and rec, go retrieve.
+
+So, for example, yeah, grandma asked, I want to make any...
+
+Rosato for 5 person.
+
+Okay, fine, okay, let me represent, because the paramed, the LM actually is quite powerful.
+
+It probably has been trained on how to make risotto.
+
+I'm trying to think of something else.
+
+Okay, today, maybe you run surrender.
+
+Oh, okay, that maybe it's...
+
+Let me think of another example.
+
+Something happens today.
+
+All right?
+
+It's not training to that.
+
+Oh, yeah.
+
+Right?
+
+And I asked a question about that.
+
+That guy has to go.
+
+When, who here use ChatGPT, GPT?
+
+Only 4 or 5?
+
+Okay, not a lot, but I do use it.
+
+Okay?
+
+If you use ChatGPT, right?
+
+If you...
+
+Give you a very complex question.
+
+Or something very complex, right?
+
+Did you realize that it takes a long time to come back to you?
+
+That's because what happened is that it triggered the agent to glow and extra information, because they're not sure what to do.
+
+Okay?
+
+Those are kind of like a rack system, right?
+
+If you think about.
+
+Um, Now, of course, when you think about that scenario, what is interesting is that how do you know when to trigger an agent?
+
+That's actually kind of a nice, uh, research question, right?
+
+So there's things like self-reck, Z-Rack, that does that.
+
+They know when to trigger an agent take a task to actually help their law, right?
+
+So that's right.
+
+And then, of course, there's AI agent, there's Codex, right?
+
+They store their knowledge in repository, in GitHub, and things like that, and then you, the way the access is all listed yet, what's the output, and what, what feedback they're useful for, right?
+
+Because there's recommendations, which actually stores knowledge in the user history and stuff. Right?
+
+If you think about it, Google knows everything about you, most likely, right?
+
+Everyone knows everything about you.
+
+Meta knows everything about you, right?
+
+And now ChatGPT knows everything about you too. Right?
+
+So you have user history, right?
+
+A working definition.
+
+Okay, so, by the way, Sam, Sam, here, Sam.
+
+Sam is gonna be like a...
+
+He's my GRA, but he's actually gonna be a TA.
+
+Or for you. For this run.
+
+So, um, Sam works a lot in this sort of thing. Has' done internship at Meta.
+
+Um, I wish I'm many papers for 5 tier one episodes.
+
+So it has good experience.
+
+So, if you guys have any questions, you can ask him this as well.
+
+Okay?
+
+Anyway, he wrote all these slides.
+
+That's what I was trying to say.
+
+Um, so usually a modest systems will have the storage, right?
+
+The access methods, how do you use it, and then how do you update it?
+
+Now, on the update part of it, right, it's very, It's very obvious, right?
+
+Why you use this noise system?
+
+Because this noise system is very easily updated.
+
+But if you're going to update the LLM, there's a lot of cycles, right?
+
+So that's why most systems were, right?
+
+No, um...
+
+Where does the noise exist, right?
+
+Where does it live?
+
+Of course, you know that LM parametric model, the noise actually actually innovates itself.
+
+Um, This knowledge can manifest, if that's the right word, manifests, as embeddings, everybody in the way embedding this.
+
+I know.
+
+Everybody knows?
+
+Embedding?
+
+Nope.
+
+So, no.
+
+After you train a model, right?
+
+After you train them all, though, if you take a question or whatever input, and you run it through that mobile again, a forward pass, as we call it.
+
+It would trigger different parts of that model. Right?
+
+For the way you talk about moles.
+
+And those trigger, when you put it together in a vector, you guys know what vector is, I have Python back there, right?
+
+That represents the input.
+
+Okay, that's usually what we call embedding in a very abstract sense, all right?
+
+So, embedding, um, so when it, when noise live inside the mall, is embedding, but you, guess what?
+
+There's kind of shortcoming of.. This sort of knowledge.
+
+Obviously, it's not very explainable.
+
+It's not very different, right?
+
+Because there's just a bunch of numbers.
+
+0.251, blah, blah, blah, and then just, I don't know what it is, right?
+
+No, people have worked on spouse coding.
+
+They give meaning to the numbers, and we'll talk about that. In this course.
+
+In any case, inside a marvel, this knowledge live as embeddings, live as weight, and the way to read it is good, run, forward pass.
+
+You guys all know where the forward passes?
+
+All those are full pounds.
+
+I'm being very accommodating to undergrad because I want to make sure they also know what embeddings on the process, right?
+
+Sorry, forward process.
+
+But this trigger, sorry, this way of accessing knowledge, even though it's very fast, right?
+
+You get an input, it trigger the weight.
+
+I mean, some representation or somehow, right?
+
+It's very fast to use it.
+
+But it's very hard to change the knowledge inside.
+
+So, for example, if today, the LN is straight, done.
+
+Biden was the president.
+
+So the model, I think, by the way, the president, right?
+
+They say, oh, Trump won, right?
+
+Shit.
+
+The mother doesn't know Trump is a president. Anymore.
+
+So you want to update it, right?
+
+Now, you're saying, I'm gonna just tell him another trading badge that trumps the president or something, it doesn't work that way.
+
+He's going to get confused and stuff like that.
+
+And then you have to go through another cycle, redesigning the training and stuff, so you update and stuff.
+
+Um, so that is the, and then, and then, you know, it will, it probably could cause what we call hallucination, right?
+
+Um, for example, if you, I remember like 2 years ago when Ellen came out, I asked, I asked some question 1st to ChatGPT.
+
+Just to throw ChatGPT on.
+
+And then I asked, who's the 1st president of the United States?
+
+And I forgot what he said by some funny answer, right?
+
+So it's prone to hallucination, these moments, right?
+
+Fast forward 2 years now today.
+
+I really, I almost never see a host name.
+
+Exactly.
+
+I almost never see a listen.
+
+I think it fix that problem.
+
+I almost never see it.
+
+The knowledge can exist outside the model, obviously, right?
+
+In knowledge based, anyone here is database people.
+
+No, no doubt.
+
+Okay.
+
+Database is very interesting, right?
+
+So...
+
+But you guys say database class, no?
+
+So you know what the, the, the, the, details of God is, you know, right?
+
+So you have different normalized form and stuff like that, and, um, so that.
+
+So they live there, right?
+
+Mongolivi, you guys use Mongolivi and stuff like that?
+
+Okay.
+
+SQL, right?
+
+Run, move.
+
+So all see is live posters.
+
+Yeah, yeah.
+
+Exactly.
+
+The benefit of this, this, outside a mall, is obviously, they have very easy to update.
+
+You change.
+
+Traum is not a precedent.
+
+Immediately, that knowledge gets updated, right?
+
+It doesn't need to doesn't need to retrain them all that stuff though, all right?
+
+Of course, the cost, the cost, the cost of doing this is why you got to maintain the database, uh, stores, stuff like that, all right?
+
+So that is the cons of, you know, external to the modes, other systems.
+
+Well, so this one, so today we are just going to go through very high level, just to give you a sense of what you're going to expect from a course, where you're going to live, right?
+
+The noise lifecycle, very simple, your quiet data, and stuff like that.
+
+And then you represent them, right?
+
+And restore it and blah, blah, blah.
+
+You can be touring.
+
+Um, every steps here, it's not simple.
+
+Okay?
+
+So when you go down the industry, you'll realize that acquiring data is not simple.
+
+Why?
+
+Because this privacy law.
+
+Remember, Facebook was fine, $2000000 or something, $50000000 and then Zach called a town hall meeting.
+
+We will find $2000000000 or something like that.
+
+Right?
+
+So, blah, right?
+
+So privacy law.
+
+And if the data needs to be annotated, They got it.
+
+When you go down and work in the industry and work, understand this, right?
+
+It is not simple. Each step, right?
+
+And then you're gonna represent all these vectors.
+
+It takes compute to calculate the fact, right?
+
+You run the whole pass, stuff.
+
+If you are like Google, you're like, uh, ChatGPT, open the eyes, stuff, you got gazillions data.
+
+So if you're gonna represent everybody as a vector, Even though one point pass is .001 second, when you have 100000000 data record, guess what?
+
+That takes forever, right?
+
+So, so, so every step here is not simple.
+
+Even though it reached simple, it's not simple, right?
+
+For example, right, if I, let's say I built my database, right?
+
+And my database has 50000000000 records.
+
+And then I have a query, right?
+
+And I want to do right.
+
+I want to retreat.
+
+How would you retrieve?
+
+Do you take your query and match 5 trillion records?
+
+That'll take how long?
+
+Wherever, right?
+
+So what they do is that they take is 5 trillion.
+
+Some technique, they do that.
+
+They think it's 5 trillion.
+
+They organize them in the clusters of 10,000 trip, 10,000 customers.
+
+And then waving that $10,000 cost, they organize it another 10,000 for another, whatever, 1000 pounds.
+
+So now you're not trying to match against 5 trillion.
+
+You're matching against 10,000 classes first.
+
+You go into that clusters, then you match again, stuff like that, right?
+
+So they have different techniques to make this sort of excess fast, right?
+
+Um, and then other stuff, right?
+
+And reason generates stuff like that.
+
+Okay.
+
+So these are the eight topics.
+
+We're gonna go through dense representation, in dense representation, our contrast, a little bit with spouse representation.
+
+In essence, a sparse representation, so that you go out of this course, people talk to you about dance and spas, you know what it is, all right?
+
+Don't embarrass me.
+
+All right, well, I got it, right?
+
+So, Spas representation is, there's a lot of zeros.
+
+The spot.
+
+But what does it mean that you have a lot of zeros, right?
+
+So in spas representation of spasse coding, usually, what happens is that, Each of this, in that vector, when there's a lot of zeros, each of this position in a vector represents what they call a feature.
+
+Each feature represents something.
+
+What that means is, like, for example, by just using a very stupid example, right?
+
+So maybe feature number 15 represents the word man.
+
+Feature number 16, represent the word woman.
+
+Blah, blah, blah, blah, right?
+
+So in a document, For tax, a man is running on the street or whatever, right?
+
+The feature represents man, we have one count.
+
+Right?
+
+And so and so forth, right?
+
+And that represents the documents, right?
+
+But there's gonna be a lot of zeros, because there's so many, because the vocabulary is huge, right?
+
+So that's fast coding.
+
+Not very practical because then you have to build that vocabulary.
+
+You got to make sure that vocabulary captures every single feature.
+
+But that's called spots building.
+
+And spots coding is, the nice thing about spots coding is well.
+
+So there's a lot of zeros.
+
+So let's say a vector is one trillion size.
+
+There's a lot of zeroes.
+
+What's the advantage of past cooking?
+
+You don't have to represent the zeros.
+
+You just need to say, in this, what other feature that has nonzill?
+
+Make sense?
+
+Okay, so...
+
+So 1st topic, we'll talk about dense representation, and then we talk about knowledge graph.
+
+Um, Somebody reason.
+
+I'll go through, there's a few slides down that go through office.
+
+So by reasoning, retrieval recommendation in our systems.
+
+Sorry, yeah, agents, and then knowledge updating 8 topics.
+
+Okay?
+
+Um There's no mid-term exam, so you don't need to memorize, just kind of focus on understanding, right?
+
+And then, and then, you know, Practice it through your product, okay?
+
+Yes, I understand.
+
+Okay, I'm gonna run through this very quickly because we're gonna do it again on Thursday, right?
+
+So then's representation is like dance.
+
+Every feature, every position and factor is some numbers. To represent, right?
+
+A lot of times you use contrustive learning, which is like, um, contrustive learning is like, um, you have hair, examples.
+
+So a pair is like, um, um, It was a good example.
+
+Okay.
+
+This picture of a cat is a black cat.
+
+This picture of a cat is a white cat.
+
+They are still cats, so they are positive.
+
+This picture of a cat, a picture of a dog, despair.
+
+Then negative, because this cat is not a dog, right?
+
+And blah, blah, blah.
+
+So you have a lot of this example, it's called contrastive.
+
+Okay.
+
+So you train the model to trigger in a way where if I show a cat or a dog, it's gonna trigger something.
+
+You showed a cat, a cat, is like, oh, this is gonna be the same thing. Same.
+
+So that's called contrastive learning.
+
+There's also work done in negative selection, sometimes it's more like, It's not negative mining pattern, Morgan.
+
+A negative mining could be part of uh, negative selection because um, People have found that if you give it very hard, Negative pair, it makes the Marvel work better.
+
+So if you give it a dog and a cat, an adult looks a lot like a cat, that's what we call a hot negative sample, and it makes the model learn how to learn better, right?
+
+So negative selection, or sometimes hot negative mining, essentially. Right?
+
+We're going to learn about encoder architecture, dual towers.
+
+I don't know if you guys know about these things or not, but dual towers or Sarah has been working on using one embedded for all modalities. Audio, video, image.
+
+What have you, text and stuff like that, right?
+
+So we go through that as well.
+
+Blah, blah, blah.
+
+And the self- supervision was interesting in self-supervision. Is like self-supervision.
+
+Like there's no annotation needed.
+
+So for example, if you example, take an image of a dog, I blur that image.
+
+Okay?
+
+And I want the model, when it takes the dog, the clean image as an input, And the blood image version of the image of the same image, as simple, I want the model to behave in the same.
+
+All right, makes sense.
+
+So this is like a self-supervision.
+
+No supervision needed, but you can train them all like that, right?
+
+And then you have scaring the encoding and stuff like that.
+
+I think same works a lot on that.
+
+This day is LM, right?
+
+You can use it to produce a representation of info, right?
+
+As I was mentioning, it triggered a bit of stuff.
+
+But maybe you can make him think 1st in the pop first, right?
+
+For example, how do you do 3 +2?
+
+You make him playing first, make them all thing, you trigger them all sweets by making him think.
+
+Then you say, give me a representation of 5 past three.
+
+Right?
+
+And what's same as far is that that makes the mobile.
+
+But much better, right?
+
+So it's got stink, then, and that, which is this thing.
+
+Okay.
+
+And then we're gonna touch noise graph.
+
+There's many knowledge, God, and we'll talk about it in more details in the next few classes, but there are noise grabs where, you know, I, um, Sam, Lives in the same household as Jack.
+
+So, um, this 2 should have similar representation. With some kind of delta, correct?
+
+The delta could be the translation, could be a rotation, and stuff like that.
+
+So this is what this guy does, right?
+
+And you have things like MBF Net, where you're trying to predict links between 2 nodes, right?
+
+So for example, in Facebook, I want to predict whether Jack and Mary is going to be good for her.
+
+Okay?
+
+Even though they don't have a link right now in their uh, nostra for now, I want to know whether they're going to be good friends, right?
+
+And I'm given that, whereas I'm, well, well, we'll do it.
+
+You guys know how the tourist is, right?
+
+Response between Jack, did I say Jack?
+
+And then you figure out the shortest pop and then you say, is there a chance that they can be a friend?
+
+So this is why we got to link prediction problem in knowledge growth and things like that.
+
+All right?
+
+And then you're gonna, We're gonna talk about a little bit about symbolic and neurosymbolic reasoning, which this is a very complex topic, I think.
+
+So essentially you're saying, A giraffe is a mammal.
+
+A mammal is an animal.
+
+So a giraffe is the network.
+
+Very simple example, right?
+
+But all this.. Probability so that you can do backup data after that you learned that neurosymbolic representation.
+
+So. About, we should weapon.
+
+This one is...
+
+So, like, you're gonna retrieve something, right?
+
+To if you're like, right?
+
+So you reach, so say, uh, um, I ask LPDTD. The weather today, land they're going to be like today.
+
+Because you, you know, the weather data today, they're going to rain today, so you, uh, so that's the, that's the return, of course, well, where you have approximate searching, then you need to be very efficient.
+
+Impressing, the representation of big five, right?
+
+Um, so recently, hey, that's correct.
+
+Hey, that's wrong. And different things.
+
+I'm going to go to the details here because we're going to talk about it in the next few weeks, actually.
+
+And then we have recommendation systems with, you know, looking at things like collaborative, filtering.
+
+Like, for example, if you have always local cat, you always look at more cycle, right?
+
+So the matrix with you, John, a motorcycle has a very high school.
+
+So then, you know, um, Um, different things, right?
+
+And then you can train a mall to actually actually given a persona. Predict like um, ID of things that you'll be interested in, for example, right?
+
+So a little bit on the auto-regressive generative side as well.
+
+So we're looking at this, hold on.
+
+And we will look at it.
+
+Uh, I think ages is very interesting.
+
+I think, I think like, uh, if you guys, any one of you here is wanting to do a scientific paper, right?
+
+I, I, that's my personal opinion.
+
+I think, like, there's there's gonna be so many agents in the next 10 years.
+
+And A lot of these ages are gonna be very despair, like a better, despair.
+
+Meaning like different ecosystems, different API and stuff like that.
+
+A very interesting question is how do we unify these agents?
+
+Together.
+
+Right?
+
+So let's say John Rowe wrote an age and then the agent depends on react or whatever.
+
+And then Mary wrote an agent and that depends on just vanilla, I thought.
+
+Wow.
+
+And then the API is different.
+
+How do we, it's gonna be a lot of these guys, right?
+
+Because the guy, the guy is sitting in the basement, gonna write some agents to file tax returning demo.
+
+And there's one agent, right?
+
+There's going to be a lot of units.
+
+And how do we organize all the agents yet?
+
+I think that's, so agent is very system engineering, yes.
+
+But there's also scientific problems.
+
+Because you can imagine what was that?
+
+So many agents.
+
+How do we discover these agents?
+
+How did I work together?
+
+How we how we can unify them, right?
+
+So I'll give you an example, right?
+
+Many years ago when I was an undergrad, internet just came out.
+
+I'm dating myself, but internet just came out not too long ago at that point.
+
+And the protocol is not quite agreed upon at that point.
+
+But people come up with VIP, UGT, blah, blah, blah, blah, blah, and that's sunny, the whole internet that unified around all this protocol.
+
+Right?
+
+So when you talk about all these diverse agents, maybe the same thing is gonna happen.
+
+And it could be a very interesting project to do, you know?
+
+So think about that.
+
+And then, of course, we need updated knowledge, right?
+
+Because the weather changes everything.
+
+The president changes every four years.
+
+What have you, right?
+
+Whatever, right?
+
+So we're gonna talk about knowledge of things.
+
+And that's it.
+
+So, those are the things we're gonna cover in this force.
+
+Um, the grading side, you guys understand, 10%, which you review.
+
+You should get full 10% on that unless you're a lady. .
+
+Coding assignment is gonna be every two, 3 weeks, so it's not super heavy.
+
+So, and then hopefully again, very high score, right?
+
+Over there.
+
+And then you'll find a temp price.
+
+Okay, that's the grading part.
+
+That's the topic is going to cover.
+
+And then every week we'll come back here and then we'll discuss a few top books.
+
+There's going to be assignment here.
+
+This week, assignment is just gonna read, just do a literal review of right.
+
+Just go through them.
+
+Go, go to your favorite AI, such engine, whatever, search, right?
+
+Then produce a two-pitch PDF, you know, do a survey of all these direct technologies, and then submit it to PDF.
+
+Maximum 2 page.
+
+Give me one page, I don't care.
+
+Right.
+
+Questions?
+
+No, I agree.
+
+Is the time that you just talked about the one that's listed...
+
+Assignment 0, that is for financial assistantship, is due Thursday.
+
+This one is new September 1st.
+
+Oh, okay, okay.
+
+I got confused.
+
+I thought they were the same one.
+
+No, no, no.
+
+Um, and, um, this, this two assignments should be easy.
+
+It's just reading.
+
+It's just reading.
+
+Is the, is the assignment that you just showed on, on the, uh, presentation, uh, also on uh, web courses?
+
+No, yeah, I'm gonna edit.
+
+Uh-huh.
+
+Okay, okay, that makes sense now that I didn't see it.
+
+Thank you.
+
+Thank you, ma'am.
+
+Any other questions?
+
+So, if I understand...
+
+Yeah, I'm gonna allow to combine any set of tools that we want to provide.
+
+I'm good with opening AI, I can use open AI if I'm good with rock, I can use rock.
+
+Yes.
+
+Right?
+
+Write the document myself and English, 1st language, so it's gonna have errors, so I can give it to one of those small polish it up. .
+
+Yes.
+
+Perfect.
+
+All right.
+
+Other questions?
+
+If not, I'm gonna turn out Zoom.
+
+Okay, have a good day.
+
+Bye.
+
+Thank you.
+
+Bye.
