@@ -28,6 +28,10 @@ delegation guide lives in `docs/DELEGATION.md`.
 - The agent MUST cite evidence IDs and MUST NOT state causal claims.
 - Floci results are integration evidence only. They MUST NOT stand in
   for real Bedrock or real AWS evidence.
+- A change to a file in `.claude/agents/` MUST ship as its own pull
+  request. The PR body MUST link the wiki entry that records the
+  triggering incident. An agent MUST NOT edit its own definition
+  outside this flow.
 
 ## Wiki
 

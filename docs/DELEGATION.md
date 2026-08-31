@@ -53,6 +53,19 @@ spawn:
 
 A new spawn starts cold; a follow-up message does not.
 
+## Retro: how the agents learn
+
+The agent files stay thin and stable. Lessons land in three layers:
+
+1. **Facts** go in the wiki. Every spawn reads `CLAUDE.md` and the wiki,
+   so a recorded lesson reaches every future agent.
+2. **Behavior** changes an agent file. After a phase merges, tech-lead
+   proposes the diff as its own pull request that links the wiki entry
+   for the triggering incident. You review and merge. An agent MUST NOT
+   edit its own definition outside this flow.
+3. **Mechanical rules** become hooks in `.claude/settings.json`. A hook
+   enforces a rule regardless of any prompt.
+
 ## Review and merge
 
 1. Each agent delivers a branch and a pull request. A PR MUST NOT add

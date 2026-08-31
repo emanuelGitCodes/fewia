@@ -66,3 +66,11 @@ Closed the three review findings on the Phase 1 skeleton: uvicorn now
 reloads in Compose so the bind mount takes effect, CI push runs only on
 `main`, and revision `0002` adds `uq_predictions_run_user_date` on
 `predictions`.
+
+## 2026-08-31 — Decision 0005: human-gated agent learning
+
+Recorded how the agents learn: facts in the wiki, behavioral lessons
+through dedicated agent-file PRs, mechanical rules as hooks. Added the
+retro step to tech-lead, the rule to `CLAUDE.md`, and the layer guide
+to `docs/DELEGATION.md`. Decision:
+[decisions/0005-human-gated-agent-learning.md](decisions/0005-human-gated-agent-learning.md).
