@@ -42,6 +42,7 @@ def test_default_generation_has_a_stable_date_range() -> None:
     first_dates = {row.observation_date for row in first.finance}
     second_dates = {row.observation_date for row in second.finance}
 
+    assert DEFAULT_END_DATE == date(2026, 6, 30)
     assert first_dates == second_dates
     assert min(first_dates) == DEFAULT_END_DATE - timedelta(days=89)
     assert max(first_dates) == DEFAULT_END_DATE
