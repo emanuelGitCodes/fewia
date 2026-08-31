@@ -1,0 +1,12 @@
+.git/
+.claude/
+.venv/
+__pycache__/
+*.pyc
+.env
+docs/
+wiki/
+node_modules/
+frontend/
+backend/artifacts/
+graphify-out/
