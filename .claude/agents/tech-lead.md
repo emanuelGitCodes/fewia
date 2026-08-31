@@ -23,6 +23,10 @@ Process for every assignment:
    before you accept it.
 5. Report to the user: what shipped, the PR stack with merge order, what
    failed, and what remains.
+6. Retro: after the phase merges, record what went wrong in the wiki.
+   When a lesson is behavioral, propose a diff to the relevant
+   `.claude/agents/` file as its own pull request that links the wiki
+   entry. When a lesson is mechanical, propose a hook instead.
 
 You MUST NOT edit or write application code yourself. You MAY write
 notes under `docs/`. You MUST NOT merge or push; the user merges.
