@@ -8,8 +8,10 @@ from conftest import RowSeeder, UserSeeder
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.tools import compare as compare_tool
 from app.tools.base import ToolError
 from app.tools.compare import compare_periods
+from app.tools.health import HealthContext, get_health_context
 
 
 def test_compare_drops_empty_child_sources(
@@ -46,7 +48,7 @@ def test_compare_returns_an_empty_source_when_all_children_are_empty(
     assert result.source == ""
 
 
-def test_compare_evidence_id_does_not_order_the_two_periods(
+def test_compare_evidence_id_orders_the_two_periods_by_start_date(
     session: Session, seed_user: UserSeeder
 ) -> None:
     user_id = seed_user()
@@ -58,13 +60,12 @@ def test_compare_evidence_id_does_not_order_the_two_periods(
         (date(2026, 7, 1), date(2026, 7, 31)),
     )
 
-    assert result.evidence_id == "compare:user-1:2026-08-01..2026-07-31"
+    assert result.evidence_id == "compare:user-1:2026-07_vs_2026-08"
 
 
-def test_compare_evidence_id_collides_for_two_january_periods(
+def test_compare_evidence_id_distinguishes_two_january_subranges(
     session: Session, seed_user: UserSeeder
 ) -> None:
-    """The ID does not distinguish the two periods."""
     user_id = seed_user()
 
     result = compare_periods(
@@ -74,7 +75,26 @@ def test_compare_evidence_id_collides_for_two_january_periods(
         (date(2026, 1, 16), date(2026, 1, 31)),
     )
 
-    assert result.evidence_id == "compare:user-1:2026-01"
+    assert (
+        result.evidence_id
+        == "compare:user-1:2026-01-01..2026-01-15_vs_2026-01-16..2026-01-31"
+    )
+
+
+def test_compare_evidence_id_does_not_use_one_period_form(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    user_id = seed_user()
+
+    result = compare_periods(
+        session,
+        user_id,
+        (date(2026, 8, 1), date(2026, 8, 31)),
+        (date(2026, 9, 1), date(2026, 9, 30)),
+    )
+
+    assert result.evidence_id == "compare:user-1:2026-08_vs_2026-09"
+    assert result.evidence_id != "compare:user-1:2026-08"
 
 
 def test_compare_calculates_deltas_from_period_a_to_period_b(
@@ -167,38 +187,67 @@ def test_compare_concatenates_warnings_in_child_order(
         "missing_days",
         "missing_days",
     ]
-    assert result.warnings[0].detail["day_count"] == "31"
-    assert result.warnings[1].detail == {"columns": "stress_score"}
-    assert result.warnings[2].detail["day_count"] == "31"
-    # The two period B warnings are byte-identical.
-    # Assert the count and position, not identity.
-    assert [warning.detail["day_count"] for warning in result.warnings[3:]] == [
-        "30",
-        "30",
+    assert result.warnings[0].detail == {
+        "record_count": "30",
+        "day_count": "31",
+        "period": "a",
+        "domain": "health",
+    }
+    assert result.warnings[1].detail == {
+        "columns": "stress_score",
+        "period": "a",
+        "domain": "health",
+    }
+    assert result.warnings[2].detail == {
+        "record_count": "30",
+        "day_count": "31",
+        "period": "a",
+        "domain": "finance",
+    }
+    assert [warning.detail for warning in result.warnings[3:]] == [
+        {
+            "record_count": "28",
+            "day_count": "30",
+            "period": "b",
+            "domain": "health",
+        },
+        {
+            "record_count": "28",
+            "day_count": "30",
+            "period": "b",
+            "domain": "finance",
+        },
     ]
 
 
-def test_compare_period_summaries_mix_health_evidence_with_finance_values(
+def test_compare_period_summaries_cite_health_and_finance_values(
     session: Session,
     seed_finance: RowSeeder,
     seed_health: RowSeeder,
     seed_user: UserSeeder,
 ) -> None:
-    """The summary mixes a health evidence ID with a finance value."""
     user_id = seed_user()
     period_a = (date(2026, 8, 1), date(2026, 8, 31))
     period_b = (date(2026, 9, 1), date(2026, 9, 30))
-    seed_health(user_id, *period_a)
+    seed_health(user_id, *period_a, skip_days={date(2026, 8, 31)})
     seed_finance(user_id, *period_a)
     seed_health(user_id, *period_b)
-    seed_finance(user_id, *period_b)
+    seed_finance(user_id, *period_b, skip_days={date(2026, 9, 30)})
 
     result = compare_periods(session, user_id, period_a, period_b)
 
-    assert result.period_a.evidence_id == "health:user-1:2026-08"
+    assert result.period_a.health_evidence_id == "health:user-1:2026-08"
+    assert result.period_a.health_record_count == 30
+    assert result.period_a.finance_evidence_id == "finance:user-1:2026-08"
+    assert result.period_a.finance_record_count == 31
     assert result.period_a.total_spending == 3100.0
-    assert result.period_b.evidence_id == "health:user-1:2026-09"
-    assert result.period_b.total_spending == 3000.0
+    assert result.period_b.health_evidence_id == "health:user-1:2026-09"
+    assert result.period_b.health_record_count == 30
+    assert result.period_b.finance_evidence_id == "finance:user-1:2026-09"
+    assert result.period_b.finance_record_count == 29
+    assert result.period_b.total_spending == 2900.0
+    assert "evidence_id" not in result.period_a.model_dump()
+    assert "record_count" not in result.period_a.model_dump()
 
 
 def test_compare_period_summary_record_count_comes_from_health(
@@ -215,7 +264,50 @@ def test_compare_period_summary_record_count_comes_from_health(
 
     result = compare_periods(session, user_id, period_a, period_b)
 
-    assert result.period_a.record_count == 31
+    assert result.period_a.health_record_count == 31
+    assert result.period_a.finance_record_count == 30
+
+
+def test_compare_marks_warnings_without_mutating_child_warnings(
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    seed_finance: RowSeeder,
+    seed_health: RowSeeder,
+    seed_user: UserSeeder,
+) -> None:
+    user_id = seed_user()
+    period_a = (date(2026, 8, 1), date(2026, 8, 31))
+    period_b = (date(2026, 9, 1), date(2026, 9, 30))
+    seed_health(user_id, *period_a, skip_days={date(2026, 8, 31)})
+    seed_finance(user_id, *period_a, skip_days={date(2026, 8, 31)})
+    health_children: list[HealthContext] = []
+
+    def track_health(
+        child_session: Session,
+        child_user_id: int,
+        start_date: date,
+        end_date: date,
+    ) -> HealthContext:
+        health = get_health_context(child_session, child_user_id, start_date, end_date)
+        health_children.append(health)
+        return health
+
+    monkeypatch.setattr(compare_tool, "get_health_context", track_health)
+
+    result = compare_tool.compare_periods(session, user_id, period_a, period_b)
+
+    assert health_children[0].warnings[0].detail == {
+        "record_count": "30",
+        "day_count": "31",
+    }
+    assert result.warnings[0].detail["period"] == "a"
+    assert result.warnings[0].detail["domain"] == "health"
+    assert result.warnings[1].detail["period"] == "a"
+    assert result.warnings[1].detail["domain"] == "finance"
+    assert result.warnings[2].detail["period"] == "b"
+    assert result.warnings[2].detail["domain"] == "health"
+    assert result.warnings[3].detail["period"] == "b"
+    assert result.warnings[3].detail["domain"] == "finance"
 
 
 def test_compare_route_matches_the_tool(
@@ -313,7 +405,45 @@ def test_compare_route_reports_an_invalid_period_b_range(client: TestClient) -> 
     assert response.json()["error"]["code"] == "invalid_range"
 
 
-def test_compare_tool_reports_an_unknown_user(session: Session) -> None:
+def test_compare_validates_both_ranges_before_checking_the_user(
+    session: Session,
+) -> None:
+    with pytest.raises(ToolError) as caught:
+        compare_periods(
+            session,
+            999,
+            (date(2026, 8, 1), date(2026, 8, 31)),
+            (date(2026, 9, 2), date(2026, 9, 1)),
+        )
+
+    assert caught.value.code == "invalid_range"
+    assert caught.value.status_code == 422
+
+
+def test_compare_calls_require_user_itself(
+    session: Session, monkeypatch: pytest.MonkeyPatch, seed_user: UserSeeder
+) -> None:
+    user_id = seed_user()
+    checked_user_ids: list[int] = []
+
+    def track_user(_: Session, checked_user_id: int) -> None:
+        checked_user_ids.append(checked_user_id)
+
+    monkeypatch.setattr(compare_tool, "require_user", track_user)
+
+    compare_tool.compare_periods(
+        session,
+        user_id,
+        (date(2026, 8, 1), date(2026, 8, 31)),
+        (date(2026, 9, 1), date(2026, 9, 30)),
+    )
+
+    assert checked_user_ids == [user_id]
+
+
+def test_compare_reports_an_unknown_user_after_validating_ranges(
+    session: Session,
+) -> None:
     with pytest.raises(ToolError) as caught:
         compare_periods(
             session,

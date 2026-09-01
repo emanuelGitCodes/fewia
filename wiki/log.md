@@ -114,3 +114,9 @@ calendar month keeps the `health:user-1:2026-08` shorthand from the MVP
 plan. Every other range uses `health:user-1:2026-07-15..2026-08-04`.
 `build_evidence_id` in `backend/app/tools/base.py` is the only writer.
 Decision: [decisions/0007-evidence-id-format.md](decisions/0007-evidence-id-format.md).
+
+## 2026-09-01 — Compare evidence preserves both periods
+
+Updated `compare_periods` to sort and retain both evidence spans. Each
+period summary now cites its health and finance values separately.
+Comparison warnings now identify their period and domain.
