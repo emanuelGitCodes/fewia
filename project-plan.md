@@ -1,9 +1,10 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Status**: Phase 0 and Phase 1 are complete
+> **Status**: Phase 0, Phase 1, and Phase 2 are complete
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
-> [wiki/phases/phase-1.md](wiki/phases/phase-1.md)).
-> Execution starts at Phase 2. `wiki/` records work and decisions; an
+> [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
+> [wiki/phases/phase-2.md](wiki/phases/phase-2.md)).
+> Execution starts at Phase 3. `wiki/` records work and decisions; an
 > executor MUST read `CLAUDE.md` and `wiki/index.md` before starting.
 > The delegation sections assume Claude Code (Agent tool, skills,
 > worktrees); another executor follows the phases, deliverables, and
@@ -87,7 +88,13 @@ the GitHub Actions workflow. CI passes on `main`. Record:
 
 Verify: `docker compose up` → `/healthz` returns 200; `alembic upgrade head` succeeds; CI green.
 
-## Phase 2 — Synthetic data  *(owner: ml-dev)*
+## Phase 2 — Synthetic data ✅ COMPLETE  *(owner: ml-dev)*
+
+Completed 2026-09-01. Three stacked branches shipped through pull
+requests #10, #11, and #12 and sit on `main` at `4e47640`: the typed
+records, the seeded generator, and the loader with its CLI. Two runs
+with seed 42 write identical rows. CI passes on `main`. Record:
+[wiki/phases/phase-2.md](wiki/phases/phase-2.md).
 
 - Seeded generator (`app/synth/`): 4 profiles × 90 days, weekday effects, noise, missing records, outliers (MVP doc §5). Dataset version string stored in `source` columns.
 - CLI entry point: `python -m app.synth --seed 42 --days 90`.

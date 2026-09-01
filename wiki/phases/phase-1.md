@@ -80,7 +80,10 @@ Pull request #5 corrected the state. It merged `feat/phase1-ci` into
 equals the tree of the stack tip.
 
 A stack MUST retarget each child pull request to `main` after the
-parent merges. `gh pr merge` does this retarget by itself.
+parent merges. GitHub does this by itself only when the parent's head
+branch is deleted, so an executor MUST check the base of every child
+before it merges the child. Phase 2 met this case again; see
+[phase-2.md](phase-2.md).
 
 ## Open items
 
