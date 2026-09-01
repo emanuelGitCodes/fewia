@@ -101,3 +101,8 @@ identity sequence behind, and `--end-date` defaulted to `date.today()`.
 Merging #11 with `--delete-branch` deleted the base of #12 and closed
 it; recovery restored the branch and retargeted #12. Details in
 [phases/phase-2.md](phases/phase-2.md).
+
+## 2026-09-01 — Synthetic environment generator coverage
+
+Added aggregate tests for profile-day rows, stable location types,
+venue-count variation, and nonnegative integer counts.
