@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.deps import get_session
+from app.tools.compare import PeriodComparison, compare_periods
 from app.tools.environment import EnvironmentContext, get_environment_context
 from app.tools.finance import FinancialContext, get_financial_context
 from app.tools.health import HealthContext, get_health_context
@@ -45,3 +46,21 @@ def read_environment_context(
 ) -> EnvironmentContext:
     """Return the environment context of one user for one date range."""
     return get_environment_context(session, user_id, start_date, end_date)
+
+
+@router.get("/compare")
+def read_period_comparison(
+    user_id: int,
+    period_a_start: date,
+    period_a_end: date,
+    period_b_start: date,
+    period_b_end: date,
+    session: Annotated[Session, Depends(get_session)],
+) -> PeriodComparison:
+    """Return the comparison of two date ranges for one user."""
+    return compare_periods(
+        session,
+        user_id,
+        (period_a_start, period_a_end),
+        (period_b_start, period_b_end),
+    )
