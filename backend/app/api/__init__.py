@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.deps import get_session
+from app.tools.environment import EnvironmentContext, get_environment_context
 from app.tools.finance import FinancialContext, get_financial_context
 from app.tools.health import HealthContext, get_health_context
 
@@ -33,3 +34,14 @@ def read_financial_context(
 ) -> FinancialContext:
     """Return the financial context for one user and one date range."""
     return get_financial_context(session, user_id, start_date, end_date)
+
+
+@router.get("/environment")
+def read_environment_context(
+    user_id: int,
+    start_date: date,
+    end_date: date,
+    session: Annotated[Session, Depends(get_session)],
+) -> EnvironmentContext:
+    """Return the environment context of one user for one date range."""
+    return get_environment_context(session, user_id, start_date, end_date)
