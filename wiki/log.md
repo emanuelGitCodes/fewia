@@ -88,3 +88,16 @@ Decision:
 Added versioned records, a seeded generator, a PostgreSQL loader, and a
 CLI. With seed 42, 90 days, and end date 2026-06-30, the loader writes
 4 users, 360 finance rows, 360 environment rows, and 341 health rows.
+
+## 2026-09-01 — Phase 2 merged to main
+
+Pull requests #10, #11, and #12 put the synthetic data stack on `main`
+at `4e47640`. CI passed on each pull request and on `main`. Two runs of
+`python -m app.synth --seed 42 --days 90` wrote identical rows, so the
+Phase 2 check holds. Codex wrote the code and Claude verified it
+through three rounds of findings. Mutation testing found two defects
+that ruff, mypy, and the tests all passed: the loader left the `users`
+identity sequence behind, and `--end-date` defaulted to `date.today()`.
+Merging #11 with `--delete-branch` deleted the base of #12 and closed
+it; recovery restored the branch and retargeted #12. Details in
+[phases/phase-2.md](phases/phase-2.md).
