@@ -63,6 +63,85 @@ def test_row_counts_and_missing_health_share() -> None:
     assert 0.02 <= missing_share <= 0.10
 
 
+def test_environment_rows_cover_each_profile_and_day() -> None:
+    environment = _dataset(42).environment
+    profile_user_ids = {profile.user_id for profile in PROFILES}
+    rows_by_user = {
+        user_id: [row for row in environment if row.user_id == user_id]
+        for user_id in profile_user_ids
+    }
+    expected_dates = {END_DATE - timedelta(days=offset) for offset in range(DAYS)}
+
+    assert {row.user_id for row in environment} == profile_user_ids
+    assert all(len(rows) == DAYS for rows in rows_by_user.values())
+    assert all(
+        {row.observation_date for row in rows} == expected_dates
+        for rows in rows_by_user.values()
+    )
+
+
+def test_environment_location_type_is_stable_per_profile() -> None:
+    environment = _dataset(42).environment
+    location_types_by_user = {
+        profile.user_id: {
+            row.location_type for row in environment if row.user_id == profile.user_id
+        }
+        for profile in PROFILES
+    }
+
+    assert location_types_by_user == {
+        1: {"urban"},
+        2: {"suburban"},
+        3: {"urban"},
+        4: {"suburban"},
+    }
+
+
+def test_environment_venue_counts_vary_by_location() -> None:
+    environment = _dataset(42).environment
+    profile_user_ids = [profile.user_id for profile in PROFILES]
+    urban_user_ids = {1, 3}
+    suburban_user_ids = {2, 4}
+    venue_counts = {
+        "park_count": {
+            user_id: [row.park_count for row in environment if row.user_id == user_id]
+            for user_id in profile_user_ids
+        },
+        "gym_count": {
+            user_id: [row.gym_count for row in environment if row.user_id == user_id]
+            for user_id in profile_user_ids
+        },
+        "grocery_store_count": {
+            user_id: [
+                row.grocery_store_count for row in environment if row.user_id == user_id
+            ]
+            for user_id in profile_user_ids
+        },
+        "restaurant_count": {
+            user_id: [
+                row.restaurant_count for row in environment if row.user_id == user_id
+            ]
+            for user_id in profile_user_ids
+        },
+    }
+
+    for counts_by_user in venue_counts.values():
+        means = {
+            user_id: sum(counts) / len(counts)
+            for user_id, counts in counts_by_user.items()
+        }
+
+        assert min(means[user_id] for user_id in urban_user_ids) > max(
+            means[user_id] for user_id in suburban_user_ids
+        )
+        assert len(set(means.values())) > 1
+        assert all(
+            isinstance(count, int) and count >= 0
+            for counts in counts_by_user.values()
+            for count in counts
+        )
+
+
 def test_profiles_cross_discretionary_and_activity_levels() -> None:
     assert {
         (profile.discretionary_level, profile.activity_level) for profile in PROFILES
