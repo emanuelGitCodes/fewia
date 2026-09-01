@@ -106,3 +106,11 @@ it; recovery restored the branch and retargeted #12. Details in
 
 Added aggregate tests for profile-day rows, stable location types,
 venue-count variation, and nonnegative integer counts.
+
+## 2026-09-01 — Decision 0007: evidence ID format
+
+Locked the `evidence_id` string before Phase 3 tools use it. A whole
+calendar month keeps the `health:user-1:2026-08` shorthand from the MVP
+plan. Every other range uses `health:user-1:2026-07-15..2026-08-04`.
+`build_evidence_id` in `backend/app/tools/base.py` is the only writer.
+Decision: [decisions/0007-evidence-id-format.md](decisions/0007-evidence-id-format.md).
