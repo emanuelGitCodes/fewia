@@ -56,6 +56,7 @@ def test_health_tool_rounds_averages_and_totals_over_seeded_subranges(
             "steps": 8000,
             "sleep_minutes": 420,
             "resting_heart_rate": Decimal("60.00"),
+            "intensity_minutes": 30,
             "stress_score": Decimal("25.00"),
         },
     )
@@ -67,6 +68,7 @@ def test_health_tool_rounds_averages_and_totals_over_seeded_subranges(
             "steps": 8001,
             "sleep_minutes": 421,
             "resting_heart_rate": Decimal("60.01"),
+            "intensity_minutes": 31,
             "stress_score": Decimal("25.01"),
         },
     )
@@ -78,6 +80,7 @@ def test_health_tool_rounds_averages_and_totals_over_seeded_subranges(
     assert context.total_steps == 16001
     assert context.average_sleep_minutes == 420.5
     assert context.average_resting_heart_rate == 60.01
+    assert context.average_intensity_minutes == 30.5
     assert context.average_stress_score == 25.01
 
 
@@ -124,7 +127,14 @@ def test_health_tool_returns_zero_values_for_an_empty_range(
     assert context.total_steps == 0
     assert context.average_sleep_minutes is None
     assert context.average_resting_heart_rate is None
+    assert context.average_intensity_minutes is None
     assert context.average_stress_score is None
+    assert context.average_sample_counts.model_dump() == {
+        "sleep_minutes": 0,
+        "resting_heart_rate": 0,
+        "intensity_minutes": 0,
+        "stress_score": 0,
+    }
     assert [warning.code for warning in context.warnings] == ["no_records"]
 
 
@@ -167,7 +177,7 @@ def test_health_tool_returns_none_for_an_average_with_only_null_values(
     assert context.warnings[0].detail["columns"] == "resting_heart_rate"
 
 
-def test_health_route_reports_intensity_nulls_without_an_intensity_average(
+def test_health_route_reports_intensity_nulls_with_an_intensity_average(
     client: TestClient, seed_health: RowSeeder, seed_user: UserSeeder
 ) -> None:
     user_id = seed_user()
@@ -193,7 +203,7 @@ def test_health_route_reports_intensity_nulls_without_an_intensity_average(
             "detail": {"columns": "intensity_minutes"},
         }
     ]
-    assert "average_intensity_minutes" not in response.json()
+    assert response.json()["average_intensity_minutes"] is None
 
 
 def test_health_tool_rejects_an_unknown_user(session: Session) -> None:
@@ -409,6 +419,8 @@ def test_health_tool_averages_only_present_nullable_values(
     context = get_health_context(session, user_id, first_day, second_day)
 
     assert context.average_resting_heart_rate == 60.5
+    assert context.average_sample_counts.resting_heart_rate == 1
+    assert context.average_sample_counts.sleep_minutes == 2
     assert [warning.code for warning in context.warnings] == ["null_fields"]
 
 

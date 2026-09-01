@@ -120,3 +120,21 @@ Decision: [decisions/0007-evidence-id-format.md](decisions/0007-evidence-id-form
 Updated `compare_periods` to sort and retain both evidence spans. Each
 period summary now cites its health and finance values separately.
 Comparison warnings now identify their period and domain.
+
+## 2026-09-01 — Tool contract fixes B
+
+Closed five tool-contract defects on top of the compare evidence fix.
+`get_health_context` now returns `average_intensity_minutes`, so the
+`null_fields` warning names no field the caller cannot read. The new
+`average_sample_counts` field reports how many non-null values stand
+behind each nullable average, so a 1-day average no longer looks like a
+30-day one. The prediction stub warning uses the new `stub_result`
+code. A FastAPI validation 422 now returns the `error` envelope with
+the code `validation_error` and keeps the field list under
+`error.detail`. `build_compare_evidence_id` in
+`backend/app/tools/base.py` replaces the string surgery in
+`compare.py`, and one private helper owns the span format. Five
+mutations, one per defect, each failed a test. Codex wrote the code and
+Claude verified it. Decisions:
+[0006](decisions/0006-codex-writes-claude-verifies.md),
+[0007](decisions/0007-evidence-id-format.md).

@@ -75,7 +75,7 @@ def test_prediction_reports_an_empty_range_without_an_error(
     assert prediction.record_count == 0
     assert [warning.code for warning in prediction.warnings] == [
         "no_records",
-        "null_fields",
+        "stub_result",
     ]
     assert prediction.source == ""
 
@@ -92,7 +92,7 @@ def test_prediction_stub_warning_reports_its_model_version(
     prediction = run_activity_prediction(session, user_id, day, day)
     stub_warning = prediction.warnings[-1]
 
-    assert stub_warning.code == "null_fields"
+    assert stub_warning.code == "stub_result"
     assert stub_warning.detail == {"model_version": "stub-v0"}
 
 
@@ -149,4 +149,5 @@ def test_prediction_route_rejects_an_unknown_feature_set(client: TestClient) -> 
     )
 
     assert response.status_code == 422
-    assert "detail" in response.json()
+    assert response.json()["error"]["code"] == "validation_error"
+    assert response.json()["error"]["detail"]

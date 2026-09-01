@@ -69,7 +69,7 @@ def run_activity_prediction(
     warnings = missing_day_warnings(len(rows), start_date, end_date)
     warnings.append(
         ToolWarning(
-            code="null_fields",
+            code="stub_result",
             message="The value comes from a stub. No trained model produced it.",
             detail={"model_version": MODEL_VERSION},
         )
