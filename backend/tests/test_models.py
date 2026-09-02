@@ -1,6 +1,6 @@
 """Tests for the SQLAlchemy metadata. No database connection runs here."""
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, UniqueConstraint
 
 from app import models
 from app.db import Base
@@ -42,3 +42,30 @@ def test_daily_finance_money_columns_are_not_nullable() -> None:
     table = models.DailyFinance.__table__
     assert table.c.total_spending.nullable is False
     assert table.c.cash_flow.nullable is False
+
+
+def test_model_runs_holds_training_metadata() -> None:
+    table = models.ModelRun.__table__
+    columns = set(table.columns.keys())
+    assert {
+        "model_version",
+        "random_seed",
+        "sample_size_train",
+        "sample_size_test",
+        "feature_list",
+        "split_method",
+        "missing_data_policy",
+        "baseline_mae",
+    } <= columns
+
+
+def test_model_runs_model_version_is_unique() -> None:
+    table = models.ModelRun.__table__
+    constraints = [
+        constraint
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+    ]
+    assert any(
+        constraint.name == "uq_model_runs_model_version" for constraint in constraints
+    )

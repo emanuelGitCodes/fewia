@@ -4,6 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     CheckConstraint,
     Date,
@@ -94,6 +95,9 @@ class ModelRun(Base):
     """One trained model and its measured metrics."""
 
     __tablename__ = "model_runs"
+    __table_args__ = (
+        UniqueConstraint("model_version", name="uq_model_runs_model_version"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     model_name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -106,6 +110,14 @@ class ModelRun(Base):
     rmse: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
     r_squared: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
     artifact_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_version: Mapped[str] = mapped_column(Text, nullable=False)
+    random_seed: Mapped[int] = mapped_column(Integer, nullable=False)
+    sample_size_train: Mapped[int] = mapped_column(Integer, nullable=False)
+    sample_size_test: Mapped[int] = mapped_column(Integer, nullable=False)
+    feature_list: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    split_method: Mapped[str] = mapped_column(Text, nullable=False)
+    missing_data_policy: Mapped[str] = mapped_column(Text, nullable=False)
+    baseline_mae: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
 
 
 class Prediction(Base):
