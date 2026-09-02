@@ -48,19 +48,25 @@ def test_compare_returns_an_empty_source_when_all_children_are_empty(
     assert result.source == ""
 
 
-def test_compare_evidence_id_orders_the_two_periods_by_start_date(
-    session: Session, seed_user: UserSeeder
+def test_compare_evidence_id_identifies_comparison_direction(
+    session: Session,
+    seed_health: RowSeeder,
+    seed_user: UserSeeder,
 ) -> None:
     user_id = seed_user()
+    july = (date(2026, 7, 1), date(2026, 7, 31))
+    august = (date(2026, 8, 1), date(2026, 8, 31))
+    seed_health(user_id, *july, overrides={"steps": 5000})
+    seed_health(user_id, *august, overrides={"steps": 8000})
 
-    result = compare_periods(
-        session,
-        user_id,
-        (date(2026, 8, 1), date(2026, 8, 31)),
-        (date(2026, 7, 1), date(2026, 7, 31)),
-    )
+    august_to_july = compare_periods(session, user_id, august, july)
+    july_to_august = compare_periods(session, user_id, july, august)
 
-    assert result.evidence_id == "compare:user-1:2026-07_vs_2026-08"
+    assert august_to_july.evidence_id == "compare:user-1:2026-08_vs_2026-07"
+    assert july_to_august.evidence_id == "compare:user-1:2026-07_vs_2026-08"
+    assert august_to_july.evidence_id != july_to_august.evidence_id
+    assert august_to_july.steps_delta == -3000
+    assert july_to_august.steps_delta == 3000
 
 
 def test_compare_evidence_id_distinguishes_two_january_subranges(
