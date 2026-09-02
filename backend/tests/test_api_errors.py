@@ -6,7 +6,11 @@ from typing import NamedTuple
 
 import pytest
 from conftest import UserSeeder
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.main import app
 
 type QueryParameters = dict[str, int | str]
 type RangeParameterBuilder = Callable[[date, date], QueryParameters]
@@ -41,6 +45,82 @@ ENDPOINTS: tuple[Endpoint, ...] = (
     Endpoint("/context/compare", _compare_parameters, "period_b_end"),
     Endpoint("/predict/activity", _context_parameters, "end_date"),
 )
+
+
+def test_unknown_path_uses_the_api_error_envelope(client: TestClient) -> None:
+    response = client.get("/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {"error": {"code": "not_found", "message": "Not Found"}}
+
+
+def test_disallowed_method_uses_the_api_error_envelope(client: TestClient) -> None:
+    response = client.post("/healthz")
+
+    assert response.status_code == 405
+    assert response.json() == {
+        "error": {"code": "method_not_allowed", "message": "Method Not Allowed"}
+    }
+
+
+def test_unnamed_http_status_uses_a_fallback_error_code() -> None:
+    test_app = FastAPI()
+    test_app.exception_handlers.update(app.exception_handlers)
+
+    @test_app.get("/test-http-status-599")
+    def raise_unnamed_status() -> None:
+        raise StarletteHTTPException(status_code=599, detail="Custom status")
+
+    with TestClient(test_app) as client:
+        response = client.get("/test-http-status-599")
+
+    assert response.status_code == 599
+    assert response.json() == {
+        "error": {"code": "http_599", "message": "Custom status"}
+    }
+
+
+def test_existing_404_and_422_responses_keep_their_bodies(client: TestClient) -> None:
+    not_found_response = client.get(
+        "/context/health",
+        params={
+            "user_id": 999,
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-02",
+        },
+    )
+    validation_response = client.get(
+        "/context/health",
+        params={
+            "user_id": "not-an-integer",
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-02",
+        },
+    )
+
+    assert not_found_response.status_code == 404
+    assert not_found_response.json() == {
+        "error": {
+            "code": "user_not_found",
+            "message": "No user has the id 999.",
+        }
+    }
+    assert validation_response.status_code == 422
+    assert validation_response.json() == {
+        "error": {
+            "code": "validation_error",
+            "message": "The request has invalid parameters.",
+            "detail": [
+                {
+                    "type": "int_parsing",
+                    "loc": ["query", "user_id"],
+                    "msg": "Input should be a valid integer, unable to parse "
+                    "string as an integer",
+                    "input": "not-an-integer",
+                }
+            ],
+        }
+    }
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
