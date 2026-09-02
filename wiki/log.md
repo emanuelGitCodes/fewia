@@ -152,3 +152,35 @@ Compare evidence IDs now record period A first and period B second. The
 ID identifies the comparison direction and matches the signs of the
 returned step and spending deltas. Decision:
 [0007](decisions/0007-evidence-id-format.md).
+
+## 2026-09-02 — Model run metadata columns
+
+`model_runs` could not hold the output of a Phase 4 training run.
+Migration `0003` adds eight columns: `model_version`, `random_seed`,
+`sample_size_train`, `sample_size_test`, `feature_list`,
+`split_method`, `missing_data_policy`, and `baseline_mae`. MVP section
+7 requires a run to disclose each one. The columns sit on `model_runs`
+instead of a second `model_run_details` table, because the table is
+small and Phase 6 reads the values in one query. `feature_list` uses
+`sqlalchemy.JSON`, not `JSONB`, because the test suite runs on SQLite
+and the API runs on PostgreSQL. `model_version` is unique and not null;
+a later item writes the value and fixes the format. The names differ
+from the tech-lead proposal: `random_seed` replaces `seed`, two count
+columns replace three, and `missing_data_policy` is new. Later Phase 4
+items MUST use the merged names. PostgreSQL 16 verification applied the
+migration, returned the table to nine columns on downgrade, and
+restored it. Two mutations failed the new tests. PR #32.
+
+## 2026-09-02 — Machine learning foundation
+
+The backend held no ML dependency and no `app/ml/` package. This work
+item adds `scikit-learn`, `pandas`, `numpy`, and `joblib` as runtime
+dependencies, and `pandas-stubs` to the dev group. `pandas` and `numpy`
+are declared directly, because the feature code imports both. A mypy
+override covers `sklearn.*` and `joblib.*`, which ship no type
+information. `pandas` and `numpy` are typed and get no override. The
+`app/ml/` package holds one docstring and no exports. The `.gitignore`
+entry `backend/artifacts/` ignored the artifact directory itself, so a
+fresh clone gave training no place to write. The entry now ignores the
+contents and keeps `backend/artifacts/.gitkeep`. `pandas` resolves to
+3.0.5, because no dependency states a floor. PR #33.
