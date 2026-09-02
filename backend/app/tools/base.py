@@ -13,7 +13,7 @@ from app.models import User
 
 MAX_RANGE_DAYS = 366
 
-WarningCode = Literal["no_records", "missing_days", "null_fields"]
+WarningCode = Literal["no_records", "missing_days", "null_fields", "stub_result"]
 
 
 class ToolWarning(BaseModel):
@@ -55,13 +55,26 @@ def build_evidence_id(
     end_date is the last day of the same month. In every other case the range
     is "YYYY-MM-DD..YYYY-MM-DD". This rule is locked.
     """
+    return f"{domain}:user-{user_id}:{_build_evidence_span(start_date, end_date)}"
+
+
+def build_compare_evidence_id(
+    user_id: int, period_a: tuple[date, date], period_b: tuple[date, date]
+) -> str:
+    """Build the evidence ID for two sorted comparison periods."""
+    first_period, second_period = sorted((period_a, period_b))
+    first_span = _build_evidence_span(*first_period)
+    second_span = _build_evidence_span(*second_period)
+    return f"compare:user-{user_id}:{first_span}_vs_{second_span}"
+
+
+def _build_evidence_span(start_date: date, end_date: date) -> str:
+    """Build the month or day span of an evidence ID."""
     same_month = start_date.year == end_date.year and start_date.month == end_date.month
     last_day = monthrange(start_date.year, start_date.month)[1]
     if same_month and start_date.day == 1 and end_date.day == last_day:
-        span = f"{start_date:%Y-%m}"
-    else:
-        span = f"{start_date:%Y-%m-%d}..{end_date:%Y-%m-%d}"
-    return f"{domain}:user-{user_id}:{span}"
+        return f"{start_date:%Y-%m}"
+    return f"{start_date:%Y-%m-%d}..{end_date:%Y-%m-%d}"
 
 
 def validate_range(start_date: date, end_date: date) -> None:

@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,15 @@ NULLABLE_COLUMNS = (
 )
 
 
+class AverageSampleCounts(BaseModel):
+    """The number of non-null values behind each nullable average."""
+
+    sleep_minutes: int
+    resting_heart_rate: int
+    intensity_minutes: int
+    stress_score: int
+
+
 class HealthContext(ContextResponse):
     """Health values that the tool computes over the requested range."""
 
@@ -33,7 +43,9 @@ class HealthContext(ContextResponse):
     total_steps: int
     average_sleep_minutes: float | None
     average_resting_heart_rate: float | None
+    average_intensity_minutes: float | None
     average_stress_score: float | None
+    average_sample_counts: AverageSampleCounts
 
 
 def _mean(values: Sequence[Decimal | int]) -> float | None:
@@ -86,6 +98,14 @@ def get_health_context(
     )
     rows = list(session.execute(statement).scalars().all())
     steps = [row.steps for row in rows]
+    sleep_minutes = [row.sleep_minutes for row in rows if row.sleep_minutes is not None]
+    resting_heart_rates = [
+        row.resting_heart_rate for row in rows if row.resting_heart_rate is not None
+    ]
+    intensity_minutes = [
+        row.intensity_minutes for row in rows if row.intensity_minutes is not None
+    ]
+    stress_scores = [row.stress_score for row in rows if row.stress_score is not None]
     warnings = missing_day_warnings(len(rows), start_date, end_date)
     warnings.extend(_null_field_warnings(rows))
     return HealthContext(
@@ -98,17 +118,14 @@ def get_health_context(
         warnings=warnings,
         average_steps=_mean_steps(steps),
         total_steps=sum(steps),
-        average_sleep_minutes=_mean(
-            [row.sleep_minutes for row in rows if row.sleep_minutes is not None]
-        ),
-        average_resting_heart_rate=_mean(
-            [
-                row.resting_heart_rate
-                for row in rows
-                if row.resting_heart_rate is not None
-            ]
-        ),
-        average_stress_score=_mean(
-            [row.stress_score for row in rows if row.stress_score is not None]
+        average_sleep_minutes=_mean(sleep_minutes),
+        average_resting_heart_rate=_mean(resting_heart_rates),
+        average_intensity_minutes=_mean(intensity_minutes),
+        average_stress_score=_mean(stress_scores),
+        average_sample_counts=AverageSampleCounts(
+            sleep_minutes=len(sleep_minutes),
+            resting_heart_rate=len(resting_heart_rates),
+            intensity_minutes=len(intensity_minutes),
+            stress_score=len(stress_scores),
         ),
     )

@@ -111,7 +111,7 @@ def test_endpoints_reject_367_days_and_accept_366_days(
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-def test_endpoints_keep_fastapi_and_tool_error_422_bodies_distinct(
+def test_endpoints_use_the_error_envelope_for_all_422_bodies(
     client: TestClient, endpoint: Endpoint
 ) -> None:
     valid_params = {
@@ -130,8 +130,9 @@ def test_endpoints_keep_fastapi_and_tool_error_422_bodies_distinct(
     tool_error_body = tool_error_response.json()
 
     assert validation_response.status_code == 422
-    assert "detail" in validation_body
-    assert "error" not in validation_body
+    assert set(validation_body) == {"error"}
+    assert validation_body["error"]["code"] == "validation_error"
+    assert validation_body["error"]["detail"]
     assert tool_error_response.status_code == 422
-    assert "error" in tool_error_body
-    assert "detail" not in tool_error_body
+    assert set(tool_error_body) == {"error"}
+    assert tool_error_body["error"]["code"] == "invalid_range"

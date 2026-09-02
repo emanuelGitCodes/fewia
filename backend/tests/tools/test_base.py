@@ -12,11 +12,42 @@ from sqlalchemy.orm import Session
 from app.models import DailyHealth, User
 from app.tools.base import (
     ToolError,
+    build_compare_evidence_id,
     missing_day_warnings,
     require_user,
     round_money,
     validate_range,
 )
+
+
+@pytest.mark.parametrize(
+    ("period_a", "period_b", "expected"),
+    (
+        (
+            (date(2026, 8, 1), date(2026, 8, 31)),
+            (date(2026, 9, 1), date(2026, 9, 30)),
+            "compare:user-1:2026-08_vs_2026-09",
+        ),
+        (
+            (date(2026, 8, 2), date(2026, 8, 3)),
+            (date(2026, 9, 2), date(2026, 9, 3)),
+            "compare:user-1:2026-08-02..2026-08-03_vs_2026-09-02..2026-09-03",
+        ),
+    ),
+)
+def test_build_compare_evidence_id_formats_month_and_span_pairs(
+    period_a: tuple[date, date], period_b: tuple[date, date], expected: str
+) -> None:
+    assert build_compare_evidence_id(1, period_a, period_b) == expected
+
+
+def test_build_compare_evidence_id_sorts_its_periods() -> None:
+    august = (date(2026, 8, 1), date(2026, 8, 31))
+    september = (date(2026, 9, 1), date(2026, 9, 30))
+
+    assert build_compare_evidence_id(1, august, september) == build_compare_evidence_id(
+        1, september, august
+    )
 
 
 def test_require_user_returns_none_for_an_existing_user(

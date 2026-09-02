@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.tools.base import (
     ToolWarning,
-    build_evidence_id,
+    build_compare_evidence_id,
     require_user,
     round_money,
     validate_range,
@@ -96,9 +96,6 @@ def compare_periods(
             )
             for warning in child.warnings
         )
-    spans = sorted((period_a, period_b))
-    span_first = build_evidence_id("compare", user_id, *spans[0]).rsplit(":", 1)[1]
-    span_second = build_evidence_id("compare", user_id, *spans[1]).rsplit(":", 1)[1]
     steps_a = health_a.average_steps
     steps_b = health_b.average_steps
     spending_a = finance_a.total_spending
@@ -108,7 +105,7 @@ def compare_periods(
         source=",".join(
             sorted({child.source for child, _, _ in children if child.source})
         ),
-        evidence_id=f"compare:user-{user_id}:{span_first}_vs_{span_second}",
+        evidence_id=build_compare_evidence_id(user_id, period_a, period_b),
         warnings=warnings,
         period_a=_summarize(health_a, finance_a),
         period_b=_summarize(health_b, finance_b),
