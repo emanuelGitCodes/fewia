@@ -1,10 +1,11 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Status**: Phase 0, Phase 1, and Phase 2 are complete
+> **Status**: Phase 0 through Phase 3 are complete
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
 > [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
-> [wiki/phases/phase-2.md](wiki/phases/phase-2.md)).
-> Execution starts at Phase 3. `wiki/` records work and decisions; an
+> [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
+> [wiki/phases/phase-3.md](wiki/phases/phase-3.md)).
+> Execution starts at Phase 4. `wiki/` records work and decisions; an
 > executor MUST read `CLAUDE.md` and `wiki/index.md` before starting.
 > The delegation sections assume Claude Code (Agent tool, skills,
 > worktrees); another executor follows the phases, deliverables, and
@@ -101,7 +102,12 @@ with seed 42 write identical rows. CI passes on `main`. Record:
 
 Verify: two runs with the same seed produce identical rows; row counts and missingness match spec; a pytest asserts reproducibility.
 
-## Phase 3 — Deterministic tools + FastAPI endpoints  *(owner: backend-dev; tests: test-engineer)*
+## Phase 3 — Deterministic tools + FastAPI endpoints ✅ COMPLETE  *(owner: backend-dev; tests: test-engineer)*
+
+Completed 2026-09-01. Eleven work items shipped through the listed pull
+requests and sit on `main` at `fb5c3c8`. The five typed tools and their
+FastAPI endpoints return live August 2026 data with the required evidence
+fields. Record: [wiki/phases/phase-3.md](wiki/phases/phase-3.md).
 
 - Implement the five tools from MVP doc §6 as typed functions returning Pydantic models with `evidence_id`, `record_count`, `source`, warnings: `get_health_context`, `get_financial_context`, `get_environment_context`, `run_activity_prediction` (stub until Phase 4), `compare_periods`.
 - Expose each as a REST endpoint (`GET /context/health`, etc.) so the path is provable without any LLM.

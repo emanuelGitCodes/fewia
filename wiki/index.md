@@ -18,3 +18,4 @@ chronological record lives in [log.md](log.md).
 - [Phase 0 — Repo bootstrap and the agent team](phases/phase-0.md)
 - [Phase 1 — Skeleton: Compose, schema, CI](phases/phase-1.md)
 - [Phase 2 — Synthetic data](phases/phase-2.md)
+- [Phase 3 — Deterministic tools and FastAPI endpoints](phases/phase-3.md)

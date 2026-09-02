@@ -138,3 +138,10 @@ mutations, one per defect, each failed a test. Codex wrote the code and
 Claude verified it. Decisions:
 [0006](decisions/0006-codex-writes-claude-verifies.md),
 [0007](decisions/0007-evidence-id-format.md).
+
+## 2026-09-01 — Phase 3 complete
+
+The Phase 3 pull requests put the deterministic tools and FastAPI endpoints
+on `main` at `fb5c3c8`. PostgreSQL 16 verification returned live August 2026
+data with the required evidence fields and error envelope. Details in
+[phases/phase-3.md](phases/phase-3.md).
