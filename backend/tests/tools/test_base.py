@@ -41,12 +41,15 @@ def test_build_compare_evidence_id_formats_month_and_span_pairs(
     assert build_compare_evidence_id(1, period_a, period_b) == expected
 
 
-def test_build_compare_evidence_id_sorts_its_periods() -> None:
+def test_build_compare_evidence_id_preserves_period_order() -> None:
     august = (date(2026, 8, 1), date(2026, 8, 31))
     september = (date(2026, 9, 1), date(2026, 9, 30))
 
-    assert build_compare_evidence_id(1, august, september) == build_compare_evidence_id(
-        1, september, august
+    assert build_compare_evidence_id(1, august, september) == (
+        "compare:user-1:2026-08_vs_2026-09"
+    )
+    assert build_compare_evidence_id(1, september, august) == (
+        "compare:user-1:2026-09_vs_2026-08"
     )
 
 

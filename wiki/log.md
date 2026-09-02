@@ -145,3 +145,10 @@ The Phase 3 pull requests put the deterministic tools and FastAPI endpoints
 on `main` at `fb5c3c8`. PostgreSQL 16 verification returned live August 2026
 data with the required evidence fields and error envelope. Details in
 [phases/phase-3.md](phases/phase-3.md).
+
+## 2026-09-01 — Compare evidence ID direction
+
+Compare evidence IDs now record period A first and period B second. The
+ID identifies the comparison direction and matches the signs of the
+returned step and spending deltas. Decision:
+[0007](decisions/0007-evidence-id-format.md).

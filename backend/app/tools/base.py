@@ -61,10 +61,9 @@ def build_evidence_id(
 def build_compare_evidence_id(
     user_id: int, period_a: tuple[date, date], period_b: tuple[date, date]
 ) -> str:
-    """Build the evidence ID for two sorted comparison periods."""
-    first_period, second_period = sorted((period_a, period_b))
-    first_span = _build_evidence_span(*first_period)
-    second_span = _build_evidence_span(*second_period)
+    """Build an evidence ID with period A first and period B second."""
+    first_span = _build_evidence_span(*period_a)
+    second_span = _build_evidence_span(*period_b)
     return f"compare:user-{user_id}:{first_span}_vs_{second_span}"
 
 
