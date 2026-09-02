@@ -11,6 +11,10 @@ dependencies = [
     "pydantic>=2",
     "pydantic-settings",
     "psycopg[binary]",
+    "scikit-learn",
+    "pandas",
+    "numpy",
+    "joblib",
 ]
 
 [dependency-groups]
@@ -19,6 +23,7 @@ dev = [
     "httpx",
     "mypy",
     "ruff",
+    "pandas-stubs",
 ]
 
 [tool.uv]
@@ -38,3 +43,7 @@ select = ["E", "F", "I", "UP", "B", "ANN"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "joblib.*"]
+ignore_missing_imports = true

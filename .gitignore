@@ -4,5 +4,6 @@ __pycache__/
 .venv/
 .env
 node_modules/
-backend/artifacts/
+backend/artifacts/*
+!backend/artifacts/.gitkeep
 graphify-out/
