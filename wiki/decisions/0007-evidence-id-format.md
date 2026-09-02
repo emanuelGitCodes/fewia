@@ -5,37 +5,36 @@
 
 ## Decision
 
-A tool response carries `evidence_id` in the form
-`{domain}:user-{user_id}:{range}`. The domain is `health`, `finance`,
-`environment`, `compare`, or `prediction`. The range is `YYYY-MM` when
-the request covers exactly one whole calendar month. Every other range
-uses `YYYY-MM-DD..YYYY-MM-DD`. `compare_periods` carries its own
-`evidence_id` and the two child values.
+A health, finance, environment, or prediction response carries
+`evidence_id` in the form `{domain}:user-{user_id}:{range}`. The range
+is `YYYY-MM` when the request covers exactly one whole calendar month.
+Every other range uses `YYYY-MM-DD..YYYY-MM-DD`.
 
-One helper, `build_evidence_id` in `backend/app/tools/base.py`, builds
-the string. No other module writes it.
+A compare response carries `compare:user-{user_id}:{span_first}_vs_{span_second}`.
+It sorts the two spans by start date, then end date. Each span uses the
+same month shorthand rule. `compare_periods` calls `build_evidence_id`
+for each span and takes the text after the last colon.
 
 ## Options considered
 
-1. The month shorthand for a whole month, the span form otherwise —
-   chosen.
-2. The span form for every range.
+1. Both compare spans, sorted and joined with `_vs_` — chosen.
+2. One combined span from the first period start to the second period end.
 3. The month shorthand only, with the range truncated to months.
 
 ## Reason
 
-The MVP plan §6 shows `health:user-1:2026-08`, so option 2 breaks the
-example the plan states. Option 3 loses the exact range and makes an
-evidence ID ambiguous. Option 1 keeps the plan's example and stays
-exact for every other range.
+One combined span can run backward when callers pass period B first.
+It also loses the boundary between two subranges in one month. The
+two-span form gives every comparison a canonical, exact ID. The MVP
+plan §6 keeps its whole-month shorthand for the four single-domain tools.
 
 ## Consequences
 
-- Phase 6 evaluation questions assert these strings. A change to the
-  format breaks the evaluation set.
-- A whole-month request and a request for the same days stated as a
-  span produce the same ID, because the ranges are the same.
-- `build_evidence_id` is the single writer. A new domain adds a value
-  there, not a new format.
+- Phase 6 evaluation strings MUST use the sorted two-span compare form.
+  A change to this format breaks the evaluation set.
+- Health, finance, environment, and prediction keep the existing
+  whole-month shorthand.
+- `build_evidence_id` keeps the month rule. The compare tool assembles
+  the two spans from its output.
 
 Related: [Phase 3](../phases/phase-3.md).
