@@ -12,10 +12,12 @@ EXPECTED_TABLES = {
     "daily_health",
     "model_runs",
     "predictions",
+    "jobs",
+    "job_outbox",
 }
 
 
-def test_metadata_holds_the_six_tables() -> None:
+def test_metadata_holds_the_application_tables() -> None:
     assert set(Base.metadata.tables) == EXPECTED_TABLES
 
 

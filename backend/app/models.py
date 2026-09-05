@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.job_models import Job, JobOutbox  # noqa: F401
 
 MONEY = Numeric(12, 2)
 SMALL = Numeric(5, 2)

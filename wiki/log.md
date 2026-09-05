@@ -208,3 +208,13 @@ restart persistence. An in-memory endpoint mutation failed the guard test.
 Claude found no correctness defects; its typing and formatting findings were
 corrected. Provider credentials are not configured. Worker execution, provider
 adapters, budgeting, Bedrock orchestration, and web chat remain future work.
+
+## 2026-09-05 — Durable jobs and outbox schema
+
+Added jobs and job_outbox through migration 0004. The schema enforces request
+idempotency scope, valid states, nonnegative attempts, and one outbox row per
+job. Ruff, formatting, strict mypy, and 205 tests passed. Claude reviewed the
+schema without blocking findings and independently ran the preceding 201-test
+snapshot. Isolated PostgreSQL checks passed clean upgrade, upgrade from 0003,
+downgrade, and ORM agreement. The downgrade preserved the existing synthetic
+user fixture. The running development database was not migrated.
