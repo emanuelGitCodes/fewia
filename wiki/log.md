@@ -184,3 +184,13 @@ entry `backend/artifacts/` ignored the artifact directory itself, so a
 fresh clone gave training no place to write. The entry now ignores the
 contents and keeps `backend/artifacts/.gitkeep`. `pandas` resolves to
 3.0.5, because no dependency states a floor. PR #33.
+
+## 2026-09-05 — Grocery bot development agent roles
+
+Updated the project agent team for Plaid, Instacart, real Bedrock, and Floci.
+Added AI, provider, catalog, database, reliability, security, evaluation, and
+documentation roles. Preserved `ml-dev` as a compatibility role without health
+training. Each role selects `gpt-5.6-luna` with `xhigh` effort. The shared
+project brief records local web chat and sample-price estimates. The team
+guide defines file ownership, parallel work, and independent review boundaries.
+Agent configuration is complete before application implementation starts.
