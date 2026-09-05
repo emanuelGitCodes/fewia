@@ -15,6 +15,17 @@ services:
       timeout: 5s
       retries: 10
 
+  floci:
+    image: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+    ports:
+      - "127.0.0.1:4566:4566"
+    volumes:
+      - floci-data:/app/data
+
   api:
     build:
       context: ./backend
@@ -33,3 +44,4 @@ services:
 
 volumes:
   postgres-data:
+  floci-data:

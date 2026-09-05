@@ -12,6 +12,7 @@ chronological record lives in [log.md](log.md).
 - [0005 — Human-gated agent learning](decisions/0005-human-gated-agent-learning.md)
 - [0006 — Codex writes, Claude verifies](decisions/0006-codex-writes-claude-verifies.md)
 - [0007 — Evidence ID format](decisions/0007-evidence-id-format.md)
+- [0008 — Grocery bot with local Floci services](decisions/0008-grocery-bot-pivot.md)
 
 ## Phases
 
