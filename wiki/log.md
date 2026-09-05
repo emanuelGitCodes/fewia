@@ -194,3 +194,17 @@ training. Each role selects `gpt-5.6-luna` with `xhigh` effort. The shared
 project brief records local web chat and sample-price estimates. The team
 guide defines file ownership, parallel work, and independent review boundaries.
 Agent configuration is complete before application implementation starts.
+
+## 2026-09-05 — Grocery request and Floci foundation
+
+Started the grocery implementation from merged main at `132614c`. Added
+strict meal-request contracts and the sample-price notice. Added Floci 2.0.1
+with a pinned digest and persistent local storage. The bootstrap creates two
+queues, their dead-letter queues, and an evaluation bucket. It rejects remote
+endpoints before client creation. Ruff, format checks, strict app mypy, and
+188 tests passed. One existing Starlette/httpx warning remains. Live local
+checks passed repeated provisioning, queue round trips, S3 readback, and
+restart persistence. An in-memory endpoint mutation failed the guard test.
+Claude found no correctness defects; its typing and formatting findings were
+corrected. Provider credentials are not configured. Worker execution, provider
+adapters, budgeting, Bedrock orchestration, and web chat remain future work.

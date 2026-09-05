@@ -1,11 +1,18 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
+> **Active direction:** Implement the Plaid and Instacart grocery bot described
+> in [.codex/project-context.md](.codex/project-context.md). The user selected
+> local web chat, labeled sample prices, Floci SQS/S3, and real Bedrock.
+> The health-prediction phases below are historical planning material.
+> Do not resume their training tasks. The current implementation starts with
+> the grocery request contract and local Floci provisioning.
+
 > **Status**: Phase 0 through Phase 3 are complete
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
 > [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
 > [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
 > [wiki/phases/phase-3.md](wiki/phases/phase-3.md)).
-> Execution starts at Phase 4. `wiki/` records work and decisions; an
+> This status describes the original project. `wiki/` records work and decisions; an
 > executor MUST read `CLAUDE.md` and `wiki/index.md` before starting.
 > The delegation sections assume Claude Code (Agent tool, skills,
 > worktrees); another executor follows the phases, deliverables, and

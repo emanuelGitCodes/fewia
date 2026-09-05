@@ -15,6 +15,7 @@ dependencies = [
     "pandas",
     "numpy",
     "joblib",
+    "boto3",
 ]
 
 [dependency-groups]
