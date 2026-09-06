@@ -318,3 +318,17 @@ formatting, strict mypy, and 35 supervisor tests passed. Backend gates passed:
 247 tests passed, 3 PostgreSQL tests skipped, and 1 Starlette warning remained.
 Evidence and activation limits are in docs/DEV_SUPERVISOR_VERIFICATION.md.
 The local stack is unpublished. Saved-checkout integration remains separate.
+
+## 2026-09-06 — Supervisor integrated into saved checkout
+
+The user authorized local integration. Saved main was clean at 1dec7d4 and
+matched freshly fetched origin/main. A fast-forward integrated the reviewed
+six-branch stack at 10cf543. Saved-checkout backend gates passed with 247 tests,
+3 PostgreSQL skips, and 1 existing warning. Supervisor gates passed with 35 tests.
+All 14 role TOMLs parsed, and the supervisor CLI help exposed the expected flags.
+
+The ignored graph remains an older snapshot: 90 of 96 indexed files match;
+6 instruction/wiki files changed. Supervisor files and all role TOMLs lack graph
+coverage. Current role files and runbooks remain the source for delegation.
+Detailed results and graph gaps are in docs/DEV_SUPERVISOR_VERIFICATION.md.
+No remote push, deployment, global change, or application worker was performed.

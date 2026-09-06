@@ -194,11 +194,73 @@ The skips and warning are the same PostgreSQL configuration and Starlette limits
 reported above. All 14 role TOML files parsed. Early repair checks found PIE810,
 one formatting defect, and two BLE001 exceptions; all were fixed and rechecked.
 
-### Activation boundary
+### Activation boundary before local integration
 
-The supervisor executed real scoped repairs from this local worktree. The saved
-checkout still needs the six-branch stack integrated through the user's normal
-review and merge process. Existing native task role lists do not hot-reload.
+The supervisor executed real scoped repairs from the isolated worktree. At that
+checkpoint, the saved checkout had not received the six-branch stack. The local
+integration record below supersedes that status. Existing native task role lists
+do not hot-reload.
 Use the supervisor command from an integrated checkout with a bounded assignment,
 explicit owned files, and any user model constraints. No application worker or
 new grocery feature was launched. Bedrock application routing remains unchanged.
+
+## 2026-09-06 — Saved checkout integration
+
+The user explicitly authorized local integration into
+`/Users/emanuelcortes/GitHub/fewia`. The checkout was clean on `main` at `1dec7d4`.
+A fresh `git fetch origin main` confirmed that `origin/main` was also `1dec7d4`.
+No supervisor lock existed in the saved checkout. The reviewed branch was
+`10cf543`, a descendant of that base. No tracked changes or merge conflicts
+needed resolution.
+
+`git merge --ff-only codex/dev-supervisor-reviewed-runtime` advanced saved
+`main` to the reviewed stack. Its tracked tree matched the reviewed branch.
+The integration evidence is a separate documentation-only branch and commit.
+No remote push, deployment, branch removal, worktree removal, global setting,
+account change, or grocery application work was performed.
+
+Validation ran again in the saved checkout with the temporary uv cache:
+
+| Check | Actual result |
+|---|---|
+| `uv run ruff check app tests` | `All checks passed!` |
+| `uv run ruff format --check app tests` | `53 files already formatted` |
+| `uv run mypy --strict app` | `Success: no issues found in 30 source files` |
+| `uv run pytest` | `247 passed, 3 skipped, 1 warning` |
+| Supervisor ruff check | `All checks passed!` |
+| Supervisor format check | `11 files already formatted` |
+| Supervisor strict mypy | `Success: no issues found in 6 source files` |
+| `PYTHONPATH=. uv run --project backend pytest -q tests/supervisor` | `35 passed in 2.31s` |
+| `uv run --project backend python -m dev_supervisor --help` | exit 0; model, only-model, registry, bounds, and write-file flags listed |
+| Project role TOML parsing | 14 files parsed |
+
+The backend skips require PostgreSQL integration configuration. The warning is
+the existing Starlette/httpx deprecation. No new writer was launched for these
+checks. Existing native role lists were not reloaded. The installed execution
+path is the CLI supervisor with Grok 4.6 medium, Spark default effort, and Luna
+xhigh, plus explicit model constraints and exact owned file rules. Coding tasks
+still require their own branch or worktree; the supervisor rejects `main`.
+
+### Graph freshness
+
+The ignored graph was preserved. It contains 975 nodes, 2,204 links, and 96
+manifest entries. Its recorded commit is `135f77a`; commit identity alone is
+not the freshness test. Current file MD5 values were compared with manifest
+`ast_hash` values. Empty `semantic_hash` fields were not treated as source
+changes.
+
+Ninety indexed files still match. These six indexed files changed:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.codex/TEAM.md`
+- `docs/DELEGATION.md`
+- `wiki/index.md`
+- `wiki/log.md`
+
+All six supervisor modules, five supervisor test files, both supervisor runbooks,
+and decision 0009 are absent from the manifest. All 14 role TOMLs are also absent,
+including the ten changed by this stack. The graph has no verified coverage of
+the new supervisor or current review policy. Use the current role files and
+runbooks for those topics. Graph access remains targeted and on demand; no graph
+rebuild or claim of automatic worker context was made during integration.
