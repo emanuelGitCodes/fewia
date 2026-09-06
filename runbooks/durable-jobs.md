@@ -52,8 +52,40 @@ verify caller rollback from a separate session. They insert synthetic users
 and delete only those users' test jobs and outbox records afterward.
 They do not apply migrations. Do not target the shared development database.
 
+## Publish a bounded batch
+
+Provision Floci using [the infrastructure runbook](../infra/README.md).
+Point `DATABASE_URL` at a database upgraded through migration `0004`.
+From `backend/`, run:
+
+```bash
+uv run python -m app.publish_jobs --endpoint http://127.0.0.1:4566 --limit 20
+```
+
+The publisher owns a fresh transaction per outbox entry. It locks pending
+rows with PostgreSQL `SKIP LOCKED`, sends only the job ID, then commits the
+publication timestamp. Parallel publishers can select separate rows.
+Local SQS calls use explicit dummy credentials and bounded timeouts.
+
+A failed send leaves the entry pending. The batch attempts other entries
+within its limit, then raises `PublicationError` with success/failure counts.
+The command exits unsuccessfully when any send failed. Database commit errors
+also propagate. A crash after send but before commit can cause a duplicate
+on the next run; delivery is at least once. Workers must deduplicate by job ID.
+The default batch processes at most 20 entries; the maximum is 100.
+
+Run the additional concurrency check against an isolated migrated PostgreSQL:
+
+```bash
+uv run pytest tests/test_outbox_postgres.py -q
+```
+
+Set `FEWIA_JOB_TEST_DATABASE_URL` as described above. This test uses fake
+senders synchronized while holding separate row locks; it does not send
+provider data or call Floci.
+
 ## Remaining worker work
 
-The next slices publish committed outbox records through Floci SQS, acquire
-job leases, renew visibility, and persist terminal results. Storage and
-submission alone do not implement a running background worker.
+The next slices acquire job leases, renew visibility, deduplicate messages,
+apply retry backoff, and persist terminal results. The publisher is a bounded
+CLI command; it is not yet a continuously running worker.
