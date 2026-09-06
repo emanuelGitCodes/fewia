@@ -267,3 +267,11 @@ an earlier recovered error. Grok 4.6 medium completed a no-tool compatibility
 call and a read of an isolated synthetic fixture. The latter verified native
 tool_call and tool_call_update events. Spark completed a no-tool call with no
 reasoning override. Provider quota exhaustion remains simulated evidence.
+
+## 2026-09-06 — Bounded development process supervision
+
+Added bounded process execution and process-group cleanup before handoff.
+Silence requests inspection; it does not trigger fallback. Confirmation tokens
+apply to one attempt and cannot override known tool activity or permission waits.
+Tests cover silence, confirmed stalls, permissions, failed tasks, and stopping a
+child before it writes. Workers cannot detach processes under the task contract.
