@@ -230,3 +230,15 @@ checks and found no blocking defects. A memory-only canonicalization mutation
 failed the conflict test. Documented READ COMMITTED isolation and the caller's
 rollback and payload-sanitization responsibilities. Queue publication and
 leased worker execution remain separate slices.
+
+## 2026-09-05 — Outbox publication to Floci SQS
+
+Added a bounded outbox publisher and local-only SQS adapter. PostgreSQL row
+locks let parallel publishers select separate entries. Messages contain only
+job IDs. Publication markers commit after successful sends; failed entries
+remain pending without blocking later entries in the same batch. Root checks
+passed 250 tests with isolated PostgreSQL enabled. Claude independently passed
+247 tests plus the publisher PostgreSQL check and found no defects. Live Floci
+checks published two synthetic jobs, verified their messages and markers, then
+published zero on a repeat run. PR 39 carries the earlier submission code to
+main because PR 38 merged into its feature base. Worker execution remains next.
