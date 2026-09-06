@@ -218,3 +218,15 @@ schema without blocking findings and independently ran the preceding 201-test
 snapshot. Isolated PostgreSQL checks passed clean upgrade, upgrade from 0003,
 downgrade, and ORM agreement. The downgrade preserved the existing synthetic
 user fixture. The running development database was not migrated.
+
+## 2026-09-05 — Atomic job submission
+
+Added create_job to persist a job and outbox record in the caller's transaction.
+Scoped request keys reuse identical jobs and reject different canonical JSON.
+Savepoints handle concurrent inserts without committing caller state. Ruff,
+formatting, strict mypy, and 228 tests passed with isolated PostgreSQL tests
+enabled. Claude independently passed 226 tests plus the two opt-in PostgreSQL
+checks and found no blocking defects. A memory-only canonicalization mutation
+failed the conflict test. Documented READ COMMITTED isolation and the caller's
+rollback and payload-sanitization responsibilities. Queue publication and
+leased worker execution remain separate slices.
