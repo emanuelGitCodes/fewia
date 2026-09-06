@@ -250,3 +250,11 @@ passed 250 tests with isolated PostgreSQL enabled. Claude independently passed
 checks published two synthetic jobs, verified their messages and markers, then
 published zero on a repeat run. PR 39 carries the earlier submission code to
 main because PR 38 merged into its feature base. Worker execution remains next.
+
+## 2026-09-06 — Development writer policy and worktree lease
+
+Added model routing for Grok 4.6 medium, Spark at its CLI default effort, and
+Luna xhigh. Explicit models run first; model-only assignments forbid fallback.
+Added a worktree lease with an orphan-group check. Policy and lease tests pass.
+This is the first local slice of the development supervisor stack. No saved
+checkout or native session configuration has been activated.
