@@ -68,6 +68,30 @@ def test_success_after_internal_retry_clears_failure() -> None:
     assert state.outcome(0) == "completed"
 
 
+def test_completed_question_does_not_wait() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"tool_call_update","toolCallId":"answered","toolName":"ask_user_question","status":"completed"}'
+    )
+    state.feed('{"type":"end","stopReason":"end_turn"}')
+    assert state.outcome(0) == "completed"
+    assert not state.active_tools
+    assert not state.waiting
+
+
+def test_pending_question_waits_until_cleared() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"tool_call","toolCallId":"q1","toolName":"ask_user_question","status":"pending"}'
+    )
+    assert state.outcome(0) == "permission"
+    state.feed(
+        '{"type":"tool_call_update","toolCallId":"q1","toolName":"ask_user_question","status":"failed"}'
+    )
+    state.feed('{"type":"turn.completed"}')
+    assert state.outcome(0) == "completed"
+
+
 def test_embedded_grok_permission_code() -> None:
     import json
 

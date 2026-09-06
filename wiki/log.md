@@ -303,3 +303,18 @@ Corrected stale Luna-only spawning, obsolete role ownership examples, and
 assumptions about retained CLI session context. Added a tested exact-file
 permission library for Grok. All 14 role TOML files parsed. No global settings,
 accounts, subscriptions, installations, pushes, or merges changed.
+
+## 2026-09-06 — Reviewed supervisor runtime and scoped Grok writes
+
+A separate Codex reviewer reproduced lifecycle, question-state, permission-path,
+and cleanup-order defects. Grok repaired the assigned files through the CLI
+supervisor. Exact Write/Edit rules resolved headless file authorization; command
+permissions remained active. The permanent --write-file interface completed the
+final repair runs. No permission cancellation triggered provider fallback.
+
+Final independent review found no remaining actionable defects in its scope.
+It passed 35 tests and proved six regression mutations fail. Coordinator ruff,
+formatting, strict mypy, and 35 supervisor tests passed. Backend gates passed:
+247 tests passed, 3 PostgreSQL tests skipped, and 1 Starlette warning remained.
+Evidence and activation limits are in docs/DEV_SUPERVISOR_VERIFICATION.md.
+The local stack is unpublished. Saved-checkout integration remains separate.

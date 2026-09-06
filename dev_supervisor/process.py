@@ -5,10 +5,27 @@ import os
 import selectors
 import signal
 import subprocess
+import tempfile
+import threading
 import time
+from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 from dev_supervisor.events import Events
+
+
+def publish(state_dir: Path, status: dict[str, Any]) -> None:
+    handle, name = tempfile.mkstemp(prefix=".status-", dir=state_dir, text=True)
+    try:
+        with os.fdopen(handle, "w") as writer:
+            writer.write(json.dumps(status))
+            writer.flush()
+            os.fsync(writer.fileno())
+        Path(name).replace(state_dir / "status.json")
+    except Exception:
+        Path(name).unlink(missing_ok=True)
+        raise
 
 
 def stop(process: subprocess.Popen[bytes]) -> bool:
@@ -45,6 +62,17 @@ def attempt(
     started = last = time.monotonic()
     pending = b""
     outcome = "task_failed"
+
+    def snapshot(state: str, pid: int | None) -> dict[str, Any]:
+        return {
+            "attempt": token,
+            "pid": pid,
+            "state": state,
+            "active_tools": bool(events.active_tools),
+            "permission_wait": events.waiting,
+        }
+
+    publish(state_dir, snapshot("launching", None))
     with prompt.open("rb") as source:
         try:
             process = subprocess.Popen(
@@ -56,29 +84,34 @@ def attempt(
                 start_new_session=True,
             )
         except FileNotFoundError:
+            publish(state_dir, snapshot("stopped", None))
             return "unavailable"
         except PermissionError:
+            publish(state_dir, snapshot("stopped", None))
             return "permission"
-        assert process.stdout is not None
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
-
-        def interrupt(signum: int, frame: object) -> None:
-            raise KeyboardInterrupt
-
-        previous = signal.signal(signal.SIGTERM, interrupt)
+        selector: selectors.BaseSelector | None = None
+        previous = signal.getsignal(signal.SIGTERM)
+        installed = False
+        clean = False
         try:
+            publish(state_dir, snapshot("running", process.pid))
+            assert process.stdout is not None
+            selector = selectors.DefaultSelector()
+            selector.register(process.stdout, selectors.EVENT_READ)
+
+            def interrupt(signum: int, frame: object) -> None:
+                raise KeyboardInterrupt
+
+            if threading.current_thread() is threading.main_thread():
+                signal.signal(signal.SIGTERM, interrupt)
+                installed = True
             while True:
                 now = time.monotonic()
                 quiet = now - last >= idle
-                status = {
-                    "attempt": token,
-                    "pid": process.pid,
-                    "state": "needs_inspection" if quiet else "running",
-                    "active_tools": bool(events.active_tools),
-                    "permission_wait": events.waiting,
-                }
-                (state_dir / "status.json").write_text(json.dumps(status))
+                publish(
+                    state_dir,
+                    snapshot("needs_inspection" if quiet else "running", process.pid),
+                )
                 decision = state_dir / "confirm-stall"
                 if decision.exists() and decision.read_text().strip() == token:
                     decision.unlink()
@@ -110,8 +143,19 @@ def attempt(
                     outcome = events.outcome(process.returncode)
                     break
         finally:
-            signal.signal(signal.SIGTERM, previous)
-            selector.close()
-            clean = stop(process)
-            process.stdout.close()
+            if installed:
+                with suppress(Exception):
+                    signal.signal(signal.SIGTERM, previous)
+            if selector is not None:
+                with suppress(Exception):
+                    selector.close()
+            try:
+                clean = stop(process)
+            except OSError:
+                clean = False
+            if process.stdout is not None:
+                with suppress(Exception):
+                    process.stdout.close()
+            if clean:
+                publish(state_dir, snapshot("stopped", process.pid))
     return outcome if clean else "cleanup_failed"

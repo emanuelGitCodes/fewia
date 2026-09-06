@@ -19,6 +19,8 @@ def setup(tmp_path: Path) -> Path:
 
 def test_fallback_keeps_worktree_and_checkpoint(tmp_path: Path) -> None:
     task = setup(tmp_path)
+    owned = tmp_path / "owned.py"
+    owned.write_text("pass\n")
     seen: list[str] = []
 
     def runner(
@@ -33,6 +35,15 @@ def test_fallback_keeps_worktree_and_checkpoint(tmp_path: Path) -> None:
         assert cwd == tmp_path
         seen.append(args[args.index("--model") + 1])
         assert "Own only assigned files." in prompt.read_text()
+        progress = str(state / "progress.md")
+        if args[0].endswith("grok"):
+            assert f"Write({progress})" in args
+            assert f"Edit({progress})" in args
+            assert f"Write({owned})" in args
+            assert f"Edit({owned})" in args
+            assert args[args.index("--permission-mode") + 1] == "default"
+        else:
+            assert not any(arg.startswith("Write(") for arg in args)
         if len(seen) == 1:
             (cwd / "partial.py").write_text("value = 1")
             (state / "progress.md").write_text("Check A passed. Check B remains.")
@@ -52,6 +63,7 @@ def test_fallback_keeps_worktree_and_checkpoint(tmp_path: Path) -> None:
                 order(None, False, MODELS),
                 1,
                 2,
+                [owned],
             )
             == "completed"
         )

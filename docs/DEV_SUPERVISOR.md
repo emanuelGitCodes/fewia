@@ -4,12 +4,21 @@ Run from the repository root with Python 3.12:
 
 ```bash
 uv run --project backend python -m dev_supervisor \
-  --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD"
+  --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
+  --write-file dev_supervisor/policy.py
 ```
 
+Replace the example file with each path named by the assignment.
 The assignment MUST name owned files, interfaces, acceptance checks, and scope.
 Use an isolated branch and worktree. Native workers MUST NOT write there while
 the supervisor runs. Review the assignment and checkpoint for secrets.
+
+For authorized source edits, repeat `--write-file relative/path` for each owned
+file. The supervisor validates that each path stays inside the target worktree.
+Grok receives exact `Write(path)` and `Edit(path)` allow rules for those files
+and the private progress file. Default command checks remain enabled. This is
+not blanket tool approval or a new scope grant. Paths that escape through
+symlinks or contain permission-rule syntax are rejected before execution.
 
 ## Model selection
 
@@ -66,13 +75,16 @@ The one-hour attempt limit stops without fallback. Configure these bounds with
 
 The writer process group receives TERM, then KILL if needed. Handoff requires
 proof that the group is gone. SIGINT and SIGTERM run cleanup. After a crash,
-the next invocation refuses to run while the recorded group exists.
+the next invocation refuses to run while the recorded group exists or launch
+state is ambiguous. Status updates are atomic. Only proven cleanup records
+`stopped`; inspect an incomplete launch before any restart.
 Workers MUST NOT detach processes or spawn subagents. Process groups cannot
 contain daemons that deliberately escape them. Inspect and stop such writers
 before restarting. The worktree lock serializes supervisor invocations only.
 
-The same worktree retains edited and untracked files. A private checkpoint
-holds the assignment, role instructions, model history, and `progress.md`.
+The same worktree retains edited and untracked files. A private, ignored
+`.fewia-supervisor-*` directory inside that worktree holds the assignment,
+role instructions, model history, and `progress.md`.
 Writers record completed checks and remaining work. Missing records remain
 unknown; the next writer inspects and verifies them. Raw CLI streams, tool
 output, and environment values are not saved. CLI session storage follows

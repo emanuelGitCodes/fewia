@@ -10,7 +10,7 @@ from pathlib import Path
 import tomllib
 
 from dev_supervisor.lease import lease
-from dev_supervisor.policy import MODELS, RETRYABLE, Model, command, order
+from dev_supervisor.policy import MODELS, RETRYABLE, Model, command, order, writes
 from dev_supervisor.process import attempt
 
 GUARD = """
@@ -36,6 +36,7 @@ def execute(
     sequence: list[str],
     idle: float,
     limit: float,
+    files: list[Path] | None = None,
 ) -> str:
     instructions = tomllib.loads((cwd / ".codex/agents" / f"{role}.toml").read_text())
     assignment = task.read_text()
@@ -68,7 +69,7 @@ def execute(
             + "\nInspect git status and diff; interrupted edits remain in this worktree.\n"
         )
         result = attempt(
-            command(name, models[name], cwd, prompt),
+            command(name, models[name], cwd, prompt, [*(files or []), progress]),
             cwd,
             prompt,
             state,
@@ -94,6 +95,7 @@ def main() -> None:
     parser.add_argument("--registry", type=Path)
     parser.add_argument("--idle-seconds", type=float, default=180)
     parser.add_argument("--limit-seconds", type=float, default=3600)
+    parser.add_argument("--write-file", action="append", default=[], metavar="PATH")
     args = parser.parse_args()
     cwd = args.cwd.resolve()
     if not all(
@@ -107,9 +109,10 @@ def main() -> None:
         for name, spec in tomllib.loads(args.registry.read_text()).items():
             models[name] = Model(**spec)
     try:
+        authorized = writes(cwd, args.write_file)
         sequence = order(args.model, args.only, models)
         for name in sequence:
-            command(name, models[name], cwd, Path("unused"))
+            command(name, models[name], cwd, Path("unused"), authorized)
     except (ValueError, TypeError) as error:
         parser.error(str(error))
     branch = subprocess.check_output(
@@ -126,7 +129,7 @@ def main() -> None:
             text=True,
         ).strip()
     )
-    with lease(git_dir) as state:
+    with lease(git_dir, cwd) as state:
         print(f"Private checkpoint directory: {state}", flush=True)
         result = execute(
             cwd,
@@ -137,6 +140,7 @@ def main() -> None:
             sequence,
             args.idle_seconds,
             args.limit_seconds,
+            authorized,
         )
         print(result, flush=True)
         raise SystemExit(0 if result == "completed" else 1)

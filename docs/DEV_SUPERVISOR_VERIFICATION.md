@@ -95,8 +95,9 @@ Failed to authenticate. API Error: 401 OAuth access token has expired.
 Re-authenticate to continue.
 ```
 
-Claude verification remains pending. Authentication was not modified.
-The coordinator can rerun review after authentication is restored.
+This is the earlier review attempt. The user subsequently removed Claude Code
+from the active workflow. Authentication remains unchanged. The current review
+uses a separate Codex agent; see the follow-up evidence below.
 
 No graph exists in this isolated worktree. Worker instructions provide targeted
 context and on-demand graph access; they do not claim automatic graph knowledge.
@@ -106,3 +107,98 @@ Process-group cleanup covers normal descendants; detached daemons violate the
 worker contract and require coordinator inspection. Unknown provider formats
 stop instead of guessing a retry class. CLI-owned sessions follow CLI storage
 policy; the supervisor itself discards raw streams.
+
+## 2026-09-06 — Codex/Grok review and runtime repair
+
+The user removed Claude Code from active development. Decision 0009 and the
+current role policies require a separate Codex or Grok reviewer. Historical
+records remain intact. No Claude authentication, installation, account, or
+subscription change was made.
+
+Two local slices follow `codex/dev-supervisor-workflow`:
+
+| Branch | Parent | Added source lines |
+|---|---|---:|
+| `codex/dev-supervisor-review-policy` | `codex/dev-supervisor-workflow` | 52 |
+| `codex/dev-supervisor-reviewed-runtime` | `codex/dev-supervisor-review-policy` | 106 |
+
+The policy slice includes the permission library and its tests. Its committed
+archive passed 26 supervisor tests. The runtime slice integrates the command
+and lifecycle repairs. Its committed archive passed 35 supervisor tests.
+The original four slices remain in the merge order
+listed above. No branch was pushed or merged.
+
+### Independent review
+
+A separate Codex agent, `/root/supervisor_review`, received a bounded, read-only
+assignment. It reproduced and returned these findings to the Grok writer:
+
+- A selector setup exception left a live writer and permitted another lease.
+- A completed question remained a permission wait.
+- Final resolved paths could introduce permission-rule metacharacters.
+- Signal or selector cleanup errors could prevent process termination.
+
+The reviewer also found stale Luna-only routing, obsolete ownership examples,
+and incorrect assumptions about persistent CLI context. These were corrected.
+
+The final reviewer reported no remaining actionable findings in its assigned
+scope. It independently passed 35 tests. Six temporary-copy mutations failed
+the relevant regressions. The previous thread and selector-close reproductions
+left no live writer after repair. Final exception-handler narrowing was reviewed
+again; the reviewer passed 35 tests in 2.30 seconds. The reviewer made no edits.
+
+### Real writer execution
+
+Grok 4.6 medium remained the writer. Initial headless writes cancelled at the
+permission boundary. `acceptEdits` alone did not authorize the checkpoint write,
+even after the checkpoint moved into the worktree. No provider fallback occurred.
+
+A minimal probe with `--allow 'Write(/tmp/fewia-grok-compat/probe.txt)'` wrote
+`SAFE` and completed. The CLI reported USD 0.00412012. Lowercase `write` was
+rejected before model execution. Exact Write/Edit rules then allowed the scoped
+project repair. A subsequent command permission prompt stopped that run after
+source edits; the coordinator ran its checks.
+
+The permanent `--write-file` interface completed the final focused repair and
+lint repair with Grok. It authorized only named files and private progress.
+Command checks remained enabled. No blanket approval, global permission change,
+model override, or fallback from a permission cancellation was used. Checkpoints
+are private and ignored inside the worktree. Grok-owned session metadata provided
+the cancellation diagnosis; raw session contents were not added to the repository.
+
+The installed CLI can surface headless permission cancellation as `task_failed`.
+That outcome stops the sequence; it never triggers provider fallback. Local
+session metadata may be needed to distinguish its cancellation cause.
+
+### Final coordinator checks
+
+With `UV_CACHE_DIR=/tmp/fewia-supervisor-uv`:
+
+```text
+PYTHONPATH=. uv run --project backend ruff check dev_supervisor tests/supervisor
+All checks passed!
+
+uv run --project backend ruff format --check dev_supervisor tests/supervisor
+11 files already formatted
+
+uv run --project backend mypy --strict dev_supervisor
+Success: no issues found in 6 source files
+
+PYTHONPATH=. uv run --project backend pytest -q tests/supervisor
+35 passed
+```
+
+Backend gates again reported `All checks passed!`, `53 files already formatted`,
+`Success: no issues found in 30 source files`, and `247 passed, 3 skipped, 1 warning`.
+The skips and warning are the same PostgreSQL configuration and Starlette limits
+reported above. All 14 role TOML files parsed. Early repair checks found PIE810,
+one formatting defect, and two BLE001 exceptions; all were fixed and rechecked.
+
+### Activation boundary
+
+The supervisor executed real scoped repairs from this local worktree. The saved
+checkout still needs the six-branch stack integrated through the user's normal
+review and merge process. Existing native task role lists do not hot-reload.
+Use the supervisor command from an integrated checkout with a bounded assignment,
+explicit owned files, and any user model constraints. No application worker or
+new grocery feature was launched. Bedrock application routing remains unchanged.

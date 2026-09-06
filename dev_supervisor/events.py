@@ -22,6 +22,8 @@ CODES = {
 class Events:
     failure: str = "unknown"
     active_tools: set[str] = field(default_factory=set)
+    questions: set[str] = field(default_factory=set)
+    hold: bool = False
     waiting: bool = False
     complete: bool = False
     saw_error: bool = False
@@ -48,17 +50,18 @@ class Events:
             identity = str(event.get("toolCallId", "unknown"))
             if event.get("status") in {"completed", "failed"}:
                 self.active_tools.discard(identity)
+                self.questions.discard(identity)
             else:
                 self.active_tools.add(identity)
-            if event.get("toolName") == "ask_user_question":
-                self.waiting = True
+                if event.get("toolName") == "ask_user_question":
+                    self.questions.add(identity)
         if kind == "turn.completed" or (
             kind == "end" and event.get("stopReason") == "end_turn"
         ):
             self.complete = True
             self.failure, self.saw_error = "unknown", False
         if kind in {"permission_request", "user_input_required"}:
-            self.waiting = True
+            self.hold = True
         item = event.get("item", {})
         if isinstance(item, dict) and item.get("type") in {
             "command_execution",
@@ -81,6 +84,7 @@ class Events:
                     self.active_tools.discard(identity)
                 else:
                     self.active_tools.add(identity)
+        self.waiting = self.hold or bool(self.questions)
 
     def outcome(self, returncode: int) -> str:
         if self.waiting:
