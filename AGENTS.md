@@ -1,9 +1,15 @@
 # FEWIA rules for Codex
 
-Codex writes code for FEWIA. Claude verifies it. This file binds Codex;
-`CLAUDE.md` states the same contract for Claude agents.
+Development writers use the CLI supervisor in `docs/DEV_SUPERVISOR.md`.
+The default order is Grok 4.6 medium, Codex Spark, then Luna xhigh.
+Explicit task model requests override that order. Model-only requests forbid
+substitution. Claude verifies independently. These rules bind all writers.
 
 ## Read first
+
+The coordinator reads these sources before decomposition. Workers receive
+bounded briefs with hard rules and targeted integration context. Follow
+`docs/DEV_SUPERVISOR.md`; do not preload the full conversation or graph.
 
 - `project-plan.md` — the phases and the current status banner.
 - `wiki/index.md` — decisions and phase records.

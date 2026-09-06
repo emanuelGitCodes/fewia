@@ -1,7 +1,10 @@
 # Grocery bot agent team
 
-Every role uses `gpt-5.6-luna` and `model_reasoning_effort = "xhigh"`.
-These configure development agents, not the application's Bedrock model.
+Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md):
+Grok 4.6 medium, then Spark at its CLI default effort, then Luna xhigh.
+Explicit task models MUST be passed to the supervisor. Model-only requests
+MUST disable substitution. Native role files retain Luna xhigh pins.
+They do not implement provider fallback. Bedrock application routing is separate.
 
 ## Routing
 
@@ -45,7 +48,7 @@ count. Include tests with each behavior change. Agents MUST NOT merge or push
 to main. Other publication follows user authorization. Preserve old migrations
 and data; do not delete branches or worktrees as routine cleanup.
 
-Codex writes application code. Claude supplies the independent verification
+The selected CLI writer writes code. Claude supplies independent verification
 required by root rules. Codex security/test review is additional evidence.
 Report Claude verification as pending if unavailable. Review assignments are
 read-only except explicitly assigned test or artifact changes. Return defects

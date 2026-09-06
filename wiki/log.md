@@ -275,3 +275,19 @@ Silence requests inspection; it does not trigger fallback. Confirmation tokens
 apply to one attempt and cannot override known tool activity or permission waits.
 Tests cover silence, confirmed stalls, permissions, failed tasks, and stopping a
 child before it writes. Workers cannot detach processes under the task contract.
+
+## 2026-09-06 — Development supervisor workflow integration
+
+Added the CLI entry point, role handoff, bounded fallback, and private progress
+checkpoints. Updated writer routing and bounded worker-context instructions.
+Exploration can propose alternatives; implementation gets targeted integration
+context. Graph access is on demand; this worktree has no graph.
+
+All four backend gates passed: ruff clean, 53 formatted files, strict mypy clean
+for 30 files, and 247 tests passed with 3 PostgreSQL skips and 1 warning. Supervisor
+checks passed: ruff clean, 11 formatted files, strict mypy clean for 6 files, and
+24 tests passed. Claude independent review failed with expired OAuth (401).
+The private-file Grok probe was rejected by automatic review and did not run;
+the isolated synthetic fixture passed. Full evidence and the local stack are in
+`docs/DEV_SUPERVISOR_VERIFICATION.md`. Nothing was pushed, merged, or activated
+in the saved checkout. No application worker was launched.

@@ -53,25 +53,18 @@ spawn:
 
 A new spawn starts cold; a follow-up message does not.
 
-## Codex as the writer
+## Supervised CLI writers
 
-Codex writes the code; Claude verifies it. `AGENTS.md` binds Codex to
-the same rules as `CLAUDE.md`.
+Use [the development supervisor](DEV_SUPERVISOR.md) for coding assignments.
+The default order is Grok 4.6 medium, Spark at its CLI default effort, then Luna
+xhigh. Explicit models override the starting model. Model-only requests forbid
+substitution. Native role pins do not select Grok.
 
-The loop, driven by Claude:
-
-1. Claude decomposes the work item and starts Codex non-interactively:
-   `codex exec "<self-contained assignment>"`. The assignment names the
-   goal, files, interfaces, verification command, and branch.
-2. Codex writes the code on the branch and runs the checks.
-3. Claude verifies independently: reads the diff, reruns the checks,
-   and tests whether the tests catch a regression.
-4. Findings go back to Codex with `codex exec resume --last`. The loop
-   repeats until the findings are closed.
-5. Claude reports the reviewed PR. You merge.
-
-The verifier MUST NOT fix the code it reviews. Claude reports findings;
-Codex or the user applies them. This keeps the review independent.
+Claude decomposes the assignment and invokes the supervisor with its role,
+worktree, and task file. The writer implements and checks. Claude reads the diff,
+reruns checks, and tests whether tests catch regressions. Claude MUST NOT fix
+reviewed code. Findings return through a new assignment with the same model
+constraints. You merge.
 
 ## Retro: how the agents learn
 

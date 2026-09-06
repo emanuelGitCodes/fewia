@@ -51,6 +51,12 @@ cd backend && uv run ruff check app tests
 cd backend && uv run alembic upgrade head
 ```
 
+## Writer routing
+
+Claude MUST use `docs/DEV_SUPERVISOR.md` for coding delegation. The selected
+CLI writer implements; Claude verifies independently. Preserve explicit model
+requests and model-only restrictions in every assignment.
+
 ## Definition of done
 
 A work item is done when the code is typed, tested, mypy and ruff clean,
