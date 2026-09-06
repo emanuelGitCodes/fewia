@@ -258,3 +258,12 @@ Luna xhigh. Explicit models run first; model-only assignments forbid fallback.
 Added a worktree lease with an orphan-group check. Policy and lease tests pass.
 This is the first local slice of the development supervisor stack. No saved
 checkout or native session configuration has been activated.
+
+## 2026-09-06 — Development CLI event classification
+
+Added structured provider-error and tool-lifecycle parsing. Unknown errors
+stop. Tool output cannot trigger quota fallback. A successful final turn clears
+an earlier recovered error. Grok 4.6 medium completed a no-tool compatibility
+call and a read of an isolated synthetic fixture. The latter verified native
+tool_call and tool_call_update events. Spark completed a no-tool call with no
+reasoning override. Provider quota exhaustion remains simulated evidence.
