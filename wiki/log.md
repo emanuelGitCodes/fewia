@@ -185,6 +185,14 @@ fresh clone gave training no place to write. The entry now ignores the
 contents and keeps `backend/artifacts/.gitkeep`. `pandas` resolves to
 3.0.5, because no dependency states a floor. PR #33.
 
+## 2026-09-03 — Plaid and Instacart repository update plan
+
+Added a reference plan for the proposed pivot to a budget-aware grocery
+planning agent. The plan preserves the existing course sources and requires
+Plaid and Instacart access proof before implementation. It defines the target
+architecture, data model, security boundary, evaluation, stacked pull-request
+order, MVP checkpoint, and legacy cleanup gates. No application code changed.
+
 ## 2026-09-05 — Grocery bot development agent roles
 
 Updated the project agent team for Plaid, Instacart, real Bedrock, and Floci.
