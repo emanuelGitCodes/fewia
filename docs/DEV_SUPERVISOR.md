@@ -83,9 +83,14 @@ settings. Return proposed external actions to the coordinator. These are
 worker instructions, not an OS security boundary. CLI permission controls
 remain active. Never replay uncertain external actions.
 
-Claude independently reviews and reruns checks. Findings return to the same
-owning role through an explicit repair assignment with the same model constraints.
-Do not use `resume --last`; it can select another task. Report missing Claude proof.
+A separate Codex or Grok agent independently reviews the current diff and runs
+the required tests. Assign read-only ownership, targeted context, acceptance
+criteria, and concrete failure cases. Reviewers MUST NOT repair reviewed code.
+Return findings to the owning writer, then rerun affected checks and review.
+The coordinator records reviewer identity, tested revision, commands, outcomes,
+and unverified scope. A writer cannot certify its own independent review.
+Do not use `resume --last`; it can select another task. Preserve model constraints
+on repair assignments. Claude Code and Claude authentication are not required.
 
 ## Context and graph
 

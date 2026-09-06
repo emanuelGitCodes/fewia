@@ -23,7 +23,7 @@ Do not read credentials or include secrets in prompts, logs, or checkpoints.
 Update progress.md after each completed check and before changing work stages.
 Record completed checks, remaining work, and uncertain operations. Never claim
 an unfinished check passed. On handoff inspect the working tree first. Do not
-repeat an uncertain external action. Claude independently verifies the result.
+repeat an uncertain external action. A separate Codex or Grok agent independently verifies the result.
 """
 
 

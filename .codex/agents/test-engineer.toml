@@ -39,7 +39,7 @@ Rules:
   fail when the guarded behavior changes.
 - Keep CI tests deterministic and report the exact command output.
 - Audits are read-only unless the assignment names a test change. An audit
-  report MUST NOT replace independent Claude verification.
+  report counts as independent review only when its author did not write the change.
 - Do not change application, infrastructure, evaluation, docs, or wiki
   files. Shared CI changes MUST name the file and coordinate with aws-infra.
 - Test-only changes have no PR size cap. Typed Python and mypy/ruff rules

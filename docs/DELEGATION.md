@@ -1,35 +1,30 @@
 # Delegation guide
 
 This guide shows how to hand FEWIA work to the agent team in
-`.claude/agents/`.
+`.codex/agents/`.
 
 ## The team
 
-| Agent | Owns | Use for |
-|---|---|---|
-| `tech-lead` | nothing (delegates) | A whole phase or any multi-part task |
-| `backend-dev` | `backend/` | FastAPI, SQLAlchemy, tools, agent loop |
-| `ml-dev` | `backend/app/synth`, `backend/app/ml` | Data, models, metrics |
-| `aws-infra` | `compose.yaml`, `infra/`, AWS | Docker, Floci, Bedrock, deploy |
-| `test-engineer` | `backend/tests/`, `eval/`, CI | Test suites, eval harness, review |
-| `frontend-dev` | `frontend/` | React app (Phase 7) |
+The current role map lives in [.codex/TEAM.md](../.codex/TEAM.md).
+Role areas are routing hints, not blanket write permission. Each assignment
+MUST name exact owned files and relevant contracts.
 
 ## Hand off one task
 
 Name the agent in your message:
 
-> Use the backend-dev agent to build `get_health_context` and its
-> endpoint on branch `feat/health-context`.
+> Use backend-dev to implement the assigned grocery budget endpoint
+> on an isolated branch. Own only the files named in the task brief.
 
-Claude spawns the agent with the Agent tool. The agent starts cold, so
-the prompt must be self-contained: goal, files, interface, verification
-command, branch name.
+The coordinator invokes the writer supervisor. The bounded brief names the
+goal, files, interfaces, verification command, and branch. A separate Codex or
+Grok reviewer receives the current diff and targeted acceptance criteria.
 
 ## Hand off a phase
 
 Give the phase to `tech-lead`:
 
-> Use the tech-lead agent to run Phase 3 of the plan.
+> Use tech-lead to decompose the authorized grocery work item.
 
 `tech-lead` decomposes the phase, spawns the specialists, verifies their
 reports, and states the PR merge order. You review and merge.
@@ -38,20 +33,18 @@ reports, and states the PR merge order. You review and merge.
 
 Independent tasks can run at the same time. Ask for it directly:
 
-> Run ml-dev on the synthetic generator and backend-dev on the health
-> tool in parallel, each in its own worktree.
+> Run catalog-dev on the assigned recipe data and backend-dev on the
+> assigned budget endpoint, each in its own worktree.
 
 Worktree isolation gives each agent its own copy of the repository, so
 parallel edits do not collide. Each agent delivers its own branch.
 
 ## Continue an agent
 
-A finished agent keeps its context. Send a follow-up instead of a new
-spawn:
-
-> Tell the backend-dev agent to also add the missing-data warning.
-
-A new spawn starts cold; a follow-up message does not.
+A native coordinator or reviewer may retain session context. Supervised CLI
+writers use new bounded assignments and explicit checkpoints. Carry the task
+scope, completed checks, remaining work, and model constraints into repairs.
+Do not assume an ephemeral CLI session can resume by name or `--last`.
 
 ## Supervised CLI writers
 
@@ -60,24 +53,24 @@ The default order is Grok 4.6 medium, Spark at its CLI default effort, then Luna
 xhigh. Explicit models override the starting model. Model-only requests forbid
 substitution. Native role pins do not select Grok.
 
-Claude decomposes the assignment and invokes the supervisor with its role,
-worktree, and task file. The writer implements and checks. Claude reads the diff,
-reruns checks, and tests whether tests catch regressions. Claude MUST NOT fix
-reviewed code. Findings return through a new assignment with the same model
-constraints. You merge.
+The coordinator decomposes the assignment and invokes the supervisor with its
+role, worktree, and task file. The writer implements and checks. A separate
+Codex or Grok reviewer reads the diff, reruns checks, and tests failure paths.
+The reviewer MUST NOT fix reviewed code. Findings return to the owning writer
+with the same model constraints. You merge. Claude Code is not used.
 
 ## Retro: how the agents learn
 
 The agent files stay thin and stable. Lessons land in three layers:
 
-1. **Facts** go in the wiki. Every spawn reads `CLAUDE.md` and the wiki,
-   so a recorded lesson reaches every future agent.
+1. **Facts** go in the wiki. The coordinator selects relevant facts for
+   bounded task briefs. Workers can request more context.
 2. **Behavior** changes an agent file. After a phase merges, tech-lead
    proposes the diff as its own pull request that links the wiki entry
    for the triggering incident. You review and merge. An agent MUST NOT
    edit its own definition outside this flow.
-3. **Mechanical rules** become hooks in `.claude/settings.json`. A hook
-   enforces a rule regardless of any prompt.
+3. **Mechanical rules** become tested supervisor checks or repository CI
+   checks. Installation of global hooks is outside this workflow.
 
 ## Review and merge
 

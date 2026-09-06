@@ -3,6 +3,33 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+INJECT = frozenset("*?[](){},;!\n\r\t\0")
+
+
+def _unsafe_rule_text(text: str) -> bool:
+    return any(ch in INJECT or ch == "\\" for ch in text)
+
+
+def _rule_path(path: Path) -> Path:
+    resolved = path.resolve()
+    if _unsafe_rule_text(str(resolved)):
+        raise ValueError("Write path MUST stay a relative worktree file")
+    if resolved.exists() and not resolved.is_file():
+        raise ValueError("Write path MUST stay a relative worktree file")
+    return resolved
+
+
+def writes(cwd: Path, paths: list[str]) -> list[Path]:
+    root = cwd.resolve()
+    allowed: list[Path] = []
+    for raw in paths:
+        if not raw or Path(raw).is_absolute() or _unsafe_rule_text(raw):
+            raise ValueError("Write path MUST stay a relative worktree file")
+        candidate = _rule_path(root / raw)
+        candidate.relative_to(root)
+        allowed.append(candidate)
+    return allowed
+
 
 @dataclass(frozen=True)
 class Model:
@@ -29,9 +56,15 @@ def order(requested: str | None, only: bool, models: dict[str, Model]) -> list[s
     return first if only else first + [m for m in DEFAULTS if m not in first]
 
 
-def command(model: str, spec: Model, cwd: Path, prompt: Path) -> list[str]:
+def command(
+    model: str,
+    spec: Model,
+    cwd: Path,
+    prompt: Path,
+    files: list[Path] | None = None,
+) -> list[str]:
     if spec.provider == "grok":
-        return [
+        args = [
             str(Path.home() / ".grok/bin/grok"),
             "--model",
             model,
@@ -49,6 +82,10 @@ def command(model: str, spec: Model, cwd: Path, prompt: Path) -> list[str]:
             "--permission-mode",
             "default",
         ]
+        for path in files or []:
+            rendered = _rule_path(path)
+            args += ["--allow", f"Write({rendered})", "--allow", f"Edit({rendered})"]
+        return args
     if spec.provider != "codex":
         raise ValueError("Provider needs a command and event adapter")
     args = [

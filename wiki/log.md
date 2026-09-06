@@ -291,3 +291,15 @@ The private-file Grok probe was rejected by automatic review and did not run;
 the isolated synthetic fixture passed. Full evidence and the local stack are in
 `docs/DEV_SUPERVISOR_VERIFICATION.md`. Nothing was pushed, merged, or activated
 in the saved checkout. No application worker was launched.
+
+## 2026-09-06 — Codex and Grok independent review policy
+
+The user removed Claude Code from active FEWIA development. Decision 0009
+supersedes the earlier writer/verifier contract. Current rules, role policies,
+and delegation guidance now require a separate Codex or Grok reviewer with
+read-only ownership. Historical Claude files and log entries remain intact.
+
+Corrected stale Luna-only spawning, obsolete role ownership examples, and
+assumptions about retained CLI session context. Added a tested exact-file
+permission library for Grok. All 14 role TOML files parsed. No global settings,
+accounts, subscriptions, installations, pushes, or merges changed.

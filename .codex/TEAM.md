@@ -48,11 +48,11 @@ count. Include tests with each behavior change. Agents MUST NOT merge or push
 to main. Other publication follows user authorization. Preserve old migrations
 and data; do not delete branches or worktrees as routine cleanup.
 
-The selected CLI writer writes code. Claude supplies independent verification
-required by root rules. Codex security/test review is additional evidence.
-Report Claude verification as pending if unavailable. Review assignments are
-read-only except explicitly assigned test or artifact changes. Return defects
-to the owning writer instead of silently fixing reviewed code.
+The selected CLI writer writes code. A separate Codex or Grok agent supplies
+independent verification with targeted context and read-only ownership. Record
+the reviewed revision, commands, failure cases, and remaining limits. Return
+defects to the owning writer, then rerun review after repair. Claude Code is
+not an active dependency. Do not request Claude authentication.
 
 Run all four root backend checks for code changes, plus relevant integration
 checks. Report exact commands and failures. Do not invent CI, live API, or

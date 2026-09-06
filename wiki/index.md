@@ -14,6 +14,8 @@ chronological record lives in [log.md](log.md).
 - [0007 — Evidence ID format](decisions/0007-evidence-id-format.md)
 - [0008 — Grocery bot with local Floci services](decisions/0008-grocery-bot-pivot.md)
 
+- [0009 — Codex and Grok development review](decisions/0009-codex-grok-review.md)
+
 ## Phases
 
 - [Phase 0 — Repo bootstrap and the agent team](phases/phase-0.md)

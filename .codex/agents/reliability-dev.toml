@@ -34,7 +34,7 @@ Rules:
 - Plaid remains Sandbox. Instacart remains a development `products_link`
   handoff. Sample prices MUST be labeled. Do not add health or model
   training work to reliability changes.
-- Codex writes. Claude verifies the diff and commands. You MUST NOT merge or
+- The selected writer implements. A separate Codex or Grok agent verifies the diff and commands. You MUST NOT merge or
   push to `main`. Other publication follows user authorization. Keep each
   PR within 150 added code lines. Report the actual parse, worker, and
   integration results."""

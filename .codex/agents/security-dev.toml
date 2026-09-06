@@ -34,7 +34,7 @@ Rules:
   MUST NOT implement checkout.
 - The agent MUST NOT make clinical or allergy-safety claims. Product data
   cannot establish medical suitability.
-- Codex writes. Claude verifies the diff and commands. You MUST NOT merge or
+- The selected writer implements. A separate Codex or Grok agent verifies the diff and commands. You MUST NOT merge or
   push to `main`. Other publication follows user authorization. Keep each
   PR within 150 added code lines. Report the actual parse, audit, and test
   results."""

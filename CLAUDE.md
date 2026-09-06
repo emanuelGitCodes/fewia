@@ -1,4 +1,8 @@
-# FEWIA project rules
+# Legacy Claude project rules
+
+Claude Code is not used for active FEWIA work. This file and `.claude/agents/`
+remain as historical configuration. Current rules live in `AGENTS.md` and
+`docs/DEV_SUPERVISOR.md`; they supersede the legacy instructions below.
 
 FEWIA is the Financial and Environmental Wellness Intelligence Agent for
 CAP 6938. The plan lives in `docs/CAP6938_MVP_PROJECT_PLAN.md`. The
@@ -53,9 +57,9 @@ cd backend && uv run alembic upgrade head
 
 ## Writer routing
 
-Claude MUST use `docs/DEV_SUPERVISOR.md` for coding delegation. The selected
-CLI writer implements; Claude verifies independently. Preserve explicit model
-requests and model-only restrictions in every assignment.
+Active coding delegation uses `docs/DEV_SUPERVISOR.md`. A separate Codex or
+Grok agent verifies the selected writer. Preserve explicit model requests and
+model-only restrictions in every assignment.
 
 ## Definition of done
 

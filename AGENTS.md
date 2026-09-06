@@ -3,7 +3,8 @@
 Development writers use the CLI supervisor in `docs/DEV_SUPERVISOR.md`.
 The default order is Grok 4.6 medium, Codex Spark, then Luna xhigh.
 Explicit task model requests override that order. Model-only requests forbid
-substitution. Claude verifies independently. These rules bind all writers.
+substitution. A separate Codex or Grok agent verifies independently.
+Claude Code is not an active workflow dependency. These rules bind all writers.
 
 ## Read first
 
