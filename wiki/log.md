@@ -1000,3 +1000,17 @@ format passed, strict mypy passed 75 files, and 1,221 PostgreSQL-enabled tests
 passed with one existing Starlette warning. This layer adds 141 source lines.
 No route constructs a provider or reads provider secret files. Live provider
 validation remains pending.
+
+## 2026-09-07 — Route recorded plans, chat, and sync jobs
+
+Grok 4.6 wrote the runtime routing. A separate Grok source reviewer found no blockers.
+The coordinator ran ruff, formatting, strict mypy, and PostgreSQL-enabled pytest.
+Results: all checks passed; 140 files formatted; 74 typed source files; 1,187 tests passed.
+Pytest reported one existing Starlette deprecation warning. The first check found a
+missing test import; the writer repaired it before the passing run.
+
+An isolated Docker worker consumed a synthetic plan through Floci and PostgreSQL.
+The plan cost 1,703 cents. Its immutable evidence snapshot matched the result and
+rejected a foreign owner read. Unconfigured chat and sync jobs failed with no result.
+Both temporary workers exited with code 0 after SIGTERM. No live provider call ran.
+The source delta adds 139 application and Compose lines against 94f3db9.

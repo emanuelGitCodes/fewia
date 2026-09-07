@@ -11,9 +11,11 @@ from typing import cast
 
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
+from test_chat_job import chat_payload
 
 from app import worker
 from app.job_models import Job
+from app.provider_settings import GroceryProviderSettings, ProviderConfigurationError
 from app.services.job_delivery import JobHandler, JobQueue
 from app.services.outbox_publisher import JobSender, PublicationError
 
@@ -44,6 +46,10 @@ VALID_PAYLOAD: dict[str, object] = {
         "refreshed_at": "2026-09-02T11:00:00+00:00",
     },
     "spending_source": "fixture",
+}
+SYNC_PAYLOAD: dict[str, object] = {
+    "operation": "plaid_sync",
+    "item_id": "item-1",
 }
 
 
@@ -110,14 +116,16 @@ def invoke_main(
     sender_factory: worker.SenderFactory | None = None,
     stop: threading.Event | None = None,
     wait: worker.WaitFn | None = None,
+    handler: JobHandler | None = dummy_handler,
+    kind: str = "agent",
 ) -> int:
     stub_cycle(monkeypatch, recover=recover, publish=publish)
     queue = dummy_queue()
     sender: JobSender = DummySender()
 
-    def make_consumer(endpoint: str, kind: str) -> JobQueue:
+    def make_consumer(endpoint: str, queue_kind: str) -> JobQueue:
         assert endpoint == ENDPOINT
-        assert kind == "agent"
+        assert queue_kind == kind
         return queue
 
     def make_sender(endpoint: str) -> JobSender:
@@ -125,16 +133,35 @@ def invoke_main(
         return sender
 
     return worker.main(
-        ["--endpoint", ENDPOINT],
+        ["--endpoint", ENDPOINT, "--kind", kind],
         factory=dummy_factory(),
         consumer_factory=consumer_factory or make_consumer,
         sender_factory=sender_factory or make_sender,
         processor=processor,
-        handler=dummy_handler,
+        handler=handler,
         stop=stop,
         now=frozen_now,
         wait=wait,
     )
+
+
+def clear_fewia(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in list(os.environ):
+        if name.startswith("FEWIA_"):
+            monkeypatch.delenv(name, raising=False)
+
+
+def forbid_provider_builds(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(name: str) -> Callable[..., object]:
+        def fail(*args: object, **kwargs: object) -> object:
+            del args, kwargs
+            raise AssertionError(name)
+
+        return fail
+
+    monkeypatch.setattr(worker, "build_bedrock", boom("bedrock"))
+    monkeypatch.setattr(worker, "build_plaid", boom("plaid"))
+    monkeypatch.setattr("app.provider_runtime.build_instacart", boom("instacart"))
 
 
 def test_empty_then_work_then_stop(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -216,7 +243,7 @@ def test_recover_then_publish_then_process_order(
     def recover(*args: object, **kwargs: object) -> int:
         order.append("recover")
         assert kwargs["now"] == NOW
-        assert args[1] is worker.agent_plan_replay_safe
+        assert args[1] is worker.job_replay_safe
         return 0
 
     def publish(*args: object, **kwargs: object) -> int:
@@ -369,18 +396,32 @@ def test_publication_error_does_not_print_payloads(
     assert "published=" not in output.out
 
 
-def test_unsafe_job_classification() -> None:
+def test_strict_replay_classification() -> None:
     valid = make_job(kind="agent", payload=VALID_PAYLOAD)
+    chat = make_job(kind="agent", payload=chat_payload())
+    sync_ok = make_job(kind="sync", payload=SYNC_PAYLOAD)
     sync_job = make_job(kind="sync", payload=VALID_PAYLOAD)
     empty_job = make_job(kind="agent", payload={})
     extra = dict(VALID_PAYLOAD)
     extra["token"] = "secret-token"
     extra_job = make_job(kind="agent", payload=extra)
+    unknown = make_job(kind="agent", payload={"operation": "purchase"})
+    chat_on_sync = make_job(kind="sync", payload=chat_payload())
+    sync_on_agent = make_job(kind="agent", payload=SYNC_PAYLOAD)
+    cursor = dict(SYNC_PAYLOAD)
+    cursor["cursor"] = "c1"
+    sync_cursor = make_job(kind="sync", payload=cursor)
 
-    assert worker.agent_plan_replay_safe(valid) is True
-    assert worker.agent_plan_replay_safe(sync_job) is False
-    assert worker.agent_plan_replay_safe(empty_job) is False
-    assert worker.agent_plan_replay_safe(extra_job) is False
+    assert worker.job_replay_safe(valid) is True
+    assert worker.job_replay_safe(chat) is True
+    assert worker.job_replay_safe(sync_ok) is True
+    assert worker.job_replay_safe(sync_job) is False
+    assert worker.job_replay_safe(empty_job) is False
+    assert worker.job_replay_safe(extra_job) is False
+    assert worker.job_replay_safe(unknown) is False
+    assert worker.job_replay_safe(chat_on_sync) is False
+    assert worker.job_replay_safe(sync_on_agent) is False
+    assert worker.job_replay_safe(sync_cursor) is False
 
 
 def test_unknown_outcome_is_fatal(
@@ -623,3 +664,251 @@ def test_standalone_worker_import_registers_user() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stderr == ""
+
+
+def test_default_agent_has_zero_external_effects(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    clear_fewia(monkeypatch)
+    forbid_provider_builds(monkeypatch)
+    captured: list[object] = []
+
+    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        del factory
+        captured.append(provider)
+        return dummy_handler
+
+    def fake_sync(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        del factory, provider
+        raise AssertionError("sync handler")
+
+    monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
+    monkeypatch.setattr(worker, "make_sync_handler", fake_sync)
+    stop = threading.Event()
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue
+        assert kind == "agent"
+        assert handler is dummy_handler
+        stop.set()
+        return "succeeded"
+
+    code = invoke_main(
+        monkeypatch,
+        processor=processor,
+        handler=None,
+        stop=stop,
+    )
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+
+    assert code == 0
+    assert captured == [None]
+    assert result["status"] == "stopped"
+    assert result["counts"]["succeeded"] == 1
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+    assert "Traceback" not in output.out
+
+
+def test_default_agent_routes_plan_and_chat_handlers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_fewia(monkeypatch)
+    forbid_provider_builds(monkeypatch)
+    seen: list[str] = []
+
+    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        del factory, provider
+
+        def handle(
+            payload: dict[str, object], heartbeat: Callable[[], None]
+        ) -> dict[str, object]:
+            del heartbeat
+            if payload.get("operation") == "chat":
+                seen.append("chat")
+            elif "operation" in payload:
+                raise ValueError("operation is invalid")
+            else:
+                seen.append("plan")
+            return {}
+
+        return handle
+
+    monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
+    stop = threading.Event()
+    routed: list[str] = []
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue
+        assert kind == "agent"
+        handler(VALID_PAYLOAD, lambda: None)
+        handler(chat_payload(), lambda: None)
+        routed.extend(seen)
+        stop.set()
+        return "succeeded"
+
+    code = invoke_main(
+        monkeypatch,
+        processor=processor,
+        handler=None,
+        stop=stop,
+    )
+    assert code == 0
+    assert routed == ["plan", "chat"]
+
+
+def test_sync_kind_uses_sync_queue_and_handler(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    clear_fewia(monkeypatch)
+    forbid_provider_builds(monkeypatch)
+    captured: list[object] = []
+    process_kinds: list[str] = []
+
+    def fake_sync(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        del factory
+        captured.append(provider)
+        return dummy_handler
+
+    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        del factory, provider
+        raise AssertionError("agent handler")
+
+    def no_plaid(settings: GroceryProviderSettings) -> None:
+        del settings
+        return None
+
+    monkeypatch.setattr(worker, "make_sync_handler", fake_sync)
+    monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
+    monkeypatch.setattr(worker, "build_plaid", no_plaid)
+    stop = threading.Event()
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue, handler
+        process_kinds.append(kind)
+        stop.set()
+        return "succeeded"
+
+    def recover(*args: object, **kwargs: object) -> int:
+        assert args[1] is worker.job_replay_safe
+        return 0
+
+    code = invoke_main(
+        monkeypatch,
+        processor=processor,
+        recover=recover,
+        handler=None,
+        kind="sync",
+        stop=stop,
+    )
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+
+    assert code == 0
+    assert captured == [None]
+    assert process_kinds == ["sync"]
+    assert result["status"] == "stopped"
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+
+
+def test_bedrock_constructor_failure_degrades_without_fake(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    settings = GroceryProviderSettings(bedrock_model_id="anthropic.model")
+
+    def loaded() -> GroceryProviderSettings:
+        return settings
+
+    def fail_build(loaded_settings: GroceryProviderSettings) -> None:
+        del loaded_settings
+        raise ProviderConfigurationError()
+
+    def forbid_plaid(loaded_settings: GroceryProviderSettings) -> None:
+        del loaded_settings
+        raise AssertionError("plaid")
+
+    monkeypatch.setattr(worker, "load_provider_settings", loaded)
+    monkeypatch.setattr(worker, "build_bedrock", fail_build)
+    monkeypatch.setattr(worker, "build_plaid", forbid_plaid)
+    captured: list[object] = []
+
+    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        del factory
+        captured.append(provider)
+        return dummy_handler
+
+    monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
+    stop = threading.Event()
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue, handler
+        stop.set()
+        return "succeeded"
+
+    code = invoke_main(
+        monkeypatch,
+        processor=processor,
+        handler=None,
+        stop=stop,
+    )
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+    notice = json.loads(output.err)
+
+    assert code == 0
+    assert captured == [None]
+    assert notice == {"status": "bedrock_unavailable"}
+    assert result["status"] == "stopped"
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+
+
+def test_invalid_settings_fail_closed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def boom() -> GroceryProviderSettings:
+        raise ProviderConfigurationError()
+
+    monkeypatch.setattr(worker, "load_provider_settings", boom)
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue, kind, handler
+        raise AssertionError("process must not run")
+
+    code = invoke_main(monkeypatch, processor=processor, handler=None)
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+
+    assert code == 1
+    assert result == {"counts": ZERO_COUNTS, "status": "worker_failed"}
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+    assert output.err == ""
+    assert "Traceback" not in output.out
