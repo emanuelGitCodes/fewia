@@ -130,3 +130,12 @@ running local Compose snapshot is `/private/tmp/fewia-compose-current`. Its real
 HTTP path returned a 1,703-cent plan, stored evidence, and an idempotent replay.
 Provider configuration remains unset. Handoff API layers, evidence reads, frontend
 provider configuration, and chat presentation are the next active work.
+
+### Shopping routes checkpoint
+
+Snapshot `84a145c` passes 1,276 PostgreSQL-enabled backend tests and all static
+gates. It runs in `/private/tmp/fewia-compose-shopping`. Real local HTTP checks
+passed for stored evidence, malformed revisions, and an unconfigured handoff
+that preserves its prepared intent without dispatch. The sync API branch passes
+1,228 tests and awaits review. The frontend branch passes 121 tests and a build;
+its composer timeout/retry states are being repaired after independent review.

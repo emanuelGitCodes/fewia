@@ -1103,3 +1103,11 @@ FastAPI uses included-router wrappers. The writer changed the test to the public
 OpenAPI inventory. All backend gates then passed: ruff, formatting, strict mypy
 on 80 files, and 1,276 PostgreSQL-enabled tests. One existing Starlette warning
 remains. The main error envelope preserves static ownership and configuration errors.
+
+## 2026-09-07 — Verify shopping routes in local Compose
+
+The local Compose project runs reviewed snapshot `84a145c` from
+`/private/tmp/fewia-compose-shopping`. Through the web proxy, evidence GET returned
+the stored 1,703-cent plan. A malformed revision returned 404. Handoff POST returned
+the static unconfigured-provider 503. The database preserved a prepared intent
+with zero attempts. Handoff GET returned only public fields. No provider dispatched.
