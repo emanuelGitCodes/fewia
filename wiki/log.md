@@ -927,3 +927,11 @@ Added migration, idempotent demo-user seeding, and local Floci provisioning.
 Child commands use bounded timeouts and static status output. Grok repaired
 one strict typing issue and a retry-test setup error. Independent review,
 Ruff, formatting, strict mypy, and all 551 backend tests passed.
+
+## 2026-09-07 — Grocery Compose stack
+
+Added startup dependencies, a continuous worker, and the static web container.
+Published ports bind to loopback. Separate Docker contexts exclude environment
+files, secrets, and writer checkpoints. Independent review and Compose config
+validation passed. Image builds need the integrated frontend checkout and follow
+in the coordinator's isolated stack. No user containers were replaced.
