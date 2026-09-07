@@ -787,3 +787,10 @@ All 45 frontend tests and the production build passed. Browser checks remain pen
 Added example actions, job status, and retry controls. Errors suppress stale
 conversation status. Independent review passed. All 45 frontend tests and the
 production build passed. The app wiring follows in a separate layer.
+
+## 2026-09-07 — Web request state
+
+Connected configuration, meal drafts, submission, retry, and pantry state.
+Grok repaired stale-configuration submission after independent review.
+Original-body retries preserve ambiguous requests. All 56 frontend tests and
+the production build passed. App rendering and browser checks follow.
