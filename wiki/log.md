@@ -765,3 +765,12 @@ Added decimal-string parsing to safe integer cents and USD formatting. Invalid
 negative, fractional-cent, and unsafe values are rejected. The 36-line helper
 has direct tests. Independent Codex domain_review approved exactness and bounds.
 Combined frontend build and 33 tests passed after adding the meal form.
+
+## 2026-09-06 — Explicit meal and pantry controls
+
+Added controlled meal, serving, budget, diet, pantry, and exclusion inputs.
+Request construction copies state and validates catalog choices. Pantry flags
+require user selection. Independent Codex domain_review passed 13 money/form
+tests and approved labels, disabled semantics, and mutation guards. The strict
+frontend build and all 33 frontend tests passed. Form source is 150 lines.
+App wiring and browser verification remain separate work.
