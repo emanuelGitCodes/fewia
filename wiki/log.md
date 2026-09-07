@@ -332,3 +332,885 @@ The ignored graph remains an older snapshot: 90 of 96 indexed files match;
 coverage. Current role files and runbooks remain the source for delegation.
 Detailed results and graph gaps are in docs/DEV_SUPERVISOR_VERIFICATION.md.
 No remote push, deployment, global change, or application worker was performed.
+## 2026-09-06 Repair lease atomics, nondecreasing renew, and lease tests (backend reliability assignment).
+
+Added atomic claim, renewal, and completion helpers on
+`codex/job-worker-leases`, based on `0fa4852`. The slice adds 140 application
+lines. Claims use fresh tokens and bounded attempts. Expired owners cannot
+renew or complete reclaimed jobs. Renewal cannot shorten an existing lease.
+The caller owns transactions. The runbook records time, ORM refresh, result,
+and acknowledgement contracts. Queue consumption remains the next slice.
+
+Grok 4.6 wrote the initial files. Its first run ended with `task_failed`.
+Coordinator checks found six Ruff errors, four mypy errors, and three failing
+SQLite timestamp assertions. Independent Codex review found lease shortening
+and missing PostgreSQL reclaim and rollback evidence. A second Grok run ended
+with `task_failed` and no repair. The coordinator explicitly assigned Spark
+through the supervisor. No automatic provider fallback occurred.
+
+Spark repaired the source and tests. PostgreSQL exposed a test that attempted
+reclaim before the renewed expiry: one failed and 265 passed. Spark corrected
+the test to the exact expiry boundary. Writer checks encountered uv cache
+permissions and PostgreSQL connectivity restrictions. Coordinator checks ran
+with cache and database access. Spark also appended the entry heading outside
+its assigned source/test files; the coordinator retained it and supplied this
+record. Scoped CLI permissions do not provide an OS write boundary.
+
+Final coordinator commands from `backend/` passed:
+
+- `uv run ruff check app tests`: `All checks passed!`
+- `uv run ruff format --check app tests`: `56 files already formatted`
+- `uv run mypy --strict app`: `Success: no issues found in 31 source files`
+- `uv run pytest`, with `FEWIA_JOB_TEST_DATABASE_URL` set to an isolated
+  migrated PostgreSQL 16 container: `266 passed, 1 warning in 1.30s`
+
+The warning is the existing Starlette/httpx deprecation. No tests skipped.
+Independent Codex reviewer `/root/lease_review` approved the final working
+tree on `0fa4852`. Its targeted lease suite passed 16 tests with one warning.
+It verified queued and expired claim races, old-token rejection, and caller
+rollback from separate PostgreSQL sessions. Three temporary-copy mutations
+failed: shortening renewal, bypassing renewal tokens, and bypassing completion
+tokens. Source SHA-256:
+`1e0b25a40ba0f885b1f11e0524180489ebdfc2ac7d72f5eab59be225d162d7f0`.
+
+No SQS consumer, provider execution, deployment, push, or merge was performed.
+
+## 2026-09-06 — Local SQS consumer transport
+
+Added typed receive, visibility extension, and acknowledgement operations.
+The adapter uses explicit dummy credentials and bounded long polling. It
+validates the expected queue path and normalizes known Floci host aliases to
+the configured endpoint. Malformed URLs and receipt handles fail with static
+errors. This slice adds 150 application lines.
+
+Independent review found alternate-origin acceptance, parser text leakage,
+and empty-receipt acceptance in the initial Grok handoff. Luna repaired these
+issues after Spark reached its usage limit. Live Floci returned its container
+hostname to host clients, so the reviewed normalization contract replaced
+strict alias rejection. A final import-order failure was repaired.
+
+Coordinator gates passed: Ruff clean, 58 files formatted, strict mypy clean
+for 32 files, and 333 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed
+67 adapter tests and approved credential and URL handling. Source SHA-256:
+f99a4508a14411379c1d7c845147d5fc7614e6addb47cd47598b4d24ce1f5e4b.
+A live isolated Floci queue passed receive, visibility hide, redelivery, and
+acknowledgement checks. The temporary queue was deleted. No application queue
+messages, external providers, deployments, pushes, or merges were performed.
+
+## 2026-09-06 — Expired job recovery
+
+Added a bounded recovery sweep that locks jobs and outbox entries. Safe jobs
+return to queued state with pending publication. Exhausted jobs fail. Unsafe
+jobs receive recovery_required without automatic replay. Pending, active, and
+terminal jobs remain unchanged. The caller supplies a bounded replay classifier.
+
+Coordinator gates passed: Ruff clean, 60 files formatted, strict mypy clean
+for 33 files, and 354 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed 21
+recovery tests and PostgreSQL probes for claim locks, publisher locks, atomic
+reset, pending preservation, and a final-attempt crash. Its unique temporary
+schema was removed. Source SHA-256:
+78882ca15e9b3d8d955983ff38fe2ec4733adebcab44dcaecbe72743c17e621a.
+Real provider replay safety remains an explicit classifier responsibility.
+
+## 2026-09-06 — Versioned grocery recipe catalog
+
+Added ten recipes with per-serving integer quantities, package sizes, dietary
+facts, and labeled sample prices. Missing prices remain representable. Pantry
+metadata does not authorize omission. Recipe base servings are fixed at one.
+The slice adds 142 source/data lines. Grok wrote the initial files; Luna repaired
+formatting and interface drift after Spark reached its usage limit.
+
+Coordinator gates passed: Ruff clean, 58 files formatted, strict mypy clean
+for 32 files, and 288 tests passed with isolated PostgreSQL enabled. One
+existing Starlette warning remains. Independent Codex reviewer domain_review
+passed 22 catalog tests and found no blocking defect. It checked malformed
+records, optional prices, base servings, and catalog completeness.
+Source SHA-256: 4909325b925f888ca71c41474ad34955072bdd932ec82ea80a9ede8e509714d8.
+No live pricing, inventory, provider call, push, or merge was performed.
+
+## 2026-09-06 — Deterministic grocery budget
+
+Added integer-cent budget calculation with posted net spending, separate
+pending spending, New York month boundaries, and explicit temporary caps for
+stale snapshots. Independent review reproduced daylight-saving freshness and
+future-time defects. The repaired calculation compares UTC instants.
+
+Grok stopped without files; Spark reached its usage limit. Luna implemented
+and repaired this 110-line source slice. Coordinator gates passed: Ruff clean,
+58 files formatted, strict mypy clean for 32 files, and 296 tests passed with
+isolated PostgreSQL enabled. One existing Starlette warning remains.
+Independent Codex reviewer domain_review passed 30 budget tests. Removing UTC
+normalization in a temporary copy caused both regression tests to fail.
+Source SHA-256: 8558ece83d83e1e114fa95d709a3332a0d1293d6856a4f97b2022beb6734b0e4.
+No bank access, provider call, push, or merge was performed.
+
+## 2026-09-06 — Bedrock provider boundary
+
+Added LLMProvider and a bounded Converse adapter with an explicit real AWS
+endpoint. Floci credentials and endpoints are not substituted. Independent
+review reproduced malformed role, content, and stop-reason acceptance. The
+writer repaired structural validation and preserved static failure errors.
+
+Coordinator gates passed: Ruff clean, 68 files formatted, strict mypy clean
+for 38 files, and 443 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex provider_contracts passed 37
+mocked provider tests and malformed-message probes. Provider source SHA-256:
+11a4443c268dff95140f9aa7f4d4bbc09e960549da5b17f67cbf0b99047c3729.
+The combined source slice is 147 lines. Tool names and argument schemas remain
+the agent loop's responsibility. No live Bedrock invocation was performed.
+
+## 2026-09-06 — Delivery contracts and envelope validation
+
+Added typed queue and handler contracts with bounded canonical job envelopes.
+Duplicate JSON keys and oversized input are rejected. This 57-line layer
+precedes the cooperative execution layer. Its direct tests do not import the
+consumer. Combined coordinator gates passed: Ruff clean, 61 files formatted,
+strict mypy clean for 34 files, and 295 tests passed with isolated PostgreSQL.
+One existing Starlette warning remains. Independent Codex runtime_design_review
+passed 29 delivery and execution tests. Delivery source SHA-256:
+13ec4846f60fa258fbb458857d2d2ae10a5995856e0e2c784bbe28e4751a1edf.
+
+## 2026-09-06 — Cooperative SQS job execution
+
+Added committed claims, duplicate handling, cooperative heartbeats, bounded
+retry delay, and committed terminal results before acknowledgement. Independent
+review found a nonterminal acknowledgement bug and permissive envelope parsing.
+The repairs retain nonterminal messages and reject malformed envelopes. Delivery
+validation and execution ship as separate 57-line and 128-line source layers.
+
+Coordinator gates passed 295 tests with isolated PostgreSQL, plus Ruff, formatting,
+and strict mypy. Independent Codex runtime_design_review passed 29 targeted tests.
+Its real PostgreSQL/Floci probe verified committed claims and results, harmless
+terminal redelivery, active duplicate retention, and invalid-message retention.
+The unique queue and schema were cleaned up. Execution source SHA-256:
+6a78865e2bc82ba06f67960f23a0c8e28f4f261c8edce9214d71c95f0b279a3b.
+The final transport hash in this probe was
+baaea517c75b4ebe01de9b273b75f3e5505471d573b9460194f289df2c384b0d.
+Background heartbeats and real-provider operation intents remain separate work.
+
+## 2026-09-06 — Deterministic meal estimates
+
+Added a planner that aggregates ingredients before package rounding, preserves
+servings, validates diet and exclusions before pantry removal, and labels all
+sample estimates. Explicit pantry items remain visible. Missing purchase prices
+prevent acceptance. Temporary-cap warnings remain visible for stale spending.
+
+Coordinator gates passed: Ruff clean, 62 files formatted, strict mypy clean
+for 34 files, and 335 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex domain_review passed 17 planner
+tests. It found a weak aggregation test; the writer replaced its quantities
+with a discriminating case. Per-meal rounding then failed the regression in a
+temporary copy. Request and mapping preservation checks also pass.
+Source SHA-256: c4860d76bea9ce55cf260e4e633a80f3021005e44d29851031c648112a05e880.
+The slice adds 149 application lines. No provider or purchase call was made.
+
+## 2026-09-06 — Model-facing planning tool
+
+Added a typed Bedrock tool schema and deterministic execution boundary. Model
+caps can only reduce the server budget. Invalid arguments and catalog conflicts
+produce static errors. Evidence IDs use the existing formatter with a content
+hash over request, budget, plan, and source.
+
+Coordinator gates passed: Ruff clean, 76 files formatted, strict mypy clean
+for 42 files, and 508 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed 19
+targeted tests and found no blocking issue. Grok corrected one formatting-only
+test call afterward. Source SHA-256:
+489fcf5b6385f6c8239708f999dbbff7c1bf61a12919999d4d6ef0a0ea637b7f.
+This 134-line tool does not call a model or external provider. Content-derived
+IDs alone do not prove an immutable storage layer.
+
+## 2026-09-06 — SDK-native planning results
+
+A no-network botocore check found tuple-valued plan fields were invalid Converse
+documents. Grok normalized the planner output to JSON-native values. The SDK
+parameter test now passes and a tuple mutation fails it. Independent Codex
+runtime_design_review approved the fix; evidence hashing retains equivalent JSON.
+
+## 2026-09-06 — Bounded model-message parsing
+
+Added strict assistant message parsing, tool bounds, stop consistency, duplicate
+ID checks, atomic seen-ID updates, and reasoning removal. Grok's broad initial
+chat assignment reached its 30-turn limit; smaller assignments preserved its
+work. Independent Codex runtime_design_review passed 21 parser tests. The parser
+is 150 source lines. No live model call was made.
+
+## 2026-09-06 — Deterministic model tool dispatch
+
+Added a 38-line dispatcher for the single approved planning tool. Unsupported
+or invalid calls clear the candidate and return static errors. Traces hold only
+tool outcomes and evidence IDs. Coordinator gates passed 535 tests with isolated
+PostgreSQL, Ruff, formatting, and strict mypy. Independent review passed 46 parser,
+planner, dispatcher, and SDK tests. The loop remains a separate draft.
+
+## 2026-09-06 — Public chat context
+
+Added bounded public dialogue history and aggregate planning context. The helper
+rejects injected roles and preserves unknown token usage. Independent review
+found one SDK test fixture error. Grok repaired it. Ruff, formatting, strict
+mypy, and all 574 backend tests passed with PostgreSQL tests enabled.
+
+## 2026-09-07 — Bounded grocery chat loop
+
+Added an eight-turn Bedrock loop with three planner attempts, public history,
+static provider errors, and honest token usage. Incomplete responses discard
+candidate plans. Grok repaired a provider exception subtype leak found in
+independent review. Ruff, formatting, strict mypy, and all 607 backend tests
+passed with PostgreSQL enabled. Live Bedrock validation remains pending.
+
+## 2026-09-06 — Grocery job payload adapter
+
+Added a strict typed job payload with declared budget, spending source, and
+period agreement. The adapter calls the deterministic budget and planner tools
+between cooperative heartbeats. This 67-line layer precedes the worker command.
+Combined coordinator gates passed: Ruff clean, 72 files formatted, strict mypy
+clean for 39 files, and 454 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed 23
+handler/CLI tests. Handler source SHA-256:
+652dab5c9fe51237bc1245172587abfa6c9a85ea53f164c8e7743e61b0e2f76d.
+
+## 2026-09-06 — Bounded grocery worker command
+
+Added an agent-queue-only command with bounded message count, signal restoration,
+and static failure summaries. This source layer is 97 lines. Coordinator gates
+passed 454 tests with isolated PostgreSQL, Ruff, formatting, and strict mypy.
+Independent Codex runtime_design_review passed 23 targeted tests and an actual
+PostgreSQL/Floci pipeline from create_job through publication and CLI execution.
+It stored a 1,703-cent fixture estimate, retained the published outbox, and
+restored signal handlers. Temporary queue and schema cleanup passed.
+CLI source SHA-256: 2f545d2548c25e8df0991ef597e5a3e8c82ad938fdad666eec15165b0d23d3e9.
+This proves local fixture processing, not live provider provenance.
+
+## 2026-09-06 — Grocery API request and response models
+
+Added typed fixture API models and canonical caller-field comparison for stable
+idempotent requests. This 65-line model layer precedes the router integration.
+Combined coordinator gates passed: Ruff clean, 76 files formatted, strict mypy
+clean for 41 files, and 485 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Model source SHA-256:
+737e9820c06d4faeed223d3cc04af810e51109305115d31e802a87aa1d8ebf64.
+
+## 2026-09-06 — Grocery job HTTP routes
+
+Added fixture configuration, server-selected user job submission, and restricted
+job polling. New requests receive actual-time snapshots. Identical caller fields
+reuse the original job and snapshot across midnight or month rollover. Changed
+requests conflict. Concurrent insert winners use the same comparison.
+
+Independent review reproduced daily-snapshot idempotency and DST freshness bugs;
+Grok repaired both, corrected a contradictory notice test, and fixed formatting.
+Coordinator gates passed 485 tests with isolated PostgreSQL, Ruff, formatting,
+and strict mypy. Independent Codex runtime_design_review passed 21 targeted tests
+and PostgreSQL concurrent/midnight retry probes. Router source SHA-256:
+a51739e321fac090f4d26faf3b30a55aee8d21f68d33e9496af42f807fb8bee7.
+The router plus registration stays below 150 added source lines. This API reports
+fixture provenance. It does not claim live Plaid or Bedrock integration.
+
+## 2026-09-06 — Plaid ledger schema
+
+Added provider Items with credential references and normalized USD transaction
+rows. Migration 0005 preserves prior tables and rejects downgrade. The source
+slice adds 113 lines including Alembic registration. Coordinator applied the
+migration to a disposable database. Ruff, required formatting, strict mypy,
+and 300 tests passed; one existing Starlette warning remains. A broader format
+scan found an unchanged migration 0003 formatting issue; new migration files pass.
+
+Independent Codex provider_contracts verified PostgreSQL uniqueness, composite
+identity, orphan rejection, USD restriction, refund reload, and reflection parity.
+All synthetic probe rows were rolled back. No access token or raw response is
+stored by this schema. Source SHA-256:
+dd07e388ba469a1ef43c061900484f26cfcc745c0a1b6881b3ad3f81e6e31d37.
+No live Plaid sync, shared development migration, push, or merge was performed.
+
+## 2026-09-06 — Normalized Plaid sync pages
+
+Added strict normalized page records, exact signed cents, dates, pending flags,
+removals, and grocery classification. Raw provider fields do not enter the DTO.
+Independent review found Decimal underflow could silently convert tiny nonzero
+amounts to zero. Coefficient/exponent conversion repaired that defect.
+
+Coordinator gates passed: Ruff clean, 62 files formatted, strict mypy clean
+for 34 files, and 339 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex provider_contracts passed 39 tests
+and 1,509 exact-value probes under hostile Decimal settings. Grok completed a
+file-tool-only constant cleanup to meet the 150-line source cap; coordinator
+reran all gates, and independent review confirmed equivalent bounds.
+Source SHA-256: 3fd11a6b07c0204ef21e8bb0abdddb8ccfc85efc5070a69d525d03f50fae0664.
+No HTTP request or live Plaid sync was performed.
+
+## 2026-09-06 — Plaid Sandbox HTTP adapter
+
+Added a fixed Sandbox sync endpoint with exact Decimal decoding, one transport
+attempt, bounded request timeouts, and caller-owned versus adapter-owned client
+cleanup. httpx is now a runtime dependency. Independent review found injected
+redirects could forward credentials, resolver failures could escape, and error
+contexts retained originals. Grok repaired those paths with file tools.
+
+Coordinator gates passed: Ruff clean, 64 files formatted, strict mypy clean
+for 35 files, and 355 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex provider_contracts passed 16 mocked
+HTTP tests and redirect/timeout/error-context probes. No cross-origin request
+occurred in the repaired redirect test. Provider source SHA-256:
+83a4069abcbe8da2d0e53e3b8099abe67651b0cf0db053448e1912c514194a57.
+No live Plaid request was made. Resolver failure is a static ValueError.
+
+## 2026-09-06 — Atomic Plaid Item synchronization
+
+Added bounded page collection under an owned Item lock. Mutation restarts discard
+partial pages and reuse the original cursor. Ledger changes, final cursor, and
+freshness commit together. Failures and heartbeat loss roll back the transaction.
+
+Coordinator gates passed: Ruff clean, 66 files formatted, strict mypy clean for
+36 files, and 368 tests passed with isolated PostgreSQL. One existing Starlette
+warning remains. Initial tests failed on a negative fixture user and a stale
+metadata inventory. Grok repaired both and scoped the lock probe to its own
+backend PID. Independent Codex provider_contracts passed 20 targeted tests and
+verified serialization, non-null cursor restart, and final-heartbeat rollback.
+Source SHA-256: 64aecdfd51fdfd98d969dbe5c0427e4b4fa32fe3fcd5912312505d0a1047d0d6.
+No live Plaid sync was performed.
+
+## 2026-09-06 — Plaid history readiness guard
+
+The HTTP adapter now requires HISTORICAL_UPDATE_COMPLETE before returning a
+sync page. Missing, unknown, initial, and not-ready status cannot advance local
+freshness. This follows the documented transactions_update_status contract:
+https://plaid.com/docs/api/products/transactions/.
+
+Coordinator gates passed: Ruff clean, 66 files formatted, strict mypy clean for
+36 files, and 379 tests passed with isolated PostgreSQL. One existing Starlette
+warning remains. Grok wrote the guard; the coordinator applied mechanical Ruff
+newline normalization to its test. Independent Codex provider_contracts passed
+27 targeted tests and readiness probes. Provider source SHA-256:
+4358e880ef498dea32cc2fa755c62db9e971676f142d72e9a3509611c9ed3945.
+No live Plaid request was made.
+
+## 2026-09-06 — Consistent ledger spending snapshots
+
+Added one-query aggregation of readiness, oldest sync time, posted spending,
+and pending spending across owned Items. Left joins retain empty or uninitialized
+Items. Exact signed totals and month/category filters are preserved. SQLite
+fixtures now store UTC, matching the production sync path.
+
+Coordinator gates passed: Ruff clean, 68 files formatted, strict mypy clean for
+37 files, and 410 tests passed with isolated PostgreSQL. One existing Starlette
+warning remains. Independent Codex provider_contracts passed 31 targeted tests
+and PostgreSQL single-query, large-sum, filtering, and readiness probes.
+Source SHA-256: 5485ed555289e98eb75c6df282fc24f3e07ea5c003a683e1a50ac3e3846814cb.
+Missing or incomplete Item data does not silently become zero spending.
+
+## 2026-09-06 — Shopping handoff records
+
+Added migration 0006 and the shopping handoff model. Records bind each request
+hash to its user and retain dispatch state, attempt tokens, and retry consent.
+Independent review found model and migration parity. The isolated PostgreSQL
+upgrade passed. Ruff, formatting, strict mypy, and all 428 backend tests passed.
+The service still needs to enforce immutable payloads and fenced completion.
+
+## 2026-09-06 — Grocery web shell
+
+Added a responsive React/Vite shell with local fonts, truthful empty states,
+and a loopback API proxy. The generated concept guides the complete surface;
+its illustrative values will be replaced by actual planner results.
+
+The initial writer could not resolve npm inside its sandbox. Coordinator
+installation found incompatible Vite/plugin versions and missing Node type
+libraries. Grok repaired both through file-tool-only assignments. npm install
+then reported zero vulnerabilities, and the strict TypeScript/Vite build passed.
+Independent Codex domain_review found no shell source blocker. Visual and
+interactive review remain pending until controls are connected.
+
+Backend gates on this branch passed: Ruff clean, 64 files formatted, strict
+mypy clean for 35 files, and 406 tests passed with isolated PostgreSQL. One
+existing Starlette warning remains. The shell is 148 source/config lines.
+Only explicit source, lock, and design files are staged; generated dist files
+are not included. No provider or purchase behavior is claimed by this shell.
+
+## 2026-09-06 — Web API contracts and test tools
+
+Added typed response contracts, primitive guards, and direct guard tests.
+The first layer is independently testable. npm 10 hit a resolver crash; a
+project-local npm 12 command regenerated the dependency tree without changing
+global tools. Strict frontend build and 20 client tests passed. Independent
+Codex domain_review passed the seven first-layer tests and the full client suite.
+This is a source review, not completed visual or interaction verification.
+
+## 2026-09-06 — Web response validation
+
+Added independent parsers for config, job, budget, and plan responses. Valid
+incomplete estimates remain visible. Unsafe or fractional cents and completed
+jobs without results are rejected. Direct validation tests do not import HTTP
+helpers. Independent review and the full 20-test client suite passed.
+
+## 2026-09-06 — Web API transport
+
+Added same-origin config, submission, and polling calls with cancellation and
+static errors. The body-cancellation test waits until JSON reading begins.
+Strict frontend build and all 20 client tests passed. No credentials enter the
+browser. HTTP source is 111 lines and has independent tests.
+
+## 2026-09-06 — Cancellable grocery job polling
+
+Added idempotent retry keys, bounded polling, whole-attempt timeout, and stale
+response suppression. New submissions clear prior job/error state. Independent
+review found and returned incomplete-estimate, numeric, stale-state, and timeout
+bugs; Grok repaired them. Strict frontend build and 20 tests passed, including
+hung requests, body cancellation, key reuse, late response, and unmount cases.
+Polling source is 143 lines. Controls and browser verification remain next.
+
+## 2026-09-06 — Exact web money input
+
+Added decimal-string parsing to safe integer cents and USD formatting. Invalid
+negative, fractional-cent, and unsafe values are rejected. The 36-line helper
+has direct tests. Independent Codex domain_review approved exactness and bounds.
+Combined frontend build and 33 tests passed after adding the meal form.
+
+## 2026-09-06 — Explicit meal and pantry controls
+
+Added controlled meal, serving, budget, diet, pantry, and exclusion inputs.
+Request construction copies state and validates catalog choices. Pantry flags
+require user selection. Independent Codex domain_review passed 13 money/form
+tests and approved labels, disabled semantics, and mutation guards. The strict
+frontend build and all 33 frontend tests passed. Form source is 150 lines.
+App wiring and browser verification remain separate work.
+
+## 2026-09-06 — Server estimate view
+
+Added the estimate view with exact sample costs, package counts, pantry controls,
+and source labels. Missing prices remain incomplete. Draft changes retain the
+previous server estimate. Independent review passed after the source-label repair.
+All 45 frontend tests and the production build passed. Browser checks remain pending.
+
+## 2026-09-06 — Grocery conversation status
+
+Added example actions, job status, and retry controls. Errors suppress stale
+conversation status. Independent review passed. All 45 frontend tests and the
+production build passed. The app wiring follows in a separate layer.
+
+## 2026-09-07 — Web request state
+
+Connected configuration, meal drafts, submission, retry, and pantry state.
+Grok repaired stale-configuration submission after independent review.
+Original-body retries preserve ambiguous requests. All 56 frontend tests and
+the production build passed. App rendering and browser checks follow.
+
+## 2026-09-07 — Immutable grocery evidence schema
+
+Added migration 0007 and content-addressed evidence records. Grok repaired a
+PostgreSQL-only check that broke SQLite setup. Mechanical import sorting fixed
+one Ruff error. Ruff, formatting, strict mypy, migration, and all 801 backend
+tests passed. Independent PostgreSQL probes accepted a valid row and rejected
+invalid hashes, foreign owners, updates, and deletes. Privileged table or trigger
+changes remain outside the row-level immutability boundary. Persistence follows.
+
+## 2026-09-07 — Background job lease renewal
+
+Added serialized background and manual heartbeats. Completion waits for thread
+shutdown and rejects late lease loss. Grok repaired the strict context-manager
+return annotation and strengthened two contention tests after review. Ruff,
+formatting, strict mypy, and all 501 backend tests passed.
+
+Independent PostgreSQL checks observed five renewals through distinct sessions.
+Seven renewal sessions applied local lock and statement timeouts. A held row
+returned SQLSTATE 55P03 after 5.056 seconds. The worker returned lease_lost,
+kept the result unset, skipped acknowledgment, and joined the renewal thread.
+Connection, pool, and broken-socket timeouts remain a separate runtime concern.
+
+## 2026-09-07 — Instacart development transport
+
+Added one-attempt products-link requests to the fixed development endpoint.
+The adapter blocks redirects and validates HTTPS response hosts. Grok repaired
+deep JSON handling and encoded control rejection after independent review.
+Ruff, formatting, strict mypy, and all 518 backend tests passed. Mocked HTTP
+checks do not prove live provider access or a successful shopping handoff.
+
+## 2026-09-07 — Verified evidence inputs
+
+Added evidence normalization from server budget inputs and recomputed plans.
+Forged costs, sources, and owner-dependent IDs are rejected. Grok repaired deep
+JSON error handling after review. Ruff, formatting, strict mypy, and all 923
+backend tests passed on the combined evidence branch.
+
+## 2026-09-07 — Atomic evidence storage
+
+Added full-hash evidence inserts and owner-filtered reads. Identical snapshots
+reuse an ID. Conflicts never overwrite records. Grok repaired a SQLAlchemy
+statement annotation after strict mypy failed. All four backend gates passed,
+including 923 tests. Independent PostgreSQL concurrency tests passed. Migration
+trigger probes remain the separate evidence for row immutability.
+
+## 2026-09-07 — Grocery form styles
+
+Added readable form and conversation styles as a foundation for app integration.
+The combined UI branch passed 66 tests and its production build. Independent
+source review passed. Browser verification follows after the app wiring layer.
+
+## 2026-09-07 — Grocery estimate styles
+
+Added responsive estimate rows, pantry controls, and sample-price states.
+The stylesheet stays within its review layer. Independent source review passed.
+The combined UI branch passed 66 tests and its build. Browser checks follow.
+
+## 2026-09-07 — Grocery app wiring
+
+Connected the meal form, submission state, server estimates, and retry controls.
+Grok repaired enabled controls that did nothing during catalog failures.
+The development proxy defaults to the isolated API on loopback port 8010.
+Independent review, all 66 frontend tests, and the production build passed.
+Browser verification remains pending. The interface does not claim live chat.
+
+## 2026-09-07 — Browser-driven grocery refinements
+
+Added a nearby rebuild action for changed estimates. Fixed the mobile servings
+layout, desktop spacing, package wording, duplicate warnings, and favicon request.
+Independent source review and all 72 frontend tests passed. The build passed.
+Before these refinements, the real browser-to-SQS flow returned 17.03 dollars,
+then 11.04 dollars after olive oil entered the pantry. Post-change browser checks
+follow. Mobile document width matched its 390-pixel viewport in the baseline.
+
+## 2026-09-07 — Deterministic shopping payload
+
+Added ingredient-only Instacart payloads with canonical hashes. The builder
+preserves required quantities and removes only confirmed pantry purchases.
+Grok repaired malformed expiry, unit, recursion, and ingredient validation after
+independent review. Ruff, formatting, strict mypy, and all 594 backend tests
+passed. No live shopping link was created. Durable dispatch follows.
+
+## 2026-09-07 — Database acquisition bounds
+
+Added PostgreSQL connection and pool timeouts with statement and lock limits.
+SQLite receives no PostgreSQL-only options. Grok repaired tests that assumed
+unsupported URL aliases and an uninstalled driver. Independent review passed.
+Ruff, formatting, strict mypy, and all 540 runtime-branch tests passed.
+
+## 2026-09-07 — Continuous grocery worker
+
+Added continuous recovery, outbox publication, and agent-job consumption.
+Grok repaired standalone model registration and failure counter retention after
+independent review. All 540 backend tests, Ruff, formatting, and strict mypy
+passed. Actual continuous Floci execution follows; bounded consumer probes
+already passed against the isolated emulator.
+
+## 2026-09-07 — Ordered chat evidence revisions
+
+Added evidence callbacks before tool-success publication. Traces keep ordered
+call occurrences even when immutable snapshot IDs repeat. Limits and incomplete
+results clear final revision IDs. Grok repaired an empty-string test assertion
+after review. All 990 backend tests, Ruff, formatting, and strict mypy passed.
+Independent targeted review passed 71 tests. Job adapters follow.
+
+## 2026-09-07 — Recorded plan jobs
+
+Plan jobs now return the validated request and accept an evidence recorder.
+The job freezes its calculation time and records before returning a result.
+Independent review and all four backend gates passed, including 1,011 tests
+on the combined adapter branch.
+
+## 2026-09-07 — Recorded chat jobs
+
+Added typed chat-job input and server-budget calculation. Public history passes
+the bounded context validator. Each valid tool result is stored before the next
+model turn. Independent review and all 1,011 backend tests passed with the
+required lint, format, and type checks. Live model calls remain unverified.
+
+## 2026-09-07 — Agent job routing
+
+Added a handler factory for the single demo user. Plans remain available without
+a model. Chat requires a provider; unknown operations fail before execution.
+Both paths record evidence. Independent review and all 1,011 backend tests
+passed. Worker and HTTP configuration follow.
+
+## 2026-09-07 — Bounded demo startup
+
+Added migration, idempotent demo-user seeding, and local Floci provisioning.
+Child commands use bounded timeouts and static status output. Grok repaired
+one strict typing issue and a retry-test setup error. Independent review,
+Ruff, formatting, strict mypy, and all 551 backend tests passed.
+
+## 2026-09-07 — Grocery Compose stack
+
+Added startup dependencies, a continuous worker, and the static web container.
+Published ports bind to loopback. Separate Docker contexts exclude environment
+files, secrets, and writer checkpoints. Independent review and Compose config
+validation passed. Image builds need the integrated frontend checkout and follow
+in the coordinator's isolated stack. No user containers were replaced.
+
+## 2026-09-07 — Provider settings and secret files
+
+Added bounded file-based provider settings with masked credentials. Grok repaired
+malformed JSON depth and NUL-path error handling. All 1,027 backend tests and
+static gates passed. The Codex reviewer reached its usage limit, so a separate
+Grok source review checked the repaired code and approved it. That reviewer did
+not execute tests. No real credentials or provider calls were used.
+
+## 2026-09-07 — Lazy provider construction
+
+Added provider factories and secret-free configuration flags. Disabled providers
+have no file or network effects. Flags describe configuration, not connectivity.
+All 1,027 backend tests and static gates passed. Independent source review
+approved the factories. Live provider evidence remains pending.
+
+## 2026-09-07 — Handoff cache validation contract
+
+Added shared payload, URL, ownership, time, and database-error checks. Cached
+payloads are revalidated by their canonical hash. Unsafe cached URLs are not
+returned. Independent review and all 650 provider-branch tests passed with the
+required lint, format, and type checks.
+
+## 2026-09-07 — Durable handoff intents
+
+Added per-user intent caching and explicit stale-state handling. Grok replaced
+raw integrity-error parsing and a flaky SQLite concurrency claim after review.
+PostgreSQL now supplies concurrency evidence. Independent review and all 650
+backend tests passed with the required static gates. No live link was created.
+
+## 2026-09-07 — Explicit shopping handoff dispatch
+
+Added commit-before-request dispatch, uncertainty handling, and attempt fencing.
+Initial attempts do not record retry consent. Explicit retries require the
+current attempt count; late responses cannot replace a newer result. The first
+writer stopped before dispatch tests, so the remaining work used a bounded
+assignment. All 650 backend tests and static gates passed. Independent review
+passed 41 PostgreSQL-enabled handoff tests. Live Instacart remains unverified.
+
+## 2026-09-07 — Chat history repair and alignment
+
+Preserved the user's 84355a2 checkpoint. Repaired static history errors so they
+retain no raw validation context. Added owner checks and aligned operation tags
+with the job handler. The independent source review identified the operation
+mismatch; the repair follows that contract. All 1,176 backend tests and static
+gates passed after provider and handoff integration.
+
+## 2026-09-07 — Select configured grocery spending
+
+Grok 4.6 wrote the HTTP spending selection. Independent Grok review approved the
+source after unknown-source and static error repairs. Fixture and Plaid Sandbox
+spending remain distinct. Missing Sandbox data returns an error without fixture
+substitution. The coordinator tested this layer without chat routes: ruff and
+format passed, strict mypy passed 74 files, and 1,197 PostgreSQL-enabled tests
+passed with one existing Starlette warning. This layer adds 129 source lines.
+
+## 2026-09-07 — Submit bounded chat jobs over HTTP
+
+Grok 4.6 wrote chat submission, job reads, and provider capability routes.
+Independent Grok source review approved ownership, replay, history, configuration,
+and static error handling. The coordinator ran all four backend gates: ruff and
+format passed, strict mypy passed 75 files, and 1,221 PostgreSQL-enabled tests
+passed with one existing Starlette warning. This layer adds 141 source lines.
+No route constructs a provider or reads provider secret files. Live provider
+validation remains pending.
+
+## 2026-09-07 — Route recorded plans, chat, and sync jobs
+
+Grok 4.6 wrote the runtime routing. A separate Grok source reviewer found no blockers.
+The coordinator ran ruff, formatting, strict mypy, and PostgreSQL-enabled pytest.
+Results: all checks passed; 140 files formatted; 74 typed source files; 1,187 tests passed.
+Pytest reported one existing Starlette deprecation warning. The first check found a
+missing test import; the writer repaired it before the passing run.
+
+An isolated Docker worker consumed a synthetic plan through Floci and PostgreSQL.
+The plan cost 1,703 cents. Its immutable evidence snapshot matched the result and
+rejected a foreign owner read. Unconfigured chat and sync jobs failed with no result.
+Both temporary workers exited with code 0 after SIGTERM. No live provider call ran.
+The source delta adds 139 application and Compose lines against 94f3db9.
+
+## 2026-09-07 — Web chat contracts
+
+Added typed chat requests, results, and trace fields with shared plan validators.
+The combined frontend passed 84 tests and its build. Independent Grok source
+review approved the contract. The writer's terminal request was cancelled;
+coordinator checks supplied the execution evidence.
+
+## 2026-09-07 — Chat response validation
+
+Added strict chat-response validation and copied result data. Invalid candidates,
+counts, sources, and revision IDs fail before rendering. All 84 frontend tests
+and the build passed. Independent Grok source review approved the validator;
+it did not execute tests. HTTP transport follows.
+
+## 2026-09-07 — Add the chat HTTP client
+
+Grok 4.6 wrote the chat submission and read client. A separate Grok reviewer
+approved the source. The coordinator ran 90 frontend tests and the production build.
+Both passed after the writer repaired two typed mock errors. Requests use bounded
+shared JSON handling, encoded job IDs, and idempotency headers. No live model call ran.
+
+## 2026-09-07 — Poll chat jobs with bounded retries
+
+Grok 4.6 wrote the chat polling hook. A separate Grok source reviewer found no
+logic blockers. The coordinator ran 100 frontend tests and the production build;
+both passed. The hook bounds waits to eight minutes, preserves ambiguous retry
+keys, aborts on unmount, and fences obsolete responses. This layer adds 140 source
+lines above the HTTP client. Browser chat integration remains pending.
+
+## 2026-09-07 — Verify the integrated grocery runtime
+
+The reviewed snapshot `b7880e5` passed all backend gates with 1,232 PostgreSQL-enabled
+tests. It passed 100 frontend tests and the production build. The local Compose
+project `fewia-grocery-b7d4` now runs this snapshot from `/private/tmp/fewia-compose-current`.
+The web proxy submitted a synthetic plan through the API, outbox, Floci, and worker.
+It returned 1,703 cents and a stored evidence revision. Repeated submission returned
+the same job. Chat returned HTTP 503 because no model is configured. Provider flags
+were false. No live provider call ran. The original user containers remain unchanged.
+
+## 2026-09-07 — Read provider configuration in the web client
+
+Grok 4.6 wrote the provider capability client and grocery configuration validation.
+Independent Grok source review approved the change. The coordinator ran 108 frontend
+tests and the production build; both passed. The client distinguishes fixture and
+Plaid Sandbox spending. It validates configured flags without claiming live provider
+verification. The layer adds 75 application source lines.
+
+## 2026-09-07 — Read immutable grocery evidence over HTTP
+
+Grok 4.6 wrote the owner-scoped evidence route. Independent Grok security review
+approved the source. All backend gates passed: ruff, formatting, strict mypy, and
+1,182 tests. Eight PostgreSQL tests skipped in that full run. A separate enabled
+run passed ten evidence API and store tests. One existing Starlette warning remains.
+The 51-line route returns a stored snapshot for an owned revision. Missing, foreign,
+and malformed revisions return 404. Router registration remains a later layer.
+
+## 2026-09-07 — Define strict shopping handoff HTTP types
+
+Grok 4.6 wrote the 32-line type layer. Independent Grok security review approved it.
+The coordinator tested a clean snapshot with this layer only: all backend gates
+passed, including 1,180 PostgreSQL-enabled tests. One existing Starlette warning
+remains. Request bodies reject extra fields and noninteger retry attempts.
+
+## 2026-09-07 — Build handoff payloads from stored snapshots
+
+Grok 4.6 wrote the 127-line snapshot helper. Independent Grok security review
+approved it. A clean snapshot with types and helper passed all backend gates,
+including 1,198 PostgreSQL-enabled tests. One existing Starlette warning remains.
+Plain and chat jobs use the same immutable planning subset. Foreign, tampered,
+incomplete, rejected, and empty shopping plans do not dispatch.
+
+## 2026-09-07 — Add shopping handoff HTTP routes
+
+Grok 4.6 wrote the 118-line route layer. Independent Grok security review approved
+it. All backend gates passed, including 1,212 PostgreSQL-enabled tests. One existing
+Starlette warning remains. Cached and stale retry paths do not construct providers.
+Explicit retries use attempt fencing. Dispatch closes its owned client. Uncertain
+results do not replay automatically. No live Instacart call ran. Router registration
+remains a later layer.
+
+## 2026-09-07 — Register shopping and evidence routes
+
+Grok 4.6 registered both routers. Independent Grok security review approved the
+four source lines. The first full test run found one route-inventory test failure: 
+FastAPI uses included-router wrappers. The writer changed the test to the public
+OpenAPI inventory. All backend gates then passed: ruff, formatting, strict mypy
+on 80 files, and 1,276 PostgreSQL-enabled tests. One existing Starlette warning
+remains. The main error envelope preserves static ownership and configuration errors.
+
+## 2026-09-07 — Verify shopping routes in local Compose
+
+The local Compose project runs reviewed snapshot `84a145c` from
+`/private/tmp/fewia-compose-shopping`. Through the web proxy, evidence GET returned
+the stored 1,703-cent plan. A malformed revision returned 404. Handoff POST returned
+the static unconfigured-provider 503. The database preserved a prepared intent
+with zero attempts. Handoff GET returned only public fields. No provider dispatched.
+
+## 2026-09-07 — Define the sync HTTP request model
+
+Grok 4.6 wrote the strict item-id request model. Independent Grok security review
+approved it. A clean snapshot with the model layer passed all backend gates,
+including 1,205 PostgreSQL-enabled tests. One existing Starlette warning remains.
+The 24-line model rejects extra fields and blank Item IDs.
+
+## 2026-09-07 — Submit Plaid sync jobs over HTTP
+
+Grok 4.6 wrote the sync routes. Supervision repaired the URL prefix and raw database
+error propagation. Independent Grok security review then approved the source. All
+backend gates passed, including 1,228 PostgreSQL-enabled tests. One existing
+Starlette warning remains. The 134-line layer preserves atomic outbox submission,
+owned Item checks, replay before configuration, and static context-free errors.
+Router registration remains a later layer. No Plaid request ran.
+
+## 2026-09-07 — Register the sync HTTP routes
+
+Grok 4.6 registered sync on the main app. Independent Grok security review approved
+the two source lines and test changes. All backend gates passed: ruff, formatting,
+strict mypy on 82 source files, and 1,318 PostgreSQL-enabled tests. One existing
+Starlette warning remains. Main-app tests cover owned submission, atomic outbox,
+replay, configuration errors, and public job reads. No provider request ran.
+
+## 2026-09-07 — Store local evaluation artifacts
+
+Grok 4.6 wrote the Floci artifact adapter. Independent Grok security review required
+a proxy-isolation repair, then approved the source. Local S3 and SQS clients now
+set an empty proxy map. All backend gates passed, including 1,237 PostgreSQL-enabled
+tests. One existing Starlette warning remains. Initial test lint and optional
+exception-note inspection failures were repaired. The layer adds 148 source lines.
+
+A synthetic 81-byte report round-tripped through the local Floci S3 bucket. Its
+SHA-256 matched the stored body. Reordered input keys produced the same object key.
+This was a transport probe with zero evaluation runs. It does not prove live AWS
+or model quality. The caller remains responsible for report sanitization.
+
+## 2026-09-07 — Load provider status with a bounded wait
+
+Grok 4.6 wrote the 63-line provider-status hook. Independent Grok source review
+approved it. A clean snapshot with this layer passed 115 frontend tests and the
+production build. Failed refreshes clear stale flags. Fetch and JSON share a
+20-second abort bound. An initial test-mock typing error was repaired before the
+passing build. No provider connection or live-price claim is inferred from flags.
+
+## 2026-09-07 — Define the grocery evaluation corpus
+
+Grok 4.6 wrote 30 versioned scenarios with three intended repeats. Independent
+Grok review approved the model/domain split and found an overbroad paired test.
+The writer repaired that test without removing the adversarial forbidden tool.
+The coordinator verified the repair and all branch gates: ruff, formatting, strict
+mypy, and 660 tests passed; seven PostgreSQL tests skipped. One existing Starlette
+warning remains. All seven meal gold rows and the F05 follow-up rows matched
+actual planner output in separate coordinator checks.
+
+Only plan_groceries is a model tool. Sync, budget calculation, job delivery, and
+shopping handoff are server actions. Target evidence labels are not observed proof.
+The corpus does not contain an executed 90-run result or a model-quality score.
+
+## 2026-09-07 — Define chat conversation helpers
+
+Grok 4.6 wrote the 72-line helper layer. Independent Grok review checked budget
+validation, wire-body copies, replay rules, and dispatch generations. A clean
+snapshot with this layer passed 122 frontend tests and the production build.
+
+## 2026-09-07 — Keep bounded chat conversation state
+
+Grok 4.6 wrote the 140-line controller. Independent Grok review checked the repaired
+ambiguous replay, parent selection, error clearing, and dispatch fencing. The
+coordinator repaired test timing through the writer and verified pre-mutation
+capture in the adversarial body test. A clean helper-plus-controller snapshot
+passed 140 frontend tests and the production build. Same-body ambiguous sends
+preserve the request. Terminal sends can start a new intent.
+
+## 2026-09-07 — Add the chat composer panel
+
+Grok 4.6 wrote the 129-line chat panel. Independent Grok review checked text escaping,
+input bounds, timeout and retry guidance, and configuration gating. The coordinator
+ran 151 frontend tests and the production build; both passed. Unknown errors remain
+hidden. Existing-request replay stays available when provider configuration fails.
+Page and browser integration remain later work.
+
+## 2026-09-07 — Pause for professor feedback
+
+The user chose early MVP feedback before completing the broader feature plan.
+All active writers finished. Feature expansion is paused, and the working local
+demo remains running. Draft work is preserved. Live chat/provider validation and
+formal evaluation remain incomplete and must be disclosed during the demo.
+
+## 2026-09-07 — Grocery MVP checkpoint for professor feedback
+
+Recorded the local grocery MVP as a professor-feedback checkpoint. This is not a completed AI product. The working path is meal controls through the API, PostgreSQL outbox, Floci SQS, and the worker to an itemized sample estimate. Bean tacos for two cost 1,703 cents. Olive-oil pantry stock reduces that plan to 1,104 cents. Chat panel, controller, and API exist. They are not wired into App. Live Bedrock, Plaid Sandbox, Instacart, 90-run evaluation, merge, and Graphify remain pending. Details: [phases/grocery-mvp-checkpoint.md](phases/grocery-mvp-checkpoint.md).
+
+## 2026-09-07 — Validate the consolidation checkpoint
+
+The user authorized one large consolidation pull request and merge. The exception
+applies to this checkpoint only. Independent Grok review found no blocking issues
+in the preserved drafts and CI changes. The combined local gates passed: 1,374
+backend tests with PostgreSQL enabled, 238 frontend tests, strict mypy on 85 source
+files, ruff, formatting, and the frontend production build. Fresh database migration
+reached 0007. One existing Starlette deprecation warning remains. GitHub CI and
+merge evidence remain pending. No live provider or 90-run evaluation claim is made.

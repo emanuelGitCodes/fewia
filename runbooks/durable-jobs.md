@@ -84,8 +84,41 @@ Set `FEWIA_JOB_TEST_DATABASE_URL` as described above. This test uses fake
 senders synchronized while holding separate row locks; it does not send
 provider data or call Floci.
 
+## Job leases
+
+`backend/app/services/job_leases.py` provides `claim_job`, `renew_lease`, and
+`finish_job`. Each helper uses conditional SQL updates in the caller's
+transaction. The caller MUST commit a claim before starting job execution.
+The caller MUST use short transactions and supply a fresh timezone-aware
+`now` for each operation. Helpers normalize that time to UTC.
+The helpers do not synchronize loaded ORM objects. Callers MUST refresh or
+expire loaded jobs before reading their updated fields.
+
+A queued job or an expired running job can receive a fresh lease token.
+Each claim increments attempts. An active or terminal job cannot be claimed.
+An eligible job at the attempt limit becomes failed with `attempts_exhausted`.
+The default limit is three attempts; the accepted range is one through 100.
+Lease duration defaults to 60 seconds and accepts one through 3,600 seconds.
+
+Renewal and completion require the current token and an unexpired running
+lease. Expiry equal to `now` permits reclaim and rejects the previous owner.
+Renewal does not shorten the existing expiry. Completion clears lease fields.
+An error code marks failure; otherwise completion marks success. A partial
+result can accompany an error. Omitting a result preserves its stored value.
+Callers MUST sanitize results and error codes.
+
+The caller MUST commit durable results before acknowledging a queue message.
+Lease tokens protect database transitions. They do not undo external side
+effects or make an uncertain provider write safe to retry.
+
+Run the lease concurrency and rollback checks against the isolated database:
+
+```bash
+uv run pytest tests/test_job_leases.py tests/test_job_leases_postgres.py -q
+```
+
 ## Remaining worker work
 
-The next slices acquire job leases, renew visibility, deduplicate messages,
-apply retry backoff, and persist terminal results. The publisher is a bounded
+The next slices consume SQS messages, renew visibility, handle duplicate
+delivery, and apply retry backoff and dead-letter policy. The publisher is a bounded
 CLI command; it is not yet a continuously running worker.

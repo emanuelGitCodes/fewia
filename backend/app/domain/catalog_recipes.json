@@ -1,0 +1,12 @@
+[
+  {"id": "chicken_tacos", "servings": 1, "ingredients": [["chicken_breast", 100], ["tortillas", 2], ["salsa", 40], ["onion", 30], ["cumin", 1], ["olive_oil", 10], ["salt", 1]]},
+  {"id": "bean_tacos", "servings": 1, "ingredients": [["black_beans", 120], ["tortillas", 2], ["salsa", 40], ["onion", 30], ["cumin", 1], ["olive_oil", 10], ["salt", 1]]},
+  {"id": "vegetable_pasta", "servings": 1, "ingredients": [["pasta", 90], ["tomato", 80], ["mixed_vegetables", 80], ["onion", 30], ["garlic", 5], ["olive_oil", 10], ["salt", 1]]},
+  {"id": "chicken_and_rice_bowls", "servings": 1, "ingredients": [["chicken_breast", 100], ["rice", 75], ["mixed_vegetables", 80], ["onion", 30], ["garlic", 5], ["olive_oil", 10], ["salt", 1]]},
+  {"id": "lentil_soup", "servings": 1, "ingredients": [["lentils", 80], ["tomato", 80], ["onion", 40], ["garlic", 5], ["cumin", 1], ["olive_oil", 10], ["salt", 1]]},
+  {"id": "chickpea_curry", "servings": 1, "ingredients": [["chickpeas", 120], ["coconut_milk", 80], ["rice", 75], ["onion", 40], ["garlic", 5], ["curry_powder", 3], ["olive_oil", 10], ["salt", 1]]},
+  {"id": "vegetable_stir_fry", "servings": 1, "ingredients": [["mixed_vegetables", 150], ["rice", 75], ["soy_sauce", 15], ["garlic", 5], ["onion", 30], ["olive_oil", 10]]},
+  {"id": "baked_potatoes_with_beans", "servings": 1, "ingredients": [["potato", 1], ["black_beans", 100], ["salsa", 40], ["olive_oil", 5], ["salt", 1]]},
+  {"id": "breakfast_burritos", "servings": 1, "ingredients": [["eggs", 2], ["tortillas", 1], ["black_beans", 60], ["salsa", 30], ["onion", 20], ["olive_oil", 5], ["salt", 1]]},
+  {"id": "overnight_oats", "servings": 1, "ingredients": [["oats", 50], ["oat_milk", 180]]}
+]

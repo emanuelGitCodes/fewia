@@ -1,0 +1,29 @@
+{
+  "name": "fewia-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource/lora": "^5.2.5",
+    "@fontsource/source-sans-3": "^5.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/react-test-renderer": "^18",
+    "@vitejs/plugin-react": "^6.0.5",
+    "react-test-renderer": "18.3.1",
+    "typescript": "^5.8.3",
+    "vite": "^8.0.0",
+    "vitest": "^4.0.0"
+  }
+}

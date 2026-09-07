@@ -1,0 +1,14 @@
+.git
+**/.git
+.env
+.env.*
+**/.env
+**/.env.*
+.secrets
+**/.secrets
+.fewia-supervisor-*
+**/.fewia-supervisor-*
+node_modules
+dist
+cache
+.cache

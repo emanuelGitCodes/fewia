@@ -43,6 +43,7 @@ def test_send_routes_kind_and_sends_only_the_job_id(
     assert config.connect_timeout == 3
     assert config.read_timeout == 5
     assert config.retries["total_max_attempts"] == 1
+    assert config.proxies == {}
     client.get_queue_url.assert_called_once_with(QueueName=queue_name)
     client.send_message.assert_called_once_with(
         QueueUrl=queue_url,

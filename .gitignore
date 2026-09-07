@@ -7,4 +7,5 @@ node_modules/
 backend/artifacts/*
 !backend/artifacts/.gitkeep
 graphify-out/
+frontend/dist/
 /.fewia-supervisor-*/

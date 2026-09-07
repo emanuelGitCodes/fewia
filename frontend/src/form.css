@@ -1,0 +1,165 @@
+button,
+input,
+select {
+  min-height: 44px;
+  padding: 0.45rem 0.75rem;
+  color: var(--ink);
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+button {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.build-estimate,
+.rebuild-estimate,
+.conversation-action,
+.retry-catalog {
+  min-width: 44px;
+  color: var(--background);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.build-estimate:disabled,
+.rebuild-estimate:disabled,
+.conversation-action:disabled,
+.retry-catalog:disabled {
+  color: var(--background);
+  background: var(--muted);
+  border-color: var(--muted);
+}
+
+.conversation-welcome,
+.conversation-status,
+.budget-source,
+.catalog-status {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.conversation-status {
+  padding: 1rem 1.15rem;
+  border-radius: 6px;
+  background: var(--message);
+}
+
+.conversation-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+}
+
+.conversation-error,
+.form-error,
+.catalog-error {
+  margin: 0 0 1rem;
+  color: #8a1f1f;
+}
+
+.conversation-composer {
+  margin-top: auto;
+  padding-top: 1.3rem;
+  border-top: 1px solid var(--line);
+}
+
+.budget-form,
+.budget-form fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.budget-form fieldset {
+  padding: 0;
+  border: 0;
+}
+
+.budget-form legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.budget-form label {
+  font-weight: 600;
+}
+
+.budget-form input,
+.budget-form select {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.budget-form div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+
+.budget-form div select {
+  flex: 1 1 8rem;
+  max-width: none;
+}
+
+.budget-form details summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.budget-form details label {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+.budget-form details input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 32rem) {
+  .budget-form div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .budget-form div > * {
+    min-width: 0;
+  }
+
+  .budget-form div select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .budget-form div button {
+    grid-column: 1 / -1;
+  }
+}
