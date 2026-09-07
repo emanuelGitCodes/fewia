@@ -1077,3 +1077,11 @@ Grok 4.6 wrote the 32-line type layer. Independent Grok security review approved
 The coordinator tested a clean snapshot with this layer only: all backend gates
 passed, including 1,180 PostgreSQL-enabled tests. One existing Starlette warning
 remains. Request bodies reject extra fields and noninteger retry attempts.
+
+## 2026-09-07 — Build handoff payloads from stored snapshots
+
+Grok 4.6 wrote the 127-line snapshot helper. Independent Grok security review
+approved it. A clean snapshot with types and helper passed all backend gates,
+including 1,198 PostgreSQL-enabled tests. One existing Starlette warning remains.
+Plain and chat jobs use the same immutable planning subset. Foreign, tampered,
+incomplete, rejected, and empty shopping plans do not dispatch.
