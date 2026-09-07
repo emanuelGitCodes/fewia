@@ -536,3 +536,11 @@ ID checks, atomic seen-ID updates, and reasoning removal. Grok's broad initial
 chat assignment reached its 30-turn limit; smaller assignments preserved its
 work. Independent Codex runtime_design_review passed 21 parser tests. The parser
 is 150 source lines. No live model call was made.
+
+## 2026-09-06 — Deterministic model tool dispatch
+
+Added a 38-line dispatcher for the single approved planning tool. Unsupported
+or invalid calls clear the candidate and return static errors. Traces hold only
+tool outcomes and evidence IDs. Coordinator gates passed 535 tests with isolated
+PostgreSQL, Ruff, formatting, and strict mypy. Independent review passed 46 parser,
+planner, dispatcher, and SDK tests. The loop remains a separate draft.
