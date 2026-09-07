@@ -397,3 +397,19 @@ f99a4508a14411379c1d7c845147d5fc7614e6addb47cd47598b4d24ce1f5e4b.
 A live isolated Floci queue passed receive, visibility hide, redelivery, and
 acknowledgement checks. The temporary queue was deleted. No application queue
 messages, external providers, deployments, pushes, or merges were performed.
+
+## 2026-09-06 — Expired job recovery
+
+Added a bounded recovery sweep that locks jobs and outbox entries. Safe jobs
+return to queued state with pending publication. Exhausted jobs fail. Unsafe
+jobs receive recovery_required without automatic replay. Pending, active, and
+terminal jobs remain unchanged. The caller supplies a bounded replay classifier.
+
+Coordinator gates passed: Ruff clean, 60 files formatted, strict mypy clean
+for 33 files, and 354 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed 21
+recovery tests and PostgreSQL probes for claim locks, publisher locks, atomic
+reset, pending preservation, and a final-attempt crash. Its unique temporary
+schema was removed. Source SHA-256:
+78882ca15e9b3d8d955983ff38fe2ec4733adebcab44dcaecbe72743c17e621a.
+Real provider replay safety remains an explicit classifier responsibility.
