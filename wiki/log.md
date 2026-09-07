@@ -906,3 +906,10 @@ Plan jobs now return the validated request and accept an evidence recorder.
 The job freezes its calculation time and records before returning a result.
 Independent review and all four backend gates passed, including 1,011 tests
 on the combined adapter branch.
+
+## 2026-09-07 — Recorded chat jobs
+
+Added typed chat-job input and server-budget calculation. Public history passes
+the bounded context validator. Each valid tool result is stored before the next
+model turn. Independent review and all 1,011 backend tests passed with the
+required lint, format, and type checks. Live model calls remain unverified.
