@@ -845,3 +845,9 @@ trigger probes remain the separate evidence for row immutability.
 Added readable form and conversation styles as a foundation for app integration.
 The combined UI branch passed 66 tests and its production build. Independent
 source review passed. Browser verification follows after the app wiring layer.
+
+## 2026-09-07 — Grocery estimate styles
+
+Added responsive estimate rows, pantry controls, and sample-price states.
+The stylesheet stays within its review layer. Independent source review passed.
+The combined UI branch passed 66 tests and its build. Browser checks follow.
