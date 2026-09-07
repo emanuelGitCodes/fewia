@@ -831,3 +831,11 @@ Added evidence normalization from server budget inputs and recomputed plans.
 Forged costs, sources, and owner-dependent IDs are rejected. Grok repaired deep
 JSON error handling after review. Ruff, formatting, strict mypy, and all 923
 backend tests passed on the combined evidence branch.
+
+## 2026-09-07 — Atomic evidence storage
+
+Added full-hash evidence inserts and owner-filtered reads. Identical snapshots
+reuse an ID. Conflicts never overwrite records. Grok repaired a SQLAlchemy
+statement annotation after strict mypy failed. All four backend gates passed,
+including 923 tests. Independent PostgreSQL concurrency tests passed. Migration
+trigger probes remain the separate evidence for row immutability.
