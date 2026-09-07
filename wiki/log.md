@@ -1118,3 +1118,12 @@ Grok 4.6 wrote the strict item-id request model. Independent Grok security revie
 approved it. A clean snapshot with the model layer passed all backend gates,
 including 1,205 PostgreSQL-enabled tests. One existing Starlette warning remains.
 The 24-line model rejects extra fields and blank Item IDs.
+
+## 2026-09-07 — Submit Plaid sync jobs over HTTP
+
+Grok 4.6 wrote the sync routes. Supervision repaired the URL prefix and raw database
+error propagation. Independent Grok security review then approved the source. All
+backend gates passed, including 1,228 PostgreSQL-enabled tests. One existing
+Starlette warning remains. The 134-line layer preserves atomic outbox submission,
+owned Item checks, replay before configuration, and static context-free errors.
+Router registration remains a later layer. No Plaid request ran.
