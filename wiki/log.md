@@ -957,3 +957,10 @@ Added shared payload, URL, ownership, time, and database-error checks. Cached
 payloads are revalidated by their canonical hash. Unsafe cached URLs are not
 returned. Independent review and all 650 provider-branch tests passed with the
 required lint, format, and type checks.
+
+## 2026-09-07 — Durable handoff intents
+
+Added per-user intent caching and explicit stale-state handling. Grok replaced
+raw integrity-error parsing and a flaky SQLite concurrency claim after review.
+PostgreSQL now supplies concurrency evidence. Independent review and all 650
+backend tests passed with the required static gates. No live link was created.
