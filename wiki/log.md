@@ -735,3 +735,10 @@ project-local npm 12 command regenerated the dependency tree without changing
 global tools. Strict frontend build and 20 client tests passed. Independent
 Codex domain_review passed the seven first-layer tests and the full client suite.
 This is a source review, not completed visual or interaction verification.
+
+## 2026-09-06 — Web response validation
+
+Added independent parsers for config, job, budget, and plan responses. Valid
+incomplete estimates remain visible. Unsafe or fractional cents and completed
+jobs without results are rejected. Direct validation tests do not import HTTP
+helpers. Independent review and the full 20-test client suite passed.
