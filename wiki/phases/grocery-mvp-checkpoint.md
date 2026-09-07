@@ -5,7 +5,10 @@
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Decision**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md)
 - **Local proof store**: [log.md](../log.md)
-- **Publication**: pending. The coordinator has not recorded commit, push, merge, or Graphify refresh.
+- **Publication**: merged into `main` on 2026-09-07.
+- **Pull request**: [Consolidate grocery MVP and provider foundations](https://github.com/emanuelGitCodes/fewia/pull/42)
+- **Merge commit**: `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14`
+- **GitHub checks**: Backend checks passed. Frontend checks passed.
 
 This page preserves the current grocery demo. It does not expand features.
 
@@ -19,7 +22,7 @@ The proven demo path is meal controls → API → PostgreSQL outbox → Floci SQ
 
 Local fixture proof from [log.md](../log.md): bean tacos for two cost 1,703 cents. Olive oil in the pantry reduces that plan to 1,104 cents.
 
-The coordinator verified these combined local checks. PostgreSQL-enabled backend tests passed at 1,374. Frontend tests passed at 238. Ruff, format, and strict mypy passed on 85 files. The frontend build passed. Fresh database migrations applied through 0007. One existing Starlette deprecation warning remains. These are local results. They are not CI, merge, or publication claims. Preserved drafts are included and locally checked.
+The coordinator verified these combined local checks. PostgreSQL-enabled backend tests passed at 1,374. Frontend tests passed at 238. Ruff, format, and strict mypy passed on 85 files. The frontend build passed. Fresh database migrations applied through 0007. One existing Starlette deprecation warning remains. Existing local counts remain 1,374 backend tests and 238 frontend tests. GitHub Backend checks passed. GitHub Frontend checks passed. Preserved drafts are included and locally checked.
 
 ## Catalog and estimates
 
@@ -79,7 +82,7 @@ Fixture data is not a verified retailer or bank claim.
 
 ## Honest limitations
 
-This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Chat is not a working in-app conversation. The demo does not use a real bank. The demo does not validate a live provider. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Browser-chat validation is incomplete. Handoff button flow is incomplete. Publication evidence is pending. This page does not claim merge or Graphify refresh.
+This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Chat is not a working in-app conversation. The demo does not use a real bank. The demo does not validate a live provider. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Browser-chat validation is incomplete. Handoff button flow is incomplete. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. A later graph refresh follows this documentation merge.
 
 ## Next work after professor feedback
 
@@ -96,4 +99,6 @@ These items are not required now: nutrition per recipe and per serving; weekly n
 
 ## Publication handoff
 
-The user authorized commit, push, one large consolidation pull request, and merge. The user then authorized Graphify and a wiki refresh. That consolidation MAY exceed the 150-line source cap once. Later pull requests keep the 150-line source cap. The coordinator records publication evidence after those actions complete. Until that record exists, publication, CI, and Graphify stay pending.
+The user authorized commit, push, one large consolidation pull request, and merge. [Consolidate grocery MVP and provider foundations](https://github.com/emanuelGitCodes/fewia/pull/42) merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07. GitHub Backend checks passed. GitHub Frontend checks passed. That consolidation MAY exceed the 150-line source cap once. Later pull requests keep the 150-line source cap.
+
+Graphify rebuilt after the merge in the saved checkout. The local ignored artifacts are `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and `health.json`. Full source coverage is 237 code files, 44 documents, and 1 image. Raw extraction excludes 979 unresolved endpoint references, mostly external imports. The default undirected graph collapses 919 repeated endpoint relationships. The extract also records 121 exact duplicate raw edges. These counts are analysis coverage limits. They are not application failures. Semantic agent token usage is unavailable. This page does not claim the graph has no errors. A further graph refresh follows this documentation merge. This page does not claim final commit freshness for that later refresh.

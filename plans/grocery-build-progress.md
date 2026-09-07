@@ -194,3 +194,13 @@ That consolidation is a one-time exception to the 150-line source cap.
 Later work keeps the small pull-request rule.
 This documentation worker did not commit, push, merge, or run Graphify.
 Publication evidence stays pending until the coordinator records it.
+
+## 2026-09-07 — Published checkpoint
+
+The consolidation pull request merged into main. Both GitHub CI jobs passed.
+Combined local verification passed 1,374 PostgreSQL-enabled backend tests and 238
+frontend tests, with strict typing, formatting, lint, build, and fresh migrations.
+The saved main checkout is current. Graphify now covers the full scanned corpus.
+Its report records unresolved external references and repeated-edge consolidation.
+See [the checkpoint](../wiki/phases/grocery-mvp-checkpoint.md) for publication links,
+limitations, and next work. Feature expansion remains paused for professor feedback.
