@@ -913,3 +913,10 @@ Added typed chat-job input and server-budget calculation. Public history passes
 the bounded context validator. Each valid tool result is stored before the next
 model turn. Independent review and all 1,011 backend tests passed with the
 required lint, format, and type checks. Live model calls remain unverified.
+
+## 2026-09-07 — Agent job routing
+
+Added a handler factory for the single demo user. Plans remain available without
+a model. Chat requires a provider; unknown operations fail before execution.
+Both paths record evidence. Independent review and all 1,011 backend tests
+passed. Worker and HTTP configuration follow.
