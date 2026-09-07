@@ -143,6 +143,9 @@ def build_chat_result(
         "budget": None if keep is None else keep.get("budget"),
         "request": None if keep is None else keep.get("request"),
         "evidence_id": None if keep is None else keep.get("evidence_id"),
+        "evidence_revision_id": (
+            None if keep is None else keep.get("evidence_revision_id")
+        ),
         "spending_source": source,
         "tool_trace": trace,
         "model_turns": turns,

@@ -891,3 +891,11 @@ Grok repaired standalone model registration and failure counter retention after
 independent review. All 540 backend tests, Ruff, formatting, and strict mypy
 passed. Actual continuous Floci execution follows; bounded consumer probes
 already passed against the isolated emulator.
+
+## 2026-09-07 — Ordered chat evidence revisions
+
+Added evidence callbacks before tool-success publication. Traces keep ordered
+call occurrences even when immutable snapshot IDs repeat. Limits and incomplete
+results clear final revision IDs. Grok repaired an empty-string test assertion
+after review. All 990 backend tests, Ruff, formatting, and strict mypy passed.
+Independent targeted review passed 71 tests. Job adapters follow.

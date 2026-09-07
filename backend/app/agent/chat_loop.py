@@ -4,7 +4,7 @@ from typing import Literal
 
 from app.agent import chat_messages as msgs
 from app.agent.chat_context import build_messages, read_usage
-from app.agent.chat_dispatch import dispatch
+from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.provider import LLMProvider
 from app.domain.budget import BudgetResult
@@ -64,6 +64,7 @@ def run_chat(
     spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
+    record_evidence: EvidenceRecorder | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -122,7 +123,13 @@ def run_chat(
                     return out("limit", _LIMIT, None)
                 revisions += 1
             candidate, block = dispatch(
-                call, budget, period, user_id, spending_source, trace
+                call,
+                budget,
+                period,
+                user_id,
+                spending_source,
+                trace,
+                record_evidence=record_evidence,
             )
             blocks.append(block)
         messages.append({"role": "user", "content": blocks})

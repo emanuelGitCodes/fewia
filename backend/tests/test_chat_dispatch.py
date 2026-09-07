@@ -1,13 +1,54 @@
 import json
 from datetime import date
+from typing import cast
+
+import pytest
 
 from app.agent.chat_dispatch import dispatch
-from app.agent.chat_messages import ToolCall
+from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, execute_plan
 from app.domain.budget import BudgetResult
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
+_REV = "a" * 64
+
+
+def _error_trace(
+    tool: str,
+    tool_use_id: str,
+    *,
+    sequence: int = 1,
+    revision_index: int | None = 1,
+) -> dict[str, object]:
+    return {
+        "tool": tool,
+        "outcome": "error",
+        "tool_use_id": tool_use_id,
+        "sequence": sequence,
+        "revision_index": revision_index,
+    }
+
+
+def _success_trace(
+    tool_use_id: str,
+    evidence_id: object,
+    *,
+    sequence: int = 1,
+    revision_index: int = 1,
+    revision_id: str | None = None,
+) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "tool": TOOL_NAME,
+        "outcome": "success",
+        "evidence_id": evidence_id,
+        "tool_use_id": tool_use_id,
+        "sequence": sequence,
+        "revision_index": revision_index,
+    }
+    if revision_id is not None:
+        entry["evidence_revision_id"] = revision_id
+    return entry
 
 
 def arguments(**overrides: object) -> dict[str, object]:
@@ -29,6 +70,7 @@ def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:
     expected = execute_plan(arguments(), budget(), PERIOD)
     candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
     assert candidate == expected
+    assert candidate is not None
     assert block == {
         "toolResult": {
             "toolUseId": "call-1",
@@ -38,7 +80,11 @@ def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:
     }
     evidence = expected["evidence_id"]
     assert isinstance(evidence, str)
-    assert trace == [{"tool": TOOL_NAME, "outcome": "success", "evidence_id": evidence}]
+    assert trace == [_success_trace("call-1", evidence)]
+    assert "evidence_revision_id" not in expected
+    assert "evidence_revision_id" not in candidate
+    json_body = block["toolResult"]["content"][0]["json"]
+    assert "evidence_revision_id" not in json_body
 
 
 def test_unknown_name_returns_unsupported_and_clears_candidate() -> None:
@@ -53,8 +99,14 @@ def test_unknown_name_returns_unsupported_and_clears_candidate() -> None:
             "status": "error",
         }
     }
-    assert trace == [{"tool": "unsupported", "outcome": "error"}]
-    assert set(trace[0]) == {"tool", "outcome"}
+    assert trace == [_error_trace("unsupported", "call-9", revision_index=None)]
+    assert set(trace[0]) == {
+        "tool",
+        "outcome",
+        "tool_use_id",
+        "sequence",
+        "revision_index",
+    }
 
 
 def test_invalid_args_return_static_error_and_clear_candidate() -> None:
@@ -70,8 +122,14 @@ def test_invalid_args_return_static_error_and_clear_candidate() -> None:
             "status": "error",
         }
     }
-    assert trace == [{"tool": TOOL_NAME, "outcome": "error"}]
-    assert set(trace[0]) == {"tool", "outcome"}
+    assert trace == [_error_trace(TOOL_NAME, "call-2")]
+    assert set(trace[0]) == {
+        "tool",
+        "outcome",
+        "tool_use_id",
+        "sequence",
+        "revision_index",
+    }
 
 
 def test_capped_budget_uses_smaller_plan_cap() -> None:
@@ -90,6 +148,10 @@ def test_capped_budget_uses_smaller_plan_cap() -> None:
     assert block["toolResult"]["status"] == "success"
     assert trace[0]["tool"] == TOOL_NAME
     assert trace[0]["outcome"] == "success"
+    assert trace[0]["tool_use_id"] == "call-3"
+    assert trace[0]["sequence"] == 1
+    assert trace[0]["revision_index"] == 1
+    assert "evidence_revision_id" not in trace[0]
 
 
 def test_errors_omit_raw_input_and_exception_context() -> None:
@@ -115,3 +177,156 @@ def test_errors_omit_raw_input_and_exception_context() -> None:
     unknown_dump = json.dumps({"block": unknown_block, "trace": unknown_trace})
     assert _SECRET not in unknown_dump
     assert "purchase_items" not in unknown_dump
+
+
+def test_record_evidence_sees_plain_payload_before_injection() -> None:
+    expected = execute_plan(arguments(), budget(), PERIOD)
+    seen: list[dict[str, object]] = []
+    held: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        seen.append(dict(payload))
+        held.append(payload)
+        assert "evidence_revision_id" not in payload
+        return _REV
+
+    call = ToolCall("call-1", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(
+        call, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    assert seen == [expected]
+    assert candidate is held[0]
+    assert candidate is not None
+    assert candidate["evidence_revision_id"] == _REV
+    assert "evidence_revision_id" not in seen[0]
+    json_body = block["toolResult"]["content"][0]["json"]
+    assert json_body["evidence_revision_id"] == _REV
+    assert trace == [
+        _success_trace("call-1", expected["evidence_id"], revision_id=_REV)
+    ]
+
+
+def test_over_budget_plan_can_record_evidence() -> None:
+    args = arguments(plan_cap_cents=100)
+    expected = execute_plan(args, budget(1_000), PERIOD)
+
+    def record(payload: dict[str, object]) -> str:
+        plan_payload = payload["plan"]
+        assert isinstance(plan_payload, dict)
+        assert plan_payload["accepted"] is False
+        assert "evidence_revision_id" not in payload
+        return _REV
+
+    call = ToolCall("call-3", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(
+        call, budget(1_000), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    assert candidate is not None
+    assert candidate["evidence_id"] == expected["evidence_id"]
+    assert candidate["evidence_revision_id"] == _REV
+    assert block["toolResult"]["status"] == "success"
+    assert trace[0]["evidence_revision_id"] == _REV
+    assert trace[0]["revision_index"] == 1
+
+
+def test_recorder_is_not_called_for_invalid_or_unsupported() -> None:
+    calls: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        calls.append(payload)
+        return _REV
+
+    bad = arguments(meals=[{"recipe_id": "chicken_tacos", "servings": 9}])
+    trace: list[dict[str, object]] = []
+    invalid, _block = dispatch(
+        ToolCall("call-2", TOOL_NAME, bad),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    unknown, _unknown_block = dispatch(
+        ToolCall("call-9", "purchase_items", {"token": _SECRET}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert invalid is None
+    assert unknown is None
+    assert calls == []
+    assert trace == [
+        _error_trace(TOOL_NAME, "call-2"),
+        _error_trace("unsupported", "call-9", sequence=2, revision_index=None),
+    ]
+
+
+def test_record_evidence_error_aborts_without_success_trace() -> None:
+    def record(payload: dict[str, object]) -> str:
+        raise RuntimeError("store-failed")
+
+    call = ToolCall("call-1", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    with pytest.raises(RuntimeError, match="store-failed") as caught:
+        dispatch(call, budget(), PERIOD, 1, "fixture", trace, record_evidence=record)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "ValidationError" not in str(caught.value)
+    assert trace == []
+
+
+def test_invalid_record_id_is_static_failure() -> None:
+    static = "evidence revision id is invalid"
+    cases: list[object] = ["", "A" * 64, "a" * 63, "a" * 65, "g" + "a" * 63, None]
+
+    for value in cases:
+        call = ToolCall("call-1", TOOL_NAME, arguments())
+        trace: list[dict[str, object]] = []
+
+        def record(payload: dict[str, object], returned: object = value) -> str:
+            return cast(str, returned)
+
+        with pytest.raises(ChatProtocolError, match=static) as caught:
+            dispatch(
+                call, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+            )
+        assert str(caught.value) == static
+        if isinstance(value, str) and value:
+            assert value not in str(caught.value)
+        assert caught.value.__cause__ is None
+        assert caught.value.__context__ is None
+        assert trace == []
+
+
+def test_repeated_revision_id_keeps_ordered_occurrences() -> None:
+    def record(payload: dict[str, object]) -> str:
+        return _REV
+
+    first = ToolCall("a", TOOL_NAME, arguments())
+    second = ToolCall("b", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    first_plan, _first_block = dispatch(
+        first, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    second_plan, _second_block = dispatch(
+        second, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    evidence = execute_plan(arguments(), budget(), PERIOD)["evidence_id"]
+    assert first_plan is not None
+    assert second_plan is not None
+    assert first_plan["evidence_revision_id"] == _REV
+    assert second_plan["evidence_revision_id"] == _REV
+    assert trace == [
+        _success_trace("a", evidence, revision_id=_REV),
+        _success_trace("b", evidence, sequence=2, revision_index=2, revision_id=_REV),
+    ]
+    dumped = json.dumps(trace)
+    assert "chicken_tacos" not in dumped
+    assert "meals" not in dumped
+    assert "reasoningContent" not in dumped

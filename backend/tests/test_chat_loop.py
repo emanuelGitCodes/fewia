@@ -9,6 +9,7 @@ import pytest
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
+from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
     MAX_MODEL_TURNS,
     MAX_PLANNER_REVISIONS,
@@ -37,6 +38,44 @@ _PRIVATE = (
     "cost",
     "price",
 )
+_REV = "a" * 64
+
+
+def _success_trace(
+    tool_use_id: str,
+    evidence_id: object,
+    *,
+    sequence: int = 1,
+    revision_index: int = 1,
+    revision_id: str | None = None,
+) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "tool": TOOL_NAME,
+        "outcome": "success",
+        "evidence_id": evidence_id,
+        "tool_use_id": tool_use_id,
+        "sequence": sequence,
+        "revision_index": revision_index,
+    }
+    if revision_id is not None:
+        entry["evidence_revision_id"] = revision_id
+    return entry
+
+
+def _error_trace(
+    tool: str,
+    tool_use_id: str,
+    *,
+    sequence: int = 1,
+    revision_index: int | None = 1,
+) -> dict[str, object]:
+    return {
+        "tool": tool,
+        "outcome": "error",
+        "tool_use_id": tool_use_id,
+        "sequence": sequence,
+        "revision_index": revision_index,
+    }
 
 
 def budget(available_cents: int = 10_000) -> BudgetResult:
@@ -194,6 +233,7 @@ def _run(
     spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
     user_id: int = 1,
     available_cents: int = 10_000,
+    record_evidence: EvidenceRecorder | None = None,
 ) -> tuple[dict[str, object], FakeLLM]:
     provider = FakeLLM(replies)
     pulse = _noop if heartbeat is None else heartbeat
@@ -207,6 +247,7 @@ def _run(
         spending_source=spending_source,
         previous_request=previous_request,
         history=history,
+        record_evidence=record_evidence,
     )
     return result, provider
 
@@ -221,16 +262,11 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert result["budget"] == expected["budget"]
     assert result["request"] == expected["request"]
     assert result["evidence_id"] == expected["evidence_id"]
+    assert result["evidence_revision_id"] is None
     assert result["model_turns"] == 2
     assert result["planner_revisions"] == 1
     assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
-    assert result["tool_trace"] == [
-        {
-            "tool": TOOL_NAME,
-            "outcome": "success",
-            "evidence_id": expected["evidence_id"],
-        }
-    ]
+    assert result["tool_trace"] == [_success_trace("call-1", expected["evidence_id"])]
     _assert_public(result)
     first = provider.requests[0]
     assert first["system"] == SYSTEM_PROMPT
@@ -265,6 +301,7 @@ def test_plain_final_without_tool_is_clarification() -> None:
     assert result["answer"] == "How many servings?"
     assert result["plan"] is None
     assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
     assert result["model_turns"] == 1
     assert result["planner_revisions"] == 0
     assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
@@ -363,6 +400,7 @@ def test_eight_unsupported_turns_hit_model_cap_without_ninth_call() -> None:
     assert result["answer"] == _LIMIT
     assert result["plan"] is None
     assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
     assert result["model_turns"] == MAX_MODEL_TURNS
     assert result["planner_revisions"] == 0
     assert result["usage"] == {
@@ -399,6 +437,7 @@ def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
     assert result["answer"] == _LIMIT
     assert result["plan"] is None
     assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
     assert result["budget"] is None
     assert result["request"] is None
     assert result["model_turns"] == MAX_PLANNER_REVISIONS + 1
@@ -417,6 +456,7 @@ def test_three_planner_revisions_then_final_is_planned() -> None:
     assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
     assert result["plan"] is not None
     assert result["evidence_id"] is not None
+    assert result["evidence_revision_id"] is None
 
 
 def test_invalid_planner_calls_count_toward_revision_cap() -> None:
@@ -445,9 +485,12 @@ def test_invalid_later_call_clears_candidate() -> None:
     assert result["status"] == "clarification"
     assert result["plan"] is None
     assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 2
     assert result["tool_trace"][0]["outcome"] == "success"
-    assert result["tool_trace"][1] == {"tool": TOOL_NAME, "outcome": "error"}
+    assert result["tool_trace"][1] == _error_trace(
+        TOOL_NAME, "bad", sequence=2, revision_index=2
+    )
 
 
 def test_unsupported_later_call_clears_candidate() -> None:
@@ -465,8 +508,11 @@ def test_unsupported_later_call_clears_candidate() -> None:
     assert result["status"] == "clarification"
     assert result["plan"] is None
     assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 1
-    assert result["tool_trace"][1] == {"tool": "unsupported", "outcome": "error"}
+    assert result["tool_trace"][1] == _error_trace(
+        "unsupported", "buy", sequence=2, revision_index=None
+    )
     _assert_public(result)
     assert "purchase_items" not in json.dumps(result["tool_trace"])
 
@@ -509,6 +555,7 @@ def test_incomplete_stops_drop_plan(stop: str) -> None:
     assert result["answer"] == _INCOMPLETE
     assert result["plan"] is None
     assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
     assert result["model_turns"] == 2
     assert result["planner_revisions"] == 1
 
@@ -698,6 +745,157 @@ def test_needs_revision_keeps_uncapped_plan() -> None:
     assert result["status"] == "needs_revision"
     assert result["plan"] == expected["plan"]
     assert result["evidence_id"] == expected["evidence_id"]
+    assert result["evidence_revision_id"] is None
     plan = result["plan"]
     assert isinstance(plan, dict)
     assert plan["accepted"] is False
+
+
+def test_record_evidence_runs_before_next_provider_turn() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    seen: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        seen.append(dict(payload))
+        assert "evidence_revision_id" not in payload
+        return _REV
+
+    result, provider = _run(_planner_then_final(), record_evidence=record)
+    assert seen == [expected]
+    assert result["status"] == "planned"
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["evidence_revision_id"] == _REV
+    assert result["tool_trace"] == [
+        _success_trace("call-1", expected["evidence_id"], revision_id=_REV)
+    ]
+    assert len(provider.requests) == 2
+    second_messages = provider.requests[1]["messages"]
+    assert isinstance(second_messages, list)
+    tool_user = second_messages[-1]
+    content = tool_user["content"]
+    assert isinstance(content, list)
+    json_body = content[0]["toolResult"]["content"][0]["json"]
+    assert json_body["evidence_revision_id"] == _REV
+    assert json_body["evidence_id"] == expected["evidence_id"]
+    _validate_converse(
+        cast(str, provider.requests[1]["system"]),
+        cast(list[dict[str, object]], second_messages),
+        cast(list[dict[str, object]], provider.requests[1]["tools"]),
+    )
+    _assert_public(result)
+
+
+def test_record_evidence_error_skips_success_and_followup() -> None:
+    def record(payload: dict[str, object]) -> str:
+        raise RuntimeError("store-failed")
+
+    provider = FakeLLM(_planner_then_final())
+    with pytest.raises(RuntimeError, match="store-failed") as caught:
+        run_chat(provider, "plan", budget(), PERIOD, record_evidence=record)
+    _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 1
+
+
+def test_invalid_record_id_skips_followup() -> None:
+    def record(payload: dict[str, object]) -> str:
+        return "NOT-HEX"
+
+    provider = FakeLLM(_planner_then_final())
+    with pytest.raises(
+        ChatProtocolError, match="evidence revision id is invalid"
+    ) as caught:
+        run_chat(provider, "plan", budget(), PERIOD, record_evidence=record)
+    _assert_static(caught.value, "NOT-HEX")
+    assert len(provider.requests) == 1
+
+
+def test_repeated_revision_id_two_revisions_stay_ordered() -> None:
+    def record(payload: dict[str, object]) -> str:
+        return _REV
+
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("a"), _tool_block("b")],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies, record_evidence=record)
+    assert result["status"] == "planned"
+    assert result["evidence_revision_id"] == _REV
+    assert result["planner_revisions"] == 2
+    assert result["tool_trace"] == [
+        _success_trace("a", expected["evidence_id"], revision_id=_REV),
+        _success_trace(
+            "b",
+            expected["evidence_id"],
+            sequence=2,
+            revision_index=2,
+            revision_id=_REV,
+        ),
+    ]
+    dumped = json.dumps(result["tool_trace"])
+    assert "chicken_tacos" not in dumped
+    assert "reasoningContent" not in dumped
+    second_messages = provider.requests[1]["messages"]
+    assert isinstance(second_messages, list)
+    _validate_converse(
+        cast(str, provider.requests[1]["system"]),
+        cast(list[dict[str, object]], second_messages),
+        cast(list[dict[str, object]], provider.requests[1]["tools"]),
+    )
+
+
+def test_invalid_and_unsupported_trace_indices() -> None:
+    bad = plan_args(meals=[{"recipe_id": "chicken_tacos", "servings": 9}])
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                _tool_block("bad", payload=bad),
+                _tool_block("buy", name="purchase_items", payload={"token": _SECRET}),
+                _tool_block("ok"),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "planned"
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["evidence_revision_id"] is None
+    assert result["tool_trace"] == [
+        _error_trace(TOOL_NAME, "bad"),
+        _error_trace("unsupported", "buy", sequence=2, revision_index=None),
+        _success_trace("ok", expected["evidence_id"], sequence=3, revision_index=2),
+    ]
+    dumped = json.dumps(result["tool_trace"])
+    assert _SECRET not in dumped
+    assert "purchase_items" not in dumped
+    assert "servings" not in dumped
+    assert "reasoningContent" not in dumped
+
+
+def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
+    def record(payload: dict[str, object]) -> str:
+        return _REV
+
+    limit_replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block(f"p-{index}")], "tool_use")
+        for index in range(MAX_PLANNER_REVISIONS + 1)
+    ]
+    limit_result, _limit_provider = _run(limit_replies, record_evidence=record)
+    assert limit_result["status"] == "limit"
+    assert limit_result["plan"] is None
+    assert limit_result["evidence_id"] is None
+    assert limit_result["evidence_revision_id"] is None
+    incomplete_replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_text_block("truncated plan")], "max_tokens"),
+    ]
+    incomplete, _provider = _run(incomplete_replies, record_evidence=record)
+    assert incomplete["status"] == "incomplete"
+    assert incomplete["plan"] is None
+    assert incomplete["evidence_id"] is None
+    assert incomplete["evidence_revision_id"] is None
