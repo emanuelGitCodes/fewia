@@ -1021,3 +1021,10 @@ Added typed chat requests, results, and trace fields with shared plan validators
 The combined frontend passed 84 tests and its build. Independent Grok source
 review approved the contract. The writer's terminal request was cancelled;
 coordinator checks supplied the execution evidence.
+
+## 2026-09-07 — Chat response validation
+
+Added strict chat-response validation and copied result data. Invalid candidates,
+counts, sources, and revision IDs fail before rendering. All 84 frontend tests
+and the build passed. Independent Grok source review approved the validator;
+it did not execute tests. HTTP transport follows.
