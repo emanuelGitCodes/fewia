@@ -876,3 +876,10 @@ preserves required quantities and removes only confirmed pantry purchases.
 Grok repaired malformed expiry, unit, recursion, and ingredient validation after
 independent review. Ruff, formatting, strict mypy, and all 594 backend tests
 passed. No live shopping link was created. Durable dispatch follows.
+
+## 2026-09-07 — Database acquisition bounds
+
+Added PostgreSQL connection and pool timeouts with statement and lock limits.
+SQLite receives no PostgreSQL-only options. Grok repaired tests that assumed
+unsupported URL aliases and an uninstalled driver. Independent review passed.
+Ruff, formatting, strict mypy, and all 540 runtime-branch tests passed.
