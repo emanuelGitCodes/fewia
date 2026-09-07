@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from app.providers.plaid import (
+    PlaidNotReady,
     PlaidSandboxProvider,
     PlaidSyncMutation,
     PlaidUnavailable,
@@ -45,8 +46,16 @@ SUCCESS_BODY = (
     "}],"
     '"removed":[{"transaction_id":"txn-removed"}],'
     '"next_cursor":"cursor-2",'
-    '"has_more":true'
+    '"has_more":true,'
+    '"transactions_update_status":"HISTORICAL_UPDATE_COMPLETE"'
     "}"
+)
+INCOMPLETE_STATUSES: tuple[str | None, ...] = (
+    None,
+    "NOT_READY",
+    "INITIAL_UPDATE_COMPLETE",
+    "TRANSACTIONS_UPDATE_STATUS_UNKNOWN",
+    "UNEXPECTED_STATUS",
 )
 LEAK_MARKERS = (
     CLIENT_ID,
@@ -92,6 +101,26 @@ def assert_static_error(error: BaseException, message: str) -> None:
     rendered = str(error) + repr(error)
     for marker in LEAK_MARKERS:
         assert marker not in rendered
+
+
+def body_with_status(status: str | None, *, empty: bool) -> bytes:
+    if empty:
+        payload: dict[str, object] = {
+            "added": [],
+            "modified": [],
+            "removed": [],
+            "next_cursor": "cursor-empty",
+            "has_more": False,
+        }
+    else:
+        loaded: object = json.loads(SUCCESS_BODY)
+        assert isinstance(loaded, dict)
+        payload = loaded
+    if status is None:
+        payload.pop("transactions_update_status", None)
+    else:
+        payload["transactions_update_status"] = status
+    return json.dumps(payload).encode()
 
 
 def test_first_page_posts_sandbox_sync_without_cursor() -> None:
@@ -277,7 +306,13 @@ def test_malformed_json_is_static_invalid() -> None:
 def test_malformed_sync_page_is_static_invalid() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         del request
-        return httpx.Response(200, content=b'{"added":"SECRET_ERROR_BODY"}')
+        return httpx.Response(
+            200,
+            content=(
+                b'{"added":"SECRET_ERROR_BODY",'
+                b'"transactions_update_status":"HISTORICAL_UPDATE_COMPLETE"}'
+            ),
+        )
 
     provider, client = make_provider(handler)
     try:
@@ -449,3 +484,46 @@ def test_each_post_sets_timeout_and_disables_redirects() -> None:
     assert timeout.read == 20.0
     assert timeout.write == 20.0
     assert timeout.pool == 3.0
+
+
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("status", INCOMPLETE_STATUSES)
+def test_incomplete_update_does_not_return_a_sync_page(
+    status: str | None, empty: bool
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, content=body_with_status(status, empty=empty))
+
+    provider, client = make_provider(handler)
+    page: object = None
+    try:
+        with pytest.raises(PlaidNotReady) as raised:
+            page = provider.sync_page(CREDENTIAL_REF, None)
+        assert_static_error(raised.value, "Plaid transactions are not ready")
+    finally:
+        provider.close()
+        client.close()
+    assert page is None
+
+
+def test_empty_historical_complete_page_is_returned() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            content=body_with_status("HISTORICAL_UPDATE_COMPLETE", empty=True),
+        )
+
+    provider, client = make_provider(handler)
+    try:
+        page = provider.sync_page(CREDENTIAL_REF, None)
+    finally:
+        provider.close()
+        client.close()
+
+    assert page.added == ()
+    assert page.modified == ()
+    assert page.removed_ids == ()
+    assert page.next_cursor == "cursor-empty"
+    assert page.has_more is False

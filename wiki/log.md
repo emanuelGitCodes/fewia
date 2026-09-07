@@ -670,3 +670,18 @@ backend PID. Independent Codex provider_contracts passed 20 targeted tests and
 verified serialization, non-null cursor restart, and final-heartbeat rollback.
 Source SHA-256: 64aecdfd51fdfd98d969dbe5c0427e4b4fa32fe3fcd5912312505d0a1047d0d6.
 No live Plaid sync was performed.
+
+## 2026-09-06 — Plaid history readiness guard
+
+The HTTP adapter now requires HISTORICAL_UPDATE_COMPLETE before returning a
+sync page. Missing, unknown, initial, and not-ready status cannot advance local
+freshness. This follows the documented transactions_update_status contract:
+https://plaid.com/docs/api/products/transactions/.
+
+Coordinator gates passed: Ruff clean, 66 files formatted, strict mypy clean for
+36 files, and 379 tests passed with isolated PostgreSQL. One existing Starlette
+warning remains. Grok wrote the guard; the coordinator applied mechanical Ruff
+newline normalization to its test. Independent Codex provider_contracts passed
+27 targeted tests and readiness probes. Provider source SHA-256:
+4358e880ef498dea32cc2fa755c62db9e971676f142d72e9a3509611c9ed3945.
+No live Plaid request was made.

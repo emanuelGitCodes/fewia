@@ -13,6 +13,7 @@ SANDBOX_BASE_URL = "https://sandbox.plaid.com"
 SYNC_URL = "https://sandbox.plaid.com/transactions/sync"
 SYNC_COUNT = 500
 _MUTATION_CODE = "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION"
+_HISTORICAL_UPDATE_COMPLETE = "HISTORICAL_UPDATE_COMPLETE"
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 
 
@@ -26,10 +27,23 @@ class PlaidSyncMutation(Exception):
         super().__init__("Plaid sync mutated during pagination")
 
 
+class PlaidNotReady(Exception):
+    def __init__(self) -> None:
+        super().__init__("Plaid transactions are not ready")
+
+
 def _require_nonblank(value: str, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} MUST be a nonblank string")
     return value
+
+
+def _reject_incomplete_update(payload: object) -> None:
+    if not isinstance(payload, dict):
+        return
+    # An incomplete pull MUST NOT return a normalized page.
+    if payload.get("transactions_update_status") != _HISTORICAL_UPDATE_COMPLETE:
+        raise PlaidNotReady()
 
 
 def _parse_success(response: httpx.Response) -> SyncPage:
@@ -38,6 +52,7 @@ def _parse_success(response: httpx.Response) -> SyncPage:
         payload = json.loads(response.content, parse_float=Decimal)
     except Exception:
         pass
+    _reject_incomplete_update(payload)
     return parse_sync_page(payload)
 
 
