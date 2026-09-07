@@ -964,3 +964,12 @@ Added per-user intent caching and explicit stale-state handling. Grok replaced
 raw integrity-error parsing and a flaky SQLite concurrency claim after review.
 PostgreSQL now supplies concurrency evidence. Independent review and all 650
 backend tests passed with the required static gates. No live link was created.
+
+## 2026-09-07 — Explicit shopping handoff dispatch
+
+Added commit-before-request dispatch, uncertainty handling, and attempt fencing.
+Initial attempts do not record retry consent. Explicit retries require the
+current attempt count; late responses cannot replace a newer result. The first
+writer stopped before dispatch tests, so the remaining work used a bounded
+assignment. All 650 backend tests and static gates passed. Independent review
+passed 41 PostgreSQL-enabled handoff tests. Live Instacart remains unverified.
