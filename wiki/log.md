@@ -1127,3 +1127,11 @@ backend gates passed, including 1,228 PostgreSQL-enabled tests. One existing
 Starlette warning remains. The 134-line layer preserves atomic outbox submission,
 owned Item checks, replay before configuration, and static context-free errors.
 Router registration remains a later layer. No Plaid request ran.
+
+## 2026-09-07 — Register the sync HTTP routes
+
+Grok 4.6 registered sync on the main app. Independent Grok security review approved
+the two source lines and test changes. All backend gates passed: ruff, formatting,
+strict mypy on 82 source files, and 1,318 PostgreSQL-enabled tests. One existing
+Starlette warning remains. Main-app tests cover owned submission, atomic outbox,
+replay, configuration errors, and public job reads. No provider request ran.

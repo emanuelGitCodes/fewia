@@ -226,7 +226,8 @@ def test_existing_and_shopping_get_paths_are_registered() -> None:
     assert ("/grocery/evidence/{revision_id}", "GET") in routes
     assert ("/grocery/handoffs/{handoff_id}", "GET") in routes
     assert ("/grocery/handoffs", "POST") in routes
-    assert not any(path.startswith("/grocery/sync") for path, _method in routes)
+    assert ("/grocery/sync/jobs", "POST") in routes
+    assert ("/grocery/sync/jobs/{job_id}", "GET") in routes
 
 
 def test_evidence_get_path_returns_saved_snapshot(

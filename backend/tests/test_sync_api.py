@@ -1,4 +1,4 @@
-"""Tests for the dormant Plaid sync HTTP routes."""
+"""Tests for the Plaid sync HTTP routes."""
 
 from collections.abc import Iterator
 from pathlib import Path
@@ -158,12 +158,19 @@ def assert_static_http_error(error: HTTPException, status: int, detail: str) -> 
     assert SENTINEL not in rendered
 
 
-def test_sync_routes_are_not_mounted_on_main_app() -> None:
-    paths = {getattr(route, "path", "") for route in main_app.routes}
-    assert "/sync/jobs" not in paths
-    assert "/sync/jobs/{job_id}" not in paths
-    assert JOBS_PATH not in paths
-    assert f"{JOBS_PATH}/{{job_id}}" not in paths
+def test_sync_routes_are_mounted_on_main_app() -> None:
+    operations = frozenset(
+        {"delete", "get", "head", "options", "patch", "post", "put", "trace"}
+    )
+    inventory = main_app.openapi()["paths"]
+    routes = {
+        (path, method.upper())
+        for path, spec in inventory.items()
+        for method in spec
+        if method in operations
+    }
+    assert (JOBS_PATH, "POST") in routes
+    assert (f"{JOBS_PATH}/{{job_id}}", "GET") in routes
 
 
 def test_repeated_identical_request_reuses_job_and_outbox(
