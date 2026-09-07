@@ -1170,3 +1170,9 @@ actual planner output in separate coordinator checks.
 Only plan_groceries is a model tool. Sync, budget calculation, job delivery, and
 shopping handoff are server actions. Target evidence labels are not observed proof.
 The corpus does not contain an executed 90-run result or a model-quality score.
+
+## 2026-09-07 — Define chat conversation helpers
+
+Grok 4.6 wrote the 72-line helper layer. Independent Grok review checked budget
+validation, wire-body copies, replay rules, and dispatch generations. A clean
+snapshot with this layer passed 122 frontend tests and the production build.
