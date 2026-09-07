@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 from sqlalchemy.orm import Session, sessionmaker
@@ -39,6 +40,7 @@ class ChatJobInput(BaseModel):
     plan_cap_cents: StrictInt | None = Field(default=None, ge=0)
     previous_request: dict[str, object] | None = None
     history: list[ChatHistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
+    previous_job_id: UUID | None = Field(default=None)
 
     @field_validator("message")
     @classmethod
