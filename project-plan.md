@@ -11,19 +11,30 @@
 > Coordinator local checks: 1,374 PostgreSQL-enabled backend tests, 238
 > frontend tests, ruff, format, and strict mypy on 85 files, frontend build,
 > and migrations through 0007. One existing Starlette deprecation warning
-> remains. These are local results, not CI or merge claims. Preserved drafts
-> are included and locally checked. Phase 0 through Phase 3 remain complete
-> historical records
+> remains. Existing local counts remain 1,374 backend tests and 238 frontend
+> tests. Preserved drafts are included and locally checked. Pull request
+> [42](https://github.com/emanuelGitCodes/fewia/pull/42) merged into `main`
+> at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07. GitHub
+> Backend checks and Frontend checks passed. Graphify rebuilt after that
+> merge in the saved checkout. Local ignored artifacts are
+> `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and
+> `health.json`. Full source coverage is 237 code files, 44 documents, and
+> 1 image. Raw extraction excludes 979 unresolved endpoint references,
+> mostly external imports. The default undirected graph collapses 919
+> repeated endpoint relationships. The extract records 121 exact duplicate
+> raw edges. These counts are analysis coverage limits. They are not
+> application failures. Semantic agent token usage is unavailable. This
+> plan does not claim the graph has no errors. A further graph refresh
+> follows this documentation merge. Phase 0 through Phase 3 remain
+> complete historical records
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
 > [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
 > [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
 > [wiki/phases/phase-3.md](wiki/phases/phase-3.md)).
-> Publication, CI, and Graphify remain pending. The coordinator has not
-> recorded commit, push, merge, or Graphify refresh. `wiki/` records work
-> and decisions. An executor MUST read `AGENTS.md` and `wiki/index.md`
-> before starting. The delegation sections assume Claude Code (Agent tool,
-> skills, worktrees); another executor follows the phases, deliverables, and
-> verification steps directly.
+> `wiki/` records work and decisions. An executor MUST read `AGENTS.md`
+> and `wiki/index.md` before starting. The delegation sections assume
+> Claude Code (Agent tool, skills, worktrees); another executor follows
+> the phases, deliverables, and verification steps directly.
 
 ## Context
 
