@@ -707,3 +707,22 @@ hash to its user and retain dispatch state, attempt tokens, and retry consent.
 Independent review found model and migration parity. The isolated PostgreSQL
 upgrade passed. Ruff, formatting, strict mypy, and all 428 backend tests passed.
 The service still needs to enforce immutable payloads and fenced completion.
+
+## 2026-09-06 — Grocery web shell
+
+Added a responsive React/Vite shell with local fonts, truthful empty states,
+and a loopback API proxy. The generated concept guides the complete surface;
+its illustrative values will be replaced by actual planner results.
+
+The initial writer could not resolve npm inside its sandbox. Coordinator
+installation found incompatible Vite/plugin versions and missing Node type
+libraries. Grok repaired both through file-tool-only assignments. npm install
+then reported zero vulnerabilities, and the strict TypeScript/Vite build passed.
+Independent Codex domain_review found no shell source blocker. Visual and
+interactive review remain pending until controls are connected.
+
+Backend gates on this branch passed: Ruff clean, 64 files formatted, strict
+mypy clean for 35 files, and 406 tests passed with isolated PostgreSQL. One
+existing Starlette warning remains. The shell is 148 source/config lines.
+Only explicit source, lock, and design files are staged; generated dist files
+are not included. No provider or purchase behavior is claimed by this shell.
