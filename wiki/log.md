@@ -920,3 +920,10 @@ Added a handler factory for the single demo user. Plans remain available without
 a model. Chat requires a provider; unknown operations fail before execution.
 Both paths record evidence. Independent review and all 1,011 backend tests
 passed. Worker and HTTP configuration follow.
+
+## 2026-09-07 — Bounded demo startup
+
+Added migration, idempotent demo-user seeding, and local Floci provisioning.
+Child commands use bounded timeouts and static status output. Grok repaired
+one strict typing issue and a retry-test setup error. Independent review,
+Ruff, formatting, strict mypy, and all 551 backend tests passed.
