@@ -981,3 +981,12 @@ retain no raw validation context. Added owner checks and aligned operation tags
 with the job handler. The independent source review identified the operation
 mismatch; the repair follows that contract. All 1,176 backend tests and static
 gates passed after provider and handoff integration.
+
+## 2026-09-07 — Select configured grocery spending
+
+Grok 4.6 wrote the HTTP spending selection. Independent Grok review approved the
+source after unknown-source and static error repairs. Fixture and Plaid Sandbox
+spending remain distinct. Missing Sandbox data returns an error without fixture
+substitution. The coordinator tested this layer without chat routes: ruff and
+format passed, strict mypy passed 74 files, and 1,197 PostgreSQL-enabled tests
+passed with one existing Starlette warning. This layer adds 129 source lines.

@@ -1,22 +1,35 @@
 """Tests for the fixture grocery HTTP routes."""
 
 import json
-from datetime import UTC, datetime, timedelta
+import os
+from datetime import UTC, date, datetime, timedelta
 from typing import cast
 from uuid import uuid4
 
 import pytest
 from conftest import UserSeeder
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from httpx import Response
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
-from app.domain.budget import NEW_YORK
-from app.domain.catalog import INGREDIENTS
+from app.api.grocery_models import CreateGroceryJobBody
+from app.domain.budget import NEW_YORK, SpendingSnapshot
+from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.job_models import Job, JobOutbox
+from app.provider_settings import (
+    GroceryProviderSettings,
+    ProviderConfigurationError,
+)
+from app.services.grocery_context import (
+    FIXTURE_PENDING_CENTS,
+    FIXTURE_POSTED_CENTS,
+    SpendingUnavailable,
+)
 from app.services.job_submission import create_job
 from app.services.plan_job import PlanJobInput
 
@@ -34,6 +47,13 @@ INTERNAL_JOB_FIELDS = (
     "attempts",
     "kind",
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_fewia_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in list(os.environ):
+        if name.startswith("FEWIA_"):
+            monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -126,8 +146,8 @@ def stored_plan_payload(
                 "monthly_limit_cents": monthly_limit_cents,
                 "spending": {
                     "period": "2026-09-01",
-                    "posted_cents": 18000,
-                    "pending_cents": 1200,
+                    "posted_cents": FIXTURE_POSTED_CENTS,
+                    "pending_cents": FIXTURE_PENDING_CENTS,
                     "refreshed_at": moment,
                 },
                 "spending_source": "fixture",
@@ -147,8 +167,13 @@ def test_config_returns_fixture_values_and_catalog_names(
     assert response.status_code == 200
     assert body["budget_period"] == "2026-09-01"
     assert body["source"] == "fixture"
-    assert body["posted_cents"] == 18000
-    assert body["pending_cents"] == 1200
+    assert body["posted_cents"] == FIXTURE_POSTED_CENTS
+    assert body["pending_cents"] == FIXTURE_PENDING_CENTS
+    assert body["catalog_version"] == CATALOG_VERSION
+    refreshed = datetime.fromisoformat(
+        str(body["spending_refreshed_at"]).replace("Z", "+00:00")
+    )
+    assert refreshed == FIXED_NY.astimezone(UTC)
     assert body["notice"] == SAMPLE_ESTIMATE_NOTICE
     assert [item["id"] for item in body["recipes"]] == list(SUPPORTED_RECIPE_IDS)
     assert body["recipes"][0]["name"] == "chicken tacos"
@@ -338,6 +363,110 @@ def test_insert_race_same_fields_keeps_winner_snapshot(
     assert stored.payload == payload
 
 
+def test_insert_integrity_error_without_winner_is_static_unavailable(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+
+    def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
+        raise IntegrityError("INSERT", {"token": "secret"}, RuntimeError("constraint"))
+
+    monkeypatch.setattr(grocery_api, "create_job", boom)
+    response = post_job(client, key="no-winner")
+    body = response.json()
+
+    assert response.status_code == 503
+    assert body == {
+        "error": {
+            "code": "service_unavailable",
+            "message": grocery_api.JOB_UNAVAILABLE_MESSAGE,
+        }
+    }
+    assert "constraint" not in str(body).lower()
+    assert "token" not in str(body).lower()
+    assert "secret" not in str(body).lower()
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_create_job_value_error_is_static_unprocessable(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+
+    def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
+        raise ValueError("request_key secret token constraint")
+
+    monkeypatch.setattr(grocery_api, "create_job", boom)
+    response = post_job(client, key="value-error")
+    body = response.json()
+
+    assert response.status_code == 422
+    assert body == {
+        "error": {
+            "code": "unprocessable_entity",
+            "message": grocery_api.INPUT_INVALID_MESSAGE,
+        }
+    }
+    assert "constraint" not in str(body).lower()
+    assert "token" not in str(body).lower()
+    assert "secret" not in str(body).lower()
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_integrity_error_route_exception_has_no_context(
+    session: Session, seed_user: UserSeeder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_user()
+
+    def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
+        raise IntegrityError("INSERT", {"token": "secret"}, RuntimeError("constraint"))
+
+    monkeypatch.setattr(grocery_api, "create_job", boom)
+    body = CreateGroceryJobBody.model_validate(job_body())
+    with pytest.raises(HTTPException) as caught:
+        grocery_api.create_grocery_job(body, session, "no-winner-direct")
+    error = caught.value
+    rendered = str(error) + repr(error)
+
+    assert error.status_code == 503
+    assert error.detail == grocery_api.JOB_UNAVAILABLE_MESSAGE
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert "constraint" not in rendered.lower()
+    assert "token" not in rendered.lower()
+    assert "secret" not in rendered.lower()
+
+
+def test_value_error_route_exception_has_no_context(
+    session: Session, seed_user: UserSeeder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_user()
+
+    def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
+        raise ValueError("request_key secret token constraint")
+
+    monkeypatch.setattr(grocery_api, "create_job", boom)
+    body = CreateGroceryJobBody.model_validate(job_body())
+    with pytest.raises(HTTPException) as caught:
+        grocery_api.create_grocery_job(body, session, "value-error-direct")
+    error = caught.value
+    rendered = str(error) + repr(error)
+
+    assert error.status_code == 422
+    assert error.detail == grocery_api.INPUT_INVALID_MESSAGE
+    assert error.__cause__ is None
+    assert error.__context__ is None
+    assert "constraint" not in rendered.lower()
+    assert "token" not in rendered.lower()
+    assert "secret" not in rendered.lower()
+
+
 def test_insert_race_different_fields_keeps_conflict(
     client: TestClient,
     session: Session,
@@ -412,8 +541,8 @@ def test_caller_cannot_inject_spending_or_user(
     assert job is not None
     payload = job.payload
     assert payload["spending_source"] == "fixture"
-    assert payload["spending"]["posted_cents"] == 18000
-    assert payload["spending"]["pending_cents"] == 1200
+    assert payload["spending"]["posted_cents"] == FIXTURE_POSTED_CENTS
+    assert payload["spending"]["pending_cents"] == FIXTURE_PENDING_CENTS
     parsed = parse_refreshed_at(payload)
     assert parsed == FIXED_NY.astimezone(UTC)
     PlanJobInput.model_validate(payload)
@@ -430,6 +559,14 @@ def test_invalid_idempotency_key_is_rejected(
     assert missing.status_code == 422
     assert blank.status_code == 422
     assert too_long.status_code == 422
+    assert blank.json() == {
+        "error": {
+            "code": "unprocessable_entity",
+            "message": grocery_api.INPUT_INVALID_MESSAGE,
+        }
+    }
+    assert too_long.json() == blank.json()
+    assert "request_key" not in str(blank.json())
 
 
 def test_missing_demo_user_returns_static_service_error(client: TestClient) -> None:
@@ -500,3 +637,144 @@ def test_another_users_job_and_sync_job_are_not_found(
     assert invalid.status_code == 422
     assert "payload" not in other_response.json()
     assert "lease_token" not in other_response.json()
+
+
+def use_settings(
+    monkeypatch: pytest.MonkeyPatch, settings: GroceryProviderSettings
+) -> None:
+    monkeypatch.setattr("app.deps.load_provider_settings", lambda: settings)
+
+
+def test_sandbox_config_uses_ledger_snapshot(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshot = SpendingSnapshot(
+        period=date(2026, 9, 1),
+        posted_cents=777,
+        pending_cents=8,
+        refreshed_at=STALE_REFRESH,
+    )
+    use_settings(monkeypatch, GroceryProviderSettings(spending_source="plaid_sandbox"))
+    monkeypatch.setattr(
+        "app.services.grocery_context.load_spending",
+        lambda *_args, **_kwargs: snapshot,
+    )
+    response = client.get("/grocery/config")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["source"] == "plaid_sandbox"
+    assert body["posted_cents"] == 777
+    assert body["pending_cents"] == 8
+    assert body["catalog_version"] == CATALOG_VERSION
+    refreshed = datetime.fromisoformat(
+        str(body["spending_refreshed_at"]).replace("Z", "+00:00")
+    )
+    assert refreshed == STALE_REFRESH
+    assert body["budget_period"] == "2026-09-01"
+
+
+def test_sandbox_job_stores_ledger_spending(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    snapshot = SpendingSnapshot(
+        period=date(2026, 9, 1),
+        posted_cents=2500,
+        pending_cents=50,
+        refreshed_at=STALE_REFRESH,
+    )
+    use_settings(monkeypatch, GroceryProviderSettings(spending_source="plaid_sandbox"))
+    monkeypatch.setattr(
+        "app.services.grocery_context.load_spending",
+        lambda *_args, **_kwargs: snapshot,
+    )
+    response = post_job(client, key="sandbox-plan")
+    job = session.get(Job, response.json()["job_id"])
+
+    assert response.status_code == 202
+    assert job is not None
+    assert job.payload["spending_source"] == "plaid_sandbox"
+    assert job.payload["spending"]["posted_cents"] == 2500
+    assert job.payload["spending"]["pending_cents"] == 50
+    assert parse_refreshed_at(job.payload) == STALE_REFRESH
+
+
+def test_sandbox_missing_spending_is_static_and_does_not_fall_back(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    use_settings(monkeypatch, GroceryProviderSettings(spending_source="plaid_sandbox"))
+
+    def missing(*_args: object, **_kwargs: object) -> SpendingSnapshot:
+        raise SpendingUnavailable()
+
+    monkeypatch.setattr("app.services.grocery_context.load_spending", missing)
+    config = client.get("/grocery/config")
+    created = post_job(client, key="sandbox-missing")
+
+    assert config.status_code == 503
+    assert config.json() == {
+        "error": {
+            "code": "service_unavailable",
+            "message": grocery_api.SPENDING_UNAVAILABLE_MESSAGE,
+        }
+    }
+    assert created.status_code == 503
+    assert created.json() == config.json()
+    assert "18000" not in str(config.json())
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_invalid_provider_settings_return_static_service_error(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def invalid() -> GroceryProviderSettings:
+        raise ProviderConfigurationError()
+
+    monkeypatch.setattr("app.deps.load_provider_settings", invalid)
+    response = client.get("/grocery/config")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "service_unavailable",
+            "message": "Provider configuration is invalid",
+        }
+    }
+    assert "token" not in str(response.json()).lower()
+
+
+def test_existing_job_replays_without_new_sandbox_snapshot(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    first = post_job(client)
+    job_id = first.json()["job_id"]
+    original = session.get(Job, job_id)
+    assert original is not None
+    snapshot = json.loads(json.dumps(original.payload))
+    use_settings(monkeypatch, GroceryProviderSettings(spending_source="plaid_sandbox"))
+
+    def boom(*_args: object, **_kwargs: object) -> SpendingSnapshot:
+        raise AssertionError("replay MUST NOT take a new spending snapshot")
+
+    monkeypatch.setattr("app.services.grocery_context.load_spending", boom)
+    second = post_job(client)
+    stored = session.get(Job, job_id)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+    assert stored is not None
+    assert stored.payload == snapshot
+    assert stored.payload["spending_source"] == "fixture"

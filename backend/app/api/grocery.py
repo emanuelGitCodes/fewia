@@ -16,22 +16,35 @@ from app.api.grocery_models import (
     GroceryJobAccepted,
     GroceryJobView,
 )
-from app.deps import get_session
+from app.deps import get_provider_settings, get_session
 from app.domain.budget import NEW_YORK
-from app.domain.catalog import INGREDIENTS
+from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.job_models import Job
 from app.models import User
+from app.provider_settings import GroceryProviderSettings
+from app.services.grocery_context import (
+    FIXTURE_PENDING_CENTS as FIXTURE_PENDING_CENTS,
+)
+from app.services.grocery_context import (
+    FIXTURE_POSTED_CENTS as FIXTURE_POSTED_CENTS,
+)
+from app.services.grocery_context import (
+    SpendingSource,
+    SpendingUnavailable,
+    spending_input,
+)
 from app.services.job_submission import IdempotencyConflict, create_job
 from app.services.plan_job import PlanJobInput, SpendingInput
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 DEMO_USER_ID = 1
-FIXTURE_POSTED_CENTS = 18000
-FIXTURE_PENDING_CENTS = 1200
 PERIOD_MISMATCH_MESSAGE = "budget_period must match the current New York month"
 DEMO_NOT_READY_MESSAGE = "Demo workspace is not ready."
 CONFLICT_MESSAGE = "request_key already identifies different content"
+SPENDING_UNAVAILABLE_MESSAGE = "Spending is unavailable"
+INPUT_INVALID_MESSAGE = "The request has invalid parameters."
+JOB_UNAVAILABLE_MESSAGE = "The job could not be stored."
 
 
 def _ny_now() -> datetime:
@@ -48,13 +61,30 @@ def _existing_agent_job(session: Session, request_key: str) -> Job | None:
     )
 
 
+def require_spending(
+    session: Session, source: SpendingSource, now: datetime
+) -> SpendingInput:
+    loaded: SpendingInput | None = None
+    try:
+        loaded = spending_input(session, DEMO_USER_ID, source, now)
+    except SpendingUnavailable:
+        pass
+    if loaded is None:
+        raise HTTPException(status_code=503, detail=SPENDING_UNAVAILABLE_MESSAGE)
+    return loaded
+
+
 @router.get("/config")
-def read_grocery_config() -> GroceryConfig:
+def read_grocery_config(
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[GroceryProviderSettings, Depends(get_provider_settings)],
+) -> GroceryConfig:
+    spending = require_spending(session, settings.spending_source, _ny_now())
     return GroceryConfig(
-        budget_period=_ny_now().date().replace(day=1),
-        source="fixture",
-        posted_cents=FIXTURE_POSTED_CENTS,
-        pending_cents=FIXTURE_PENDING_CENTS,
+        budget_period=spending.period,
+        source=settings.spending_source,
+        posted_cents=spending.posted_cents,
+        pending_cents=spending.pending_cents,
         notice=SAMPLE_ESTIMATE_NOTICE,
         recipes=[
             CatalogRef(id=recipe_id, name=recipe_id.replace("_", " "))
@@ -63,6 +93,8 @@ def read_grocery_config() -> GroceryConfig:
         ingredients=[
             CatalogRef(id=item.id, name=item.name) for item in INGREDIENTS.values()
         ],
+        catalog_version=CATALOG_VERSION,
+        spending_refreshed_at=spending.refreshed_at,
     )
 
 
@@ -80,24 +112,22 @@ def create_grocery_job(
             raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE)
         session.commit()
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
-    ny = _ny_now()
-    period = ny.date().replace(day=1)
-    if body.request.budget_period != period:
+    settings = get_provider_settings()
+    spending = require_spending(session, settings.spending_source, _ny_now())
+    if body.request.budget_period != spending.period:
         raise HTTPException(status_code=422, detail=PERIOD_MISMATCH_MESSAGE)
     payload = cast(
         dict[str, object],
         PlanJobInput(
             request=body.request,
             monthly_limit_cents=body.monthly_limit_cents,
-            spending=SpendingInput(
-                period=period,
-                posted_cents=FIXTURE_POSTED_CENTS,
-                pending_cents=FIXTURE_PENDING_CENTS,
-                refreshed_at=ny.astimezone(UTC),
-            ),
-            spending_source="fixture",
+            spending=spending,
+            spending_source=settings.spending_source,
         ).model_dump(mode="json"),
     )
+    job: Job | None = None
+    error_status: int | None = None
+    error_detail: str | None = None
     try:
         job, _created = create_job(
             session, DEMO_USER_ID, "agent", idempotency_key, payload
@@ -107,11 +137,17 @@ def create_grocery_job(
         if winner is not None and body.matches_stored_caller_fields(winner.payload):
             job = winner
         elif isinstance(exc, IntegrityError) and winner is None:
-            raise
+            error_status = 503
+            error_detail = JOB_UNAVAILABLE_MESSAGE
         else:
-            raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE) from None
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+            error_status = 409
+            error_detail = CONFLICT_MESSAGE
+    except ValueError:
+        error_status = 422
+        error_detail = INPUT_INVALID_MESSAGE
+    if error_status is not None:
+        raise HTTPException(status_code=error_status, detail=error_detail)
+    assert job is not None
     session.commit()
     return GroceryJobAccepted(job_id=job.id, status=job.status)
 

@@ -78,3 +78,45 @@ authorized. The separate workflow task owns supervisor changes.
 The UI concept contains illustrative data. Render actual planner output.
 Bean tacos for two estimate to $17.03 before pantry exclusions. Never label
 fixtures as live provider evidence. Existing user containers remain untouched.
+
+## 2026-09-07 continuation
+
+The user checkpoint `84355a2` remains intact. The integrated backend passed
+1,176 tests before the current HTTP work. The meal-control frontend passed
+72 tests; its chat transport branch now passes 90 tests. Native Codex review
+hit an account usage limit, so separate Grok source reviews now follow writers.
+The coordinator runs all commands and verification gates.
+
+The Compose snapshot at `/private/tmp/fewia-compose-check` runs as project
+`fewia-grocery-b7d4`. Web: 127.0.0.1:5173. API: 127.0.0.1:8010. PostgreSQL:
+127.0.0.1:55435. Floci: 127.0.0.1:4567. Bootstrap applied migration 0007 and
+seeded User1. Browser requests passed through the continuous worker: bean tacos
+for two cost 17.03 dollars; explicit olive-oil pantry stock reduced that to
+11.04 dollars. The desktop and mobile checks had no console errors after repair.
+The isolated emulator dead-lettered a probe after three deliveries.
+
+Current work: chat HTTP routes and configured spending, a snapshot-backed
+handoff API, worker routing for recorded chat and Plaid sync, and the remaining
+chat UI. The 30-case corpus exists with three repeats declared; its schema tests
+pass, but the 90-run evaluation has not run. Live provider credentials and
+quality evidence remain pending. No push, merge, or live provider call occurred.
+
+### Local verification checkpoint
+
+The runtime slice is committed at `e903d81` on `codex/runtime-provider-jobs`.
+It adds 139 application and Compose lines above `94f3db9`. A separate Grok
+source review approved it. All backend gates passed, including 1,187 tests with
+PostgreSQL enabled. An isolated worker consumed a queued 1,703-cent plan and
+saved its matching owner-scoped evidence snapshot. Unconfigured chat and sync
+jobs failed without fabricated results. Both test workers exited with code 0.
+
+The web client is committed in two layers: `ffe729c` for HTTP and `ca49a01`
+for polling. Independent Grok source review approved both. The coordinator ran
+100 frontend tests and a successful production build. An earlier build exposed
+two typed mock errors; the writer repaired them.
+
+The repaired HTTP work passes 1,221 PostgreSQL-enabled backend tests. Its
+configured-spending layer also passes alone with 1,197 tests. Final source
+review remains in progress. Handoff API checks passed 14 tests and strict typing;
+its source layers and standalone tests remain in progress. These slices still
+need integration into this checkout. No push, merge, or live provider call ran.

@@ -1,7 +1,7 @@
 """HTTP models for fixture grocery planning jobs."""
 
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
@@ -16,12 +16,14 @@ class CatalogRef(BaseModel):
 
 class GroceryConfig(BaseModel):
     budget_period: date
-    source: Literal["fixture"]
+    source: Literal["fixture", "plaid_sandbox"]
     posted_cents: int
     pending_cents: int
     notice: str
     recipes: list[CatalogRef]
     ingredients: list[CatalogRef]
+    catalog_version: str = ""
+    spending_refreshed_at: datetime | None = None
 
 
 class CreateGroceryJobBody(BaseModel):
