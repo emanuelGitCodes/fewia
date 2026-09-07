@@ -990,3 +990,13 @@ spending remain distinct. Missing Sandbox data returns an error without fixture
 substitution. The coordinator tested this layer without chat routes: ruff and
 format passed, strict mypy passed 74 files, and 1,197 PostgreSQL-enabled tests
 passed with one existing Starlette warning. This layer adds 129 source lines.
+
+## 2026-09-07 — Submit bounded chat jobs over HTTP
+
+Grok 4.6 wrote chat submission, job reads, and provider capability routes.
+Independent Grok source review approved ownership, replay, history, configuration,
+and static error handling. The coordinator ran all four backend gates: ruff and
+format passed, strict mypy passed 75 files, and 1,221 PostgreSQL-enabled tests
+passed with one existing Starlette warning. This layer adds 141 source lines.
+No route constructs a provider or reads provider secret files. Live provider
+validation remains pending.
