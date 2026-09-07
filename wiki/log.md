@@ -429,3 +429,19 @@ passed 22 catalog tests and found no blocking defect. It checked malformed
 records, optional prices, base servings, and catalog completeness.
 Source SHA-256: 4909325b925f888ca71c41474ad34955072bdd932ec82ea80a9ede8e509714d8.
 No live pricing, inventory, provider call, push, or merge was performed.
+
+## 2026-09-06 — Deterministic grocery budget
+
+Added integer-cent budget calculation with posted net spending, separate
+pending spending, New York month boundaries, and explicit temporary caps for
+stale snapshots. Independent review reproduced daylight-saving freshness and
+future-time defects. The repaired calculation compares UTC instants.
+
+Grok stopped without files; Spark reached its usage limit. Luna implemented
+and repaired this 110-line source slice. Coordinator gates passed: Ruff clean,
+58 files formatted, strict mypy clean for 32 files, and 296 tests passed with
+isolated PostgreSQL enabled. One existing Starlette warning remains.
+Independent Codex reviewer domain_review passed 30 budget tests. Removing UTC
+normalization in a temporary copy caused both regression tests to fail.
+Source SHA-256: 8558ece83d83e1e114fa95d709a3332a0d1293d6856a4f97b2022beb6734b0e4.
+No bank access, provider call, push, or merge was performed.
