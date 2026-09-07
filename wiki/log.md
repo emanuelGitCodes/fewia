@@ -749,3 +749,12 @@ Added same-origin config, submission, and polling calls with cancellation and
 static errors. The body-cancellation test waits until JSON reading begins.
 Strict frontend build and all 20 client tests passed. No credentials enter the
 browser. HTTP source is 111 lines and has independent tests.
+
+## 2026-09-06 — Cancellable grocery job polling
+
+Added idempotent retry keys, bounded polling, whole-attempt timeout, and stale
+response suppression. New submissions clear prior job/error state. Independent
+review found and returned incomplete-estimate, numeric, stale-state, and timeout
+bugs; Grok repaired them. Strict frontend build and 20 tests passed, including
+hung requests, body cancellation, key reuse, late response, and unmount cases.
+Polling source is 143 lines. Controls and browser verification remain next.
