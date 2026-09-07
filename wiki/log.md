@@ -1135,3 +1135,16 @@ the two source lines and test changes. All backend gates passed: ruff, formattin
 strict mypy on 82 source files, and 1,318 PostgreSQL-enabled tests. One existing
 Starlette warning remains. Main-app tests cover owned submission, atomic outbox,
 replay, configuration errors, and public job reads. No provider request ran.
+
+## 2026-09-07 — Store local evaluation artifacts
+
+Grok 4.6 wrote the Floci artifact adapter. Independent Grok security review required
+a proxy-isolation repair, then approved the source. Local S3 and SQS clients now
+set an empty proxy map. All backend gates passed, including 1,237 PostgreSQL-enabled
+tests. One existing Starlette warning remains. Initial test lint and optional
+exception-note inspection failures were repaired. The layer adds 148 source lines.
+
+A synthetic 81-byte report round-tripped through the local Floci S3 bucket. Its
+SHA-256 matched the stored body. Reordered input keys produced the same object key.
+This was a transport probe with zero evaluation runs. It does not prove live AWS
+or model quality. The caller remains responsible for report sanitization.

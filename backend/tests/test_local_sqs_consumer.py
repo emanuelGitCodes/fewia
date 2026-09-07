@@ -58,6 +58,7 @@ def test_receive_long_polls_one_message_and_returns_raw_body(
     assert config.read_timeout == 20
     assert config.read_timeout > 10
     assert config.retries["total_max_attempts"] == 1
+    assert config.proxies == {}
     client.get_queue_url.assert_called_once_with(QueueName=queue_name)
     client.receive_message.assert_called_once_with(
         QueueUrl=normalized_queue_url,

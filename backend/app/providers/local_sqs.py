@@ -38,6 +38,7 @@ class LocalSqsSender:
                     connect_timeout=3,
                     read_timeout=5,
                     retries={"total_max_attempts": 1},
+                    proxies={},
                 ),
             ),
         )
