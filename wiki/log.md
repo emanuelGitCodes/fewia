@@ -699,3 +699,11 @@ warning remains. Independent Codex provider_contracts passed 31 targeted tests
 and PostgreSQL single-query, large-sum, filtering, and readiness probes.
 Source SHA-256: 5485ed555289e98eb75c6df282fc24f3e07ea5c003a683e1a50ac3e3846814cb.
 Missing or incomplete Item data does not silently become zero spending.
+
+## 2026-09-06 — Shopping handoff records
+
+Added migration 0006 and the shopping handoff model. Records bind each request
+hash to its user and retain dispatch state, attempt tokens, and retry consent.
+Independent review found model and migration parity. The isolated PostgreSQL
+upgrade passed. Ruff, formatting, strict mypy, and all 428 backend tests passed.
+The service still needs to enforce immutable payloads and fenced completion.

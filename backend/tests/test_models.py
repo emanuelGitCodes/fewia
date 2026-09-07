@@ -2,7 +2,7 @@
 
 from sqlalchemy import CheckConstraint, UniqueConstraint
 
-from app import models, plaid_models
+from app import handoff_models, models, plaid_models
 from app.db import Base
 
 EXPECTED_TABLES = {
@@ -16,6 +16,7 @@ EXPECTED_TABLES = {
     "job_outbox",
     plaid_models.PlaidItem.__tablename__,
     plaid_models.PlaidTransaction.__tablename__,
+    handoff_models.ShoppingHandoff.__tablename__,
 }
 
 

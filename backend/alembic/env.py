@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app import (
+    handoff_models,  # noqa: F401
     models,  # noqa: F401
     plaid_models,  # noqa: F401
 )
