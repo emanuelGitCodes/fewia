@@ -1176,3 +1176,12 @@ The corpus does not contain an executed 90-run result or a model-quality score.
 Grok 4.6 wrote the 72-line helper layer. Independent Grok review checked budget
 validation, wire-body copies, replay rules, and dispatch generations. A clean
 snapshot with this layer passed 122 frontend tests and the production build.
+
+## 2026-09-07 — Keep bounded chat conversation state
+
+Grok 4.6 wrote the 140-line controller. Independent Grok review checked the repaired
+ambiguous replay, parent selection, error clearing, and dispatch fencing. The
+coordinator repaired test timing through the writer and verified pre-mutation
+capture in the adversarial body test. A clean helper-plus-controller snapshot
+passed 140 frontend tests and the production build. Same-body ambiguous sends
+preserve the request. Terminal sends can start a new intent.
