@@ -471,3 +471,21 @@ strict mypy clean for 34 files, and 295 tests passed with isolated PostgreSQL.
 One existing Starlette warning remains. Independent Codex runtime_design_review
 passed 29 delivery and execution tests. Delivery source SHA-256:
 13ec4846f60fa258fbb458857d2d2ae10a5995856e0e2c784bbe28e4751a1edf.
+
+## 2026-09-06 — Cooperative SQS job execution
+
+Added committed claims, duplicate handling, cooperative heartbeats, bounded
+retry delay, and committed terminal results before acknowledgement. Independent
+review found a nonterminal acknowledgement bug and permissive envelope parsing.
+The repairs retain nonterminal messages and reject malformed envelopes. Delivery
+validation and execution ship as separate 57-line and 128-line source layers.
+
+Coordinator gates passed 295 tests with isolated PostgreSQL, plus Ruff, formatting,
+and strict mypy. Independent Codex runtime_design_review passed 29 targeted tests.
+Its real PostgreSQL/Floci probe verified committed claims and results, harmless
+terminal redelivery, active duplicate retention, and invalid-message retention.
+The unique queue and schema were cleaned up. Execution source SHA-256:
+6a78865e2bc82ba06f67960f23a0c8e28f4f261c8edce9214d71c95f0b279a3b.
+The final transport hash in this probe was
+baaea517c75b4ebe01de9b273b75f3e5505471d573b9460194f289df2c384b0d.
+Background heartbeats and real-provider operation intents remain separate work.
