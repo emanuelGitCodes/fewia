@@ -824,3 +824,10 @@ The adapter blocks redirects and validates HTTPS response hosts. Grok repaired
 deep JSON handling and encoded control rejection after independent review.
 Ruff, formatting, strict mypy, and all 518 backend tests passed. Mocked HTTP
 checks do not prove live provider access or a successful shopping handoff.
+
+## 2026-09-07 — Verified evidence inputs
+
+Added evidence normalization from server budget inputs and recomputed plans.
+Forged costs, sources, and owner-dependent IDs are rejected. Grok repaired deep
+JSON error handling after review. Ruff, formatting, strict mypy, and all 923
+backend tests passed on the combined evidence branch.
