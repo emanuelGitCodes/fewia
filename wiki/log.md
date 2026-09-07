@@ -505,3 +505,19 @@ with a discriminating case. Per-meal rounding then failed the regression in a
 temporary copy. Request and mapping preservation checks also pass.
 Source SHA-256: c4860d76bea9ce55cf260e4e633a80f3021005e44d29851031c648112a05e880.
 The slice adds 149 application lines. No provider or purchase call was made.
+
+## 2026-09-06 — Model-facing planning tool
+
+Added a typed Bedrock tool schema and deterministic execution boundary. Model
+caps can only reduce the server budget. Invalid arguments and catalog conflicts
+produce static errors. Evidence IDs use the existing formatter with a content
+hash over request, budget, plan, and source.
+
+Coordinator gates passed: Ruff clean, 76 files formatted, strict mypy clean
+for 42 files, and 508 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed 19
+targeted tests and found no blocking issue. Grok corrected one formatting-only
+test call afterward. Source SHA-256:
+489fcf5b6385f6c8239708f999dbbff7c1bf61a12919999d4d6ef0a0ea637b7f.
+This 134-line tool does not call a model or external provider. Content-derived
+IDs alone do not prove an immutable storage layer.
