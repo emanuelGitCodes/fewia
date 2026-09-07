@@ -950,3 +950,10 @@ Added provider factories and secret-free configuration flags. Disabled providers
 have no file or network effects. Flags describe configuration, not connectivity.
 All 1,027 backend tests and static gates passed. Independent source review
 approved the factories. Live provider evidence remains pending.
+
+## 2026-09-07 — Handoff cache validation contract
+
+Added shared payload, URL, ownership, time, and database-error checks. Cached
+payloads are revalidated by their canonical hash. Unsafe cached URLs are not
+returned. Independent review and all 650 provider-branch tests passed with the
+required lint, format, and type checks.
