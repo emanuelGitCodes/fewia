@@ -655,3 +655,18 @@ HTTP tests and redirect/timeout/error-context probes. No cross-origin request
 occurred in the repaired redirect test. Provider source SHA-256:
 83a4069abcbe8da2d0e53e3b8099abe67651b0cf0db053448e1912c514194a57.
 No live Plaid request was made. Resolver failure is a static ValueError.
+
+## 2026-09-06 — Atomic Plaid Item synchronization
+
+Added bounded page collection under an owned Item lock. Mutation restarts discard
+partial pages and reuse the original cursor. Ledger changes, final cursor, and
+freshness commit together. Failures and heartbeat loss roll back the transaction.
+
+Coordinator gates passed: Ruff clean, 66 files formatted, strict mypy clean for
+36 files, and 368 tests passed with isolated PostgreSQL. One existing Starlette
+warning remains. Initial tests failed on a negative fixture user and a stale
+metadata inventory. Grok repaired both and scoped the lock probe to its own
+backend PID. Independent Codex provider_contracts passed 20 targeted tests and
+verified serialization, non-null cursor restart, and final-heartbeat rollback.
+Source SHA-256: 64aecdfd51fdfd98d969dbe5c0427e4b4fa32fe3fcd5912312505d0a1047d0d6.
+No live Plaid sync was performed.

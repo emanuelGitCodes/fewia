@@ -2,7 +2,7 @@
 
 from sqlalchemy import CheckConstraint, UniqueConstraint
 
-from app import models
+from app import models, plaid_models
 from app.db import Base
 
 EXPECTED_TABLES = {
@@ -14,6 +14,8 @@ EXPECTED_TABLES = {
     "predictions",
     "jobs",
     "job_outbox",
+    plaid_models.PlaidItem.__tablename__,
+    plaid_models.PlaidTransaction.__tablename__,
 }
 
 
