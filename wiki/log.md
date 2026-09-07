@@ -551,3 +551,11 @@ Added bounded public dialogue history and aggregate planning context. The helper
 rejects injected roles and preserves unknown token usage. Independent review
 found one SDK test fixture error. Grok repaired it. Ruff, formatting, strict
 mypy, and all 574 backend tests passed with PostgreSQL tests enabled.
+
+## 2026-09-07 — Bounded grocery chat loop
+
+Added an eight-turn Bedrock loop with three planner attempts, public history,
+static provider errors, and honest token usage. Incomplete responses discard
+candidate plans. Grok repaired a provider exception subtype leak found in
+independent review. Ruff, formatting, strict mypy, and all 607 backend tests
+passed with PostgreSQL enabled. Live Bedrock validation remains pending.
