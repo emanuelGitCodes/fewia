@@ -332,3 +332,45 @@ The ignored graph remains an older snapshot: 90 of 96 indexed files match;
 coverage. Current role files and runbooks remain the source for delegation.
 Detailed results and graph gaps are in docs/DEV_SUPERVISOR_VERIFICATION.md.
 No remote push, deployment, global change, or application worker was performed.
+## 2026-09-06 Repair lease atomics, nondecreasing renew, and lease tests (backend reliability assignment).
+
+Added atomic claim, renewal, and completion helpers on
+`codex/job-worker-leases`, based on `0fa4852`. The slice adds 140 application
+lines. Claims use fresh tokens and bounded attempts. Expired owners cannot
+renew or complete reclaimed jobs. Renewal cannot shorten an existing lease.
+The caller owns transactions. The runbook records time, ORM refresh, result,
+and acknowledgement contracts. Queue consumption remains the next slice.
+
+Grok 4.6 wrote the initial files. Its first run ended with `task_failed`.
+Coordinator checks found six Ruff errors, four mypy errors, and three failing
+SQLite timestamp assertions. Independent Codex review found lease shortening
+and missing PostgreSQL reclaim and rollback evidence. A second Grok run ended
+with `task_failed` and no repair. The coordinator explicitly assigned Spark
+through the supervisor. No automatic provider fallback occurred.
+
+Spark repaired the source and tests. PostgreSQL exposed a test that attempted
+reclaim before the renewed expiry: one failed and 265 passed. Spark corrected
+the test to the exact expiry boundary. Writer checks encountered uv cache
+permissions and PostgreSQL connectivity restrictions. Coordinator checks ran
+with cache and database access. Spark also appended the entry heading outside
+its assigned source/test files; the coordinator retained it and supplied this
+record. Scoped CLI permissions do not provide an OS write boundary.
+
+Final coordinator commands from `backend/` passed:
+
+- `uv run ruff check app tests`: `All checks passed!`
+- `uv run ruff format --check app tests`: `56 files already formatted`
+- `uv run mypy --strict app`: `Success: no issues found in 31 source files`
+- `uv run pytest`, with `FEWIA_JOB_TEST_DATABASE_URL` set to an isolated
+  migrated PostgreSQL 16 container: `266 passed, 1 warning in 1.30s`
+
+The warning is the existing Starlette/httpx deprecation. No tests skipped.
+Independent Codex reviewer `/root/lease_review` approved the final working
+tree on `0fa4852`. Its targeted lease suite passed 16 tests with one warning.
+It verified queued and expired claim races, old-token rejection, and caller
+rollback from separate PostgreSQL sessions. Three temporary-copy mutations
+failed: shortening renewal, bypassing renewal tokens, and bypassing completion
+tokens. Source SHA-256:
+`1e0b25a40ba0f885b1f11e0524180489ebdfc2ac7d72f5eab59be225d162d7f0`.
+
+No SQS consumer, provider execution, deployment, push, or merge was performed.
