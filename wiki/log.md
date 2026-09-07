@@ -859,3 +859,12 @@ Grok repaired enabled controls that did nothing during catalog failures.
 The development proxy defaults to the isolated API on loopback port 8010.
 Independent review, all 66 frontend tests, and the production build passed.
 Browser verification remains pending. The interface does not claim live chat.
+
+## 2026-09-07 — Browser-driven grocery refinements
+
+Added a nearby rebuild action for changed estimates. Fixed the mobile servings
+layout, desktop spacing, package wording, duplicate warnings, and favicon request.
+Independent source review and all 72 frontend tests passed. The build passed.
+Before these refinements, the real browser-to-SQS flow returned 17.03 dollars,
+then 11.04 dollars after olive oil entered the pantry. Post-change browser checks
+follow. Mobile document width matched its 390-pixel viewport in the baseline.

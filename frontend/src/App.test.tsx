@@ -221,6 +221,49 @@ describe("App", () => {
     });
     expect(togglePantry).toHaveBeenCalledWith("black_beans");
     expect(childText(renderer.root)).toContain("$17.03");
+    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(true);
+    renderer.unmount();
+  });
+
+  it("rebuilds from the estimate when pantry is dirty", () => {
+    const submitForm = vi.fn(async () => undefined);
+    const togglePantry = vi.fn();
+    const renderer = mount(
+      demoState({
+        dirty: true,
+        job: succeededJob,
+        submitForm,
+        togglePantry,
+      }),
+    );
+    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(false);
+    expect(childText(renderer.root)).toContain("$17.03");
+    act(() => {
+      (buttonNamed(renderer.root, "Rebuild estimate").props.onClick as () => void)();
+    });
+    expect(submitForm).toHaveBeenCalledTimes(1);
+    act(() => {
+      (renderer.root.findByProps({ id: "pantry-black_beans" }).props.onChange as () => void)();
+    });
+    expect(togglePantry).toHaveBeenCalledWith("black_beans");
+    expect(submitForm).toHaveBeenCalledTimes(1);
+    expect(childText(renderer.root)).toContain("$17.03");
+    renderer.unmount();
+  });
+
+  it("disables rebuild when the catalog is blocked", () => {
+    const submitForm = vi.fn(async () => undefined);
+    const renderer = mount(
+      demoState({
+        dirty: true,
+        job: succeededJob,
+        configError: CATALOG_UNAVAILABLE,
+        submitForm,
+      }),
+    );
+    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(true);
+    expect(submitForm).not.toHaveBeenCalled();
+    expect(childText(renderer.root)).toContain("$17.03");
     renderer.unmount();
   });
 

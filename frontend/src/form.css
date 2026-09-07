@@ -24,6 +24,7 @@ select:disabled {
 }
 
 .build-estimate,
+.rebuild-estimate,
 .conversation-action,
 .retry-catalog {
   min-width: 44px;
@@ -33,6 +34,7 @@ select:disabled {
 }
 
 .build-estimate:disabled,
+.rebuild-estimate:disabled,
 .conversation-action:disabled,
 .retry-catalog:disabled {
   color: var(--background);
@@ -140,4 +142,24 @@ select:disabled {
   height: 1.15rem;
   min-height: 0;
   flex: 0 0 auto;
+}
+
+@media (max-width: 32rem) {
+  .budget-form div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .budget-form div > * {
+    min-width: 0;
+  }
+
+  .budget-form div select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .budget-form div button {
+    grid-column: 1 / -1;
+  }
 }

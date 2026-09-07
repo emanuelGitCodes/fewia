@@ -7,6 +7,8 @@ export type EstimateProps = {
   dirty: boolean;
   pantry: string[];
   onPantryToggle: (id: string) => void;
+  onRebuild?: () => void | Promise<void>;
+  rebuildDisabled?: boolean;
 };
 
 function sourceLabel(source: string): string {
@@ -61,7 +63,7 @@ function LineRow(props: {
     <li className="estimate-line">
       <p className="estimate-line-name">{line.name}</p>
       <p className="estimate-line-need">{`Needed ${line.quantity} ${line.unit}`}</p>
-      <p className="estimate-line-packages">{`${line.packages} packages`}</p>
+      <p className="estimate-line-packages">{`${line.packages} ${line.packages === 1 ? "package" : "packages"}`}</p>
       <p className="estimate-line-cost">{formatDollars(line.cost_cents)}</p>
       <label className="estimate-pantry" htmlFor={inputId}>
         <input
@@ -79,7 +81,15 @@ function LineRow(props: {
   );
 }
 
-export function Estimate({ job, pending, dirty, pantry, onPantryToggle }: EstimateProps): JSX.Element {
+export function Estimate({
+  job,
+  pending,
+  dirty,
+  pantry,
+  onPantryToggle,
+  onRebuild,
+  rebuildDisabled = false,
+}: EstimateProps): JSX.Element {
   const result = job?.status === "succeeded" ? job.result : null;
   if (result === null) {
     return (
@@ -91,7 +101,7 @@ export function Estimate({ job, pending, dirty, pantry, onPantryToggle }: Estima
       </section>
     );
   }
-  const warnings = [...result.plan.warnings, ...result.budget.warnings];
+  const warnings = [...new Set([...result.plan.warnings, ...result.budget.warnings])];
   return (
     <section className="estimate-panel" aria-labelledby="estimate-heading">
       <h2 id="estimate-heading">{dirty ? "Previous estimate" : "Grocery estimate"}</h2>
@@ -99,6 +109,18 @@ export function Estimate({ job, pending, dirty, pantry, onPantryToggle }: Estima
         <p className="estimate-dirty" role="status">
           Rebuild the request to apply request changes.
         </p>
+      ) : null}
+      {dirty && onRebuild !== undefined ? (
+        <button
+          type="button"
+          className="rebuild-estimate"
+          disabled={rebuildDisabled}
+          onClick={() => {
+            void onRebuild();
+          }}
+        >
+          Rebuild estimate
+        </button>
       ) : null}
       <p className="estimate-plan-state" role="status" aria-live="polite">
         {planWording(result)}

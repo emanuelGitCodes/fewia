@@ -90,6 +90,8 @@ export default function App(): JSX.Element {
               dirty={demo.dirty}
               pantry={demo.form.pantry}
               onPantryToggle={demo.togglePantry}
+              onRebuild={demo.submitForm}
+              rebuildDisabled={blocked || demo.pending}
             />
             {showNotice ? (
               <p className="estimate-notice">{demo.config?.notice ?? SAMPLE_ESTIMATE_NOTICE}</p>

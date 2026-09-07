@@ -71,6 +71,8 @@ function mount(
     dirty: boolean;
     pantry: string[];
     onPantryToggle: (id: string) => void;
+    onRebuild: () => void | Promise<void>;
+    rebuildDisabled: boolean;
   }> = {},
 ): ReactTestRenderer {
   let renderer: ReactTestRenderer | undefined;
@@ -82,6 +84,8 @@ function mount(
         dirty: props.dirty ?? false,
         pantry: props.pantry ?? [],
         onPantryToggle: props.onPantryToggle ?? ((): void => {}),
+        onRebuild: props.onRebuild,
+        rebuildDisabled: props.rebuildDisabled,
       }),
     );
   });
@@ -130,13 +134,16 @@ describe("Estimate", () => {
     expect(text).toContain("Source Demo spending");
     expect(text).toContain("Needed 425 g");
     expect(text).toContain("Needed 8 ct");
-    expect(text).toContain("1 packages");
+    expect(text).toContain("1 package");
+    expect(text).not.toContain("1 packages");
     expect(text).toContain("$1.29");
     expect(text).toContain("$3.49");
     expect(text).toContain("black beans");
     expect(text).toContain("tortillas");
     expect(text).toContain("Plan warning");
     expect(text).toContain("Budget warning");
+    expect(text.split("Plan warning")).toHaveLength(2);
+    expect(text.split("Budget warning")).toHaveLength(2);
     expect(text).toContain(NOTICE);
     expect(renderer.root.findAllByType("input")).toHaveLength(2);
     expect(renderer.root.findAllByType("a")).toHaveLength(0);
@@ -221,7 +228,63 @@ describe("Estimate", () => {
     });
     expect(toggle).toHaveBeenCalledWith("tortillas");
     expect(childText(renderer.root)).toContain("$4.78");
+    expect(renderer.root.findAllByType("button")).toHaveLength(0);
     renderer.unmount();
+  });
+
+  it("labels 0 and 2 packages in the plural", () => {
+    const renderer = mount({
+      job: succeeded({
+        lines: [
+          line({ packages: 0, cost_cents: 0 }),
+          line({ ingredient_id: "tortillas", name: "tortillas", unit: "ct", quantity: 16, packages: 2, cost_cents: 698 }),
+        ],
+      }),
+    });
+    const text = childText(renderer.root);
+    expect(text).toContain("0 packages");
+    expect(text).toContain("2 packages");
+    expect(text).not.toContain("0 package ");
+    expect(text).not.toContain("2 package ");
+    renderer.unmount();
+  });
+
+  it("shows one copy of an identical plan and budget warning", () => {
+    const renderer = mount({
+      job: succeeded({ planWarnings: ["Shared warning"], budgetWarnings: ["Shared warning"] }),
+    });
+    expect(childText(renderer.root).split("Shared warning")).toHaveLength(2);
+    renderer.unmount();
+  });
+
+  it("rebuilds through the callback and keeps the server cost", () => {
+    const onRebuild = vi.fn();
+    const renderer = mount({
+      job: succeeded(),
+      dirty: true,
+      onRebuild,
+    });
+    const button = renderer.root.findAllByType("button")[0];
+    expect(button?.props.disabled).toBe(false);
+    expect(childText(button as ReactTestInstance)).toBe("Rebuild estimate");
+    act(() => {
+      (button?.props.onClick as (() => void) | undefined)?.();
+    });
+    expect(onRebuild).toHaveBeenCalledTimes(1);
+    expect(childText(renderer.root)).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("disables rebuild when blocked and omits it without a callback", () => {
+    const onRebuild = vi.fn();
+    const blocked = mount({ job: succeeded(), dirty: true, onRebuild, rebuildDisabled: true });
+    expect(blocked.root.findAllByType("button")[0]?.props.disabled).toBe(true);
+    expect(onRebuild).not.toHaveBeenCalled();
+    expect(childText(blocked.root)).toContain("$4.78");
+    blocked.unmount();
+    const clean = mount({ job: succeeded(), dirty: false, onRebuild });
+    expect(clean.root.findAllByType("button")).toHaveLength(0);
+    clean.unmount();
   });
 
   it("disables pantry checkboxes while pending and never adds a shopping link", () => {

@@ -24,7 +24,7 @@ body, button, input, select, textarea { font-family: inherit; font-size: inherit
 h1, h2 { margin: 0; color: var(--ink); }
 h1 { font-family: "Lora", serif; font-weight: 400; letter-spacing: -0.03em; font-size: clamp(2.4rem, 6vw, 3.7rem); line-height: 1.08; }
 .intro p { margin: 0.85rem 0 0; color: var(--muted); font-size: clamp(1.1rem, 2.4vw, 1.4rem); }
-.workspace { display: grid; grid-template: "conversation budget" / minmax(0, 1.35fr) minmax(18rem, 0.8fr); gap: 1.5rem; min-width: 0; }
+.workspace { display: grid; grid-template: "conversation budget" / minmax(0, 1.35fr) minmax(18rem, 0.8fr); gap: 1.5rem; min-width: 0; align-items: start; }
 .panel { display: flex; min-height: 23rem; flex-direction: column; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
 .conversation-panel { grid-area: conversation; }
 .budget-panel { grid-area: budget; }
