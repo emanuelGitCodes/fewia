@@ -816,3 +816,11 @@ Seven renewal sessions applied local lock and statement timeouts. A held row
 returned SQLSTATE 55P03 after 5.056 seconds. The worker returned lease_lost,
 kept the result unset, skipped acknowledgment, and joined the renewal thread.
 Connection, pool, and broken-socket timeouts remain a separate runtime concern.
+
+## 2026-09-07 — Instacart development transport
+
+Added one-attempt products-link requests to the fixed development endpoint.
+The adapter blocks redirects and validates HTTPS response hosts. Grok repaired
+deep JSON handling and encoded control rejection after independent review.
+Ruff, formatting, strict mypy, and all 518 backend tests passed. Mocked HTTP
+checks do not prove live provider access or a successful shopping handoff.
