@@ -38,10 +38,11 @@ def _mapping(value: object) -> dict[str, object]:
 
 
 def _copy_request(value: object) -> dict[str, object]:
+    dumped: object = None
     try:
-        dumped: object = GroceryRequest.model_validate(value).model_dump(mode="json")
+        dumped = GroceryRequest.model_validate(value).model_dump(mode="json")
     except ValidationError:
-        raise ChatContextUnavailable(_UNAVAILABLE) from None
+        dumped = None
     if not isinstance(dumped, dict):
         _fail()
     return cast(dict[str, object], dumped)
@@ -67,10 +68,14 @@ def _previous_request(
 
 
 def _turn(item: object) -> ChatHistoryTurn:
+    parsed: ChatHistoryTurn | None = None
     try:
-        return ChatHistoryTurn.model_validate(item)
+        parsed = ChatHistoryTurn.model_validate(item)
     except ValidationError:
-        raise ChatContextUnavailable(_UNAVAILABLE) from None
+        parsed = None
+    if parsed is None:
+        _fail()
+    return parsed
 
 
 def _history(value: object) -> list[ChatHistoryTurn]:
@@ -87,9 +92,11 @@ def _history(value: object) -> list[ChatHistoryTurn]:
 
 
 def _assistant_turn(value: object) -> ChatHistoryTurn:
-    if not isinstance(value, str) or not value.strip():
+    if not isinstance(value, str):
         _fail()
-    text = value
+    text = value.strip()
+    if not text:
+        _fail()
     if len(text) > MAX_MESSAGE_LEN:
         text = text[: MAX_MESSAGE_LEN - len(_ELLIPSIS)] + _ELLIPSIS
     return _turn({"role": _ASSISTANT, "text": text})
@@ -116,6 +123,8 @@ def load_chat_context(
     user_id: int,
     previous_job_id: str | UUID | None,
 ) -> tuple[list[dict[str, str]], dict[str, object] | None]:
+    if type(user_id) is not int or user_id < 1:
+        _fail()
     if previous_job_id is None:
         return [], None
     job = session.scalar(
@@ -131,4 +140,6 @@ def load_chat_context(
     result = _mapping(job.result)
     if payload.get("operation") == "chat":
         return _chat_context(payload, result)
+    if "operation" in payload:
+        _fail()
     return [], _previous_request(result, payload, chat=False)

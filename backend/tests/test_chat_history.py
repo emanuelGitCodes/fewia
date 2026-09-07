@@ -467,3 +467,86 @@ def test_history_omits_tool_trace_and_spending(
     dumped = str(history) + str(previous)
     assert SECRET not in dumped
     assert "posted_cents" not in dumped
+
+
+@pytest.mark.parametrize("owner", [True, False, 0, -1, 1.0])
+def test_owner_must_be_positive_exact_int(
+    session: Session, seed_user: UserSeeder, owner: object
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message=SECRET),
+        result={"answer": SECRET, "request": request_body()},
+    )
+
+    with pytest.raises(ChatContextUnavailable) as caught:
+        load_chat_context(session, cast(int, owner), job.id)
+    assert_static(caught.value)
+    with pytest.raises(ChatContextUnavailable) as none_parent:
+        load_chat_context(session, cast(int, owner), None)
+    assert_static(none_parent.value)
+
+
+@pytest.mark.parametrize("operation", ["plan", None])
+def test_plan_operation_loads_previous_request(
+    session: Session, seed_user: UserSeeder, operation: str | None
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=plan_payload(operation=operation),
+        result={"request": request_body()},
+    )
+
+    with pytest.raises(ChatContextUnavailable) as caught:
+        load_chat_context(session, 1, job.id)
+    assert_static(caught.value)
+
+
+@pytest.mark.parametrize("operation", ["sync", "purchase", "", "CHAT"])
+def test_unknown_operation_is_static(
+    session: Session, seed_user: UserSeeder, operation: str
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=plan_payload(operation=operation),
+        result={"request": request_body(), "tool_trace": [SECRET]},
+    )
+
+    with pytest.raises(ChatContextUnavailable) as caught:
+        load_chat_context(session, 1, job.id)
+    assert_static(caught.value)
+
+
+def test_assistant_whitespace_trimmed_before_truncation(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    answer = "  " + ("a" * (MAX_MESSAGE_LEN + 50)) + "  "
+    result: dict[str, object] = {
+        "answer": answer,
+        "request": request_body(),
+        "tool_trace": [{"reasoning": SECRET}],
+    }
+    payload = chat_payload()
+    original_payload = copy.deepcopy(payload)
+    original_result = copy.deepcopy(result)
+    job = add_job(session, user_id=1, payload=payload, result=result)
+
+    history, previous = load_chat_context(session, 1, job.id)
+
+    assert history[1]["role"] == "assistant"
+    assert len(history[1]["text"]) == MAX_MESSAGE_LEN
+    assert history[1]["text"].endswith("...")
+    assert history[1]["text"][:-3] == "a" * (MAX_MESSAGE_LEN - 3)
+    assert previous == expected_request(request_body())
+    assert job.result is not None
+    assert job.result["answer"] == answer
+    assert job.payload == original_payload
+    assert job.result == original_result
+    assert SECRET not in history[1]["text"]

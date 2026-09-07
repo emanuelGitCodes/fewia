@@ -973,3 +973,11 @@ current attempt count; late responses cannot replace a newer result. The first
 writer stopped before dispatch tests, so the remaining work used a bounded
 assignment. All 650 backend tests and static gates passed. Independent review
 passed 41 PostgreSQL-enabled handoff tests. Live Instacart remains unverified.
+
+## 2026-09-07 — Chat history repair and alignment
+
+Preserved the user's 84355a2 checkpoint. Repaired static history errors so they
+retain no raw validation context. Added owner checks and aligned operation tags
+with the job handler. The independent source review identified the operation
+mismatch; the repair follows that contract. All 1,176 backend tests and static
+gates passed after provider and handoff integration.
