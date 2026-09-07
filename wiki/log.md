@@ -781,3 +781,9 @@ Added the estimate view with exact sample costs, package counts, pantry controls
 and source labels. Missing prices remain incomplete. Draft changes retain the
 previous server estimate. Independent review passed after the source-label repair.
 All 45 frontend tests and the production build passed. Browser checks remain pending.
+
+## 2026-09-06 — Grocery conversation status
+
+Added example actions, job status, and retry controls. Errors suppress stale
+conversation status. Independent review passed. All 45 frontend tests and the
+production build passed. The app wiring follows in a separate layer.
