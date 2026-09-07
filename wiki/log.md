@@ -1070,3 +1070,10 @@ approved the source. All backend gates passed: ruff, formatting, strict mypy, an
 run passed ten evidence API and store tests. One existing Starlette warning remains.
 The 51-line route returns a stored snapshot for an owned revision. Missing, foreign,
 and malformed revisions return 404. Router registration remains a later layer.
+
+## 2026-09-07 — Define strict shopping handoff HTTP types
+
+Grok 4.6 wrote the 32-line type layer. Independent Grok security review approved it.
+The coordinator tested a clean snapshot with this layer only: all backend gates
+passed, including 1,180 PostgreSQL-enabled tests. One existing Starlette warning
+remains. Request bodies reject extra fields and noninteger retry attempts.
