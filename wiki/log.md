@@ -742,3 +742,10 @@ Added independent parsers for config, job, budget, and plan responses. Valid
 incomplete estimates remain visible. Unsafe or fractional cents and completed
 jobs without results are rejected. Direct validation tests do not import HTTP
 helpers. Independent review and the full 20-test client suite passed.
+
+## 2026-09-06 — Web API transport
+
+Added same-origin config, submission, and polling calls with cancellation and
+static errors. The body-cancellation test waits until JSON reading begins.
+Strict frontend build and all 20 client tests passed. No credentials enter the
+browser. HTTP source is 111 lines and has independent tests.
