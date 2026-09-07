@@ -623,3 +623,19 @@ All synthetic probe rows were rolled back. No access token or raw response is
 stored by this schema. Source SHA-256:
 dd07e388ba469a1ef43c061900484f26cfcc745c0a1b6881b3ad3f81e6e31d37.
 No live Plaid sync, shared development migration, push, or merge was performed.
+
+## 2026-09-06 — Normalized Plaid sync pages
+
+Added strict normalized page records, exact signed cents, dates, pending flags,
+removals, and grocery classification. Raw provider fields do not enter the DTO.
+Independent review found Decimal underflow could silently convert tiny nonzero
+amounts to zero. Coefficient/exponent conversion repaired that defect.
+
+Coordinator gates passed: Ruff clean, 62 files formatted, strict mypy clean
+for 34 files, and 339 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex provider_contracts passed 39 tests
+and 1,509 exact-value probes under hostile Decimal settings. Grok completed a
+file-tool-only constant cleanup to meet the 150-line source cap; coordinator
+reran all gates, and independent review confirmed equivalent bounds.
+Source SHA-256: 3fd11a6b07c0204ef21e8bb0abdddb8ccfc85efc5070a69d525d03f50fae0664.
+No HTTP request or live Plaid sync was performed.
