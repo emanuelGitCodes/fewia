@@ -1,27 +1,25 @@
-function Conversation() {
-  return (
-    <section className="panel conversation-panel" aria-labelledby="conversation-heading">
-      <h2 id="conversation-heading">Your conversation</h2>
-      <div className="conversation-empty" role="status" aria-live="polite">
-        <p className="empty-title">Start with your meal ideas.</p>
-        <p>Nothing is estimated yet. Your request and FEWIA&apos;s status updates will appear here when chat is connected.</p>
-      </div>
-    </section>
-  );
+import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
+import { BudgetForm } from "./BudgetForm";
+import { Conversation } from "./Conversation";
+import { Estimate } from "./Estimate";
+import { formatDollars } from "./money";
+import { useGroceryDemo } from "./useGroceryDemo";
+import "./form.css";
+import "./estimate.css";
+
+const CATALOG_LOADING = "Loading the grocery catalog.";
+
+function sourceLabel(source: string): string {
+  if (source === "fixture") {
+    return "Demo spending";
+  }
+  return "Unverified spending source";
 }
-function BudgetPanel() {
-  return (
-    <section className="panel budget-panel" aria-labelledby="budget-heading">
-      <h2 id="budget-heading">Your grocery budget</h2>
-      <p className="panel-note" role="status" aria-live="polite">No grocery budget or meal plan is set yet.</p>
-      <div className="budget-empty">
-        <p>Budget, meal plan, pantry, evidence, and Instacart development links will appear after a request completes.</p>
-        <p className="estimate-notice">Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.</p>
-      </div>
-    </section>
-  );
-}
-export default function App() {
+
+export default function App(): JSX.Element {
+  const demo = useGroceryDemo();
+  const blocked = demo.config === null || demo.configPending || demo.configError !== null;
+  const showNotice = demo.job?.status !== "succeeded" || demo.job.result === null;
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -34,8 +32,69 @@ export default function App() {
           <p>Plan a few meals with what you have.</p>
         </div>
         <div className="workspace">
-          <Conversation />
-          <BudgetPanel />
+          <Conversation
+            job={demo.job}
+            error={demo.error}
+            pending={demo.pending}
+            freshRequestsDisabled={blocked}
+            onExample={demo.example}
+            onRetry={demo.retry}
+            onNewRequest={demo.newRequest}
+          >
+            {demo.configError !== null ? (
+              <div className="catalog-banner">
+                <p className="catalog-error" role="status" aria-live="polite">
+                  {demo.configError}
+                </p>
+                <button type="button" className="retry-catalog" onClick={demo.reloadConfig}>
+                  Retry catalog
+                </button>
+              </div>
+            ) : demo.configPending || demo.config === null ? (
+              <p className="catalog-status" role="status" aria-live="polite">
+                {CATALOG_LOADING}
+              </p>
+            ) : null}
+            {demo.config !== null ? (
+              <form
+                className="budget-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void demo.submitForm();
+                }}
+              >
+                <p className="budget-source">
+                  {`Source ${sourceLabel(demo.config.source)}. Pending ${formatDollars(demo.config.pending_cents)}`}
+                </p>
+                <BudgetForm
+                  config={demo.config}
+                  value={demo.form}
+                  onChange={demo.setForm}
+                  disabled={blocked || demo.pending}
+                />
+                {demo.formError !== null ? (
+                  <p className="form-error" role="alert">
+                    {demo.formError}
+                  </p>
+                ) : null}
+                <button type="submit" className="build-estimate" disabled={blocked || demo.pending}>
+                  Build my estimate
+                </button>
+              </form>
+            ) : null}
+          </Conversation>
+          <div className="panel budget-panel">
+            <Estimate
+              job={demo.job}
+              pending={demo.pending}
+              dirty={demo.dirty}
+              pantry={demo.form.pantry}
+              onPantryToggle={demo.togglePantry}
+            />
+            {showNotice ? (
+              <p className="estimate-notice">{demo.config?.notice ?? SAMPLE_ESTIMATE_NOTICE}</p>
+            ) : null}
+          </div>
         </div>
       </main>
       <footer className="site-footer">No purchases are made here.</footer>

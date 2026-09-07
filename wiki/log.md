@@ -851,3 +851,11 @@ source review passed. Browser verification follows after the app wiring layer.
 Added responsive estimate rows, pantry controls, and sample-price states.
 The stylesheet stays within its review layer. Independent source review passed.
 The combined UI branch passed 66 tests and its build. Browser checks follow.
+
+## 2026-09-07 — Grocery app wiring
+
+Connected the meal form, submission state, server estimates, and retry controls.
+Grok repaired enabled controls that did nothing during catalog failures.
+The development proxy defaults to the isolated API on loopback port 8010.
+Independent review, all 66 frontend tests, and the production build passed.
+Browser verification remains pending. The interface does not claim live chat.

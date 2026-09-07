@@ -10,9 +10,9 @@
   background: var(--background);
 }
 * { box-sizing: border-box; }
-html { min-width: 320px; }
+html { min-width: 320px; overflow-x: hidden; }
 body { margin: 0; min-width: 320px; background: var(--background); color: var(--ink); font-size: 16px; line-height: 1.5; }
-body, button, input, textarea { font-family: "Source Sans 3", sans-serif; }
+body, button, input, select, textarea { font-family: inherit; font-size: inherit; }
 ::selection { color: var(--background); background: var(--accent); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; }
@@ -21,24 +21,24 @@ body, button, input, textarea { font-family: "Source Sans 3", sans-serif; }
 .mode-label { color: var(--muted); font-size: 0.95rem; }
 .page { width: min(100% - 2.5rem, 80rem); flex: 1; margin: 0 auto; padding: clamp(2.8rem, 7vw, 5rem) 0 4rem; }
 .intro { margin-bottom: clamp(2rem, 4vw, 3rem); }
-h1, h2 { margin: 0; color: var(--ink); font-family: "Lora", serif; font-weight: 400; letter-spacing: -0.03em; }
-h1 { max-width: 12ch; font-size: clamp(2.4rem, 6vw, 3.7rem); line-height: 1.08; }
+h1, h2 { margin: 0; color: var(--ink); }
+h1 { font-family: "Lora", serif; font-weight: 400; letter-spacing: -0.03em; font-size: clamp(2.4rem, 6vw, 3.7rem); line-height: 1.08; }
 .intro p { margin: 0.85rem 0 0; color: var(--muted); font-size: clamp(1.1rem, 2.4vw, 1.4rem); }
-.workspace { display: grid; grid-template: "conversation budget" / minmax(0, 1.35fr) minmax(18rem, 0.8fr); gap: 1.5rem; }
-.panel { display: flex; min-height: 23rem; flex-direction: column; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid var(--line); border-radius: 6px; }
+.workspace { display: grid; grid-template: "conversation budget" / minmax(0, 1.35fr) minmax(18rem, 0.8fr); gap: 1.5rem; min-width: 0; }
+.panel { display: flex; min-height: 23rem; flex-direction: column; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
 .conversation-panel { grid-area: conversation; }
 .budget-panel { grid-area: budget; }
-h2 { margin-bottom: 1.7rem; font-size: clamp(1.5rem, 3vw, 1.85rem); line-height: 1.2; }
+h2 { margin-bottom: 1.7rem; font-family: "Source Sans 3", sans-serif; font-weight: 600; font-size: 1.5rem; line-height: 1.2; }
 .conversation-empty { max-width: 38rem; margin: auto 0; padding: 1.3rem 1.5rem; border-radius: 6px; background: var(--message); }
 .conversation-empty p, .budget-empty p { margin: 0; color: var(--muted); }
 .empty-title { margin-bottom: 0.5rem !important; color: var(--accent) !important; font-family: "Lora", serif; font-size: 1.35rem; }
 .panel-note { margin: 0; color: var(--muted); font-size: 1.05rem; }
 .budget-empty { margin-top: auto; padding-top: 1.3rem; border-top: 1px solid var(--line); }
-.estimate-notice { margin-top: 1rem !important; font-size: 0.92rem; }
+.estimate-notice { margin-top: 1rem !important; padding-left: 0.6rem; border-left: 3px solid var(--line); color: var(--muted); font-size: 0.92rem; }
 .site-footer { padding: 1.25rem clamp(1.25rem, 5vw, 3rem); border-top: 1px solid var(--line); color: var(--muted); }
 @media (max-width: 50rem) {
   .page { width: min(100% - 2rem, 42rem); }
-  .workspace { grid-template: "budget" "conversation" / minmax(0, 1fr); }
+  .workspace { grid-template: "conversation" "budget" / minmax(0, 1fr); }
   .panel { min-height: 18rem; }
 }
 @media (max-width: 32rem) {

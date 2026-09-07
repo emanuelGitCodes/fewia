@@ -62,6 +62,7 @@ function mount(
     job: GroceryJob | null;
     error: string | null;
     pending: boolean;
+    freshRequestsDisabled: boolean;
   }> = {},
   extras: { children?: JSX.Element } = {},
 ): {
@@ -82,6 +83,7 @@ function mount(
           job: props.job ?? null,
           error: props.error ?? null,
           pending: props.pending ?? false,
+          freshRequestsDisabled: props.freshRequestsDisabled,
           onExample,
           onRetry,
           onNewRequest,
@@ -177,6 +179,7 @@ describe("Conversation", () => {
     expect(childText(progress.renderer.root)).toContain("still processing");
     expect(progress.renderer.root.findAllByProps({ className: "conversation-status" })).toHaveLength(0);
     expect(childText(progress.renderer.root)).not.toContain("Your grocery request is queued.");
+    expect(buttonNamed(progress.renderer.root, "Check progress").props.disabled).toBe(true);
     act(() => {
       (buttonNamed(progress.renderer.root, "Check progress").props.onClick as () => void)();
     });
@@ -185,6 +188,7 @@ describe("Conversation", () => {
     progress.renderer.unmount();
     const failed = mount({ job: job("failed") });
     expect(childText(failed.renderer.root)).toContain("Check meals, servings, and budget, then retry.");
+    expect(buttonNamed(failed.renderer.root, "Start a new request").props.disabled).toBe(false);
     act(() => {
       (buttonNamed(failed.renderer.root, "Start a new request").props.onClick as () => void)();
     });
@@ -201,12 +205,39 @@ describe("Conversation", () => {
     expect(failedWithError.onNewRequest).toHaveBeenCalledTimes(1);
     failedWithError.renderer.unmount();
     const retry = mount({ error: "The grocery request failed." });
+    expect(buttonNamed(retry.renderer.root, "Retry request").props.disabled).toBe(false);
     act(() => {
       (buttonNamed(retry.renderer.root, "Retry request").props.onClick as () => void)();
     });
     expect(retry.onRetry).toHaveBeenCalledTimes(1);
     expect(retry.onNewRequest).not.toHaveBeenCalled();
     retry.renderer.unmount();
+    const retryPending = mount({ error: "The grocery request failed.", pending: true });
+    expect(buttonNamed(retryPending.renderer.root, "Retry request").props.disabled).toBe(true);
+    retryPending.renderer.unmount();
+  });
+
+  it("disables examples and a failed new request when freshRequestsDisabled", () => {
+    const blocked = mount({ freshRequestsDisabled: true });
+    expect(buttonNamed(blocked.renderer.root, "Bean tacos for two").props.disabled).toBe(true);
+    expect(buttonNamed(blocked.renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(
+      true,
+    );
+    blocked.renderer.unmount();
+    const failed = mount({ job: job("failed"), freshRequestsDisabled: true });
+    expect(buttonNamed(failed.renderer.root, "Start a new request").props.disabled).toBe(true);
+    failed.renderer.unmount();
+    const retry = mount({ error: "The grocery request failed.", freshRequestsDisabled: true });
+    expect(buttonNamed(retry.renderer.root, "Retry request").props.disabled).toBe(false);
+    retry.renderer.unmount();
+    const progress = mount({
+      job: job("queued"),
+      error: "still processing",
+      pending: false,
+      freshRequestsDisabled: true,
+    });
+    expect(buttonNamed(progress.renderer.root, "Check progress").props.disabled).toBe(false);
+    progress.renderer.unmount();
   });
 
   it("places children in the composer slot", () => {

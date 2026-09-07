@@ -7,6 +7,7 @@ export type ConversationProps = {
   job: GroceryJob | null;
   error: string | null;
   pending: boolean;
+  freshRequestsDisabled?: boolean;
   onExample: (kind: ExampleKind) => void;
   onRetry: () => void;
   onNewRequest: () => void;
@@ -52,6 +53,7 @@ export function Conversation({
   job,
   error,
   pending,
+  freshRequestsDisabled = false,
   onExample,
   onRetry,
   onNewRequest,
@@ -60,12 +62,14 @@ export function Conversation({
   const status = liveStatus(job, pending);
   const showAction = error !== null || job?.status === "failed";
   const failed = job?.status === "failed";
+  const examplesDisabled = pending || freshRequestsDisabled;
   const actionLabel = isNonterminal(job)
     ? "Check progress"
     : failed
       ? "Start a new request"
       : "Retry request";
   const onAction = failed ? onNewRequest : onRetry;
+  const actionDisabled = pending || (failed && freshRequestsDisabled);
   return (
     <section className="panel conversation-panel" aria-labelledby="conversation-heading">
       <h2 id="conversation-heading">Your conversation</h2>
@@ -77,7 +81,7 @@ export function Conversation({
         <button
           type="button"
           className="conversation-example"
-          disabled={pending}
+          disabled={examplesDisabled}
           onClick={() => {
             onExample("beans");
           }}
@@ -87,7 +91,7 @@ export function Conversation({
         <button
           type="button"
           className="conversation-example"
-          disabled={pending}
+          disabled={examplesDisabled}
           onClick={() => {
             onExample("vegan");
           }}
@@ -106,7 +110,7 @@ export function Conversation({
         </p>
       ) : null}
       {showAction ? (
-        <button type="button" className="conversation-action" onClick={onAction}>
+        <button type="button" className="conversation-action" disabled={actionDisabled} onClick={onAction}>
           {actionLabel}
         </button>
       ) : null}
