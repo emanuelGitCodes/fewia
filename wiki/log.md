@@ -839,3 +839,9 @@ reuse an ID. Conflicts never overwrite records. Grok repaired a SQLAlchemy
 statement annotation after strict mypy failed. All four backend gates passed,
 including 923 tests. Independent PostgreSQL concurrency tests passed. Migration
 trigger probes remain the separate evidence for row immutability.
+
+## 2026-09-07 — Grocery form styles
+
+Added readable form and conversation styles as a foundation for app integration.
+The combined UI branch passed 66 tests and its production build. Independent
+source review passed. Browser verification follows after the app wiring layer.
