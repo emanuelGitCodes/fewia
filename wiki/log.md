@@ -774,3 +774,10 @@ require user selection. Independent Codex domain_review passed 13 money/form
 tests and approved labels, disabled semantics, and mutation guards. The strict
 frontend build and all 33 frontend tests passed. Form source is 150 lines.
 App wiring and browser verification remain separate work.
+
+## 2026-09-06 — Server estimate view
+
+Added the estimate view with exact sample costs, package counts, pantry controls,
+and source labels. Missing prices remain incomplete. Draft changes retain the
+previous server estimate. Independent review passed after the source-label repair.
+All 45 frontend tests and the production build passed. Browser checks remain pending.
