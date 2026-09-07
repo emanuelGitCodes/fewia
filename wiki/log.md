@@ -685,3 +685,17 @@ newline normalization to its test. Independent Codex provider_contracts passed
 27 targeted tests and readiness probes. Provider source SHA-256:
 4358e880ef498dea32cc2fa755c62db9e971676f142d72e9a3509611c9ed3945.
 No live Plaid request was made.
+
+## 2026-09-06 — Consistent ledger spending snapshots
+
+Added one-query aggregation of readiness, oldest sync time, posted spending,
+and pending spending across owned Items. Left joins retain empty or uninitialized
+Items. Exact signed totals and month/category filters are preserved. SQLite
+fixtures now store UTC, matching the production sync path.
+
+Coordinator gates passed: Ruff clean, 68 files formatted, strict mypy clean for
+37 files, and 410 tests passed with isolated PostgreSQL. One existing Starlette
+warning remains. Independent Codex provider_contracts passed 31 targeted tests
+and PostgreSQL single-query, large-sum, filtering, and readiness probes.
+Source SHA-256: 5485ed555289e98eb75c6df282fc24f3e07ea5c003a683e1a50ac3e3846814cb.
+Missing or incomplete Item data does not silently become zero spending.
