@@ -374,3 +374,26 @@ tokens. Source SHA-256:
 `1e0b25a40ba0f885b1f11e0524180489ebdfc2ac7d72f5eab59be225d162d7f0`.
 
 No SQS consumer, provider execution, deployment, push, or merge was performed.
+
+## 2026-09-06 — Local SQS consumer transport
+
+Added typed receive, visibility extension, and acknowledgement operations.
+The adapter uses explicit dummy credentials and bounded long polling. It
+validates the expected queue path and normalizes known Floci host aliases to
+the configured endpoint. Malformed URLs and receipt handles fail with static
+errors. This slice adds 150 application lines.
+
+Independent review found alternate-origin acceptance, parser text leakage,
+and empty-receipt acceptance in the initial Grok handoff. Luna repaired these
+issues after Spark reached its usage limit. Live Floci returned its container
+hostname to host clients, so the reviewed normalization contract replaced
+strict alias rejection. A final import-order failure was repaired.
+
+Coordinator gates passed: Ruff clean, 58 files formatted, strict mypy clean
+for 32 files, and 333 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed
+67 adapter tests and approved credential and URL handling. Source SHA-256:
+f99a4508a14411379c1d7c845147d5fc7614e6addb47cd47598b4d24ce1f5e4b.
+A live isolated Floci queue passed receive, visibility hide, redelivery, and
+acknowledgement checks. The temporary queue was deleted. No application queue
+messages, external providers, deployments, pushes, or merges were performed.
