@@ -559,3 +559,14 @@ static provider errors, and honest token usage. Incomplete responses discard
 candidate plans. Grok repaired a provider exception subtype leak found in
 independent review. Ruff, formatting, strict mypy, and all 607 backend tests
 passed with PostgreSQL enabled. Live Bedrock validation remains pending.
+
+## 2026-09-06 — Grocery job payload adapter
+
+Added a strict typed job payload with declared budget, spending source, and
+period agreement. The adapter calls the deterministic budget and planner tools
+between cooperative heartbeats. This 67-line layer precedes the worker command.
+Combined coordinator gates passed: Ruff clean, 72 files formatted, strict mypy
+clean for 39 files, and 454 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex runtime_design_review passed 23
+handler/CLI tests. Handler source SHA-256:
+652dab5c9fe51237bc1245172587abfa6c9a85ea53f164c8e7743e61b0e2f76d.
