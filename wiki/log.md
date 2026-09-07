@@ -1035,3 +1035,11 @@ Grok 4.6 wrote the chat submission and read client. A separate Grok reviewer
 approved the source. The coordinator ran 90 frontend tests and the production build.
 Both passed after the writer repaired two typed mock errors. Requests use bounded
 shared JSON handling, encoded job IDs, and idempotency headers. No live model call ran.
+
+## 2026-09-07 — Poll chat jobs with bounded retries
+
+Grok 4.6 wrote the chat polling hook. A separate Grok source reviewer found no
+logic blockers. The coordinator ran 100 frontend tests and the production build;
+both passed. The hook bounds waits to eight minutes, preserves ambiguous retry
+keys, aborts on unmount, and fences obsolete responses. This layer adds 140 source
+lines above the HTTP client. Browser chat integration remains pending.
