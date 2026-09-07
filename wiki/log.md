@@ -935,3 +935,11 @@ Published ports bind to loopback. Separate Docker contexts exclude environment
 files, secrets, and writer checkpoints. Independent review and Compose config
 validation passed. Image builds need the integrated frontend checkout and follow
 in the coordinator's isolated stack. No user containers were replaced.
+
+## 2026-09-07 — Provider settings and secret files
+
+Added bounded file-based provider settings with masked credentials. Grok repaired
+malformed JSON depth and NUL-path error handling. All 1,027 backend tests and
+static gates passed. The Codex reviewer reached its usage limit, so a separate
+Grok source review checked the repaired code and approved it. That reviewer did
+not execute tests. No real credentials or provider calls were used.
