@@ -120,3 +120,13 @@ configured-spending layer also passes alone with 1,197 tests. Final source
 review remains in progress. Handoff API checks passed 14 tests and strict typing;
 its source layers and standalone tests remain in progress. These slices still
 need integration into this checkout. No push, merge, or live provider call ran.
+
+### Integrated snapshot b7880e5
+
+Spending and chat HTTP layers are saved at `7c6493e` and `473f1c5`. The reviewed
+runtime and chat client layers are integrated. The checkout passes 1,232 backend
+tests with PostgreSQL enabled, 100 frontend tests, and the production build. The
+running local Compose snapshot is `/private/tmp/fewia-compose-current`. Its real
+HTTP path returned a 1,703-cent plan, stored evidence, and an idempotent replay.
+Provider configuration remains unset. Handoff API layers, evidence reads, frontend
+provider configuration, and chat presentation are the next active work.

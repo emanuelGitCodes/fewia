@@ -1043,3 +1043,13 @@ logic blockers. The coordinator ran 100 frontend tests and the production build;
 both passed. The hook bounds waits to eight minutes, preserves ambiguous retry
 keys, aborts on unmount, and fences obsolete responses. This layer adds 140 source
 lines above the HTTP client. Browser chat integration remains pending.
+
+## 2026-09-07 — Verify the integrated grocery runtime
+
+The reviewed snapshot `b7880e5` passed all backend gates with 1,232 PostgreSQL-enabled
+tests. It passed 100 frontend tests and the production build. The local Compose
+project `fewia-grocery-b7d4` now runs this snapshot from `/private/tmp/fewia-compose-current`.
+The web proxy submitted a synthetic plan through the API, outbox, Floci, and worker.
+It returned 1,703 cents and a stored evidence revision. Repeated submission returned
+the same job. Chat returned HTTP 503 because no model is configured. Provider flags
+were false. No live provider call ran. The original user containers remain unchanged.
