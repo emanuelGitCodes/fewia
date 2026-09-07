@@ -460,3 +460,14 @@ mocked provider tests and malformed-message probes. Provider source SHA-256:
 11a4443c268dff95140f9aa7f4d4bbc09e960549da5b17f67cbf0b99047c3729.
 The combined source slice is 147 lines. Tool names and argument schemas remain
 the agent loop's responsibility. No live Bedrock invocation was performed.
+
+## 2026-09-06 — Delivery contracts and envelope validation
+
+Added typed queue and handler contracts with bounded canonical job envelopes.
+Duplicate JSON keys and oversized input are rejected. This 57-line layer
+precedes the cooperative execution layer. Its direct tests do not import the
+consumer. Combined coordinator gates passed: Ruff clean, 61 files formatted,
+strict mypy clean for 34 files, and 295 tests passed with isolated PostgreSQL.
+One existing Starlette warning remains. Independent Codex runtime_design_review
+passed 29 delivery and execution tests. Delivery source SHA-256:
+13ec4846f60fa258fbb458857d2d2ae10a5995856e0e2c784bbe28e4751a1edf.
