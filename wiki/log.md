@@ -1156,3 +1156,17 @@ approved it. A clean snapshot with this layer passed 115 frontend tests and the
 production build. Failed refreshes clear stale flags. Fetch and JSON share a
 20-second abort bound. An initial test-mock typing error was repaired before the
 passing build. No provider connection or live-price claim is inferred from flags.
+
+## 2026-09-07 — Define the grocery evaluation corpus
+
+Grok 4.6 wrote 30 versioned scenarios with three intended repeats. Independent
+Grok review approved the model/domain split and found an overbroad paired test.
+The writer repaired that test without removing the adversarial forbidden tool.
+The coordinator verified the repair and all branch gates: ruff, formatting, strict
+mypy, and 660 tests passed; seven PostgreSQL tests skipped. One existing Starlette
+warning remains. All seven meal gold rows and the F05 follow-up rows matched
+actual planner output in separate coordinator checks.
+
+Only plan_groceries is a model tool. Sync, budget calculation, job delivery, and
+shopping handoff are server actions. Target evidence labels are not observed proof.
+The corpus does not contain an executed 90-run result or a model-quality score.
