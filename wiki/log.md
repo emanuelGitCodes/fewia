@@ -413,3 +413,19 @@ reset, pending preservation, and a final-attempt crash. Its unique temporary
 schema was removed. Source SHA-256:
 78882ca15e9b3d8d955983ff38fe2ec4733adebcab44dcaecbe72743c17e621a.
 Real provider replay safety remains an explicit classifier responsibility.
+
+## 2026-09-06 — Versioned grocery recipe catalog
+
+Added ten recipes with per-serving integer quantities, package sizes, dietary
+facts, and labeled sample prices. Missing prices remain representable. Pantry
+metadata does not authorize omission. Recipe base servings are fixed at one.
+The slice adds 142 source/data lines. Grok wrote the initial files; Luna repaired
+formatting and interface drift after Spark reached its usage limit.
+
+Coordinator gates passed: Ruff clean, 58 files formatted, strict mypy clean
+for 32 files, and 288 tests passed with isolated PostgreSQL enabled. One
+existing Starlette warning remains. Independent Codex reviewer domain_review
+passed 22 catalog tests and found no blocking defect. It checked malformed
+records, optional prices, base servings, and catalog completeness.
+Source SHA-256: 4909325b925f888ca71c41474ad34955072bdd932ec82ea80a9ede8e509714d8.
+No live pricing, inventory, provider call, push, or merge was performed.
