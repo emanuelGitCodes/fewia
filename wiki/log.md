@@ -639,3 +639,19 @@ file-tool-only constant cleanup to meet the 150-line source cap; coordinator
 reran all gates, and independent review confirmed equivalent bounds.
 Source SHA-256: 3fd11a6b07c0204ef21e8bb0abdddb8ccfc85efc5070a69d525d03f50fae0664.
 No HTTP request or live Plaid sync was performed.
+
+## 2026-09-06 — Plaid Sandbox HTTP adapter
+
+Added a fixed Sandbox sync endpoint with exact Decimal decoding, one transport
+attempt, bounded request timeouts, and caller-owned versus adapter-owned client
+cleanup. httpx is now a runtime dependency. Independent review found injected
+redirects could forward credentials, resolver failures could escape, and error
+contexts retained originals. Grok repaired those paths with file tools.
+
+Coordinator gates passed: Ruff clean, 64 files formatted, strict mypy clean
+for 35 files, and 355 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex provider_contracts passed 16 mocked
+HTTP tests and redirect/timeout/error-context probes. No cross-origin request
+occurred in the repaired redirect test. Provider source SHA-256:
+83a4069abcbe8da2d0e53e3b8099abe67651b0cf0db053448e1912c514194a57.
+No live Plaid request was made. Resolver failure is a static ValueError.

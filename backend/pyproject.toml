@@ -16,12 +16,12 @@ dependencies = [
     "numpy",
     "joblib",
     "boto3",
+    "httpx",
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
-    "httpx",
     "mypy",
     "ruff",
     "pandas-stubs",

@@ -184,6 +184,7 @@ dependencies = [
     { name = "alembic" },
     { name = "boto3" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "joblib" },
     { name = "numpy" },
     { name = "pandas" },
@@ -197,7 +198,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pytest" },
@@ -209,6 +209,7 @@ requires-dist = [
     { name = "alembic" },
     { name = "boto3" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "joblib" },
     { name = "numpy" },
     { name = "pandas" },
@@ -222,7 +223,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pytest" },
