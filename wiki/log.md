@@ -607,3 +607,19 @@ and PostgreSQL concurrent/midnight retry probes. Router source SHA-256:
 a51739e321fac090f4d26faf3b30a55aee8d21f68d33e9496af42f807fb8bee7.
 The router plus registration stays below 150 added source lines. This API reports
 fixture provenance. It does not claim live Plaid or Bedrock integration.
+
+## 2026-09-06 — Plaid ledger schema
+
+Added provider Items with credential references and normalized USD transaction
+rows. Migration 0005 preserves prior tables and rejects downgrade. The source
+slice adds 113 lines including Alembic registration. Coordinator applied the
+migration to a disposable database. Ruff, required formatting, strict mypy,
+and 300 tests passed; one existing Starlette warning remains. A broader format
+scan found an unchanged migration 0003 formatting issue; new migration files pass.
+
+Independent Codex provider_contracts verified PostgreSQL uniqueness, composite
+identity, orphan rejection, USD restriction, refund reload, and reflection parity.
+All synthetic probe rows were rolled back. No access token or raw response is
+stored by this schema. Source SHA-256:
+dd07e388ba469a1ef43c061900484f26cfcc745c0a1b6881b3ad3f81e6e31d37.
+No live Plaid sync, shared development migration, push, or merge was performed.

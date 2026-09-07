@@ -3,7 +3,10 @@
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from app import models  # noqa: F401
+from app import (
+    models,  # noqa: F401
+    plaid_models,  # noqa: F401
+)
 from app.config import settings
 from app.db import Base
 
