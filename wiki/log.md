@@ -489,3 +489,19 @@ The unique queue and schema were cleaned up. Execution source SHA-256:
 The final transport hash in this probe was
 baaea517c75b4ebe01de9b273b75f3e5505471d573b9460194f289df2c384b0d.
 Background heartbeats and real-provider operation intents remain separate work.
+
+## 2026-09-06 — Deterministic meal estimates
+
+Added a planner that aggregates ingredients before package rounding, preserves
+servings, validates diet and exclusions before pantry removal, and labels all
+sample estimates. Explicit pantry items remain visible. Missing purchase prices
+prevent acceptance. Temporary-cap warnings remain visible for stale spending.
+
+Coordinator gates passed: Ruff clean, 62 files formatted, strict mypy clean
+for 34 files, and 335 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex domain_review passed 17 planner
+tests. It found a weak aggregation test; the writer replaced its quantities
+with a discriminating case. Per-meal rounding then failed the regression in a
+temporary copy. Request and mapping preservation checks also pass.
+Source SHA-256: c4860d76bea9ce55cf260e4e633a80f3021005e44d29851031c648112a05e880.
+The slice adds 149 application lines. No provider or purchase call was made.
