@@ -1,6 +1,7 @@
 """Test durable job execution and acknowledgment ordering."""
 
 import json
+import threading
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -13,6 +14,7 @@ from app import models
 from app.job_models import Job
 from app.providers.local_sqs_consumer import QueueMessage
 from app.services import job_consumer
+from app.services.heartbeat import Heartbeat
 from app.services.job_consumer import (
     LeaseLost,
     RetryableJobError,
@@ -470,3 +472,75 @@ def test_ack_failure_leaves_terminal_state_for_safe_replay(
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "terminal"
     assert calls == 1
     assert queue.acknowledgments == 2
+
+
+def test_late_background_failure_prevents_completion_and_ack(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_id = seed_job(factory)
+    queue = FakeQueue(body(job_id))
+    calls = 0
+    in_second = threading.Event()
+    handler_done = threading.Event()
+
+    def fake_renew() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return
+        in_second.set()
+        assert handler_done.wait(timeout=2)
+        raise RuntimeError("late failure")
+
+    def fast_heartbeat(_renew: Callable[[], None], **_kwargs: object) -> Heartbeat:
+        return Heartbeat(fake_renew, interval_seconds=0.02)
+
+    monkeypatch.setattr(job_consumer, "Heartbeat", fast_heartbeat)
+
+    def handler(
+        payload: dict[str, object], heartbeat: Callable[[], None]
+    ) -> dict[str, object]:
+        assert in_second.wait(timeout=2)
+        handler_done.set()
+        return {"answer": "safe"}
+
+    assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "lease_lost"
+    held = stored_job(factory, job_id)
+    assert held.status == "running"
+    assert held.result is None
+    assert queue.acknowledgments == 0
+
+
+def test_retryable_error_with_background_loss_is_lease_lost(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_id = seed_job(factory)
+    queue = FakeQueue(body(job_id))
+    calls = 0
+    lost = threading.Event()
+
+    def fake_renew() -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return
+        lost.set()
+        raise RuntimeError("visibility failed")
+
+    def fast_heartbeat(_renew: Callable[[], None], **_kwargs: object) -> Heartbeat:
+        return Heartbeat(fake_renew, interval_seconds=0.02)
+
+    monkeypatch.setattr(job_consumer, "Heartbeat", fast_heartbeat)
+
+    def handler(
+        payload: dict[str, object], heartbeat: Callable[[], None]
+    ) -> dict[str, object]:
+        assert lost.wait(timeout=2)
+        raise RetryableJobError("do not retry after lease loss")
+
+    assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "lease_lost"
+    held = stored_job(factory, job_id)
+    assert held.status == "running"
+    assert held.result is None
+    assert queue.acknowledgments == 0
+    assert queue.events == ["receive"]

@@ -803,3 +803,16 @@ one Ruff error. Ruff, formatting, strict mypy, migration, and all 801 backend
 tests passed. Independent PostgreSQL probes accepted a valid row and rejected
 invalid hashes, foreign owners, updates, and deletes. Privileged table or trigger
 changes remain outside the row-level immutability boundary. Persistence follows.
+
+## 2026-09-07 — Background job lease renewal
+
+Added serialized background and manual heartbeats. Completion waits for thread
+shutdown and rejects late lease loss. Grok repaired the strict context-manager
+return annotation and strengthened two contention tests after review. Ruff,
+formatting, strict mypy, and all 501 backend tests passed.
+
+Independent PostgreSQL checks observed five renewals through distinct sessions.
+Seven renewal sessions applied local lock and statement timeouts. A held row
+returned SQLSTATE 55P03 after 5.056 seconds. The worker returned lease_lost,
+kept the result unset, skipped acknowledgment, and joined the renewal thread.
+Connection, pool, and broken-socket timeouts remain a separate runtime concern.

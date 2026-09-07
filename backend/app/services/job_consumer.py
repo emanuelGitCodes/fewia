@@ -1,9 +1,11 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.job_models import Job
+from app.services.heartbeat import Heartbeat
 from app.services.job_delivery import (
     JobHandler,
     JobQueue,
@@ -74,48 +76,36 @@ def process_one(
         return "invalid"
     assert token is not None and payload is not None
 
-    lost = False
-
-    def heartbeat() -> None:
-        nonlocal lost
-        if lost:
-            raise LeaseLost
-        try:
-            with factory.begin() as session:
-                if not renew_lease(session, job_id, token, now=now()):
-                    raise LeaseLost
-            queue.extend(message, 120)
-        except Exception as error:
-            lost = True
-            raise LeaseLost from error
+    def renew() -> None:
+        with factory.begin() as session:
+            if session.get_bind().dialect.name == "postgresql":
+                session.execute(text("SET LOCAL lock_timeout = '5s'"))
+                session.execute(text("SET LOCAL statement_timeout = '10s'"))
+            if not renew_lease(session, job_id, token, now=now()):
+                raise LeaseLost
+        queue.extend(message, 120)
 
     def finalize(
         result: dict[str, object] | None = None, error_code: str | None = None
     ) -> bool:
-        if lost:
-            return False
         with factory.begin() as session:
             return finish_job(
                 session, job_id, token, now=now(), result=result, error_code=error_code
             )
 
     try:
-        heartbeat()
-        result = _json_object(handler(payload, heartbeat))
-        heartbeat()
+        with Heartbeat(renew) as heartbeat:
+            result = _json_object(handler(payload, heartbeat))
+            heartbeat()
     except RetryableJobError:
-        if lost:
-            return "lease_lost"
         queue.extend(message, 120)
         return "retry"
     except LeaseLost:
         return "lease_lost"
     except Exception:
-        if lost:
-            return "lease_lost"
         try:
-            heartbeat()
-        except LeaseLost:
+            renew()
+        except Exception:
             return "lease_lost"
         if not finalize(error_code="handler_failed"):
             return "lease_lost"
