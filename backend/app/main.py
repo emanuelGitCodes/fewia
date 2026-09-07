@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import router as context_router
+from app.api.grocery import router as grocery_router
 from app.api.predict import router as predict_router
 from app.tools.base import ToolError
 
@@ -73,4 +74,5 @@ def healthz() -> dict[str, str]:
 
 
 app.include_router(context_router)
+app.include_router(grocery_router)
 app.include_router(predict_router)

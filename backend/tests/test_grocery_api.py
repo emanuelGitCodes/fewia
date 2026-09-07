@@ -1,0 +1,502 @@
+"""Tests for the fixture grocery HTTP routes."""
+
+import json
+from datetime import UTC, datetime, timedelta
+from typing import cast
+from uuid import uuid4
+
+import pytest
+from conftest import UserSeeder
+from fastapi.testclient import TestClient
+from httpx import Response
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.api import grocery as grocery_api
+from app.domain.budget import NEW_YORK
+from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
+from app.job_models import Job, JobOutbox
+from app.services.job_submission import create_job
+from app.services.plan_job import PlanJobInput
+
+FIXED_NY = datetime(2026, 9, 6, 12, 0, tzinfo=NEW_YORK)
+NEXT_NY_DAY = datetime(2026, 9, 7, 9, 0, tzinfo=NEW_YORK)
+OCTOBER_NY = datetime(2026, 10, 2, 12, 0, tzinfo=NEW_YORK)
+FALL_BACK_LATE = datetime(2026, 11, 1, 23, 30, tzinfo=NEW_YORK)
+STALE_REFRESH = datetime(2026, 9, 5, 16, 0, tzinfo=UTC)
+INTERNAL_JOB_FIELDS = (
+    "payload",
+    "lease_token",
+    "lease_expires_at",
+    "request_key",
+    "user_id",
+    "attempts",
+    "kind",
+)
+
+
+@pytest.fixture(autouse=True)
+def freeze_new_york_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    def now() -> datetime:
+        return FIXED_NY
+
+    monkeypatch.setattr(grocery_api, "_ny_now", now)
+
+
+@pytest.fixture(autouse=True)
+def commit_without_ending_the_test_transaction(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> list[str]:
+    calls: list[str] = []
+
+    def commit() -> None:
+        calls.append("commit")
+        session.flush()
+
+    monkeypatch.setattr(session, "commit", commit)
+    return calls
+
+
+def job_body(**overrides: object) -> dict[str, object]:
+    body: dict[str, object] = {
+        "request": {
+            "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+            "budget_period": "2026-09-01",
+        },
+        "monthly_limit_cents": 40000,
+    }
+    body.update(overrides)
+    return body
+
+
+def post_job(
+    client: TestClient,
+    *,
+    key: str = "plan-1",
+    body: dict[str, object] | None = None,
+    headers: dict[str, str] | None = None,
+) -> Response:
+    request_headers = {} if headers is None else dict(headers)
+    if "Idempotency-Key" not in request_headers and "idempotency-key" not in {
+        name.lower() for name in request_headers
+    }:
+        request_headers["Idempotency-Key"] = key
+    return client.post(
+        "/grocery/jobs", json=body or job_body(), headers=request_headers
+    )
+
+
+def set_clock(monkeypatch: pytest.MonkeyPatch, moment: datetime) -> None:
+    monkeypatch.setattr(grocery_api, "_ny_now", lambda: moment)
+
+
+def parse_refreshed_at(payload: dict[str, object]) -> datetime:
+    spending = payload["spending"]
+    assert isinstance(spending, dict)
+    raw_refreshed = spending["refreshed_at"]
+    assert isinstance(raw_refreshed, str)
+    return datetime.fromisoformat(raw_refreshed.replace("Z", "+00:00"))
+
+
+def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    lookups = {"count": 0}
+    real = grocery_api._existing_agent_job
+
+    def lookup(session: Session, request_key: str) -> Job | None:
+        lookups["count"] += 1
+        if lookups["count"] == 1:
+            return None
+        return real(session, request_key)
+
+    monkeypatch.setattr(grocery_api, "_existing_agent_job", lookup)
+
+
+def stored_plan_payload(
+    *,
+    monthly_limit_cents: int = 40000,
+    refreshed_at: datetime | None = None,
+) -> dict[str, object]:
+    moment = STALE_REFRESH if refreshed_at is None else refreshed_at
+    return cast(
+        dict[str, object],
+        PlanJobInput.model_validate(
+            {
+                "request": job_body()["request"],
+                "monthly_limit_cents": monthly_limit_cents,
+                "spending": {
+                    "period": "2026-09-01",
+                    "posted_cents": 18000,
+                    "pending_cents": 1200,
+                    "refreshed_at": moment,
+                },
+                "spending_source": "fixture",
+            }
+        ).model_dump(mode="json"),
+    )
+
+
+def test_config_returns_fixture_values_and_catalog_names(
+    client: TestClient,
+) -> None:
+    response = client.get("/grocery/config")
+    body = response.json()
+    text = str(body).lower()
+    catalog = body["recipes"] + body["ingredients"]
+
+    assert response.status_code == 200
+    assert body["budget_period"] == "2026-09-01"
+    assert body["source"] == "fixture"
+    assert body["posted_cents"] == 18000
+    assert body["pending_cents"] == 1200
+    assert body["notice"] == SAMPLE_ESTIMATE_NOTICE
+    assert [item["id"] for item in body["recipes"]] == list(SUPPORTED_RECIPE_IDS)
+    assert body["recipes"][0]["name"] == "chicken tacos"
+    assert {item["id"] for item in body["ingredients"]} == set(INGREDIENTS)
+    assert {item["name"] for item in body["ingredients"]} == {
+        item.name for item in INGREDIENTS.values()
+    }
+    assert "plaid" not in text
+    assert "bedrock" not in text
+    assert "connected" not in text
+    for item in catalog:
+        assert set(item) == {"id", "name"}
+        assert "price" not in item
+
+
+def test_repeated_identical_request_reuses_job_and_outbox(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    commit_without_ending_the_test_transaction: list[str],
+) -> None:
+    seed_user()
+    first = post_job(client)
+    second = post_job(client)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert first.json() == second.json()
+    assert first.json()["status"] == "queued"
+    job_id = first.json()["job_id"]
+    jobs = session.scalars(select(Job).where(Job.id == job_id)).all()
+    outboxes = session.scalars(
+        select(JobOutbox).where(JobOutbox.job_id == job_id)
+    ).all()
+    assert len(jobs) == 1
+    assert len(outboxes) == 1
+    assert outboxes[0].published_at is None
+    assert commit_without_ending_the_test_transaction
+
+
+def test_changed_monthly_limit_conflicts(
+    client: TestClient, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    first = post_job(client)
+    second = post_job(client, body=job_body(monthly_limit_cents=1))
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert second.json()["error"]["message"] == (
+        "request_key already identifies different content"
+    )
+
+
+def test_same_key_reuses_job_on_next_new_york_day(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    first = post_job(client)
+    job_id = first.json()["job_id"]
+    original = session.get(Job, job_id)
+    assert original is not None
+    snapshot = json.loads(json.dumps(original.payload))
+    set_clock(monkeypatch, NEXT_NY_DAY)
+    second = post_job(client)
+    stored = session.get(Job, job_id)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+    assert stored is not None
+    assert stored.payload == snapshot
+
+
+def test_same_key_changed_body_conflicts_on_next_day(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    first = post_job(client)
+    job_id = first.json()["job_id"]
+    original = session.get(Job, job_id)
+    assert original is not None
+    snapshot = json.loads(json.dumps(original.payload))
+    set_clock(monkeypatch, NEXT_NY_DAY)
+    second = post_job(client, body=job_body(monthly_limit_cents=1))
+    stored = session.get(Job, job_id)
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert second.json()["error"]["message"] == (
+        "request_key already identifies different content"
+    )
+    assert stored is not None
+    assert stored.payload == snapshot
+
+
+def test_month_rollover_replays_original_job(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    first = post_job(client)
+    job_id = first.json()["job_id"]
+    original = session.get(Job, job_id)
+    assert original is not None
+    snapshot = json.loads(json.dumps(original.payload))
+    set_clock(monkeypatch, OCTOBER_NY)
+    second = post_job(client)
+    stored = session.get(Job, job_id)
+    request = stored.payload["request"] if stored is not None else None
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+    assert stored is not None
+    assert stored.payload == snapshot
+    assert isinstance(request, dict)
+    assert request["budget_period"] == "2026-09-01"
+
+
+def test_new_job_rejects_wrong_period_after_rollover(
+    client: TestClient, seed_user: UserSeeder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_user()
+    set_clock(monkeypatch, OCTOBER_NY)
+    response = post_job(client, key="new-october")
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "unprocessable_entity",
+            "message": grocery_api.PERIOD_MISMATCH_MESSAGE,
+        }
+    }
+
+
+def test_new_job_uses_actual_time_late_on_fall_back_day(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    set_clock(monkeypatch, FALL_BACK_LATE)
+    body = job_body()
+    request = cast(dict[str, object], body["request"])
+    request["budget_period"] = "2026-11-01"
+    response = post_job(client, body=body, key="fall-back")
+    job = session.get(Job, response.json()["job_id"])
+    midnight = datetime(2026, 11, 1, 0, 0, tzinfo=NEW_YORK)
+
+    assert response.status_code == 202
+    assert job is not None
+    parsed = parse_refreshed_at(job.payload)
+    assert parsed == FALL_BACK_LATE.astimezone(UTC)
+    assert FALL_BACK_LATE.astimezone(UTC) - parsed <= timedelta(hours=24)
+    assert FALL_BACK_LATE.astimezone(UTC) - midnight.astimezone(UTC) > timedelta(
+        hours=24
+    )
+
+
+def test_insert_race_same_fields_keeps_winner_snapshot(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    payload = stored_plan_payload()
+    winner, _created = create_job(session, 1, "agent", "race-same", payload)
+    session.flush()
+    miss_first_lookup(monkeypatch)
+    response = post_job(client, key="race-same")
+    stored = session.get(Job, winner.id)
+
+    assert response.status_code == 202
+    assert response.json()["job_id"] == winner.id
+    assert stored is not None
+    assert stored.payload == payload
+
+
+def test_insert_race_different_fields_keeps_conflict(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    payload = stored_plan_payload(monthly_limit_cents=1)
+    winner, _created = create_job(session, 1, "agent", "race-diff", payload)
+    session.flush()
+    miss_first_lookup(monkeypatch)
+    response = post_job(client, key="race-diff")
+    stored = session.get(Job, winner.id)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == (
+        "request_key already identifies different content"
+    )
+    assert stored is not None
+    assert stored.payload == payload
+
+
+def test_period_mismatch_uses_static_message(
+    client: TestClient, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    body = job_body()
+    request = cast(dict[str, object], body["request"])
+    request["budget_period"] = "2026-08-01"
+
+    response = post_job(client, body=body)
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "unprocessable_entity",
+            "message": grocery_api.PERIOD_MISMATCH_MESSAGE,
+        }
+    }
+
+
+@pytest.mark.parametrize("value", [-1, True, 1.5, "100"])
+def test_monthly_limit_rejects_invalid_types(
+    client: TestClient, seed_user: UserSeeder, value: object
+) -> None:
+    seed_user()
+    response = post_job(client, body=job_body(monthly_limit_cents=value))
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_caller_cannot_inject_spending_or_user(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    spending = {
+        "period": "2026-09-01",
+        "posted_cents": 1,
+        "pending_cents": 1,
+        "refreshed_at": "2026-09-06T16:00:00Z",
+    }
+    extra_user = post_job(client, body=job_body(user_id=9), key="user-inject")
+    extra_spending = post_job(
+        client, body=job_body(spending=spending), key="spend-inject"
+    )
+    accepted = post_job(client, key="fixture-spend")
+    job = session.get(Job, accepted.json()["job_id"])
+    assert extra_user.status_code == 422
+    assert extra_spending.status_code == 422
+    assert accepted.status_code == 202
+    assert job is not None
+    payload = job.payload
+    assert payload["spending_source"] == "fixture"
+    assert payload["spending"]["posted_cents"] == 18000
+    assert payload["spending"]["pending_cents"] == 1200
+    parsed = parse_refreshed_at(payload)
+    assert parsed == FIXED_NY.astimezone(UTC)
+    PlanJobInput.model_validate(payload)
+
+
+def test_invalid_idempotency_key_is_rejected(
+    client: TestClient, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    missing = client.post("/grocery/jobs", json=job_body())
+    blank = post_job(client, headers={"Idempotency-Key": " "})
+    too_long = post_job(client, headers={"Idempotency-Key": "x" * 129})
+
+    assert missing.status_code == 422
+    assert blank.status_code == 422
+    assert too_long.status_code == 422
+
+
+def test_missing_demo_user_returns_static_service_error(client: TestClient) -> None:
+    response = post_job(client)
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "service_unavailable",
+            "message": "Demo workspace is not ready.",
+        }
+    }
+    assert client.get("/grocery/config").status_code == 200
+
+
+def test_commit_runs_before_accepted_response(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    commit_without_ending_the_test_transaction: list[str],
+) -> None:
+    seed_user()
+    commit_without_ending_the_test_transaction.clear()
+    response = post_job(client)
+    job_id = response.json()["job_id"]
+
+    assert response.status_code == 202
+    assert commit_without_ending_the_test_transaction == ["commit"]
+    assert session.get(Job, job_id) is not None
+    assert session.scalar(select(func.count()).select_from(JobOutbox)) == 1
+
+
+def test_get_job_returns_public_fields_only(
+    client: TestClient, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    created = post_job(client)
+    job_id = created.json()["job_id"]
+    response = client.get(f"/grocery/jobs/{job_id}")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert set(body) == {"id", "status", "result", "error_code"}
+    assert body["id"] == job_id
+    assert body["status"] == "queued"
+    assert body["result"] is None
+    assert body["error_code"] is None
+    for field in INTERNAL_JOB_FIELDS:
+        assert field not in body
+
+
+def test_another_users_job_and_sync_job_are_not_found(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    seed_user(2, "Other user")
+    other, _created = create_job(session, 2, "agent", "other-plan", {"marker": True})
+    sync, _sync_created = create_job(session, 1, "sync", "sync-plan", {"marker": True})
+    session.flush()
+    missing = client.get(f"/grocery/jobs/{uuid4()}")
+    other_response = client.get(f"/grocery/jobs/{other.id}")
+    sync_response = client.get(f"/grocery/jobs/{sync.id}")
+    invalid = client.get("/grocery/jobs/not-a-uuid")
+
+    assert missing.status_code == 404
+    assert other_response.status_code == 404
+    assert sync_response.status_code == 404
+    assert invalid.status_code == 422
+    assert "payload" not in other_response.json()
+    assert "lease_token" not in other_response.json()

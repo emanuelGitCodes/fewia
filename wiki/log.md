@@ -591,3 +591,19 @@ Combined coordinator gates passed: Ruff clean, 76 files formatted, strict mypy
 clean for 41 files, and 485 tests passed with isolated PostgreSQL. One existing
 Starlette warning remains. Model source SHA-256:
 737e9820c06d4faeed223d3cc04af810e51109305115d31e802a87aa1d8ebf64.
+
+## 2026-09-06 — Grocery job HTTP routes
+
+Added fixture configuration, server-selected user job submission, and restricted
+job polling. New requests receive actual-time snapshots. Identical caller fields
+reuse the original job and snapshot across midnight or month rollover. Changed
+requests conflict. Concurrent insert winners use the same comparison.
+
+Independent review reproduced daily-snapshot idempotency and DST freshness bugs;
+Grok repaired both, corrected a contradictory notice test, and fixed formatting.
+Coordinator gates passed 485 tests with isolated PostgreSQL, Ruff, formatting,
+and strict mypy. Independent Codex runtime_design_review passed 21 targeted tests
+and PostgreSQL concurrent/midnight retry probes. Router source SHA-256:
+a51739e321fac090f4d26faf3b30a55aee8d21f68d33e9496af42f807fb8bee7.
+The router plus registration stays below 150 added source lines. This API reports
+fixture provenance. It does not claim live Plaid or Bedrock integration.
