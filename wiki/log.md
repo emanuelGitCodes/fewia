@@ -1185,3 +1185,11 @@ coordinator repaired test timing through the writer and verified pre-mutation
 capture in the adversarial body test. A clean helper-plus-controller snapshot
 passed 140 frontend tests and the production build. Same-body ambiguous sends
 preserve the request. Terminal sends can start a new intent.
+
+## 2026-09-07 — Add the chat composer panel
+
+Grok 4.6 wrote the 129-line chat panel. Independent Grok review checked text escaping,
+input bounds, timeout and retry guidance, and configuration gating. The coordinator
+ran 151 frontend tests and the production build; both passed. Unknown errors remain
+hidden. Existing-request replay stays available when provider configuration fails.
+Page and browser integration remain later work.
