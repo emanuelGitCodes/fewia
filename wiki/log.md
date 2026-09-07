@@ -1053,3 +1053,11 @@ The web proxy submitted a synthetic plan through the API, outbox, Floci, and wor
 It returned 1,703 cents and a stored evidence revision. Repeated submission returned
 the same job. Chat returned HTTP 503 because no model is configured. Provider flags
 were false. No live provider call ran. The original user containers remain unchanged.
+
+## 2026-09-07 — Read provider configuration in the web client
+
+Grok 4.6 wrote the provider capability client and grocery configuration validation.
+Independent Grok source review approved the change. The coordinator ran 108 frontend
+tests and the production build; both passed. The client distinguishes fixture and
+Plaid Sandbox spending. It validates configured flags without claiming live provider
+verification. The layer adds 75 application source lines.

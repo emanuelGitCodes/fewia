@@ -5,6 +5,7 @@ import {
   isNonemptyString,
   isRecord,
   isSafeInteger,
+  isSpendingSource,
   isStatus,
   isString,
   type CatalogItem,
@@ -16,6 +17,16 @@ import {
   type GroceryPlan,
   type PlanLine,
 } from "./apiTypes";
+
+function isTimezoneTimestamp(value: unknown): value is string {
+  if (!isString(value)) {
+    return false;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return false;
+  }
+  return !Number.isNaN(Date.parse(value));
+}
 
 function isSignedCents(value: unknown): value is number {
   return isSafeInteger(value);
@@ -93,8 +104,9 @@ function isResult(value: unknown): value is GroceryJobResult {
 export function parseConfig(value: unknown): GroceryConfig {
   if (
     !isRecord(value) ||
-    value.source !== "fixture" ||
+    !isSpendingSource(value.source) ||
     !isNonemptyString(value.budget_period) ||
+    !isNonemptyString(value.catalog_version) ||
     !isSignedCents(value.posted_cents) ||
     !isSignedCents(value.pending_cents) ||
     value.notice !== SAMPLE_ESTIMATE_NOTICE ||
@@ -103,6 +115,9 @@ export function parseConfig(value: unknown): GroceryConfig {
     !Array.isArray(value.ingredients) ||
     !value.ingredients.every(isItem)
   ) {
+    throw new Error(SHAPE_ERROR);
+  }
+  if (value.spending_refreshed_at !== null && !isTimezoneTimestamp(value.spending_refreshed_at)) {
     throw new Error(SHAPE_ERROR);
   }
   return value as GroceryConfig;

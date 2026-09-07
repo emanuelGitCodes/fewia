@@ -10,8 +10,10 @@ import { BudgetForm, buildRequest, initialForm, type FormState } from "./BudgetF
 const config: GroceryConfig = {
   budget_period: "2026-09-01",
   source: "fixture",
+  catalog_version: "sample-prices-v1",
   posted_cents: 1200,
   pending_cents: -50,
+  spending_refreshed_at: "2026-09-07T16:00:00Z",
   notice: SAMPLE_ESTIMATE_NOTICE,
   recipes: [
     { id: "bean_tacos", name: "Bean tacos" },

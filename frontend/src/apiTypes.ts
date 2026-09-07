@@ -2,6 +2,8 @@ export type Diet = "omnivore" | "vegetarian" | "vegan";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
+export type SpendingSource = "fixture" | "plaid_sandbox";
+
 export type CatalogItem = {
   id: string;
   name: string;
@@ -65,12 +67,21 @@ export type GroceryJobResult = {
 
 export type GroceryConfig = {
   budget_period: string;
-  source: "fixture";
+  source: SpendingSource;
+  catalog_version: string;
   posted_cents: number;
   pending_cents: number;
+  spending_refreshed_at: string | null;
   notice: string;
   recipes: CatalogItem[];
   ingredients: CatalogItem[];
+};
+
+export type ProviderCapabilities = {
+  chat_configured: boolean;
+  plaid_configured: boolean;
+  instacart_configured: boolean;
+  spending_source: SpendingSource;
 };
 
 export type GroceryJob = {
@@ -116,4 +127,8 @@ export function isStatus(value: unknown): value is JobStatus {
     value === "succeeded" ||
     value === "failed"
   );
+}
+
+export function isSpendingSource(value: unknown): value is SpendingSource {
+  return value === "fixture" || value === "plaid_sandbox";
 }
