@@ -726,3 +726,12 @@ mypy clean for 35 files, and 406 tests passed with isolated PostgreSQL. One
 existing Starlette warning remains. The shell is 148 source/config lines.
 Only explicit source, lock, and design files are staged; generated dist files
 are not included. No provider or purchase behavior is claimed by this shell.
+
+## 2026-09-06 — Web API contracts and test tools
+
+Added typed response contracts, primitive guards, and direct guard tests.
+The first layer is independently testable. npm 10 hit a resolver crash; a
+project-local npm 12 command regenerated the dependency tree without changing
+global tools. Strict frontend build and 20 client tests passed. Independent
+Codex domain_review passed the seven first-layer tests and the full client suite.
+This is a source review, not completed visual or interaction verification.
