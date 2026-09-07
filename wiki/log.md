@@ -1085,3 +1085,12 @@ approved it. A clean snapshot with types and helper passed all backend gates,
 including 1,198 PostgreSQL-enabled tests. One existing Starlette warning remains.
 Plain and chat jobs use the same immutable planning subset. Foreign, tampered,
 incomplete, rejected, and empty shopping plans do not dispatch.
+
+## 2026-09-07 — Add shopping handoff HTTP routes
+
+Grok 4.6 wrote the 118-line route layer. Independent Grok security review approved
+it. All backend gates passed, including 1,212 PostgreSQL-enabled tests. One existing
+Starlette warning remains. Cached and stale retry paths do not construct providers.
+Explicit retries use attempt fencing. Dispatch closes its owned client. Uncertain
+results do not replay automatically. No live Instacart call ran. Router registration
+remains a later layer.
