@@ -528,3 +528,11 @@ A no-network botocore check found tuple-valued plan fields were invalid Converse
 documents. Grok normalized the planner output to JSON-native values. The SDK
 parameter test now passes and a tuple mutation fails it. Independent Codex
 runtime_design_review approved the fix; evidence hashing retains equivalent JSON.
+
+## 2026-09-06 — Bounded model-message parsing
+
+Added strict assistant message parsing, tool bounds, stop consistency, duplicate
+ID checks, atomic seen-ID updates, and reasoning removal. Grok's broad initial
+chat assignment reached its 30-turn limit; smaller assignments preserved its
+work. Independent Codex runtime_design_review passed 21 parser tests. The parser
+is 150 source lines. No live model call was made.
