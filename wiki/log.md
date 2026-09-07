@@ -582,3 +582,12 @@ It stored a 1,703-cent fixture estimate, retained the published outbox, and
 restored signal handlers. Temporary queue and schema cleanup passed.
 CLI source SHA-256: 2f545d2548c25e8df0991ef597e5a3e8c82ad938fdad666eec15165b0d23d3e9.
 This proves local fixture processing, not live provider provenance.
+
+## 2026-09-06 — Grocery API request and response models
+
+Added typed fixture API models and canonical caller-field comparison for stable
+idempotent requests. This 65-line model layer precedes the router integration.
+Combined coordinator gates passed: Ruff clean, 76 files formatted, strict mypy
+clean for 41 files, and 485 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Model source SHA-256:
+737e9820c06d4faeed223d3cc04af810e51109305115d31e802a87aa1d8ebf64.
