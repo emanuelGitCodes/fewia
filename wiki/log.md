@@ -1094,3 +1094,12 @@ Starlette warning remains. Cached and stale retry paths do not construct provide
 Explicit retries use attempt fencing. Dispatch closes its owned client. Uncertain
 results do not replay automatically. No live Instacart call ran. Router registration
 remains a later layer.
+
+## 2026-09-07 — Register shopping and evidence routes
+
+Grok 4.6 registered both routers. Independent Grok security review approved the
+four source lines. The first full test run found one route-inventory test failure: 
+FastAPI uses included-router wrappers. The writer changed the test to the public
+OpenAPI inventory. All backend gates then passed: ruff, formatting, strict mypy
+on 80 files, and 1,276 PostgreSQL-enabled tests. One existing Starlette warning
+remains. The main error envelope preserves static ownership and configuration errors.
