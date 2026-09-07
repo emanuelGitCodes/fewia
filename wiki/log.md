@@ -544,3 +544,10 @@ or invalid calls clear the candidate and return static errors. Traces hold only
 tool outcomes and evidence IDs. Coordinator gates passed 535 tests with isolated
 PostgreSQL, Ruff, formatting, and strict mypy. Independent review passed 46 parser,
 planner, dispatcher, and SDK tests. The loop remains a separate draft.
+
+## 2026-09-06 — Public chat context
+
+Added bounded public dialogue history and aggregate planning context. The helper
+rejects injected roles and preserves unknown token usage. Independent review
+found one SDK test fixture error. Grok repaired it. Ruff, formatting, strict
+mypy, and all 574 backend tests passed with PostgreSQL tests enabled.
