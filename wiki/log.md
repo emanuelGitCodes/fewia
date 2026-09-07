@@ -868,3 +868,11 @@ Independent source review and all 72 frontend tests passed. The build passed.
 Before these refinements, the real browser-to-SQS flow returned 17.03 dollars,
 then 11.04 dollars after olive oil entered the pantry. Post-change browser checks
 follow. Mobile document width matched its 390-pixel viewport in the baseline.
+
+## 2026-09-07 — Deterministic shopping payload
+
+Added ingredient-only Instacart payloads with canonical hashes. The builder
+preserves required quantities and removes only confirmed pantry purchases.
+Grok repaired malformed expiry, unit, recursion, and ingredient validation after
+independent review. Ruff, formatting, strict mypy, and all 594 backend tests
+passed. No live shopping link was created. Durable dispatch follows.
