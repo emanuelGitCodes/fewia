@@ -445,3 +445,18 @@ Independent Codex reviewer domain_review passed 30 budget tests. Removing UTC
 normalization in a temporary copy caused both regression tests to fail.
 Source SHA-256: 8558ece83d83e1e114fa95d709a3332a0d1293d6856a4f97b2022beb6734b0e4.
 No bank access, provider call, push, or merge was performed.
+
+## 2026-09-06 — Bedrock provider boundary
+
+Added LLMProvider and a bounded Converse adapter with an explicit real AWS
+endpoint. Floci credentials and endpoints are not substituted. Independent
+review reproduced malformed role, content, and stop-reason acceptance. The
+writer repaired structural validation and preserved static failure errors.
+
+Coordinator gates passed: Ruff clean, 68 files formatted, strict mypy clean
+for 38 files, and 443 tests passed with isolated PostgreSQL. One existing
+Starlette warning remains. Independent Codex provider_contracts passed 37
+mocked provider tests and malformed-message probes. Provider source SHA-256:
+11a4443c268dff95140f9aa7f4d4bbc09e960549da5b17f67cbf0b99047c3729.
+The combined source slice is 147 lines. Tool names and argument schemas remain
+the agent loop's responsibility. No live Bedrock invocation was performed.
