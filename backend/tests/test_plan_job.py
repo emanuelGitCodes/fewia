@@ -4,10 +4,13 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
+from app.agent.planning_tool import execute_plan
+from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.services import plan_job as plan_job_module
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
+_REV = "ab" * 32
 
 
 def payload(**overrides: object) -> dict[str, object]:
@@ -30,17 +33,46 @@ def payload(**overrides: object) -> dict[str, object]:
     return result
 
 
+def expected_plan(body: dict[str, object]) -> dict[str, object]:
+    parsed = plan_job_module.PlanJobInput.model_validate(body)
+    budget = calculate_budget(
+        parsed.monthly_limit_cents,
+        SpendingSnapshot(
+            parsed.spending.period,
+            parsed.spending.posted_cents,
+            parsed.spending.pending_cents,
+            parsed.spending.refreshed_at,
+        ),
+        now=NOW,
+        plan_cap_cents=parsed.request.plan_cap_cents,
+    )
+    return execute_plan(
+        parsed.request.model_dump(mode="json"),
+        budget,
+        parsed.spending.period,
+        user_id=1,
+        spending_source=parsed.spending_source,
+    )
+
+
 def test_plan_job_returns_json_plan_and_calls_heartbeats(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
     heartbeats: list[str] = []
+    body = payload()
+    expected = expected_plan(body)
 
-    result = plan_job_module.plan_job(payload(), lambda: heartbeats.append("beat"))
+    result = plan_job_module.plan_job(body, lambda: heartbeats.append("beat"))
 
     assert heartbeats == ["beat", "beat"]
     assert result["spending_source"] == "fixture"
     assert json.loads(json.dumps(result)) == result
+    assert result["request"] == expected["request"]
+    assert result["plan"] == expected["plan"]
+    assert result["budget"] == expected["budget"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert "evidence_revision_id" not in result
     plan = result["plan"]
     assert isinstance(plan, dict)
     assert plan["notice"] == SAMPLE_ESTIMATE_NOTICE
@@ -65,6 +97,7 @@ def test_plan_job_preserves_budget_warnings_and_source(
             "plan_cap_cents": 100,
         },
     )
+    expected = expected_plan(stale_payload)
 
     result = plan_job_module.plan_job(stale_payload, lambda: None)
 
@@ -76,6 +109,9 @@ def test_plan_job_preserves_budget_warnings_and_source(
     assert budget["warnings"]
     assert budget["warnings"] == plan["warnings"][:1]
     assert plan["notice"] == SAMPLE_ESTIMATE_NOTICE
+    assert result["request"] == expected["request"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["budget"] == expected["budget"]
 
 
 def test_plan_job_rejects_period_mismatch() -> None:
@@ -126,3 +162,81 @@ def test_plan_job_rejects_invalid_diet_and_extra_fields() -> None:
         )
     with pytest.raises(ValidationError):
         plan_job_module.plan_job(payload(unexpected="value"), lambda: None)
+
+
+def test_plan_job_passes_frozen_clock_and_parsed_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now_calls: list[datetime] = []
+
+    def frozen() -> datetime:
+        now_calls.append(NOW)
+        return NOW
+
+    monkeypatch.setattr(plan_job_module, "_utc_now", frozen)
+    body = payload()
+    expected = expected_plan(body)
+    captured: list[
+        tuple[dict[str, object], plan_job_module.PlanJobInput, datetime]
+    ] = []
+
+    def record(
+        planning: dict[str, object],
+        parsed: plan_job_module.PlanJobInput,
+        clock: datetime,
+    ) -> str:
+        captured.append((dict(planning), parsed, clock))
+        assert "evidence_revision_id" not in planning
+        return _REV
+
+    result = plan_job_module.plan_job(body, lambda: None, record_evidence=record)
+
+    assert now_calls == [NOW]
+    assert len(captured) == 1
+    planning, parsed, clock = captured[0]
+    assert clock is NOW
+    assert parsed == plan_job_module.PlanJobInput.model_validate(body)
+    assert planning == expected
+    assert result["evidence_revision_id"] == _REV
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["request"] == expected["request"]
+
+
+def test_plan_job_callback_failure_does_not_return(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+
+    def record(
+        planning: dict[str, object],
+        parsed: plan_job_module.PlanJobInput,
+        clock: datetime,
+    ) -> str:
+        del planning, parsed, clock
+        raise RuntimeError("store-failed")
+
+    with pytest.raises(RuntimeError, match="store-failed") as caught:
+        plan_job_module.plan_job(payload(), lambda: None, record_evidence=record)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+@pytest.mark.parametrize("value", ["NOT-HEX", "A" * 64, "g" * 64, "ab" * 31, "ab" * 33])
+def test_plan_job_malformed_revision_id_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+
+    def record(
+        planning: dict[str, object],
+        parsed: plan_job_module.PlanJobInput,
+        clock: datetime,
+    ) -> str:
+        del planning, parsed, clock
+        return value
+
+    with pytest.raises(ValueError, match="evidence revision id is invalid") as caught:
+        plan_job_module.plan_job(payload(), lambda: None, record_evidence=record)
+    assert value not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None

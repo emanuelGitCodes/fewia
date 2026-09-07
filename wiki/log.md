@@ -899,3 +899,10 @@ call occurrences even when immutable snapshot IDs repeat. Limits and incomplete
 results clear final revision IDs. Grok repaired an empty-string test assertion
 after review. All 990 backend tests, Ruff, formatting, and strict mypy passed.
 Independent targeted review passed 71 tests. Job adapters follow.
+
+## 2026-09-07 — Recorded plan jobs
+
+Plan jobs now return the validated request and accept an evidence recorder.
+The job freezes its calculation time and records before returning a result.
+Independent review and all four backend gates passed, including 1,011 tests
+on the combined adapter branch.
