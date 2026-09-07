@@ -794,3 +794,12 @@ Connected configuration, meal drafts, submission, retry, and pantry state.
 Grok repaired stale-configuration submission after independent review.
 Original-body retries preserve ambiguous requests. All 56 frontend tests and
 the production build passed. App rendering and browser checks follow.
+
+## 2026-09-07 — Immutable grocery evidence schema
+
+Added migration 0007 and content-addressed evidence records. Grok repaired a
+PostgreSQL-only check that broke SQLite setup. Mechanical import sorting fixed
+one Ruff error. Ruff, formatting, strict mypy, migration, and all 801 backend
+tests passed. Independent PostgreSQL probes accepted a valid row and rejected
+invalid hashes, foreign owners, updates, and deletes. Privileged table or trigger
+changes remain outside the row-level immutability boundary. Persistence follows.
