@@ -570,3 +570,15 @@ clean for 39 files, and 454 tests passed with isolated PostgreSQL. One existing
 Starlette warning remains. Independent Codex runtime_design_review passed 23
 handler/CLI tests. Handler source SHA-256:
 652dab5c9fe51237bc1245172587abfa6c9a85ea53f164c8e7743e61b0e2f76d.
+
+## 2026-09-06 — Bounded grocery worker command
+
+Added an agent-queue-only command with bounded message count, signal restoration,
+and static failure summaries. This source layer is 97 lines. Coordinator gates
+passed 454 tests with isolated PostgreSQL, Ruff, formatting, and strict mypy.
+Independent Codex runtime_design_review passed 23 targeted tests and an actual
+PostgreSQL/Floci pipeline from create_job through publication and CLI execution.
+It stored a 1,703-cent fixture estimate, retained the published outbox, and
+restored signal handlers. Temporary queue and schema cleanup passed.
+CLI source SHA-256: 2f545d2548c25e8df0991ef597e5a3e8c82ad938fdad666eec15165b0d23d3e9.
+This proves local fixture processing, not live provider provenance.
