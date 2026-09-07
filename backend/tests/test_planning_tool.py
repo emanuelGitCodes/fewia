@@ -6,7 +6,11 @@ from hashlib import sha256
 from typing import cast
 
 import pytest
+from botocore.exceptions import ParamValidationError
+from botocore.session import Session
+from botocore.validate import validate_parameters
 
+from app.agent.chat_messages import tool_result_block
 from app.agent.planning_tool import (
     TOOL_NAME,
     PlanningToolError,
@@ -221,3 +225,37 @@ def test_execute_plan_does_not_mutate_inputs() -> None:
     assert isinstance(budget_payload, dict)
     assert budget_payload["available_cents"] == 500
     assert original_budget.available_cents == 1_000
+
+
+def _converse_tool_result_params(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "modelId": "model-id",
+        "messages": [
+            {
+                "role": "user",
+                "content": [tool_result_block("call-1", payload, success=True)],
+            }
+        ],
+    }
+
+
+def test_execute_plan_tool_result_matches_converse_input_shape() -> None:
+    result = execute_plan(arguments(), budget(), PERIOD)
+    plan_payload = result["plan"]
+    assert isinstance(plan_payload, dict)
+    lines = plan_payload["lines"]
+    warnings = plan_payload["warnings"]
+    assert isinstance(lines, list)
+    assert isinstance(warnings, list)
+    session = Session()
+    service_model = session.get_service_model("bedrock-runtime")
+    operation = service_model.operation_model("Converse")
+    input_shape = operation.input_shape
+    validate_parameters(_converse_tool_result_params(result), input_shape)
+    rejected = dict(result)
+    rejected_plan = dict(plan_payload)
+    rejected_plan["lines"] = tuple(lines)
+    rejected_plan["warnings"] = tuple(warnings)
+    rejected["plan"] = rejected_plan
+    with pytest.raises(ParamValidationError):
+        validate_parameters(_converse_tool_result_params(rejected), input_shape)

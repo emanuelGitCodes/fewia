@@ -521,3 +521,10 @@ test call afterward. Source SHA-256:
 489fcf5b6385f6c8239708f999dbbff7c1bf61a12919999d4d6ef0a0ea637b7f.
 This 134-line tool does not call a model or external provider. Content-derived
 IDs alone do not prove an immutable storage layer.
+
+## 2026-09-06 — SDK-native planning results
+
+A no-network botocore check found tuple-valued plan fields were invalid Converse
+documents. Grok normalized the planner output to JSON-native values. The SDK
+parameter test now passes and a tuple mutation fails it. Independent Codex
+runtime_design_review approved the fix; evidence hashing retains equivalent JSON.

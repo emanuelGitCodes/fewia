@@ -81,7 +81,7 @@ def execute_plan(
     if plan is None:
         raise PlanningToolError("catalog constraint is invalid")
     request_payload: object = request.model_dump(mode="json")
-    plan_payload: object = asdict(plan)
+    plan_payload: object = json.loads(json.dumps(asdict(plan), allow_nan=False))
     budget_payload: dict[str, object] = {
         "available_cents": planning_budget.available_cents,
         "pending_cents": planning_budget.pending_cents,
