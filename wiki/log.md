@@ -1148,3 +1148,11 @@ A synthetic 81-byte report round-tripped through the local Floci S3 bucket. Its
 SHA-256 matched the stored body. Reordered input keys produced the same object key.
 This was a transport probe with zero evaluation runs. It does not prove live AWS
 or model quality. The caller remains responsible for report sanitization.
+
+## 2026-09-07 — Load provider status with a bounded wait
+
+Grok 4.6 wrote the 63-line provider-status hook. Independent Grok source review
+approved it. A clean snapshot with this layer passed 115 frontend tests and the
+production build. Failed refreshes clear stale flags. Fetch and JSON share a
+20-second abort bound. An initial test-mock typing error was repaired before the
+passing build. No provider connection or live-price claim is inferred from flags.
