@@ -56,7 +56,7 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   });
 }
 
-async function readJson(path: string, init: RequestInit): Promise<unknown> {
+export async function readJson(path: string, init: RequestInit): Promise<unknown> {
   let response: Response;
   try {
     response = await abortable(fetch(path, init), init.signal ?? undefined);

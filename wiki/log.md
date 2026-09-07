@@ -1028,3 +1028,10 @@ Added strict chat-response validation and copied result data. Invalid candidates
 counts, sources, and revision IDs fail before rendering. All 84 frontend tests
 and the build passed. Independent Grok source review approved the validator;
 it did not execute tests. HTTP transport follows.
+
+## 2026-09-07 — Add the chat HTTP client
+
+Grok 4.6 wrote the chat submission and read client. A separate Grok reviewer
+approved the source. The coordinator ran 90 frontend tests and the production build.
+Both passed after the writer repaired two typed mock errors. Requests use bounded
+shared JSON handling, encoded job IDs, and idempotency headers. No live model call ran.
