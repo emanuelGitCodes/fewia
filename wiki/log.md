@@ -758,3 +758,10 @@ review found and returned incomplete-estimate, numeric, stale-state, and timeout
 bugs; Grok repaired them. Strict frontend build and 20 tests passed, including
 hung requests, body cancellation, key reuse, late response, and unmount cases.
 Polling source is 143 lines. Controls and browser verification remain next.
+
+## 2026-09-06 — Exact web money input
+
+Added decimal-string parsing to safe integer cents and USD formatting. Invalid
+negative, fractional-cent, and unsafe values are rejected. The 36-line helper
+has direct tests. Independent Codex domain_review approved exactness and bounds.
+Combined frontend build and 33 tests passed after adding the meal form.
