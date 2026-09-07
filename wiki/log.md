@@ -1111,3 +1111,10 @@ The local Compose project runs reviewed snapshot `84a145c` from
 the stored 1,703-cent plan. A malformed revision returned 404. Handoff POST returned
 the static unconfigured-provider 503. The database preserved a prepared intent
 with zero attempts. Handoff GET returned only public fields. No provider dispatched.
+
+## 2026-09-07 — Define the sync HTTP request model
+
+Grok 4.6 wrote the strict item-id request model. Independent Grok security review
+approved it. A clean snapshot with the model layer passed all backend gates,
+including 1,205 PostgreSQL-enabled tests. One existing Starlette warning remains.
+The 24-line model rejects extra fields and blank Item IDs.
