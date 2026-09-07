@@ -883,3 +883,11 @@ Added PostgreSQL connection and pool timeouts with statement and lock limits.
 SQLite receives no PostgreSQL-only options. Grok repaired tests that assumed
 unsupported URL aliases and an uninstalled driver. Independent review passed.
 Ruff, formatting, strict mypy, and all 540 runtime-branch tests passed.
+
+## 2026-09-07 — Continuous grocery worker
+
+Added continuous recovery, outbox publication, and agent-job consumption.
+Grok repaired standalone model registration and failure counter retention after
+independent review. All 540 backend tests, Ruff, formatting, and strict mypy
+passed. Actual continuous Floci execution follows; bounded consumer probes
+already passed against the isolated emulator.
