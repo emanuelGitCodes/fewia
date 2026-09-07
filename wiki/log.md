@@ -1061,3 +1061,12 @@ Independent Grok source review approved the change. The coordinator ran 108 fron
 tests and the production build; both passed. The client distinguishes fixture and
 Plaid Sandbox spending. It validates configured flags without claiming live provider
 verification. The layer adds 75 application source lines.
+
+## 2026-09-07 — Read immutable grocery evidence over HTTP
+
+Grok 4.6 wrote the owner-scoped evidence route. Independent Grok security review
+approved the source. All backend gates passed: ruff, formatting, strict mypy, and
+1,182 tests. Eight PostgreSQL tests skipped in that full run. A separate enabled
+run passed ten evidence API and store tests. One existing Starlette warning remains.
+The 51-line route returns a stored snapshot for an owned revision. Missing, foreign,
+and malformed revisions return 404. Router registration remains a later layer.
