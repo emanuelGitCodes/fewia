@@ -22,6 +22,9 @@ chronological record lives in [log.md](log.md).
 - [Phase 1 — Skeleton: Compose, schema, CI](phases/phase-1.md)
 - [Phase 2 — Synthetic data](phases/phase-2.md)
 - [Phase 3 — Deterministic tools and FastAPI endpoints](phases/phase-3.md)
+- [Grocery MVP checkpoint — professor feedback](phases/grocery-mvp-checkpoint.md)
+
+The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
 ## Development operations
 

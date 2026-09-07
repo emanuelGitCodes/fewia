@@ -139,3 +139,58 @@ passed for stored evidence, malformed revisions, and an unconfigured handoff
 that preserves its prepared intent without dispatch. The sync API branch passes
 1,228 tests and awaits review. The frontend branch passes 121 tests and a build;
 its composer timeout/retry states are being repaired after independent review.
+
+## Professor feedback checkpoint — 2026-09-07
+
+The user clarified that the next objective is professor feedback on an early MVP,
+not completion of every planned feature. Feature expansion is paused. All active
+writers finished. The demo remains available at http://127.0.0.1:5173 from reviewed
+Compose snapshot 84a145c in `/private/tmp/fewia-compose-shopping`. It demonstrates
+meal selection, budget constraints, queued processing, itemized sample estimates,
+and explicit pantry changes. Free-text chat UI wiring, live provider validation,
+and the 90-run evaluation remain incomplete. Present these limits clearly.
+
+Draft workspace adapters and evaluation input/scoring changes remain in the
+isolated web and budget worktrees. They have not received final verification.
+The reviewed handoff browser contract and HTTP client remain uncommitted in
+`/private/tmp/fewia-provider-config`. Do not resume the full feature backlog
+without the user directing the next work after feedback.
+
+## 2026-09-07 documentation handoff
+
+The wiki now holds [grocery-mvp-checkpoint.md](../wiki/phases/grocery-mvp-checkpoint.md).
+This handoff preserves the professor-feedback MVP. It does not add features.
+
+Working local path: meal controls → API → PostgreSQL outbox → Floci SQS → worker → itemized estimate.
+Bean tacos for two: 1,703 cents. Olive-oil pantry rebuild: 1,104 cents.
+Sample package prices: `backend/app/domain/catalog.py`.
+Ingredient quantities: `backend/app/domain/catalog_recipes.json`.
+Instacart creates development shopping-list links. Those links are not verified live prices.
+The monthly limit is user-set. Plaid Sandbox adapters measure posted grocery spending.
+Pending spending stays separate. The system does not recommend an allowance from income or bills.
+The current demo uses fixture spending. No real bank or live provider is validated.
+Chat panel, controller, and API exist. They are not wired into `App`.
+Manual-to-chat handoff and unsaved-form synchronization remain.
+Handoff browser contract and client exist. The button flow remains.
+The 30-scenario corpus and budget evaluation driver exist.
+No 90-run evaluation or model-quality result exists.
+Preserved workspace adapters still need consolidation checks.
+This handoff does not invent a current test count. It does not claim merge or CI success.
+Existing local proof remains in [wiki/log.md](../wiki/log.md).
+Live Bedrock, Plaid Sandbox, Instacart, and complete browser-chat validation remain pending.
+
+Next work after professor feedback: connect shared form, chat, and estimate.
+Keep the user cap, or apply a lower explicit cap.
+Transfer a saved plan safely. Wire explicit handoff retries.
+Finish the evaluation runner. Run real-provider checks when configured.
+
+Wishlist only: nutrition per recipe and per serving.
+Weekly totals from consumed quantities, with pantry stock still counted.
+A future cash-flow grocery allowance. Neither wishlist item is required now.
+
+The user authorized commit, push, one large consolidation pull request, and merge.
+The user then authorized Graphify and a wiki refresh.
+That consolidation is a one-time exception to the 150-line source cap.
+Later work keeps the small pull-request rule.
+This documentation worker did not commit, push, merge, or run Graphify.
+Publication evidence stays pending until the coordinator records it.

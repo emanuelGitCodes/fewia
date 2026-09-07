@@ -1193,3 +1193,24 @@ input bounds, timeout and retry guidance, and configuration gating. The coordina
 ran 151 frontend tests and the production build; both passed. Unknown errors remain
 hidden. Existing-request replay stays available when provider configuration fails.
 Page and browser integration remain later work.
+
+## 2026-09-07 — Pause for professor feedback
+
+The user chose early MVP feedback before completing the broader feature plan.
+All active writers finished. Feature expansion is paused, and the working local
+demo remains running. Draft work is preserved. Live chat/provider validation and
+formal evaluation remain incomplete and must be disclosed during the demo.
+
+## 2026-09-07 — Grocery MVP checkpoint for professor feedback
+
+Recorded the local grocery MVP as a professor-feedback checkpoint. This is not a completed AI product. The working path is meal controls through the API, PostgreSQL outbox, Floci SQS, and the worker to an itemized sample estimate. Bean tacos for two cost 1,703 cents. Olive-oil pantry stock reduces that plan to 1,104 cents. Chat panel, controller, and API exist. They are not wired into App. Live Bedrock, Plaid Sandbox, Instacart, 90-run evaluation, merge, and Graphify remain pending. Details: [phases/grocery-mvp-checkpoint.md](phases/grocery-mvp-checkpoint.md).
+
+## 2026-09-07 — Validate the consolidation checkpoint
+
+The user authorized one large consolidation pull request and merge. The exception
+applies to this checkpoint only. Independent Grok review found no blocking issues
+in the preserved drafts and CI changes. The combined local gates passed: 1,374
+backend tests with PostgreSQL enabled, 238 frontend tests, strict mypy on 85 source
+files, ruff, formatting, and the frontend production build. Fresh database migration
+reached 0007. One existing Starlette deprecation warning remains. GitHub CI and
+merge evidence remain pending. No live provider or 90-run evaluation claim is made.

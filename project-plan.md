@@ -1,21 +1,28 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Active direction:** Implement the Plaid and Instacart grocery bot described
-> in [.codex/project-context.md](.codex/project-context.md). The user selected
-> local web chat, labeled sample prices, Floci SQS/S3, and real Bedrock.
-> The health-prediction phases below are historical planning material.
-> Do not resume their training tasks. The current implementation starts with
-> the grocery request contract and local Floci provisioning.
+> **Active direction:** Preserve the local grocery MVP for professor feedback.
+> The accepted brief is [.codex/project-context.md](.codex/project-context.md).
+> The demo is a budget-aware grocery planner. It is not a completed AI product.
+> Do not expand features in this checkpoint. The health-prediction phases below
+> are historical planning material. Do not resume their training tasks.
 
-> **Status**: Phase 0 through Phase 3 are complete
+> **Status**: Local grocery MVP is ready for professor feedback
+> ([wiki/phases/grocery-mvp-checkpoint.md](wiki/phases/grocery-mvp-checkpoint.md)).
+> Coordinator local checks: 1,374 PostgreSQL-enabled backend tests, 238
+> frontend tests, ruff, format, and strict mypy on 85 files, frontend build,
+> and migrations through 0007. One existing Starlette deprecation warning
+> remains. These are local results, not CI or merge claims. Preserved drafts
+> are included and locally checked. Phase 0 through Phase 3 remain complete
+> historical records
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
 > [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
 > [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
 > [wiki/phases/phase-3.md](wiki/phases/phase-3.md)).
-> This status describes the original project. `wiki/` records work and decisions; an
-> executor MUST read `CLAUDE.md` and `wiki/index.md` before starting.
-> The delegation sections assume Claude Code (Agent tool, skills,
-> worktrees); another executor follows the phases, deliverables, and
+> Publication, CI, and Graphify remain pending. The coordinator has not
+> recorded commit, push, merge, or Graphify refresh. `wiki/` records work
+> and decisions. An executor MUST read `AGENTS.md` and `wiki/index.md`
+> before starting. The delegation sections assume Claude Code (Agent tool,
+> skills, worktrees); another executor follows the phases, deliverables, and
 > verification steps directly.
 
 ## Context
