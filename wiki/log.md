@@ -1014,3 +1014,10 @@ The plan cost 1,703 cents. Its immutable evidence snapshot matched the result an
 rejected a foreign owner read. Unconfigured chat and sync jobs failed with no result.
 Both temporary workers exited with code 0 after SIGTERM. No live provider call ran.
 The source delta adds 139 application and Compose lines against 94f3db9.
+
+## 2026-09-07 — Web chat contracts
+
+Added typed chat requests, results, and trace fields with shared plan validators.
+The combined frontend passed 84 tests and its build. Independent Grok source
+review approved the contract. The writer's terminal request was cancelled;
+coordinator checks supplied the execution evidence.

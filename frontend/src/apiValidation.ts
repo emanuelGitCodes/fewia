@@ -50,7 +50,7 @@ function isLine(value: unknown): value is PlanLine {
   );
 }
 
-function isPlan(value: unknown): value is GroceryPlan {
+export function isPlan(value: unknown): value is GroceryPlan {
   if (!isRecord(value) || !Array.isArray(value.lines) || !value.lines.every(isLine)) {
     return false;
   }
@@ -71,7 +71,7 @@ function isPlan(value: unknown): value is GroceryPlan {
   return true;
 }
 
-function isBudget(value: unknown): value is GroceryBudget {
+export function isBudget(value: unknown): value is GroceryBudget {
   return (
     isRecord(value) &&
     isNonnegativeCents(value.available_cents) &&
