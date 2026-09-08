@@ -1230,3 +1230,45 @@ collapses, and 121 exact duplicates. These are analysis coverage limits. The rep
 and health diagnostics preserve them. Semantic token usage is unavailable.
 The local ignored graph outputs are refreshed again after this documentation merge.
 Chat integration, live provider checks, and the 90-run evaluation remain incomplete.
+
+## 2026-09-07 — Visible meal chat on the local page
+
+The user asked to resume visible chat integration on `codex/visible-meal-chat`.
+Grok 4.6 writers completed this slice.
+A separate Grok agent reviewed the frontend independently.
+
+A fresh worker repaired bounded-history request identity.
+The same worker repaired CSS rule precedence.
+
+The coordinator reported that `npm test` passed after a test selector repair.
+`npm run build` also passed.
+An earlier test run reported 253 passed and 1 failed.
+The page now has two forms.
+
+The coordinator reported that backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,366 passed.
+Pytest skipped eight optional database tests.
+One existing Starlette warning remains.
+
+Operators updated the local web container from the current frontend sources.
+A browser at `127.0.0.1:5173` shows Meal chat beside the manual planner.
+The estimate view remains visible.
+The console showed no errors.
+No framework overlay appeared.
+
+Manual bean tacos for two succeeded at 1,703 cents.
+The sample-price notice remained visible.
+The chat reset button works.
+
+The backend reports `chat_configured` false.
+The composer Send control stays disabled.
+Real AI replies were not tested.
+Real AI replies are not available.
+AWS profile and model configuration remains the blocker.
+
+This entry does not claim full context transfer from the manual planner to chat.
+It does not prove a live provider.
+Feature work pauses here pending configuration and user feedback.
+No push or merge occurred.

@@ -1,7 +1,7 @@
 # Grocery MVP checkpoint for professor feedback
 
 - **Date**: 2026-09-07
-- **Status**: local professor-feedback MVP. This is not a completed AI product.
+- **Status**: local professor-feedback MVP. Visible meal chat is integrated on `codex/visible-meal-chat`. That branch is not pushed or merged. Real chat is not operational. Live chat is not verified. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Decision**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md)
 - **Local proof store**: [log.md](../log.md)
@@ -9,6 +9,7 @@
 - **Pull request**: [Consolidate grocery MVP and provider foundations](https://github.com/emanuelGitCodes/fewia/pull/42)
 - **Merge commit**: `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14`
 - **GitHub checks**: Backend checks passed. Frontend checks passed.
+- **Local branch**: `codex/visible-meal-chat`. Not pushed. Not merged.
 
 This page preserves the current grocery demo. It does not expand features.
 
@@ -18,11 +19,13 @@ The active product is a budget-aware grocery planner on a local stack. The stack
 
 ## Working local path
 
-The proven demo path is meal controls → API → PostgreSQL outbox → Floci SQS → worker → itemized estimate. The user selects meals and servings in the form. The API accepts the request. PostgreSQL stores the job and outbox row. Floci SQS carries the job id. The worker computes a labeled sample estimate. The UI shows the itemized result. Pantry removal is explicit. A rebuild follows a pantry change.
+The proven demo path is meal controls → API → PostgreSQL outbox → Floci SQS → worker → itemized estimate. The user selects meals and servings in the form. The API accepts the request. PostgreSQL stores the job and outbox row. Floci SQS carries the job id. The worker computes a labeled sample estimate. The UI shows the itemized result. Pantry removal is explicit. A rebuild follows a pantry change. The local page also mounts meal chat beside the manual planner.
 
-Local fixture proof from [log.md](../log.md): bean tacos for two cost 1,703 cents. Olive oil in the pantry reduces that plan to 1,104 cents.
+Local fixture proof from [log.md](../log.md): bean tacos for two cost 1,703 cents. Olive oil in the pantry reduces that plan to 1,104 cents. A later browser check on `codex/visible-meal-chat` repeated the bean-tacos estimate at 1,703 cents.
 
-The coordinator verified these combined local checks. PostgreSQL-enabled backend tests passed at 1,374. Frontend tests passed at 238. Ruff, format, and strict mypy passed on 85 files. The frontend build passed. Fresh database migrations applied through 0007. One existing Starlette deprecation warning remains. Existing local counts remain 1,374 backend tests and 238 frontend tests. GitHub Backend checks passed. GitHub Frontend checks passed. Preserved drafts are included and locally checked.
+Published consolidation checks remain those recorded for pull request 42. PostgreSQL-enabled backend tests passed at 1,374. Frontend tests passed at 238. Ruff, format, and strict mypy passed on 85 files. The frontend build passed. Fresh database migrations applied through 0007. One existing Starlette deprecation warning remains. GitHub Backend checks passed. GitHub Frontend checks passed. Preserved drafts are included and locally checked.
+
+Current `codex/visible-meal-chat` checks from [log.md](../log.md) differ. `npm test` passed. `npm run build` passed. Backend pytest reported 1,366 passed and eight skipped. Ruff, format, and strict mypy passed. A browser showed Meal chat with no console errors.
 
 ## Catalog and estimates
 
@@ -44,7 +47,13 @@ The current demo uses fixture spending. No real bank account is validated. Plaid
 
 ## Chat, form, and handoff
 
-Chat panel, controller, and API exist. They are not wired into `App`. Manual-to-chat handoff remains unfinished. Unsaved-form synchronization remains unfinished. The handoff browser contract and client exist. The button flow remains unfinished. Instacart code creates development shopping-list links. It does not verify live prices, availability, taxes, fees, or tips. An uncertain Instacart write needs a visible retry, not blind replay. Handoff URLs need validation before navigation.
+The local `App` mounts `ChatWorkspace` and `ChatPanel` beside the manual planner. The page uses the existing provider capability hook and chat controller. A valid chat result updates the shared form and estimate. The budget cap stays preserved. Stale-result protection applies.
+
+The running backend reports `chat_configured` false. The message field and Send control stay disabled. Reset clears an existing conversation. An empty conversation looks unchanged after Reset. Full context transfer from the manual planner to chat remains unfinished.
+
+This page MUST NOT call real chat operational. This page MUST NOT claim live-provider verification. A browser showed Meal chat with no console errors. That check does not prove a send, a follow-up, or a live estimate update from chat.
+
+The handoff browser contract and client exist. The button flow remains unfinished. Instacart code creates development shopping-list links. It does not verify live prices, availability, taxes, fees, or tips. An uncertain Instacart write needs a visible retry, not blind replay. Handoff URLs need validation before navigation.
 
 ## Evaluation
 
@@ -73,25 +82,28 @@ Fixture data is not a verified retailer or bank claim.
 6. Read the catalog notice on the estimate.
 7. Mark olive oil as pantry stock. Rebuild the plan.
 8. Read the reduced sample estimate of 1,104 cents.
-9. State that chat is implemented but not wired into `App`.
-10. State that Instacart links are development handoff, not live prices.
-11. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
-12. State that the 30-scenario corpus exists. No 90-run result exists.
-13. State that live Bedrock, Plaid Sandbox, and Instacart checks remain pending.
-14. State that full browser-chat validation remains pending.
+9. Show Meal chat beside the manual planner.
+10. State that Send stays disabled while `chat_configured` is false.
+11. State that Instacart links are development handoff, not live prices.
+12. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
+13. State that the 30-scenario corpus exists. No 90-run result exists.
+14. State that live Bedrock, Plaid Sandbox, and Instacart checks remain pending.
+15. State that real chat send, follow-up, and chat-driven estimate updates remain unverified.
 
 ## Honest limitations
 
-This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Chat is not a working in-app conversation. The demo does not use a real bank. The demo does not validate a live provider. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Browser-chat validation is incomplete. Handoff button flow is incomplete. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. A later graph refresh follows this documentation merge.
+This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Visible meal chat is on the local page. Real chat is not operational. Live chat is not verified. The demo does not use a real bank. The demo does not validate a live provider. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Full manual-plan context transfer is unfinished. Handoff button flow is incomplete. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. That record covers the prior merged checkpoint. A local chat graph refresh is not yet recorded.
 
 ## Next work after professor feedback
 
-1. Connect the shared form, chat, and estimate.
-2. Keep the user cap, or apply a lower explicit cap.
-3. Transfer a saved plan safely.
-4. Wire explicit handoff retries.
-5. Finish the evaluation runner.
-6. Run real-provider checks when those providers are configured.
+1. Configure the AWS profile and Bedrock model in the API and worker.
+2. Verify actual send, follow-up, and estimate updates.
+3. Finish full manual-plan context transfer.
+4. Keep the user cap, or apply a lower explicit cap.
+5. Transfer a saved plan safely.
+6. Wire explicit handoff retries.
+7. Finish the evaluation runner.
+8. Run real-provider checks when those providers are configured.
 
 ## Wishlist
 
@@ -101,4 +113,4 @@ These items are not required now: nutrition per recipe and per serving; weekly n
 
 The user authorized commit, push, one large consolidation pull request, and merge. [Consolidate grocery MVP and provider foundations](https://github.com/emanuelGitCodes/fewia/pull/42) merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07. GitHub Backend checks passed. GitHub Frontend checks passed. That consolidation MAY exceed the 150-line source cap once. Later pull requests keep the 150-line source cap.
 
-Graphify rebuilt after the merge in the saved checkout. The local ignored artifacts are `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and `health.json`. Full source coverage is 237 code files, 44 documents, and 1 image. Raw extraction excludes 979 unresolved endpoint references, mostly external imports. The default undirected graph collapses 919 repeated endpoint relationships. The extract also records 121 exact duplicate raw edges. These counts are analysis coverage limits. They are not application failures. Semantic agent token usage is unavailable. This page does not claim the graph has no errors. A further graph refresh follows this documentation merge. This page does not claim final commit freshness for that later refresh.
+Graphify rebuilt after the merge in the saved checkout. That record covers the prior merged checkpoint. It does not cover local visible-chat work on `codex/visible-meal-chat`. The local ignored artifacts are `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and `health.json`. Full source coverage is 237 code files, 44 documents, and 1 image. Raw extraction excludes 979 unresolved endpoint references, mostly external imports. The default undirected graph collapses 919 repeated endpoint relationships. The extract also records 121 exact duplicate raw edges. These counts are analysis coverage limits. They are not application failures. Semantic agent token usage is unavailable. This page does not claim the graph has no errors. A local chat graph refresh is not yet recorded.

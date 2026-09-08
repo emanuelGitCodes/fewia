@@ -8,15 +8,23 @@
 
 > **Status**: Local grocery MVP is ready for professor feedback
 > ([wiki/phases/grocery-mvp-checkpoint.md](wiki/phases/grocery-mvp-checkpoint.md)).
-> Coordinator local checks: 1,374 PostgreSQL-enabled backend tests, 238
-> frontend tests, ruff, format, and strict mypy on 85 files, frontend build,
-> and migrations through 0007. One existing Starlette deprecation warning
-> remains. Existing local counts remain 1,374 backend tests and 238 frontend
-> tests. Preserved drafts are included and locally checked. Pull request
-> [42](https://github.com/emanuelGitCodes/fewia/pull/42) merged into `main`
-> at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07. GitHub
-> Backend checks and Frontend checks passed. Graphify rebuilt after that
-> merge in the saved checkout. Local ignored artifacts are
+> Visible meal chat is integrated locally on `codex/visible-meal-chat`.
+> That branch is not pushed or merged. Real chat is not operational.
+> Live chat is not verified. Current local checks: `npm test` passed,
+> `npm run build` passed, 1,366 backend tests passed, eight skipped, and
+> ruff, format, and strict mypy passed. A browser showed Meal chat with
+> no console errors. Manual bean tacos for two remain 1,703 cents. The
+> running backend reports `chat_configured` false. Send stays disabled.
+> Pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42)
+> merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on
+> 2026-09-07. GitHub Backend checks and Frontend checks passed.
+> Published consolidation local checks remain 1,374 PostgreSQL-enabled
+> backend tests, 238 frontend tests, ruff, format, and strict mypy on 85
+> files, frontend build, and migrations through 0007. One existing
+> Starlette deprecation warning remains. Preserved drafts are included
+> and locally checked. Graphify rebuilt after that merge in the saved
+> checkout. That record covers the prior merged checkpoint. A local chat
+> graph refresh is not yet recorded. Local ignored artifacts are
 > `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and
 > `health.json`. Full source coverage is 237 code files, 44 documents, and
 > 1 image. Raw extraction excludes 979 unresolved endpoint references,
@@ -24,9 +32,8 @@
 > repeated endpoint relationships. The extract records 121 exact duplicate
 > raw edges. These counts are analysis coverage limits. They are not
 > application failures. Semantic agent token usage is unavailable. This
-> plan does not claim the graph has no errors. A further graph refresh
-> follows this documentation merge. Phase 0 through Phase 3 remain
-> complete historical records
+> plan does not claim the graph has no errors. Phase 0 through Phase 3
+> remain complete historical records
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
 > [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
 > [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
