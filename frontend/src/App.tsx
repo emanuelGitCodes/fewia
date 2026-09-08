@@ -1,11 +1,13 @@
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
+import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
 import { Conversation } from "./Conversation";
 import { Estimate } from "./Estimate";
 import { formatDollars } from "./money";
 import { useGroceryDemo } from "./useGroceryDemo";
 import "./form.css";
 import "./estimate.css";
+import "./chat.css";
 
 const CATALOG_LOADING = "Loading the grocery catalog.";
 
@@ -18,8 +20,16 @@ function sourceLabel(source: string): string {
 
 export default function App(): JSX.Element {
   const demo = useGroceryDemo();
+  const chat = useChatWorkspace({
+    form: demo.form,
+    setForm: demo.setForm,
+    formJob: demo.job,
+  });
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
-  const showNotice = demo.job?.status !== "succeeded" || demo.job.result === null;
+  const busy = demo.pending || chat.pending;
+  const estimateJob = chat.estimateJob ?? demo.job;
+  const estimateDirty = chat.estimateJob !== null ? chat.estimateDirty : demo.dirty;
+  const showNotice = estimateJob?.status !== "succeeded" || estimateJob.result === null;
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -35,8 +45,8 @@ export default function App(): JSX.Element {
           <Conversation
             job={demo.job}
             error={demo.error}
-            pending={demo.pending}
-            freshRequestsDisabled={blocked}
+            pending={busy}
+            freshRequestsDisabled={blocked || chat.pending}
             onExample={demo.example}
             onRetry={demo.retry}
             onNewRequest={demo.newRequest}
@@ -70,28 +80,36 @@ export default function App(): JSX.Element {
                   config={demo.config}
                   value={demo.form}
                   onChange={demo.setForm}
-                  disabled={blocked || demo.pending}
+                  disabled={blocked || busy}
                 />
                 {demo.formError !== null ? (
                   <p className="form-error" role="alert">
                     {demo.formError}
                   </p>
                 ) : null}
-                <button type="submit" className="build-estimate" disabled={blocked || demo.pending}>
+                <button type="submit" className="build-estimate" disabled={blocked || busy}>
                   Build my estimate
                 </button>
               </form>
             ) : null}
           </Conversation>
+          <ChatWorkspace
+            formPending={demo.pending}
+            configured={chat.configured}
+            configurationPending={chat.configurationPending}
+            providerError={chat.providerError}
+            retryProviders={chat.retryProviders}
+            conversation={chat.conversation}
+          />
           <div className="panel budget-panel">
             <Estimate
-              job={demo.job}
-              pending={demo.pending}
-              dirty={demo.dirty}
+              job={estimateJob}
+              pending={busy}
+              dirty={estimateDirty}
               pantry={demo.form.pantry}
               onPantryToggle={demo.togglePantry}
               onRebuild={demo.submitForm}
-              rebuildDisabled={blocked || demo.pending}
+              rebuildDisabled={blocked || busy}
             />
             {showNotice ? (
               <p className="estimate-notice">{demo.config?.notice ?? SAMPLE_ESTIMATE_NOTICE}</p>
