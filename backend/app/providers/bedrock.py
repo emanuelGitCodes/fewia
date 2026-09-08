@@ -11,6 +11,9 @@ _SUPPORTED_STOP_REASONS = frozenset(
     "end_turn tool_use max_tokens stop_sequence "
     "guardrail_intervened content_filtered model_context_window_exceeded".split()
 )
+_LUNA_US_MODEL_ID = "us.openai.gpt-5.6-luna"
+_LUNA_INFERENCE_PROFILE_ARN_TAIL = f":inference-profile/{_LUNA_US_MODEL_ID}"
+_LUNA_MAX_TOKENS = 4096
 
 
 class ConverseRequest(TypedDict):
@@ -19,6 +22,7 @@ class ConverseRequest(TypedDict):
     messages: list[dict[str, object]]
     inferenceConfig: dict[str, int | float]
     toolConfig: NotRequired[dict[str, object]]
+    additionalModelRequestFields: NotRequired[dict[str, object]]
 
 
 class BedrockClient(Protocol):
@@ -44,6 +48,14 @@ def _valid_message(message: object, role: str) -> bool:
         isinstance(message, Mapping)
         and message.get("role") == role
         and _valid_content(message.get("content"))
+    )
+
+
+def _is_luna_us_model(model_id: str) -> bool:
+    if model_id == _LUNA_US_MODEL_ID:
+        return True
+    return model_id.startswith("arn:aws:bedrock:") and model_id.endswith(
+        _LUNA_INFERENCE_PROFILE_ARN_TAIL
     )
 
 
@@ -102,12 +114,20 @@ class BedrockConverseProvider:
             isinstance(tool, dict) for tool in tools
         ):
             raise ValueError("tools MUST be a list of dictionaries")
+        luna = _is_luna_us_model(self._model_id)
+        # Converse MUST omit temperature for this reasoning model.
         request: ConverseRequest = {
             "modelId": self._model_id,
             "system": [{"text": system_prompt}],
             "messages": messages,
-            "inferenceConfig": {"maxTokens": 1024, "temperature": 0},
+            "inferenceConfig": (
+                {"maxTokens": _LUNA_MAX_TOKENS}
+                if luna
+                else {"maxTokens": 1024, "temperature": 0}
+            ),
         }
+        if luna:
+            request["additionalModelRequestFields"] = {"reasoning_effort": "low"}
         if tools:
             request["toolConfig"] = {"tools": tools}
         try:
