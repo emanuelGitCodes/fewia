@@ -1,0 +1,21 @@
+x-bedrock: &bedrock
+  environment:
+    FEWIA_BEDROCK_MODEL_ID: ${FEWIA_BEDROCK_MODEL_ID}
+    FEWIA_BEDROCK_REGION: ${FEWIA_BEDROCK_REGION}
+    FEWIA_AWS_PROFILE: ${FEWIA_AWS_PROFILE}
+    AWS_SHARED_CREDENTIALS_FILE: /run/fewia/aws-credentials
+    AWS_CONFIG_FILE: /dev/null
+    AWS_EC2_METADATA_DISABLED: "true"
+  volumes:
+    - type: bind
+      source: "${FEWIA_BEDROCK_CREDENTIALS_FILE:?FEWIA_BEDROCK_CREDENTIALS_FILE MUST be an absolute path}"
+      target: /run/fewia/aws-credentials
+      read_only: true
+      bind:
+        create_host_path: false
+
+services:
+  api:
+    <<: *bedrock
+  worker:
+    <<: *bedrock
