@@ -1272,3 +1272,116 @@ This entry does not claim full context transfer from the manual planner to chat.
 It does not prove a live provider.
 Feature work pauses here pending configuration and user feedback.
 No push or merge occurred.
+
+## 2026-09-08 — Restricted Bedrock development role
+
+The user authorized a Python CDK restricted IAM role.
+The user chose application Luna with reasoning effort low.
+Grok 4.6 was the sole writer.
+
+Local commit `578b8b6` records the CDK stack and environment template.
+Local commit `9fa058c` records the provider low setting.
+Local commit `96ab136` records the MFA helper.
+
+Live AWS evidence: stack `FewiaBedrockDev` reports `CREATE_COMPLETE` in `us-east-1`.
+The verified live IAM role is `FewiaBedrockDev-DevConverse6250D9A7-xsXUAGbONTTL`.
+The trust policy names the same-account admin user.
+The trust requires MFA.
+The session duration is 3600 seconds.
+The role has no attached managed policy.
+The role permits `InvokeModel` only.
+The allow list is the selected US Luna profile default project plus three profile-conditioned models.
+
+Role tags are Project FEWIA, Environment development, and ManagedBy AWS-CDK.
+Further tags are Component bedrock-chat, Model openai.gpt-5.6-luna, and ReasoningEffort low.
+No IAM user was created.
+No access key was created.
+
+Deterministic CDK evidence: 14 tests passed.
+Ruff, format, and strict mypy passed on 3 CDK files.
+Deterministic backend evidence: 1372 tests passed.
+Eight PostgreSQL tests skipped due to environment.
+One existing warning remains.
+Ruff, format, and mypy passed 85 backend files.
+Deterministic helper evidence: 10 fake tests passed.
+Ruff, format, and mypy passed on the helper.
+
+The local `.env` file has mode 600.
+Git and Docker ignore it.
+It holds nonsecret settings and paths only.
+Actual role credentials are not issued yet.
+API and worker images were built.
+The Compose override parse passed.
+Services were not restarted.
+
+The user MUST run the helper in a private terminal.
+The user MUST enter MFA privately.
+This log MUST NOT record an MFA code or credential value.
+A browser real Luna reply was not verified.
+Cost tags are attached to the role.
+Billing activation waits for the first Bedrock call.
+No Cost and Usage Report export exists.
+No hard dollar cap exists.
+No push or merge occurred.
+
+This record MUST NOT claim a fully operational system.
+This record MUST NOT claim a security guarantee.
+
+Next, the user runs the helper.
+The user then enters MFA privately.
+Then the operator verifies the restricted identity.
+Then the operator enables the API.
+Then the operator enables the worker.
+Then the operator runs a real chat.
+Then the operator runs a follow-up.
+Then the operator activates IAM billing tags when they are available.
+
+## 2026-09-08 — Luna configured, runtime still denied
+
+Source: coordinator checkpoint. This entry does not claim independent
+live AWS checks.
+
+Deployed evidence: stack `FewiaBedrockDev` remains `CREATE_COMPLETE`.
+
+Live coordinator evidence: the MFA helper succeeded in a private
+terminal. The restricted assumed-role identity was verified. The
+credential file mode is `600`. The ignored `.env` mode is `600`. That
+file holds nonsecret settings and path metadata only.
+
+Local app evidence: operators rebuilt `api` and `worker`. Operators
+force-recreated those services. Health returned 200.
+`chat_configured` is true. The chat textbox accepts input.
+
+Live Bedrock evidence: the first browser meal request failed before an
+answer. Direct Converse with the restricted role returned this error:
+
+```
+AccessDeniedException: openai.gpt-5.6-luna is not available for this account, explore other models or contact AWS Sales
+```
+
+Direct Converse with the admin identity returned the same error.
+
+The admin identity completed a one-time
+`create-foundation-model-agreement` for the user-selected Luna model.
+Agreement availability progressed from PENDING to AVAILABLE. The final
+query reported agreement AVAILABLE, authorization AUTHORIZED,
+entitlement AVAILABLE, and region AVAILABLE. The US inference profile
+is ACTIVE. A later runtime probe still returned the same denial after a
+propagation wait.
+
+There is no successful Luna reply. There is no quality score. There is
+no fallback model. The app is configured. The app is not operational
+with Luna.
+
+The account access team MUST resolve this gate. Operators MUST NOT
+grant extra IAM permissions for this gate.
+
+Billing tags remain on the role. IAM-principal activation waits until
+invocation is available. There is no CUR export. There is no hard cap.
+
+The unsent AWS request draft lives in
+[docs/LUNA_ACCESS_REQUEST.md](../docs/LUNA_ACCESS_REQUEST.md).
+Operators MUST NOT send it until the user authorizes that action.
+This worker did not send the request.
+This log MUST NOT record a credential, token, MFA code, or offer token.
+No push or merge occurred.

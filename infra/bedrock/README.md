@@ -5,8 +5,13 @@ exists so a host caller can assume it and obtain temporary credentials for
 nonstreaming Amazon Bedrock `Converse`. The stack does not invoke a model.
 The stack does not create an IAM user or access keys.
 
-This draft does not deploy, bootstrap, or change AWS. Do not mount the
-deployment admin profile in application containers.
+Operators MUST NOT run `cdk bootstrap` or `cdk deploy` unless the user
+authorizes that action. User-authorized deploy creates the restricted role.
+Role deploy does not enable Luna entitlement. Do not mount the deployment
+admin profile in application containers.
+
+The latest wiki log records the account gate.
+See [wiki/log.md](../../wiki/log.md).
 
 ## Boundary
 
@@ -94,9 +99,9 @@ Do not put access keys, session tokens, or admin credentials in `.env`.
 ## Temporary role credentials
 
 Dedicated temporary role credentials live outside the repository at
-`~/.config/fewia/bedrock/credentials`. Set mode `600`. A forthcoming host
-MFA helper creates that file. This slice does not request an MFA code in
-chat. This slice does not implement the helper.
+`~/.config/fewia/bedrock/credentials`. Set mode `600`. The host MFA helper
+creates that file after MFA succeeds. This slice does not request an MFA
+code in chat.
 
 Set `FEWIA_BEDROCK_CREDENTIALS_FILE` to the absolute path of that file.
 The helper assumes this role after MFA succeeds. Maximum session duration
@@ -115,6 +120,15 @@ dummy credentials stay separate. Do not set a global `AWS_ENDPOINT_URL`.
 Bedrock MUST keep the real regional `bedrock-runtime` endpoint.
 
 The application `modelId` for this path is `us.openai.gpt-5.6-luna`.
+
+A configured API and worker do not prove Luna is operational. Converse can
+still return `AccessDeniedException` after role deploy. The same denial can
+occur for the restricted role and for the admin identity. Availability
+states can read AVAILABLE while runtime invocation stays denied. Operators
+MUST NOT treat role deploy as Luna entitlement. The account access team
+MUST resolve that gate. Operators MUST NOT grant extra IAM permissions
+for this gate. The unsent AWS request draft lives in
+[docs/LUNA_ACCESS_REQUEST.md](../../docs/LUNA_ACCESS_REQUEST.md).
 
 ## Optional Compose override
 
@@ -148,9 +162,8 @@ at that path.
 
 ## Cost allocation tags
 
-Cost tracking requires billing activation of IAM-principal tags after the
-first Bedrock call. Allow up to 24 hours for the tags to appear. Allow
-another 24 hours for activation. See
+The role carries cost-allocation tags. IAM-principal tag activation waits
+until Luna invocation is available. See
 [IAM principal cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/iam-principal-cost-allocation.html).
 
 CUR 2.0 caller identity can enable detailed exports. This project does not
@@ -178,7 +191,8 @@ uv run pytest -q test_stack.py
 
 A later authorized synth MAY use the CDK CLI with synthetic values. Do not
 commit account context. Operators MUST NOT run `cdk bootstrap` or
-`cdk deploy` in this slice.
+`cdk deploy` unless the user authorizes that action. User-authorized
+deploy creates the restricted role. It does not enable Luna entitlement.
 
 ```bash
 cd infra/bedrock
