@@ -12,8 +12,12 @@ _SUPPORTED_STOP_REASONS = frozenset(
     "guardrail_intervened content_filtered model_context_window_exceeded".split()
 )
 _LUNA_US_MODEL_ID = "us.openai.gpt-5.6-luna"
-_LUNA_INFERENCE_PROFILE_ARN_TAIL = f":inference-profile/{_LUNA_US_MODEL_ID}"
+_NOVA2_US_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 _LUNA_MAX_TOKENS = 4096
+_NOVA2_MAX_TOKENS = 4096
+_NOVA2_REASONING_FIELDS: dict[str, object] = {
+    "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "low"},
+}
 
 
 class ConverseRequest(TypedDict):
@@ -51,12 +55,20 @@ def _valid_message(message: object, role: str) -> bool:
     )
 
 
-def _is_luna_us_model(model_id: str) -> bool:
-    if model_id == _LUNA_US_MODEL_ID:
+def _is_us_profile(model_id: str, profile_id: str) -> bool:
+    if model_id == profile_id:
         return True
     return model_id.startswith("arn:aws:bedrock:") and model_id.endswith(
-        _LUNA_INFERENCE_PROFILE_ARN_TAIL
+        f":inference-profile/{profile_id}"
     )
+
+
+def _is_luna_us_model(model_id: str) -> bool:
+    return _is_us_profile(model_id, _LUNA_US_MODEL_ID)
+
+
+def _is_nova2_us_model(model_id: str) -> bool:
+    return _is_us_profile(model_id, _NOVA2_US_MODEL_ID)
 
 
 class BedrockConverseProvider:
@@ -115,19 +127,24 @@ class BedrockConverseProvider:
         ):
             raise ValueError("tools MUST be a list of dictionaries")
         luna = _is_luna_us_model(self._model_id)
-        # Converse MUST omit temperature for this reasoning model.
+        nova2 = _is_nova2_us_model(self._model_id)
+        if luna:
+            # Converse MUST omit temperature for this reasoning model.
+            inference: dict[str, int | float] = {"maxTokens": _LUNA_MAX_TOKENS}
+        elif nova2:
+            inference = {"maxTokens": _NOVA2_MAX_TOKENS, "temperature": 0}
+        else:
+            inference = {"maxTokens": 1024, "temperature": 0}
         request: ConverseRequest = {
             "modelId": self._model_id,
             "system": [{"text": system_prompt}],
             "messages": messages,
-            "inferenceConfig": (
-                {"maxTokens": _LUNA_MAX_TOKENS}
-                if luna
-                else {"maxTokens": 1024, "temperature": 0}
-            ),
+            "inferenceConfig": inference,
         }
         if luna:
             request["additionalModelRequestFields"] = {"reasoning_effort": "low"}
+        elif nova2:
+            request["additionalModelRequestFields"] = _NOVA2_REASONING_FIELDS
         if tools:
             request["toolConfig"] = {"tools": tools}
         try:

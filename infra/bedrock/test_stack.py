@@ -15,13 +15,12 @@ _ACCOUNT_DIGITS = re.compile(r"(?<![0-9])[0-9]{12}(?![0-9])")
 _REGION = "us-east-1"
 _TRUST = f"arn:aws:iam::{_ACCOUNT}:user/dev-caller"
 _PROFILE = (
-    f"arn:aws:bedrock:us-east-1:{_ACCOUNT}:inference-profile/us.openai.gpt-5.6-luna"
+    f"arn:aws:bedrock:us-east-1:{_ACCOUNT}:inference-profile/us.amazon.nova-2-lite-v1:0"
 )
-_PROJECT = f"arn:aws:bedrock:us-east-1:{_ACCOUNT}:project/default"
 _MODELS = {
-    "arn:aws:bedrock:us-east-1::foundation-model/openai.gpt-5.6-luna",
-    "arn:aws:bedrock:us-east-2::foundation-model/openai.gpt-5.6-luna",
-    "arn:aws:bedrock:us-west-2::foundation-model/openai.gpt-5.6-luna",
+    "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0",
+    "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-2-lite-v1:0",
+    "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-2-lite-v1:0",
 }
 _ROOT = Path(__file__).resolve().parent
 _REQUIRED_TAGS = {
@@ -29,7 +28,7 @@ _REQUIRED_TAGS = {
     "Environment": "development",
     "ManagedBy": "AWS-CDK",
     "Component": "bedrock-chat",
-    "Model": "openai.gpt-5.6-luna",
+    "Model": "amazon.nova-2-lite-v1:0",
     "ReasoningEffort": "low",
 }
 _FORBIDDEN_ACTIONS = {
@@ -46,10 +45,13 @@ _FORBIDDEN_FRAGMENTS = (
     "AdministratorAccess",
     "global.openai",
     "in.openai",
+    "openai.gpt-5.6-luna",
+    "us.openai.gpt-5.6-luna",
     "application-inference-profile",
     "foundation-model/*",
     "inference-profile/*",
     "project/*",
+    "project/default",
 )
 
 
@@ -172,18 +174,18 @@ def test_trust_requires_mfa() -> None:
     assert present in {True, "true"}
 
 
-def test_policy_inventory_is_selected_luna_us_path() -> None:
+def test_policy_inventory_is_selected_nova_2_lite_us_path() -> None:
     template = Template.from_stack(_stack())
     statements = _identity_statements(template)
     profile_stmt, model_stmt = _split_identity(statements)
     assert _as_list(profile_stmt["Action"]) == ["bedrock:InvokeModel"]
-    assert set(_as_list(profile_stmt["Resource"])) == {_PROFILE, _PROJECT}
+    assert set(_as_list(profile_stmt["Resource"])) == {_PROFILE}
     assert _as_list(model_stmt["Action"]) == ["bedrock:InvokeModel"]
     assert set(_as_list(model_stmt["Resource"])) == _MODELS
     condition = model_stmt["Condition"]["StringEquals"]
     assert _as_list(condition["bedrock:InferenceProfileArn"]) == [_PROFILE]
-    assert profile_stmt.get("Sid") == "InvokeSelectedLunaProfileAndDefaultProject"
-    assert model_stmt.get("Sid") == "InvokeSelectedLunaFoundationModels"
+    assert profile_stmt.get("Sid") == "InvokeSelectedNova2LiteProfile"
+    assert model_stmt.get("Sid") == "InvokeSelectedNova2LiteFoundationModels"
     rendered = str(template.to_json())
     for fragment in _FORBIDDEN_FRAGMENTS:
         assert fragment not in rendered
@@ -227,9 +229,9 @@ def test_requires_project_tags() -> None:
 
 def test_role_model_and_reasoning_effort_tags_are_exact() -> None:
     tags = _role_tags(Template.from_stack(_stack()))
-    assert tags["Model"] == "openai.gpt-5.6-luna"
+    assert tags["Model"] == "amazon.nova-2-lite-v1:0"
     assert tags["ReasoningEffort"] == "low"
-    assert _REQUIRED_TAGS["Model"] == "openai.gpt-5.6-luna"
+    assert _REQUIRED_TAGS["Model"] == "amazon.nova-2-lite-v1:0"
     assert _REQUIRED_TAGS["ReasoningEffort"] == "low"
 
 
@@ -262,7 +264,7 @@ def test_extra_model_context_does_not_expand_policy() -> None:
         )
     )
     profile_stmt, model_stmt = _split_identity(statements)
-    assert set(_as_list(profile_stmt["Resource"])) == {_PROFILE, _PROJECT}
+    assert set(_as_list(profile_stmt["Resource"])) == {_PROFILE}
     assert set(_as_list(model_stmt["Resource"])) == _MODELS
 
 
@@ -304,9 +306,11 @@ def test_source_uses_synthetic_account_only() -> None:
         found = frozenset(_ACCOUNT_DIGITS.findall(text))
         assert found <= _SYNTHETIC_ACCOUNTS
     stack = (_ROOT / "stack.py").read_text(encoding="utf-8")
-    assert "us.openai.gpt-5.6-luna" in stack
-    assert "openai.gpt-5.6-luna" in stack
-    assert '"Model": "openai.gpt-5.6-luna"' in stack
+    assert "us.amazon.nova-2-lite-v1:0" in stack
+    assert "amazon.nova-2-lite-v1:0" in stack
+    assert '"Model": "amazon.nova-2-lite-v1:0"' in stack
     assert '"ReasoningEffort": "low"' in stack
+    assert "openai.gpt-5.6-luna" not in stack
+    assert "project/default" not in stack
     assert "global.openai" not in stack
     assert _ACCOUNT == "111122223333"

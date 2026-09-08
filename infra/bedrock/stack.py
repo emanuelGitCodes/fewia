@@ -7,8 +7,8 @@ from aws_cdk import aws_iam as iam
 from constructs import Construct
 
 _ORIGIN_REGION = "us-east-1"
-_PROFILE_ID = "us.openai.gpt-5.6-luna"
-_MODEL_ID = "openai.gpt-5.6-luna"
+_PROFILE_ID = "us.amazon.nova-2-lite-v1:0"
+_MODEL_ID = "amazon.nova-2-lite-v1:0"
 _MODEL_REGIONS = ("us-east-1", "us-east-2", "us-west-2")
 _MODEL_ARNS = tuple(
     f"arn:aws:bedrock:{region}::foundation-model/{_MODEL_ID}"
@@ -22,7 +22,7 @@ _TAGS = {
     "Environment": "development",
     "ManagedBy": "AWS-CDK",
     "Component": "bedrock-chat",
-    "Model": "openai.gpt-5.6-luna",
+    "Model": "amazon.nova-2-lite-v1:0",
     "ReasoningEffort": "low",
 }
 
@@ -48,7 +48,6 @@ class BedrockChatStack(Stack):
             f"arn:aws:bedrock:{_ORIGIN_REGION}:{self.account}"
             f":inference-profile/{_PROFILE_ID}"
         )
-        project = f"arn:aws:bedrock:{_ORIGIN_REGION}:{self.account}:project/default"
         role = iam.Role(
             self,
             "DevConverse",
@@ -58,14 +57,14 @@ class BedrockChatStack(Stack):
         )
         role.add_to_policy(
             iam.PolicyStatement(
-                sid="InvokeSelectedLunaProfileAndDefaultProject",
+                sid="InvokeSelectedNova2LiteProfile",
                 actions=["bedrock:InvokeModel"],
-                resources=[profile, project],
+                resources=[profile],
             )
         )
         role.add_to_policy(
             iam.PolicyStatement(
-                sid="InvokeSelectedLunaFoundationModels",
+                sid="InvokeSelectedNova2LiteFoundationModels",
                 actions=["bedrock:InvokeModel"],
                 resources=list(_MODEL_ARNS),
                 conditions={

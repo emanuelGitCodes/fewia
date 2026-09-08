@@ -50,6 +50,14 @@ _LUNA_US_ID = "us.openai.gpt-5.6-luna"
 _LUNA_US_ARN = (
     "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.openai.gpt-5.6-luna"
 )
+_NOVA2_US_ID = "us.amazon.nova-2-lite-v1:0"
+_NOVA2_US_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/"
+    "us.amazon.nova-2-lite-v1:0"
+)
+_NOVA2_FIELDS = {
+    "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "low"},
+}
 
 
 def provider(
@@ -160,6 +168,60 @@ def test_luna_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     ],
 )
 def test_non_us_luna_identifiers_keep_default_inference(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], [])
+
+    request = client.requests[0]
+    assert request["inferenceConfig"] == {"maxTokens": 1024, "temperature": 0}
+    assert "additionalModelRequestFields" not in request
+
+
+@pytest.mark.parametrize("model_id", [_NOVA2_US_ID, _NOVA2_US_ARN])
+def test_nova2_low_effort_sets_tokens_temperature_and_reasoning_config(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+    messages = [{"role": "user", "content": [{"text": "hello"}]}]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    extra = request["additionalModelRequestFields"]
+    assert request["modelId"] == model_id
+    assert request["inferenceConfig"] == {"maxTokens": 4096, "temperature": 0}
+    assert extra == _NOVA2_FIELDS
+    assert "reasoning_effort" not in extra
+    assert "toolConfig" not in request
+
+
+def test_nova2_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_NOVA2_US_ID)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], tools)
+
+    request = client.requests[0]
+    extra = request["additionalModelRequestFields"]
+    assert request["toolConfig"] == {"tools": tools}
+    assert extra == _NOVA2_FIELDS
+    assert "reasoning_effort" not in extra
+    assert request["inferenceConfig"] == {"maxTokens": 4096, "temperature": 0}
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "amazon.nova-2-lite-v1:0",
+        "global.amazon.nova-2-lite-v1:0",
+        "us.amazon.nova-2-lite-v1:0-extra",
+        "us.amazon.nova-2-lite-v1",
+        "eu.amazon.nova-2-lite-v1:0",
+    ],
+)
+def test_non_us_nova2_identifiers_keep_default_inference(
     monkeypatch: pytest.MonkeyPatch, model_id: str
 ) -> None:
     instance, _, client = provider(monkeypatch, response(), model_id=model_id)

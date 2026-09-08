@@ -7,11 +7,12 @@ The stack does not create an IAM user or access keys.
 
 Operators MUST NOT run `cdk bootstrap` or `cdk deploy` unless the user
 authorizes that action. User-authorized deploy creates the restricted role.
-Role deploy does not enable Luna entitlement. Do not mount the deployment
-admin profile in application containers.
+Role deploy does not prove Nova 2 Lite invocation. Do not mount the
+deployment admin profile in application containers.
 
-The latest wiki log records the account gate.
-See [wiki/log.md](../../wiki/log.md).
+The current target is Amazon Nova 2 Lite with reasoning effort `low`.
+A prior Luna access issue is historical. It is not a current permanent block.
+This slice does not claim application success.
 
 ## Boundary
 
@@ -20,9 +21,9 @@ application calls nonstreaming `Converse`, which uses that action. The
 policy does not grant streaming, marketplace subscription, other data-plane
 services, or IAM administration.
 
-The stack pins the selected Luna US inference profile. It does not accept
-model or region lists. It does not permit a global profile, another model
-id, or a resource prefix.
+The stack pins the selected Nova 2 Lite US inference profile. It does not
+accept model or region lists. It does not permit a wildcard, another model
+id, or a Bedrock project ARN.
 
 The template describes one development role. It is not a security proof.
 
@@ -33,20 +34,25 @@ Origin region is `us-east-1`. Destination foundation-model regions are
 
 The stack builds these ARNs from the stack account:
 
-- `arn:aws:bedrock:us-east-1:<account>:inference-profile/us.openai.gpt-5.6-luna`
-- `arn:aws:bedrock:us-east-1:<account>:project/default`
-- `arn:aws:bedrock:us-east-1::foundation-model/openai.gpt-5.6-luna`
-- `arn:aws:bedrock:us-east-2::foundation-model/openai.gpt-5.6-luna`
-- `arn:aws:bedrock:us-west-2::foundation-model/openai.gpt-5.6-luna`
+- `arn:aws:bedrock:us-east-1:<account>:inference-profile/us.amazon.nova-2-lite-v1:0`
+- `arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0`
+- `arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-2-lite-v1:0`
+- `arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-2-lite-v1:0`
 
 Identity statements:
 
-1. `bedrock:InvokeModel` on the origin profile ARN and the default project ARN.
+1. `bedrock:InvokeModel` on the origin profile ARN.
 2. `bedrock:InvokeModel` on the three foundation-model ARNs. The statement
    MUST set `StringEquals` `bedrock:InferenceProfileArn` to the origin
    profile ARN.
 
+The stack MUST NOT grant `bedrock:InvokeModel` on a Bedrock project ARN.
+
 Do not put a personal account id in source. Tests use `111122223333`.
+
+Nova 2 Lite low Converse use is documented in the
+[Nova 2 Converse API guide](https://docs.aws.amazon.com/nova/latest/nova2-userguide/using-converse-api.html).
+The backend and worker set `reasoningConfig`. This stack does not set it.
 
 ## Context
 
@@ -72,7 +78,7 @@ Tags on the stack:
 - `Environment=development`
 - `ManagedBy=AWS-CDK`
 - `Component=bedrock-chat`
-- `Model=openai.gpt-5.6-luna`
+- `Model=amazon.nova-2-lite-v1:0`
 - `ReasoningEffort=low`
 
 The only stack output is `RoleArn`. Outputs MUST NOT include credentials.
@@ -84,7 +90,7 @@ Docker ignores `.env` files. Do not create secrets in the example file.
 
 `.env.example` holds only nonsecret defaults:
 
-- `FEWIA_BEDROCK_MODEL_ID=us.openai.gpt-5.6-luna`
+- `FEWIA_BEDROCK_MODEL_ID=us.amazon.nova-2-lite-v1:0`
 - `FEWIA_BEDROCK_REGION=us-east-1`
 - `FEWIA_AWS_PROFILE=fewia-bedrock-dev`
 
@@ -119,16 +125,10 @@ The host MUST NOT pass the admin user credentials into containers. Floci
 dummy credentials stay separate. Do not set a global `AWS_ENDPOINT_URL`.
 Bedrock MUST keep the real regional `bedrock-runtime` endpoint.
 
-The application `modelId` for this path is `us.openai.gpt-5.6-luna`.
+The application `modelId` for this path is `us.amazon.nova-2-lite-v1:0`.
 
-A configured API and worker do not prove Luna is operational. Converse can
-still return `AccessDeniedException` after role deploy. The same denial can
-occur for the restricted role and for the admin identity. Availability
-states can read AVAILABLE while runtime invocation stays denied. Operators
-MUST NOT treat role deploy as Luna entitlement. The account access team
-MUST resolve that gate. Operators MUST NOT grant extra IAM permissions
-for this gate. The unsent AWS request draft lives in
-[docs/LUNA_ACCESS_REQUEST.md](../../docs/LUNA_ACCESS_REQUEST.md).
+A configured API and worker do not prove Nova 2 Lite is operational.
+Operators MUST NOT treat role deploy as application success.
 
 ## Optional Compose override
 
@@ -163,7 +163,7 @@ at that path.
 ## Cost allocation tags
 
 The role carries cost-allocation tags. IAM-principal tag activation waits
-until Luna invocation is available. See
+until Nova 2 Lite invocation is available. See
 [IAM principal cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/iam-principal-cost-allocation.html).
 
 CUR 2.0 caller identity can enable detailed exports. This project does not
@@ -192,7 +192,8 @@ uv run pytest -q test_stack.py
 A later authorized synth MAY use the CDK CLI with synthetic values. Do not
 commit account context. Operators MUST NOT run `cdk bootstrap` or
 `cdk deploy` unless the user authorizes that action. User-authorized
-deploy creates the restricted role. It does not enable Luna entitlement.
+deploy creates the restricted role. It does not prove Nova 2 Lite
+invocation.
 
 ```bash
 cd infra/bedrock
@@ -204,7 +205,7 @@ cdk synth \
 
 ## Sources
 
-- [GPT-5.6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+- [Nova 2 Converse API](https://docs.aws.amazon.com/nova/latest/nova2-userguide/using-converse-api.html)
 - [IAM for inference profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-prereq.html)
 - [Bedrock Converse](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html)
 - [IAM principal cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/iam-principal-cost-allocation.html)
