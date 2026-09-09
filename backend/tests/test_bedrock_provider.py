@@ -46,13 +46,30 @@ def response() -> dict[str, object]:
     }
 
 
+_LUNA_US_ID = "us.openai.gpt-5.6-luna"
+_LUNA_US_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.openai.gpt-5.6-luna"
+)
+_NOVA2_US_ID = "us.amazon.nova-2-lite-v1:0"
+_NOVA2_US_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/"
+    "us.amazon.nova-2-lite-v1:0"
+)
+_NOVA2_FIELDS = {
+    "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "low"},
+}
+
+
 def provider(
-    monkeypatch: pytest.MonkeyPatch, result: object, profile_name: str | None = None
+    monkeypatch: pytest.MonkeyPatch,
+    result: object,
+    profile_name: str | None = None,
+    model_id: str = "model-id",
 ) -> tuple[bedrock.BedrockConverseProvider, FakeSession, FakeClient]:
     client = FakeClient(result)
     session = FakeSession(client)
     install_session(monkeypatch, session)
-    instance = bedrock.BedrockConverseProvider("model-id", profile_name=profile_name)
+    instance = bedrock.BedrockConverseProvider(model_id, profile_name=profile_name)
     return instance, session, client
 
 
@@ -110,6 +127,110 @@ def test_includes_nonempty_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], tools)
 
     assert client.requests[0]["toolConfig"] == {"tools": tools}
+    assert "additionalModelRequestFields" not in client.requests[0]
+
+
+@pytest.mark.parametrize("model_id", [_LUNA_US_ID, _LUNA_US_ARN])
+def test_luna_low_effort_omits_temperature_and_bounds_tokens(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+    messages = [{"role": "user", "content": [{"text": "hello"}]}]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    assert request["modelId"] == model_id
+    assert request["inferenceConfig"] == {"maxTokens": 4096}
+    assert "temperature" not in request["inferenceConfig"]
+    assert request["additionalModelRequestFields"] == {"reasoning_effort": "low"}
+    assert "toolConfig" not in request
+
+
+def test_luna_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_LUNA_US_ID)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], tools)
+
+    request = client.requests[0]
+    assert request["toolConfig"] == {"tools": tools}
+    assert request["additionalModelRequestFields"] == {"reasoning_effort": "low"}
+    assert request["inferenceConfig"] == {"maxTokens": 4096}
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "openai.gpt-5.6-luna",
+        "global.openai.gpt-5.6-luna",
+        "us.openai.gpt-5.6-luna-extra",
+    ],
+)
+def test_non_us_luna_identifiers_keep_default_inference(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], [])
+
+    request = client.requests[0]
+    assert request["inferenceConfig"] == {"maxTokens": 1024, "temperature": 0}
+    assert "additionalModelRequestFields" not in request
+
+
+@pytest.mark.parametrize("model_id", [_NOVA2_US_ID, _NOVA2_US_ARN])
+def test_nova2_low_effort_sets_tokens_temperature_and_reasoning_config(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+    messages = [{"role": "user", "content": [{"text": "hello"}]}]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    extra = request["additionalModelRequestFields"]
+    assert request["modelId"] == model_id
+    assert request["inferenceConfig"] == {"maxTokens": 4096, "temperature": 0}
+    assert extra == _NOVA2_FIELDS
+    assert "reasoning_effort" not in extra
+    assert "toolConfig" not in request
+
+
+def test_nova2_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_NOVA2_US_ID)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], tools)
+
+    request = client.requests[0]
+    extra = request["additionalModelRequestFields"]
+    assert request["toolConfig"] == {"tools": tools}
+    assert extra == _NOVA2_FIELDS
+    assert "reasoning_effort" not in extra
+    assert request["inferenceConfig"] == {"maxTokens": 4096, "temperature": 0}
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "amazon.nova-2-lite-v1:0",
+        "global.amazon.nova-2-lite-v1:0",
+        "us.amazon.nova-2-lite-v1:0-extra",
+        "us.amazon.nova-2-lite-v1",
+        "eu.amazon.nova-2-lite-v1:0",
+    ],
+)
+def test_non_us_nova2_identifiers_keep_default_inference(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], [])
+
+    request = client.requests[0]
+    assert request["inferenceConfig"] == {"maxTokens": 1024, "temperature": 0}
+    assert "additionalModelRequestFields" not in request
 
 
 @pytest.mark.parametrize(

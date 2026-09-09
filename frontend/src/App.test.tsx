@@ -5,16 +5,105 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import { SAMPLE_ESTIMATE_NOTICE, type GroceryConfig, type GroceryJob } from "./apiTypes";
-import { initialForm } from "./BudgetForm";
+import {
+  SAMPLE_ESTIMATE_NOTICE,
+  type GroceryConfig,
+  type GroceryJob,
+  type ProviderCapabilities,
+} from "./apiTypes";
+import { initialForm, type FormState } from "./BudgetForm";
+import type { ChatJob, ChatResult } from "./chatTypes";
+import { useChatConversation } from "./useChatConversation";
 import { useGroceryDemo, type GroceryDemo } from "./useGroceryDemo";
+import { useProviderCapabilities } from "./useProviderCapabilities";
 
 vi.mock("./useGroceryDemo", () => ({
   useGroceryDemo: vi.fn(),
 }));
 
+vi.mock("./useChatConversation", () => ({
+  useChatConversation: vi.fn(),
+}));
+
+vi.mock("./useProviderCapabilities", () => ({
+  useProviderCapabilities: vi.fn(),
+}));
+
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const CATALOG_UNAVAILABLE = "The grocery catalog is unavailable. Retry the catalog request.";
+const PROVIDER_UNAVAILABLE =
+  "The provider configuration is unavailable. Retry the provider request.";
+const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+const providersReady: ProviderCapabilities = {
+  chat_configured: true,
+  plaid_configured: false,
+  instacart_configured: false,
+  spending_source: "fixture",
+};
+
+type ChatHook = ReturnType<typeof useChatConversation>;
+
+function chatState(overrides: Partial<ChatHook> = {}): ChatHook {
+  return {
+    message: "",
+    setMessage: vi.fn(),
+    messages: [],
+    job: null,
+    error: null,
+    pending: false,
+    hasRequest: false,
+    send: vi.fn(),
+    retry: vi.fn(),
+    newConversation: vi.fn(),
+    ...overrides,
+  };
+}
+
+function plannedChat(): ChatResult {
+  return {
+    status: "planned",
+    answer: "Bean tacos fit the budget.",
+    plan: {
+      lines: [
+        {
+          ingredient_id: "black_beans",
+          name: "black beans",
+          unit: "g",
+          quantity: 425,
+          packages: 1,
+          cost_cents: 1703,
+          from_pantry: false,
+        },
+      ],
+      total_cents: 1703,
+      accepted: true,
+      warnings: ["Plan warning"],
+      catalog_version: "sample-prices-v1",
+      notice: NOTICE,
+    },
+    budget: { available_cents: 5000, pending_cents: 200, stale: false, warnings: [] },
+    request: {
+      meals: [{ recipe_id: "lentil_soup", servings: 4 }],
+      budget_period: "2026-09-01",
+      plan_cap_cents: 2000,
+      pantry_ingredients: ["black_beans"],
+      ingredient_exclusions: [],
+      diet: "vegetarian",
+    },
+    evidence_id: null,
+    evidence_revision_id: REVISION,
+    spending_source: "fixture",
+    tool_trace: [],
+    model_turns: 1,
+    planner_revisions: 0,
+    usage: null,
+  };
+}
+
+function chatJob(result: ChatResult): ChatJob {
+  return { id: "chat-1", status: "succeeded", result, error_code: null };
+}
 
 const demoConfig: GroceryConfig = {
   budget_period: "2026-09-01",
@@ -96,8 +185,19 @@ function demoState(overrides: Partial<GroceryDemo> = {}): GroceryDemo {
   };
 }
 
-function mount(demo: GroceryDemo): ReactTestRenderer {
+function mount(
+  demo: GroceryDemo,
+  chat: ChatHook = chatState(),
+  provider: ReturnType<typeof useProviderCapabilities> = {
+    capabilities: providersReady,
+    pending: false,
+    error: null,
+    retry: vi.fn(),
+  },
+): ReactTestRenderer {
   vi.mocked(useGroceryDemo).mockReturnValue(demo);
+  vi.mocked(useChatConversation).mockReturnValue(chat);
+  vi.mocked(useProviderCapabilities).mockReturnValue(provider);
   let renderer: ReactTestRenderer | undefined;
   act(() => {
     renderer = create(createElement(App));
@@ -111,6 +211,8 @@ function mount(demo: GroceryDemo): ReactTestRenderer {
 describe("App", () => {
   beforeEach(() => {
     vi.mocked(useGroceryDemo).mockReset();
+    vi.mocked(useChatConversation).mockReset();
+    vi.mocked(useProviderCapabilities).mockReset();
   });
 
   it("keeps the shell wordmark, local demo label, title, and footer", () => {
@@ -132,7 +234,8 @@ describe("App", () => {
     expect(status.props.role).toBe("status");
     expect(childText(status)).toBe("Loading the grocery catalog.");
     expect(childText(renderer.root)).not.toContain("Submitting your grocery request.");
-    expect(renderer.root.findAllByType("form")).toHaveLength(0);
+    expect(renderer.root.findAllByType("form")).toHaveLength(1);
+    expect(childText(renderer.root)).toContain("Meal chat");
     expect(childText(renderer.root)).toContain(NOTICE);
     expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
     expect(buttonNamed(renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(true);
@@ -174,7 +277,13 @@ describe("App", () => {
     const alert = renderer.root.findByProps({ role: "alert" });
     expect(childText(alert)).toBe("Choose 1 to 3 meals.");
     expect(childText(renderer.root)).toContain("Source Demo spending. Pending -$0.50");
-    const onSubmit = renderer.root.findByType("form").props.onSubmit as (event: {
+    const budgetForm = renderer.root.findAllByType("form").find((form) =>
+      form.findAllByType("button").some((node) => childText(node) === "Build my estimate"),
+    );
+    if (budgetForm === undefined) {
+      throw new Error("missing Build my estimate form");
+    }
+    const onSubmit = budgetForm.props.onSubmit as (event: {
       preventDefault: () => void;
     }) => void;
     act(() => {
@@ -195,6 +304,7 @@ describe("App", () => {
     expect(text).toContain("black beans");
     expect(renderer.root.findAllByType("h2").map(childText)).toEqual([
       "Your conversation",
+      "Meal chat",
       "Grocery estimate",
     ]);
     expect(renderer.root.findAllByType("a")).toHaveLength(0);
@@ -332,6 +442,57 @@ describe("App", () => {
     expect(retryButton.props.disabled).toBe(false);
     act(() => {
       (retryButton.props.onClick as () => void)();
+    });
+    expect(retry).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it("shows meal chat and disables the form while chat is pending", () => {
+    const renderer = mount(demoState(), chatState({ pending: true, message: "Plan tacos" }));
+    expect(childText(renderer.root)).toContain("Meal chat");
+    expect(childText(renderer.root)).toContain("Your request is in progress.");
+    expect(buttonNamed(renderer.root, "Build my estimate").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
+    expect(renderer.root.findByType("fieldset").props.disabled).toBe(true);
+    renderer.unmount();
+  });
+
+  it("applies a chat plan to the shared estimate without raising the monthly budget", () => {
+    const setForm = vi.fn();
+    const form: FormState = { ...initialForm(), monthly: "300", cap: "40" };
+    const renderer = mount(
+      demoState({ setForm, form }),
+      chatState({
+        messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+        job: chatJob(plannedChat()),
+        hasRequest: true,
+      }),
+    );
+    expect(childText(renderer.root)).toContain("$17.03");
+    expect(childText(renderer.root)).toContain(NOTICE);
+    expect(childText(renderer.root)).toContain("Plan warning");
+    expect(setForm).toHaveBeenCalled();
+    const next = setForm.mock.calls[0]?.[0] as FormState;
+    expect(next.monthly).toBe("300");
+    expect(next.cap).toBe("20.00");
+    expect(next.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    renderer.unmount();
+  });
+
+  it("shows provider retry and does not claim a live chat connection", () => {
+    const retry = vi.fn();
+    const renderer = mount(demoState(), chatState(), {
+      capabilities: null,
+      pending: false,
+      error: PROVIDER_UNAVAILABLE,
+      retry,
+    });
+    expect(childText(renderer.root)).toContain(PROVIDER_UNAVAILABLE);
+    expect(childText(renderer.root)).toContain("Meal chat is unavailable.");
+    expect(childText(renderer.root).toLowerCase()).not.toContain("chat is connected");
+    act(() => {
+      (buttonNamed(renderer.root, "Retry provider status").props.onClick as () => void)();
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();

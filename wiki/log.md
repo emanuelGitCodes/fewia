@@ -1230,3 +1230,199 @@ collapses, and 121 exact duplicates. These are analysis coverage limits. The rep
 and health diagnostics preserve them. Semantic token usage is unavailable.
 The local ignored graph outputs are refreshed again after this documentation merge.
 Chat integration, live provider checks, and the 90-run evaluation remain incomplete.
+
+## 2026-09-07 — Visible meal chat on the local page
+
+The user asked to resume visible chat integration on `codex/visible-meal-chat`.
+Grok 4.6 writers completed this slice.
+A separate Grok agent reviewed the frontend independently.
+
+A fresh worker repaired bounded-history request identity.
+The same worker repaired CSS rule precedence.
+
+The coordinator reported that `npm test` passed after a test selector repair.
+`npm run build` also passed.
+An earlier test run reported 253 passed and 1 failed.
+The page now has two forms.
+
+The coordinator reported that backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,366 passed.
+Pytest skipped eight optional database tests.
+One existing Starlette warning remains.
+
+Operators updated the local web container from the current frontend sources.
+A browser at `127.0.0.1:5173` shows Meal chat beside the manual planner.
+The estimate view remains visible.
+The console showed no errors.
+No framework overlay appeared.
+
+Manual bean tacos for two succeeded at 1,703 cents.
+The sample-price notice remained visible.
+The chat reset button works.
+
+The backend reports `chat_configured` false.
+The composer Send control stays disabled.
+Real AI replies were not tested.
+Real AI replies are not available.
+AWS profile and model configuration remains the blocker.
+
+This entry does not claim full context transfer from the manual planner to chat.
+It does not prove a live provider.
+Feature work pauses here pending configuration and user feedback.
+No push or merge occurred.
+
+## 2026-09-08 — Restricted Bedrock development role
+
+The user authorized a Python CDK restricted IAM role.
+The user chose application Luna with reasoning effort low.
+Grok 4.6 was the sole writer.
+
+Local commit `578b8b6` records the CDK stack and environment template.
+Local commit `9fa058c` records the provider low setting.
+Local commit `96ab136` records the MFA helper.
+
+Live AWS evidence: stack `FewiaBedrockDev` reports `CREATE_COMPLETE` in `us-east-1`.
+The verified live IAM role is `FewiaBedrockDev-DevConverse6250D9A7-xsXUAGbONTTL`.
+The trust policy names the same-account admin user.
+The trust requires MFA.
+The session duration is 3600 seconds.
+The role has no attached managed policy.
+The role permits `InvokeModel` only.
+The allow list is the selected US Luna profile default project plus three profile-conditioned models.
+
+Role tags are Project FEWIA, Environment development, and ManagedBy AWS-CDK.
+Further tags are Component bedrock-chat, Model openai.gpt-5.6-luna, and ReasoningEffort low.
+No IAM user was created.
+No access key was created.
+
+Deterministic CDK evidence: 14 tests passed.
+Ruff, format, and strict mypy passed on 3 CDK files.
+Deterministic backend evidence: 1372 tests passed.
+Eight PostgreSQL tests skipped due to environment.
+One existing warning remains.
+Ruff, format, and mypy passed 85 backend files.
+Deterministic helper evidence: 10 fake tests passed.
+Ruff, format, and mypy passed on the helper.
+
+The local `.env` file has mode 600.
+Git and Docker ignore it.
+It holds nonsecret settings and paths only.
+Actual role credentials are not issued yet.
+API and worker images were built.
+The Compose override parse passed.
+Services were not restarted.
+
+The user MUST run the helper in a private terminal.
+The user MUST enter MFA privately.
+This log MUST NOT record an MFA code or credential value.
+A browser real Luna reply was not verified.
+Cost tags are attached to the role.
+Billing activation waits for the first Bedrock call.
+No Cost and Usage Report export exists.
+No hard dollar cap exists.
+No push or merge occurred.
+
+This record MUST NOT claim a fully operational system.
+This record MUST NOT claim a security guarantee.
+
+Next, the user runs the helper.
+The user then enters MFA privately.
+Then the operator verifies the restricted identity.
+Then the operator enables the API.
+Then the operator enables the worker.
+Then the operator runs a real chat.
+Then the operator runs a follow-up.
+Then the operator activates IAM billing tags when they are available.
+
+## 2026-09-08 — Luna configured, runtime still denied
+
+Source: coordinator checkpoint. This entry does not claim independent
+live AWS checks.
+
+Deployed evidence: stack `FewiaBedrockDev` remains `CREATE_COMPLETE`.
+
+Live coordinator evidence: the MFA helper succeeded in a private
+terminal. The restricted assumed-role identity was verified. The
+credential file mode is `600`. The ignored `.env` mode is `600`. That
+file holds nonsecret settings and path metadata only.
+
+Local app evidence: operators rebuilt `api` and `worker`. Operators
+force-recreated those services. Health returned 200.
+`chat_configured` is true. The chat textbox accepts input.
+
+Live Bedrock evidence: the first browser meal request failed before an
+answer. Direct Converse with the restricted role returned this error:
+
+```
+AccessDeniedException: openai.gpt-5.6-luna is not available for this account, explore other models or contact AWS Sales
+```
+
+Direct Converse with the admin identity returned the same error.
+
+The admin identity completed a one-time
+`create-foundation-model-agreement` for the user-selected Luna model.
+Agreement availability progressed from PENDING to AVAILABLE. The final
+query reported agreement AVAILABLE, authorization AUTHORIZED,
+entitlement AVAILABLE, and region AVAILABLE. The US inference profile
+is ACTIVE. A later runtime probe still returned the same denial after a
+propagation wait.
+
+There is no successful Luna reply. There is no quality score. There is
+no fallback model. The app is configured. The app is not operational
+with Luna.
+
+The account access team MUST resolve this gate. Operators MUST NOT
+grant extra IAM permissions for this gate.
+
+Billing tags remain on the role. IAM-principal activation waits until
+invocation is available. There is no CUR export. There is no hard cap.
+
+The unsent AWS request draft lives in
+[docs/LUNA_ACCESS_REQUEST.md](../docs/LUNA_ACCESS_REQUEST.md).
+Operators MUST NOT send it until the user authorizes that action.
+This worker did not send the request.
+This log MUST NOT record a credential, token, MFA code, or offer token.
+No push or merge occurred.
+
+## 2026-09-08 — Live Nova 2 Lite chat verified
+
+Source: coordinator checkpoint. Feature work is PAUSED as the user requested.
+
+Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`.
+Operators updated the IAM role in place. Operators did not replace the role.
+Role tags set Model to Nova 2. Role tags keep ReasoningEffort `low`.
+Project and Environment billing keys are active.
+Model and principal-specific activation waits for AWS appearance.
+
+Two-servings bean tacos produced a live reply and estimate of USD 17.03.
+A four-servings follow-up produced USD 18.32.
+The budget 40 stayed preserved.
+The form updated to 4.
+The browser showed no errors.
+
+The first live display used the wrong currency.
+A later fix used server USD display.
+Stored plan and evidence were not changed.
+
+Sample catalog prices remain.
+Fixture spending remains.
+This record MUST NOT claim real Plaid Sandbox proof.
+This record MUST NOT claim real Instacart proof.
+Full manual-to-chat transfer remains unfinished.
+No 90-run evaluation ran.
+This record MUST NOT claim a completed AI product.
+
+Deterministic evidence: 1,383 backend tests passed.
+Eight database tests skipped.
+Ruff, format, and strict mypy passed.
+CDK 14 tests passed.
+Helper 10 tests passed.
+
+The one-hour MFA session expired after live verification.
+Operators MUST renew MFA before the next live test.
+Local commit `282f682` records the model change.
+Local commit `06d41f3` records the currency display change.
+No push or merge occurred.
+This log MUST NOT record a credential, token, or MFA code.

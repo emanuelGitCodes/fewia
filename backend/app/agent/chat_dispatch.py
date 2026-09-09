@@ -21,6 +21,43 @@ def _revision_index(trace: list[dict[str, object]]) -> int:
     return 1 + sum(1 for item in trace if item.get("tool") == TOOL_NAME)
 
 
+def _usd_cents_display(cents: object) -> str | None:
+    if type(cents) is not int:
+        return None
+    sign = "-" if cents < 0 else ""
+    magnitude = -cents if cents < 0 else cents
+    dollars = magnitude // 100
+    fraction = magnitude % 100
+    return f"USD {sign}${dollars}.{fraction:02d}"
+
+
+def _money_display(payload: dict[str, object]) -> dict[str, str]:
+    plan = payload.get("plan")
+    budget = payload.get("budget")
+    total = None if not isinstance(plan, dict) else plan.get("total_cents")
+    available = None if not isinstance(budget, dict) else budget.get("available_cents")
+    pending = None if not isinstance(budget, dict) else budget.get("pending_cents")
+    total_text = _usd_cents_display(total)
+    available_text = _usd_cents_display(available)
+    pending_text = _usd_cents_display(pending)
+    display: dict[str, str] = {
+        "total": "unknown" if total_text is None else total_text,
+    }
+    if available_text is not None:
+        display["available"] = available_text
+    if pending_text is not None:
+        display["pending"] = pending_text
+    return display
+
+
+def _llm_tool_payload(payload: dict[str, object]) -> dict[str, object]:
+    wrapped = dict(payload)
+    wrapped["currency"] = "USD"
+    wrapped["money_unit"] = "cents"
+    wrapped["money_display"] = _money_display(payload)
+    return wrapped
+
+
 def _entry(
     *,
     tool: str,
@@ -104,4 +141,6 @@ def dispatch(
             evidence_revision_id=revision_id,
         )
     )
-    return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
+    return payload, msgs.tool_result_block(
+        call.tool_use_id, _llm_tool_payload(payload), success=True
+    )

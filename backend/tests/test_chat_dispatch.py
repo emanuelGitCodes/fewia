@@ -64,6 +64,24 @@ def budget(available_cents: int = 10_000) -> BudgetResult:
     return BudgetResult(available_cents, 250, False, ())
 
 
+def _usd(cents: int) -> str:
+    sign = "-" if cents < 0 else ""
+    magnitude = -cents if cents < 0 else cents
+    return f"USD {sign}${magnitude // 100}.{magnitude % 100:02d}"
+
+
+def _tool_json(block: dict[str, object]) -> dict[str, object]:
+    result = block["toolResult"]
+    assert isinstance(result, dict)
+    content = result["content"]
+    assert isinstance(content, list)
+    first = content[0]
+    assert isinstance(first, dict)
+    body = first["json"]
+    assert isinstance(body, dict)
+    return body
+
+
 def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:
     call = ToolCall("call-1", TOOL_NAME, arguments())
     trace: list[dict[str, object]] = []
@@ -71,19 +89,31 @@ def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:
     candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
     assert candidate == expected
     assert candidate is not None
-    assert block == {
-        "toolResult": {
-            "toolUseId": "call-1",
-            "content": [{"json": expected}],
-            "status": "success",
-        }
+    assert block["toolResult"]["toolUseId"] == "call-1"
+    assert block["toolResult"]["status"] == "success"
+    json_body = _tool_json(block)
+    plan = expected["plan"]
+    budget_payload = expected["budget"]
+    assert isinstance(plan, dict)
+    assert isinstance(budget_payload, dict)
+    assert json_body["plan"] == plan
+    assert json_body["budget"] == budget_payload
+    assert json_body["evidence_id"] == expected["evidence_id"]
+    assert json_body["currency"] == "USD"
+    assert json_body["money_unit"] == "cents"
+    assert json_body["money_display"] == {
+        "total": _usd(cast(int, plan["total_cents"])),
+        "available": _usd(cast(int, budget_payload["available_cents"])),
+        "pending": _usd(cast(int, budget_payload["pending_cents"])),
     }
     evidence = expected["evidence_id"]
     assert isinstance(evidence, str)
     assert trace == [_success_trace("call-1", evidence)]
     assert "evidence_revision_id" not in expected
     assert "evidence_revision_id" not in candidate
-    json_body = block["toolResult"]["content"][0]["json"]
+    assert "currency" not in candidate
+    assert "money_unit" not in candidate
+    assert "money_display" not in candidate
     assert "evidence_revision_id" not in json_body
 
 
@@ -200,8 +230,15 @@ def test_record_evidence_sees_plain_payload_before_injection() -> None:
     assert candidate is not None
     assert candidate["evidence_revision_id"] == _REV
     assert "evidence_revision_id" not in seen[0]
-    json_body = block["toolResult"]["content"][0]["json"]
+    assert "currency" not in seen[0]
+    assert "money_display" not in seen[0]
+    assert "currency" not in candidate
+    assert "money_display" not in candidate
+    json_body = _tool_json(block)
     assert json_body["evidence_revision_id"] == _REV
+    assert json_body["currency"] == "USD"
+    assert json_body["money_unit"] == "cents"
+    assert "money_display" in json_body
     assert trace == [
         _success_trace("call-1", expected["evidence_id"], revision_id=_REV)
     ]
@@ -330,3 +367,100 @@ def test_repeated_revision_id_keeps_ordered_occurrences() -> None:
     assert "chicken_tacos" not in dumped
     assert "meals" not in dumped
     assert "reasoningContent" not in dumped
+
+
+def test_llm_tool_result_formats_usd_without_mutating_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan: dict[str, object] = {"total_cents": 1703, "accepted": True}
+    budget_payload: dict[str, object] = {
+        "available_cents": 4000,
+        "pending_cents": -50,
+    }
+    fake_payload: dict[str, object] = {
+        "request": {},
+        "plan": plan,
+        "budget": budget_payload,
+        "spending_source": "fixture",
+        "evidence_id": "ev-1703",
+    }
+    recorded: list[dict[str, object]] = []
+
+    def fake_execute(
+        _arguments: object,
+        _budget: BudgetResult,
+        _period: date,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        return fake_payload
+
+    def record(payload: dict[str, object]) -> str:
+        recorded.append(payload)
+        return _REV
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
+    call = ToolCall("call-1", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(
+        call, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    assert candidate is fake_payload
+    assert recorded == [fake_payload]
+    assert candidate["plan"] is plan
+    assert candidate["budget"] is budget_payload
+    assert plan == {"total_cents": 1703, "accepted": True}
+    assert budget_payload == {"available_cents": 4000, "pending_cents": -50}
+    assert "currency" not in candidate
+    assert "money_unit" not in candidate
+    assert "money_display" not in candidate
+    json_body = _tool_json(block)
+    assert json_body is not candidate
+    assert json_body["plan"] is plan
+    assert json_body["budget"] is budget_payload
+    assert json_body["currency"] == "USD"
+    assert json_body["money_unit"] == "cents"
+    assert json_body["money_display"] == {
+        "total": "USD $17.03",
+        "available": "USD $40.00",
+        "pending": "USD -$0.50",
+    }
+    assert json_body["evidence_revision_id"] == _REV
+    assert candidate["evidence_revision_id"] == _REV
+
+
+def test_missing_total_stays_unknown_and_does_not_become_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan: dict[str, object] = {"total_cents": None, "accepted": False}
+    budget_payload: dict[str, object] = {"pending_cents": 250}
+    fake_payload: dict[str, object] = {
+        "request": {},
+        "plan": plan,
+        "budget": budget_payload,
+        "spending_source": "fixture",
+        "evidence_id": "ev-missing",
+    }
+
+    def fake_execute(
+        _arguments: object,
+        _budget: BudgetResult,
+        _period: date,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        return fake_payload
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
+    call = ToolCall("call-1", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is fake_payload
+    assert "currency" not in candidate
+    assert "money_display" not in candidate
+    json_body = _tool_json(block)
+    display = json_body["money_display"]
+    assert isinstance(display, dict)
+    assert display["total"] == "unknown"
+    assert "available" not in display
+    assert display["pending"] == "USD $2.50"
+    assert display.get("total") != "USD $0.00"
+    assert "available_cents" not in budget_payload
