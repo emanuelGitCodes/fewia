@@ -82,6 +82,12 @@ def budget(available_cents: int = 10_000) -> BudgetResult:
     return BudgetResult(available_cents, 250, False, ())
 
 
+def _usd(cents: int) -> str:
+    sign = "-" if cents < 0 else ""
+    magnitude = -cents if cents < 0 else cents
+    return f"USD {sign}${magnitude // 100}.{magnitude % 100:02d}"
+
+
 def plan_args(**overrides: object) -> dict[str, object]:
     values: dict[str, object] = {
         "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
@@ -287,6 +293,23 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert isinstance(content, list)
     assert content[0]["toolResult"]["toolUseId"] == "call-1"
     assert content[0]["toolResult"]["status"] == "success"
+    json_body = content[0]["toolResult"]["content"][0]["json"]
+    assert isinstance(json_body, dict)
+    plan = expected["plan"]
+    budget_payload = expected["budget"]
+    assert isinstance(plan, dict)
+    assert isinstance(budget_payload, dict)
+    assert json_body["plan"] == plan
+    assert json_body["budget"] == budget_payload
+    assert json_body["currency"] == "USD"
+    assert json_body["money_unit"] == "cents"
+    assert json_body["money_display"] == {
+        "total": _usd(cast(int, plan["total_cents"])),
+        "available": _usd(cast(int, budget_payload["available_cents"])),
+        "pending": _usd(cast(int, budget_payload["pending_cents"])),
+    }
+    assert "currency" not in expected
+    assert "money_display" not in expected
     _validate_converse(
         cast(str, provider.requests[1]["system"]),
         cast(list[dict[str, object]], second_messages),
@@ -728,6 +751,16 @@ def test_exact_server_caps() -> None:
     assert MAX_PLANNER_REVISIONS == 3
 
 
+def test_system_prompt_states_usd_cents_contract() -> None:
+    assert "integer USD cents" in SYSTEM_PROMPT
+    assert "*_cents" in SYSTEM_PROMPT
+    assert "yen" in SYSTEM_PROMPT
+    assert "whole-currency" in SYSTEM_PROMPT
+    assert "money_display" in SYSTEM_PROMPT
+    assert "estimate panel" in SYSTEM_PROMPT
+    assert "concise plain-text" in SYSTEM_PROMPT
+
+
 def test_invalid_request_uses_context_validation() -> None:
     provider = FakeLLM([])
     with pytest.raises(ChatProtocolError, match="request is invalid") as caught:
@@ -777,6 +810,11 @@ def test_record_evidence_runs_before_next_provider_turn() -> None:
     json_body = content[0]["toolResult"]["content"][0]["json"]
     assert json_body["evidence_revision_id"] == _REV
     assert json_body["evidence_id"] == expected["evidence_id"]
+    assert json_body["currency"] == "USD"
+    assert json_body["money_unit"] == "cents"
+    assert "money_display" in json_body
+    assert "currency" not in expected
+    assert "money_display" not in seen[0]
     _validate_converse(
         cast(str, provider.requests[1]["system"]),
         cast(list[dict[str, object]], second_messages),
