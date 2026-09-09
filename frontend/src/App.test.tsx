@@ -5,6 +5,7 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { REBUILD_CHAT_GUIDANCE } from "./ChatWorkspace";
 import {
   SAMPLE_ESTIMATE_NOTICE,
   type GroceryConfig,
@@ -495,6 +496,62 @@ describe("App", () => {
       (buttonNamed(renderer.root, "Retry provider status").props.onClick as () => void)();
     });
     expect(retry).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it("shows rebuild guidance when dirty pantry is not in the saved plan", () => {
+    const submitForm = vi.fn(async () => undefined);
+    const renderer = mount(
+      demoState({
+        dirty: true,
+        job: succeededJob,
+        submitForm,
+        form: { ...initialForm(), pantry: ["black_beans"] },
+      }),
+      chatState({ message: "Add soup to the plan." }),
+    );
+    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(false);
+    expect(buttonNamed(renderer.root, "Build my estimate").props.disabled).toBe(false);
+    act(() => {
+      (buttonNamed(renderer.root, "Rebuild estimate").props.onClick as () => void)();
+    });
+    expect(submitForm).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it("disables a fresh chat send when the catalog is blocked and keeps retry", () => {
+    const retry = vi.fn();
+    const renderer = mount(
+      demoState({
+        configError: CATALOG_UNAVAILABLE,
+        job: succeededJob,
+      }),
+      chatState({
+        message: "Add soup to the plan.",
+        hasRequest: true,
+        retry,
+      }),
+    );
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
+    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
+    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    act(() => {
+      (buttonNamed(renderer.root, "Retry the same request").props.onClick as () => void)();
+    });
+    expect(retry).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it("keeps chat-first send when no saved plan owns the form", () => {
+    const renderer = mount(
+      demoState({ form: { ...initialForm(), pantry: ["black_beans"] } }),
+      chatState({ message: "Plan bean tacos for two." }),
+    );
+    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
     renderer.unmount();
   });
 });

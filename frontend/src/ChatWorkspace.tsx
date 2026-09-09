@@ -7,6 +7,8 @@ import { useChatConversation, type ChatTurn } from "./useChatConversation";
 import { useProviderCapabilities } from "./useProviderCapabilities";
 import "./chat.css";
 
+export const REBUILD_CHAT_GUIDANCE = "Rebuild your estimate to use these changes in chat";
+
 function formKey(form: FormState): string {
   return JSON.stringify(form);
 }
@@ -21,15 +23,28 @@ function latestUserTurnId(messages: ChatTurn[]): string | null {
   return latest;
 }
 
+function validManualId(job: GroceryJob | null): string | null {
+  if (job === null || job.status !== "succeeded" || job.result === null) {
+    return null;
+  }
+  return job.id;
+}
+
 export type ChatWorkspaceInput = {
   form: FormState;
   setForm: Dispatch<SetStateAction<FormState>>;
   formJob: GroceryJob | null;
+  formDirty?: boolean;
 };
 
 type EstimateSource = { kind: "chat" | "form"; id: string };
 
-export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput): {
+export function useChatWorkspace({
+  form,
+  setForm,
+  formJob,
+  formDirty = false,
+}: ChatWorkspaceInput): {
   pending: boolean;
   estimateJob: GroceryJob | null;
   estimateDirty: boolean;
@@ -38,18 +53,26 @@ export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput)
   providerError: string | null;
   retryProviders: () => void;
   conversation: ReturnType<typeof useChatConversation>;
+  needsRebuild: boolean;
 } {
   const providers = useProviderCapabilities();
-  const conversation = useChatConversation(chatBudgetFromForm(form));
+  const [source, setSource] = useState<EstimateSource | null>(null);
+  const [appliedKey, setAppliedKey] = useState<string | null>(null);
+  const [chatEstimate, setChatEstimate] = useState<GroceryJob | null>(null);
+  const owned =
+    source !== null && appliedKey !== null && formKey(form) === appliedKey;
+  const contextId = owned ? source.id : null;
+  const needsRebuild = source !== null && !owned;
+  const conversation = useChatConversation(chatBudgetFromForm(form), contextId);
   const formEpoch = useRef(0);
   const sendEpoch = useRef(0);
+  const manualGen = useRef(0);
+  const sendManualGen = useRef(0);
   const lastUserId = useRef<string | null>(null);
   const applying = useRef(false);
   const formReady = useRef(false);
   const seenChat = useRef(new Set<string>());
   const seenForm = useRef<string | null>(null);
-  const [source, setSource] = useState<EstimateSource | null>(null);
-  const [appliedKey, setAppliedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (applying.current) {
@@ -73,6 +96,7 @@ export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput)
       return;
     }
     sendEpoch.current = formEpoch.current;
+    sendManualGen.current = manualGen.current;
     lastUserId.current = userId;
   }, [conversation.messages]);
 
@@ -85,10 +109,15 @@ export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput)
       return;
     }
     seenChat.current.add(job.id);
-    if (formEpoch.current !== sendEpoch.current) {
+    const incoming = validManualId(formJob);
+    if (incoming !== null && incoming !== seenForm.current) {
       return;
     }
-    if (chatEstimateJob(job) === null) {
+    if (formEpoch.current !== sendEpoch.current || manualGen.current !== sendManualGen.current) {
+      return;
+    }
+    const estimate = chatEstimateJob(job);
+    if (estimate === null) {
       return;
     }
     const next = formFromChat(form, job.result);
@@ -97,8 +126,9 @@ export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput)
       setForm(next);
     }
     setAppliedKey(formKey(next));
+    setChatEstimate(estimate);
     setSource({ kind: "chat", id: job.id });
-  }, [conversation.job, form, setForm]);
+  }, [conversation.job, form, formJob, setForm]);
 
   useEffect(() => {
     if (formJob === null || formJob.status !== "succeeded" || formJob.result === null) {
@@ -108,13 +138,15 @@ export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput)
       return;
     }
     seenForm.current = formJob.id;
+    manualGen.current += 1;
+    setChatEstimate(null);
     setSource({ kind: "form", id: formJob.id });
-  }, [formJob]);
+    if (!formDirty) {
+      setAppliedKey(formKey(form));
+    }
+  }, [form, formDirty, formJob]);
 
-  const chatPlan =
-    source?.kind === "chat" && conversation.job?.id === source.id
-      ? chatEstimateJob(conversation.job)
-      : null;
+  const chatPlan = source?.kind === "chat" ? chatEstimate : null;
   return {
     pending: conversation.pending,
     estimateJob: chatPlan,
@@ -124,6 +156,7 @@ export function useChatWorkspace({ form, setForm, formJob }: ChatWorkspaceInput)
     providerError: providers.error,
     retryProviders: providers.retry,
     conversation,
+    needsRebuild,
   };
 }
 
@@ -134,8 +167,12 @@ export function ChatWorkspace(props: {
   providerError: string | null;
   retryProviders: () => void;
   conversation: ReturnType<typeof useChatConversation>;
+  freshSendBlocked?: boolean;
+  freshSendDisabled?: boolean;
 }): JSX.Element {
   const chat = props.conversation;
+  const rebuild = props.freshSendBlocked === true;
+  const sendLocked = rebuild || props.freshSendDisabled === true;
   return (
     <div className="chat-workspace">
       {props.providerError !== null ? (
@@ -148,11 +185,20 @@ export function ChatWorkspace(props: {
           </button>
         </div>
       ) : null}
+      {rebuild ? (
+        <p className="conversation-status" role="status" aria-live="polite">
+          {REBUILD_CHAT_GUIDANCE}
+        </p>
+      ) : null}
       <ChatPanel
         messages={chat.messages}
         text={chat.message}
         onChange={chat.setMessage}
-        onSend={chat.send}
+        onSend={() => {
+          if (!sendLocked) {
+            chat.send();
+          }
+        }}
         onRetry={chat.retry}
         onNewConversation={chat.newConversation}
         pending={chat.pending}
@@ -161,6 +207,7 @@ export function ChatWorkspace(props: {
         configurationPending={props.configurationPending}
         hasRequest={chat.hasRequest}
         disabled={props.formPending}
+        freshSendDisabled={sendLocked}
       />
     </div>
   );

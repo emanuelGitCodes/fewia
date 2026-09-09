@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob, type ProviderCapabilities } from "./apiTypes";
 import { initialForm, type FormState } from "./BudgetForm";
 import type { ChatJob, ChatResult } from "./chatTypes";
-import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
+import { ChatWorkspace, REBUILD_CHAT_GUIDANCE, useChatWorkspace } from "./ChatWorkspace";
+import { chatBudgetFromForm } from "./chatWorkspaceModel";
 import { useChatConversation, type ChatTurn } from "./useChatConversation";
 import { useProviderCapabilities } from "./useProviderCapabilities";
 
@@ -173,10 +174,16 @@ function HookHost(props: {
   bucket: { current: Bucket | null };
   formJob: GroceryJob | null;
   formPending: boolean;
+  formDirty: boolean;
   start?: FormState;
 }): JSX.Element {
   const [form, setForm] = useState(props.start ?? initialForm());
-  const chat = useChatWorkspace({ form, setForm, formJob: props.formJob });
+  const chat = useChatWorkspace({
+    form,
+    setForm,
+    formJob: props.formJob,
+    formDirty: props.formDirty,
+  });
   props.bucket.current = { form, setForm, chat };
   return createElement(ChatWorkspace, {
     formPending: props.formPending,
@@ -185,22 +192,29 @@ function HookHost(props: {
     providerError: chat.providerError,
     retryProviders: chat.retryProviders,
     conversation: chat.conversation,
+    freshSendBlocked: chat.needsRebuild,
   });
 }
 
 function mount(options: {
   formJob?: GroceryJob | null;
   formPending?: boolean;
+  formDirty?: boolean;
   start?: FormState;
 }): {
   bucket: { current: Bucket | null };
   renderer: ReactTestRenderer;
-  refresh: (next?: { formJob?: GroceryJob | null; formPending?: boolean }) => void;
+  refresh: (next?: {
+    formJob?: GroceryJob | null;
+    formPending?: boolean;
+    formDirty?: boolean;
+  }) => void;
 } {
   bind();
   const bucket: { current: Bucket | null } = { current: null };
   let liveJob = options.formJob ?? null;
   let livePending = options.formPending ?? false;
+  let liveDirty = options.formDirty ?? false;
   let renderer: ReactTestRenderer | undefined;
   act(() => {
     renderer = create(
@@ -208,6 +222,7 @@ function mount(options: {
         bucket,
         formJob: liveJob,
         formPending: livePending,
+        formDirty: liveDirty,
         start: options.start,
       }),
     );
@@ -219,9 +234,12 @@ function mount(options: {
   return {
     bucket,
     renderer: live,
-    refresh: (next: { formJob?: GroceryJob | null; formPending?: boolean } = {}): void => {
+    refresh: (
+      next: { formJob?: GroceryJob | null; formPending?: boolean; formDirty?: boolean } = {},
+    ): void => {
       liveJob = next.formJob === undefined ? liveJob : next.formJob;
       livePending = next.formPending ?? livePending;
+      liveDirty = next.formDirty ?? liveDirty;
       bind();
       act(() => {
         live.update(
@@ -229,6 +247,7 @@ function mount(options: {
             bucket,
             formJob: liveJob,
             formPending: livePending,
+            formDirty: liveDirty,
             start: options.start,
           }),
         );
@@ -565,11 +584,194 @@ describe("ChatWorkspace", () => {
     });
     refresh();
     expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
     act(() => {
       hookOf(bucket).setForm({ ...hookOf(bucket).form, pantry: [] });
     });
     expect(hookOf(bucket).chat.estimateDirty).toBe(true);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(true);
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+  });
+
+  it("passes a succeeded manual job as conversation context", () => {
+    const start = {
+      ...initialForm(),
+      pantry: ["black_beans"],
+      meals: [{ recipe_id: "lentil_soup", servings: 4 }],
+    };
+    const { renderer } = mount({ formJob: formJob(), start });
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)).toEqual([
+      chatBudgetFromForm(start),
+      "form-1",
+    ]);
+    renderer.unmount();
+  });
+
+  it("does not pass a dirty manual job as conversation context", () => {
+    const { renderer } = mount({ formJob: formJob(), formDirty: true });
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBeNull();
+    renderer.unmount();
+  });
+
+  it("blocks a fresh send when pantry edits are not in the saved plan", () => {
+    const send = vi.fn();
+    const retry = vi.fn();
+    chatState = conversationState({
+      message: "Add soup to the plan.",
+      send,
+      retry,
+    });
+    const { renderer } = mount({ formJob: formJob(), formDirty: true });
+    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
+    expect(childText(renderer.root)).not.toContain("Rebuild estimate");
+    renderer.unmount();
+  });
+
+  it("keeps retry on a frozen request when the form is dirty", () => {
+    const send = vi.fn();
+    const retry = vi.fn();
+    chatState = conversationState({
+      message: "Add soup to the plan.",
+      hasRequest: true,
+      send,
+      retry,
+    });
+    const { renderer } = mount({ formJob: formJob(), formDirty: true });
+    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
+    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
+    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
+    expect(buttonNamed(renderer.root, "Start a new conversation").props.disabled).toBe(false);
+    act(() => {
+      (
+        renderer.root.findByType("form").props.onSubmit as (event: { preventDefault: () => void }) => void
+      )({ preventDefault: vi.fn() });
+    });
+    expect(send).not.toHaveBeenCalled();
+    act(() => {
+      (buttonNamed(renderer.root, "Retry the same request").props.onClick as () => void)();
+    });
+    expect(retry).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it("does not apply a late chat plan after a newer manual job with the same form", () => {
+    const start = { ...initialForm(), monthly: "300", cap: "40" };
+    const { bucket, refresh } = mount({ start });
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    refresh({ formJob: formJob() });
+    chatState = conversationState({
+      messages: [
+        { id: "user-1", role: "user", content: "Plan lentil soup." },
+        { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+      ],
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "bean_tacos", servings: 2 }]);
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+  });
+
+  it("keeps the last accepted chat estimate across pending, failed, and clarification jobs", () => {
+    const { bucket, refresh } = mount({
+      start: { ...initialForm(), monthly: "250", cap: "40" },
+    });
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: [
+        { id: "user-1", role: "user", content: "Plan lentil soup." },
+        { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+      ],
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).form.monthly).toBe("250");
+    expect(hookOf(bucket).form.cap).toBe("40");
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: { id: "chat-2", status: "failed", result: null, error_code: "tool" },
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-3", role: "assistant", content: "Which meals should I plan?" },
+      ],
+      job: chatJob(
+        plannedResult({
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        "succeeded",
+        "chat-3",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).form.monthly).toBe("250");
+    expect(hookOf(bucket).form.cap).toBe("40");
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+  });
+
+  it("does not reapply an old chat success after the conversation resets", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    chatState = conversationState({
+      messages: [],
+      job: null,
+      hasRequest: false,
+    });
+    refresh();
+    act(() => {
+      hookOf(bucket).setForm({
+        ...hookOf(bucket).form,
+        meals: [{ recipe_id: "bean_tacos", servings: 2 }],
+      });
+    });
+    chatState = conversationState({
+      messages: [],
+      job: chatJob(plannedResult()),
+      hasRequest: false,
+    });
+    refresh();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "bean_tacos", servings: 2 }]);
   });
 });
 
