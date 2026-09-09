@@ -6,16 +6,19 @@
 > Do not expand features in this checkpoint. The health-prediction phases below
 > are historical planning material. Do not resume their training tasks.
 
-> **Status**: Local grocery MVP is ready for professor feedback
+> **Status**: Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning
+> effort `low`
 > ([wiki/phases/grocery-mvp-checkpoint.md](wiki/phases/grocery-mvp-checkpoint.md)).
-> Visible meal chat is integrated locally on `codex/visible-meal-chat`.
-> That branch is not pushed or merged. Real chat is not operational.
-> Live chat is not verified. Current local checks: `npm test` passed,
-> `npm run build` passed, 1,366 backend tests passed, eight skipped, and
-> ruff, format, and strict mypy passed. A browser showed Meal chat with
-> no console errors. Manual bean tacos for two remain 1,703 cents. The
-> running backend reports `chat_configured` false. Send stays disabled.
-> Pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42)
+> Two-servings bean tacos returned USD 17.03. A four-servings follow-up
+> returned USD 18.32. The budget 40 stayed preserved. The form updated to
+> 4. The browser showed no errors. Sample prices remain. Fixture spending
+> remains. Code checks: 1,383 backend tests passed, eight database skips,
+> plus lint, format, and mypy. CDK 14 tests passed. Helper 10 tests
+> passed. No 90-run evaluation exists. This is not a completed AI product.
+> Real Plaid and Instacart remain unverified. Full manual-to-chat transfer
+> remains unfinished. Feature work is PAUSED as the user requested. Local
+> commits are `282f682` (model) and `06d41f3` (currency). No push or merge
+> occurred. Pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42)
 > merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on
 > 2026-09-07. GitHub Backend checks and Frontend checks passed.
 > Published consolidation local checks remain 1,374 PostgreSQL-enabled

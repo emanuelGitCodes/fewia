@@ -1385,3 +1385,44 @@ Operators MUST NOT send it until the user authorizes that action.
 This worker did not send the request.
 This log MUST NOT record a credential, token, MFA code, or offer token.
 No push or merge occurred.
+
+## 2026-09-08 — Live Nova 2 Lite chat verified
+
+Source: coordinator checkpoint. Feature work is PAUSED as the user requested.
+
+Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`.
+Operators updated the IAM role in place. Operators did not replace the role.
+Role tags set Model to Nova 2. Role tags keep ReasoningEffort `low`.
+Project and Environment billing keys are active.
+Model and principal-specific activation waits for AWS appearance.
+
+Two-servings bean tacos produced a live reply and estimate of USD 17.03.
+A four-servings follow-up produced USD 18.32.
+The budget 40 stayed preserved.
+The form updated to 4.
+The browser showed no errors.
+
+The first live display used the wrong currency.
+A later fix used server USD display.
+Stored plan and evidence were not changed.
+
+Sample catalog prices remain.
+Fixture spending remains.
+This record MUST NOT claim real Plaid Sandbox proof.
+This record MUST NOT claim real Instacart proof.
+Full manual-to-chat transfer remains unfinished.
+No 90-run evaluation ran.
+This record MUST NOT claim a completed AI product.
+
+Deterministic evidence: 1,383 backend tests passed.
+Eight database tests skipped.
+Ruff, format, and strict mypy passed.
+CDK 14 tests passed.
+Helper 10 tests passed.
+
+The one-hour MFA session expired after live verification.
+Operators MUST renew MFA before the next live test.
+Local commit `282f682` records the model change.
+Local commit `06d41f3` records the currency display change.
+No push or merge occurred.
+This log MUST NOT record a credential, token, or MFA code.

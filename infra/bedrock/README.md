@@ -111,15 +111,19 @@ code in chat.
 
 Set `FEWIA_BEDROCK_CREDENTIALS_FILE` to the absolute path of that file.
 The helper assumes this role after MFA succeeds. Maximum session duration
-is one hour. Renew the session when it expires. Then force-recreate `api`
-and `worker`. The bind mount pins the host file inode. The SDK keeps loaded
-credentials. An in-process restart MUST NOT replace that mount or those
-credentials.
+is one hour. Renew the session when it expires. Operators MUST run these
+steps in order. Use the existing host MFA helper. Then force-recreate
+`api` and `worker` with the current Compose override. Then reload nginx.
+Cached DNS can otherwise retain the old API container address.
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml \
-  up -d --force-recreate api worker
+docker compose -p fewia-grocery-b7d4 --env-file .env -f compose.yaml -f compose.bedrock.yaml \
+  up -d --no-deps --force-recreate api worker
+docker exec fewia-grocery-b7d4-web-1 nginx -s reload
 ```
+
+The bind mount pins the host file inode. The SDK keeps loaded
+credentials. An in-process restart does not rebind the credentials file.
 
 The host MUST NOT pass the admin user credentials into containers. Floci
 dummy credentials stay separate. Do not set a global `AWS_ENDPOINT_URL`.
@@ -162,8 +166,9 @@ at that path.
 
 ## Cost allocation tags
 
-The role carries cost-allocation tags. IAM-principal tag activation waits
-until Nova 2 Lite invocation is available. See
+The role carries cost-allocation tags. Project and Environment billing
+keys are active. Model and principal-specific activation waits for AWS
+appearance. See
 [IAM principal cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/iam-principal-cost-allocation.html).
 
 CUR 2.0 caller identity can enable detailed exports. This project does not

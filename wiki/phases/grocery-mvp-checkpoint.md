@@ -1,15 +1,15 @@
 # Grocery MVP checkpoint for professor feedback
 
-- **Date**: 2026-09-07
-- **Status**: local professor-feedback MVP. Visible meal chat is integrated on `codex/visible-meal-chat`. That branch is not pushed or merged. Real chat is not operational. Live chat is not verified. This is not a completed AI product.
+- **Date**: 2026-09-08
+- **Status**: live chat VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Feature work is PAUSED as the user requested. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Decision**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md)
 - **Local proof store**: [log.md](../log.md)
-- **Publication**: merged into `main` on 2026-09-07.
+- **Published foundation**: merged into `main` on 2026-09-07. The live Nova 2 changes remain local.
 - **Pull request**: [Consolidate grocery MVP and provider foundations](https://github.com/emanuelGitCodes/fewia/pull/42)
 - **Merge commit**: `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14`
 - **GitHub checks**: Backend checks passed. Frontend checks passed.
-- **Local branch**: `codex/visible-meal-chat`. Not pushed. Not merged.
+- **Local branch**: `codex/bedrock-development-role`. Not pushed. Not merged.
 
 This page preserves the current grocery demo. It does not expand features.
 
@@ -25,7 +25,7 @@ Local fixture proof from [log.md](../log.md): bean tacos for two cost 1,703 cent
 
 Published consolidation checks remain those recorded for pull request 42. PostgreSQL-enabled backend tests passed at 1,374. Frontend tests passed at 238. Ruff, format, and strict mypy passed on 85 files. The frontend build passed. Fresh database migrations applied through 0007. One existing Starlette deprecation warning remains. GitHub Backend checks passed. GitHub Frontend checks passed. Preserved drafts are included and locally checked.
 
-Current `codex/visible-meal-chat` checks from [log.md](../log.md) differ. `npm test` passed. `npm run build` passed. Backend pytest reported 1,366 passed and eight skipped. Ruff, format, and strict mypy passed. A browser showed Meal chat with no console errors.
+Current live-chat checks from [log.md](../log.md) differ. Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Two-servings bean tacos returned USD 17.03. A four-servings follow-up returned USD 18.32. The budget 40 stayed preserved. The form updated to 4. The browser showed no errors. Sample prices remain. Fixture spending remains. Backend pytest reported 1,383 passed and eight database tests skipped. Ruff, format, and strict mypy passed. CDK 14 tests passed. Helper 10 tests passed. Local commits are `282f682` (model) and `06d41f3` (currency). No push or merge occurred.
 
 ## Catalog and estimates
 
@@ -49,9 +49,9 @@ The current demo uses fixture spending. No real bank account is validated. Plaid
 
 The local `App` mounts `ChatWorkspace` and `ChatPanel` beside the manual planner. The page uses the existing provider capability hook and chat controller. A valid chat result updates the shared form and estimate. The budget cap stays preserved. Stale-result protection applies.
 
-The running backend reports `chat_configured` false. The message field and Send control stay disabled. Reset clears an existing conversation. An empty conversation looks unchanged after Reset. Full context transfer from the manual planner to chat remains unfinished.
+Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. A two-servings bean-tacos request produced a live reply and estimate of USD 17.03. A four-servings follow-up produced USD 18.32. The budget 40 stayed preserved. The form updated to 4. The browser showed no errors. The first live display used the wrong currency. A later fix used server USD display. Stored plan and evidence were not changed. Full context transfer from the manual planner to chat remains unfinished.
 
-This page MUST NOT call real chat operational. This page MUST NOT claim live-provider verification. A browser showed Meal chat with no console errors. That check does not prove a send, a follow-up, or a live estimate update from chat.
+This page MUST NOT claim a completed AI product. This page MUST NOT claim real Plaid or Instacart proof. This page MUST NOT claim a 90-run evaluation. Feature work is PAUSED as the user requested.
 
 The handoff browser contract and client exist. The button flow remains unfinished. Instacart code creates development shopping-list links. It does not verify live prices, availability, taxes, fees, or tips. An uncertain Instacart write needs a visible retry, not blind replay. Handoff URLs need validation before navigation.
 
@@ -67,7 +67,7 @@ A 30-scenario corpus exists. A budget evaluation driver exists. The intended des
 | Fixture | Demo spending and sample catalog prices | Current demo spending source |
 | Emulator | Floci SQS jobs and Floci S3 export paths | Used on the local job path |
 | Sandbox | Plaid Sandbox posted and pending grocery spend | Adapters exist. Live Sandbox proof is pending |
-| Live | Real Bedrock, live Plaid Sandbox, Instacart development links | Pending |
+| Live | Real Bedrock, live Plaid Sandbox, Instacart development links | Bedrock chat VERIFIED with Nova 2 Lite `low`. Plaid and Instacart remain pending |
 | Deployed | Public hosting and production AWS | Not claimed |
 
 Fixture data is not a verified retailer or bank claim.
@@ -83,22 +83,24 @@ Fixture data is not a verified retailer or bank claim.
 7. Mark olive oil as pantry stock. Rebuild the plan.
 8. Read the reduced sample estimate of 1,104 cents.
 9. Show Meal chat beside the manual planner.
-10. State that Send stays disabled while `chat_configured` is false.
-11. State that Instacart links are development handoff, not live prices.
-12. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
-13. State that the 30-scenario corpus exists. No 90-run result exists.
-14. State that live Bedrock, Plaid Sandbox, and Instacart checks remain pending.
-15. State that real chat send, follow-up, and chat-driven estimate updates remain unverified.
+10. Send bean tacos for two. Read the live reply and USD 17.03 estimate.
+11. Follow up with four servings. Read USD 18.32. Confirm budget 40 and form 4.
+12. State that sample prices and fixture spending remain.
+13. State that Instacart links are development handoff, not live prices.
+14. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
+15. State that the 30-scenario corpus exists. No 90-run result exists.
+16. State that full manual-to-chat transfer remains unfinished.
+17. State that feature work is PAUSED as the user requested.
 
 ## Honest limitations
 
-This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Visible meal chat is on the local page. Real chat is not operational. Live chat is not verified. The demo does not use a real bank. The demo does not validate a live provider. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Full manual-plan context transfer is unfinished. Handoff button flow is incomplete. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. That record covers the prior merged checkpoint. A local chat graph refresh is not yet recorded.
+This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Sample prices remain. Fixture spending remains. The demo does not use a real bank. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Full manual-plan context transfer is unfinished. Handoff button flow is incomplete. Feature work is PAUSED as the user requested. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. That record covers the prior merged checkpoint. A local chat graph refresh is not yet recorded.
 
 ## Next work after professor feedback
 
-1. Configure the AWS profile and Bedrock model in the API and worker.
-2. Verify actual send, follow-up, and estimate updates.
-3. Finish full manual-plan context transfer.
+1. Renew the one-hour MFA session before the next live test.
+2. Finish full manual-plan context transfer.
+3. Keep feature work paused until the user requests it.
 4. Keep the user cap, or apply a lower explicit cap.
 5. Transfer a saved plan safely.
 6. Wire explicit handoff retries.
