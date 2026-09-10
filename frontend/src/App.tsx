@@ -24,6 +24,7 @@ export default function App(): JSX.Element {
     form: demo.form,
     setForm: demo.setForm,
     formJob: demo.job,
+    formDirty: demo.dirty,
   });
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
   const busy = demo.pending || chat.pending;
@@ -100,6 +101,8 @@ export default function App(): JSX.Element {
             providerError={chat.providerError}
             retryProviders={chat.retryProviders}
             conversation={chat.conversation}
+            freshSendBlocked={chat.needsRebuild}
+            freshSendDisabled={blocked}
           />
           <div className="panel budget-panel">
             <Estimate

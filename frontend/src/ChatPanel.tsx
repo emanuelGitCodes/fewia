@@ -21,6 +21,7 @@ export type ChatPanelProps = {
   configurationPending: boolean;
   hasRequest: boolean;
   disabled: boolean;
+  freshSendDisabled?: boolean;
 };
 
 const MAX_LENGTH = 4000;
@@ -58,10 +59,11 @@ export function ChatPanel({
   configurationPending,
   hasRequest,
   disabled,
+  freshSendDisabled = false,
 }: ChatPanelProps): JSX.Element {
   const formLocked = disabled || pending || !configured || configurationPending;
   const retryLocked = !hasRequest || disabled || pending;
-  const canSend = !formLocked && text.trim().length > 0;
+  const canSend = !formLocked && !freshSendDisabled && text.trim().length > 0;
   const note = configurationPending ? CHECKING : !configured ? UNAVAILABLE : null;
   return (
     <section className="panel conversation-panel" aria-labelledby="chat-heading">

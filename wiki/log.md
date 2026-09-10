@@ -1427,6 +1427,149 @@ Local commit `06d41f3` records the currency display change.
 No push or merge occurred.
 This log MUST NOT record a credential, token, or MFA code.
 
+## 2026-09-09 — Chat form continuity
+
+Source: coordinator checkpoint on `codex/chat-form-continuity`.
+The recorded base is `8076a65`.
+This worker did not rerun the gates.
+
+A saved manual plan now feeds chat.
+Chat uses the existing `previous_job_id` and the server-loaded request.
+Chat updates the shared form and estimate.
+Existing cap safeguards remain in force.
+
+Unsaved edits require rebuild.
+Successful plan ownership survives reset.
+Successful plan ownership survives a failed rebuild.
+Stale responses MUST NOT overwrite a newer manual success.
+The latest accepted estimate remains during pending, failure, and clarification.
+Retry keeps the frozen original request.
+
+Grok 4.6 wrote the source.
+Grok 4.6 wrote the repairs.
+Independent Codex review found four initial defects.
+That reviewer approved the repair.
+
+Coordinator backend evidence: `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,383 passed and 8 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent frontend evidence: `npm test` reported 279 passed across 23 files.
+`npm run build` passed.
+Production source shows 104 added and 19 deleted across 4 files.
+The added production source stays under the 150-line cap.
+`git diff --check` passed.
+
+Browser preview at `127.0.0.1:5174` rendered without overlay.
+The console showed no warnings or errors.
+Manual bean tacos for 2 cost USD 17.03.
+Selecting pantry `black_beans` showed rebuild guidance.
+The page disabled Send while the text remained editable.
+Rebuild produced USD 15.74.
+Rebuild re-enabled Send.
+After chat failure, a further pantry edit disabled Send.
+Retry remained enabled.
+
+Live contextual chat job `74db1ab2-8736-43f2-98fa-cbcc65eb5607` failed.
+The stored `error_code` is `handler_failed`.
+The server payload verified `previous_request` meals `bean_tacos` for 2.
+The payload also verified pantry `black_beans`, `monthly_limit_cents` 30000, and `plan_cap_cents` 4000.
+This proves handoff into a server job.
+This MUST NOT be read as a live model response.
+This MUST NOT be read as a successful live chat-to-form update.
+Expired MFA is not an established cause.
+Operators MUST NOT assert that cause from this record.
+
+Next, operators diagnose the runtime handler failure.
+Operators MAY renew MFA if that diagnosis requires it.
+Then operators repeat the live four-serving follow-up.
+Then operators repeat the reset flow.
+
+No AWS deployment occurred.
+No AWS configuration change occurred.
+No credential change occurred.
+No push, pull request, or merge occurred.
+The existing `5173` service is unchanged.
+The `5174` preview is a separate temporary preview.
+A new integration test does not directly cover a manual-only failed rebuild.
+The same ownership logic covers that case.
+No 90-run evaluation ran.
+This record MUST NOT claim live prices.
+This record MUST NOT claim Plaid proof.
+This record MUST NOT claim Instacart proof.
+This log MUST NOT record a credential, token, or MFA code.
+
+## 2026-09-09 — Live continuity verification
+
+Source: coordinator checkpoint. The user renewed MFA.
+The coordinator tested the running app through isolated source preview `127.0.0.1:5174`.
+The existing API and worker served the requests.
+This worker did not read credentials.
+This worker did not alter credentials.
+
+Manual `bean_tacos` for 2 produced USD 17.03.
+Explicit pantry `black_beans` rebuild produced USD 15.74.
+
+Live message `Make the same meal four servings and keep my pantry items.` succeeded.
+The job ID is `5613d3a5-6fcd-41d1-910e-a34e543f3294`.
+The UI recipe stayed bean tacos.
+Servings changed from 2 to 4.
+`black_beans` stayed checked.
+`black_beans` cost 0.
+Required beans were 480 g.
+Monthly 300 stayed unchanged.
+Cap 40 stayed unchanged.
+The total stayed USD 15.74.
+Package purchases did not increase.
+
+The database confirms `previous_request` `bean_tacos` 2.
+The database confirms `result.request` `bean_tacos` 4.
+The pantry contains `black_beans`.
+The stored total is 1574 cents.
+
+Start a new conversation cleared visible messages.
+The plan remained.
+Live message `Make that three servings. Keep the same meal, pantry items, and budget cap.` succeeded.
+The job ID is `1a4926bd-4ef0-421b-9720-65b5c295cdd2`.
+The database `previous_request` is `bean_tacos` 4.
+The result is `bean_tacos` 3 with `black_beans` pantry.
+The UI servings are 3.
+Required beans were 360 g at cost 0.
+Cap 40 stayed unchanged.
+Monthly 300 stayed unchanged.
+The total stayed USD 15.74.
+The console showed no warnings or errors.
+No framework overlay appeared.
+
+This verifies live manual-to-chat continuity after the renewed session.
+This verifies shared form and estimate updates.
+This verifies reset continuity.
+
+The prior `handler_failed` record remains historical.
+This later success MUST NOT establish the exact cause of that failure.
+
+No source fix was needed in this continuation.
+Prior independent frontend evidence remains 279 tests and a passing build.
+Prior backend evidence remains 1,383 tests.
+This worker did not rerun those gates.
+Prior reviewed regression tests cover stale form and manual responses.
+Those tests include the same-render race.
+This session did not recreate that race live.
+
+This is bounded two-live-request proof.
+This MUST NOT be read as a 90-run evaluation.
+This MUST NOT claim production reliability.
+This MUST NOT claim live prices.
+This MUST NOT claim Plaid proof.
+This MUST NOT claim Instacart proof.
+
+Source remains local and uncommitted.
+No push, pull request, merge, or deployment occurred.
+The existing `5173` service is unchanged.
+The temporary `5174` preview will close after this evidence.
+This log MUST NOT record a credential, token, or MFA code.
 
 ## 2026-09-10 — OpenCode project agent setup
 
@@ -1469,3 +1612,20 @@ No commit, push, or merge occurred.
 
 The independent reviewer confirmed all three findings resolved after repair.
 Skill validation returned `Skill is valid!`. Final `git diff --check` passed.
+
+## 2026-09-10 — PR46 wiki log conflict reconciled
+
+Grok 4.6 was the sole writer.
+This worker resolved only `wiki/log.md`.
+The worktree merges `origin/main` into PR46 head `9acdd643`.
+Incoming main is `30c50600`.
+
+HEAD chat continuity and live entries remain first.
+The incoming OpenCode setup entry remains after those entries.
+This record retains both chat evidence and OpenCode setup records.
+`.opencode` files remain unchanged.
+
+Independent verification remains pending.
+This record MUST NOT claim completed checks.
+This record MUST NOT claim a push.
+This record MUST NOT claim a merge.

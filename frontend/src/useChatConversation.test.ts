@@ -84,7 +84,16 @@ function openJob(id: string, status: "queued" | "running"): ChatJob {
   return { id, status, result: null, error_code: null };
 }
 
-function HookHost(props: { bucket: { current: HookValue | null }; budget: ChatBudget | null }): null {
+function HookHost(props: {
+  bucket: { current: HookValue | null };
+  budget: ChatBudget | null;
+  manualJobId: string | null;
+}): null {
+  props.bucket.current = useChatConversation(props.budget, props.manualJobId);
+  return null;
+}
+
+function OneArgHost(props: { bucket: { current: HookValue | null }; budget: ChatBudget | null }): null {
   props.bucket.current = useChatConversation(props.budget);
   return null;
 }
@@ -139,16 +148,22 @@ describe("useChatConversation", () => {
     }));
   }
 
-  function mount(currentBudget: ChatBudget | null = budget): {
+  function mount(
+    currentBudget: ChatBudget | null = budget,
+    manualJobId: string | null = null,
+  ): {
     bucket: { current: HookValue | null };
     renderer: ReactTestRenderer;
-    refresh: (next?: ChatBudget | null) => void;
+    refresh: (next?: ChatBudget | null, nextManual?: string | null) => void;
   } {
     const bucket: { current: HookValue | null } = { current: null };
     let liveBudget = currentBudget;
+    let liveManual = manualJobId;
     let renderer: ReactTestRenderer | undefined;
     act(() => {
-      renderer = create(createElement(HookHost, { bucket, budget: liveBudget }));
+      renderer = create(
+        createElement(HookHost, { bucket, budget: liveBudget, manualJobId: liveManual }),
+      );
     });
     if (renderer === undefined) {
       throw new Error("renderer failed to mount");
@@ -157,11 +172,17 @@ describe("useChatConversation", () => {
     return {
       bucket,
       renderer: live,
-      refresh: (next: ChatBudget | null | undefined = liveBudget): void => {
+      refresh: (
+        next: ChatBudget | null | undefined = liveBudget,
+        nextManual: string | null | undefined = liveManual,
+      ): void => {
         liveBudget = next;
+        liveManual = nextManual;
         bindJob();
         act(() => {
-          live.update(createElement(HookHost, { bucket, budget: liveBudget }));
+          live.update(
+            createElement(HookHost, { bucket, budget: liveBudget, manualJobId: liveManual }),
+          );
         });
       },
     };
@@ -665,6 +686,181 @@ describe("useChatConversation", () => {
     await flushMicrotasks();
     await sendAndSettle(bucket);
     expect(jobState.submit).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses a one-argument call with no parent", async () => {
+    const bucket: { current: HookValue | null } = { current: null };
+    act(() => {
+      create(createElement(OneArgHost, { bucket, budget }));
+    });
+    act(() => {
+      hookOf(bucket).setMessage("Plan bean tacos for two.");
+    });
+    await sendAndSettle(bucket);
+    expect(submitted(jobState, 0).previous_job_id).toBe(null);
+  });
+
+  it("sends the first request with a saved manual job as parent", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved pantry and four servings.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    expect(submitted(jobState, 0).previous_job_id).toBe("manual-1");
+    expect(submitted(jobState, 0).message).toBe("Use the saved pantry and four servings.");
+  });
+
+  it("uses the chat job as the followup parent after a succeeded reply", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    act(() => {
+      hookOf(bucket).setMessage("Add lentil soup.");
+    });
+    await sendAndSettle(bucket);
+    expect(submitted(jobState, 1).previous_job_id).toBe("chat-1");
+  });
+
+  it("lets a newer manual job supersede the chat parent on the next send", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    refresh(budget, "manual-2");
+    act(() => {
+      hookOf(bucket).setMessage("Use the rebuilt plan.");
+    });
+    await sendAndSettle(bucket);
+    expect(submitted(jobState, 1).previous_job_id).toBe("manual-2");
+  });
+
+  it("retries the frozen parent after a newer manual job arrives", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = failed("chat-fail");
+      jobState.error = CHAT_FAILURE;
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    refresh(budget, "manual-2");
+    await retryAndSettle(bucket);
+    expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
+    expect(submitted(jobState, 1).previous_job_id).toBe("manual-1");
+  });
+
+  it("replays a queued body with the frozen parent after context change", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = openJob("chat-1", "queued");
+      jobState.pending = false;
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    refresh(budget, "manual-2");
+    jobState.clear.mockClear();
+    await sendAndSettle(bucket);
+    expect(jobState.clear).not.toHaveBeenCalled();
+    expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
+    expect(submitted(jobState, 1).previous_job_id).toBe("manual-1");
+  });
+
+  it("seeds the current manual job after a new conversation", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    act(() => {
+      hookOf(bucket).newConversation();
+    });
+    refresh();
+    act(() => {
+      hookOf(bucket).setMessage("Start from the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    expect(submitted(jobState, 1).previous_job_id).toBe("manual-1");
+  });
+
+  it("does not adopt a late chat parent after a newer manual job", async () => {
+    const resolvers: Array<() => void> = [];
+    jobState.submit.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    act(() => {
+      hookOf(bucket).send();
+    });
+    refresh(budget, "manual-2");
+    jobState.job = succeeded("chat-late", "Bean tacos fit the budget.");
+    await act(async () => {
+      resolvers[0]?.();
+    });
+    await flushMicrotasks();
+    refresh();
+    act(() => {
+      hookOf(bucket).setMessage("Use the rebuilt plan.");
+    });
+    await sendAndSettle(bucket);
+    expect(submitted(jobState, 1).previous_job_id).toBe("manual-2");
+  });
+
+  it("does not resurrect a chat parent after manual context is withdrawn", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
+    });
+    const { bucket, refresh } = mount(budget, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Use the saved plan.");
+    });
+    await sendAndSettle(bucket);
+    refresh();
+    refresh(budget, null);
+    act(() => {
+      hookOf(bucket).setMessage("Plan lentil soup.");
+    });
+    await sendAndSettle(bucket);
+    expect(submitted(jobState, 1).previous_job_id).toBe(null);
+  });
+
+  it("keeps budget validation when a manual parent is present", async () => {
+    const { bucket } = mount(null, "manual-1");
+    act(() => {
+      hookOf(bucket).setMessage("Plan bean tacos for two.");
+    });
+    await sendAndSettle(bucket);
+    expect(hookOf(bucket).error).toBe(BUDGET_ERROR);
+    expect(jobState.submit).not.toHaveBeenCalled();
   });
 });
 

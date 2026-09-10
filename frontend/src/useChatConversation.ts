@@ -23,7 +23,10 @@ export type ChatTurn = {
   content: string;
 };
 
-export function useChatConversation(budget: ChatBudget | null): {
+export function useChatConversation(
+  budget: ChatBudget | null,
+  manualJobId: string | null = null,
+): {
   message: string;
   setMessage: (value: string) => void;
   messages: ChatTurn[];
@@ -45,6 +48,22 @@ export function useChatConversation(budget: ChatBudget | null): {
   const userSeq = useRef(0);
   const busyRef = useRef(false);
   const dispatchGenRef = useRef(0);
+  const manualRef = useRef(manualJobId);
+  const seenManualRef = useRef<string | null>(null);
+  const parentGenRef = useRef(0);
+  const sendParentGenRef = useRef(0);
+  const convGenRef = useRef(0);
+  const sendConvGenRef = useRef(0);
+  manualRef.current = manualJobId;
+
+  useEffect(() => {
+    if (manualJobId === seenManualRef.current) {
+      return;
+    }
+    seenManualRef.current = manualJobId;
+    parentRef.current = null;
+    parentGenRef.current += 1;
+  }, [manualJobId]);
 
   useEffect(() => {
     if (job === null || job.status !== "succeeded" || job.result === null) {
@@ -54,7 +73,12 @@ export function useChatConversation(budget: ChatBudget | null): {
       return;
     }
     seenRef.current.add(job.id);
-    parentRef.current = job.id;
+    if (convGenRef.current !== sendConvGenRef.current) {
+      return;
+    }
+    if (parentGenRef.current === sendParentGenRef.current) {
+      parentRef.current = job.id;
+    }
     const content = job.result.answer ?? "";
     setMessages((current) =>
       keepLatestTurns([...current, { id: job.id, role: "assistant", content }]),
@@ -77,9 +101,15 @@ export function useChatConversation(budget: ChatBudget | null): {
       message: message.trim(),
       monthly_limit_cents: budget.monthly_limit_cents,
       plan_cap_cents: budget.plan_cap_cents,
-      previous_job_id: parentRef.current,
+      previous_job_id: parentRef.current ?? manualRef.current,
     };
-    if (lastBody !== null && shouldReplaySavedBody(job, lastBody, body)) {
+    if (
+      lastBody !== null &&
+      shouldReplaySavedBody(job, lastBody, {
+        ...body,
+        previous_job_id: lastBody.previous_job_id,
+      })
+    ) {
       setLocalError(null);
       const gen = beginDispatch(busyRef, dispatchGenRef);
       void submit(copyJobBody(lastBody)).finally(() => {
@@ -90,6 +120,9 @@ export function useChatConversation(budget: ChatBudget | null): {
     setLocalError(null);
     clear();
     const gen = beginDispatch(busyRef, dispatchGenRef);
+    convGenRef.current += 1;
+    sendConvGenRef.current = convGenRef.current;
+    sendParentGenRef.current = parentGenRef.current;
     userSeq.current += 1;
     const turnId = `user-${userSeq.current}`;
     setLastBody(copyJobBody(body));
@@ -114,9 +147,9 @@ export function useChatConversation(budget: ChatBudget | null): {
 
   const newConversation = useCallback((): void => {
     dispatchGenRef.current += 1;
+    convGenRef.current += 1;
     busyRef.current = false;
     parentRef.current = null;
-    seenRef.current = new Set();
     userSeq.current = 0;
     setMessages([]);
     setMessage("");

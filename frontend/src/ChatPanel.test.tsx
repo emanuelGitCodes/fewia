@@ -66,6 +66,7 @@ function mount(
         configurationPending: props.configurationPending ?? false,
         hasRequest: props.hasRequest ?? false,
         disabled: props.disabled ?? false,
+        freshSendDisabled: props.freshSendDisabled ?? false,
       }),
     );
   });
@@ -258,6 +259,29 @@ describe("ChatPanel", () => {
     expect(waiting.renderer.root.findByType("textarea").props.disabled).toBe(true);
     expect(buttonNamed(waiting.renderer.root, "Send").props.disabled).toBe(true);
     waiting.renderer.unmount();
+  });
+
+  it("disables a fresh send and keeps retry, reset, and text entry", () => {
+    const { renderer, onSend, onRetry, onNewConversation } = mount({
+      text: "Bean tacos for two",
+      hasRequest: true,
+      freshSendDisabled: true,
+    });
+    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
+    expect(buttonNamed(renderer.root, "Start a new conversation").props.disabled).toBe(false);
+    submit(renderer.root);
+    expect(onSend).not.toHaveBeenCalled();
+    act(() => {
+      (buttonNamed(renderer.root, "Retry the same request").props.onClick as () => void)();
+    });
+    act(() => {
+      (buttonNamed(renderer.root, "Start a new conversation").props.onClick as () => void)();
+    });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onNewConversation).toHaveBeenCalledTimes(1);
+    renderer.unmount();
   });
 
   it("shows a clear empty state and does not treat configured as live verified", () => {
