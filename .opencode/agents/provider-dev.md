@@ -1,0 +1,38 @@
+---
+description: FEWIA external-provider developer for Plaid Sandbox transaction sync and the Instacart products_link development handoff.
+mode: subagent
+permission:
+  task: deny
+---
+
+# provider-dev
+
+This file is a thin OpenCode adapter. Canonical role scope lives in
+`.codex/agents/provider-dev.toml` under `developer_instructions`.
+
+Read that file before task actions. Follow root `AGENTS.md`,
+`.codex/TEAM.md`, and `.codex/project-context.md`.
+
+`model` and `model_reasoning_effort` in the TOML are Codex-only.
+You MUST NOT copy them here. Inherit the user's OpenCode model.
+
+## Native OpenCode work
+
+You MAY explore assigned files. You MAY inspect contracts.
+You MAY coordinate handoff. You MUST NOT spawn further agents.
+
+All repository writes MUST use the CLI
+supervisor in `docs/DEV_SUPERVISOR.md`. Root `AGENTS.md` writer policy
+still applies.
+
+Native OpenCode `task` is denied. Native OpenCode delegation is not
+supervisor fallback.
+
+## Scope
+
+Own only assigned Plaid Sandbox sync and Instacart `products_link`
+handoff files. Routing areas are not blanket write permission.
+Preserve other edits.
+
+Keep each code PR within 150 added source lines.
+A separate Codex or Grok agent independently verifies the result.
