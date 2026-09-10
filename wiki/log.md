@@ -1570,3 +1570,62 @@ No push, pull request, merge, or deployment occurred.
 The existing `5173` service is unchanged.
 The temporary `5174` preview will close after this evidence.
 This log MUST NOT record a credential, token, or MFA code.
+
+## 2026-09-10 — OpenCode project agent setup
+
+Added 14 project role adapters under `.opencode/agents/`.
+The `tech-lead` role is a primary agent. The other roles are subagents.
+Added the `fewia-workflow` skill and `.opencode/README.md`.
+The adapters read canonical role scope from `.codex/agents/`.
+OpenCode inherits the selected model. The CLI supervisor owns writer routing.
+
+Grok 4.6 medium wrote the files through the development supervisor.
+Two early assignments stopped on cancelled tool permission prompts.
+They created no project files. Revised assignments completed without model fallback.
+The independent Codex reviewer `review_opencode` reviewed the uncommitted setup
+against base `8076a656a6ac0c97fafde72f2919380b96d9e431`.
+The writer corrected supervisor scope, verification scope, and primary-agent wording.
+
+OpenCode 1.18.30 discovered all 14 roles and the project skill.
+Specialist task permissions deny further native delegation.
+Piped skill output truncated. Redirected output parsed and confirmed the skill path.
+No live model or end-to-end coding delegation probe ran.
+The worktree has no Graphify graph. Review used targeted source files.
+
+Backend verification commands and actual result summaries:
+
+```text
+uv run ruff check app tests
+All checks passed!
+uv run ruff format --check app tests
+165 files already formatted
+uv run mypy --strict app
+Success: no issues found in 85 source files
+uv run pytest
+1377 passed, 14 skipped, 1 warning in 7.72s
+```
+
+The warning is the existing Starlette test-client deprecation warning.
+The skipped tests do not establish database integration proof.
+No application source, global OpenCode settings, or credentials changed.
+No commit, push, or merge occurred.
+
+The independent reviewer confirmed all three findings resolved after repair.
+Skill validation returned `Skill is valid!`. Final `git diff --check` passed.
+
+## 2026-09-10 — PR46 wiki log conflict reconciled
+
+Grok 4.6 was the sole writer.
+This worker resolved only `wiki/log.md`.
+The worktree merges `origin/main` into PR46 head `9acdd643`.
+Incoming main is `30c50600`.
+
+HEAD chat continuity and live entries remain first.
+The incoming OpenCode setup entry remains after those entries.
+This record retains both chat evidence and OpenCode setup records.
+`.opencode` files remain unchanged.
+
+Independent verification remains pending.
+This record MUST NOT claim completed checks.
+This record MUST NOT claim a push.
+This record MUST NOT claim a merge.
