@@ -1098,7 +1098,7 @@ remains a later layer.
 ## 2026-09-07 — Register shopping and evidence routes
 
 Grok 4.6 registered both routers. Independent Grok security review approved the
-four source lines. The first full test run found one route-inventory test failure: 
+four source lines. The first full test run found one route-inventory test failure:
 FastAPI uses included-router wrappers. The writer changed the test to the public
 OpenAPI inventory. All backend gates then passed: ruff, formatting, strict mypy
 on 80 files, and 1,276 PostgreSQL-enabled tests. One existing Starlette warning
@@ -1629,3 +1629,20 @@ Independent verification remains pending.
 This record MUST NOT claim completed checks.
 This record MUST NOT claim a push.
 This record MUST NOT claim a merge.
+
+## 2026-09-10 — Remove unused Docker containers
+
+Source: coordinator. Current `compose.yaml` defines `postgres`, `floci`,
+`bootstrap`, `api`, `worker`, `sync-worker`, and `web`. Project
+`fewia-grocery-b7d4` already runs that stack on loopback ports 5173, 8010,
+55435, and 4567. `compose.bedrock.yaml` supplies Bedrock settings to `api`
+and `worker`.
+
+The operator removed the old `fewia` stack on ports 8000, 5432, and 4566.
+The operator also removed `codex-loop-phase-2-7be440-postgres-1`,
+`fewia-lease-check-b7d4`, `fewia-job-schema-check-20260905`, and the
+exited `fewia-runtime-*` and `fewia-browser-*` check containers. The
+OpenWebUI Docker Desktop extension stayed. Named volumes
+`fewia_postgres-data` and `fewia_floci-data` stayed. After the removal,
+`GET /healthz` on `127.0.0.1:8010` returned HTTP 200. The web service on
+`127.0.0.1:5173` returned HTTP 200. PostgreSQL and Floci stayed healthy.
