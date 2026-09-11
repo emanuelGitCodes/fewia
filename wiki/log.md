@@ -1646,3 +1646,42 @@ OpenWebUI Docker Desktop extension stayed. Named volumes
 `fewia_postgres-data` and `fewia_floci-data` stayed. After the removal,
 `GET /healthz` on `127.0.0.1:8010` returned HTTP 200. The web service on
 `127.0.0.1:5173` returned HTTP 200. PostgreSQL and Floci stayed healthy.
+
+## 2026-09-10 — useHandoff hook
+
+Feature work resumed after the user requested it.
+The user reported a renewed MFA session for Bedrock.
+This item does not call Bedrock.
+
+Grok 4.6 medium wrote `frontend/src/useHandoff.ts` and
+`frontend/src/useHandoff.test.ts` in worktree `/private/tmp/fewia-handoff-hook`
+on branch `codex/handoff-hook`.
+The hook starts and retries shopping handoffs through `handoffApi`.
+It does not auto-retry.
+It does not mount UI.
+`useHandoff.ts` has 107 lines.
+
+The first Grok attempt created no files after a cancelled shell command.
+A revised assignment used the Write tool.
+Grok then wrote the files.
+A later `npm test` command was cancelled by Grok permission.
+The coordinator ran the gates.
+
+Frontend `npm test` reported 288 passed across 24 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the hook.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 1 of the handoff stack.
+PR 2 is `HandoffControls`.
+PR 3 wires `Estimate` and `App`.
+No commit, push, or merge occurred.
+This MUST NOT claim live Instacart prices.
+This MUST NOT claim a 90-run evaluation.
