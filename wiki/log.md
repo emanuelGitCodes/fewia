@@ -1712,3 +1712,30 @@ This is PR 2 of the handoff stack.
 Stacked on pull request 48. Merge that first.
 PR 3 wires `Estimate` and `App`.
 This MUST NOT claim live Instacart prices.
+
+## 2026-09-10 — Wire shopping handoff controls
+
+Grok 4.6 medium edited `frontend/src/App.tsx`, `frontend/src/App.test.tsx`,
+and `frontend/src/ChatWorkspace.tsx` in worktree `/private/tmp/fewia-handoff-wire`
+on branch `codex/handoff-wire`.
+The branch stacks on `codex/handoff-controls` at `f6b33a3`.
+`App` mounts `HandoffControls` and drives it with `useHandoff`.
+Start requires Instacart configuration, an accepted plan, and a non-dirty estimate.
+The footer still says `No purchases are made here.`
+Added application lines: 36.
+
+Frontend `npm test` reported 303 passed across 25 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the wiring.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 3 of the handoff stack.
+Stacked on pull request 49. Merge 48, then 49, then this.
+This MUST NOT claim live Instacart prices.
