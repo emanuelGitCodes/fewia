@@ -54,6 +54,7 @@ export function useChatWorkspace({
   retryProviders: () => void;
   conversation: ReturnType<typeof useChatConversation>;
   needsRebuild: boolean;
+  instacartConfigured: boolean;
 } {
   const providers = useProviderCapabilities();
   const [source, setSource] = useState<EstimateSource | null>(null);
@@ -157,6 +158,7 @@ export function useChatWorkspace({
     retryProviders: providers.retry,
     conversation,
     needsRebuild,
+    instacartConfigured: providers.capabilities?.instacart_configured === true,
   };
 }
 

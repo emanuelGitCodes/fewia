@@ -1647,6 +1647,265 @@ OpenWebUI Docker Desktop extension stayed. Named volumes
 `GET /healthz` on `127.0.0.1:8010` returned HTTP 200. The web service on
 `127.0.0.1:5173` returned HTTP 200. PostgreSQL and Floci stayed healthy.
 
+## 2026-09-10 — useHandoff hook
+
+Feature work resumed after the user requested it.
+The user reported a renewed MFA session for Bedrock.
+This item does not call Bedrock.
+
+Grok 4.6 medium wrote `frontend/src/useHandoff.ts` and
+`frontend/src/useHandoff.test.ts` in worktree `/private/tmp/fewia-handoff-hook`
+on branch `codex/handoff-hook`.
+The hook starts and retries shopping handoffs through `handoffApi`.
+It does not auto-retry.
+It does not mount UI.
+`useHandoff.ts` has 107 lines.
+
+The first Grok attempt created no files after a cancelled shell command.
+A revised assignment used the Write tool.
+Grok then wrote the files.
+A later `npm test` command was cancelled by Grok permission.
+The coordinator ran the gates.
+
+Frontend `npm test` reported 288 passed across 24 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the hook.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 1 of the handoff stack.
+PR 2 is `HandoffControls`.
+PR 3 wires `Estimate` and `App`.
+No commit, push, or merge occurred.
+This MUST NOT claim live Instacart prices.
+This MUST NOT claim a 90-run evaluation.
+
+## 2026-09-10 — HandoffControls
+
+Grok 4.6 medium wrote `frontend/src/HandoffControls.tsx` and
+`frontend/src/HandoffControls.test.tsx` in worktree
+`/private/tmp/fewia-handoff-controls` on branch `codex/handoff-controls`.
+The branch stacks on `codex/handoff-hook` at `174e687`.
+The component is presentational. It does not fetch. It does not auto-retry.
+It does not mount in `App` or `Estimate`.
+`HandoffControls.tsx` has 88 lines.
+
+Frontend `npm test` reported 298 passed across 25 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the controls.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 2 of the handoff stack.
+Stacked on pull request 48. Merge that first.
+PR 3 wires `Estimate` and `App`.
+This MUST NOT claim live Instacart prices.
+
+## 2026-09-10 — Wire shopping handoff controls
+
+Grok 4.6 medium edited `frontend/src/App.tsx`, `frontend/src/App.test.tsx`,
+and `frontend/src/ChatWorkspace.tsx` in worktree `/private/tmp/fewia-handoff-wire`
+on branch `codex/handoff-wire`.
+The branch stacks on `codex/handoff-controls` at `f6b33a3`.
+`App` mounts `HandoffControls` and drives it with `useHandoff`.
+Start requires Instacart configuration, an accepted plan, and a non-dirty estimate.
+The footer still says `No purchases are made here.`
+Added application lines: 36.
+
+Frontend `npm test` reported 303 passed across 25 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the wiring.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 3 of the handoff stack.
+Stacked on pull request 49. Merge 48, then 49, then this.
+This MUST NOT claim live Instacart prices.
+
+## 2026-09-10 — Evaluation plan inputs
+
+Grok 4.6 medium wrote `backend/app/evaluation_plan_inputs.py` and
+`backend/tests/test_evaluation_plan_inputs.py` in worktree
+`/private/tmp/fewia-eval-plan-inputs` on branch `codex/evaluation-plan-inputs`.
+`fixture_plan` maps corpus meal inputs through `fixture_budget` and `plan_groceries`.
+Empty meals raise `MEALS_ERROR` before the planner.
+Clock errors stay `CLOCK_ERROR`.
+Diet conflict stays `PlanningError`.
+`evaluation_plan_inputs.py` has 32 lines.
+
+Backend `ruff check` passed.
+Format check covered 167 files.
+Strict mypy passed 86 source files.
+Pytest reported 1,383 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the fixture.
+The reviewer did not rerun the gates.
+
+This is PR 1 of the evaluation-runner stack.
+Parent: `main`.
+This MUST NOT claim a 90-run evaluation.
+This MUST NOT claim model quality.
+
+## 2026-09-10 — Evaluation meal scorer
+
+Grok 4.6 medium wrote `backend/app/evaluation_meals.py` and
+`backend/tests/test_evaluation_meals.py` in worktree
+`/private/tmp/fewia-eval-meal-scorer` on branch `codex/evaluation-meal-scorer`.
+`evaluate_meal_case` scores meal corpus cases like `evaluate_budget_case`.
+Diet-conflict variants do not inherit parent `total_cents`.
+`evaluation_meals.py` has 88 lines.
+
+Backend `ruff check` passed.
+Format check covered 169 files.
+Strict mypy passed 87 source files.
+Pytest reported 1,389 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the scorer.
+The reviewer did not rerun the gates.
+
+This is PR 2 of the evaluation-runner stack.
+Stacked on pull request 51. Merge that first.
+This MUST NOT claim a 90-run evaluation.
+This MUST NOT claim model quality.
+
+## 2026-09-10 — Evaluation runner slots
+
+Grok 4.6 medium wrote `backend/app/evaluation_runner.py` and
+`backend/tests/test_evaluation_runner.py` in worktree
+`/private/tmp/fewia-eval-runner` on branch `codex/evaluation-runner`.
+`run_evaluation` returns 90 slots. Budget and meals are scored.
+Other groups stay unassessed with `report` null.
+`metrics_status` stays `unassessed`.
+`evaluation_runner.py` has 75 lines.
+
+Backend `ruff check` passed.
+Format check covered 171 files.
+Strict mypy passed 88 source files.
+Pytest reported 1,396 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the runner.
+The reviewer reran `tests/test_evaluation_runner.py` (7 passed).
+The reviewer did not rerun the full suite.
+
+This is PR 3 of the evaluation-runner stack.
+Stacked on pull request 52. Merge 51, then 52, then this.
+This MUST NOT claim model quality.
+This MUST NOT claim live provider proof.
+
+## 2026-09-10 — Evaluation follow-up F03
+
+Grok 4.6 medium wrote `backend/app/evaluation_followup.py` and
+`backend/tests/test_evaluation_followup.py` in worktree
+`/private/tmp/fewia-eval-followup` on branch `codex/evaluation-followup`.
+`evaluate_followup_case` scores F03 as `exclusion_reject`.
+Exclusion errors are not `diet_conflict`.
+`evaluation_followup.py` has 67 lines.
+
+Backend `ruff check` passed.
+Format check covered 173 files.
+Strict mypy passed 89 source files.
+Pytest reported 1,401 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the scorer.
+The reviewer did not rerun the gates.
+
+This is PR 4 of the evaluation-runner stack.
+Stacked on pull request 53. Merge 51, then 52, then 53, then this.
+The runner does not dispatch follow-up yet.
+This MUST NOT claim model quality.
+
+## 2026-09-10 — Runner dispatches F03
+
+Grok 4.6 medium edited `backend/app/evaluation_runner.py` and
+`backend/tests/test_evaluation_runner.py` in worktree
+`/private/tmp/fewia-eval-runner-followup` on branch
+`codex/evaluation-runner-followup`.
+Follow-up cases with `requires_model` false go to `evaluate_followup_case`.
+F01 stays unassessed. F03 scores `exclusion_reject`.
+Added application lines: 3.
+
+Backend `ruff check` passed.
+Format check covered 173 files.
+Strict mypy passed 89 source files.
+Pytest reported 1,402 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the dispatch.
+The reviewer did not rerun the gates.
+
+This is PR 5 of the evaluation-runner stack.
+Stacked on pull request 54. Merge 51 through 54 first.
+This MUST NOT claim model quality.
+
+## 2026-09-10 — Missing-price X01 scorer
+
+Grok 4.6 medium edited `backend/app/evaluation_plan_inputs.py` and wrote
+`backend/app/evaluation_missing.py` in worktree `/private/tmp/fewia-eval-missing`
+on branch `codex/evaluation-missing`.
+`fixture_plan` accepts an ingredients override.
+`evaluate_missing_case` scores X01 as `incomplete_estimate`.
+Added application lines stay under 150.
+
+Backend `ruff check` passed.
+Format check covered 175 files.
+Strict mypy passed 90 source files.
+Pytest reported 1,408 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the scorer.
+The reviewer did not rerun the gates.
+
+This is PR 6 of the evaluation-runner stack.
+Stacked on pull request 55. Merge 51 through 55 first.
+The runner does not dispatch missing yet.
+This MUST NOT claim model quality.
+
+## 2026-09-10 — Runner dispatches X01
+
+Grok 4.6 medium edited `backend/app/evaluation_runner.py` and
+`backend/tests/test_evaluation_runner.py` in worktree
+`/private/tmp/fewia-eval-runner-missing` on branch
+`codex/evaluation-runner-missing`.
+Missing cases with `requires_model` false go to `evaluate_missing_case`.
+X02 stays unassessed. X01 scores `incomplete_estimate`.
+Added application lines: 3.
+
+Backend `ruff check` passed.
+Format check covered 175 files.
+Strict mypy passed 90 source files.
+Pytest reported 1,410 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the dispatch.
+The reviewer did not rerun the gates.
+
+This is PR 7 of the evaluation-runner stack.
+Stacked on pull request 56. Merge 51 through 56 first.
+Provider and adversarial groups stay unassessed.
+This MUST NOT claim model quality.
+
 ## 2026-09-11 — Nutrition and supermarket-estimate contracts
 
 Grok 4.6 medium wrote `backend/app/domain/nutrition.py` and
