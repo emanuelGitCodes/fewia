@@ -101,6 +101,24 @@ def test_followup_f03_slot_is_scored_with_exclusion_reject() -> None:
     assert observed["outcome"] == "exclusion_reject"
 
 
+def test_missing_x01_slot_is_scored_with_incomplete_estimate() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    slot = next(item for item in slots if item["case_id"] == "X01")
+    assert slot["group"] == "missing"
+    assert slot["status"] == "scored"
+    report = _mapping(slot["report"], "report")
+    observed = _mapping(report["observed"], "observed")
+    assert observed["outcome"] == "incomplete_estimate"
+
+
+def test_missing_x02_slot_is_unassessed_without_report() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    slot = next(item for item in slots if item["case_id"] == "X02")
+    assert slot["group"] == "missing"
+    assert slot["status"] == "unassessed"
+    assert slot["report"] is None
+
+
 def test_return_omits_aggregate_scores() -> None:
     result = run_evaluation(load_corpus())
     for item in _walk(result):

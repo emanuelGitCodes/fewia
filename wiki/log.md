@@ -1788,3 +1788,27 @@ This is PR 6 of the evaluation-runner stack.
 Stacked on pull request 55. Merge 51 through 55 first.
 The runner does not dispatch missing yet.
 This MUST NOT claim model quality.
+
+## 2026-09-10 — Runner dispatches X01
+
+Grok 4.6 medium edited `backend/app/evaluation_runner.py` and
+`backend/tests/test_evaluation_runner.py` in worktree
+`/private/tmp/fewia-eval-runner-missing` on branch
+`codex/evaluation-runner-missing`.
+Missing cases with `requires_model` false go to `evaluate_missing_case`.
+X02 stays unassessed. X01 scores `incomplete_estimate`.
+Added application lines: 3.
+
+Backend `ruff check` passed.
+Format check covered 175 files.
+Strict mypy passed 90 source files.
+Pytest reported 1,410 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the dispatch.
+The reviewer did not rerun the gates.
+
+This is PR 7 of the evaluation-runner stack.
+Stacked on pull request 56. Merge 51 through 56 first.
+Provider and adversarial groups stay unassessed.
+This MUST NOT claim model quality.
