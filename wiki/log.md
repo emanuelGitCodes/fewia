@@ -1646,3 +1646,27 @@ OpenWebUI Docker Desktop extension stayed. Named volumes
 `fewia_postgres-data` and `fewia_floci-data` stayed. After the removal,
 `GET /healthz` on `127.0.0.1:8010` returned HTTP 200. The web service on
 `127.0.0.1:5173` returned HTTP 200. PostgreSQL and Floci stayed healthy.
+
+## 2026-09-11 — Nutrition and supermarket-estimate contracts
+
+Grok 4.6 medium wrote `backend/app/domain/nutrition.py` and
+`backend/app/domain/supermarket_estimate.py` in worktree
+`/private/tmp/fewia-nutrition-contracts` on branch `codex/nutrition-contracts`.
+USDA nutrition uses integer milligrams and kcal.
+Spoonacular cost uses integer cents or null.
+Instacart code is unchanged.
+Added application lines: 67.
+
+Backend `ruff check` passed.
+Format check covered 169 files.
+Strict mypy passed 87 source files.
+Pytest reported 1,394 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the contracts.
+The reviewer did not rerun the gates.
+
+This is PR 1 of the hybrid-data stack.
+Parent: `main`.
+This MUST NOT claim live store prices.
+This MUST NOT claim medical nutrition advice.
