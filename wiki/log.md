@@ -1694,3 +1694,28 @@ This is PR 2 of the evaluation-runner stack.
 Stacked on pull request 51. Merge that first.
 This MUST NOT claim a 90-run evaluation.
 This MUST NOT claim model quality.
+
+## 2026-09-10 — Evaluation runner slots
+
+Grok 4.6 medium wrote `backend/app/evaluation_runner.py` and
+`backend/tests/test_evaluation_runner.py` in worktree
+`/private/tmp/fewia-eval-runner` on branch `codex/evaluation-runner`.
+`run_evaluation` returns 90 slots. Budget and meals are scored.
+Other groups stay unassessed with `report` null.
+`metrics_status` stays `unassessed`.
+`evaluation_runner.py` has 75 lines.
+
+Backend `ruff check` passed.
+Format check covered 171 files.
+Strict mypy passed 88 source files.
+Pytest reported 1,396 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the runner.
+The reviewer reran `tests/test_evaluation_runner.py` (7 passed).
+The reviewer did not rerun the full suite.
+
+This is PR 3 of the evaluation-runner stack.
+Stacked on pull request 52. Merge 51, then 52, then this.
+This MUST NOT claim model quality.
+This MUST NOT claim live provider proof.
