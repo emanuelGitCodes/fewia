@@ -1980,3 +1980,25 @@ The reviewer did not rerun the gates.
 
 This is PR 3 of the hybrid-data stack.
 This MUST NOT record a secret.
+
+## 2026-09-11 — Spoonacular HTTP estimate adapter
+
+Grok 4.6 medium wrote `backend/app/providers/spoonacular.py`.
+The client reads `estimatedCost` in US cents.
+Successful results stay in memory for 3600 seconds.
+Failures raise `SpoonacularUnavailable` and are not cached.
+Planner totals do not change.
+Added application lines: 106.
+
+Backend `ruff check` passed.
+Format check covered 183 files.
+Strict mypy passed 94 source files.
+Pytest reported 1,442 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the adapter.
+The reviewer did not rerun the gates.
+
+This is PR 4 of the hybrid-data stack.
+This MUST NOT claim live store prices.
+This MUST NOT record a secret.
