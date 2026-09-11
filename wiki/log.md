@@ -1671,3 +1671,26 @@ This is PR 1 of the evaluation-runner stack.
 Parent: `main`.
 This MUST NOT claim a 90-run evaluation.
 This MUST NOT claim model quality.
+
+## 2026-09-10 — Evaluation meal scorer
+
+Grok 4.6 medium wrote `backend/app/evaluation_meals.py` and
+`backend/tests/test_evaluation_meals.py` in worktree
+`/private/tmp/fewia-eval-meal-scorer` on branch `codex/evaluation-meal-scorer`.
+`evaluate_meal_case` scores meal corpus cases like `evaluate_budget_case`.
+Diet-conflict variants do not inherit parent `total_cents`.
+`evaluation_meals.py` has 88 lines.
+
+Backend `ruff check` passed.
+Format check covered 169 files.
+Strict mypy passed 87 source files.
+Pytest reported 1,389 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the scorer.
+The reviewer did not rerun the gates.
+
+This is PR 2 of the evaluation-runner stack.
+Stacked on pull request 51. Merge that first.
+This MUST NOT claim a 90-run evaluation.
+This MUST NOT claim model quality.
