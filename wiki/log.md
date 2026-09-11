@@ -1765,3 +1765,26 @@ The reviewer did not rerun the gates.
 This is PR 5 of the evaluation-runner stack.
 Stacked on pull request 54. Merge 51 through 54 first.
 This MUST NOT claim model quality.
+
+## 2026-09-10 — Missing-price X01 scorer
+
+Grok 4.6 medium edited `backend/app/evaluation_plan_inputs.py` and wrote
+`backend/app/evaluation_missing.py` in worktree `/private/tmp/fewia-eval-missing`
+on branch `codex/evaluation-missing`.
+`fixture_plan` accepts an ingredients override.
+`evaluate_missing_case` scores X01 as `incomplete_estimate`.
+Added application lines stay under 150.
+
+Backend `ruff check` passed.
+Format check covered 175 files.
+Strict mypy passed 90 source files.
+Pytest reported 1,408 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the scorer.
+The reviewer did not rerun the gates.
+
+This is PR 6 of the evaluation-runner stack.
+Stacked on pull request 55. Merge 51 through 55 first.
+The runner does not dispatch missing yet.
+This MUST NOT claim model quality.

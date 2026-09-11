@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
 import pytest
 
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_budget_inputs import CLOCK_ERROR
 from app.evaluation_plan_inputs import MEALS_ERROR, fixture_plan
@@ -100,3 +102,11 @@ def test_malformed_now_raises_static_clock_error() -> None:
     with pytest.raises(TypeError) as now_error:
         fixture_plan(payload)
     _assert_static_clock_error(now_error.value, bad_now)
+
+
+def test_missing_black_beans_price_is_incomplete() -> None:
+    missing = replace(INGREDIENTS["black_beans"], price_cents=None)
+    ingredients = {**INGREDIENTS, "black_beans": missing}
+    result = fixture_plan(_inputs(_meal_cases()["M01"]), ingredients=ingredients)
+    assert result.accepted is False
+    assert result.total_cents is None
