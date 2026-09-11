@@ -1,6 +1,7 @@
 from typing import cast
 
 from app.evaluation_budget import evaluate_budget_case
+from app.evaluation_followup import evaluate_followup_case
 from app.evaluation_meals import evaluate_meal_case
 
 REPEAT_COUNT = 3
@@ -43,6 +44,8 @@ def _dispatch(
         return "scored", evaluate_budget_case(case)
     if group == "meals":
         return "scored", evaluate_meal_case(case)
+    if group == "followup" and case.get("requires_model") is False:
+        return "scored", evaluate_followup_case(case)
     return UNASSESSED, None
 
 
