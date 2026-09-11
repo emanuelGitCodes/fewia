@@ -16,6 +16,7 @@ import { initialForm, type FormState } from "./BudgetForm";
 import type { ChatJob, ChatResult } from "./chatTypes";
 import { useChatConversation } from "./useChatConversation";
 import { useGroceryDemo, type GroceryDemo } from "./useGroceryDemo";
+import { useHandoff } from "./useHandoff";
 import { useProviderCapabilities } from "./useProviderCapabilities";
 
 vi.mock("./useGroceryDemo", () => ({
@@ -28,6 +29,10 @@ vi.mock("./useChatConversation", () => ({
 
 vi.mock("./useProviderCapabilities", () => ({
   useProviderCapabilities: vi.fn(),
+}));
+
+vi.mock("./useHandoff", () => ({
+  useHandoff: vi.fn(),
 }));
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -44,6 +49,7 @@ const providersReady: ProviderCapabilities = {
 };
 
 type ChatHook = ReturnType<typeof useChatConversation>;
+type HandoffHook = ReturnType<typeof useHandoff>;
 
 function chatState(overrides: Partial<ChatHook> = {}): ChatHook {
   return {
@@ -164,6 +170,31 @@ function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
   return match;
 }
 
+function hasButton(root: ReactTestInstance, name: string): boolean {
+  return root.findAllByType("button").some((node) => childText(node) === name);
+}
+
+function handoffState(overrides: Partial<HandoffHook> = {}): HandoffHook {
+  return {
+    view: null,
+    error: null,
+    pending: false,
+    start: vi.fn(async () => undefined),
+    retry: vi.fn(async () => undefined),
+    clear: vi.fn(),
+    ...overrides,
+  };
+}
+
+function instacartProviders(): ReturnType<typeof useProviderCapabilities> {
+  return {
+    capabilities: { ...providersReady, instacart_configured: true },
+    pending: false,
+    error: null,
+    retry: vi.fn(),
+  };
+}
+
 function demoState(overrides: Partial<GroceryDemo> = {}): GroceryDemo {
   return {
     config: demoConfig,
@@ -195,10 +226,12 @@ function mount(
     error: null,
     retry: vi.fn(),
   },
+  handoff: HandoffHook = handoffState(),
 ): ReactTestRenderer {
   vi.mocked(useGroceryDemo).mockReturnValue(demo);
   vi.mocked(useChatConversation).mockReturnValue(chat);
   vi.mocked(useProviderCapabilities).mockReturnValue(provider);
+  vi.mocked(useHandoff).mockReturnValue(handoff);
   let renderer: ReactTestRenderer | undefined;
   act(() => {
     renderer = create(createElement(App));
@@ -214,6 +247,7 @@ describe("App", () => {
     vi.mocked(useGroceryDemo).mockReset();
     vi.mocked(useChatConversation).mockReset();
     vi.mocked(useProviderCapabilities).mockReset();
+    vi.mocked(useHandoff).mockReset();
   });
 
   it("keeps the shell wordmark, local demo label, title, and footer", () => {
@@ -552,6 +586,66 @@ describe("App", () => {
     );
     expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
     expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
+    renderer.unmount();
+  });
+
+  it("shows Create shopping list for a succeeded accepted estimate when Instacart is configured", () => {
+    const renderer = mount(demoState({ job: succeededJob }), chatState(), instacartProviders());
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
+    expect(childText(renderer.root)).toContain("No purchases are made here.");
+    renderer.unmount();
+  });
+
+  it("hides start and shopping links when Instacart is not configured", () => {
+    const renderer = mount(demoState({ job: succeededJob }));
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    expect(childText(renderer.root)).not.toContain("Open shopping list");
+    renderer.unmount();
+  });
+
+  it("hides start when the estimate is dirty", () => {
+    const renderer = mount(
+      demoState({ job: succeededJob, dirty: true }),
+      chatState(),
+      instacartProviders(),
+    );
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    renderer.unmount();
+  });
+
+  it("hides start when the plan is not accepted", () => {
+    const result = succeededJob.result;
+    if (result === null) {
+      throw new Error("missing succeeded job result");
+    }
+    const renderer = mount(
+      demoState({
+        job: {
+          ...succeededJob,
+          result: { ...result, plan: { ...result.plan, accepted: false } },
+        },
+      }),
+      chatState(),
+      instacartProviders(),
+    );
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    renderer.unmount();
+  });
+
+  it("starts handoff with the succeeded job id", () => {
+    const start = vi.fn(async () => undefined);
+    const renderer = mount(
+      demoState({ job: succeededJob }),
+      chatState(),
+      instacartProviders(),
+      handoffState({ start }),
+    );
+    act(() => {
+      (buttonNamed(renderer.root, "Create shopping list").props.onClick as () => void)();
+    });
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledWith("job-1");
     renderer.unmount();
   });
 });

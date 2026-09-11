@@ -1647,6 +1647,99 @@ OpenWebUI Docker Desktop extension stayed. Named volumes
 `GET /healthz` on `127.0.0.1:8010` returned HTTP 200. The web service on
 `127.0.0.1:5173` returned HTTP 200. PostgreSQL and Floci stayed healthy.
 
+## 2026-09-10 — useHandoff hook
+
+Feature work resumed after the user requested it.
+The user reported a renewed MFA session for Bedrock.
+This item does not call Bedrock.
+
+Grok 4.6 medium wrote `frontend/src/useHandoff.ts` and
+`frontend/src/useHandoff.test.ts` in worktree `/private/tmp/fewia-handoff-hook`
+on branch `codex/handoff-hook`.
+The hook starts and retries shopping handoffs through `handoffApi`.
+It does not auto-retry.
+It does not mount UI.
+`useHandoff.ts` has 107 lines.
+
+The first Grok attempt created no files after a cancelled shell command.
+A revised assignment used the Write tool.
+Grok then wrote the files.
+A later `npm test` command was cancelled by Grok permission.
+The coordinator ran the gates.
+
+Frontend `npm test` reported 288 passed across 24 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the hook.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 1 of the handoff stack.
+PR 2 is `HandoffControls`.
+PR 3 wires `Estimate` and `App`.
+No commit, push, or merge occurred.
+This MUST NOT claim live Instacart prices.
+This MUST NOT claim a 90-run evaluation.
+
+## 2026-09-10 — HandoffControls
+
+Grok 4.6 medium wrote `frontend/src/HandoffControls.tsx` and
+`frontend/src/HandoffControls.test.tsx` in worktree
+`/private/tmp/fewia-handoff-controls` on branch `codex/handoff-controls`.
+The branch stacks on `codex/handoff-hook` at `174e687`.
+The component is presentational. It does not fetch. It does not auto-retry.
+It does not mount in `App` or `Estimate`.
+`HandoffControls.tsx` has 88 lines.
+
+Frontend `npm test` reported 298 passed across 25 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the controls.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 2 of the handoff stack.
+Stacked on pull request 48. Merge that first.
+PR 3 wires `Estimate` and `App`.
+This MUST NOT claim live Instacart prices.
+
+## 2026-09-10 — Wire shopping handoff controls
+
+Grok 4.6 medium edited `frontend/src/App.tsx`, `frontend/src/App.test.tsx`,
+and `frontend/src/ChatWorkspace.tsx` in worktree `/private/tmp/fewia-handoff-wire`
+on branch `codex/handoff-wire`.
+The branch stacks on `codex/handoff-controls` at `f6b33a3`.
+`App` mounts `HandoffControls` and drives it with `useHandoff`.
+Start requires Instacart configuration, an accepted plan, and a non-dirty estimate.
+The footer still says `No purchases are made here.`
+Added application lines: 36.
+
+Frontend `npm test` reported 303 passed across 25 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the wiring.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 3 of the handoff stack.
+Stacked on pull request 49. Merge 48, then 49, then this.
+This MUST NOT claim live Instacart prices.
+
 ## 2026-09-10 — Evaluation plan inputs
 
 Grok 4.6 medium wrote `backend/app/evaluation_plan_inputs.py` and
