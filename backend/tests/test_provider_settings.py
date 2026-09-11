@@ -49,12 +49,14 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
     assert settings.instacart_key_file is None
+    assert settings.spoonacular_key_file is None
 
 
 def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     secret = tmp_path / "plaid.secret"
     tokens = tmp_path / "plaid.tokens.json"
     key = tmp_path / "instacart.key"
+    spoonacular_key = tmp_path / "spoonacular.key"
     monkeypatch.setenv("FEWIA_SPENDING_SOURCE", "plaid_sandbox")
     monkeypatch.setenv("FEWIA_BEDROCK_MODEL_ID", "anthropic.model")
     monkeypatch.setenv("FEWIA_BEDROCK_REGION", "us-west-2")
@@ -63,6 +65,7 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("FEWIA_PLAID_SECRET_FILE", str(secret))
     monkeypatch.setenv("FEWIA_PLAID_TOKENS_FILE", str(tokens))
     monkeypatch.setenv("FEWIA_INSTACART_KEY_FILE", str(key))
+    monkeypatch.setenv("FEWIA_SPOONACULAR_KEY_FILE", str(spoonacular_key))
     settings = load_provider_settings()
     assert settings.spending_source == "plaid_sandbox"
     assert settings.bedrock_model_id == "anthropic.model"
@@ -73,6 +76,7 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.plaid_secret_file == secret
     assert settings.plaid_tokens_file == tokens
     assert settings.instacart_key_file == key
+    assert settings.spoonacular_key_file == spoonacular_key
     assert CLIENT_MARKER not in repr(settings)
     assert CLIENT_MARKER not in str(settings)
 

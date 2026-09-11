@@ -1961,3 +1961,22 @@ The reviewer did not rerun the gates.
 This is PR 2 of the hybrid-data stack.
 Stacked on merged pull request 58.
 This MUST NOT claim medical nutrition advice.
+
+## 2026-09-11 — Spoonacular key file setting
+
+Grok 4.6 medium added `spoonacular_key_file` to `GroceryProviderSettings`.
+The field loads `FEWIA_SPOONACULAR_KEY_FILE` like Instacart.
+No HTTP call shipped.
+Added application lines: 6.
+
+Backend `ruff check` passed.
+Format check covered 181 files.
+Strict mypy passed 93 source files.
+Pytest reported 1,434 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the setting.
+The reviewer did not rerun the gates.
+
+This is PR 3 of the hybrid-data stack.
+This MUST NOT record a secret.

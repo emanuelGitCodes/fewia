@@ -37,6 +37,7 @@ class GroceryProviderSettings(BaseSettings):
     plaid_secret_file: Path | None = None
     plaid_tokens_file: Path | None = None
     instacart_key_file: Path | None = None
+    spoonacular_key_file: Path | None = None
 
     @field_validator("bedrock_model_id", "aws_profile", mode="before")
     @classmethod
@@ -62,7 +63,11 @@ class GroceryProviderSettings(BaseSettings):
         return SecretStr(stripped)
 
     @field_validator(
-        "plaid_secret_file", "plaid_tokens_file", "instacart_key_file", mode="before"
+        "plaid_secret_file",
+        "plaid_tokens_file",
+        "instacart_key_file",
+        "spoonacular_key_file",
+        mode="before",
     )
     @classmethod
     def _normalize_path(cls, value: object) -> Path | None:
