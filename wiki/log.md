@@ -1685,3 +1685,30 @@ PR 3 wires `Estimate` and `App`.
 No commit, push, or merge occurred.
 This MUST NOT claim live Instacart prices.
 This MUST NOT claim a 90-run evaluation.
+
+## 2026-09-10 — HandoffControls
+
+Grok 4.6 medium wrote `frontend/src/HandoffControls.tsx` and
+`frontend/src/HandoffControls.test.tsx` in worktree
+`/private/tmp/fewia-handoff-controls` on branch `codex/handoff-controls`.
+The branch stacks on `codex/handoff-hook` at `174e687`.
+The component is presentational. It does not fetch. It does not auto-retry.
+It does not mount in `App` or `Estimate`.
+`HandoffControls.tsx` has 88 lines.
+
+Frontend `npm test` reported 298 passed across 25 files.
+`npm run build` passed.
+Backend `ruff check` passed.
+Format check covered 165 files.
+Strict mypy passed 85 source files.
+Pytest reported 1,377 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the controls.
+The reviewer did not rerun the gates.
+The reviewer did not call Instacart.
+
+This is PR 2 of the handoff stack.
+Stacked on pull request 48. Merge that first.
+PR 3 wires `Estimate` and `App`.
+This MUST NOT claim live Instacart prices.
