@@ -1,10 +1,13 @@
+import { useEffect } from "react";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
 import { Conversation } from "./Conversation";
 import { Estimate } from "./Estimate";
+import { HandoffControls } from "./HandoffControls";
 import { formatDollars } from "./money";
 import { useGroceryDemo } from "./useGroceryDemo";
+import { useHandoff } from "./useHandoff";
 import "./form.css";
 import "./estimate.css";
 import "./chat.css";
@@ -26,11 +29,26 @@ export default function App(): JSX.Element {
     formJob: demo.job,
     formDirty: demo.dirty,
   });
+  const handoff = useHandoff();
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
   const busy = demo.pending || chat.pending;
   const estimateJob = chat.estimateJob ?? demo.job;
   const estimateDirty = chat.estimateJob !== null ? chat.estimateDirty : demo.dirty;
   const showNotice = estimateJob?.status !== "succeeded" || estimateJob.result === null;
+  const jobId = estimateJob?.status === "succeeded" ? estimateJob.id : null;
+  const result = estimateJob?.status === "succeeded" ? estimateJob.result : null;
+  const canStart =
+    chat.instacartConfigured &&
+    !estimateDirty &&
+    !busy &&
+    jobId !== null &&
+    result !== null &&
+    result.plan.accepted &&
+    result.plan.total_cents !== null &&
+    result.plan.lines.some((line) => !line.from_pantry);
+  useEffect(() => {
+    handoff.clear();
+  }, [jobId, estimateDirty, handoff.clear]);
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -114,6 +132,22 @@ export default function App(): JSX.Element {
               onRebuild={demo.submitForm}
               rebuildDisabled={blocked || busy}
             />
+            {chat.instacartConfigured || handoff.view !== null ? (
+              <HandoffControls
+                view={handoff.view}
+                error={handoff.error}
+                pending={handoff.pending}
+                canStart={canStart}
+                onStart={() => {
+                  if (typeof jobId === "string") {
+                    void handoff.start(jobId);
+                  }
+                }}
+                onRetry={() => {
+                  void handoff.retry();
+                }}
+              />
+            ) : null}
             {showNotice ? (
               <p className="estimate-notice">{demo.config?.notice ?? SAMPLE_ESTIMATE_NOTICE}</p>
             ) : null}
