@@ -1646,3 +1646,28 @@ OpenWebUI Docker Desktop extension stayed. Named volumes
 `fewia_postgres-data` and `fewia_floci-data` stayed. After the removal,
 `GET /healthz` on `127.0.0.1:8010` returned HTTP 200. The web service on
 `127.0.0.1:5173` returned HTTP 200. PostgreSQL and Floci stayed healthy.
+
+## 2026-09-10 — Evaluation plan inputs
+
+Grok 4.6 medium wrote `backend/app/evaluation_plan_inputs.py` and
+`backend/tests/test_evaluation_plan_inputs.py` in worktree
+`/private/tmp/fewia-eval-plan-inputs` on branch `codex/evaluation-plan-inputs`.
+`fixture_plan` maps corpus meal inputs through `fixture_budget` and `plan_groceries`.
+Empty meals raise `MEALS_ERROR` before the planner.
+Clock errors stay `CLOCK_ERROR`.
+Diet conflict stays `PlanningError`.
+`evaluation_plan_inputs.py` has 32 lines.
+
+Backend `ruff check` passed.
+Format check covered 167 files.
+Strict mypy passed 86 source files.
+Pytest reported 1,383 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the fixture.
+The reviewer did not rerun the gates.
+
+This is PR 1 of the evaluation-runner stack.
+Parent: `main`.
+This MUST NOT claim a 90-run evaluation.
+This MUST NOT claim model quality.
