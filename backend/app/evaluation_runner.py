@@ -3,6 +3,7 @@ from typing import cast
 from app.evaluation_budget import evaluate_budget_case
 from app.evaluation_followup import evaluate_followup_case
 from app.evaluation_meals import evaluate_meal_case
+from app.evaluation_missing import evaluate_missing_case
 
 REPEAT_COUNT = 3
 UNASSESSED = "unassessed"
@@ -46,6 +47,8 @@ def _dispatch(
         return "scored", evaluate_meal_case(case)
     if group == "followup" and case.get("requires_model") is False:
         return "scored", evaluate_followup_case(case)
+    if group == "missing" and case.get("requires_model") is False:
+        return "scored", evaluate_missing_case(case)
     return UNASSESSED, None
 
 
