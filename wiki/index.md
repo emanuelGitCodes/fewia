@@ -15,6 +15,7 @@ chronological record lives in [log.md](log.md).
 - [0008 — Grocery bot with local Floci services](decisions/0008-grocery-bot-pivot.md)
 
 - [0009 — Codex and Grok development review](decisions/0009-codex-grok-review.md)
+- [0010 — Park Instacart. Use USDA nutrition and Spoonacular cost](decisions/0010-usda-spoonacular-overlay.md)
 
 ## Phases
 

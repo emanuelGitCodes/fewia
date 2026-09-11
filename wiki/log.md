@@ -1929,3 +1929,14 @@ This is PR 1 of the hybrid-data stack.
 Parent: `main`.
 This MUST NOT claim live store prices.
 This MUST NOT claim medical nutrition advice.
+
+## 2026-09-11 — Decision 0010: USDA and Spoonacular overlay
+
+The user confirmed Instacart IDP is closed to new applicants. The user
+chose USDA for stored nutrition and Spoonacular for a one-hour average
+cost overlay. Instacart code stays parked. Budget cents stay on the
+sample catalog.
+
+The record is
+[decisions/0010-usda-spoonacular-overlay.md](decisions/0010-usda-spoonacular-overlay.md).
+No adapter code shipped in this entry. No API key was written to the wiki.

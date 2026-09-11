@@ -107,9 +107,18 @@ This checkpoint is an early MVP for professor feedback. The product does not com
 7. Finish the evaluation runner.
 8. Run real-provider checks when those providers are configured.
 
+## Data sources after IDP closure
+
+Instacart Developer Platform is closed to new applicants. The hybrid path
+is [0010](../decisions/0010-usda-spoonacular-overlay.md). Park Instacart.
+Store USDA nutrition. Show Spoonacular average cost as a labeled overlay.
+Budget cents stay on the sample catalog.
+
 ## Wishlist
 
-These items are not required now: nutrition per recipe and per serving; weekly nutrition totals from consumed quantities, with pantry stock still counted; a future cash-flow grocery allowance from income and bills.
+Weekly nutrition totals from consumed quantities, with pantry stock still
+counted, remain optional. A future cash-flow grocery allowance from income
+and bills remains optional. Per-recipe nutrition is now in decision 0010.
 
 ## Publication handoff
 
