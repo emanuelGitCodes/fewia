@@ -1905,3 +1905,27 @@ This is PR 7 of the evaluation-runner stack.
 Stacked on pull request 56. Merge 51 through 56 first.
 Provider and adversarial groups stay unassessed.
 This MUST NOT claim model quality.
+
+## 2026-09-11 — Nutrition and supermarket-estimate contracts
+
+Grok 4.6 medium wrote `backend/app/domain/nutrition.py` and
+`backend/app/domain/supermarket_estimate.py` in worktree
+`/private/tmp/fewia-nutrition-contracts` on branch `codex/nutrition-contracts`.
+USDA nutrition uses integer milligrams and kcal.
+Spoonacular cost uses integer cents or null.
+Instacart code is unchanged.
+Added application lines: 67.
+
+Backend `ruff check` passed.
+Format check covered 169 files.
+Strict mypy passed 87 source files.
+Pytest reported 1,394 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the contracts.
+The reviewer did not rerun the gates.
+
+This is PR 1 of the hybrid-data stack.
+Parent: `main`.
+This MUST NOT claim live store prices.
+This MUST NOT claim medical nutrition advice.
