@@ -1812,3 +1812,26 @@ This is PR 3 of the evaluation-runner stack.
 Stacked on pull request 52. Merge 51, then 52, then this.
 This MUST NOT claim model quality.
 This MUST NOT claim live provider proof.
+
+## 2026-09-10 — Evaluation follow-up F03
+
+Grok 4.6 medium wrote `backend/app/evaluation_followup.py` and
+`backend/tests/test_evaluation_followup.py` in worktree
+`/private/tmp/fewia-eval-followup` on branch `codex/evaluation-followup`.
+`evaluate_followup_case` scores F03 as `exclusion_reject`.
+Exclusion errors are not `diet_conflict`.
+`evaluation_followup.py` has 67 lines.
+
+Backend `ruff check` passed.
+Format check covered 173 files.
+Strict mypy passed 89 source files.
+Pytest reported 1,401 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the scorer.
+The reviewer did not rerun the gates.
+
+This is PR 4 of the evaluation-runner stack.
+Stacked on pull request 53. Merge 51, then 52, then 53, then this.
+The runner does not dispatch follow-up yet.
+This MUST NOT claim model quality.
