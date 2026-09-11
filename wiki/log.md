@@ -1940,3 +1940,24 @@ sample catalog.
 The record is
 [decisions/0010-usda-spoonacular-overlay.md](decisions/0010-usda-spoonacular-overlay.md).
 No adapter code shipped in this entry. No API key was written to the wiki.
+
+## 2026-09-11 — Frozen USDA nutrition map
+
+Grok 4.6 medium wrote `backend/app/domain/nutrition_catalog.py` in worktree
+`/private/tmp/fewia-usda-nutrition` on branch `codex/usda-nutrition-map`.
+Every catalog ingredient has USDA facts per 100 g.
+The map does not call USDA at runtime.
+Added application lines: 36.
+
+Backend `ruff check` passed.
+Format check covered 181 files.
+Strict mypy passed 93 source files.
+Pytest reported 1,434 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the map.
+The reviewer did not rerun the gates.
+
+This is PR 2 of the hybrid-data stack.
+Stacked on merged pull request 58.
+This MUST NOT claim medical nutrition advice.
