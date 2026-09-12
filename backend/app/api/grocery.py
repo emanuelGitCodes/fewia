@@ -34,6 +34,7 @@ from app.services.grocery_context import (
     SpendingUnavailable,
     spending_input,
 )
+from app.services.job_result import without_supermarket_estimate
 from app.services.job_submission import IdempotencyConflict, create_job
 from app.services.plan_job import PlanJobInput, SpendingInput
 
@@ -162,6 +163,6 @@ def read_grocery_job(
     return GroceryJobView(
         id=job.id,
         status=job.status,
-        result=job.result,
+        result=without_supermarket_estimate(job.result),
         error_code=job.error_code,
     )
