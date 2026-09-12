@@ -7,10 +7,19 @@ from pydantic import ValidationError
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
 from app.services import plan_job as plan_job_module
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 _REV = "ab" * 32
+
+
+class FakeEstimator:
+    def estimate_ingredient_cents(
+        self, ingredient_id: int, amount: int, unit: str
+    ) -> int | None:
+        del ingredient_id, amount, unit
+        return 25
 
 
 def payload(**overrides: object) -> dict[str, object]:
@@ -77,6 +86,70 @@ def test_plan_job_returns_json_plan_and_calls_heartbeats(
     assert isinstance(plan, dict)
     assert plan["notice"] == SAMPLE_ESTIMATE_NOTICE
     assert isinstance(plan["lines"], list)
+    assert "supermarket_estimate" not in result
+
+
+def test_plan_job_attaches_supermarket_estimate_and_keeps_plan_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+    body = payload()
+    expected = expected_plan(body)
+
+    result = plan_job_module.plan_job(
+        body, lambda: None, supermarket_estimator=FakeEstimator()
+    )
+
+    estimate = result["supermarket_estimate"]
+    plan = result["plan"]
+    expected_plan_payload = expected["plan"]
+    assert isinstance(estimate, dict)
+    assert isinstance(plan, dict)
+    assert isinstance(expected_plan_payload, dict)
+    assert type(estimate["total_cents"]) is int
+    assert estimate["notice"] == SPOONACULAR_COST_NOTICE
+    assert plan["total_cents"] == expected_plan_payload["total_cents"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["request"] == expected["request"]
+    assert result["budget"] == expected["budget"]
+
+
+def test_plan_job_records_catalog_without_supermarket_estimate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+    body = payload()
+    expected = expected_plan(body)
+    captured: list[dict[str, object]] = []
+
+    def record(
+        planning: dict[str, object],
+        parsed: plan_job_module.PlanJobInput,
+        clock: datetime,
+    ) -> str:
+        captured.append(dict(planning))
+        del parsed, clock
+        assert "supermarket_estimate" not in planning
+        return _REV
+
+    result = plan_job_module.plan_job(
+        body,
+        lambda: None,
+        record_evidence=record,
+        supermarket_estimator=FakeEstimator(),
+    )
+
+    assert len(captured) == 1
+    planning = captured[0]
+    assert "supermarket_estimate" not in planning
+    assert planning == expected
+    estimate = result["supermarket_estimate"]
+    assert isinstance(estimate, dict)
+    assert type(estimate["total_cents"]) is int
+    assert estimate["notice"] == SPOONACULAR_COST_NOTICE
+    assert result["evidence_revision_id"] == _REV
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["plan"] == expected["plan"]
 
 
 def test_plan_job_preserves_budget_warnings_and_source(

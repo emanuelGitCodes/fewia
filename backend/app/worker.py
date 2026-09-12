@@ -14,7 +14,7 @@ from app import models  # noqa: F401
 from app.agent.provider import LLMProvider
 from app.db import SessionLocal
 from app.job_models import Job
-from app.provider_runtime import build_bedrock, build_plaid
+from app.provider_runtime import build_bedrock, build_plaid, build_spoonacular
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
@@ -22,6 +22,7 @@ from app.provider_settings import (
 )
 from app.providers.local_sqs import LocalSqsSender
 from app.providers.local_sqs_consumer import LocalSqsConsumer
+from app.providers.spoonacular import SpoonacularEstimateProvider
 from app.services.agent_jobs import make_agent_handler
 from app.services.chat_job import ChatJobInput
 from app.services.job_consumer import process_one
@@ -84,11 +85,26 @@ def _bedrock_provider(settings: GroceryProviderSettings) -> LLMProvider | None:
     return provider
 
 
+def _spoonacular_estimator(
+    settings: GroceryProviderSettings,
+) -> SpoonacularEstimateProvider | None:
+    if settings.spoonacular_key_file is None:
+        return None
+    try:
+        return build_spoonacular(settings)
+    except ProviderConfigurationError:
+        return None
+
+
 def _default_handler(factory: sessionmaker[Session], kind: str) -> JobHandler:
     settings = load_provider_settings()
     if kind == "sync":
         return make_sync_handler(factory, build_plaid(settings))
-    return make_agent_handler(factory, _bedrock_provider(settings))
+    return make_agent_handler(
+        factory,
+        _bedrock_provider(settings),
+        supermarket_estimator=_spoonacular_estimator(settings),
+    )
 
 
 def run_worker(

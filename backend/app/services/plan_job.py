@@ -7,6 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.domain.grocery import GroceryRequest
+from app.services.supermarket_overlay import IngredientCostEstimator
 
 
 class SpendingInput(BaseModel):
@@ -47,6 +48,7 @@ def plan_job(
     heartbeat: Callable[[], None],
     *,
     record_evidence: PlanEvidenceRecorder | None = None,
+    supermarket_estimator: IngredientCostEstimator | None = None,
 ) -> dict[str, object]:
     heartbeat()
     parsed = PlanJobInput.model_validate(payload)
@@ -71,11 +73,18 @@ def plan_job(
         parsed.spending.period,
         user_id=1,
         spending_source=parsed.spending_source,
+        supermarket_estimator=supermarket_estimator,
     )
+    overlay = result.get("supermarket_estimate")
+    catalog = {
+        key: value for key, value in result.items() if key != "supermarket_estimate"
+    }
     if record_evidence is not None:
-        revision = record_evidence(result, parsed, clock)
+        revision = record_evidence(catalog, parsed, clock)
         if not _is_revision_id(revision):
             raise ValueError("evidence revision id is invalid")
-        result["evidence_revision_id"] = revision
+        catalog["evidence_revision_id"] = revision
+    if overlay is not None:
+        catalog["supermarket_estimate"] = overlay
     heartbeat()
-    return result
+    return catalog

@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import Connection, Engine, create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from test_chat_job import FailLLM, FakeLLM, _planner_then_final, chat_payload
-from test_plan_job import NOW, expected_plan, payload
+from test_plan_job import NOW, FakeEstimator, expected_plan, payload
 
 from app import models
 from app.agent.chat_loop import ChatUnavailable
@@ -96,6 +96,52 @@ def test_handler_routes_plan_and_chat(
     chat_result = handler(chat_payload(), lambda: None)
     assert chat_result["status"] == "planned"
     assert chat_result["plan"] is not None
+    chat_revision = chat_result["evidence_revision_id"]
+    assert isinstance(chat_revision, str)
+    assert load_evidence(factory, 1, chat_revision) is not None
+    assert count_rows(factory) == 2
+    assert len(provider.requests) == 2
+    assert "supermarket_estimate" not in plan_result
+    assert "supermarket_estimate" not in chat_result
+
+
+def test_handler_passes_estimator_to_plan_not_chat(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    freeze_clocks(monkeypatch)
+    seed_user(factory)
+    provider = FakeLLM(_planner_then_final())
+    handler = make_agent_handler(
+        factory, provider, supermarket_estimator=FakeEstimator()
+    )
+    plan_body = payload()
+    expected = expected_plan(plan_body)
+
+    plan_result = handler(plan_body, lambda: None)
+
+    estimate = plan_result["supermarket_estimate"]
+    plan = plan_result["plan"]
+    expected_plan_payload = expected["plan"]
+    assert isinstance(estimate, dict)
+    assert isinstance(plan, dict)
+    assert isinstance(expected_plan_payload, dict)
+    assert type(estimate["total_cents"]) is int
+    assert plan["total_cents"] == expected_plan_payload["total_cents"]
+    assert plan_result["evidence_id"] == expected["evidence_id"]
+    revision = plan_result["evidence_revision_id"]
+    assert isinstance(revision, str)
+    snapshot = load_evidence(factory, 1, revision)
+    assert snapshot is not None
+    planning = snapshot["planning"]
+    assert isinstance(planning, dict)
+    assert "supermarket_estimate" not in planning
+    assert "supermarket_estimate" in plan_result
+    assert count_rows(factory) == 1
+
+    chat_result = handler(chat_payload(), lambda: None)
+    assert chat_result["status"] == "planned"
+    assert chat_result["plan"] is not None
+    assert "supermarket_estimate" not in chat_result
     chat_revision = chat_result["evidence_revision_id"]
     assert isinstance(chat_revision, str)
     assert load_evidence(factory, 1, chat_revision) is not None
