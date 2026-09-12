@@ -2425,3 +2425,109 @@ This entry adds no new code claims.
 `UNATTENDED.md` now uses personal, not persona, for the admin MFA secret.
 `DEPLOYMENT.md` now records the verified 2026-09-12 stack status.
 This log MUST NOT record a secret.
+
+## 2026-09-12 — Docs reconciled before build resume
+
+Source: coordinator assignment on `codex/project-context-refresh`.
+Local HEAD is `c0357d6`.
+Prior application code is committed locally.
+No Git push occurred.
+No merge into `main` occurred.
+This worker used Read, Edit, and Write only.
+This worker did not run terminal commands.
+This worker did not rerun gates.
+Full `git status` and `git diff` were not run.
+Graph query was not run.
+
+The user asked to refresh the graph and wiki before application edits resume.
+This entry records the wiki and source-brief reconciliation.
+The graph refresh is in progress in this worktree.
+Keep the pointer at ignored local `graphify-out` outputs.
+`graphify-out` currently lists `graph.json`, `manifest.json`,
+`raw-extraction.json`, `cost.json`, and `cache/`.
+`GRAPH_REPORT.md` and `graph.html` were not in that listing.
+Do not treat that graph as complete.
+The coordinator MUST finish the graph refresh before application edits.
+
+Owned files: `project-plan.md` active banner,
+`.codex/project-context.md`,
+`wiki/phases/grocery-mvp-checkpoint.md`,
+and this append-only log.
+No application, test, infrastructure, or `.codex/agents/` files were edited.
+
+The 2026-09-08 MFA checkpoint called continuity unfinished, handoff UI
+unfinished, features paused, and Instacart release proof required.
+Those claims matched that date.
+They do not match the local branch now.
+Chat and form continuity later shipped locally.
+Handoff controls later shipped locally.
+Instacart stays unavailable because IDP is closed.
+Decision 0010 parks the adapter and keeps `instacart_configured` false.
+Instacart development evidence is no longer a current release gate.
+Feature pause was a user request at that checkpoint.
+The user now resumes build after this documentation step.
+This documentation step does not expand features.
+Merged `main` at pull request 42 is not this local branch.
+
+Local macros compute calories, protein, carbs, and fat per serving and
+per plan.
+All 22 USDA ingredient mappings match the public source.
+Pantry items count in nutrition.
+Quantities are consumed recipe amounts, not packages.
+Manual and chat jobs return root nutrition JSON after evidence.
+Frontend 5174 displays those macros.
+Preview 5173 uses older application code with the new Bedrock identity.
+Amazon Nova 2 Lite, reasoning effort `low`, planned chat on 5173 and 5174.
+Runtime uses dedicated IAM user `fewia-bedrock-runtime` from CDK.
+Credentials live outside Git with file mode `600`.
+Runtime does not use human MFA.
+The human MFA role is unchanged.
+Created IAM user, deployment role, and CloudFormation stacks carry seven tags.
+Billing has six Active `iamPrincipal` dimensions.
+Filter `iamPrincipal/Project=FEWIA`.
+`CostCenter` waits for registration.
+Charges are not verified.
+Do not print account ids or access keys.
+Budget acceptance uses sample-catalog integer cents.
+Spoonacular average cost is an optional labeled overlay.
+It is not a live store price.
+Plaid Sandbox is not live-verified.
+USDA stored facts need no runtime API key.
+
+Evidence counts come from different environments.
+They are not a contradiction.
+Macro PostgreSQL backend: 1510 passed.
+Frontend: 327 passed. Frontend build passed.
+Unattended Bedrock item: backend 1496 passed, 14 database skips, one
+existing Starlette warning.
+Infra: 41 tests.
+Launcher: 14 tests, plus ruff and mypy.
+Evaluation runner: 90 slots, 42 scored, 48 unassessed.
+No 90-run model-quality evaluation exists.
+
+Pending work is the Spoonacular retention gap.
+Job results stay stored past the one-hour delete rule.
+In-memory expiry deletes are not proven.
+Then unfinished model, provider, and adversarial evaluation remain.
+This documentation step does not fix those items.
+
+This session uses Grok first.
+Authorized fallback is `gpt-5.3-codex` only if Grok is unavailable or
+at quota.
+There is no silent Luna fallback.
+The coordinator will stop development when Codex weekly remaining is
+at or below 30 percent.
+The live query at this assignment was 59 percent remaining.
+These constraints are session rules.
+They are not a change to `AGENTS.md`.
+
+Catalog support stays ten meals, one to three meals per request, and
+one to eight servings per meal.
+Every estimate keeps this notice:
+Estimated from the demo price catalog. Instacart prices, availability,
+taxes, delivery fees, and tips are not verified.
+
+This record MUST NOT claim live retailer prices.
+This record MUST NOT claim nutrition advice.
+This record MUST NOT claim a finished graph.
+This log MUST NOT record a secret.
