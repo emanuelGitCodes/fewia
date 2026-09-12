@@ -171,3 +171,29 @@ the hybrid stack. Live retailer prices remain unverified.
 
 This MUST NOT claim live Instacart, Walmart, or Publix prices.
 This MUST NOT claim medical nutrition advice.
+
+## Addendum — 2026-09-12
+
+The original one-hour cache assumption is incomplete.
+
+Current Spoonacular terms live in the Prohibitions section at
+https://spoonacular.com/food-api/terms.
+That section says caching of user-requested data needs prior written
+permission. The same section sets a one-hour maximum when permission
+exists. The same section says prices and derived or transformed data
+are not storable. This repository has no written-permission record.
+
+The HTTP adapter uses no cache. Each `estimate_ingredient_cents` call
+MUST issue a fresh HTTP GET. The provider MUST NOT keep responses or
+costs on the instance. The provider MUST NOT export `CACHE_SECONDS`.
+The constructor MUST NOT take a clock. A later written permission MAY
+allow a cache. That path needs a separate approval. This page MUST NOT
+treat that path as active.
+
+The deterministic sample catalog stays unchanged. Stored USDA facts
+stay unchanged.
+
+This layer removes only the adapter in-memory cache. Durable job
+retention work follows before deployment. API changes follow before
+deployment. UI changes follow before deployment. This page MUST NOT
+claim the full retention gap is closed.

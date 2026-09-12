@@ -2,14 +2,11 @@
 
 import json
 import math
-import time
-from collections.abc import Callable
 
 import httpx
 
 BASE_URL = "https://api.spoonacular.com"
 INFORMATION_PATH = "/food/ingredients/{id}/information"
-CACHE_SECONDS = 3600
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 
 
@@ -52,11 +49,8 @@ class SpoonacularEstimateProvider:
         self,
         api_key: str,
         client: httpx.Client | None = None,
-        clock: Callable[[], float] | None = None,
     ) -> None:
         self._api_key = _require_api_key(api_key)
-        self._clock = time.monotonic if clock is None else clock
-        self._cache: dict[tuple[int, int, str], tuple[float, int | None]] = {}
         if client is None:
             self._client = httpx.Client(
                 base_url=BASE_URL,
@@ -77,12 +71,6 @@ class SpoonacularEstimateProvider:
     def estimate_ingredient_cents(
         self, ingredient_id: int, amount: int, unit: str
     ) -> int | None:
-        key = (ingredient_id, amount, unit)
-        cached = self._cache.get(key)
-        if cached is not None:
-            stored_at, value = cached
-            if self._clock() - stored_at < CACHE_SECONDS:
-                return value
         response: httpx.Response | None = None
         try:
             response = self._client.get(
@@ -100,7 +88,7 @@ class SpoonacularEstimateProvider:
         try:
             payload: object = json.loads(response.content)
         except Exception:
-            raise SpoonacularUnavailable() from None
-        cents = _parse_estimated_cents(payload)
-        self._cache[key] = (self._clock(), cents)
-        return cents
+            pass
+        else:
+            return _parse_estimated_cents(payload)
+        raise SpoonacularUnavailable()

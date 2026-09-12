@@ -1,14 +1,15 @@
 """Test the Spoonacular estimatedCost HTTP adapter."""
 
+import inspect
 import json
 from collections.abc import Callable
 
 import httpx
 import pytest
 
+from app.providers import spoonacular as spoonacular_mod
 from app.providers.spoonacular import (
     BASE_URL,
-    CACHE_SECONDS,
     INFORMATION_PATH,
     SpoonacularEstimateProvider,
     SpoonacularUnavailable,
@@ -21,9 +22,13 @@ UNIT = "g"
 SUCCESS_BODY = json.dumps(
     {"estimatedCost": {"value": 299.4, "unit": "US Cents"}}
 ).encode()
+SECOND_BODY = json.dumps(
+    {"estimatedCost": {"value": 150.6, "unit": "US Cents"}}
+).encode()
 NEGATIVE_BODY = json.dumps(
     {"estimatedCost": {"value": -1, "unit": "US Cents"}}
 ).encode()
+WRONG_UNIT_BODY = json.dumps({"estimatedCost": {"value": 10, "unit": "USD"}}).encode()
 INFORMATION_URL = f"{BASE_URL}{INFORMATION_PATH.format(id=INGREDIENT_ID)}"
 LEAK_MARKERS = (
     API_KEY,
@@ -31,23 +36,18 @@ LEAK_MARKERS = (
     "SECRET_ERROR_BODY",
 )
 UNAVAILABLE = "Spoonacular estimate is unavailable"
+ALLOWED_FIELDS = {"_api_key", "_client", "_owns_client"}
 
 
 def make_provider(
     handler: Callable[[httpx.Request], httpx.Response],
-    *,
-    clock: Callable[[], float] | None = None,
 ) -> tuple[SpoonacularEstimateProvider, httpx.Client]:
     client = httpx.Client(
         transport=httpx.MockTransport(handler),
         follow_redirects=False,
         trust_env=False,
     )
-    provider = SpoonacularEstimateProvider(
-        API_KEY,
-        client=client,
-        clock=(lambda: 0.0) if clock is None else clock,
-    )
+    provider = SpoonacularEstimateProvider(API_KEY, client=client)
     return provider, client
 
 
@@ -58,6 +58,16 @@ def assert_static_error(error: BaseException, message: str) -> None:
     rendered = str(error) + repr(error)
     for marker in LEAK_MARKERS:
         assert marker not in rendered
+
+
+def assert_no_instance_cache(provider: SpoonacularEstimateProvider) -> None:
+    fields = vars(provider)
+    assert set(fields) == ALLOWED_FIELDS
+    assert not hasattr(spoonacular_mod, "CACHE_SECONDS")
+    assert (
+        "clock"
+        not in inspect.signature(SpoonacularEstimateProvider.__init__).parameters
+    )
 
 
 def test_us_cents_rounds_to_int() -> None:
@@ -84,48 +94,73 @@ def test_us_cents_rounds_to_int() -> None:
     assert request.url.params["unit"] == UNIT
 
 
-def test_second_call_within_cache_window_does_not_get() -> None:
+def test_repeat_call_issues_fresh_get_and_uses_new_value() -> None:
     requests: list[httpx.Request] = []
-    now = [0.0]
+    bodies = [SUCCESS_BODY, SECOND_BODY]
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return httpx.Response(200, content=SUCCESS_BODY)
+        return httpx.Response(200, content=bodies[len(requests) - 1])
 
-    provider, client = make_provider(handler, clock=lambda: now[0])
+    provider, client = make_provider(handler)
     try:
         first = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
-        now[0] = CACHE_SECONDS - 1
         second = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+        assert_no_instance_cache(provider)
     finally:
         provider.close()
         client.close()
 
     assert first == 299
-    assert second == 299
-    assert len(requests) == 1
-
-
-def test_call_after_cache_window_gets_again() -> None:
-    requests: list[httpx.Request] = []
-    now = [0.0]
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        return httpx.Response(200, content=SUCCESS_BODY)
-
-    provider, client = make_provider(handler, clock=lambda: now[0])
-    try:
-        first = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
-        now[0] = CACHE_SECONDS
-        second = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
-    finally:
-        provider.close()
-        client.close()
-
-    assert first == 299
-    assert second == 299
+    assert second == 151
     assert len(requests) == 2
+
+
+def test_failed_then_recovered_call_issues_fresh_get() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            raise httpx.TimeoutException("SECRET_TRANSPORT_MARKER", request=request)
+        return httpx.Response(200, content=SUCCESS_BODY)
+
+    provider, client = make_provider(handler)
+    try:
+        with pytest.raises(SpoonacularUnavailable) as raised:
+            provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+        recovered = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+        assert_no_instance_cache(provider)
+    finally:
+        provider.close()
+        client.close()
+
+    assert_static_error(raised.value, UNAVAILABLE)
+    assert recovered == 299
+    assert len(requests) == 2
+
+
+def test_provider_holds_no_cost_or_response_cache() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, content=SUCCESS_BODY)
+
+    provider, client = make_provider(handler)
+    try:
+        cents = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+        owned = {
+            name: value for name, value in vars(provider).items() if name != "_client"
+        }
+        payload = repr(owned)
+        assert_no_instance_cache(provider)
+    finally:
+        provider.close()
+        client.close()
+
+    assert cents == 299
+    assert "299" not in payload
+    assert "299.4" not in payload
+    assert SUCCESS_BODY.decode() not in payload
 
 
 def test_timeout_raises_unavailable() -> None:
@@ -196,6 +231,37 @@ def test_negative_cost_value_returns_none_on_200() -> None:
         client.close()
 
     assert cents is None
+
+
+def test_non_us_cents_unit_returns_none_on_200() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, content=WRONG_UNIT_BODY)
+
+    provider, client = make_provider(handler)
+    try:
+        cents = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+    finally:
+        provider.close()
+        client.close()
+
+    assert cents is None
+
+
+def test_malformed_json_raises_unavailable() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, content=b"{not-json")
+
+    provider, client = make_provider(handler)
+    try:
+        with pytest.raises(SpoonacularUnavailable) as raised:
+            provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+    finally:
+        provider.close()
+        client.close()
+
+    assert_static_error(raised.value, UNAVAILABLE)
 
 
 def test_blank_api_key_is_rejected_without_echo() -> None:
