@@ -2120,3 +2120,23 @@ The reviewer did not rerun the gates.
 
 This is PR 10 of the hybrid-data stack.
 This MUST NOT claim live store prices.
+
+## 2026-09-12 — USDA nutrition overlay payload
+
+Grok 4.6 medium wrote `backend/app/services/nutrition_overlay.py`.
+Plan lines copy USDA facts per 100 g.
+The overlay does not scale by quantity.
+Planner totals do not change.
+Added application lines: 51.
+
+Backend `ruff check` passed.
+Format check covered 189 files.
+Strict mypy passed 97 source files.
+Pytest reported 1,467 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the payload.
+The reviewer did not rerun the gates.
+
+This is PR 11 of the hybrid-data stack.
+This MUST NOT claim medical nutrition advice.
