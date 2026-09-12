@@ -2062,3 +2062,23 @@ The reviewer did not rerun the gates.
 
 This is PR 7 of the hybrid-data stack.
 This MUST NOT record a secret.
+
+## 2026-09-11 — Attach overlay on execute_plan
+
+Grok 4.6 medium attached `supermarket_estimate` on `execute_plan`.
+The overlay is omitted when no estimator is passed.
+Planner `total_cents`, `accepted`, and `evidence_id` do not change.
+Added application lines: 14.
+
+Backend `ruff check` passed.
+Format check covered 187 files.
+Strict mypy passed 96 source files.
+Pytest reported 1,459 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the attach.
+The reviewer did not rerun the gates.
+
+This is PR 8 of the hybrid-data stack.
+This MUST NOT claim live store prices.
+This MUST NOT record a secret.

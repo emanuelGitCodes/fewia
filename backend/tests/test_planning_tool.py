@@ -19,6 +19,8 @@ from app.agent.planning_tool import (
 )
 from app.domain.budget import BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
+from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
+from app.providers.spoonacular import SpoonacularUnavailable
 from app.tools.base import build_evidence_id
 
 PERIOD = date(2026, 9, 1)
@@ -35,6 +37,24 @@ def arguments(**overrides: object) -> dict[str, object]:
 
 def budget(available_cents: int = 10_000) -> BudgetResult:
     return BudgetResult(available_cents, 250, False, ())
+
+
+class _FakeEstimator:
+    def __init__(
+        self,
+        *,
+        cents: int = 25,
+        error: type[BaseException] | None = None,
+    ) -> None:
+        self.cents = cents
+        self.error = error
+
+    def estimate_ingredient_cents(
+        self, ingredient_id: int, amount: int, unit: str
+    ) -> int | None:
+        if self.error is not None:
+            raise self.error()
+        return self.cents
 
 
 def _assert_static(error: BaseException, token: str) -> None:
@@ -259,3 +279,57 @@ def test_execute_plan_tool_result_matches_converse_input_shape() -> None:
     rejected["plan"] = rejected_plan
     with pytest.raises(ParamValidationError):
         validate_parameters(_converse_tool_result_params(rejected), input_shape)
+
+
+def test_default_execute_plan_omits_supermarket_estimate() -> None:
+    result = execute_plan(arguments(), budget(), PERIOD)
+    assert "supermarket_estimate" not in result
+    assert set(result) == {
+        "request",
+        "plan",
+        "budget",
+        "spending_source",
+        "evidence_id",
+    }
+
+
+def test_estimator_attaches_overlay_and_keeps_plan_total() -> None:
+    without = execute_plan(arguments(), budget(), PERIOD)
+    with_overlay = execute_plan(
+        arguments(), budget(), PERIOD, supermarket_estimator=_FakeEstimator()
+    )
+    estimate = with_overlay["supermarket_estimate"]
+    without_plan = without["plan"]
+    overlay_plan = with_overlay["plan"]
+    assert isinstance(estimate, dict)
+    assert isinstance(without_plan, dict)
+    assert isinstance(overlay_plan, dict)
+    assert type(estimate["total_cents"]) is int
+    assert estimate["notice"] == SPOONACULAR_COST_NOTICE
+    assert overlay_plan["total_cents"] == without_plan["total_cents"]
+
+
+def test_estimator_does_not_change_evidence_id() -> None:
+    without = execute_plan(arguments(), budget(), PERIOD)
+    with_overlay = execute_plan(
+        arguments(), budget(), PERIOD, supermarket_estimator=_FakeEstimator()
+    )
+    assert with_overlay["evidence_id"] == without["evidence_id"]
+
+
+def test_unavailable_overlay_is_none_and_keeps_accepted() -> None:
+    without = execute_plan(arguments(), budget(), PERIOD)
+    failed = execute_plan(
+        arguments(),
+        budget(),
+        PERIOD,
+        supermarket_estimator=_FakeEstimator(error=SpoonacularUnavailable),
+    )
+    estimate = failed["supermarket_estimate"]
+    without_plan = without["plan"]
+    failed_plan = failed["plan"]
+    assert isinstance(estimate, dict)
+    assert isinstance(without_plan, dict)
+    assert isinstance(failed_plan, dict)
+    assert estimate["total_cents"] is None
+    assert failed_plan["accepted"] == without_plan["accepted"]
