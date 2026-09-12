@@ -11,13 +11,14 @@ scope predates this pivot. The earlier plan under `plans/` also predates the
 web-chat, estimate, and Floci decisions. Do not resume its live-price
 prerequisite, frontend deferral, or health-model training.
 This brief records accepted scope, not authority for unrelated changes.
+Current local source is `39840b6`.
 Saved local `main` at this snapshot is `0c6d571` (USDA per-100 g overlay, pull request 68).
 The coordinator verified that SHA from local `git log main`.
 Remote `HEAD` was not queried.
 This brief MUST NOT claim current GitHub `main`.
 Pull request 42 on 2026-09-07 remains the historical published foundation.
 The prior current-build source base is `c0357d6`.
-This snapshot is a verified source base, not a live Local HEAD label.
+`0c6d571` is a verified `main` snapshot, not a live Local HEAD label.
 
 A 2026-09-08 MFA checkpoint called continuity unfinished, handoff UI
 unfinished, features paused, and Instacart release proof required.
@@ -61,8 +62,10 @@ Use versioned sample prices. Always label estimates:
 
 Missing prices produce incomplete estimates. Instacart links prove handoff,
 not pricing or inventory. Budget acceptance uses sample-catalog integer cents.
-Spoonacular average cost MAY appear as a labeled overlay. It MUST NOT change
-`accepted` or `total_cents`. It is not a live store price.
+Spoonacular average cost MAY appear as a labeled current-view overlay.
+It MUST NOT change `accepted` or `total_cents`. It is not a live store price.
+Job results MUST NOT keep a root `supermarket_estimate`.
+The UI MUST NOT fetch the overlay automatically.
 Validate vegetarian/vegan preferences and ingredient exclusions against
 catalog facts. Clarify unknown restrictions. Do not certify retailer products
 or cross-contact safety. Spending older than 24 hours requires refresh or an
@@ -98,19 +101,32 @@ Targets: 90% task success and 95% supported claims; zero tested constraint
 violations in accepted plans, secret leaks, or purchase attempts.
 Separate fixture, Sandbox, live provider, emulator, and deployed evidence.
 
-Bedrock live chat evidence exists on local Compose hosts 5173 and 5174.
+Bedrock live chat evidence exists on updated preview 5174.
+Older 5173 remains a separate instance.
 Plaid Sandbox adapters exist. Live Sandbox evidence remains pending.
 Instacart development evidence is blocked while IDP is closed.
 That parked adapter is not a current release gate.
-Spoonacular overlay is optional and labeled. Job-result retention still
-exceeds the one-hour delete rule. In-memory expiry deletes are not proven.
-The evaluation runner has 90 slots, 42 scored, and 48 unassessed.
+Spoonacular overlay is optional, labeled, and request-local.
+Migration `0008` strips root price from `jobs.result` only.
+The first live overlay check failed on a unit mismatch.
+A later 5174 lookup succeeded after the locale and unit fix.
+This brief MUST NOT record an actual Spoonacular price.
+The evaluation runner has 90 slots, 45 scored, and 45 unassessed.
+P03 is scored. Remaining slots include F01, F02, F04, F05, X02, X03,
+X04, P01, P02, P04, P05, and A01 through A04.
+`metrics_status` stays unassessed.
 No 90-run model-quality evaluation exists.
-The user resumed the build.
-Next application work is Spoonacular retention and evaluation after the graph and wiki prerequisite.
-This docs refresh does not implement pending features.
+This brief MUST NOT claim full evaluation coverage.
+The graph and wiki prerequisite completed first at `e045a9d`.
+That prebuild graph had 4190 nodes, 12131 edges, and 169 communities.
+Do not treat that graph as current after later code changes.
+The coordinator rebuilds the graph after this documentation pass.
 Graph artifacts are local and ignored; verify manifest/source hashes before use.
 This brief MUST NOT claim a completed graph.
+Overlay operators follow `docs/SUPERMARKET_ESTIMATES.md`.
+Grok 4.6 medium wrote the resumed build. No fallback has run.
+Authorized fallback is `gpt-5.3-codex` only if Grok is unavailable or at quota.
+The coordinator stops when Codex weekly remaining is at or below 30 percent.
 
 Provider fakes permit development while a vendor stays pending.
 This brief does not declare a product release.

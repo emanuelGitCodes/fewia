@@ -1,56 +1,70 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Active direction:** The user resumed the grocery build. This docs
-> refresh does not implement pending features. The accepted brief is
-> [.codex/project-context.md](.codex/project-context.md). The demo is a
-> budget-aware grocery planner. It is not a completed AI product. The
+> **Active direction:** The user resumed the grocery build. The accepted
+> brief is [.codex/project-context.md](.codex/project-context.md). The demo
+> is a budget-aware grocery planner. It is not a completed AI product. The
 > health-prediction phases below are historical planning material. Do not
-> resume their training tasks. Next application work is Spoonacular
-> retention and evaluation after the graph and wiki prerequisite.
+> resume their training tasks. Spoonacular retention, request-local overlay,
+> P03 evaluation, and optional runtime binding are recorded. Remaining
+> evaluation slots stay unfinished.
 
-> **Status (2026-09-12):** Verified source-base snapshot: saved local
-> `main` is `0c6d571`. That commit merges the USDA per-100 g nutrition
-> overlay (pull request 68). The coordinator verified that SHA from
-> local `git log main`. Remote `HEAD` was not queried. This plan MUST
-> NOT claim current GitHub `main`. This is not a live Local HEAD label.
-> Later docs commits MUST NOT treat this SHA as the live checkout. The
-> prior current-build source base is `c0357d6` on
-> `codex/project-context-refresh`
+> **Status (2026-09-12):** Current local source is `39840b6`. Saved local
+> `main` remains `0c6d571`, the USDA per-100 g overlay (pull request 68).
+> The coordinator verified that SHA from local `git log main`. Remote
+> `HEAD` was not queried. This plan MUST NOT claim current GitHub `main`.
+> This is not a live GitHub HEAD label. The graph and wiki prerequisite
+> completed first at `e045a9d`. That prebuild graph had 4190 nodes, 12131
+> edges, and 169 communities. Do not treat that graph as current after
+> later code changes. The coordinator rebuilds the graph after this
+> documentation pass. Do not invent new node counts. The prior
+> current-build source base is `c0357d6` on `codex/project-context-refresh`
 > ([wiki/phases/grocery-mvp-checkpoint.md](wiki/phases/grocery-mvp-checkpoint.md)).
-> Prior application code is committed locally. No Git push occurred.
-> Local macros compute calories, protein,
-> carbs, and fat per serving and per plan. All 22 USDA ingredient mappings
-> match the public source. Pantry items count in nutrition. Quantities are
-> not packages. Manual and chat jobs return root nutrition JSON after
-> evidence. Frontend 5174 displays those macros. Preview 5173 uses older
-> application code with the new Bedrock identity. Amazon Nova 2 Lite,
-> reasoning effort `low`, planned chat on 5173 and 5174. Runtime uses
-> dedicated IAM user `fewia-bedrock-runtime` from CDK. Credentials live
-> outside Git with file mode `600`. Runtime does not use human MFA. The
-> human MFA role is unchanged. Created IAM user, deployment role, and
-> CloudFormation stacks carry seven tags. Billing has six Active
-> `iamPrincipal` dimensions. Filter `iamPrincipal/Project=FEWIA`.
-> `CostCenter` waits for registration. Charges are not verified. Do not
-> print account ids or access keys. Chat and form continuity is complete
-> locally. Handoff controls exist locally. Instacart stays unavailable.
-> Instacart remains parked. The adapter is retained.
-> `instacart_configured` stays false because IDP is closed. Budget
-> acceptance uses sample-catalog integer cents. Spoonacular average cost
-> is an optional labeled overlay. It is not a live store price. Plaid
-> Sandbox is not live-verified. USDA stored facts need no runtime API key.
-> Macro PostgreSQL backend: 1510 passed. Frontend: 327 passed. Frontend
-> build passed. Unattended Bedrock item: backend 1496 passed, 14 database
-> skips, one existing Starlette warning. Infra: 41 tests. Launcher: 14
-> tests, plus ruff and mypy. Those counts come from different
-> environments. They are not a contradiction. Evaluation runner: 90
-> slots, 42 scored, 48 unassessed. No 90-run model-quality evaluation
-> exists. Pending work is the Spoonacular retention gap, then unfinished
-> model, provider, and adversarial evaluation. This docs refresh does
-> not implement those items. Graph artifacts are local and ignored;
-> verify manifest/source hashes before use. This plan MUST NOT claim a
-> completed graph. Pull request
-> [42](https://github.com/emanuelGitCodes/fewia/pull/42) remains the
-> historical published foundation. It merged at
+> Application code is committed locally. No Git push occurred. No pull
+> request opened. No merge occurred. Local macros compute calories,
+> protein, carbs, and fat per serving and per plan. There are no
+> micronutrients. Pantry items count in nutrition. Quantities are consumed
+> recipe amounts, not packages. USDA facts stay stored separately.
+> Frontend 5174 displays those macros. Older 5173 remains a separate
+> instance. Amazon Nova 2 Lite, reasoning effort `low`, planned chat on
+> updated 5174 with dedicated IAM user `fewia-bedrock-runtime`. Olive oil
+> stayed in the pantry. Servings were 4. Sample catalog total is 1233
+> cents. Plan energy is 1515 kcal. Those figures are demo catalog and USDA
+> values. They are not Spoonacular prices. Credentials live outside Git
+> with file mode `600`. Runtime does not use human MFA. The human MFA role
+> is unchanged. Created IAM user, deployment role, and CloudFormation
+> stacks carry seven tags. Billing has six Active `iamPrincipal`
+> dimensions. Filter `iamPrincipal/Project=FEWIA`. `CostCenter` waits for
+> registration. Charges are not verified. Do not print account ids or
+> access keys. Chat and form continuity is complete locally. Handoff
+> controls exist locally. Instacart stays unavailable. Instacart remains
+> parked. The adapter is retained. `instacart_configured` stays false
+> because IDP is closed. Budget acceptance uses sample-catalog integer
+> cents. Spoonacular average cost is an optional labeled current-view
+> overlay. It is not a live store price. Job results do not keep a root
+> `supermarket_estimate`. Migration `0008` is applied on `fewia-macros`.
+> The first live overlay check failed on a unit mismatch. A later lookup
+> on 5174 succeeded after the locale and unit fix. HTTP 200, numeric
+> estimate available, `Cache-Control: no-store`, budget unchanged, USDA
+> macros intact, overlay cleared after plan edit. This plan MUST NOT
+> record an actual Spoonacular price. Optional `--spoonacular-key-file`
+> mounts the key read-only on `api` only. The worker has no Spoonacular
+> key. AWS mounts stay. Plaid Sandbox is not live-verified. USDA stored
+> facts need no runtime API key. Independent Grok final range review
+> approved 8/10. Backend tests: 1577 passed. Infra tests: 31 passed. Ruff,
+> format, and `app` mypy passed. Frontend: 346 passed. Frontend build
+> passed. Desktop 1280x900 and mobile 375x812 checks stayed unchanged.
+> Those counts come from the final range. Earlier slice counts stay in
+> `wiki/log.md`. They are not a contradiction. Evaluation runner: 90
+> slots, 45 scored, 45 unassessed. P03 is scored. Remaining slots include
+> F01, F02, F04, F05, X02, X03, X04, P01, P02, P04, P05, and A01 through
+> A04. `metrics_status` stays unassessed. No 90-run model-quality
+> evaluation exists. This plan MUST NOT claim full evaluation coverage.
+> Application layers stayed at or below 150 added lines. Eval used 147
+> plus 9 lines in separate commits. Graph artifacts are local and ignored.
+> This plan MUST NOT claim a completed graph. Overlay operators follow
+> [docs/SUPERMARKET_ESTIMATES.md](docs/SUPERMARKET_ESTIMATES.md). Pull
+> request [42](https://github.com/emanuelGitCodes/fewia/pull/42) remains
+> the historical published foundation. It merged at
 > `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07.
 > Phase 0 through Phase 3 remain complete historical records
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
@@ -61,9 +75,11 @@
 > and `wiki/index.md` before starting. The Claude Code delegation
 > sections below are inactive historical text. Current writers follow
 > [docs/DEV_SUPERVISOR.md](docs/DEV_SUPERVISOR.md). This session uses
-> Grok first. The authorized fallback is Codex 5.3 when Grok is
-> unavailable. The coordinator stops when Codex weekly remaining is at
-> or below 30 percent. The last wiki records that session rule.
+> Grok 4.6 medium only. No fallback has run. The authorized fallback is
+> `gpt-5.3-codex` only if Grok is unavailable or at quota. The
+> coordinator stops when Codex weekly remaining is at or below 30
+> percent. The coordinator queries remaining at final. No reset credit
+> was redeemed. The last wiki records that session rule.
 
 ## Context
 
