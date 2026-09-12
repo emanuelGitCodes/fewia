@@ -10,6 +10,7 @@ from app.provider_runtime import (
     build_bedrock,
     build_instacart,
     build_plaid,
+    build_spoonacular,
     capabilities,
 )
 from app.provider_settings import (
@@ -22,6 +23,7 @@ CLIENT_MARKER = "TEST_PLAID_CLIENT_MARKER"
 SECRET_MARKER = "TEST_SECRET_FILE_MARKER"
 TOKEN_MARKER = "TEST_ACCESS_TOKEN_MARKER"
 KEY_MARKER = "TEST_INSTACART_KEY_MARKER"
+SPOONACULAR_KEY_MARKER = "TEST_SPOONACULAR_KEY_MARKER"
 MODEL_MARKER = "anthropic.model"
 PROFILE_MARKER = "operator-profile"
 REF = "item-ref"
@@ -68,11 +70,19 @@ class FakeInstacart:
         self.api_key = api_key
 
 
+class FakeSpoonacular:
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
+
+
 def _install_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", FakeBedrock)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", FakePlaid)
     monkeypatch.setattr(
         "app.provider_runtime.InstacartDevelopmentProvider", FakeInstacart
+    )
+    monkeypatch.setattr(
+        "app.provider_runtime.SpoonacularEstimateProvider", FakeSpoonacular
     )
 
 
@@ -92,6 +102,7 @@ def test_unconfigured_defaults_have_zero_effects(
     assert build_bedrock(settings) is None
     assert build_plaid(settings) is None
     assert build_instacart(settings) is None
+    assert build_spoonacular(settings) is None
     assert capabilities(settings) == {
         "chat_configured": False,
         "plaid_configured": False,
@@ -281,6 +292,48 @@ def test_build_instacart_missing_file_is_static(
     _static(exc_info.value, str(key_file))
 
 
+def test_build_spoonacular_routes_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fakes(monkeypatch)
+    key_file = tmp_path / "spoonacular.key"
+    key_file.write_text(f"{SPOONACULAR_KEY_MARKER}\n", encoding="utf-8")
+    settings = GroceryProviderSettings(spoonacular_key_file=key_file)
+    provider = build_spoonacular(settings)
+    assert isinstance(provider, FakeSpoonacular)
+    assert provider.api_key == SPOONACULAR_KEY_MARKER
+    caps = capabilities(settings)
+    assert "spoonacular_configured" not in caps
+    assert SPOONACULAR_KEY_MARKER not in repr(caps)
+    assert str(key_file) not in repr(caps)
+
+
+def test_build_spoonacular_hides_key_on_constructor_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(api_key: str) -> None:
+        raise ValueError(api_key)
+
+    monkeypatch.setattr("app.provider_runtime.SpoonacularEstimateProvider", boom)
+    key_file = tmp_path / "spoonacular.key"
+    key_file.write_text(SPOONACULAR_KEY_MARKER, encoding="utf-8")
+    settings = GroceryProviderSettings(spoonacular_key_file=key_file)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        build_spoonacular(settings)
+    _static(exc_info.value, SPOONACULAR_KEY_MARKER)
+
+
+def test_build_spoonacular_missing_file_is_static(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fakes(monkeypatch)
+    key_file = tmp_path / "missing-spoonacular.key"
+    settings = GroceryProviderSettings(spoonacular_key_file=key_file)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        build_spoonacular(settings)
+    _static(exc_info.value, str(key_file))
+
+
 def test_capabilities_does_not_construct_or_claim_live(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -290,6 +343,7 @@ def test_capabilities_does_not_construct_or_claim_live(
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", boom)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", boom)
     monkeypatch.setattr("app.provider_runtime.InstacartDevelopmentProvider", boom)
+    monkeypatch.setattr("app.provider_runtime.SpoonacularEstimateProvider", boom)
     _forbid_reads(monkeypatch)
     settings = GroceryProviderSettings(
         spending_source="plaid_sandbox",
@@ -299,6 +353,7 @@ def test_capabilities_does_not_construct_or_claim_live(
         plaid_secret_file=Path("secret"),
         plaid_tokens_file=Path("tokens"),
         instacart_key_file=Path("key"),
+        spoonacular_key_file=Path("spoonacular"),
     )
     caps = capabilities(settings)
     assert caps == {
@@ -321,3 +376,5 @@ def test_capabilities_does_not_construct_or_claim_live(
     assert "secret" not in blob
     assert "tokens" not in blob
     assert "key" not in blob
+    assert "spoonacular" not in blob
+    assert "spoonacular_configured" not in caps

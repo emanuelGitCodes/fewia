@@ -2043,3 +2043,22 @@ The reviewer did not rerun the gates.
 This is PR 6 of the hybrid-data stack.
 This MUST NOT claim live store prices.
 This MUST NOT record a secret.
+
+## 2026-09-11 — Spoonacular runtime factory
+
+Grok 4.6 medium added `build_spoonacular`.
+The factory reads `FEWIA_SPOONACULAR_KEY_FILE` like Instacart.
+Capabilities keys do not change.
+Added application lines: 18.
+
+Backend `ruff check` passed.
+Format check covered 187 files.
+Strict mypy passed 96 source files.
+Pytest reported 1,455 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the factory.
+The reviewer did not rerun the gates.
+
+This is PR 7 of the hybrid-data stack.
+This MUST NOT record a secret.
