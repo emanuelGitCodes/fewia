@@ -19,7 +19,12 @@ _ACCOUNT_DIGITS = re.compile(r"(?<![0-9])[0-9]{12}(?![0-9])")
 _REGION = "us-east-1"
 _ROLE_NAME = "fewia-bedrock-runtime-deployment"
 _USER_ARN = f"arn:aws:iam::{_ACCOUNT}:user/fewia/fewia-bedrock-runtime"
+_UNPATHED_USER_ARN = f"arn:aws:iam::{_ACCOUNT}:user/fewia-bedrock-runtime"
 _EXECUTION_ROLE_ARN = f"arn:aws:iam::{_ACCOUNT}:role/{_ROLE_NAME}"
+_LOOKUP_ACTIONS = {
+    "iam:GetUser",
+    "iam:GetUserPolicy",
+}
 _ALLOWED_ACTIONS = {
     "iam:CreateUser",
     "iam:DeleteUser",
@@ -36,6 +41,7 @@ _ALLOWED_ACTIONS = {
     "iam:ListAttachedUserPolicies",
     "iam:GetLoginProfile",
 }
+_MUTATION_ACTIONS = _ALLOWED_ACTIONS - _LOOKUP_ACTIONS
 _ROOT = Path(__file__).resolve().parent
 _REQUIRED_TAGS = {
     "Project": "FEWIA",
@@ -236,7 +242,7 @@ def test_role_name_trust_and_resource() -> None:
         "cloudformation.amazonaws.com"
     ]
     identity = _identity_statements(template)
-    assert len(identity) == 1
+    assert len(identity) == 2
     actions = set(_as_list(identity[0]["Action"]))
     assert len(_ALLOWED_ACTIONS) == 14
     assert actions == _ALLOWED_ACTIONS
@@ -244,6 +250,15 @@ def test_role_name_trust_and_resource() -> None:
     assert "iam:ListAttachedUserPolicies" in actions
     assert "iam:GetLoginProfile" in actions
     assert _as_list(identity[0]["Resource"]) == [_USER_ARN]
+    lookup = identity[1]
+    assert lookup.get("Sid") == "ReadRuntimeUserBeforeCreation"
+    lookup_actions = set(_as_list(lookup["Action"]))
+    assert lookup_actions == _LOOKUP_ACTIONS
+    assert _as_list(lookup["Resource"]) == [_UNPATHED_USER_ARN]
+    assert lookup_actions.isdisjoint(_MUTATION_ACTIONS)
+    assert "iam:CreateUser" not in lookup_actions
+    assert "iam:UpdateUser" not in lookup_actions
+    assert "iam:DeleteUser" not in lookup_actions
 
 
 def test_role_removal_policy_is_retain() -> None:
@@ -273,7 +288,13 @@ def test_rejects_access_keys_users_and_data_permissions() -> None:
     for statement in _identity_statements(template):
         assert "*" not in str(statement["Action"])
         assert "*" not in str(statement["Resource"])
-        for action in _as_list(statement["Action"]):
+        resources = _as_list(statement["Resource"])
+        assert set(resources) <= {_USER_ARN, _UNPATHED_USER_ARN}
+        actions = set(_as_list(statement["Action"]))
+        if resources == [_UNPATHED_USER_ARN]:
+            assert actions == _LOOKUP_ACTIONS
+            assert actions.isdisjoint(_MUTATION_ACTIONS)
+        for action in actions:
             assert action not in _FORBIDDEN_ACTIONS
             assert action in _ALLOWED_ACTIONS
             assert action not in {
@@ -504,6 +525,9 @@ def test_source_uses_synthetic_account_only() -> None:
     assert "iam:RemoveUserFromGroup" not in stack
     assert "iam:AttachUserPolicy" not in stack
     assert "iam:DetachUserPolicy" not in stack
+    assert "ReadRuntimeUserBeforeCreation" in stack
+    assert ":user/fewia/fewia-bedrock-runtime" in stack
+    assert ":user/fewia-bedrock-runtime" in stack
     app = (_ROOT / "workload_app.py").read_text(encoding="utf-8")
     assert "DefaultStackSynthesizer" in app
     assert 'deploy_role_arn=""' in app

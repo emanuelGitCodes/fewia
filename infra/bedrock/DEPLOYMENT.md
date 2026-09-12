@@ -51,7 +51,10 @@ CloudFormation is the only trusted service principal. The trust service
 is `cloudformation.amazonaws.com`.
 
 The inline policy lives on the role. Installed CDK supports
-`inline_policies` on `iam.Role`. The policy grants these actions only,
+`inline_policies` on `iam.Role`. The policy has two statements.
+Both statements name the same user `fewia-bedrock-runtime` only.
+
+The first statement grants these 14 actions only,
 on `arn:aws:iam::<account>:user/fewia/fewia-bedrock-runtime`:
 
 - `iam:CreateUser`
@@ -68,6 +71,18 @@ on `arn:aws:iam::<account>:user/fewia/fewia-bedrock-runtime`:
 - `iam:ListGroupsForUser`
 - `iam:ListAttachedUserPolicies`
 - `iam:GetLoginProfile`
+
+The second statement uses Sid `ReadRuntimeUserBeforeCreation`.
+It grants `iam:GetUser`.
+It also grants `iam:GetUserPolicy`.
+Those two actions are the full lookup set.
+The resource is `arn:aws:iam::<account>:user/fewia-bedrock-runtime`.
+CloudFormation looks up the user by that unpathed name before create.
+IAM treats the path form and the unpathed form as different resources.
+The lookup statement MUST NOT include `iam:CreateUser`.
+The lookup statement MUST NOT include `iam:UpdateUser`.
+The lookup statement MUST NOT include `iam:DeleteUser`.
+The role MUST NOT grant those reads on any other user name.
 
 The identity MUST NOT receive wildcard actions or wildcard resources.
 The identity MUST NOT receive access-key actions.

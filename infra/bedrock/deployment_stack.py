@@ -10,6 +10,7 @@ _ORIGIN_REGION = "us-east-1"
 _ACCOUNT = re.compile(r"^[0-9]{12}$")
 _ROLE_NAME = "fewia-bedrock-runtime-deployment"
 _USER_ARN = "arn:aws:iam::{account}:user/fewia/fewia-bedrock-runtime"
+_USER_LOOKUP_ARN = "arn:aws:iam::{account}:user/fewia-bedrock-runtime"
 _USER_ACTIONS = [
     "iam:CreateUser",
     "iam:DeleteUser",
@@ -25,6 +26,10 @@ _USER_ACTIONS = [
     "iam:ListGroupsForUser",
     "iam:ListAttachedUserPolicies",
     "iam:GetLoginProfile",
+]
+_USER_LOOKUP_ACTIONS = [
+    "iam:GetUser",
+    "iam:GetUserPolicy",
 ]
 _TAGS = {
     "Project": "FEWIA",
@@ -61,7 +66,13 @@ class BedrockRuntimeDeploymentStack(Stack):
                         iam.PolicyStatement(
                             actions=_USER_ACTIONS,
                             resources=[_USER_ARN.format(account=self.account)],
-                        )
+                        ),
+                        # CloudFormation GetUser uses the unpathed user ARN.
+                        iam.PolicyStatement(
+                            sid="ReadRuntimeUserBeforeCreation",
+                            actions=_USER_LOOKUP_ACTIONS,
+                            resources=[_USER_LOOKUP_ARN.format(account=self.account)],
+                        ),
                     ]
                 )
             },
