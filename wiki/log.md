@@ -2002,3 +2002,23 @@ The reviewer did not rerun the gates.
 This is PR 4 of the hybrid-data stack.
 This MUST NOT claim live store prices.
 This MUST NOT record a secret.
+
+## 2026-09-11 — Spoonacular ingredient id map
+
+Grok 4.6 medium wrote `backend/app/domain/spoonacular_catalog.py`.
+Every catalog ingredient maps to a Spoonacular id.
+The module does not call HTTP.
+Planner totals do not change.
+Added application lines: 31.
+
+Backend `ruff check` passed.
+Format check covered 185 files.
+Strict mypy passed 95 source files.
+Pytest reported 1,446 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the map.
+The reviewer did not rerun the gates.
+
+This is PR 5 of the hybrid-data stack.
+This MUST NOT claim live store prices.
