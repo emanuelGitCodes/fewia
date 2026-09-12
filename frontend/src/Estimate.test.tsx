@@ -4,7 +4,13 @@ import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob, type PlanLine } from "./apiTypes";
+import {
+  SAMPLE_ESTIMATE_NOTICE,
+  SPOONACULAR_COST_NOTICE,
+  type GroceryJob,
+  type PlanLine,
+  type SupermarketEstimate,
+} from "./apiTypes";
 import { Estimate } from "./Estimate";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -38,6 +44,7 @@ function succeeded(overrides: {
   pending?: number;
   planWarnings?: string[];
   budgetWarnings?: string[];
+  supermarket_estimate?: SupermarketEstimate;
 } = {}): GroceryJob {
   const lines = overrides.lines ?? [line(), line({ ingredient_id: "tortillas", name: "tortillas", unit: "ct", quantity: 8, packages: 1, cost_cents: 349 })];
   return {
@@ -60,6 +67,9 @@ function succeeded(overrides: {
         catalog_version: "sample-prices-v1",
         notice: NOTICE,
       },
+      ...(overrides.supermarket_estimate === undefined
+        ? {}
+        : { supermarket_estimate: overrides.supermarket_estimate }),
     },
   };
 }
@@ -148,6 +158,34 @@ describe("Estimate", () => {
     expect(renderer.root.findAllByType("input")).toHaveLength(2);
     expect(renderer.root.findAllByType("a")).toHaveLength(0);
     expect(text.toLowerCase()).not.toMatch(/checkout/);
+    expect(text).not.toContain("Average supermarket estimate");
+    expect(text).not.toContain("Spoonacular");
+    renderer.unmount();
+  });
+
+  it("shows catalog dollars and overlay dollars when present", () => {
+    const renderer = mount({
+      job: succeeded({
+        supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
+      }),
+    });
+    const text = childText(renderer.root);
+    expect(text).toContain("$4.78");
+    expect(text).toContain("Average supermarket estimate");
+    expect(text).toContain("$12.99");
+    expect(text).toContain(SPOONACULAR_COST_NOTICE);
+    expect(text).toContain(NOTICE);
+    renderer.unmount();
+  });
+
+  it("omits overlay copy when the key is absent", () => {
+    const renderer = mount({ job: succeeded() });
+    const text = childText(renderer.root);
+    expect(text).toContain("$4.78");
+    expect(text).toContain(NOTICE);
+    expect(text).not.toContain("Average supermarket estimate");
+    expect(text).not.toContain("$12.99");
+    expect(text).not.toContain(SPOONACULAR_COST_NOTICE);
     renderer.unmount();
   });
 

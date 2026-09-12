@@ -126,6 +126,15 @@ export function Estimate({
         {planWording(result)}
       </p>
       <p className="estimate-total">{formatDollars(result.plan.total_cents)}</p>
+      {result.supermarket_estimate !== undefined ? (
+        <>
+          <p className="estimate-overlay-label">Average supermarket estimate</p>
+          <p className="estimate-overlay-total">
+            {formatDollars(result.supermarket_estimate.total_cents)}
+          </p>
+          <p className="estimate-notice">{result.supermarket_estimate.notice}</p>
+        </>
+      ) : null}
       <p className="estimate-available">{`Available for this plan ${formatDollars(result.budget.available_cents)}`}</p>
       <p className="estimate-pending">{`Pending ${formatDollars(result.budget.pending_cents)}`}</p>
       <p className="estimate-source">{`Source ${sourceLabel(result.spending_source)}`}</p>

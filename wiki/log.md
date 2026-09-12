@@ -2104,3 +2104,19 @@ The reviewer did not rerun the gates.
 This is PR 9 of the hybrid-data stack.
 This MUST NOT claim live store prices.
 This MUST NOT record a secret.
+
+## 2026-09-12 — Frontend Spoonacular overlay label
+
+Grok 4.6 medium showed `supermarket_estimate` on the estimate panel.
+Catalog `total_cents` stays the primary total.
+`parseJob` accepts a missing overlay and rejects a bad notice.
+Added application lines: 56.
+
+Frontend vitest reported 308 passed.
+`tsc --noEmit` and `vite build` passed.
+
+Independent read-only review approved the labels.
+The reviewer did not rerun the gates.
+
+This is PR 10 of the hybrid-data stack.
+This MUST NOT claim live store prices.
