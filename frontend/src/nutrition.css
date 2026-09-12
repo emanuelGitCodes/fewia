@@ -1,0 +1,43 @@
+.nutrition {
+  display: flex; flex-direction: column; gap: 0.4rem; min-width: 0;
+  margin: 0.75rem 0; padding: 0.75rem 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.nutrition h3,
+.nutrition-subheading,
+.nutrition-per-serving {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Source Sans 3", sans-serif;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.nutrition h3 { font-size: 1.1rem; }
+.nutrition-subheading,
+.nutrition-per-serving { margin-top: 0.35rem; font-size: 0.95rem; }
+.nutrition-status,
+.nutrition-servings,
+.nutrition-notice,
+.nutrition-notes p { margin: 0; color: var(--muted); }
+.nutrition-notice {
+  margin-top: 0.35rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid var(--line);
+  font-size: 0.92rem;
+}
+.nutrition-macros {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.35rem 0.75rem; margin: 0; min-width: 0;
+}
+.nutrition-macro { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.nutrition-macro dt { margin: 0; color: var(--muted); font-weight: 400; }
+.nutrition-macro dd {
+  margin: 0; overflow-wrap: anywhere; color: var(--accent);
+  font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.nutrition-meal { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.nutrition-usda { width: fit-content; max-width: 100%; color: var(--accent); }
+.nutrition-notes summary {
+  display: list-item; min-height: 44px;
+  color: var(--ink); font-weight: 600; cursor: pointer;
+}

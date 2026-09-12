@@ -1,5 +1,6 @@
 import type { GroceryJob, GroceryJobResult, PlanLine } from "./apiTypes";
 import { formatDollars } from "./money";
+import { Nutrition } from "./Nutrition";
 
 export type EstimateProps = {
   job: GroceryJob | null;
@@ -138,6 +139,7 @@ export function Estimate({
       <p className="estimate-available">{`Available for this plan ${formatDollars(result.budget.available_cents)}`}</p>
       <p className="estimate-pending">{`Pending ${formatDollars(result.budget.pending_cents)}`}</p>
       <p className="estimate-source">{`Source ${sourceLabel(result.spending_source)}`}</p>
+      <Nutrition nutrition={result.nutrition} dirty={dirty} />
       <ul className="estimate-lines">
         {result.plan.lines.map((line) => (
           <LineRow
