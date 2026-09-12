@@ -2082,3 +2082,25 @@ The reviewer did not rerun the gates.
 This is PR 8 of the hybrid-data stack.
 This MUST NOT claim live store prices.
 This MUST NOT record a secret.
+
+## 2026-09-11 — Worker Spoonacular plan overlay
+
+Grok 4.6 medium passed `build_spoonacular` into plan jobs.
+The job result MAY include `supermarket_estimate`.
+Evidence snapshots omit that key.
+Chat jobs do not receive the estimator.
+Invalid Spoonacular config degrades to no overlay.
+Added application lines: 39.
+
+Backend `ruff check` passed.
+Format check covered 187 files.
+Strict mypy passed 96 source files.
+Pytest reported 1,464 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the wiring.
+The reviewer did not rerun the gates.
+
+This is PR 9 of the hybrid-data stack.
+This MUST NOT claim live store prices.
+This MUST NOT record a secret.

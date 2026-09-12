@@ -22,6 +22,7 @@ from app.services.outbox_publisher import JobSender, PublicationError
 ENDPOINT = "http://127.0.0.1:4566"
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 SECRET = "Authorization: Bearer secret-token"
+SPOONACULAR_KEY_MARKER = "TEST_SPOONACULAR_KEY_MARKER"
 ZERO_COUNTS = {
     "busy": 0,
     "empty": 0,
@@ -673,8 +674,10 @@ def test_default_agent_has_zero_external_effects(
     forbid_provider_builds(monkeypatch)
     captured: list[object] = []
 
-    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
-        del factory
+    def fake_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        del factory, kwargs
         captured.append(provider)
         return dummy_handler
 
@@ -723,8 +726,10 @@ def test_default_agent_routes_plan_and_chat_handlers(
     forbid_provider_builds(monkeypatch)
     seen: list[str] = []
 
-    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
-        del factory, provider
+    def fake_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        del factory, provider, kwargs
 
         def handle(
             payload: dict[str, object], heartbeat: Callable[[], None]
@@ -781,8 +786,10 @@ def test_sync_kind_uses_sync_queue_and_handler(
         captured.append(provider)
         return dummy_handler
 
-    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
-        del factory, provider
+    def fake_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        del factory, provider, kwargs
         raise AssertionError("agent handler")
 
     def no_plaid(settings: GroceryProviderSettings) -> None:
@@ -849,8 +856,10 @@ def test_bedrock_constructor_failure_degrades_without_fake(
     monkeypatch.setattr(worker, "build_plaid", forbid_plaid)
     captured: list[object] = []
 
-    def fake_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
-        del factory
+    def fake_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        del factory, kwargs
         captured.append(provider)
         return dummy_handler
 
@@ -912,3 +921,111 @@ def test_invalid_settings_fail_closed(
     assert SECRET not in output.err
     assert output.err == ""
     assert "Traceback" not in output.out
+
+
+def test_default_agent_does_not_build_spoonacular_without_key_file(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    clear_fewia(monkeypatch)
+    forbid_provider_builds(monkeypatch)
+    captured: list[object] = []
+
+    def boom(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise AssertionError("spoonacular")
+
+    def fake_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        del factory, provider
+        captured.append(kwargs.get("supermarket_estimator"))
+        return dummy_handler
+
+    monkeypatch.setattr(worker, "build_spoonacular", boom)
+    monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
+    stop = threading.Event()
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue, handler
+        stop.set()
+        return "succeeded"
+
+    code = invoke_main(
+        monkeypatch,
+        processor=processor,
+        handler=None,
+        stop=stop,
+    )
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+
+    assert code == 0
+    assert captured == [None]
+    assert result["status"] == "stopped"
+    assert result["counts"]["succeeded"] == 1
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+    assert "Traceback" not in output.out
+
+
+def test_spoonacular_constructor_failure_degrades_without_printing_key(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    settings = GroceryProviderSettings(
+        spoonacular_key_file=Path(SPOONACULAR_KEY_MARKER)
+    )
+
+    def loaded() -> GroceryProviderSettings:
+        return settings
+
+    def fail_build(loaded_settings: GroceryProviderSettings) -> None:
+        del loaded_settings
+        raise ProviderConfigurationError()
+
+    monkeypatch.setattr(worker, "load_provider_settings", loaded)
+    monkeypatch.setattr(worker, "build_spoonacular", fail_build)
+    captured: list[object] = []
+
+    def fake_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        del factory, provider
+        captured.append(kwargs.get("supermarket_estimator"))
+        return dummy_handler
+
+    monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
+    stop = threading.Event()
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue, handler
+        stop.set()
+        return "succeeded"
+
+    code = invoke_main(
+        monkeypatch,
+        processor=processor,
+        handler=None,
+        stop=stop,
+    )
+    output = capsys.readouterr()
+    result = json.loads(output.out)
+
+    assert code == 0
+    assert captured == [None]
+    assert result["status"] == "stopped"
+    assert SPOONACULAR_KEY_MARKER not in output.out
+    assert SPOONACULAR_KEY_MARKER not in output.err
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+    assert "Traceback" not in output.out
+    assert output.err == ""

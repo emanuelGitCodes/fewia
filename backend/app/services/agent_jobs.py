@@ -10,6 +10,7 @@ from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
 from app.services.job_delivery import JobHandler
 from app.services.plan_job import PlanJobInput, plan_job
+from app.services.supermarket_overlay import IngredientCostEstimator
 
 _UNAVAILABLE = "The language model is unavailable."
 _OPERATION = "operation is invalid"
@@ -19,6 +20,8 @@ _DEMO_USER_ID = 1
 def make_agent_handler(
     factory: sessionmaker[Session],
     provider: LLMProvider | None,
+    *,
+    supermarket_estimator: IngredientCostEstimator | None = None,
 ) -> JobHandler:
     def record_evidence(
         planning: dict[str, object],
@@ -43,6 +46,11 @@ def make_agent_handler(
             return chat_job(payload, heartbeat, provider=provider, factory=factory)
         if "operation" in payload:
             raise ValueError(_OPERATION)
-        return plan_job(payload, heartbeat, record_evidence=record_evidence)
+        return plan_job(
+            payload,
+            heartbeat,
+            record_evidence=record_evidence,
+            supermarket_estimator=supermarket_estimator,
+        )
 
     return handle
