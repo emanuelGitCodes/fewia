@@ -59,10 +59,16 @@ export type GroceryBudget = {
   warnings: string[];
 };
 
+export type SupermarketEstimate = {
+  total_cents: number | null;
+  notice: string;
+};
+
 export type GroceryJobResult = {
   plan: GroceryPlan;
   budget: GroceryBudget;
   spending_source: string;
+  supermarket_estimate?: SupermarketEstimate;
 };
 
 export type GroceryConfig = {
@@ -93,6 +99,9 @@ export type GroceryJob = {
 
 export const SAMPLE_ESTIMATE_NOTICE =
   "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
+
+export const SPOONACULAR_COST_NOTICE =
+  "Average supermarket estimate from Spoonacular. Not a store price. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
 
 export const HTTP_ERROR =
   "The grocery request failed. Check meals, servings, and budget, then retry.";

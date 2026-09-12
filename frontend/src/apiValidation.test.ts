@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { SAMPLE_ESTIMATE_NOTICE, SHAPE_ERROR } from "./apiTypes";
+import { SAMPLE_ESTIMATE_NOTICE, SHAPE_ERROR, SPOONACULAR_COST_NOTICE } from "./apiTypes";
 import { parseConfig, parseJob } from "./apiValidation";
 import { budget, config, job, jobResult, line, plan } from "../tests/apiFixtures";
 
@@ -87,6 +87,46 @@ describe("parseJob", () => {
     const parsed = parseJob(job({ status: "queued", result: null }));
     expect(parsed.result).toBeNull();
     expect(parsed.status).toBe("queued");
+  });
+
+  it("accepts a result with no overlay", () => {
+    const parsed = parseJob(job());
+    expect(parsed.result?.plan.total_cents).toBe(129);
+    expect(parsed.result?.supermarket_estimate).toBeUndefined();
+  });
+
+  it("accepts overlay 1299 with the Spoonacular notice", () => {
+    const parsed = parseJob(
+      job({
+        result: jobResult({
+          supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
+        }),
+      }),
+    );
+    expect(parsed.result?.plan.total_cents).toBe(129);
+    expect(parsed.result?.supermarket_estimate?.total_cents).toBe(1299);
+    expect(parsed.result?.supermarket_estimate?.notice).toBe(SPOONACULAR_COST_NOTICE);
+  });
+
+  it("rejects overlay notice store price and a negative overlay total", () => {
+    expect(() =>
+      parseJob(
+        job({
+          result: jobResult({
+            supermarket_estimate: { total_cents: 1299, notice: "store price" },
+          }),
+        }),
+      ),
+    ).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(
+        job({
+          result: jobResult({
+            supermarket_estimate: { total_cents: -1, notice: SPOONACULAR_COST_NOTICE },
+          }),
+        }),
+      ),
+    ).toThrow(SHAPE_ERROR);
   });
 });
 

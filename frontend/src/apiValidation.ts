@@ -1,6 +1,7 @@
 import {
   SAMPLE_ESTIMATE_NOTICE,
   SHAPE_ERROR,
+  SPOONACULAR_COST_NOTICE,
   isBool,
   isNonemptyString,
   isRecord,
@@ -16,6 +17,7 @@ import {
   type GroceryJobResult,
   type GroceryPlan,
   type PlanLine,
+  type SupermarketEstimate,
 } from "./apiTypes";
 
 function isTimezoneTimestamp(value: unknown): value is string {
@@ -92,13 +94,30 @@ export function isBudget(value: unknown): value is GroceryBudget {
   );
 }
 
+function isSupermarketEstimate(value: unknown): value is SupermarketEstimate {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const total = value.total_cents;
+  if (total !== null && !isNonnegativeCents(total)) {
+    return false;
+  }
+  return value.notice === SPOONACULAR_COST_NOTICE;
+}
+
 function isResult(value: unknown): value is GroceryJobResult {
-  return (
-    isRecord(value) &&
-    isPlan(value.plan) &&
-    isBudget(value.budget) &&
-    isNonemptyString(value.spending_source)
-  );
+  if (
+    !isRecord(value) ||
+    !isPlan(value.plan) ||
+    !isBudget(value.budget) ||
+    !isNonemptyString(value.spending_source)
+  ) {
+    return false;
+  }
+  if (!("supermarket_estimate" in value)) {
+    return true;
+  }
+  return isSupermarketEstimate(value.supermarket_estimate);
 }
 
 export function parseConfig(value: unknown): GroceryConfig {
