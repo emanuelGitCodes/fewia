@@ -2,7 +2,14 @@
 
 import re
 
-from aws_cdk import CfnOutput, Environment, RemovalPolicy, Stack, Tags
+from aws_cdk import (
+    CfnOutput,
+    Environment,
+    IStackSynthesizer,
+    RemovalPolicy,
+    Stack,
+    Tags,
+)
 from aws_cdk import aws_iam as iam
 from constructs import Construct
 
@@ -35,8 +42,9 @@ class BedrockRuntimeStack(Stack):
         construct_id: str,
         *,
         env: Environment,
+        synthesizer: IStackSynthesizer | None = None,
     ) -> None:
-        super().__init__(scope, construct_id, env=env)
+        super().__init__(scope, construct_id, env=env, synthesizer=synthesizer)
         if not _ACCOUNT.fullmatch(self.account):
             raise ValueError("stack account MUST be a 12-digit AWS account id")
         if self.region != _ORIGIN_REGION:
@@ -78,5 +86,6 @@ class BedrockRuntimeStack(Stack):
         user.apply_removal_policy(RemovalPolicy.RETAIN)
         for key, value in _TAGS.items():
             Tags.of(user).add(key, value)
+            Tags.of(self).add(key, value)
         CfnOutput(self, "UserArn", value=user.attr_arn)
         CfnOutput(self, "UserName", value=_USER_NAME)

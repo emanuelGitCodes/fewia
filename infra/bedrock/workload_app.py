@@ -2,7 +2,7 @@
 
 import re
 
-from aws_cdk import App, Environment
+from aws_cdk import App, DefaultStackSynthesizer, Environment
 
 from workload_stack import BedrockRuntimeStack
 
@@ -22,10 +22,18 @@ def runtime_environment(app: App) -> Environment:
 
 def main() -> None:
     app = App()
+    env = runtime_environment(app)
+    execution_role = f"arn:aws:iam::{env.account}:role/fewia-bedrock-runtime-deployment"
     BedrockRuntimeStack(
         app,
         "FewiaBedrockRuntime",
-        env=runtime_environment(app),
+        env=env,
+        synthesizer=DefaultStackSynthesizer(
+            # Empty deploy_role_arn selects the CLI caller to submit CloudFormation.
+            deploy_role_arn="",
+            cloud_formation_execution_role=execution_role,
+            generate_bootstrap_version_rule=False,
+        ),
     )
     app.synth()
 
