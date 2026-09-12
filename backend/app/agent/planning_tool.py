@@ -10,6 +10,10 @@ from pydantic import ValidationError
 from app.domain.budget import BudgetResult
 from app.domain.grocery import GroceryRequest
 from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
+from app.services.supermarket_overlay import (
+    IngredientCostEstimator,
+    estimate_supermarket_cost,
+)
 from app.tools.base import build_evidence_id
 
 TOOL_NAME = "plan_groceries"
@@ -43,6 +47,7 @@ def execute_plan(
     *,
     user_id: int = 1,
     spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
+    supermarket_estimator: IngredientCostEstimator | None = None,
 ) -> dict[str, object]:
     """Return a deterministic grocery plan from validated tool arguments."""
     if type(user_id) is not int or user_id < 1:
@@ -88,7 +93,7 @@ def execute_plan(
         "stale": planning_budget.stale,
         "warnings": list(planning_budget.warnings),
     }
-    return {
+    result: dict[str, object] = {
         "request": request_payload,
         "plan": plan_payload,
         "budget": budget_payload,
@@ -102,6 +107,13 @@ def execute_plan(
             period,
         ),
     }
+    if supermarket_estimator is not None:
+        overlay = estimate_supermarket_cost(plan, supermarket_estimator)
+        result["supermarket_estimate"] = {
+            "total_cents": overlay.total_cents,
+            "notice": overlay.notice,
+        }
+    return result
 
 
 def _evidence_id(
