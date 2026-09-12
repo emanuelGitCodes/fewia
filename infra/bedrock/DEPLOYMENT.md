@@ -7,9 +7,20 @@ not invoke a model. The role does not create access keys.
 
 The current human-MFA stack `FewiaBedrockDev` MUST remain unchanged.
 Operators MUST NOT change the shared CDK bootstrap role or its policies.
+Operators MUST NOT change global MLOps roles.
 
-This slice does not claim a deploy. Status stays planned until the
-coordinator verifies the live stacks.
+## Verified deployment
+
+The coordinator verified these stacks on 2026-09-12.
+Stack `FewiaBedrockRuntimeDeployment` is `UPDATE_COMPLETE`.
+Stack `FewiaBedrockRuntime` is `CREATE_COMPLETE`.
+The shared MLOps bootstrap role stays unchanged.
+Code alone is not proof.
+The recorded live deploy is verified.
+See the verified deployment section in `UNATTENDED.md` for full proof.
+Actual live chat uses both local apps 5173 and 5174 with the dedicated user.
+This file does not contain credentials.
+This file does not contain a real account id.
 
 ## Boundary
 

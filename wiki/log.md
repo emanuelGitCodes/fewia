@@ -2263,3 +2263,165 @@ This record MUST NOT claim nutrition advice.
 Spoonacular retention remains separate pending work.
 The graph was not rebuilt for this local stack.
 This log MUST NOT record a secret.
+
+## 2026-09-12 — Unattended Bedrock runtime user deployed
+
+Source: coordinator checkpoint. The coordinator already verified AWS,
+Compose, and the local gates. This worker owns `wiki/log.md` (append
+only) and `infra/bedrock/UNATTENDED.md`. This worker did not rerun
+gates. This worker did not run git status. The assignment forbids
+terminal commands. The graph was not queried.
+
+The user authorized a new IAM user for Bedrock with CDK and tags.
+The user authorized a dedicated security reviewer.
+Grok 4.6 medium wrote the source through the CLI supervisor with
+`--only`. Independent Codex `security_reviewer` approved the final
+IAM and launcher. No model substitution occurred.
+
+CDK stack `FewiaBedrockRuntime` creates IAM user
+`fewia-bedrock-runtime` at path `/fewia/`.
+CDK stack `FewiaBedrockRuntimeDeployment` creates role
+`fewia-bedrock-runtime-deployment`. CloudFormation is the only trust
+principal. The user policy grants `bedrock:InvokeModel` only on the
+selected US Nova 2 Lite profile and the three foundation-model ARNs
+with the profile condition. The user has no console password, groups,
+managed policies, IAM administrator grants, S3 grants, or billing
+grants. The deployment role grants 14 user lifecycle and metadata
+actions on the pathed runtime user ARN. It grants only
+`iam:GetUser` and `iam:GetUserPolicy` on the unpathed same-name ARN
+for pre-creation checks. It grants no wildcards and no other users.
+Both resources and both CloudFormation stacks carry seven tags:
+`Project=FEWIA`, `Environment=development`, `ManagedBy=AWS-CDK`,
+`Model=amazon.nova-2-lite-v1:0`, `ReasoningEffort=low`,
+`CostCenter=FEWIA`. Component is `bedrock-chat` on the user and the
+user stack. Component is `bedrock-deployment` on the role and the
+role stack. Both the role and the user use removal policy `RETAIN`.
+The existing human MFA role and the shared MLOps bootstrap role were
+not changed.
+
+The first shared CDK execution role had no IAM user lifecycle
+permission. The empty failed stack was removed after `NoSuchEntity`
+verification. The dedicated deployment role was created through CDK
+with existing role lifecycle permissions. `DefaultStackSynthesizer`
+uses that dedicated execution role. The CLI caller submits the
+change set. `generate_bootstrap_version_rule=False` removes automatic
+SSM bootstrap lookup. No SSM permission was added. Three read-only
+CloudFormation registry metadata actions were added for required
+lookups. Final pre-creation `GetUser` and `GetUserPolicy` required
+the unpathed same-name ARN. IAM simulation improved pathed allow and
+unpathed deny. Only those two reads were fixed. Failed empty user
+stacks were removed. No existing user or key was deleted. No operator
+created the user by a console click. Final role stack status is
+`UPDATE_COMPLETE`. Final user stack status is `CREATE_COMPLETE`.
+Live resources and stacks carry the seven tags.
+
+The coordinator created one IAM application access key outside Git at
+`~/.config/fewia/bedrock/runtime-credentials`. Parent mode is `700`.
+File mode is `600`. Profile `fewia-bedrock-runtime` holds exactly two
+fields and no session token. Values were never printed, stored in
+prompts, or stored in the repository. This is a long-lived IAM key.
+It is not IAM Roles Anywhere. Operators MUST rotate or revoke it.
+The persona admin MFA secret was never obtained. IAM simulation
+allows the selected Nova profile. Other model, `iam:CreateUser`,
+`s3:GetObject`, and `ce:GetCostAndUsage` are implicit deny. The
+existing human role MFA condition remains true. Session duration
+remains 3600 seconds. Shared MLOps role attachments are unchanged.
+
+Launcher source is `infra/bedrock_runtime.py` with
+`infra/bedrock_runtime_validation.py`,
+`compose.bedrock-runtime.yaml`, and independent tests. The launcher
+validates canonical source or the same Git worktree. It rejects a
+foreign repo, a subdirectory, and `GIT_*` spoofing. It validates an
+absolute outside-repo credentials file, owner, private permissions,
+no symlinks, the exact profile, two fields, no `DEFAULT`, no extra
+profiles, and no session token. It scrubs `AWS_*` and legacy FEWIA
+variables before Compose. The mount applies only to `api` and
+`worker` as read-only. Keys are not inlined in the environment.
+Security review requested and approved the fixes. The CLI leading-dash
+case is `--project=-fewia`. Implicit re-exports were fixed. The
+coordinator applied the mechanical formatter. Tests were not weakened.
+
+Coordinator gates: infra 41 tests passed, ruff 12 files, mypy 9 files.
+Backend 1496 passed, 14 skipped, one existing Starlette HTTPX warning.
+The prior macro PostgreSQL record of 1510 passed stays separate and
+unchanged. Each source slice stays at or below 150 added lines:
+initial CDK IAM user 116, validation 148, launcher plus YAML 73,
+dedicated CloudFormation role 128, preflight policy 12. Local source
+stack commits: `09e3b68`, `cdcaa87`, `b71f114`, `21bfa59`, `892b5cb`.
+No Git push occurred. No merge occurred.
+
+The validated launcher configured `fewia-macros` (API 8011, web 5174)
+and `fewia-grocery-b7d4` (API 8010, web 5173). The launcher recreated
+`api` and `worker`. Nginx was reloaded. `.env` metadata pointers were
+updated in the current worktree, `b7d4`, and saved `main`. Secret
+values are not in `.env`. Other key settings were preserved. Runtime
+host identity matched the CDK `UserArn`. Four containers passed STS
+as the dedicated user. The credentials file is the exact read-only
+mount. Those containers do not set `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, or `AWS_SESSION_TOKEN`. Both
+`/api/grocery/providers` endpoints report `chat_configured` true.
+An initial capabilities route returned 404. That route error is not
+an application failure. No MFA prompt occurred on this path.
+
+Live application chat is the invocation proof. Preview chat requested
+bean tacos, 2 servings, cap 4000 through an HTTP job. The job
+succeeded and planned. The user request was preserved. Pantry was
+empty. The sample catalog total is 1703 cents.
+Estimated from the demo price catalog. Instacart prices, availability,
+taxes, delivery fees, and tips are not verified.
+Nutrition total: 758 kcal, protein 28968 mg, carbs 111559 mg, fat
+24673 mg. The existing 5173 app ran a separate actual chat. That job
+also succeeded and planned. An initial direct Converse probe ended
+normally. It did not match literal `READY`. Application chat is the
+live proof. No API key contents or raw model reasoning were logged.
+This record MUST NOT claim live retailer prices.
+This record MUST NOT claim nutrition advice.
+
+Catalog support stays ten meals, one to three meals per request, and
+one to eight servings per meal. Supported meals are chicken tacos,
+bean tacos, vegetable pasta, chicken-and-rice bowls, lentil soup,
+chickpea curry, vegetable stir-fry, baked potatoes with beans,
+breakfast burritos, and overnight oats.
+
+Billing: six existing `iamPrincipal` keys are Active:
+`Project`, `Environment`, `Component`, `ManagedBy`, `Model`, and
+`ReasoningEffort`. Filter `iamPrincipal/Project=FEWIA`. Tag
+`CostCenter` is attached on the resources. It is not yet registered
+for billing activation. Cost Explorer charges are not yet verified.
+AWS billing is delayed. No hard spend cap is configured. Tagging is
+IAM principal attribution. No application inference profile was
+created. Sources are the IAM principal tracking docs and the cost
+allocation tag docs in the runbook.
+
+Evidence classes: deterministic tests in source; live Bedrock chat
+on the local Compose hosts; deployed IAM user, IAM role, and
+CloudFormation stacks. This item does not add Plaid Sandbox proof.
+This item does not add Instacart development proof.
+This item does not add Cost Explorer charge proof.
+
+Limits: the machine, Docker, and application MUST stay running.
+Operators MUST rotate or revoke the long-lived key. This item did not
+create an automatic development schedule. Spoonacular retention and
+evaluation expansion stay separate. Prefer the validated launcher.
+Keep the generic MFA path for a human session only.
+`infra/bedrock/UNATTENDED.md` now records verified deployment and
+current usage. It links `DEPLOYMENT.md`.
+`DEPLOYMENT.md` still says the role slice does not claim a deploy.
+This worker did not edit that file.
+
+This log MUST NOT record a secret.
+
+## 2026-09-12 — IAM simulation and secret-scan correction
+
+The prior 2026-09-12 unattended Bedrock entry is unchanged.
+That entry says IAM simulation improved pathed allow and unpathed deny.
+That wording is incorrect.
+IAM simulation verified the decisions.
+IAM simulation did not change permissions.
+The tracked-file secret scan covered 396 files.
+The scan found no runtime credential values.
+The coordinator verified that scan.
+This entry adds no new code claims.
+`UNATTENDED.md` now uses personal, not persona, for the admin MFA secret.
+`DEPLOYMENT.md` now records the verified 2026-09-12 stack status.
+This log MUST NOT record a secret.
