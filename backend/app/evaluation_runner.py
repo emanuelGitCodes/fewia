@@ -4,6 +4,7 @@ from app.evaluation_budget import evaluate_budget_case
 from app.evaluation_followup import evaluate_followup_case
 from app.evaluation_meals import evaluate_meal_case
 from app.evaluation_missing import evaluate_missing_case
+from app.evaluation_provider import evaluate_provider_case
 
 REPEAT_COUNT = 3
 UNASSESSED = "unassessed"
@@ -49,6 +50,14 @@ def _dispatch(
         return "scored", evaluate_followup_case(case)
     if group == "missing" and case.get("requires_model") is False:
         return "scored", evaluate_missing_case(case)
+    if group == "provider" and case.get("requires_model") is False:
+        behavior = _as_case(case.get("fixture_behavior"))
+        if (
+            behavior.get("kind") == "bedrock_unavailable"
+            and behavior.get("provider") == "fake"
+        ):
+            return "scored", evaluate_provider_case(case)
+        return UNASSESSED, None
     return UNASSESSED, None
 
 
