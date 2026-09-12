@@ -10,9 +10,10 @@ from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import run_chat
 from app.agent.provider import LLMProvider
 from app.domain.budget import SpendingSnapshot, calculate_budget
+from app.domain.grocery import GroceryRequest
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
-from app.services.plan_job import SpendingInput
+from app.services.plan_job import SpendingInput, nutrition_payload
 
 
 class ChatHistoryTurn(BaseModel):
@@ -90,7 +91,7 @@ def chat_job(
     def record_evidence(planning: dict[str, object]) -> str:
         return save_plan_evidence(factory, 1, planning, inputs)
 
-    return run_chat(
+    result = run_chat(
         provider,
         parsed.message,
         budget,
@@ -102,3 +103,12 @@ def chat_job(
         history=history,
         record_evidence=record_evidence,
     )
+    plan = result.get("plan")
+    request = result.get("request")
+    if isinstance(plan, dict) and isinstance(request, dict):
+        attached: dict[str, object] = dict(result)
+        attached["nutrition"] = nutrition_payload(
+            GroceryRequest.model_validate(request)
+        )
+        return attached
+    return result

@@ -1,12 +1,15 @@
+import json
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import UTC, date, datetime
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.domain.grocery import GroceryRequest
+from app.services.meal_nutrition import meal_nutrition
 from app.services.supermarket_overlay import IngredientCostEstimator
 
 
@@ -41,6 +44,13 @@ def _is_revision_id(value: object) -> bool:
         and len(value) == 64
         and all("0" <= char <= "9" or "a" <= char <= "f" for char in value)
     )
+
+
+def nutrition_payload(request: GroceryRequest) -> dict[str, object]:
+    payload: object = json.loads(
+        json.dumps(asdict(meal_nutrition(request)), allow_nan=False)
+    )
+    return cast(dict[str, object], payload)
 
 
 def plan_job(
@@ -80,11 +90,13 @@ def plan_job(
         key: value for key, value in result.items() if key != "supermarket_estimate"
     }
     if record_evidence is not None:
-        revision = record_evidence(catalog, parsed, clock)
+        revision = record_evidence(dict(catalog), parsed, clock)
         if not _is_revision_id(revision):
             raise ValueError("evidence revision id is invalid")
         catalog["evidence_revision_id"] = revision
     if overlay is not None:
         catalog["supermarket_estimate"] = overlay
     heartbeat()
-    return catalog
+    attached: dict[str, object] = dict(catalog)
+    attached["nutrition"] = nutrition_payload(parsed.request)
+    return attached
