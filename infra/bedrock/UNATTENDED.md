@@ -83,7 +83,9 @@ Tags on the stack and the user:
 The coordinator MUST create the access key only after user authorization.
 The coordinator MUST write the secret only to the host credentials file.
 The coordinator MUST NOT print the secret to stdout, logs, or chat.
-Commands MUST NOT echo access keys.
+Commands MUST NOT echo access keys. The launcher MUST NOT create a key.
+The launcher MUST NOT modify AWS. An administrator generates the key
+outside this code.
 
 Store the file outside the repository:
 
@@ -92,24 +94,66 @@ Store the file outside the repository:
 - File mode: `600`
 - Profile name: `fewia-bedrock-runtime`
 
-The file uses the shared credentials format. Do not put a console
-password in the file. Do not put the admin profile in the file.
+The file uses the shared credentials format. The file MUST contain only
+profile `fewia-bedrock-runtime`. The file MUST NOT contain `DEFAULT`
+fields. The file MUST NOT contain a session token. The file MUST NOT
+contain another profile. Do not put a console password in the file.
+Do not put the admin profile in the file.
 
-Set host `.env` for this path:
+Do not write host `.env` for this path. Do not use
+`compose.bedrock.yaml` on this path. That generic override allows a
+blank `FEWIA_AWS_PROFILE`. It also allows a relative credential path.
+
+Operators MUST start the base Compose services first. Run the
+validated launcher from the source checkout. That checkout owns
+`infra/bedrock_runtime.py` and `compose.bedrock-runtime.yaml`.
+
+```bash
+python -m infra.bedrock_runtime --checkout /path/to/fewia --project <compose-project>
+```
+
+`--checkout` defaults to that source project root. `--project` is the
+Compose project name. The name MUST match `^[a-z0-9][a-z0-9_-]*$`.
+The name MUST NOT start with a hyphen. The override file stays in the
+source checkout. The launcher MUST resolve `--checkout`. The resolved
+path MUST be the source checkout or a Git worktree that shares the
+source git-common-dir. The launcher MUST reject any other directory.
+The launcher MUST reject a subdirectory even when it contains
+`compose.yaml`. The launcher MUST NOT copy tracked files.
+
+The launcher validates an absolute credentials path. The path MUST
+stay outside the selected checkout. The path MUST stay outside the
+source checkout. The launcher MUST reject a symlink file. The
+launcher MUST reject a symlink ancestor. The file MUST be a regular
+file owned by the current user. The file and its parent MUST deny
+group and other access. The launcher MUST remove every `AWS_*`
+variable from the Compose process environment. The launcher MUST
+remove `FEWIA_AWS_PROFILE`. The launcher MUST remove every
+`FEWIA_BEDROCK_*` variable. The launcher sets
+`FEWIA_RUNTIME_CREDENTIALS_FILE` to that absolute path. It MUST NOT
+put secret values in the environment. The launcher MUST NOT copy host
+AWS credentials or profiles into Compose. Git provenance queries MUST
+use `git rev-parse` with an argument list. Those queries MUST NOT use
+a shell. Those queries MUST clear `GIT_*` variables.
+
+`compose.bedrock-runtime.yaml` binds that file read-only to
+`/run/fewia/aws-credentials`. The bind sets `create_host_path: false`.
+The override applies only to `api` and `worker`. It pins:
 
 - `FEWIA_AWS_PROFILE=fewia-bedrock-runtime`
-- `FEWIA_BEDROCK_CREDENTIALS_FILE` to the absolute credentials path
 - `FEWIA_BEDROCK_MODEL_ID=us.amazon.nova-2-lite-v1:0`
 - `FEWIA_BEDROCK_REGION=us-east-1`
+- `AWS_SHARED_CREDENTIALS_FILE=/run/fewia/aws-credentials`
+- `AWS_CONFIG_FILE=/dev/null`
+- `AWS_EC2_METADATA_DISABLED=true`
 
-Leave `FEWIA_BEDROCK_ROLE_ARN` and `FEWIA_BEDROCK_MFA_SERIAL` unused on
-this path. Do not put keys in `.env` or in source.
-
-The coordinator binds that file read-only into `api` and `worker` through
-existing `compose.bedrock.yaml`. Compose interpolates
-`FEWIA_BEDROCK_CREDENTIALS_FILE` and `FEWIA_AWS_PROFILE`. Compose MUST
-NOT receive the admin profile. Compose MUST NOT set
+Compose MUST NOT receive the admin profile. Compose MUST NOT set
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or `AWS_SESSION_TOKEN`.
+
+The human MFA path stays `compose.bedrock.yaml`. Keep the host MFA
+helper and profile `fewia-bedrock-dev` for that path. Leave
+`FEWIA_BEDROCK_ROLE_ARN` and `FEWIA_BEDROCK_MFA_SERIAL` unused on the
+unattended path.
 
 Floci dummy credentials stay separate. Do not set a global
 `AWS_ENDPOINT_URL`. Bedrock MUST keep the real regional
