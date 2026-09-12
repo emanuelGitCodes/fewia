@@ -39,6 +39,9 @@ export function chatEstimateJob(job: ChatJob | null): GroceryJob | null {
       plan: structuredClone(result.plan),
       budget: structuredClone(result.budget),
       spending_source: result.spending_source,
+      ...(result.nutrition === undefined
+        ? {}
+        : { nutrition: structuredClone(result.nutrition) }),
     },
   };
 }

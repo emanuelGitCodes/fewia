@@ -19,6 +19,7 @@ import {
   type PlanLine,
   type SupermarketEstimate,
 } from "./apiTypes";
+import { isNutrition } from "./nutritionTypes";
 
 function isTimezoneTimestamp(value: unknown): value is string {
   if (!isString(value)) {
@@ -114,10 +115,13 @@ function isResult(value: unknown): value is GroceryJobResult {
   ) {
     return false;
   }
-  if (!("supermarket_estimate" in value)) {
-    return true;
+  if ("supermarket_estimate" in value && !isSupermarketEstimate(value.supermarket_estimate)) {
+    return false;
   }
-  return isSupermarketEstimate(value.supermarket_estimate);
+  if ("nutrition" in value && !isNutrition(value.nutrition)) {
+    return false;
+  }
+  return true;
 }
 
 export function parseConfig(value: unknown): GroceryConfig {
