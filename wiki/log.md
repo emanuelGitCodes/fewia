@@ -2022,3 +2022,24 @@ The reviewer did not rerun the gates.
 
 This is PR 5 of the hybrid-data stack.
 This MUST NOT claim live store prices.
+
+## 2026-09-11 — Spoonacular overlay sum
+
+Grok 4.6 medium wrote `backend/app/services/supermarket_overlay.py`.
+The overlay sums Spoonacular cents for purchase lines.
+Pantry lines are skipped.
+Planner `total_cents` and `accepted` do not change.
+Added application lines: 61.
+
+Backend `ruff check` passed.
+Format check covered 187 files.
+Strict mypy passed 96 source files.
+Pytest reported 1,452 passed and 14 skipped.
+One existing Starlette deprecation warning remains.
+
+Independent read-only review approved the overlay.
+The reviewer did not rerun the gates.
+
+This is PR 6 of the hybrid-data stack.
+This MUST NOT claim live store prices.
+This MUST NOT record a secret.
