@@ -7,6 +7,7 @@ from sqlalchemy import and_, case, or_, update
 from sqlalchemy.orm import Session
 
 from app.job_models import Job
+from app.services.job_result import without_supermarket_estimate
 
 _LEASE_MAX = 3600
 _ATTEMPTS_MAX = 100
@@ -124,7 +125,7 @@ def finish_job(
         "lease_expires_at": None,
     }
     if result is not None:
-        values["result"] = result
+        values["result"] = without_supermarket_estimate(result)
     finalized = session.scalar(
         update(Job)
         .where(
