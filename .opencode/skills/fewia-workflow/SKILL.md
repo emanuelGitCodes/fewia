@@ -5,7 +5,12 @@ description: Run FEWIA grocery-bot work with bounded roles, CLI supervisor write
 
 # FEWIA workflow
 
-Read root `AGENTS.md`, `.codex/TEAM.md`, and `.codex/project-context.md`.
+`.codex/project-context.md` is the canonical compact startup context.
+It includes AGENTS.md hard rules and product constraints.
+The coordinator reads `.codex/TEAM.md` and `docs/DEV_SUPERVISOR.md` when
+dispatching. Workers receive the selected role, a bounded assignment,
+those hard rules, and relevant integration context only.
+
 Canonical role scope lives in `.codex/agents/<role>.toml` under
 `developer_instructions`.
 
@@ -15,12 +20,12 @@ You MUST NOT resume health-model training.
 ## Bounded work
 
 Own only assigned files. Preserve other edits.
+Workers MUST NOT spawn agents or recursive workers.
+Native bounded agents MUST use `fork_turns` none.
+Repair MUST reuse the owning worker and the explicit task.
+Do not use `resume --last`.
 Child workers MUST NOT switch branches in a shared checkout.
 Serialize writes to shared files.
-Native OpenCode has no implicit worktree isolation.
-
-`tech-lead` MAY delegate bounded exploration with native OpenCode `task`.
-Specialists MUST NOT spawn further agents.
 Native OpenCode `task` is not supervisor fallback.
 
 ## Writes
@@ -43,16 +48,8 @@ owned path. Details live in `docs/DEV_SUPERVISOR.md`.
 ## Review and gates
 
 A separate Codex or Grok agent independently verifies the result.
-The writer MUST NOT certify its own independent review.
-
-Before reporting done, run and report the root verification gates:
-
-```bash
-cd backend
-uv run ruff check app tests
-uv run ruff format --check app tests
-uv run mypy --strict app
-uv run pytest
-```
-
+Writers MUST run focused checks while developing.
+The independent reviewer MUST run the required backend gates in
+`AGENTS.md` plus relevant scope gates.
+A writer MUST NOT certify its own independent review.
 Report actual command output, including failures.

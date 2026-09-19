@@ -1,6 +1,9 @@
 ---
 description: Coordinate grocery bot contracts, dependencies, scoped parallel work, integration, and verification handoff.
 mode: primary
+fork_turns: none
+permission:
+  task: deny
 ---
 
 # tech-lead
@@ -8,8 +11,10 @@ mode: primary
 This file is a thin OpenCode adapter. Canonical role scope lives in
 `.codex/agents/tech-lead.toml` under `developer_instructions`.
 
-Read that file before task actions. Follow root `AGENTS.md`,
-`.codex/TEAM.md`, and `.codex/project-context.md`.
+Read that file before task actions. Follow TEAM and the supervisor
+when dispatching. Workers receive a bounded assignment and
+`.codex/project-context.md` hard rules. Do not insert a coordinator hop
+for routine work.
 
 The TOML `model` is Codex-only.
 The TOML does not pin reasoning effort.
@@ -24,11 +29,10 @@ You coordinate. You MUST NOT write application code.
 
 You MAY explore assigned files. You MAY inspect contracts.
 You MAY coordinate handoff.
-You MAY delegate bounded exploration with native OpenCode `task`.
-Specialists MUST NOT spawn further agents.
+You MUST NOT spawn native workers. `fork_turns` is none.
 
-Native OpenCode `task` is exploration and coordination only.
-It is not the CLI supervisor. It is not supervisor fallback.
+Native OpenCode `task` is denied. Native OpenCode delegation is not
+supervisor fallback.
 
 Route coding tasks through the CLI supervisor in
 `docs/DEV_SUPERVISOR.md`. Preserve model and model-only constraints.

@@ -2204,3 +2204,58 @@ Renumbered the tool-calling orchestration record as decision 0012.
 The wiki index links both accepted decisions.
 
 No application code changed. Backend and frontend tests were not run.
+
+## 2026-09-18 — Supervisor token-efficiency repair
+
+Repaired usage capture, ledger open, event dedup, and compact workflow
+docs. This log does not certify independent review of this repair.
+
+Writer focused checks after the repair:
+
+```text
+uv run --project backend ruff check --fix dev_supervisor tests/supervisor
+All checks passed!
+uv run --project backend ruff format dev_supervisor tests/supervisor
+4 files reformatted, 9 files left unchanged
+```
+
+A second ruff check after format reported `All checks passed!`.
+Supervisor syntax, type, and format checks previously FAILED.
+Writer mypy and pytest were not run. New final verification is pending.
+The independent reviewer MUST use `PYTHONPATH=.` for supervisor pytest.
+
+Prior independent backend evidence, not this repair: ruff check passed;
+format covered 189 files; strict mypy passed 97 source files; pytest
+reported 1467 passed, 14 skipped, 1 warning.
+
+Source added for this token-efficiency work exceeds 150 lines.
+Planned independently passing PR stack, in merge order:
+
+1. usage module plus tests
+2. capture integration plus tests
+3. CLI integration plus tests and workflow docs
+
+Follow-up in this worktree: `unavailable` with one provider now expects
+`execute` to return `all_providers_exhausted`; the ledger still stores
+`unavailable`. `interrupted` and `cleanup_failed` still return themselves.
+Startup prose now lives once: hard rules in `AGENTS.md`, product context
+in `.codex/project-context.md`, routing in `.codex/TEAM.md`.
+Backend verified 1467 passed, 14 skipped. Supervisor 60 passed, 1 failed
+on that test expectation. Final reviewer rerun is pending. The source-cap
+stack plan stays. Do not treat this work as complete until final review.
+
+Independent reviewer `verify_efficiency` (test-engineer, separate Codex
+agent) verified HEAD `58efc4c` plus working diff SHA256
+`bd900f65e9b16db591895f793494dcd71e40993e4714fce485a8972781232d96`.
+`PYTHONPATH=. uv run --project backend pytest -q tests/supervisor`: 61
+passed in 2.70s. Scoped ruff check: All checks passed!. Format: 13 files
+already formatted. Strict mypy `dev_supervisor`: Success, 7 source files.
+Earlier unchanged backend: 1467 passed, 14 skipped, 1 warning; ruff check
+pass; format 189; mypy 97. No actionable final findings. This supersedes
+pending-review status above. Logs
+`/private/tmp/fewia-token-verification-final.log` and
+`/private/tmp/fewia-token-backend-checks.log`. Live summary smoke groups
+Grok repairs by work-item token-efficiency; Grok counts
+unsupported/null; Astra/native excluded. No measured savings percentage.
+Source changes uncommitted. No push, PR, or merge. Source cap stack plan
+above applies to publication.

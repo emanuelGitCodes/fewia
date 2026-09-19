@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import subprocess
+import time
 import uuid
 from pathlib import Path
 
@@ -22,7 +23,8 @@ from dev_supervisor.policy import (
     resolve_effort,
     writes,
 )
-from dev_supervisor.process import attempt
+from dev_supervisor.process import attempt, take_record
+from dev_supervisor.usage import LEDGER, PHASES, summarize, work_item_id, write_usage
 
 GUARD = """
 Use assigned files only. Preserve all changes. Follow AGENTS.md hard rules.
@@ -50,6 +52,8 @@ def execute(
     complexity: str,
     effort: str | None = None,
     files: list[Path] | None = None,
+    work_item: str | None = None,
+    phase: str | None = None,
 ) -> str:
     instructions = tomllib.loads((cwd / ".codex/agents" / f"{role}.toml").read_text())
     assignment = task.read_text()
@@ -83,6 +87,9 @@ def execute(
             + progress.read_text()
             + "\nInspect git status and diff; interrupted edits remain in this worktree.\n"
         )
+        token = str(uuid.uuid4())
+        take_record()
+        started = time.monotonic()
         result = attempt(
             command(
                 name,
@@ -95,9 +102,22 @@ def execute(
             cwd,
             prompt,
             state,
-            str(uuid.uuid4()),
+            token,
             idle,
             limit,
+        )
+        elapsed = max(0, int((time.monotonic() - started) * 1000))
+        write_usage(
+            cwd / LEDGER,
+            token,
+            work_item,
+            phase,
+            models[name].provider,
+            name,
+            resolved,
+            result,
+            take_record(),
+            elapsed,
         )
         history.append({"model": name, "outcome": result})
         (state / "result.json").write_text(json.dumps(history, indent=2))
@@ -109,10 +129,13 @@ def execute(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=Path, required=True)
-    parser.add_argument("--role", required=True)
+    parser.add_argument("--task", type=Path)
+    parser.add_argument("--role")
+    parser.add_argument("--usage-summary", action="store_true")
+    parser.add_argument("--work-item")
+    parser.add_argument("--phase", choices=tuple(sorted(PHASES)))
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
-    parser.add_argument("--complexity", required=True, choices=tuple(COMPLEXITY))
+    parser.add_argument("--complexity", choices=tuple(COMPLEXITY))
     parser.add_argument("--effort", choices=EFFORTS)
     parser.add_argument("--model")
     parser.add_argument("--only", action="store_true")
@@ -122,6 +145,11 @@ def main() -> None:
     parser.add_argument("--write-file", action="append", default=[], metavar="PATH")
     args = parser.parse_args()
     cwd = args.cwd.resolve()
+    if args.usage_summary:
+        print(json.dumps(summarize(cwd / LEDGER), indent=2), flush=True)
+        raise SystemExit(0)
+    if args.task is None or args.role is None or args.complexity is None:
+        parser.error("--task, --role, and --complexity are required")
     if not all(
         math.isfinite(n) and n > 0 for n in (args.idle_seconds, args.limit_seconds)
     ):
@@ -132,6 +160,7 @@ def main() -> None:
     try:
         if args.registry:
             models = load_registry(tomllib.loads(args.registry.read_text()))
+        work_item = None if args.work_item is None else work_item_id(args.work_item)
         authorized = writes(cwd, args.write_file)
         sequence = order(args.model, args.only, models, args.effort)
         for name in sequence:
@@ -167,6 +196,8 @@ def main() -> None:
             args.complexity,
             args.effort,
             authorized,
+            work_item,
+            args.phase,
         )
         print(result, flush=True)
         raise SystemExit(0 if result == "completed" else 1)
