@@ -13,8 +13,12 @@ This file is a thin OpenCode adapter. Canonical role scope lives in
 Read that file before task actions. Follow root `AGENTS.md`,
 `.codex/TEAM.md`, and `.codex/project-context.md`.
 
-`model` and `model_reasoning_effort` in the TOML are Codex-only.
-You MUST NOT copy them here. Inherit the user's OpenCode model.
+The TOML `model` is Codex-only.
+The TOML does not pin reasoning effort.
+Codex selects reasoning effort from the task-complexity policy in
+`.codex/TEAM.md`.
+You MUST NOT copy `model` here.
+OpenCode continues to inherit the user's selected OpenCode model.
 
 ## Native OpenCode work
 

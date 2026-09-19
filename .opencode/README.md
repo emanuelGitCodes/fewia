@@ -5,7 +5,10 @@ settings, credentials, or plugins.
 
 Canonical role scope lives in `.codex/agents/<role>.toml` under
 `developer_instructions`. These Markdown files are thin adapters.
-`model` and `model_reasoning_effort` in the TOML files are Codex-only.
+`model` in the TOML files is Codex-only.
+The TOML files keep the Luna model.
+They MUST NOT pin `model_reasoning_effort`.
+Native dispatch MUST select effort from the complexity rubric.
 OpenCode inherits the user's model choice.
 
 Root writer policy lives in `AGENTS.md`. Coding writes use the CLI

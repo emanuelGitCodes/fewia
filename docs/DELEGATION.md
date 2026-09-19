@@ -49,13 +49,26 @@ Do not assume an ephemeral CLI session can resume by name or `--last`.
 ## Supervised CLI writers
 
 Use [the development supervisor](DEV_SUPERVISOR.md) for coding assignments.
-The default order is Grok 4.6 medium, Spark at its CLI default effort, then Luna
-xhigh. Explicit models override the starting model. Model-only requests forbid
-substitution. Native role pins do not select Grok.
+The default order is Grok 4.6, Spark at its CLI default effort, then Luna.
+The coordinator classifies each task before delegation.
+Grok 4.6 uses `low` for simple tasks.
+Grok 4.6 uses `medium` for every harder automatic tier.
+Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
+Spark does not accept an effort override in this supervisor.
+Luna and Sol support automatic selection through `max`.
+The coordinator MUST NOT select `maximum` for ordinary tasks.
+Explicit models override the starting model.
+An explicit `--effort` override MUST stay within the model ceiling.
+Model-only requests forbid substitution.
+Native role files keep the Luna model.
+They MUST NOT pin `model_reasoning_effort`.
+Native dispatch MUST select effort from the complexity rubric.
+Native role pins do not select Grok.
 
-The coordinator decomposes the assignment and invokes the supervisor with its
-role, worktree, and task file. The writer implements and checks. A separate
-Codex or Grok reviewer reads the diff, reruns checks, and tests failure paths.
+The coordinator decomposes the assignment.
+The coordinator invokes the supervisor with its role, worktree, task file, and
+`--complexity`. The writer implements and checks. A separate Codex or Grok
+reviewer reads the diff, reruns checks, and tests failure paths.
 The reviewer MUST NOT fix reviewed code. Findings return to the owning writer
 with the same model constraints. You merge. Claude Code is not used.
 

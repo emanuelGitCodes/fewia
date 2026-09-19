@@ -2140,3 +2140,42 @@ The reviewer did not rerun the gates.
 
 This is PR 11 of the hybrid-data stack.
 This MUST NOT claim medical nutrition advice.
+
+## 2026-09-18 — Dynamic delegated reasoning effort
+
+Workflow documentation now records the implemented supervisor effort policy.
+The coordinator classifies each task before delegation.
+Complexity maps to automatic effort: `simple` to `low`, `standard` to
+`medium`, `complex` to `high`, `exceptional` to `xhigh`, `maximum` to `max`.
+Grok 4.6 uses `low` for simple tasks.
+Grok 4.6 uses `medium` for every harder automatic tier.
+Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
+Spark keeps its CLI model default.
+Spark does not accept an effort override in this supervisor.
+Luna and Sol support automatic selection through `max`.
+The supervisor requires `--complexity`.
+An optional `--effort` override MUST stay within the model ceiling.
+An explicit incompatible effort stops with an error.
+The supervisor MUST NOT silently downgrade it.
+Native role files keep the Luna model.
+They MUST NOT pin `model_reasoning_effort`.
+Native dispatch MUST select effort from the complexity rubric.
+The coordinator MUST NOT select `maximum` for ordinary tasks.
+
+The coordinator supplied these targeted supervisor results.
+This log does not claim full backend gates or independent review.
+
+```text
+PYTHONPATH=. uv run --project backend pytest -q tests/supervisor
+38 passed in 2.35s
+uv run --project backend ruff check dev_supervisor tests/supervisor
+All checks passed!
+uv run --project backend ruff format --check dev_supervisor tests/supervisor
+11 files already formatted
+uv run --project backend mypy --strict dev_supervisor
+Success: no issues found in 6 source files
+```
+
+The coordinator later verified these root backend results. This log does not claim independent review. `cd backend && uv run ruff check app tests` reported `All checks passed!`. `cd backend && uv run ruff format --check app tests` reported `189 files already formatted`. `cd backend && uv run mypy --strict app` reported `Success: no issues found in 97 source files`. `cd backend && uv run pytest` reported `1467 passed, 14 skipped, 1 warning in 6.29s`. The warning is the existing Starlette `httpx` deprecation warning.
+
+The final supervisor suite reported `49 passed in 2.57s`. Supervisor Ruff reported `All checks passed!`. Supervisor format reported `11 files already formatted`. Supervisor strict mypy reported `Success: no issues found in 6 source files`. The change adds 135 application lines, under the 150-line cap. Independent read-only review approved the result with no actionable findings. The reviewer did not edit files. The reviewer verified the registry guard, explicit-effort fallback behavior, operational documentation, and registered-model fallback test.

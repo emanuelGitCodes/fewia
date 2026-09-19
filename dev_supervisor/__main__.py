@@ -10,7 +10,18 @@ from pathlib import Path
 import tomllib
 
 from dev_supervisor.lease import lease
-from dev_supervisor.policy import MODELS, RETRYABLE, Model, command, order, writes
+from dev_supervisor.policy import (
+    COMPLEXITY,
+    EFFORTS,
+    MODELS,
+    RETRYABLE,
+    Model,
+    command,
+    load_registry,
+    order,
+    resolve_effort,
+    writes,
+)
 from dev_supervisor.process import attempt
 
 GUARD = """
@@ -36,6 +47,8 @@ def execute(
     sequence: list[str],
     idle: float,
     limit: float,
+    complexity: str,
+    effort: str | None = None,
     files: list[Path] | None = None,
 ) -> str:
     instructions = tomllib.loads((cwd / ".codex/agents" / f"{role}.toml").read_text())
@@ -47,10 +60,12 @@ def execute(
         )
     history: list[dict[str, str]] = []
     for name in sequence:
+        resolved = resolve_effort(complexity, models[name], effort)
         checkpoint = {
             "model": name,
             "provider": models[name].provider,
-            "effort": models[name].effort or "CLI configured default",
+            "complexity": complexity,
+            "effort": resolved or "CLI configured default",
             "worktree": str(cwd),
             "role": role,
             "attempts": history,
@@ -69,7 +84,14 @@ def execute(
             + "\nInspect git status and diff; interrupted edits remain in this worktree.\n"
         )
         result = attempt(
-            command(name, models[name], cwd, prompt, [*(files or []), progress]),
+            command(
+                name,
+                models[name],
+                cwd,
+                prompt,
+                [*(files or []), progress],
+                resolved,
+            ),
             cwd,
             prompt,
             state,
@@ -90,6 +112,8 @@ def main() -> None:
     parser.add_argument("--task", type=Path, required=True)
     parser.add_argument("--role", required=True)
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    parser.add_argument("--complexity", required=True, choices=tuple(COMPLEXITY))
+    parser.add_argument("--effort", choices=EFFORTS)
     parser.add_argument("--model")
     parser.add_argument("--only", action="store_true")
     parser.add_argument("--registry", type=Path)
@@ -105,14 +129,14 @@ def main() -> None:
     if Path(args.role).name != args.role:
         parser.error("Role must be a file stem")
     models = dict(MODELS)
-    if args.registry:
-        for name, spec in tomllib.loads(args.registry.read_text()).items():
-            models[name] = Model(**spec)
     try:
+        if args.registry:
+            models = load_registry(tomllib.loads(args.registry.read_text()))
         authorized = writes(cwd, args.write_file)
-        sequence = order(args.model, args.only, models)
+        sequence = order(args.model, args.only, models, args.effort)
         for name in sequence:
-            command(name, models[name], cwd, Path("unused"), authorized)
+            resolved = resolve_effort(args.complexity, models[name], args.effort)
+            command(name, models[name], cwd, Path("unused"), authorized, resolved)
     except (ValueError, TypeError) as error:
         parser.error(str(error))
     branch = subprocess.check_output(
@@ -140,6 +164,8 @@ def main() -> None:
             sequence,
             args.idle_seconds,
             args.limit_seconds,
+            args.complexity,
+            args.effort,
             authorized,
         )
         print(result, flush=True)
