@@ -1,5 +1,154 @@
 # Grocery MVP checkpoint for professor feedback
 
+## Current status — 2026-09-12
+
+- **Status**: Local grocery planner with stored USDA macros and unattended Bedrock chat. The user resumed the build. This is not a completed AI product.
+- **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
+- **Decisions**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md), [0010 — Park Instacart. Use USDA nutrition and Spoonacular cost](../decisions/0010-usda-spoonacular-overlay.md)
+- **Local proof store**: [log.md](../log.md)
+- **Published foundation**: pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42) merged on 2026-09-07 at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14`. That merge is historical.
+- **Saved local `main` snapshot**: `0c6d571`, merge of the USDA per-100 g nutrition overlay (pull request 68). The coordinator verified that SHA from local `git log main`. Remote `HEAD` was not queried. This page MUST NOT claim current GitHub `main`.
+- **Verified source base**: snapshot `0c6d571`. This is not a live Local HEAD label. Later docs commits MUST NOT treat this SHA as the live checkout.
+- **Prior current-build source base**: `c0357d6` on `codex/project-context-refresh`. Prior application code is committed locally. No Git push.
+
+This documentation refresh does not implement pending features.
+Next application work is Spoonacular retention and evaluation after the graph and wiki prerequisite.
+
+The 2026-09-08 MFA checkpoint called continuity unfinished, handoff UI unfinished, features paused, and Instacart release proof required.
+Those claims are historical. They are not current status.
+
+### Active product
+
+The active product is a budget-aware grocery planner on a local stack.
+The stack is React and TypeScript, FastAPI, PostgreSQL, a worker, and Floci.
+Floci supplies local SQS jobs and S3 evaluation export paths.
+Real Bedrock is the approved model path through `LLMProvider`.
+Plaid Sandbox adapters measure posted grocery spending. Pending spending stays separate.
+Instacart development shopping-list links stay in the parked adapter.
+They do not prove live prices. IDP is closed to new applicants.
+Older health-prediction and activity-planning text remains historical.
+Those phases are not the active build.
+
+The catalog supports ten meals: chicken tacos, bean tacos, vegetable pasta, chicken-and-rice bowls, lentil soup, chickpea curry, vegetable stir-fry, baked potatoes with beans, breakfast burritos, and overnight oats.
+A request uses one to three (1-3) meals.
+Each meal uses one to eight (1-8) servings.
+
+Every estimate shows this notice:
+
+> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+
+Budget acceptance uses sample-catalog integer cents.
+Spoonacular average cost MAY appear as a labeled overlay.
+It MUST NOT change `accepted` or `total_cents`.
+It is not a live store price.
+
+### What is complete locally
+
+Local macros compute calories, protein, carbs, and fat per serving and per plan.
+All 22 USDA ingredient mappings match the public source in `docs/nutrition-sources.md`.
+Pantry items count in nutrition.
+Quantities are consumed recipe amounts, not packages.
+Manual and chat jobs return root nutrition JSON after evidence.
+Frontend 5174 displays those macros.
+Preview 5173 uses older application code with the new Bedrock identity.
+
+Chat and form continuity is complete locally.
+Handoff controls are complete locally.
+Instacart stays unavailable.
+`instacart_configured` stays false.
+
+Amazon Nova 2 Lite, reasoning effort `low`, planned chat on 5173 and 5174.
+Runtime uses dedicated IAM user `fewia-bedrock-runtime` from CDK.
+Credentials live outside Git with file mode `600`.
+Runtime does not use human MFA.
+The human MFA role is unchanged.
+Created IAM user, deployment role, and CloudFormation stacks carry seven tags.
+Billing has six Active `iamPrincipal` dimensions.
+Filter `iamPrincipal/Project=FEWIA`.
+`CostCenter` waits for registration.
+Charges are not verified.
+Do not print account ids or access keys.
+USDA stored facts need no runtime API key.
+Plaid Sandbox is not live-verified.
+
+### Evidence counts
+
+These counts come from different environments. They are not a contradiction.
+
+| Environment | Recorded result |
+| --- | --- |
+| Macro PostgreSQL backend | 1510 passed |
+| Macro frontend | 327 passed, build passed |
+| Unattended Bedrock backend | 1496 passed, 14 database skips, one existing Starlette warning |
+| Infra | 41 tests |
+| Launcher | 14 tests, plus ruff and mypy |
+| Evaluation runner | 90 slots, 42 scored, 48 unassessed |
+
+No 90-run model-quality evaluation exists.
+
+### Evidence classes
+
+| Class | What it may prove | Current grocery status |
+| --- | --- | --- |
+| Deterministic | Catalog facts, planner arithmetic, budget cents, stored USDA macros | Local proof is in [log.md](../log.md) |
+| Fixture | Demo spending and sample catalog prices | Current demo spending source |
+| Emulator | Floci SQS jobs and Floci S3 export paths | Used on the local job path |
+| Sandbox | Plaid Sandbox posted and pending grocery spend | Adapters exist. Live Sandbox proof is pending |
+| Live | Real Bedrock on local Compose | Nova 2 Lite `low` planned chat on 5173 and 5174 |
+| Deployed | IAM user, deployment role, and CloudFormation stacks | Verified in `infra/bedrock/UNATTENDED.md`. No public hosting. Charges not verified |
+
+Fixture data is not a verified retailer or bank claim.
+Sample catalog prices are not verified retailer prices.
+Stored USDA facts are not medical advice.
+
+### Remaining work
+
+Spoonacular job results stay stored past the one-hour delete rule.
+In-memory expiry deletes are not proven.
+Then unfinished model, provider, and adversarial evaluation remain.
+This documentation refresh does not implement those items.
+
+Graph artifacts are local and ignored; verify manifest/source hashes before use.
+This page MUST NOT claim a completed graph.
+
+### Current demo outline
+
+1. Open the local 5174 preview.
+2. Select bean tacos with two servings.
+3. Set a user monthly limit. Keep fixture spending.
+4. Submit the form. Wait for the queued job.
+5. Read the itemized sample estimate of 1,703 cents.
+6. Read the catalog notice on the estimate.
+7. Read plan macros of 758 kcal, 29.0 g protein, 111.6 g carbs, and 24.7 g fat.
+8. Mark olive oil as pantry stock. Rebuild the plan.
+9. Read USD 11.04 with the same 758 kcal.
+10. Use Meal chat on the unattended Bedrock path.
+11. State that sample prices and fixture spending remain.
+12. State that Instacart is parked and unavailable.
+13. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
+14. State that the evaluation runner has 90 slots. No 90-run model-quality result exists.
+
+### Honest limitations
+
+This checkpoint is an early MVP for professor feedback.
+The product does not complete the original health-prediction experiment.
+The product does not complete every grocery feature in the accepted brief.
+Live chat is verified with Amazon Nova 2 Lite, reasoning effort `low`.
+Sample prices remain. Fixture spending remains.
+The demo does not use a real bank.
+Instacart prices are not verified.
+No 90-run evaluation exists.
+No model-quality result exists.
+This page MUST NOT claim a completed AI product.
+This page MUST NOT claim real Plaid or Instacart proof.
+This page MUST NOT claim a 90-run evaluation.
+
+## Preserved historical record — 2026-09-08 checkpoint
+
+The next sections keep the 2026-09-08 MFA checkpoint.
+They are history.
+They are not current status.
+
 - **Date**: 2026-09-08
 - **Status**: live chat VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Feature work is PAUSED as the user requested. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
@@ -13,11 +162,11 @@
 
 This page preserves the current grocery demo. It does not expand features.
 
-## Active product
+### Historical active product
 
 The active product is a budget-aware grocery planner on a local stack. The stack is React and TypeScript, FastAPI, PostgreSQL, a worker, and Floci. Floci supplies local SQS jobs and S3 evaluation export paths. Real Bedrock is the approved model path through `LLMProvider`. Plaid Sandbox adapters measure posted grocery spending. Pending spending stays separate. Instacart development shopping-list links prove handoff. They do not prove live prices. Older health-prediction and activity-planning text remains historical. Those phases are not the active build.
 
-## Working local path
+### Historical working local path
 
 The proven demo path is meal controls → API → PostgreSQL outbox → Floci SQS → worker → itemized estimate. The user selects meals and servings in the form. The API accepts the request. PostgreSQL stores the job and outbox row. Floci SQS carries the job id. The worker computes a labeled sample estimate. The UI shows the itemized result. Pantry removal is explicit. A rebuild follows a pantry change. The local page also mounts meal chat beside the manual planner.
 
@@ -27,7 +176,7 @@ Published consolidation checks remain those recorded for pull request 42. Postgr
 
 Current live-chat checks from [log.md](../log.md) differ. Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Two-servings bean tacos returned USD 17.03. A four-servings follow-up returned USD 18.32. The budget 40 stayed preserved. The form updated to 4. The browser showed no errors. Sample prices remain. Fixture spending remains. Backend pytest reported 1,383 passed and eight database tests skipped. Ruff, format, and strict mypy passed. CDK 14 tests passed. Helper 10 tests passed. Local commits are `282f682` (model) and `06d41f3` (currency). No push or merge occurred.
 
-## Catalog and estimates
+### Historical catalog and estimates
 
 The catalog supports ten meals: chicken tacos, bean tacos, vegetable pasta, chicken-and-rice bowls, lentil soup, chickpea curry, vegetable stir-fry, baked potatoes with beans, breakfast burritos, and overnight oats. A request uses one to three (1-3) meals. Each meal uses one to eight (1-8) servings. Sample package prices live in `backend/app/domain/catalog.py`. Ingredient quantities live in `backend/app/domain/catalog_recipes.json`.
 
@@ -39,13 +188,13 @@ Every estimate shows this notice:
 
 Missing prices produce an incomplete estimate. Incomplete estimates stay visible. Sample prices are not verified retailer prices.
 
-## Budget
+### Historical budget
 
 The user sets the monthly grocery limit. The planner does not recommend an allowance from income or bills. Posted grocery spending is subtracted from that limit. The remainder clamps to zero. Pending spending is shown separately. Plans do not reserve money. An explicit plan cap MAY lower the remaining budget. It MUST NOT raise the user cap. Budget math uses USD, integer cents, and America/New_York month dates. Shared ingredients aggregate before package rounding. The planner does not lower servings or omit ingredients to claim budget compliance.
 
 The current demo uses fixture spending. No real bank account is validated. Plaid Sandbox adapters exist. Live Sandbox evidence remains pending.
 
-## Chat, form, and handoff
+### Historical chat, form, and handoff
 
 The local `App` mounts `ChatWorkspace` and `ChatPanel` beside the manual planner. The page uses the existing provider capability hook and chat controller. A valid chat result updates the shared form and estimate. The budget cap stays preserved. Stale-result protection applies.
 
@@ -55,11 +204,11 @@ This page MUST NOT claim a completed AI product. This page MUST NOT claim real P
 
 The handoff browser contract and client exist. The button flow remains unfinished. Instacart code creates development shopping-list links. It does not verify live prices, availability, taxes, fees, or tips. An uncertain Instacart write needs a visible retry, not blind replay. Handoff URLs need validation before navigation.
 
-## Evaluation
+### Historical evaluation
 
 A 30-scenario corpus exists. A budget evaluation driver exists. The intended design is 30 scenarios repeated three times. No 90-run evaluation has run. No model-quality score exists.
 
-## Evidence classes
+### Historical evidence classes
 
 | Class | What it may prove | Current grocery status |
 | --- | --- | --- |
@@ -72,7 +221,7 @@ A 30-scenario corpus exists. A budget evaluation driver exists. The intended des
 
 Fixture data is not a verified retailer or bank claim.
 
-## Professor demo outline
+### Historical professor demo outline
 
 1. Open the local web form.
 2. Select bean tacos with two servings.
@@ -92,11 +241,11 @@ Fixture data is not a verified retailer or bank claim.
 16. State that full manual-to-chat transfer remains unfinished.
 17. State that feature work is PAUSED as the user requested.
 
-## Honest limitations
+### Historical honest limitations
 
 This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Sample prices remain. Fixture spending remains. The demo does not use a real bank. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Full manual-plan context transfer is unfinished. Handoff button flow is incomplete. Feature work is PAUSED as the user requested. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. That record covers the prior merged checkpoint. A local chat graph refresh is not yet recorded.
 
-## Next work after professor feedback
+### Historical next work after professor feedback
 
 1. Renew the one-hour MFA session before the next live test.
 2. Finish full manual-plan context transfer.
@@ -107,20 +256,20 @@ This checkpoint is an early MVP for professor feedback. The product does not com
 7. Finish the evaluation runner.
 8. Run real-provider checks when those providers are configured.
 
-## Data sources after IDP closure
+### Historical data sources after IDP closure
 
 Instacart Developer Platform is closed to new applicants. The hybrid path
 is [0010](../decisions/0010-usda-spoonacular-overlay.md). Park Instacart.
 Store USDA nutrition. Show Spoonacular average cost as a labeled overlay.
 Budget cents stay on the sample catalog.
 
-## Wishlist
+### Historical wishlist
 
 Weekly nutrition totals from consumed quantities, with pantry stock still
 counted, remain optional. A future cash-flow grocery allowance from income
 and bills remains optional. Per-recipe nutrition is now in decision 0010.
 
-## Publication handoff
+### Historical publication handoff
 
 The user authorized commit, push, one large consolidation pull request, and merge. [Consolidate grocery MVP and provider foundations](https://github.com/emanuelGitCodes/fewia/pull/42) merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07. GitHub Backend checks passed. GitHub Frontend checks passed. That consolidation MAY exceed the 150-line source cap once. Later pull requests keep the 150-line source cap.
 

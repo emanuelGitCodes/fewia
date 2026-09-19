@@ -1,50 +1,69 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Active direction:** Preserve the local grocery MVP for professor feedback.
-> The accepted brief is [.codex/project-context.md](.codex/project-context.md).
-> The demo is a budget-aware grocery planner. It is not a completed AI product.
-> Do not expand features in this checkpoint. The health-prediction phases below
-> are historical planning material. Do not resume their training tasks.
+> **Active direction:** The user resumed the grocery build. This docs
+> refresh does not implement pending features. The accepted brief is
+> [.codex/project-context.md](.codex/project-context.md). The demo is a
+> budget-aware grocery planner. It is not a completed AI product. The
+> health-prediction phases below are historical planning material. Do not
+> resume their training tasks. Next application work is Spoonacular
+> retention and evaluation after the graph and wiki prerequisite.
 
-> **Status**: Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning
-> effort `low`
+> **Status (2026-09-12):** Verified source-base snapshot: saved local
+> `main` is `0c6d571`. That commit merges the USDA per-100 g nutrition
+> overlay (pull request 68). The coordinator verified that SHA from
+> local `git log main`. Remote `HEAD` was not queried. This plan MUST
+> NOT claim current GitHub `main`. This is not a live Local HEAD label.
+> Later docs commits MUST NOT treat this SHA as the live checkout. The
+> prior current-build source base is `c0357d6` on
+> `codex/project-context-refresh`
 > ([wiki/phases/grocery-mvp-checkpoint.md](wiki/phases/grocery-mvp-checkpoint.md)).
-> Two-servings bean tacos returned USD 17.03. A four-servings follow-up
-> returned USD 18.32. The budget 40 stayed preserved. The form updated to
-> 4. The browser showed no errors. Sample prices remain. Fixture spending
-> remains. Code checks: 1,383 backend tests passed, eight database skips,
-> plus lint, format, and mypy. CDK 14 tests passed. Helper 10 tests
-> passed. No 90-run evaluation exists. This is not a completed AI product.
-> Real Plaid and Instacart remain unverified. Full manual-to-chat transfer
-> remains unfinished. Feature work is PAUSED as the user requested. Local
-> commits are `282f682` (model) and `06d41f3` (currency). No push or merge
-> occurred. Pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42)
-> merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on
-> 2026-09-07. GitHub Backend checks and Frontend checks passed.
-> Published consolidation local checks remain 1,374 PostgreSQL-enabled
-> backend tests, 238 frontend tests, ruff, format, and strict mypy on 85
-> files, frontend build, and migrations through 0007. One existing
-> Starlette deprecation warning remains. Preserved drafts are included
-> and locally checked. Graphify rebuilt after that merge in the saved
-> checkout. That record covers the prior merged checkpoint. A local chat
-> graph refresh is not yet recorded. Local ignored artifacts are
-> `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and
-> `health.json`. Full source coverage is 237 code files, 44 documents, and
-> 1 image. Raw extraction excludes 979 unresolved endpoint references,
-> mostly external imports. The default undirected graph collapses 919
-> repeated endpoint relationships. The extract records 121 exact duplicate
-> raw edges. These counts are analysis coverage limits. They are not
-> application failures. Semantic agent token usage is unavailable. This
-> plan does not claim the graph has no errors. Phase 0 through Phase 3
-> remain complete historical records
+> Prior application code is committed locally. No Git push occurred.
+> Local macros compute calories, protein,
+> carbs, and fat per serving and per plan. All 22 USDA ingredient mappings
+> match the public source. Pantry items count in nutrition. Quantities are
+> not packages. Manual and chat jobs return root nutrition JSON after
+> evidence. Frontend 5174 displays those macros. Preview 5173 uses older
+> application code with the new Bedrock identity. Amazon Nova 2 Lite,
+> reasoning effort `low`, planned chat on 5173 and 5174. Runtime uses
+> dedicated IAM user `fewia-bedrock-runtime` from CDK. Credentials live
+> outside Git with file mode `600`. Runtime does not use human MFA. The
+> human MFA role is unchanged. Created IAM user, deployment role, and
+> CloudFormation stacks carry seven tags. Billing has six Active
+> `iamPrincipal` dimensions. Filter `iamPrincipal/Project=FEWIA`.
+> `CostCenter` waits for registration. Charges are not verified. Do not
+> print account ids or access keys. Chat and form continuity is complete
+> locally. Handoff controls exist locally. Instacart stays unavailable.
+> Instacart remains parked. The adapter is retained.
+> `instacart_configured` stays false because IDP is closed. Budget
+> acceptance uses sample-catalog integer cents. Spoonacular average cost
+> is an optional labeled overlay. It is not a live store price. Plaid
+> Sandbox is not live-verified. USDA stored facts need no runtime API key.
+> Macro PostgreSQL backend: 1510 passed. Frontend: 327 passed. Frontend
+> build passed. Unattended Bedrock item: backend 1496 passed, 14 database
+> skips, one existing Starlette warning. Infra: 41 tests. Launcher: 14
+> tests, plus ruff and mypy. Those counts come from different
+> environments. They are not a contradiction. Evaluation runner: 90
+> slots, 42 scored, 48 unassessed. No 90-run model-quality evaluation
+> exists. Pending work is the Spoonacular retention gap, then unfinished
+> model, provider, and adversarial evaluation. This docs refresh does
+> not implement those items. Graph artifacts are local and ignored;
+> verify manifest/source hashes before use. This plan MUST NOT claim a
+> completed graph. Pull request
+> [42](https://github.com/emanuelGitCodes/fewia/pull/42) remains the
+> historical published foundation. It merged at
+> `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on 2026-09-07.
+> Phase 0 through Phase 3 remain complete historical records
 > ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
 > [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
 > [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
 > [wiki/phases/phase-3.md](wiki/phases/phase-3.md)).
 > `wiki/` records work and decisions. An executor MUST read `AGENTS.md`
-> and `wiki/index.md` before starting. The delegation sections assume
-> Claude Code (Agent tool, skills, worktrees); another executor follows
-> the phases, deliverables, and verification steps directly.
+> and `wiki/index.md` before starting. The Claude Code delegation
+> sections below are inactive historical text. Current writers follow
+> [docs/DEV_SUPERVISOR.md](docs/DEV_SUPERVISOR.md). This session uses
+> Grok first. The authorized fallback is Codex 5.3 when Grok is
+> unavailable. The coordinator stops when Codex weekly remaining is at
+> or below 30 percent. The last wiki records that session rule.
 
 ## Context
 
