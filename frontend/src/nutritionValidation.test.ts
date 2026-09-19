@@ -109,7 +109,7 @@ describe("nutrition transport", () => {
         }),
       }),
     );
-    expect(parsed.result?.supermarket_estimate?.total_cents).toBe(1299);
+    expect(parsed.result?.supermarket_estimate).toBeUndefined();
     expect(parsed.result?.nutrition?.meals).toHaveLength(1);
   });
 
