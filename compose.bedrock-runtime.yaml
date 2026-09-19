@@ -1,0 +1,21 @@
+x-bedrock-runtime: &bedrock-runtime
+  environment:
+    FEWIA_AWS_PROFILE: fewia-bedrock-runtime
+    FEWIA_BEDROCK_MODEL_ID: us.amazon.nova-2-lite-v1:0
+    FEWIA_BEDROCK_REGION: us-east-1
+    AWS_SHARED_CREDENTIALS_FILE: /run/fewia/aws-credentials
+    AWS_CONFIG_FILE: /dev/null
+    AWS_EC2_METADATA_DISABLED: "true"
+  volumes:
+    - type: bind
+      source: "${FEWIA_RUNTIME_CREDENTIALS_FILE:?Use the validated runtime launcher}"
+      target: /run/fewia/aws-credentials
+      read_only: true
+      bind:
+        create_host_path: false
+
+services:
+  api:
+    <<: *bedrock-runtime
+  worker:
+    <<: *bedrock-runtime
