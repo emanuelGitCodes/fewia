@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from dev_supervisor.events import Events
@@ -93,8 +95,6 @@ def test_pending_question_waits_until_cleared() -> None:
 
 
 def test_embedded_grok_permission_code() -> None:
-    import json
-
     state = Events()
     state.feed(
         json.dumps(
@@ -105,3 +105,107 @@ def test_embedded_grok_permission_code() -> None:
         )
     )
     assert state.outcome(1) == "permission"
+
+
+def test_codex_usage_ignores_nested_malformed_and_replay() -> None:
+    state = Events()
+    payload = {
+        "type": "turn.completed",
+        "id": "t1",
+        "usage": {
+            "input_tokens": 2,
+            "cached_input_tokens": 1,
+            "output_tokens": 3,
+            "reasoning_output_tokens": 4,
+        },
+    }
+    state.feed(json.dumps(payload))
+    state.feed(json.dumps(payload))
+    state.feed(
+        '{"type":"item.completed","item":{"type":"command_execution","id":"a",'
+        '"aggregated_output":"{\\"type\\":\\"turn.completed\\",\\"usage\\":{\\"input_tokens\\":99}}"}}'
+    )
+    state.feed('{"type":"event_msg","payload":{"type":"token_count","input_tokens":8}}')
+    assert state.usage == {
+        "input_tokens": 2,
+        "cached_tokens": 1,
+        "output_tokens": 3,
+        "reasoning_tokens": 4,
+    }
+    bad = Events()
+    bad.feed(
+        '{"type":"turn.completed","usage":{"input_tokens":"1","output_tokens":-2}}'
+    )
+    assert bad.usage == {
+        "input_tokens": None,
+        "cached_tokens": None,
+        "output_tokens": None,
+        "reasoning_tokens": None,
+    }
+    grok = Events()
+    grok.feed('{"type":"end","stopReason":"end_turn"}')
+    assert grok.usage is None
+    assert grok.usage_provenance == "unsupported"
+
+
+def _usage_event(turn_id: str | None = None) -> str:
+    payload: dict[str, object] = {
+        "type": "turn.completed",
+        "usage": {
+            "input_tokens": 2,
+            "cached_input_tokens": 1,
+            "output_tokens": 3,
+            "reasoning_output_tokens": 4,
+        },
+    }
+    if turn_id is not None:
+        payload["id"] = turn_id
+    return json.dumps(payload)
+
+
+def test_identical_turns_without_id_are_counted() -> None:
+    state = Events()
+    payload = _usage_event()
+    state.feed(payload)
+    state.feed(payload)
+    assert state.usage == {
+        "input_tokens": 4,
+        "cached_tokens": 2,
+        "output_tokens": 6,
+        "reasoning_tokens": 8,
+    }
+
+
+def test_duplicate_known_id_is_not_double_counted() -> None:
+    state = Events()
+    payload = _usage_event("t1")
+    state.feed(payload)
+    state.feed(payload)
+    assert state.usage == {
+        "input_tokens": 2,
+        "cached_tokens": 1,
+        "output_tokens": 3,
+        "reasoning_tokens": 4,
+    }
+
+
+def test_established_turn_without_id_dedups_until_next_start() -> None:
+    state = Events()
+    payload = _usage_event()
+    state.feed('{"type":"turn.started"}')
+    state.feed(payload)
+    state.feed(payload)
+    assert state.usage == {
+        "input_tokens": 2,
+        "cached_tokens": 1,
+        "output_tokens": 3,
+        "reasoning_tokens": 4,
+    }
+    state.feed('{"type":"turn.started"}')
+    state.feed(payload)
+    assert state.usage == {
+        "input_tokens": 4,
+        "cached_tokens": 2,
+        "output_tokens": 6,
+        "reasoning_tokens": 8,
+    }

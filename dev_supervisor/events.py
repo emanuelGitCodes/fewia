@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from dev_supervisor.usage import add_counts, fingerprint, parse_codex_usage
+
 CODES = {
     "rate_limit_exceeded": "rate_limit",
     "rate_limit_error": "rate_limit",
@@ -27,6 +29,11 @@ class Events:
     waiting: bool = False
     complete: bool = False
     saw_error: bool = False
+    usage: dict[str, int | None] | None = None
+    usage_provenance: str = "none"
+    usage_seen: set[str] = field(default_factory=set)
+    current_turn: str | None = None
+    counted_current: bool = False
 
     def feed(self, line: str) -> None:
         try:
@@ -55,11 +62,36 @@ class Events:
                 self.active_tools.add(identity)
                 if event.get("toolName") == "ask_user_question":
                     self.questions.add(identity)
+        if kind == "turn.started":
+            ident = fingerprint(event)
+            self.current_turn = ident if ident is not None else ""
+            self.counted_current = False
         if kind == "turn.completed" or (
             kind == "end" and event.get("stopReason") == "end_turn"
         ):
             self.complete = True
             self.failure, self.saw_error = "unknown", False
+            parsed = parse_codex_usage(event)
+            if parsed is not None:
+                ident = fingerprint(event)
+                if ident is not None:
+                    duplicate = ident in self.usage_seen
+                    same_turn = self.current_turn == ident and self.counted_current
+                    if not duplicate and not same_turn:
+                        self.usage_seen.add(ident)
+                        self.usage = add_counts(self.usage, parsed)
+                        self.usage_provenance = "codex.turn.completed"
+                        self.counted_current = True
+                elif self.current_turn is not None:
+                    if not self.counted_current:
+                        self.usage = add_counts(self.usage, parsed)
+                        self.usage_provenance = "codex.turn.completed"
+                        self.counted_current = True
+                else:
+                    self.usage = add_counts(self.usage, parsed)
+                    self.usage_provenance = "codex.turn.completed"
+            elif self.usage_provenance == "none":
+                self.usage_provenance = "unsupported"
         if kind in {"permission_request", "user_input_required"}:
             self.hold = True
         item = event.get("item", {})

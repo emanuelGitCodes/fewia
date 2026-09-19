@@ -13,6 +13,27 @@ from pathlib import Path
 from typing import Any
 
 from dev_supervisor.events import Events
+from dev_supervisor.usage import COUNTS
+
+_RECORD: dict[str, Any] = {}
+
+
+def take_record() -> dict[str, Any]:
+    current = dict(_RECORD)
+    _RECORD.clear()
+    return current
+
+
+def _store(events: Events, started: float) -> None:
+    usage = events.usage or dict.fromkeys(COUNTS)
+    _RECORD.clear()
+    _RECORD.update(
+        {
+            "elapsed_ms": max(0, int((time.monotonic() - started) * 1000)),
+            "provenance": events.usage_provenance,
+            **{name: usage.get(name) for name in COUNTS},
+        }
+    )
 
 
 def publish(state_dir: Path, status: dict[str, Any]) -> None:
@@ -85,10 +106,16 @@ def attempt(
             )
         except FileNotFoundError:
             publish(state_dir, snapshot("stopped", None))
+            _store(events, started)
             return "unavailable"
         except PermissionError:
             publish(state_dir, snapshot("stopped", None))
+            _store(events, started)
             return "permission"
+        except KeyboardInterrupt:
+            publish(state_dir, snapshot("stopped", None))
+            _store(events, started)
+            return "interrupted"
         selector: selectors.BaseSelector | None = None
         previous = signal.getsignal(signal.SIGTERM)
         installed = False
@@ -105,43 +132,48 @@ def attempt(
             if threading.current_thread() is threading.main_thread():
                 signal.signal(signal.SIGTERM, interrupt)
                 installed = True
-            while True:
-                now = time.monotonic()
-                quiet = now - last >= idle
-                publish(
-                    state_dir,
-                    snapshot("needs_inspection" if quiet else "running", process.pid),
-                )
-                decision = state_dir / "confirm-stall"
-                if decision.exists() and decision.read_text().strip() == token:
-                    decision.unlink()
-                    if quiet and not events.active_tools and not events.waiting:
-                        outcome = "stalled"
+            try:
+                while True:
+                    now = time.monotonic()
+                    quiet = now - last >= idle
+                    publish(
+                        state_dir,
+                        snapshot(
+                            "needs_inspection" if quiet else "running", process.pid
+                        ),
+                    )
+                    decision = state_dir / "confirm-stall"
+                    if decision.exists() and decision.read_text().strip() == token:
+                        decision.unlink()
+                        if quiet and not events.active_tools and not events.waiting:
+                            outcome = "stalled"
+                            break
+                    if now - started >= limit:
+                        outcome = "time_limit"
                         break
-                if now - started >= limit:
-                    outcome = "time_limit"
-                    break
-                if events.waiting:
-                    outcome = "permission"
-                    break
-                ready = selector.select(timeout=0.1)
-                if ready:
-                    chunk = os.read(process.stdout.fileno(), 65536)
-                    if chunk:
-                        last = time.monotonic()
-                        pending += chunk
-                        while b"\n" in pending:
-                            line, pending = pending.split(b"\n", 1)
-                            events.feed(line.decode(errors="replace"))
-                        if len(pending) > 1048576:
-                            pending = b""
-                    else:
-                        selector.unregister(process.stdout)
-                if process.poll() is not None and not selector.get_map():
-                    if pending:
-                        events.feed(pending.decode(errors="replace"))
-                    outcome = events.outcome(process.returncode)
-                    break
+                    if events.waiting:
+                        outcome = "permission"
+                        break
+                    ready = selector.select(timeout=0.1)
+                    if ready:
+                        chunk = os.read(process.stdout.fileno(), 65536)
+                        if chunk:
+                            last = time.monotonic()
+                            pending += chunk
+                            while b"\n" in pending:
+                                line, pending = pending.split(b"\n", 1)
+                                events.feed(line.decode(errors="replace"))
+                            if len(pending) > 1048576:
+                                pending = b""
+                        else:
+                            selector.unregister(process.stdout)
+                    if process.poll() is not None and not selector.get_map():
+                        if pending:
+                            events.feed(pending.decode(errors="replace"))
+                        outcome = events.outcome(process.returncode)
+                        break
+            except KeyboardInterrupt:
+                outcome = "interrupted"
         finally:
             if installed:
                 with suppress(Exception):
@@ -158,4 +190,5 @@ def attempt(
                     process.stdout.close()
             if clean:
                 publish(state_dir, snapshot("stopped", process.pid))
+            _store(events, started)
     return outcome if clean else "cleanup_failed"
