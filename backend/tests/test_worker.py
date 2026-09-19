@@ -938,10 +938,10 @@ def test_default_agent_does_not_build_spoonacular_without_key_file(
         factory: sessionmaker[Session], provider: object, **kwargs: object
     ) -> JobHandler:
         del factory, provider
-        captured.append(kwargs.get("supermarket_estimator"))
+        captured.append("supermarket_estimator" in kwargs)
         return dummy_handler
 
-    monkeypatch.setattr(worker, "build_spoonacular", boom)
+    monkeypatch.setattr("app.provider_runtime.build_spoonacular", boom)
     monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
     stop = threading.Event()
 
@@ -965,7 +965,8 @@ def test_default_agent_does_not_build_spoonacular_without_key_file(
     result = json.loads(output.out)
 
     assert code == 0
-    assert captured == [None]
+    assert captured == [False]
+    assert not hasattr(worker, "build_spoonacular")
     assert result["status"] == "stopped"
     assert result["counts"]["succeeded"] == 1
     assert SECRET not in output.out
@@ -985,17 +986,17 @@ def test_spoonacular_constructor_failure_degrades_without_printing_key(
 
     def fail_build(loaded_settings: GroceryProviderSettings) -> None:
         del loaded_settings
-        raise ProviderConfigurationError()
+        raise AssertionError("spoonacular")
 
     monkeypatch.setattr(worker, "load_provider_settings", loaded)
-    monkeypatch.setattr(worker, "build_spoonacular", fail_build)
+    monkeypatch.setattr("app.provider_runtime.build_spoonacular", fail_build)
     captured: list[object] = []
 
     def fake_agent(
         factory: sessionmaker[Session], provider: object, **kwargs: object
     ) -> JobHandler:
         del factory, provider
-        captured.append(kwargs.get("supermarket_estimator"))
+        captured.append("supermarket_estimator" in kwargs)
         return dummy_handler
 
     monkeypatch.setattr(worker, "make_agent_handler", fake_agent)
@@ -1021,7 +1022,8 @@ def test_spoonacular_constructor_failure_degrades_without_printing_key(
     result = json.loads(output.out)
 
     assert code == 0
-    assert captured == [None]
+    assert captured == [False]
+    assert not hasattr(worker, "build_spoonacular")
     assert result["status"] == "stopped"
     assert SPOONACULAR_KEY_MARKER not in output.out
     assert SPOONACULAR_KEY_MARKER not in output.err
