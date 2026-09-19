@@ -17,6 +17,7 @@ chronological record lives in [log.md](log.md).
 - [0009 — Codex and Grok development review](decisions/0009-codex-grok-review.md)
 - [0010 — Park Instacart. Use USDA nutrition and Spoonacular cost](decisions/0010-usda-spoonacular-overlay.md)
 - [0011 — Dynamic delegated effort](decisions/0011-dynamic-delegated-effort.md)
+- [0012 — Tool calling as the orchestration boundary](decisions/0012-tool-calling-orchestration.md)
 
 ## Phases
 
