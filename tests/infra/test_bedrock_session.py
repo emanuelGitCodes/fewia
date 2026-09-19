@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
-from infra.bedrock_session import (  # noqa: E402
+from infra.bedrock_session import (
     DEFAULT_SOURCE_PROFILE,
     DEST_PROFILE,
     DURATION_SECONDS,
@@ -184,7 +184,8 @@ def test_malformed_credentials_and_expiration_rejected(tmp_path: Path) -> None:
             "AccessKeyId": ACCESS,
             "SecretAccessKey": SECRET,
             "SessionToken": SESSION,
-            "Expiration": datetime.now() + timedelta(seconds=60),
+            "Expiration": datetime.now(UTC).replace(tzinfo=None)
+            + timedelta(seconds=60),
         },
         {
             "AccessKeyId": ACCESS,
