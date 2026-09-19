@@ -1,22 +1,16 @@
 # Grocery bot agent team
 
-Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md):
-Grok 4.6, then Spark at its CLI default effort, then Luna.
-The coordinator classifies each task before delegation.
-Valid complexity values are `simple`, `standard`, `complex`, `exceptional`,
-and `maximum`.
-Grok 4.6 uses `low` for simple tasks.
-Grok 4.6 uses `medium` for every harder automatic tier.
-Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
-Spark does not accept an effort override in this supervisor.
-Luna and Sol support automatic selection through `max`.
-The coordinator MUST NOT select `maximum` for ordinary tasks.
-Explicit task models MUST be passed to the supervisor.
-An explicit `--effort` override MUST stay within the model ceiling.
-Model-only requests MUST disable substitution.
+Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md).
+Hard rules, model selection, effort ceilings, and reviewer gates live in
+`AGENTS.md` and `docs/DEV_SUPERVISOR.md`. Preserve those model constraints
+by following those files. Do not copy the rubric here.
+
 Native role files retain the Luna model.
 They MUST NOT pin `model_reasoning_effort`.
 Native dispatch MUST select effort from the complexity rubric.
+Native dispatch starts a fresh task context.
+Native bounded agents MUST set `fork_turns` to none.
+They MUST NOT spawn recursive workers.
 They do not implement provider fallback. Bedrock application routing is separate.
 
 ## Routing
@@ -40,11 +34,19 @@ They do not implement provider fallback. Bedrock application routing is separate
 
 Use catalog-dev and eval-engineer for new tasks. ml-dev does not resume health training.
 
+Dispatch the owning role for routine work. Use tech-lead only when the
+work needs multi-role decomposition. Do not insert a coordinator hop for
+a single bounded assignment.
+
 ## Shared execution contract
 
-All agents MUST read root `AGENTS.md`, `.codex/project-context.md`, and this
-guide before task actions. Follow the user's accepted scope over older plans.
-Read the project sources required by root instructions.
+Hard rules live in `AGENTS.md`. Writer workflow lives in
+`docs/DEV_SUPERVISOR.md`. The coordinator reads this guide and that
+workflow when dispatching. Workers receive the selected role, a bounded
+assignment, `.codex/project-context.md` product constraints, and
+relevant integration context.
+Workers MUST NOT load this guide or historical project-plan and course
+docs unless the assignment needs them.
 
 Assignments specify exact files, interfaces, dependencies, verification, and
 completion evidence. Routing areas are not blanket write permission.
@@ -64,12 +66,12 @@ and data; do not delete branches or worktrees as routine cleanup.
 The selected CLI writer writes code. A separate Codex or Grok agent supplies
 independent verification with targeted context and read-only ownership. Record
 the reviewed revision, commands, failure cases, and remaining limits. Return
-defects to the owning writer, then rerun review after repair. Claude Code is
-not an active dependency. Do not request Claude authentication.
+defects to the owning writer, then rerun review after repair. Repair MUST reuse
+the owning worker and the explicit task context. Do not use `resume --last`.
+Claude Code is not an active dependency. Do not request Claude authentication.
 
-Run all four root backend checks for code changes, plus relevant integration
-checks. Report exact commands and failures. Do not invent CI, live API, or
-deployment results. The coordinator appends one dated wiki entry per work item.
+Writer and reviewer testing policy lives in `AGENTS.md`. Wiki logging follows
+`AGENTS.md`. Do not invent CI, live API, or deployment results.
 
 ## Loading and use
 

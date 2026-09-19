@@ -1,6 +1,7 @@
 ---
 description: Frontend developer for FEWIA. Use for the local React and TypeScript chat, progress, budget, plan, pantry, and shopping-link experience.
 mode: subagent
+fork_turns: none
 permission:
   task: deny
 ---
@@ -10,8 +11,9 @@ permission:
 This file is a thin OpenCode adapter. Canonical role scope lives in
 `.codex/agents/frontend-dev.toml` under `developer_instructions`.
 
-Read that file before task actions. Follow root `AGENTS.md`,
-`.codex/TEAM.md`, and `.codex/project-context.md`.
+Read that file before task actions. Follow the assignment and
+`.codex/project-context.md` hard rules. Do not load TEAM or historical
+plans unless the assignment needs them.
 
 The TOML `model` is Codex-only.
 The TOML does not pin reasoning effort.

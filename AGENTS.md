@@ -18,15 +18,40 @@ supported. Model-only requests forbid substitution.
 A separate Codex or Grok agent verifies independently.
 Claude Code is not an active workflow dependency. These rules bind all writers.
 
-## Read first
+## Startup context
 
-The coordinator reads these sources before decomposition. Workers receive
-bounded briefs with hard rules and targeted integration context. Follow
-`docs/DEV_SUPERVISOR.md`; do not preload the full conversation or graph.
+`.codex/project-context.md` is the canonical compact startup context.
+It holds product constraints and evidence boundaries.
+These engineering and workflow hard rules live here, not in that file.
+Writer workflow lives in `docs/DEV_SUPERVISOR.md`. Do not copy that
+policy into the compact context.
 
-- `project-plan.md` — the phases and the current status banner.
-- `wiki/index.md` — decisions and phase records.
-- `docs/CAP6938_MVP_PROJECT_PLAN.md` — the specification.
+The coordinator reads `.codex/TEAM.md` and `docs/DEV_SUPERVISOR.md` when
+dispatching. Workers receive the selected role, a bounded assignment,
+these hard rules, and relevant integration context only.
+
+Do not preload the full conversation or graph.
+Do not load `project-plan.md`, `wiki/index.md`, or
+`docs/CAP6938_MVP_PROJECT_PLAN.md` unless the question needs them.
+Retain those source files.
+
+Do not insert a coordinator hop for routine work.
+Native bounded agents start from a fresh task context.
+They MUST use `fork_turns` none and MUST NOT spawn recursive workers.
+Repair MUST reuse the owning worker and the explicit task context.
+Do not use `resume --last`.
+
+A brief MUST stay at or under 500 words, excluding necessary contracts.
+A worker return MUST stay at or under 200 words plus file and log
+references unless failures need more. Default user responses MUST stay
+brief: facts, check result, and blocker. Expand when the user requests
+depth or when a material failure needs evidence.
+
+Search before bounded reads. Do not dump raw huge logs or whole graphs.
+Store logs locally. Return a summary and the relevant errors.
+Batch independent reads. Avoid unchanged polling. Use bounded waits.
+A milestone handoff MUST name revision, scope, decisions, checks, and
+the next action. Start a fresh task only after an explicit user request.
 
 ## Rules
 
@@ -47,11 +72,18 @@ bounded briefs with hard rules and targeted integration context. Follow
 - A comment MUST NOT carry history, justification, status, or dates.
   Those go in `wiki/`.
 - After a work item is done, append one dated entry to `wiki/log.md`.
+  Record actual checks only. Reviewer evidence MAY be finalized later.
   The log is append-only.
 
 ## Verification
 
-Before reporting done, run and pass:
+Writers MUST run focused tests while developing.
+An independent reviewer MUST run the full required backend gates and the
+relevant scope gates. The coordinator verifies that evidence. The
+coordinator MUST NOT rerun the same gates unless a change or failure
+justifies it. A writer MUST NOT certify independent review.
+
+Required reviewer backend gates:
 
 ```bash
 cd backend

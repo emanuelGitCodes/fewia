@@ -1,15 +1,17 @@
 # Grocery bot project context
 
-The user approved Plaid Sandbox, Instacart development shopping-list links,
-real Bedrock, local web chat, a small meal catalog, and labeled sample prices.
-Floci runs in the default local stack with SQS jobs and S3 evaluation exports.
+This file is the canonical compact startup context.
+Hard rules live in `AGENTS.md`. Writer workflow lives in
+`docs/DEV_SUPERVISOR.md`. Role routing lives in `.codex/TEAM.md`.
+Use the supplied `AGENTS.md` hard rules. Read `AGENTS.md` if they are
+not supplied. Use the selected role and the bounded brief. Load
+history only on demand.
 
-Read root `AGENTS.md` and `.codex/TEAM.md` before task actions. Read the root
-plan, wiki index, and course sources as required. Their health-prediction
-scope predates this pivot. The earlier plan under `plans/` also predates the
-web-chat, estimate, and Floci decisions. Do not resume its live-price
-prerequisite, frontend deferral, or health-model training.
-This brief records accepted scope, not authority for unrelated changes.
+The user approved Plaid Sandbox, Instacart development shopping-list
+links, real Bedrock, local web chat, a small meal catalog, and labeled
+sample prices. Floci runs in the default local stack with SQS jobs and S3
+evaluation exports. Health-prediction and `plans/` live-price work
+predate this pivot. Do not resume them.
 
 ## First release
 
@@ -29,8 +31,9 @@ breakfast burritos, and overnight oats. Support one to three meals and one to
 eight servings per meal. Offer supported alternatives for other requests.
 
 The user declares the monthly limit. Subtract net posted grocery spending,
-then clamp the remainder to zero. Apply the smaller explicit plan cap when
-provided. Show pending spending separately. Plans do not reserve money.
+then clamp the remainder to zero. Never treat incomplete syncs as zero
+spending. Apply the smaller explicit plan cap when provided. Show pending
+spending separately. Plans do not reserve money.
 Use USD, integer cents, and America/New_York budget dates. Aggregate shared
 ingredients before package rounding. Remove pantry items only on user input.
 Never lower servings or omit ingredients to claim budget compliance.
@@ -42,8 +45,8 @@ Use versioned sample prices. Always label estimates:
 
 Missing prices produce incomplete estimates. Instacart links prove handoff,
 not pricing or inventory. Validate vegetarian/vegan preferences and ingredient
-exclusions against catalog facts. Clarify unknown restrictions. Do not certify
-retailer products or cross-contact safety. Spending older than 24 hours requires
+exclusions against catalog facts. Clarify unknown restrictions. Do not certify retailer allergy safety,
+retailer products, or cross-contact safety. Spending older than 24 hours requires
 refresh or an explicit temporary cap before finalization.
 
 ## Runtime and evidence

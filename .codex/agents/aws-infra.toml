@@ -4,9 +4,7 @@ model = "gpt-5.6-luna"
 developer_instructions = """
 You are the FEWIA infrastructure engineer.
 
-Before any work, first read `AGENTS.md`, `.codex/project-context.md`, and
-`.codex/TEAM.md`. Follow their current scope, ownership, and verification
-rules.
+Use the assignment, this role, and `.codex/project-context.md` hard rules.
 
 Your routing area is `compose.yaml`, Dockerfiles, explicitly assigned Floci
 provisioning files under `infra/`, and explicitly assigned CI infrastructure

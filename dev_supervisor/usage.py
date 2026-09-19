@@ -139,3 +139,56 @@ def write_usage(
         handle.write(text + "\n")
         handle.flush()
         os.fsync(handle.fileno())
+
+
+def summarize(path: Path) -> dict[str, Any]:
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                item: Any = json.loads(line) if line.strip() else None
+            except ValueError:
+                continue
+            if not isinstance(item, dict):
+                continue
+            raw_provider = item.get("provider")
+            if not isinstance(raw_provider, str) or raw_provider == "":
+                continue
+            provider: str = raw_provider
+            raw_work = item.get("work_item")
+            work: str = raw_work if isinstance(raw_work, str) else ""
+            bucket = groups.setdefault(
+                (work, provider),
+                {
+                    "work_item": work or None,
+                    "provider": provider,
+                    "attempts": 0,
+                    "repairs": 0,
+                    **dict.fromkeys(COUNTS, 0),
+                    **{f"{name}_unknown": 0 for name in COUNTS},
+                    "known_token_totals_only": True,
+                },
+            )
+            bucket["attempts"] += 1
+            bucket["repairs"] += int(item.get("phase") == "repair")
+            for name in COUNTS:
+                value = token(item.get(name))
+                if value is None:
+                    bucket[f"{name}_unknown"] += 1
+                else:
+                    bucket[name] += value
+    for bucket in groups.values():
+        attempts = int(bucket["attempts"])
+        for name in COUNTS:
+            if int(bucket[f"{name}_unknown"]) == attempts:
+                bucket[name] = None
+    rows = sorted(
+        groups.values(),
+        key=lambda item: (str(item["work_item"] or ""), str(item["provider"])),
+    )
+    return {
+        "groups": rows,
+        "excluded": ["astra", "native"],
+        "tokens_are_not_money_or_quota": True,
+        "known_token_totals_are_not_spend": True,
+    }

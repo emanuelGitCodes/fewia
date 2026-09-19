@@ -81,6 +81,8 @@ cannot inject shell commands. CLI arguments use argument lists.
 Native `.codex/agents/*.toml` files keep the Luna model.
 They MUST NOT pin `model_reasoning_effort`.
 Native dispatch MUST select the effort from the complexity rubric.
+Native workers start from a fresh task context.
+Do not insert a coordinator hop for a single bounded assignment.
 They do not implement fallback. The supervisor passes the selected role's
 `developer_instructions` to the CLI. Bedrock application routing is separate.
 
@@ -129,6 +131,39 @@ settings. Return proposed external actions to the coordinator. These are
 worker instructions, not an OS security boundary. CLI permission controls
 remain active. Never replay uncertain external actions.
 
+Optional `--work-item ID` and `--phase implement|review|repair` tag attempts.
+The same work-item ID groups repairs across invocations.
+The supervisor appends one JSONL record per attempt to ignored
+`.fewia-supervisor-usage.jsonl` in the worktree.
+Each record stores the attempt ID, work item, phase, provider, model, effort,
+outcome, elapsed milliseconds, and numeric input, cached, output, and
+reasoning token counts when known.
+Unknown counts MUST be null.
+The Grok stream schema is unsupported: counts stay null.
+The supervisor MUST NOT probe that stream for usage.
+Codex `turn.completed` usage is parsed from known fields only.
+The parser MUST track `turn.started` boundaries.
+The parser MUST deduplicate only a reliable event ID or a completion
+inside one established turn.
+Without a boundary or ID, the parser MUST count each `turn.completed`
+event. Identical token counts MUST NOT imply a duplicate.
+The parser MUST NOT claim dedup certainty without an ID or boundary.
+The parser MUST NOT read nested tool text as telemetry.
+Missing executables, KeyboardInterrupt, failed launches, and cleanup
+failures still record a row with the honest outcome.
+Cleanup failure remains the outcome when process cleanup fails.
+Unexpected exceptions MUST NOT be swallowed.
+The ledger MUST be a regular file with owner-only mode `0600`.
+The supervisor MUST reject a symlink ledger.
+`python -m dev_supervisor --usage-summary --cwd PATH` groups rows by
+work item and provider.
+Each group reports attempts, repairs, summed known token counts, and
+unknown counts. Known sums are not complete totals and are not spend.
+Token counts are not money and are not quota.
+The summary MUST NOT emit billing or quota estimates.
+Astra sessions and native agents outside this supervisor are excluded.
+The ledger MUST NOT store raw streams, prompts, credentials, or error text.
+
 A separate Codex or Grok agent independently reviews the current diff and runs
 the required tests. Assign read-only ownership, targeted context, acceptance
 criteria, and concrete failure cases. Reviewers MUST NOT repair reviewed code.
@@ -140,6 +175,8 @@ on repair assignments. Claude Code and Claude authentication are not required.
 
 ## Context and graph
 
+Canonical startup rules live in `.codex/project-context.md`.
+Role routing lives in `.codex/TEAM.md`. Do not duplicate those rules here.
 The coordinator retains broad project context. Workers receive bounded,
 self-contained briefs rather than the full conversation or architecture.
 For exploration, provide the goal, acceptance criteria, hard safety and product
@@ -166,7 +203,11 @@ uv run --project backend ruff format --check dev_supervisor tests/supervisor
 uv run --project backend mypy --strict dev_supervisor
 ```
 
-Run the four root backend gates as well. Simulated events do not prove live
-quota failures or every tool schema. Unknown events need inspection. Revalidate
-adapters when CLIs change. This command activates routing only in its target
-checkout. It does not update the saved checkout or hot-reload native roles.
+Writers MUST run the focused supervisor commands above while developing.
+An independent Codex or Grok reviewer MUST run those commands and the
+required backend gates in `AGENTS.md`. A writer MUST NOT certify that review.
+Reviewers MUST use `PYTHONPATH=.` for supervisor pytest.
+Simulated events do not prove live quota failures or every tool schema.
+Unknown events need inspection. Revalidate adapters when CLIs change.
+This command activates routing only in its target checkout.
+It does not update the saved checkout or hot-reload native roles.
