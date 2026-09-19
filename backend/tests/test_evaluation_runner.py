@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from collections import defaultdict
 from collections.abc import Iterator
@@ -16,6 +17,24 @@ FORBIDDEN_SCORE_KEYS = frozenset(
         "pass_rate",
         "success_rate",
         "success_score",
+    }
+)
+EXISTING_SCORED = frozenset(
+    {
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "M01",
+        "M02",
+        "M03",
+        "M04",
+        "M05",
+        "M06",
+        "M07",
+        "F03",
+        "X01",
     }
 )
 
@@ -148,3 +167,107 @@ def test_empty_or_non_list_scenarios_yield_zero_slots() -> None:
     assert absent["slot_count"] == 0
     assert absent["metrics_status"] == "unassessed"
     assert absent["version"] == "invalid_version"
+
+
+def test_p03_slot_is_scored_with_bounded_failure() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    scored = [item for item in slots if item["case_id"] == "P03"]
+    assert len(scored) == 3
+    for slot in scored:
+        assert slot["group"] == "provider"
+        assert slot["status"] == "scored"
+        report = _mapping(slot["report"], "report")
+        observed = _mapping(report["observed"], "observed")
+        checks = _mapping(report["checks"], "checks")
+        assert report["evidence_class"] == "deterministic_fake_provider"
+        assert observed["outcome"] == "bounded_failure"
+        assert observed["model_calls"] == 1
+        assert checks["outcome"] is True
+        assert checks["accepted"] is True
+        assert checks["fake_answer_forbidden"] is True
+        assert checks["max_model_turns"] is True
+
+
+def test_scored_count_is_forty_five() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    scored_ids = {slot["case_id"] for slot in slots if slot["status"] == "scored"}
+    unassessed = [slot for slot in slots if slot["status"] == "unassessed"]
+    scored = [slot for slot in slots if slot["status"] == "scored"]
+    assert len(slots) == 90
+    assert len(scored) == 45
+    assert len(unassessed) == 45
+    assert scored_ids == EXISTING_SCORED | {"P03"}
+
+
+def test_existing_scored_reports_keep_status() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    for case_id in EXISTING_SCORED:
+        matches = [item for item in slots if item["case_id"] == case_id]
+        assert len(matches) == 3
+        for slot in matches:
+            assert slot["status"] == "scored"
+            assert slot["report"] is not None
+
+
+def test_other_provider_cases_stay_unassessed() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    for case_id in ("P01", "P02", "P04", "P05"):
+        matches = [item for item in slots if item["case_id"] == case_id]
+        assert len(matches) == 3
+        for slot in matches:
+            assert slot["status"] == "unassessed"
+            assert slot["report"] is None
+
+
+def _rewrite_p03(corpus: dict[str, object], **changes: object) -> None:
+    rows = corpus["scenarios"]
+    assert isinstance(rows, list)
+    found = False
+    for item in rows:
+        case = _mapping(item, "case")
+        if case.get("id") != "P03":
+            continue
+        found = True
+        if "requires_model" in changes:
+            case["requires_model"] = changes["requires_model"]
+        if "kind" in changes or "provider" in changes:
+            behavior = _mapping(case["fixture_behavior"], "fixture_behavior")
+            if "kind" in changes:
+                behavior["kind"] = changes["kind"]
+            if "provider" in changes:
+                behavior["provider"] = changes["provider"]
+            case["fixture_behavior"] = behavior
+    assert found
+
+
+def test_unsupported_kind_is_not_dispatched() -> None:
+    corpus = copy.deepcopy(load_corpus())
+    _rewrite_p03(corpus, kind="plaid_refresh_failure")
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P03"]
+    assert len(matches) == 3
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
+
+
+def test_requires_model_true_is_not_dispatched() -> None:
+    corpus = copy.deepcopy(load_corpus())
+    _rewrite_p03(corpus, requires_model=True)
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P03"]
+    assert len(matches) == 3
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
+
+
+def test_fake_provider_variant_without_fake_flag_stays_unassessed() -> None:
+    corpus = copy.deepcopy(load_corpus())
+    _rewrite_p03(corpus, provider="bedrock")
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P03"]
+    assert len(matches) == 3
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
