@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from dev_supervisor.lease import lease
-from dev_supervisor.process import attempt
+from dev_supervisor.process import attempt, take_record
 
 
 def run(tmp_path: Path, script: str, **kwargs: float) -> str:
@@ -87,6 +87,27 @@ def test_launching_marker_before_popen(tmp_path: Path) -> None:
         )
     assert seen == ["launching"]
     assert json.loads((tmp_path / "status.json").read_text())["state"] == "stopped"
+    record = take_record()
+    assert record["input_tokens"] is None
+    assert record["provenance"] == "none"
+
+
+def test_launch_interrupt_records_without_raw_text(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt"
+    prompt.write_text("SECRET")
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    with patch("dev_supervisor.process.subprocess.Popen", boom):
+        assert (
+            attempt(["missing"], tmp_path, prompt, tmp_path, "token") == "interrupted"
+        )
+    assert json.loads((tmp_path / "status.json").read_text())["state"] == "stopped"
+    record = take_record()
+    assert record["input_tokens"] is None
+    assert record["provenance"] == "none"
+    assert "SECRET" not in str(record)
 
 
 def test_selector_setup_failure_stops_child(tmp_path: Path) -> None:
@@ -224,5 +245,58 @@ def test_non_main_thread_attempt_still_stops_child(tmp_path: Path) -> None:
         assert outcome == ["time_limit"]
         assert children[0].poll() is not None
         assert json.loads((tmp_path / "status.json").read_text())["state"] == "stopped"
+    finally:
+        _reap(children)
+
+
+def test_interrupt_does_not_hide_cleanup(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt"
+    prompt.write_text("task")
+    children: list[subprocess.Popen[bytes]] = []
+    real = subprocess.Popen
+
+    def capture(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        child = real(*args, **kwargs)
+        children.append(child)
+        return child
+
+    class Boom:
+        def register(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def select(self, timeout: float = 0) -> list[object]:
+            raise KeyboardInterrupt
+
+        def get_map(self) -> dict[object, object]:
+            return {}
+
+        def close(self) -> None:
+            return None
+
+        def unregister(self, *_args: object) -> None:
+            return None
+
+    try:
+        with (
+            patch("dev_supervisor.process.subprocess.Popen", side_effect=capture),
+            patch(
+                "dev_supervisor.process.selectors.DefaultSelector",
+                return_value=Boom(),
+            ),
+        ):
+            result = attempt(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                tmp_path,
+                prompt,
+                tmp_path,
+                "test",
+            )
+        assert result in {"interrupted", "cleanup_failed"}
+        assert children[0].poll() is not None
+        record = take_record()
+        assert "elapsed_ms" in record
+        if result == "interrupted":
+            status = json.loads((tmp_path / "status.json").read_text())["state"]
+            assert status == "stopped"
     finally:
         _reap(children)
