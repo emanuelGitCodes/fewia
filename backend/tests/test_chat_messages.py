@@ -49,6 +49,7 @@ def _candidate() -> dict[str, object]:
         "plan": {"meals": 1},
         "budget": {"cents": 100},
         "request": {"servings": 2},
+        "meal_nutrition": {"total": {"energy_kcal": 10}},
         "evidence_id": "ev-1",
         "evidence_revision_id": "ab" * 32,
     }
@@ -346,6 +347,7 @@ def test_build_chat_result_keeps_candidate_for_allowed_status() -> None:
         assert result["plan"] == candidate["plan"]
         assert result["budget"] == candidate["budget"]
         assert result["request"] == candidate["request"]
+        assert result["meal_nutrition"] == candidate["meal_nutrition"]
         assert result["evidence_id"] == "ev-1"
         assert result["evidence_revision_id"] == "ab" * 32
         assert result["spending_source"] == "ledger"
@@ -360,12 +362,14 @@ def test_build_chat_result_drops_candidate_outside_keep_set() -> None:
     assert result["plan"] is None
     assert result["budget"] is None
     assert result["request"] is None
+    assert result["meal_nutrition"] is None
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
     assert result["answer"] == "stopped"
     assert result["status"] == "failed"
     empty = build_chat_result("planned", "ok", None, "none", [], 1, 0)
     assert empty["plan"] is None
+    assert empty["meal_nutrition"] is None
     assert empty["evidence_id"] is None
     assert empty["evidence_revision_id"] is None
     plain = {
@@ -376,4 +380,5 @@ def test_build_chat_result_drops_candidate_outside_keep_set() -> None:
     }
     missing = build_chat_result("planned", "ok", plain, "ledger", [], 1, 0)
     assert missing["evidence_id"] == "ev-1"
+    assert missing["meal_nutrition"] is None
     assert missing["evidence_revision_id"] is None

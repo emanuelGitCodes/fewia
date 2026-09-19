@@ -167,6 +167,8 @@ def save_owned_job(factory: sessionmaker[Session]) -> str:
     planning, parsed = accepted_planning()
     revision = save_plan_evidence(factory, 1, planning, parsed)
     result: dict[str, object] = {key: planning[key] for key in PLANNING_KEYS}
+    if "meal_nutrition" in planning:
+        result["meal_nutrition"] = planning["meal_nutrition"]
     result["evidence_revision_id"] = revision
     job = Job(
         user_id=1,
