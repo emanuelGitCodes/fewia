@@ -2,17 +2,19 @@
 
 ## Current status — 2026-09-12
 
-- **Status**: Local grocery planner with stored USDA macros and unattended Bedrock chat. The user resumed the build. This is not a completed AI product.
+- **Status**: Local grocery planner with stored USDA macros, unattended Bedrock chat, and an optional request-local Spoonacular overlay. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Decisions**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md), [0010 — Park Instacart. Use USDA nutrition and Spoonacular cost](../decisions/0010-usda-spoonacular-overlay.md)
+- **Overlay runbook**: [docs/SUPERMARKET_ESTIMATES.md](../../docs/SUPERMARKET_ESTIMATES.md)
 - **Local proof store**: [log.md](../log.md)
 - **Published foundation**: pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42) merged on 2026-09-07 at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14`. That merge is historical.
+- **Current local source**: `39840b6`. Independent Grok final range review approved 8/10.
 - **Saved local `main` snapshot**: `0c6d571`, merge of the USDA per-100 g nutrition overlay (pull request 68). The coordinator verified that SHA from local `git log main`. Remote `HEAD` was not queried. This page MUST NOT claim current GitHub `main`.
-- **Verified source base**: snapshot `0c6d571`. This is not a live Local HEAD label. Later docs commits MUST NOT treat this SHA as the live checkout.
-- **Prior current-build source base**: `c0357d6` on `codex/project-context-refresh`. Prior application code is committed locally. No Git push.
+- **Graph and wiki prerequisite**: `e045a9d`. Prebuild graph had 4190 nodes, 12131 edges, and 169 communities. Do not treat that graph as current after later code changes.
+- **Prior current-build source base**: `c0357d6` on `codex/project-context-refresh`. Application code is committed locally. No Git push. No pull request. No merge.
 
-This documentation refresh does not implement pending features.
-Next application work is Spoonacular retention and evaluation after the graph and wiki prerequisite.
+Spoonacular retention, request-local overlay, P03 evaluation, and optional runtime binding are recorded.
+Remaining evaluation slots stay unfinished.
 
 The 2026-09-08 MFA checkpoint called continuity unfinished, handoff UI unfinished, features paused, and Instacart release proof required.
 Those claims are historical. They are not current status.
@@ -38,26 +40,32 @@ Every estimate shows this notice:
 > Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
 
 Budget acceptance uses sample-catalog integer cents.
-Spoonacular average cost MAY appear as a labeled overlay.
+Spoonacular average cost MAY appear as a labeled current-view overlay.
 It MUST NOT change `accepted` or `total_cents`.
 It is not a live store price.
+Job results MUST NOT keep a root `supermarket_estimate`.
 
 ### What is complete locally
 
 Local macros compute calories, protein, carbs, and fat per serving and per plan.
+There are no micronutrients.
 All 22 USDA ingredient mappings match the public source in `docs/nutrition-sources.md`.
 Pantry items count in nutrition.
 Quantities are consumed recipe amounts, not packages.
+USDA facts stay stored separately.
 Manual and chat jobs return root nutrition JSON after evidence.
 Frontend 5174 displays those macros.
-Preview 5173 uses older application code with the new Bedrock identity.
+Older 5173 remains a separate instance.
 
 Chat and form continuity is complete locally.
 Handoff controls are complete locally.
 Instacart stays unavailable.
 `instacart_configured` stays false.
 
-Amazon Nova 2 Lite, reasoning effort `low`, planned chat on 5173 and 5174.
+Amazon Nova 2 Lite, reasoning effort `low`, planned chat on updated 5174.
+Olive oil stayed in the pantry. Servings were 4.
+Sample catalog total is 1233 cents. Plan energy is 1515 kcal.
+Those figures are demo catalog and USDA values. They are not Spoonacular prices.
 Runtime uses dedicated IAM user `fewia-bedrock-runtime` from CDK.
 Credentials live outside Git with file mode `600`.
 Runtime does not use human MFA.
@@ -70,6 +78,14 @@ Charges are not verified.
 Do not print account ids or access keys.
 USDA stored facts need no runtime API key.
 Plaid Sandbox is not live-verified.
+Optional `--spoonacular-key-file` mounts the key read-only on `api` only.
+The worker has no Spoonacular key. AWS mounts stay.
+The first live overlay check failed on a unit mismatch.
+A later 5174 lookup succeeded after the locale and unit fix.
+HTTP 200, numeric estimate available, `Cache-Control: no-store`.
+Budget cents stayed. USDA macros stayed. The overlay cleared after a plan edit.
+The database has 0 root price fields.
+This page MUST NOT record an actual Spoonacular price.
 
 ### Evidence counts
 
@@ -77,24 +93,27 @@ These counts come from different environments. They are not a contradiction.
 
 | Environment | Recorded result |
 | --- | --- |
-| Macro PostgreSQL backend | 1510 passed |
-| Macro frontend | 327 passed, build passed |
-| Unattended Bedrock backend | 1496 passed, 14 database skips, one existing Starlette warning |
-| Infra | 41 tests |
-| Launcher | 14 tests, plus ruff and mypy |
-| Evaluation runner | 90 slots, 42 scored, 48 unassessed |
+| Final range backend | 1577 passed |
+| Final range infra | 31 passed |
+| Final range frontend | 346 passed, build passed |
+| Final range lint | ruff, format, and `app` mypy passed |
+| Browser | Desktop 1280x900 and mobile 375x812, no overflow |
+| Evaluation runner | 90 slots, 45 scored, 45 unassessed |
+| Independent Grok reviews | Retention `b1f089b` 8/10. P03 `fe58d22` 8/10. Security `b867856` 8/10. Final range 8/10 |
 
 No 90-run model-quality evaluation exists.
+Earlier slice counts stay in [log.md](../log.md).
+They are not a contradiction.
 
 ### Evidence classes
 
 | Class | What it may prove | Current grocery status |
 | --- | --- | --- |
-| Deterministic | Catalog facts, planner arithmetic, budget cents, stored USDA macros | Local proof is in [log.md](../log.md) |
-| Fixture | Demo spending and sample catalog prices | Current demo spending source |
+| Deterministic | Catalog facts, planner arithmetic, budget cents, stored USDA macros, stripped job results | Local proof is in [log.md](../log.md) |
+| Fixture | Demo spending, sample catalog prices, fictional overlay test values | Current demo spending source |
 | Emulator | Floci SQS jobs and Floci S3 export paths | Used on the local job path |
 | Sandbox | Plaid Sandbox posted and pending grocery spend | Adapters exist. Live Sandbox proof is pending |
-| Live | Real Bedrock on local Compose | Nova 2 Lite `low` planned chat on 5173 and 5174 |
+| Live | Real Bedrock on local Compose. Optional Spoonacular overlay | Nova 2 Lite `low` planned chat on updated 5174. Overlay succeeded after a unit mismatch. No stored price |
 | Deployed | IAM user, deployment role, and CloudFormation stacks | Verified in `infra/bedrock/UNATTENDED.md`. No public hosting. Charges not verified |
 
 Fixture data is not a verified retailer or bank claim.
@@ -103,30 +122,35 @@ Stored USDA facts are not medical advice.
 
 ### Remaining work
 
-Spoonacular job results stay stored past the one-hour delete rule.
-In-memory expiry deletes are not proven.
-Then unfinished model, provider, and adversarial evaluation remain.
-This documentation refresh does not implement those items.
+Remaining unassessed evaluation slots include F01, F02, F04, F05, X02, X03, X04, P01, P02, P04, P05, and A01 through A04.
+`metrics_status` stays unassessed.
+This page MUST NOT claim full evaluation coverage.
+This page MUST NOT claim LLM quality or a live provider result from P03.
+
+Plaid Sandbox live proof remains pending.
+Instacart stays parked.
+Cost Explorer charges are not verified.
+No 90-run model-quality evaluation exists.
 
 Graph artifacts are local and ignored; verify manifest/source hashes before use.
+The coordinator rebuilds the graph after this documentation pass.
 This page MUST NOT claim a completed graph.
 
 ### Current demo outline
 
 1. Open the local 5174 preview.
-2. Select bean tacos with two servings.
-3. Set a user monthly limit. Keep fixture spending.
-4. Submit the form. Wait for the queued job.
-5. Read the itemized sample estimate of 1,703 cents.
+2. Keep olive oil in the pantry.
+3. Set four servings. Keep fixture spending.
+4. Submit on the unattended Bedrock path. Wait for the queued job.
+5. Read the itemized sample estimate of 1,233 cents.
 6. Read the catalog notice on the estimate.
-7. Read plan macros of 758 kcal, 29.0 g protein, 111.6 g carbs, and 24.7 g fat.
-8. Mark olive oil as pantry stock. Rebuild the plan.
-9. Read USD 11.04 with the same 758 kcal.
-10. Use Meal chat on the unattended Bedrock path.
-11. State that sample prices and fixture spending remain.
-12. State that Instacart is parked and unavailable.
-13. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
-14. State that the evaluation runner has 90 slots. No 90-run model-quality result exists.
+7. Read plan energy of 1515 kcal. Those values are demo catalog and USDA facts.
+8. Use the explicit `Check supermarket estimate` button if the overlay is configured.
+9. State that the overlay is current-view only. A plan edit clears it.
+10. State that sample prices and fixture spending remain.
+11. State that Instacart is parked and unavailable.
+12. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
+13. State that the evaluation runner has 90 slots, 45 scored, and 45 unassessed.
 
 ### Honest limitations
 
@@ -137,6 +161,8 @@ Live chat is verified with Amazon Nova 2 Lite, reasoning effort `low`.
 Sample prices remain. Fixture spending remains.
 The demo does not use a real bank.
 Instacart prices are not verified.
+The first live overlay check failed on a unit mismatch, then succeeded.
+This page MUST NOT record an actual Spoonacular price.
 No 90-run evaluation exists.
 No model-quality result exists.
 This page MUST NOT claim a completed AI product.

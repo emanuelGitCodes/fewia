@@ -186,6 +186,10 @@ validated launcher from the source checkout. That checkout owns
 `infra/bedrock_runtime.py` and `compose.bedrock-runtime.yaml`.
 Prefer this launcher for local development.
 Keep `compose.bedrock.yaml` for a human MFA session only.
+Optional Spoonacular overlay uses a separate host key.
+See [docs/SUPERMARKET_ESTIMATES.md](../../docs/SUPERMARKET_ESTIMATES.md).
+Operators MAY omit `--spoonacular-key-file`.
+That default keeps this AWS-only path.
 
 ```bash
 python -m infra.bedrock_runtime --checkout /path/to/fewia --project fewia-macros
@@ -311,6 +315,7 @@ teardown if the user authorizes that action. See `DEPLOYMENT.md`.
 ## Sources
 
 - [Bedrock runtime CloudFormation execution role](DEPLOYMENT.md)
+- [Optional Spoonacular overlay](../../docs/SUPERMARKET_ESTIMATES.md)
 - [Bedrock IAM principal tracking](https://docs.aws.amazon.com/bedrock/latest/userguide/cost-mgmt-iam-principal-tracking.html)
 - [Managing access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
 - [IAM principal cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/iam-principal-cost-allocation.html)

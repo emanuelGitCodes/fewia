@@ -193,7 +193,26 @@ treat that path as active.
 The deterministic sample catalog stays unchanged. Stored USDA facts
 stay unchanged.
 
-This layer removes only the adapter in-memory cache. Durable job
-retention work follows before deployment. API changes follow before
-deployment. UI changes follow before deployment. This page MUST NOT
-claim the full retention gap is closed.
+Job results do not keep a root `supermarket_estimate`.
+The request-local estimate API and the explicit UI overlay now exist.
+Operators follow
+[docs/SUPERMARKET_ESTIMATES.md](../../docs/SUPERMARKET_ESTIMATES.md).
+This page MUST NOT treat a one-hour store as active.
+
+## Addendum — 2026-09-12 overlay retention
+
+The worker does not estimate Spoonacular cost.
+`finish_job` and both GET job routes strip root `supermarket_estimate`.
+Migration `0008` removes that root field from `jobs.result` only.
+It deletes no rows and no evidence.
+
+`GET /grocery/jobs/{job_id}/supermarket-estimate` is request-local.
+The UI uses an explicit `Check supermarket estimate` button.
+The overlay is current-view state.
+It MUST NOT change `accepted` or `total_cents`.
+Budget cents stay on the sample catalog.
+USDA macros stay stored.
+
+Optional runtime binding uses `--spoonacular-key-file`.
+Omit the flag to keep the AWS-only path.
+See [docs/SUPERMARKET_ESTIMATES.md](../../docs/SUPERMARKET_ESTIMATES.md).
