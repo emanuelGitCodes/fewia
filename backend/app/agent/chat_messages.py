@@ -142,6 +142,7 @@ def build_chat_result(
         "plan": None if keep is None else keep.get("plan"),
         "budget": None if keep is None else keep.get("budget"),
         "request": None if keep is None else keep.get("request"),
+        "meal_nutrition": None if keep is None else keep.get("meal_nutrition"),
         "evidence_id": None if keep is None else keep.get("evidence_id"),
         "evidence_revision_id": (
             None if keep is None else keep.get("evidence_revision_id")

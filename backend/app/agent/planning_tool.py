@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from app.domain.budget import BudgetResult
 from app.domain.grocery import GroceryRequest
 from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
+from app.services.meal_nutrition import meal_nutrition
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
     estimate_supermarket_cost,
@@ -87,6 +88,9 @@ def execute_plan(
         raise PlanningToolError("catalog constraint is invalid")
     request_payload: object = request.model_dump(mode="json")
     plan_payload: object = json.loads(json.dumps(asdict(plan), allow_nan=False))
+    nutrition_payload: object = json.loads(
+        json.dumps(asdict(meal_nutrition(request)), allow_nan=False)
+    )
     budget_payload: dict[str, object] = {
         "available_cents": planning_budget.available_cents,
         "pending_cents": planning_budget.pending_cents,
@@ -97,11 +101,13 @@ def execute_plan(
         "request": request_payload,
         "plan": plan_payload,
         "budget": budget_payload,
+        "meal_nutrition": nutrition_payload,
         "spending_source": spending_source,
         "evidence_id": _evidence_id(
             request_payload,
             budget_payload,
             plan_payload,
+            nutrition_payload,
             spending_source,
             user_id,
             period,
@@ -120,6 +126,7 @@ def _evidence_id(
     request_payload: object,
     budget_payload: object,
     plan_payload: object,
+    nutrition_payload: object,
     source: str,
     user_id: int,
     period: date,
@@ -128,6 +135,7 @@ def _evidence_id(
         json.dumps(
             {
                 "budget": budget_payload,
+                "meal_nutrition": nutrition_payload,
                 "plan": plan_payload,
                 "request": request_payload,
                 "source": source,

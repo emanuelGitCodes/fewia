@@ -80,6 +80,7 @@ def test_plan_job_returns_json_plan_and_calls_heartbeats(
     assert result["request"] == expected["request"]
     assert result["plan"] == expected["plan"]
     assert result["budget"] == expected["budget"]
+    assert result["meal_nutrition"] == expected["meal_nutrition"]
     assert result["evidence_id"] == expected["evidence_id"]
     assert "evidence_revision_id" not in result
     plan = result["plan"]

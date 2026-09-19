@@ -36,7 +36,10 @@ class HandoffRouteError(Exception):
 def planning_fields(result: dict[str, object]) -> dict[str, object] | None:
     if any(key not in result for key in PLANNING_KEYS):
         return None
-    return {key: result[key] for key in PLANNING_KEYS}
+    fields: dict[str, object] = {key: result[key] for key in PLANNING_KEYS}
+    if "meal_nutrition" in result:
+        fields["meal_nutrition"] = result["meal_nutrition"]
+    return fields
 
 
 def revision_id(value: object) -> str | None:

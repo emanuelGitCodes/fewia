@@ -140,6 +140,8 @@ def planning_result(
     planning: dict[str, object], revision: str, extra: dict[str, object] | None = None
 ) -> dict[str, object]:
     result = {key: planning[key] for key in PLANNING_KEYS}
+    if "meal_nutrition" in planning:
+        result["meal_nutrition"] = planning["meal_nutrition"]
     result["evidence_revision_id"] = revision
     if extra is not None:
         result.update(extra)

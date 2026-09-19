@@ -224,6 +224,23 @@ def test_cap_mismatch_and_unsafe_constraint_are_static() -> None:
     assert_static(unsafe_error.value, "not_in_catalog")
 
 
+def test_changed_macro_totals_are_rejected() -> None:
+    parsed = inputs()
+    planning = genuine_planning(evidence_inputs=parsed)
+    forged = copy.deepcopy(planning)
+    nutrition = cast(dict[str, object], copy.deepcopy(forged["meal_nutrition"]))
+    total = cast(dict[str, object], nutrition["total"])
+    energy = total["energy_kcal"]
+    assert type(energy) is int
+    total["energy_kcal"] = energy + 1
+    nutrition["total"] = total
+    forged["meal_nutrition"] = nutrition
+    with pytest.raises(ValueError, match="evidence snapshot is invalid") as caught:
+        normalize_snapshot(1, forged, parsed)
+    assert_static(caught.value, SECRET)
+    assert_static(caught.value, str(energy + 1))
+
+
 @pytest.mark.parametrize("user_id", [0, -1, True])
 def test_owner_must_be_a_positive_exact_int(user_id: object) -> None:
     parsed = inputs()

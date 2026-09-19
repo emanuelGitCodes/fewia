@@ -104,6 +104,8 @@ def planning_result(
     extra: dict[str, object] | None = None,
 ) -> dict[str, object]:
     result = {key: planning[key] for key in PLANNING_KEYS}
+    if "meal_nutrition" in planning:
+        result["meal_nutrition"] = planning["meal_nutrition"]
     result["evidence_revision_id"] = revision
     if extra is not None:
         result.update(extra)
@@ -183,6 +185,12 @@ def test_planning_fields_keep_plan_keys_and_drop_chat_extras() -> None:
 
     assert fields == {key: key for key in PLANNING_KEYS}
     assert planning_fields({"request": 1, "plan": 2}) is None
+    with_nutrition = dict(result)
+    with_nutrition["meal_nutrition"] = {"total": {"energy_kcal": 1}}
+    included = planning_fields(with_nutrition)
+    assert included is not None
+    assert included["meal_nutrition"] == {"total": {"energy_kcal": 1}}
+    assert "status" not in included
 
 
 def test_revision_id_accepts_lowercase_hex_only() -> None:
@@ -396,6 +404,91 @@ def test_route_error_status_and_detail_are_static() -> None:
     assert denied.__context__ is None
     assert empty.__context__ is None
     assert missing.__cause__ is None
+
+
+def test_nutrition_bearing_plan_rebuilds_shopping_payload(
+    factory: sessionmaker[Session], owners: None
+) -> None:
+    job_id = accepted_job(factory)
+    with factory.begin() as session:
+        job = session.get(Job, job_id)
+        assert job is not None
+        result = dict(cast(dict[str, object], job.result))
+    fields = planning_fields(result)
+    snapshot = load_evidence(factory, 1, cast(str, result["evidence_revision_id"]))
+    assert snapshot is not None
+    stored = snapshot["planning"]
+    assert isinstance(stored, dict)
+    assert "meal_nutrition" in stored
+    assert fields == stored
+    payload = job_shopping_payload(factory, job_id)
+
+    assert set(payload) == PAYLOAD_KEYS
+    assert payload["line_items"]
+
+
+def test_tampered_meal_nutrition_requires_rebuild(
+    factory: sessionmaker[Session], owners: None
+) -> None:
+    parsed = inputs()
+    planning = genuine_planning(evidence_inputs=parsed)
+    revision = save_plan_evidence(factory, 1, planning, parsed)
+    job_id = add_job(factory, planning, revision)
+    with factory.begin() as session:
+        job = session.get(Job, job_id)
+        assert job is not None
+        result = dict(cast(dict[str, object], job.result))
+        nutrition = copy.deepcopy(cast(dict[str, object], result["meal_nutrition"]))
+        total = copy.deepcopy(cast(dict[str, object], nutrition["total"]))
+        energy = total["energy_kcal"]
+        assert type(energy) is int
+        total["energy_kcal"] = energy + 1
+        nutrition["total"] = total
+        result["meal_nutrition"] = nutrition
+        job.result = result
+    snapshot = load_evidence(factory, 1, revision)
+    assert snapshot is not None
+    stored = snapshot["planning"]
+    assert isinstance(stored, dict)
+    stored_nutrition = stored["meal_nutrition"]
+    assert isinstance(stored_nutrition, dict)
+    stored_total = stored_nutrition["total"]
+    assert isinstance(stored_total, dict)
+    assert stored_total["energy_kcal"] == energy
+    error = catch_route_error(factory, job_id)
+
+    assert error.status == 409
+    assert error.detail == REBUILD
+
+
+def test_legacy_snapshot_without_meal_nutrition_preserves_handoff(
+    factory: sessionmaker[Session], owners: None
+) -> None:
+    parsed = inputs()
+    planning = copy.deepcopy(genuine_planning(evidence_inputs=parsed))
+    planning.pop("meal_nutrition")
+    snapshot = {
+        "planning": planning,
+        "budget_inputs": parsed.model_dump(mode="json"),
+    }
+    evidence_id = sha256(
+        canonical_json({"user_id": 1, "snapshot": snapshot}).encode("utf-8")
+    ).hexdigest()
+    with factory.begin() as session:
+        session.add(GroceryEvidence(id=evidence_id, user_id=1, snapshot=snapshot))
+    job_id = add_job(factory, planning, evidence_id)
+    with factory.begin() as session:
+        job = session.get(Job, job_id)
+        assert job is not None
+        result = dict(cast(dict[str, object], job.result))
+    assert "meal_nutrition" not in result
+    fields = planning_fields(result)
+    assert fields is not None
+    assert "meal_nutrition" not in fields
+    payload = job_shopping_payload(factory, job_id)
+
+    assert set(payload) == PAYLOAD_KEYS
+    assert payload["line_items"]
 
 
 @pytest.mark.parametrize(

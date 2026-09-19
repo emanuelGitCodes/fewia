@@ -1,9 +1,11 @@
 import copy
 import json
 from calendar import monthrange
+from dataclasses import asdict
 from datetime import date
 from hashlib import sha256
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ParamValidationError
@@ -21,6 +23,13 @@ from app.domain.budget import BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
 from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
 from app.providers.spoonacular import SpoonacularUnavailable
+from app.services.meal_nutrition import (
+    NOTICE,
+    PORTION_NOTICE,
+    MacroTotals,
+    MealPlanNutrition,
+    meal_nutrition,
+)
 from app.tools.base import build_evidence_id
 
 PERIOD = date(2026, 9, 1)
@@ -189,6 +198,7 @@ def _expected_evidence(result: dict[str, object], user_id: int = 1) -> str:
         json.dumps(
             {
                 "budget": result["budget"],
+                "meal_nutrition": result["meal_nutrition"],
                 "plan": result["plan"],
                 "request": result["request"],
                 "source": result["spending_source"],
@@ -217,6 +227,7 @@ def test_evidence_id_is_deterministic() -> None:
         "request",
         "plan",
         "budget",
+        "meal_nutrition",
         "spending_source",
         "evidence_id",
     }
@@ -288,6 +299,7 @@ def test_default_execute_plan_omits_supermarket_estimate() -> None:
         "request",
         "plan",
         "budget",
+        "meal_nutrition",
         "spending_source",
         "evidence_id",
     }
@@ -315,6 +327,70 @@ def test_estimator_does_not_change_evidence_id() -> None:
         arguments(), budget(), PERIOD, supermarket_estimator=_FakeEstimator()
     )
     assert with_overlay["evidence_id"] == without["evidence_id"]
+
+
+def test_execute_plan_returns_json_native_meal_nutrition() -> None:
+    request = GroceryRequest.model_validate(arguments())
+    expected = json.loads(json.dumps(asdict(meal_nutrition(request)), allow_nan=False))
+    result = execute_plan(arguments(), budget(), PERIOD)
+    nutrition = result["meal_nutrition"]
+    assert nutrition == expected
+    assert isinstance(nutrition, dict)
+    total = nutrition["total"]
+    meals = nutrition["meals"]
+    assert isinstance(total, dict)
+    assert isinstance(meals, list)
+    assert nutrition["notice"] == NOTICE
+    assert nutrition["portion_notice"] == PORTION_NOTICE
+    assert type(total["energy_kcal"]) is int
+
+
+def test_pantry_does_not_change_meal_nutrition() -> None:
+    without = execute_plan(arguments(), budget(), PERIOD)
+    with_pantry = execute_plan(
+        arguments(pantry_ingredients=["chicken_breast"]), budget(), PERIOD
+    )
+    assert without["meal_nutrition"] == with_pantry["meal_nutrition"]
+    without_plan = without["plan"]
+    pantry_plan = with_pantry["plan"]
+    assert isinstance(without_plan, dict)
+    assert isinstance(pantry_plan, dict)
+    assert without_plan["total_cents"] != pantry_plan["total_cents"]
+
+
+def test_meal_nutrition_tool_result_is_json_native() -> None:
+    result = execute_plan(arguments(), budget(), PERIOD)
+    nutrition = result["meal_nutrition"]
+    assert isinstance(nutrition, dict)
+    meals = nutrition["meals"]
+    assert isinstance(meals, list)
+    session = Session()
+    service_model = session.get_service_model("bedrock-runtime")
+    operation = service_model.operation_model("Converse")
+    input_shape = operation.input_shape
+    validate_parameters(_converse_tool_result_params(result), input_shape)
+    rejected = dict(result)
+    rejected_nutrition = dict(nutrition)
+    rejected_nutrition["meals"] = tuple(meals)
+    rejected["meal_nutrition"] = rejected_nutrition
+    with pytest.raises(ParamValidationError):
+        validate_parameters(_converse_tool_result_params(rejected), input_shape)
+
+
+def test_changed_nutrition_changes_evidence_id() -> None:
+    first = execute_plan(arguments(), budget(), PERIOD)
+    alt = MealPlanNutrition(
+        NOTICE,
+        PORTION_NOTICE,
+        MacroTotals(1, 2, 3, 4),
+        (),
+    )
+    with patch("app.agent.planning_tool.meal_nutrition", return_value=alt):
+        second = execute_plan(arguments(), budget(), PERIOD)
+    assert first["evidence_id"] != second["evidence_id"]
+    assert first["plan"] == second["plan"]
+    assert first["budget"] == second["budget"]
+    assert first["request"] == second["request"]
 
 
 def test_unavailable_overlay_is_none_and_keeps_accepted() -> None:

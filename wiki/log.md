@@ -2204,3 +2204,45 @@ Renumbered the tool-calling orchestration record as decision 0012.
 The wiki index links both accepted decisions.
 
 No application code changed. Backend and frontend tests were not run.
+
+## 2026-09-19 — Nutrition planning, chat, evidence, and handoff
+
+Grok wrote nutrition planning, chat, and evidence integration.
+Handoff compares optional nutrition and preserves legacy results.
+Sample catalog money stays unchanged.
+Frontend nutrient display remains future work.
+
+Coordinator baseline: ruff was clean. Format covered 191 files.
+Strict mypy covered 98 files. Pytest reported 1507 PostgreSQL tests
+passed with 1 Starlette warning. Frontend reported 308 tests and a
+passed build. Supervisor reported 52 tests. Helper reported 10 tests.
+
+Isolated Compose `fewia-verify-70fa` used ports 5175, 8012, 55436, and
+4568. Bootstrap and health passed. Runtime smoke verified two-serving
+bean tacos at 1703 cents. Stored evidence matched `meal_nutrition`
+exactly.
+
+Shared default stack startup failed migration.
+Older demos occupy 5173 and 8010.
+
+Two original Grok attempts failed without edits.
+A later run observed cancellation after a terminal-tool failure.
+File-only writers then succeeded.
+
+Initial changed-code full test runs had 12 then 9 handoff failures.
+This entry does not claim final checks or review of the fixture repair.
+
+Coordinator copied three nutrition regression tests onto original
+HEAD `53cc632` in a temporary directory. All three failed as expected
+(3 failed, 25 deselected): `execute_plan_returns_json_native_meal_nutrition`,
+`pantry_does_not_change_meal_nutrition`, and
+`changed_nutrition_changes_evidence_id`.
+
+Independent read-only Grok review completed: APPROVE, confidence 7/10,
+no blocking source findings. The reviewer inspected source before the
+fixture-only repair. The reviewer did not run gates. Reviewer checkpoint
+`.fewia-supervisor-kt1eg41q`. Base `53cc632`.
+
+This log does not claim live Bedrock, Plaid, or Spoonacular evidence.
+This log does not claim a deployment.
+The coordinator will supply final gate evidence separately.
