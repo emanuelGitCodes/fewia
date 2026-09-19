@@ -12,6 +12,12 @@ import {
   type SupermarketEstimate,
 } from "./apiTypes";
 import { Estimate } from "./Estimate";
+import {
+  NUTRITION_NOTICE,
+  NUTRITION_PORTION_NOTICE,
+  type MacroTotals,
+  type MealPlanNutrition,
+} from "./nutritionTypes";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 
@@ -35,6 +41,33 @@ function line(overrides: Partial<PlanLine> = {}): PlanLine {
   };
 }
 
+function macros(overrides: Partial<MacroTotals> = {}): MacroTotals {
+  return {
+    energy_kcal: 200,
+    protein_mg: 10000,
+    carbohydrate_mg: 30000,
+    fat_mg: 8000,
+    ...overrides,
+  };
+}
+
+function nutrition(overrides: Partial<MealPlanNutrition> = {}): MealPlanNutrition {
+  return {
+    notice: NUTRITION_NOTICE,
+    portion_notice: NUTRITION_PORTION_NOTICE,
+    total: macros({ energy_kcal: 400, protein_mg: 20000, carbohydrate_mg: 60000, fat_mg: 16000 }),
+    meals: [
+      {
+        recipe_id: "bean_tacos",
+        servings: 2,
+        per_serving: macros(),
+        total: macros({ energy_kcal: 400, protein_mg: 20000, carbohydrate_mg: 60000, fat_mg: 16000 }),
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function succeeded(overrides: {
   accepted?: boolean;
   total?: number | null;
@@ -45,6 +78,7 @@ function succeeded(overrides: {
   planWarnings?: string[];
   budgetWarnings?: string[];
   supermarket_estimate?: SupermarketEstimate;
+  nutrition?: MealPlanNutrition;
 } = {}): GroceryJob {
   const lines = overrides.lines ?? [line(), line({ ingredient_id: "tortillas", name: "tortillas", unit: "ct", quantity: 8, packages: 1, cost_cents: 349 })];
   return {
@@ -70,6 +104,7 @@ function succeeded(overrides: {
       ...(overrides.supermarket_estimate === undefined
         ? {}
         : { supermarket_estimate: overrides.supermarket_estimate }),
+      ...(overrides.nutrition === undefined ? {} : { nutrition: overrides.nutrition }),
     },
   };
 }
@@ -335,4 +370,41 @@ describe("Estimate", () => {
     expect(childText(renderer.root)).toContain("$4.78");
     renderer.unmount();
   });
+
+  it("renders nutrition from the job payload before the ingredient list", () => {
+    const renderer = mount({ job: succeeded({ nutrition: nutrition() }) });
+    const text = childText(renderer.root);
+    expect(text).toContain("Estimated nutrition");
+    expect(text).toContain("Calories (kcal)");
+    expect(text).toContain("Protein (g)");
+    expect(text).toContain("Carbs (g)");
+    expect(text).toContain("Fat (g)");
+    expect(text).toContain("400 kcal");
+    expect(text).toContain("20.0 g");
+    expect(text).toContain("200 kcal");
+    expect(text).toContain("10.0 g");
+    expect(text).toContain("Bean Tacos");
+    expect(text).toContain("2 servings");
+    expect(text).toContain("Per serving");
+    expect(text).toContain(NUTRITION_NOTICE);
+    expect(text).toContain("Pantry ingredients are included.");
+    expect(text.indexOf("Estimated nutrition")).toBeLessThan(text.indexOf("black beans"));
+    expect(text.indexOf("Total for selected plan")).toBeLessThan(text.indexOf("black beans"));
+    expect(text).not.toContain("sodium");
+    expect(text).not.toContain("iron");
+    expect(renderer.root.findByType("a").props.href).toBe("https://fdc.nal.usda.gov/");
+    expect(text).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("keeps previous nutrition values when the estimate is dirty", () => {
+    const renderer = mount({ job: succeeded({ nutrition: nutrition() }), dirty: true });
+    const text = childText(renderer.root);
+    expect(text).toContain("Nutrition for previous plan");
+    expect(text).toContain("These values belong to the last saved plan.");
+    expect(text).toContain("400 kcal");
+    expect(text).toContain("Rebuild the request to apply request changes.");
+    renderer.unmount();
+  });
 });
+

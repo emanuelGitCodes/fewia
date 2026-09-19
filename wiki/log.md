@@ -2140,3 +2140,126 @@ The reviewer did not rerun the gates.
 
 This is PR 11 of the hybrid-data stack.
 This MUST NOT claim medical nutrition advice.
+
+## 2026-09-12 — Macro nutrition delivery and USDA source correction
+
+Source: coordinator checkpoint. The coordinator already verified the final code.
+This worker owns `wiki/log.md` only.
+This worker did not rerun gates.
+This worker did not inspect git status.
+
+The user asked for calories, protein, carbs, and fat first.
+The UI has no micronutrient display.
+
+Grok 4.6 medium wrote all application source through the CLI supervisor with `--only`.
+Initial `task_failed` stops came from Grok `run_terminal_command` `permission_cancelled` events.
+Those stops are not quota evidence.
+Resumed source-only Grok tasks completed.
+The coordinator ran the gates.
+The coordinator applied mechanical Ruff formatting and import ordering.
+No blanket permission change occurred.
+No model substitution occurred.
+
+Independent Codex auditor `nutrition_source_check` verified all 22 ingredient IDs and macros.
+The auditor used the official SR Legacy CSV and the Foundation oat-milk record.
+The auditor corrected mistaken IDs.
+The source fixture and `docs/nutrition-sources.md` are committed.
+The service computes recipe consumption quantities before package rounding.
+The service includes pantry items in nutrition.
+Verified portions are egg 50 g, tortilla 24 g, and medium russet 213 g.
+The service uses integer kcal and integer macro milligrams.
+The service sums before rounding.
+All 10 recipes match an independent Decimal reference from the official source artifact.
+
+The UI shows selected-plan totals.
+The UI shows each meal per serving with grams, a USDA link, and portion notes.
+The UI handles missing nutrition and old nutrition.
+The UI shows no micronutrients.
+The manual service and the chat service attach JSON nutrition after the evidence record.
+Chat nutrition comes from the final chat request.
+The record callback receives a copy.
+Existing sample-price budget and evidence calculations are unchanged.
+No live model performs nutrition arithmetic.
+
+Local merge order, with no pull request opened:
+
+- `codex/macro-calculation` `ce831ac` (129 added source lines)
+- `codex/macro-source-stack` `b9cfc2d` (15)
+- `codex/macro-delivery` `a82260e` (27)
+- `codex/macro-client-stack` `fb67281` (86)
+- `codex/macro-preview` `f2e2f4b` (141)
+
+Each slice stays at or below 150 added source lines.
+Current checkout code head is `f2e2f4b`.
+No push occurred.
+No merge occurred.
+Saved checkout `main` is untouched.
+
+Coordinator gates from `backend/`:
+
+```text
+uv run ruff check app tests
+All checks passed!
+uv run ruff format --check app tests
+191 files already formatted
+uv run mypy --strict app
+Success: no issues found in 98 source files
+```
+
+`uv run pytest -q` used isolated PostgreSQL `DATABASE_URL` and `FEWIA_JOB_TEST_DATABASE_URL`.
+The run reported 1510 passed, 0 skipped, and 1 existing Starlette/httpx deprecation warning.
+
+Frontend `npm test` reported 327 passed across 27 files.
+`npm run build` passed TypeScript and Vite.
+
+Independent Codex reviewer `nutrition_source_check` separately approved these targeted suites.
+Source: 24 tests.
+Calculation: 20 tests.
+Transport: 24 targeted tests.
+UI: 20 targeted tests.
+Integration: 35 tests.
+Initial typing and format failures were repaired.
+An initial UI assertion failure was repaired.
+A recorder-alias test failure was repaired before the final passing gates.
+This record does not invent CI runs.
+
+Browser proof used a separate Docker Compose project `fewia-macros`.
+Postgres, API, and Floci were healthy.
+Workers and web were up.
+Preview is `http://127.0.0.1:5174`.
+API is 8011.
+Postgres is 55436.
+Floci is 4568.
+The existing 5173 app is unchanged.
+Playwright ran because the Browser plugin was absent.
+Desktop 1280x900 and mobile 375x812 were inspected.
+The page and title were correct.
+Content was meaningful.
+No framework overlay appeared.
+The console showed 0 errors and 0 warnings.
+Mobile had no horizontal overflow.
+
+Manual bean tacos for 2 servings cost USD 17.03.
+Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+Plan macros totaled 758 kcal, 29.0 g protein, 111.6 g carbs, and 24.7 g fat.
+Per serving: 379 kcal, 14.5 g protein, 55.8 g carbs, and 12.3 g fat.
+Marking olive oil pantry left the previous nutrition while the estimate was dirty.
+Rebuild produced USD 11.04 with the same 758 kcal.
+Changing to 4 servings produced 1515 kcal, 57.9 g protein, 223.1 g carbs, and 49.3 g fat.
+Per-serving macros stayed unchanged.
+Portion notes expand.
+Screenshots: `/private/tmp/fewia-macros-desktop.png` and `/private/tmp/fewia-macros-mobile.png`.
+Browser-proof logs: `/private/tmp/fewia-macro-browser-proof`.
+The UI detector warned about an accent notice border inherited from existing UI.
+Incumbent styling was retained.
+No visual defects were found.
+
+Limits: fixture spending and sample prices.
+Fresh live Bedrock, Plaid, and Spoonacular checks did not run.
+Chat integration uses scripted provider tests.
+Preview chat is unconfigured.
+This record MUST NOT claim live retailer prices.
+This record MUST NOT claim nutrition advice.
+Spoonacular retention remains separate pending work.
+The graph was not rebuilt for this local stack.
+This log MUST NOT record a secret.
