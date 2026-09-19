@@ -1,13 +1,14 @@
 import copy
 import json
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.agent.chat_loop import ChatUnavailable
+from app.agent.chat_loop import MAX_PLANNER_REVISIONS, ChatUnavailable
 from app.agent.planning_tool import TOOL_NAME, execute_plan
 from app.domain.budget import (
     STALE_SPENDING_ERROR,
@@ -15,8 +16,12 @@ from app.domain.budget import (
     StaleSpendingError,
     calculate_budget,
 )
+from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.grocery import GroceryRequest
+from app.domain.nutrition_catalog import NUTRITION
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
+from app.services.meal_nutrition import GRAMS_PER_EACH, meal_nutrition
 from app.services.plan_job import SpendingInput
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
@@ -118,7 +123,10 @@ def _reply(content: list[dict[str, object]], stop: str) -> dict[str, object]:
     }
 
 
-def _planner_then_final() -> list[dict[str, object] | BaseException]:
+def _planner_then_final(
+    args: dict[str, object] | None = None,
+) -> list[dict[str, object] | BaseException]:
+    payload = plan_args() if args is None else args
     return [
         _reply(
             [
@@ -126,7 +134,7 @@ def _planner_then_final() -> list[dict[str, object] | BaseException]:
                     "toolUse": {
                         "toolUseId": "call-1",
                         "name": TOOL_NAME,
-                        "input": plan_args(),
+                        "input": payload,
                     }
                 }
             ],
@@ -134,6 +142,26 @@ def _planner_then_final() -> list[dict[str, object] | BaseException]:
         ),
         _reply([{"text": "Here is a labeled estimate."}], "end_turn"),
     ]
+
+
+def expected_nutrition(request: GroceryRequest) -> dict[str, object]:
+    payload: object = json.loads(json.dumps(asdict(meal_nutrition(request))))
+    assert isinstance(payload, dict)
+    return payload
+
+
+def independent_energy_kcal(request: GroceryRequest) -> int:
+    energy = 0
+    for meal in request.meals:
+        meal_energy = 0
+        for ingredient_id, quantity in RECIPES[meal.recipe_id].ingredients:
+            facts = NUTRITION[ingredient_id]
+            grams = quantity
+            if INGREDIENTS[ingredient_id].unit == "each":
+                grams = quantity * GRAMS_PER_EACH[ingredient_id]
+            meal_energy += facts.energy_kcal * grams
+        energy += meal_energy * meal.servings
+    return (energy + 50) // 100
 
 
 def _patch_save(
@@ -174,19 +202,32 @@ def test_chat_job_plan_then_final_and_followup(
     assert result["evidence_revision_id"] == _REV
     assert result["plan"] is not None
     assert saved[0]["planning"] == expected
+    assert "nutrition" not in saved[0]["planning"]
+    first_request = GroceryRequest.model_validate(result["request"])
+    assert result["nutrition"] == expected_nutrition(first_request)
+    nutrition = result["nutrition"]
+    assert isinstance(nutrition, dict)
+    total = nutrition["total"]
+    assert isinstance(total, dict)
+    assert total["energy_kcal"] == independent_energy_kcal(first_request)
     inputs = saved[0]["inputs"]
     assert isinstance(inputs, EvidenceInputs)
     assert inputs.calculated_at == NOW
     assert inputs.spending == SpendingInput.model_validate(spending())
 
-    follow_provider = FakeLLM(_planner_then_final())
+    follow_args = {
+        "meals": [{"recipe_id": "bean_tacos", "servings": 3}],
+        "budget_period": PERIOD.isoformat(),
+    }
+    previous_request = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
+        "budget_period": PERIOD,
+    }
+    follow_provider = FakeLLM(_planner_then_final(follow_args))
     follow = chat_job_module.chat_job(
         chat_payload(
             message="use the same meals",
-            previous_request={
-                "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
-                "budget_period": PERIOD,
-            },
+            previous_request=previous_request,
             history=[
                 {"role": "user", "text": "plan chicken tacos"},
                 {"role": "assistant", "text": "Here is a labeled estimate."},
@@ -201,6 +242,12 @@ def test_chat_job_plan_then_final_and_followup(
     assert isinstance(first_messages, list)
     assert first_messages[0]["role"] == "user"
     assert first_messages[1]["role"] == "assistant"
+    final_request = GroceryRequest.model_validate(follow["request"])
+    previous = GroceryRequest.model_validate(previous_request)
+    assert follow["nutrition"] == expected_nutrition(final_request)
+    assert follow["nutrition"] != expected_nutrition(previous)
+    assert final_request.meals[0].recipe_id == "bean_tacos"
+    assert final_request.meals[0].servings == 3
 
 
 def test_chat_job_stores_snapshot_before_next_model_call(
@@ -245,6 +292,7 @@ def test_chat_job_clarification_has_no_plan(
     assert result["plan"] is None
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
+    assert "nutrition" not in result
 
 
 def test_chat_job_rejects_extra_and_user_id_before_provider() -> None:
@@ -371,3 +419,82 @@ def test_chat_job_heartbeat_failure_is_before_provider() -> None:
         chat_job_module.chat_job(
             chat_payload(), heartbeat, provider=FailLLM(), factory=FACTORY
         )
+
+
+def test_chat_job_overbudget_plan_includes_nutrition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    saved: list[dict[str, object]] = []
+    _patch_save(monkeypatch, saved)
+    provider = FakeLLM(_planner_then_final())
+    result = chat_job_module.chat_job(
+        chat_payload(plan_cap_cents=1),
+        lambda: None,
+        provider=provider,
+        factory=FACTORY,
+    )
+    assert result["status"] == "needs_revision"
+    assert result["plan"] is not None
+    request = GroceryRequest.model_validate(result["request"])
+    assert result["nutrition"] == expected_nutrition(request)
+    assert saved[0]["planning"]["plan"] == result["plan"]
+    assert "nutrition" not in saved[0]["planning"]
+
+
+def test_chat_job_limit_and_incomplete_omit_nutrition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    saved: list[dict[str, object]] = []
+    _patch_save(monkeypatch, saved)
+    limit_replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                {
+                    "toolUse": {
+                        "toolUseId": f"call-{index}",
+                        "name": TOOL_NAME,
+                        "input": plan_args(),
+                    }
+                }
+            ],
+            "tool_use",
+        )
+        for index in range(MAX_PLANNER_REVISIONS + 1)
+    ]
+    limit_result = chat_job_module.chat_job(
+        chat_payload(),
+        lambda: None,
+        provider=FakeLLM(limit_replies),
+        factory=FACTORY,
+    )
+    assert limit_result["status"] == "limit"
+    assert limit_result["plan"] is None
+    assert "nutrition" not in limit_result
+
+    incomplete_result = chat_job_module.chat_job(
+        chat_payload(),
+        lambda: None,
+        provider=FakeLLM(
+            [
+                _reply(
+                    [
+                        {
+                            "toolUse": {
+                                "toolUseId": "call-1",
+                                "name": TOOL_NAME,
+                                "input": plan_args(),
+                            }
+                        }
+                    ],
+                    "tool_use",
+                ),
+                _reply([{"text": "truncated"}], "max_tokens"),
+            ]
+        ),
+        factory=FACTORY,
+    )
+    assert incomplete_result["status"] == "incomplete"
+    assert incomplete_result["plan"] is None
+    assert "nutrition" not in incomplete_result

@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -6,9 +7,12 @@ from pydantic import ValidationError
 
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import SpendingSnapshot, calculate_budget
-from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
+from app.domain.nutrition_catalog import NUTRITION
 from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
 from app.services import plan_job as plan_job_module
+from app.services.meal_nutrition import GRAMS_PER_EACH, meal_nutrition
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 _REV = "ab" * 32
@@ -62,6 +66,26 @@ def expected_plan(body: dict[str, object]) -> dict[str, object]:
         user_id=1,
         spending_source=parsed.spending_source,
     )
+
+
+def expected_nutrition(request: GroceryRequest) -> dict[str, object]:
+    payload: object = json.loads(json.dumps(asdict(meal_nutrition(request))))
+    assert isinstance(payload, dict)
+    return payload
+
+
+def independent_energy_kcal(request: GroceryRequest) -> int:
+    energy = 0
+    for meal in request.meals:
+        meal_energy = 0
+        for ingredient_id, quantity in RECIPES[meal.recipe_id].ingredients:
+            facts = NUTRITION[ingredient_id]
+            grams = quantity
+            if INGREDIENTS[ingredient_id].unit == "each":
+                grams = quantity * GRAMS_PER_EACH[ingredient_id]
+            meal_energy += facts.energy_kcal * grams
+        energy += meal_energy * meal.servings
+    return (energy + 50) // 100
 
 
 def test_plan_job_returns_json_plan_and_calls_heartbeats(
@@ -142,6 +166,7 @@ def test_plan_job_records_catalog_without_supermarket_estimate(
     assert len(captured) == 1
     planning = captured[0]
     assert "supermarket_estimate" not in planning
+    assert "nutrition" not in planning
     assert planning == expected
     estimate = result["supermarket_estimate"]
     assert isinstance(estimate, dict)
@@ -269,6 +294,7 @@ def test_plan_job_passes_frozen_clock_and_parsed_input(
     planning, parsed, clock = captured[0]
     assert clock is NOW
     assert parsed == plan_job_module.PlanJobInput.model_validate(body)
+    assert "nutrition" not in planning
     assert planning == expected
     assert result["evidence_revision_id"] == _REV
     assert result["evidence_id"] == expected["evidence_id"]
@@ -313,3 +339,62 @@ def test_plan_job_malformed_revision_id_fails_closed(
     assert value not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
+
+
+def test_plan_job_attaches_nutrition_after_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+    body = payload()
+    expected = expected_plan(body)
+    request = GroceryRequest.model_validate(body["request"])
+    captured: list[dict[str, object]] = []
+
+    def record(
+        planning: dict[str, object],
+        parsed: plan_job_module.PlanJobInput,
+        clock: datetime,
+    ) -> str:
+        assert planning == expected
+        assert "nutrition" not in planning
+        captured.append(planning)
+        del parsed, clock
+        return _REV
+
+    result = plan_job_module.plan_job(
+        body,
+        lambda: None,
+        record_evidence=record,
+        supermarket_estimator=FakeEstimator(),
+    )
+    pantry_result = plan_job_module.plan_job(
+        payload(
+            request={
+                "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+                "budget_period": date(2026, 9, 1),
+                "pantry_ingredients": ["olive_oil", "salt"],
+            }
+        ),
+        lambda: None,
+    )
+    nutrition = result["nutrition"]
+    assert isinstance(nutrition, dict)
+    assert nutrition == expected_nutrition(request)
+    total = nutrition["total"]
+    assert isinstance(total, dict)
+    assert total["energy_kcal"] == independent_energy_kcal(request)
+    assert type(total["energy_kcal"]) is int
+    assert type(total["protein_mg"]) is int
+    assert type(total["carbohydrate_mg"]) is int
+    assert type(total["fat_mg"]) is int
+    assert json.loads(json.dumps(nutrition)) == nutrition
+    assert isinstance(nutrition["meals"], list)
+    assert pantry_result["nutrition"] == nutrition
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["plan"] == expected["plan"]
+    assert result["budget"] == expected["budget"]
+    assert "nutrition" not in captured[0]
+    assert "supermarket_estimate" not in captured[0]
+    assert captured[0] is not result
+    assert result["evidence_revision_id"] == _REV
+    assert "supermarket_estimate" in result

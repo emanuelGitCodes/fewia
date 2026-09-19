@@ -9,6 +9,7 @@ import {
 } from "./apiTypes";
 import { isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage } from "./chatTypes";
+import { isNutrition, type MealPlanNutrition } from "./nutritionTypes";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const FIRST_DAY = /^(\d{4})-(\d{2})-01$/;
@@ -115,6 +116,10 @@ export function parseChatResult(value: unknown): ChatResult {
   if ((plan !== null && (drop || !planOk)) || (plan === null && (need || !extrasNull))) {
     throw new Error(SHAPE_ERROR);
   }
+  const hasNutrition = "nutrition" in value;
+  if (hasNutrition && (plan === null || !isNutrition(value.nutrition))) {
+    throw new Error(SHAPE_ERROR);
+  }
   return {
     status: status as ChatResult["status"],
     answer: value.answer,
@@ -130,6 +135,7 @@ export function parseChatResult(value: unknown): ChatResult {
     usage: value.usage === null ? null : {
       inputTokens: value.usage.inputTokens, outputTokens: value.usage.outputTokens,
     },
+    ...(hasNutrition ? { nutrition: structuredClone(value.nutrition) as MealPlanNutrition } : {}),
   };
 }
 export function parseChatJob(value: unknown): ChatJob {

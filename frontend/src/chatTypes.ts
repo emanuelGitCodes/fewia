@@ -1,4 +1,5 @@
 import type { GroceryBudget, GroceryPlan, GroceryRequest, JobStatus } from "./apiTypes";
+import type { MealPlanNutrition } from "./nutritionTypes";
 
 export type ChatResultStatus =
   | "planned"
@@ -39,6 +40,7 @@ export type ChatResult = {
   model_turns: number;
   planner_revisions: number;
   usage: ChatUsage | null;
+  nutrition?: MealPlanNutrition;
 };
 
 export type ChatJobCreate = {

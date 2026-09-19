@@ -10,6 +10,12 @@ import {
   configFingerprint,
   formFromChat,
 } from "./chatWorkspaceModel";
+import {
+  NUTRITION_NOTICE,
+  NUTRITION_PORTION_NOTICE,
+  type MacroTotals,
+  type MealPlanNutrition,
+} from "./nutritionTypes";
 
 const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -69,6 +75,26 @@ function plannedResult(overrides: Partial<ChatResult> = {}): ChatResult {
     planner_revisions: 1,
     usage: { inputTokens: 11, outputTokens: 7 },
     ...overrides,
+  };
+}
+
+function macros(overrides: Partial<MacroTotals> = {}): MacroTotals {
+  return { energy_kcal: 200, protein_mg: 10000, carbohydrate_mg: 30000, fat_mg: 8000, ...overrides };
+}
+
+function mealNutrition(): MealPlanNutrition {
+  return {
+    notice: NUTRITION_NOTICE,
+    portion_notice: NUTRITION_PORTION_NOTICE,
+    total: macros({ energy_kcal: 400 }),
+    meals: [
+      {
+        recipe_id: "bean_tacos",
+        servings: 2,
+        per_serving: macros(),
+        total: macros({ energy_kcal: 400 }),
+      },
+    ],
   };
 }
 
@@ -169,6 +195,34 @@ describe("chatEstimateJob", () => {
       },
     });
     expect(chatEstimateJob(succeededJob(clarification))?.result?.plan?.total_cents).toBeNull();
+  });
+
+  it("clones nutrition onto the grocery estimate and isolates mutations", () => {
+    const nutrition = mealNutrition();
+    const source = succeededJob(plannedResult({ nutrition }));
+    const display = chatEstimateJob(source);
+    expect(display?.result?.nutrition).toEqual(nutrition);
+    const copied = display?.result?.nutrition;
+    if (copied === undefined || source.result?.nutrition === undefined) {
+      throw new Error("expected cloned nutrition");
+    }
+    const sourceMeal = nutrition.meals[0];
+    const copiedMeal = copied.meals[0];
+    if (sourceMeal === undefined || copiedMeal === undefined) {
+      throw new Error("expected a meal");
+    }
+    sourceMeal.servings = 8;
+    copiedMeal.servings = 1;
+    copied.meals.push({
+      recipe_id: "lentil_soup",
+      servings: 1,
+      per_serving: macros(),
+      total: macros(),
+    });
+    expect(source.result.nutrition.meals).toHaveLength(1);
+    expect(sourceMeal.servings).toBe(8);
+    expect(copiedMeal.servings).toBe(1);
+    expect(chatEstimateJob(succeededJob(plannedResult()))?.result?.nutrition).toBeUndefined();
   });
 
   it("does not share mutable plan or budget objects with the caller", () => {

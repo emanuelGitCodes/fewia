@@ -1,3 +1,5 @@
+import type { MealPlanNutrition } from "./nutritionTypes";
+
 export type Diet = "omnivore" | "vegetarian" | "vegan";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
@@ -69,6 +71,7 @@ export type GroceryJobResult = {
   budget: GroceryBudget;
   spending_source: string;
   supermarket_estimate?: SupermarketEstimate;
+  nutrition?: MealPlanNutrition;
 };
 
 export type GroceryConfig = {
