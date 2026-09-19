@@ -2179,3 +2179,28 @@ Success: no issues found in 6 source files
 The coordinator later verified these root backend results. This log does not claim independent review. `cd backend && uv run ruff check app tests` reported `All checks passed!`. `cd backend && uv run ruff format --check app tests` reported `189 files already formatted`. `cd backend && uv run mypy --strict app` reported `Success: no issues found in 97 source files`. `cd backend && uv run pytest` reported `1467 passed, 14 skipped, 1 warning in 6.29s`. The warning is the existing Starlette `httpx` deprecation warning.
 
 The final supervisor suite reported `49 passed in 2.57s`. Supervisor Ruff reported `All checks passed!`. Supervisor format reported `11 files already formatted`. Supervisor strict mypy reported `Success: no issues found in 6 source files`. The change adds 135 application lines, under the 150-line cap. Independent read-only review approved the result with no actionable findings. The reviewer did not edit files. The reviewer verified the registry guard, explicit-effort fallback behavior, operational documentation, and registered-model fallback test.
+
+## 2026-09-18 — Tool-calling orchestration direction
+
+Accepted tool calling as the FEWIA orchestration boundary.
+The Bedrock model passes structured intent to high-level tools.
+Backend services own Plaid data, arithmetic, planning, nutrition, validation,
+and evidence.
+
+Added [decision 0012](decisions/0012-tool-calling-orchestration.md) and linked
+it from the wiki index. Graphify saved and reflected the decision as a useful
+architecture memory.
+
+Updated the course proposal with the tool-calling boundary. Two LaTeX compile
+passes succeeded. The PDF remains one letter-size page. The rendered page has
+no clipped or overlapping content.
+
+No application code changed. Backend and frontend tests were not run.
+
+## 2026-09-18 — Concurrent wiki decision reconciliation
+
+Preserved the dynamic delegated effort record as decision 0011.
+Renumbered the tool-calling orchestration record as decision 0012.
+The wiki index links both accepted decisions.
+
+No application code changed. Backend and frontend tests were not run.
