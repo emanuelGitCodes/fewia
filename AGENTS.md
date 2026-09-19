@@ -1,9 +1,21 @@
 # FEWIA rules for Codex
 
 Development writers use the CLI supervisor in `docs/DEV_SUPERVISOR.md`.
-The default order is Grok 4.6 medium, Codex Spark, then Luna xhigh.
-Explicit task model requests override that order. Model-only requests forbid
-substitution. A separate Codex or Grok agent verifies independently.
+The default order is Grok 4.6, Codex Spark, then Luna.
+The coordinator classifies each task before delegation.
+Valid complexity values are `simple`, `standard`, `complex`, `exceptional`,
+and `maximum`.
+Grok 4.6 uses `low` for simple tasks.
+Grok 4.6 uses `medium` for every harder automatic tier.
+Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
+Spark uses its CLI default.
+Spark does not accept an effort override in this supervisor.
+Luna and Sol support automatic selection through `max`.
+The supervisor requires `--complexity`.
+An explicit `--effort` override MUST stay within the model ceiling.
+Explicit task model or effort requests override automatic selection when
+supported. Model-only requests forbid substitution.
+A separate Codex or Grok agent verifies independently.
 Claude Code is not an active workflow dependency. These rules bind all writers.
 
 ## Read first

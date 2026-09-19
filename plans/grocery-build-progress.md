@@ -61,10 +61,14 @@ These checks are local. No CI, deployment, browser, or live provider claim follo
 - `/private/tmp/fewia-grocery-budget`: deterministic shopping payload; durable dispatch follows.
 - `/private/tmp/fewia-grocery-web`: App wiring and responsive styles.
 
-New writers use Grok 4.6 medium with file tools only. The coordinator runs
-commands and mechanical formatting. Other writer models need explicit user
-approval under the updated policy. Independent read-only Codex review remains
-authorized. The separate workflow task owns supervisor changes.
+The coordinator classifies each writer task as `simple`, `standard`,
+`complex`, `exceptional`, or `maximum`. Those values map to `low`,
+`medium`, `high`, `xhigh`, and `max`. Grok 4.6 uses `low` for simple
+tasks. Grok 4.6 has a hard `medium` ceiling. Spark uses its CLI default.
+Luna and Sol support selection through `max`. Writers use file tools
+only. The coordinator runs commands and mechanical formatting.
+Independent read-only Codex or Grok review remains authorized. The
+separate workflow task owns supervisor changes.
 
 ## Remaining delivery sequence
 

@@ -1,7 +1,6 @@
 name = "docs-dev"
 description = "Documentation engineer for FEWIA. Use for maintained project docs, runbooks, wiki records, source preservation, and evidence-aware course documentation."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "xhigh"
 developer_instructions = """
 Before each assignment, read `AGENTS.md`, `.codex/project-context.md`, and
 `.codex/TEAM.md`.

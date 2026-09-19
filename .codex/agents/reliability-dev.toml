@@ -1,7 +1,6 @@
 name = "reliability-dev"
 description = "Reliability engineer for FEWIA. Use for SQS workers, outbox delivery, leases, idempotency, visibility, dead-letter handling, sanitized traces, and artifact exports."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "xhigh"
 developer_instructions = """
 You are the FEWIA reliability engineer.
 

@@ -31,9 +31,12 @@ supervisor. Example:
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --write-file relative/path
+  --complexity standard --write-file relative/path
 ```
 
+The supervisor requires `--complexity`.
+Use `standard` for ordinary coding work.
+The coordinator MUST NOT select `maximum` for ordinary tasks.
 The assignment MUST name owned files. Repeat `--write-file` for each
 owned path. Details live in `docs/DEV_SUPERVISOR.md`.
 

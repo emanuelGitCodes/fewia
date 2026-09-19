@@ -5,7 +5,7 @@ Run from the repository root with Python 3.12:
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --write-file dev_supervisor/policy.py
+  --complexity standard --write-file dev_supervisor/policy.py
 ```
 
 Replace the example file with each path named by the assignment.
@@ -22,31 +22,65 @@ symlinks or contain permission-rule syntax are rejected before execution.
 
 ## Model selection
 
-| Order | CLI | Model | Reasoning effort |
-|---|---|---|---|
-| 1 | `~/.grok/bin/grok` | `grok-4.6` | `medium` |
-| 2 | `codex exec` | `gpt-5.3-codex-spark` | CLI model default |
-| 3 | `codex exec` | `gpt-5.6-luna` | `xhigh` |
+The supervisor requires `--complexity`.
+Valid values are `simple`, `standard`, `complex`, `exceptional`, and `maximum`.
+The coordinator classifies each task before delegation:
 
-Spark omits reasoning effort. Codex commands ignore user config to avoid
-inheriting another model's effort. Authentication remains with the CLI.
+| Complexity | Automatic effort |
+|---|---|
+| `simple` | `low` |
+| `standard` | `medium` |
+| `complex` | `high` |
+| `exceptional` | `xhigh` |
+| `maximum` | `max` |
+
+The coordinator MUST NOT select `maximum` for ordinary tasks.
+The coordinator MUST reserve `maximum` for the hardest cross-system work.
+That work has substantial ambiguity, interacting failure modes, or major
+security, reliability, or data-loss risk.
+
+An optional `--effort` override replaces automatic selection when the model
+supports effort.
+The supervisor MUST NOT downgrade the requested effort.
+An explicitly selected model that cannot use that effort stops with an error.
+The supervisor skips incompatible fallback models.
+
+| Order | CLI | Model | Effort capability |
+|---|---|---|---|
+| 1 | `~/.grok/bin/grok` | `grok-4.6` | ceiling `medium` |
+| 2 | `codex exec` | `gpt-5.3-codex-spark` | CLI model default |
+| 3 | `codex exec` | `gpt-5.6-luna` | ceiling `max` |
+
+Grok 4.6 uses `low` for simple tasks.
+Grok 4.6 uses `medium` for every harder automatic tier.
+Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
+Spark keeps its CLI model default.
+Spark does not accept an effort override in this supervisor.
+Luna and Sol support automatic selection through `max`.
+Codex commands ignore user config to avoid inheriting another model's effort.
+Authentication remains with the CLI.
 The supervisor does not edit global configuration.
 
 An explicit model request MUST become `--model MODEL_ID`. “Use GPT 5.6 Sol”
 becomes `--model gpt-5.6-sol`. It runs first. Eligible failures use the remaining
 default sequence without duplicates. Each selected model and outcome is printed.
 “Only use Sol” MUST include `--only --model gpt-5.6-sol`. No substitute runs.
+An explicit effort request MUST become `--effort LEVEL` when the model supports
+effort.
 Unknown models stop before execution. Extend the map with `--registry FILE`:
 
 ```toml
-["gpt-5.6-sol"]
+["gpt-5.6-terra"]
 provider = "codex"
-effort = "high"
+ceiling = "max"
 ```
 
+A registry MUST NOT contain a built-in model ID.
 A new provider needs a command adapter and tested event parsing. A registry
 cannot inject shell commands. CLI arguments use argument lists.
-Native `.codex/agents/*.toml` pins remain available for explicit native runs.
+Native `.codex/agents/*.toml` files keep the Luna model.
+They MUST NOT pin `model_reasoning_effort`.
+Native dispatch MUST select the effort from the complexity rubric.
 They do not implement fallback. The supervisor passes the selected role's
 `developer_instructions` to the CLI. Bedrock application routing is separate.
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,29 +32,118 @@ def writes(cwd: Path, paths: list[str]) -> list[Path]:
     return allowed
 
 
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+COMPLEXITY = {
+    "simple": "low",
+    "standard": "medium",
+    "complex": "high",
+    "exceptional": "xhigh",
+    "maximum": "max",
+}
+
+
 @dataclass(frozen=True)
 class Model:
     provider: str
-    effort: str | None = None
+    ceiling: str | None = None
 
 
 MODELS = {
     "grok-4.6": Model("grok", "medium"),
     "gpt-5.3-codex-spark": Model("codex"),
-    "gpt-5.6-luna": Model("codex", "xhigh"),
-    "gpt-5.6-sol": Model("codex"),
+    "gpt-5.6-luna": Model("codex", "max"),
+    "gpt-5.6-sol": Model("codex", "max"),
 }
 DEFAULTS = tuple(MODELS)[:3]
 RETRYABLE = {"unavailable", "quota", "rate_limit", "stalled"}
+_REGISTRY_FIELDS = frozenset({"provider", "ceiling"})
 
 
-def order(requested: str | None, only: bool, models: dict[str, Model]) -> list[str]:
+def _registry_model(name: str, spec: object) -> Model:
+    if name in MODELS:
+        raise ValueError("Registry MUST NOT replace a built-in model ID")
+    if not isinstance(spec, Mapping):
+        raise TypeError("Registry model MUST be a table")
+    if "effort" in spec:
+        raise ValueError("Registry MUST use ceiling instead of effort")
+    extra = [key for key in spec if key not in _REGISTRY_FIELDS]
+    if extra:
+        raise ValueError("Registry model accepts provider and optional ceiling only")
+    provider = spec.get("provider")
+    if not isinstance(provider, str) or provider == "":
+        raise ValueError("Registry model MUST set provider")
+    if "ceiling" not in spec:
+        return Model(provider)
+    ceiling = spec.get("ceiling")
+    if not isinstance(ceiling, str) or ceiling not in EFFORTS:
+        raise ValueError("Unknown model ceiling")
+    return Model(provider, ceiling)
+
+
+def load_registry(entries: Mapping[str, object]) -> dict[str, Model]:
+    models = dict(MODELS)
+    for name, spec in entries.items():
+        models[name] = _registry_model(name, spec)
+    return models
+
+
+def resolve_effort(
+    complexity: str, spec: Model, explicit: str | None = None
+) -> str | None:
+    if complexity not in COMPLEXITY or (
+        explicit is not None and explicit not in EFFORTS
+    ):
+        raise ValueError("Unknown complexity or effort")
+    if spec.ceiling is None:
+        if explicit is not None:
+            raise ValueError("Explicit effort requires a model effort ceiling")
+        return None
+    if spec.ceiling not in EFFORTS:
+        raise ValueError("Unknown complexity or effort")
+    requested = COMPLEXITY[complexity] if explicit is None else explicit
+    if EFFORTS.index(requested) <= EFFORTS.index(spec.ceiling):
+        return requested
+    if explicit is not None:
+        raise ValueError("Explicit effort exceeds model ceiling")
+    return spec.ceiling
+
+
+def _accepts_explicit_effort(spec: Model, explicit: str) -> bool:
+    if explicit not in EFFORTS:
+        raise ValueError("Unknown complexity or effort")
+    if spec.ceiling is None:
+        return False
+    if spec.ceiling not in EFFORTS:
+        raise ValueError("Unknown complexity or effort")
+    return EFFORTS.index(explicit) <= EFFORTS.index(spec.ceiling)
+
+
+def order(
+    requested: str | None,
+    only: bool,
+    models: dict[str, Model],
+    effort: str | None = None,
+) -> list[str]:
     if only and requested is None:
         raise ValueError("--only requires --model")
     if requested is not None and requested not in models:
         raise ValueError("Unknown model; register its provider before execution")
+    if requested is not None and effort is not None:
+        spec = models[requested]
+        if not _accepts_explicit_effort(spec, effort):
+            if spec.ceiling is None:
+                raise ValueError("Explicit effort requires a model effort ceiling")
+            raise ValueError("Explicit effort exceeds model ceiling")
     first = [requested] if requested else []
-    return first if only else first + [m for m in DEFAULTS if m not in first]
+    sequence = first if only else first + [m for m in DEFAULTS if m not in first]
+    if effort is None:
+        return sequence
+    compatible = [
+        name for name in sequence if _accepts_explicit_effort(models[name], effort)
+    ]
+    if not compatible:
+        raise ValueError("No model accepts the explicit effort")
+    return compatible
 
 
 def command(
@@ -62,6 +152,7 @@ def command(
     cwd: Path,
     prompt: Path,
     files: list[Path] | None = None,
+    effort: str | None = None,
 ) -> list[str]:
     if spec.provider == "grok":
         args = [
@@ -69,7 +160,7 @@ def command(
             "--model",
             model,
             "--reasoning-effort",
-            spec.effort or "medium",
+            effort or "medium",
             "--cwd",
             str(cwd),
             "--prompt-file",
@@ -105,6 +196,6 @@ def command(
         "--disable",
         "multi_agent",
     ]
-    if spec.effort:
-        args += ["-c", f'model_reasoning_effort="{spec.effort}"']
+    if effort and spec.ceiling is not None:
+        args += ["-c", f'model_reasoning_effort="{effort}"']
     return args + ["-"]

@@ -1,9 +1,22 @@
 # Grocery bot agent team
 
 Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md):
-Grok 4.6 medium, then Spark at its CLI default effort, then Luna xhigh.
-Explicit task models MUST be passed to the supervisor. Model-only requests
-MUST disable substitution. Native role files retain Luna xhigh pins.
+Grok 4.6, then Spark at its CLI default effort, then Luna.
+The coordinator classifies each task before delegation.
+Valid complexity values are `simple`, `standard`, `complex`, `exceptional`,
+and `maximum`.
+Grok 4.6 uses `low` for simple tasks.
+Grok 4.6 uses `medium` for every harder automatic tier.
+Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
+Spark does not accept an effort override in this supervisor.
+Luna and Sol support automatic selection through `max`.
+The coordinator MUST NOT select `maximum` for ordinary tasks.
+Explicit task models MUST be passed to the supervisor.
+An explicit `--effort` override MUST stay within the model ceiling.
+Model-only requests MUST disable substitution.
+Native role files retain the Luna model.
+They MUST NOT pin `model_reasoning_effort`.
+Native dispatch MUST select effort from the complexity rubric.
 They do not implement provider fallback. Bedrock application routing is separate.
 
 ## Routing
