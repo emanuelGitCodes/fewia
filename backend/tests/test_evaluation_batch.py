@@ -24,10 +24,10 @@ SECRET = "do-not-echo-raw-input"
 EVIDENCE: Literal["deterministic_fake_provider", "real_bedrock"] = (
     "deterministic_fake_provider"
 )
-UNSUPPORTED_IDS = frozenset({"P02", "P04", "P05", "A02", "A03", "A04"})
-SCORED_COUNT = 48
+UNSUPPORTED_IDS = frozenset({"P04", "P05", "A02", "A03", "A04"})
+SCORED_COUNT = 51
 OBSERVED_COUNT = 24
-UNASSESSED_COUNT = 18
+UNASSESSED_COUNT = 15
 
 
 class ScriptedProvider:
@@ -301,6 +301,16 @@ def test_on_slot_emits_ninety_unique_events_and_fresh_providers() -> None:
     assert len(unassessed) == UNASSESSED_COUNT
     assert len(providers) == OBSERVED_COUNT
     assert len({id(item) for item in providers}) == OBSERVED_COUNT
+    p02 = [item for item in events if item["case_id"] == "P02"]
+    assert len(p02) == 3
+    for slot in p02:
+        assert slot["status"] == "scored"
+        report = _mapping(slot["report"], "report")
+        assert report["evidence_class"] == "deterministic_fake_provider"
+        handoff_observed = _mapping(report["observed"], "observed")
+        assert handoff_observed["provider_calls"] == 1
+        assert handoff_observed["state_uncertain"] is True
+        assert "observation" not in slot
     p04 = [item for item in events if item["case_id"] == "P04"]
     assert len(p04) == 3
     for slot in p04:

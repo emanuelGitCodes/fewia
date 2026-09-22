@@ -189,15 +189,15 @@ def test_p03_slot_is_scored_with_bounded_failure() -> None:
         assert checks["max_model_turns"] is True
 
 
-def test_scored_count_is_forty_eight() -> None:
+def test_scored_count_is_fifty_one() -> None:
     slots = _slots(run_evaluation(load_corpus()))
     scored_ids = {slot["case_id"] for slot in slots if slot["status"] == "scored"}
     unassessed = [slot for slot in slots if slot["status"] == "unassessed"]
     scored = [slot for slot in slots if slot["status"] == "scored"]
     assert len(slots) == 90
-    assert len(scored) == 48
-    assert len(unassessed) == 42
-    assert scored_ids == EXISTING_SCORED | {"P03"}
+    assert len(scored) == 51
+    assert len(unassessed) == 39
+    assert scored_ids == EXISTING_SCORED | {"P02", "P03"}
 
 
 def test_existing_scored_reports_keep_status() -> None:
@@ -212,7 +212,7 @@ def test_existing_scored_reports_keep_status() -> None:
 
 def test_other_provider_cases_stay_unassessed() -> None:
     slots = _slots(run_evaluation(load_corpus()))
-    for case_id in ("P02", "P04", "P05"):
+    for case_id in ("P04", "P05"):
         matches = [item for item in slots if item["case_id"] == case_id]
         assert len(matches) == 3
         for slot in matches:
@@ -220,13 +220,13 @@ def test_other_provider_cases_stay_unassessed() -> None:
             assert slot["report"] is None
 
 
-def _rewrite_p03(corpus: dict[str, object], **changes: object) -> None:
+def _rewrite_case(corpus: dict[str, object], case_id: str, **changes: object) -> None:
     rows = corpus["scenarios"]
     assert isinstance(rows, list)
     found = False
     for item in rows:
         case = _mapping(item, "case")
-        if case.get("id") != "P03":
+        if case.get("id") != case_id:
             continue
         found = True
         if "requires_model" in changes:
@@ -239,6 +239,10 @@ def _rewrite_p03(corpus: dict[str, object], **changes: object) -> None:
                 behavior["provider"] = changes["provider"]
             case["fixture_behavior"] = behavior
     assert found
+
+
+def _rewrite_p03(corpus: dict[str, object], **changes: object) -> None:
+    _rewrite_case(corpus, "P03", **changes)
 
 
 def test_unsupported_kind_is_not_dispatched() -> None:
@@ -268,6 +272,62 @@ def test_fake_provider_variant_without_fake_flag_stays_unassessed() -> None:
     _rewrite_p03(corpus, provider="bedrock")
     slots = _slots(run_evaluation(corpus))
     matches = [item for item in slots if item["case_id"] == "P03"]
+    assert len(matches) == 3
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
+
+
+def test_p02_slot_is_scored_with_uncertain_handoff() -> None:
+    corpus = load_corpus()
+    rows = corpus["scenarios"]
+    assert isinstance(rows, list)
+    case = next(_mapping(item, "case") for item in rows if item.get("id") == "P02")
+    assert case["requires_model"] is False
+    behavior = _mapping(case["fixture_behavior"], "fixture_behavior")
+    assert behavior["kind"] == "instacart_timeout"
+    assert behavior["provider"] == "fake"
+    slots = _slots(run_evaluation(corpus))
+    scored = [item for item in slots if item["case_id"] == "P02"]
+    assert len(scored) == 3
+    for slot in scored:
+        assert slot["group"] == "provider"
+        assert slot["status"] == "scored"
+        report = _mapping(slot["report"], "report")
+        checks = _mapping(report["checks"], "checks")
+        observed = _mapping(report["observed"], "observed")
+        assert checks
+        for value in checks.values():
+            assert value is True
+        assert report["evidence_class"] == "deterministic_fake_provider"
+        assert report["evidence_target"] == "live_instacart_development"
+        assert observed["evidence_class"] == "deterministic_fake_provider"
+        assert observed["provider_calls"] == 1
+        assert observed["state_uncertain"] is True
+        assert observed["outcome"] == "uncertain_handoff"
+
+
+def test_p02_wrong_kind_or_provider_stays_unassessed() -> None:
+    corpus = copy.deepcopy(load_corpus())
+    _rewrite_case(corpus, "P02", kind="unsupported_fixture_kind")
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P02"]
+    assert len(matches) == 3
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
+    corpus = copy.deepcopy(load_corpus())
+    _rewrite_case(corpus, "P02", provider="instacart")
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P02"]
+    assert len(matches) == 3
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
+    corpus = copy.deepcopy(load_corpus())
+    _rewrite_case(corpus, "P02", requires_model=True)
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P02"]
     assert len(matches) == 3
     for slot in matches:
         assert slot["status"] == "unassessed"
