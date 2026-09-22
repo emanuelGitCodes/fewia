@@ -9,8 +9,8 @@ import "./chat.css";
 
 export const REBUILD_CHAT_GUIDANCE = "Rebuild your estimate to use these changes in chat";
 
-function formKey(form: FormState): string {
-  return JSON.stringify(form);
+function formKey(form: FormState, contextKey: string): string {
+  return JSON.stringify([form, contextKey]);
 }
 
 function latestUserTurnId(messages: ChatTurn[]): string | null {
@@ -35,6 +35,7 @@ export type ChatWorkspaceInput = {
   setForm: Dispatch<SetStateAction<FormState>>;
   formJob: GroceryJob | null;
   formDirty?: boolean;
+  contextKey?: string;
 };
 
 type EstimateSource = { kind: "chat" | "form"; id: string };
@@ -44,6 +45,7 @@ export function useChatWorkspace({
   setForm,
   formJob,
   formDirty = false,
+  contextKey = "",
 }: ChatWorkspaceInput): {
   pending: boolean;
   estimateJob: GroceryJob | null;
@@ -55,13 +57,14 @@ export function useChatWorkspace({
   conversation: ReturnType<typeof useChatConversation>;
   needsRebuild: boolean;
   instacartConfigured: boolean;
+  plaidConfigured: boolean;
 } {
   const providers = useProviderCapabilities();
   const [source, setSource] = useState<EstimateSource | null>(null);
   const [appliedKey, setAppliedKey] = useState<string | null>(null);
   const [chatEstimate, setChatEstimate] = useState<GroceryJob | null>(null);
   const owned =
-    source !== null && appliedKey !== null && formKey(form) === appliedKey;
+    source !== null && appliedKey !== null && formKey(form, contextKey) === appliedKey;
   const contextId = owned ? source.id : null;
   const needsRebuild = source !== null && !owned;
   const conversation = useChatConversation(chatBudgetFromForm(form), contextId);
@@ -69,9 +72,12 @@ export function useChatWorkspace({
   const sendEpoch = useRef(0);
   const manualGen = useRef(0);
   const sendManualGen = useRef(0);
+  const contextGen = useRef(0);
+  const sendContextGen = useRef(0);
   const lastUserId = useRef<string | null>(null);
   const applying = useRef(false);
   const formReady = useRef(false);
+  const contextReady = useRef(false);
   const seenChat = useRef(new Set<string>());
   const seenForm = useRef<string | null>(null);
 
@@ -88,6 +94,14 @@ export function useChatWorkspace({
   }, [form]);
 
   useEffect(() => {
+    if (!contextReady.current) {
+      contextReady.current = true;
+      return;
+    }
+    contextGen.current += 1;
+  }, [contextKey]);
+
+  useEffect(() => {
     const userId = latestUserTurnId(conversation.messages);
     if (userId === null) {
       lastUserId.current = null;
@@ -98,6 +112,7 @@ export function useChatWorkspace({
     }
     sendEpoch.current = formEpoch.current;
     sendManualGen.current = manualGen.current;
+    sendContextGen.current = contextGen.current;
     lastUserId.current = userId;
   }, [conversation.messages]);
 
@@ -114,7 +129,11 @@ export function useChatWorkspace({
     if (incoming !== null && incoming !== seenForm.current) {
       return;
     }
-    if (formEpoch.current !== sendEpoch.current || manualGen.current !== sendManualGen.current) {
+    if (
+      formEpoch.current !== sendEpoch.current ||
+      manualGen.current !== sendManualGen.current ||
+      contextGen.current !== sendContextGen.current
+    ) {
       return;
     }
     const estimate = chatEstimateJob(job);
@@ -126,10 +145,10 @@ export function useChatWorkspace({
       applying.current = true;
       setForm(next);
     }
-    setAppliedKey(formKey(next));
+    setAppliedKey(formKey(next, contextKey));
     setChatEstimate(estimate);
     setSource({ kind: "chat", id: job.id });
-  }, [conversation.job, form, formJob, setForm]);
+  }, [conversation.job, form, formJob, setForm, contextKey]);
 
   useEffect(() => {
     if (formJob === null || formJob.status !== "succeeded" || formJob.result === null) {
@@ -143,15 +162,16 @@ export function useChatWorkspace({
     setChatEstimate(null);
     setSource({ kind: "form", id: formJob.id });
     if (!formDirty) {
-      setAppliedKey(formKey(form));
+      setAppliedKey(formKey(form, contextKey));
     }
-  }, [form, formDirty, formJob]);
+  }, [form, formDirty, formJob, contextKey]);
 
   const chatPlan = source?.kind === "chat" ? chatEstimate : null;
   return {
     pending: conversation.pending,
     estimateJob: chatPlan,
-    estimateDirty: chatPlan !== null && appliedKey !== null && formKey(form) !== appliedKey,
+    estimateDirty:
+      chatPlan !== null && appliedKey !== null && formKey(form, contextKey) !== appliedKey,
     configured: providers.capabilities?.chat_configured === true,
     configurationPending: providers.pending,
     providerError: providers.error,
@@ -159,6 +179,7 @@ export function useChatWorkspace({
     conversation,
     needsRebuild,
     instacartConfigured: providers.capabilities?.instacart_configured === true,
+    plaidConfigured: providers.capabilities?.plaid_configured === true,
   };
 }
 

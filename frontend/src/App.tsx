@@ -2,10 +2,12 @@ import { useEffect } from "react";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
+import { configFingerprint } from "./chatWorkspaceModel";
 import { Conversation } from "./Conversation";
 import { Estimate } from "./Estimate";
 import { HandoffControls } from "./HandoffControls";
 import { formatDollars } from "./money";
+import { SpendingRefresh } from "./SpendingRefresh";
 import { useGroceryDemo } from "./useGroceryDemo";
 import { useHandoff } from "./useHandoff";
 import "./form.css";
@@ -18,6 +20,9 @@ function sourceLabel(source: string): string {
   if (source === "fixture") {
     return "Demo spending";
   }
+  if (source === "plaid_sandbox") {
+    return "Plaid Sandbox";
+  }
   return "Unverified spending source";
 }
 
@@ -28,6 +33,7 @@ export default function App(): JSX.Element {
     setForm: demo.setForm,
     formJob: demo.job,
     formDirty: demo.dirty,
+    contextKey: configFingerprint(demo.config),
   });
   const handoff = useHandoff();
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
@@ -84,6 +90,13 @@ export default function App(): JSX.Element {
                 {CATALOG_LOADING}
               </p>
             ) : null}
+            <div className="spending-refresh">
+              <SpendingRefresh
+                configured={chat.plaidConfigured}
+                disabled={busy || chat.configurationPending}
+                onRefreshed={demo.reloadConfig}
+              />
+            </div>
             {demo.config !== null ? (
               <form
                 className="budget-form"

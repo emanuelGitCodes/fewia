@@ -2465,3 +2465,19 @@ Grok 4.6 low typed that fixture against the public component props.
 The repaired branch passed 355 frontend tests and the production build.
 One Node localStorage experimental warning remains in the test harness.
 The panel adds 143 application lines. App mounting remains separate.
+
+## 2026-09-22 — Spending refresh and estimate context
+
+Mounted the Plaid Sandbox refresh panel in the conversation. The panel uses the
+existing provider capability request. A completed sync reloads the spending
+configuration. A changed spending fingerprint marks existing estimates as
+previous estimates. Chat requires a rebuild and ignores late results from the
+previous spending context. User selections and conversation history remain.
+
+Grok 4.6 medium wrote the integration. A separate Grok 4.6 medium source review
+found no blockers, with confidence 8/10. The coordinator ran `npm test -- --run`:
+400 tests passed. `npm run build` passed. The first test run passed 399 tests and
+failed one invalid-notice fixture. Grok corrected the fixture without changing
+API validation. Retry can check an existing request after context changes; its
+late result cannot replace the current estimate. Live Plaid remains unverified
+because Sandbox credentials are absent.

@@ -178,6 +178,7 @@ function HookHost(props: {
   formJob: GroceryJob | null;
   formPending: boolean;
   formDirty: boolean;
+  contextKey: string;
   start?: FormState;
 }): JSX.Element {
   const [form, setForm] = useState(props.start ?? initialForm());
@@ -186,6 +187,7 @@ function HookHost(props: {
     setForm,
     formJob: props.formJob,
     formDirty: props.formDirty,
+    contextKey: props.contextKey,
   });
   props.bucket.current = { form, setForm, chat };
   return createElement(ChatWorkspace, {
@@ -203,6 +205,7 @@ function mount(options: {
   formJob?: GroceryJob | null;
   formPending?: boolean;
   formDirty?: boolean;
+  contextKey?: string;
   start?: FormState;
 }): {
   bucket: { current: Bucket | null };
@@ -211,6 +214,7 @@ function mount(options: {
     formJob?: GroceryJob | null;
     formPending?: boolean;
     formDirty?: boolean;
+    contextKey?: string;
   }) => void;
 } {
   bind();
@@ -218,6 +222,7 @@ function mount(options: {
   let liveJob = options.formJob ?? null;
   let livePending = options.formPending ?? false;
   let liveDirty = options.formDirty ?? false;
+  let liveContextKey = options.contextKey ?? "";
   let renderer: ReactTestRenderer | undefined;
   act(() => {
     renderer = create(
@@ -226,6 +231,7 @@ function mount(options: {
         formJob: liveJob,
         formPending: livePending,
         formDirty: liveDirty,
+        contextKey: liveContextKey,
         start: options.start,
       }),
     );
@@ -238,11 +244,17 @@ function mount(options: {
     bucket,
     renderer: live,
     refresh: (
-      next: { formJob?: GroceryJob | null; formPending?: boolean; formDirty?: boolean } = {},
+      next: {
+        formJob?: GroceryJob | null;
+        formPending?: boolean;
+        formDirty?: boolean;
+        contextKey?: string;
+      } = {},
     ): void => {
       liveJob = next.formJob === undefined ? liveJob : next.formJob;
       livePending = next.formPending ?? livePending;
       liveDirty = next.formDirty ?? liveDirty;
+      liveContextKey = next.contextKey === undefined ? liveContextKey : next.contextKey;
       bind();
       act(() => {
         live.update(
@@ -251,6 +263,7 @@ function mount(options: {
             formJob: liveJob,
             formPending: livePending,
             formDirty: liveDirty,
+            contextKey: liveContextKey,
             start: options.start,
           }),
         );
@@ -739,6 +752,119 @@ describe("ChatWorkspace", () => {
     expect(hookOf(bucket).form.monthly).toBe("250");
     expect(hookOf(bucket).form.cap).toBe("40");
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+  });
+
+  it("exposes plaidConfigured from the shared provider snapshot", () => {
+    providers = providerState({
+      capabilities: { ...loaded, plaid_configured: true },
+    });
+    const ready = mount({});
+    expect(hookOf(ready.bucket).chat.plaidConfigured).toBe(true);
+    ready.renderer.unmount();
+    providers = providerState({ pending: true, capabilities: null });
+    const waiting = mount({});
+    expect(hookOf(waiting.bucket).chat.plaidConfigured).toBe(false);
+    expect(hookOf(waiting.bucket).chat.configurationPending).toBe(true);
+    waiting.renderer.unmount();
+  });
+
+  it("marks a chat estimate dirty when contextKey changes and the form does not", () => {
+    const { bucket, refresh, renderer } = mount({ contextKey: "ctx-a" });
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+    refresh({ contextKey: "ctx-b" });
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    expect(hookOf(bucket).chat.estimateDirty).toBe(true);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(true);
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBeNull();
+    renderer.unmount();
+  });
+
+  it("does not apply a late chat plan after the spending context changes", () => {
+    const { bucket, refresh } = mount({
+      start: { ...initialForm(), monthly: "300", cap: "40" },
+      contextKey: "ctx-a",
+    });
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    refresh({ contextKey: "ctx-b" });
+    chatState = conversationState({
+      messages: [
+        { id: "user-1", role: "user", content: "Plan lentil soup." },
+        { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+      ],
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "bean_tacos", servings: 2 }]);
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+  });
+
+  it("restores conversation context after a new manual job on the new context", () => {
+    const start = {
+      ...initialForm(),
+      pantry: ["black_beans"],
+      meals: [{ recipe_id: "lentil_soup", servings: 4 }],
+    };
+    const { bucket, refresh, renderer } = mount({ start, contextKey: "ctx-a" });
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    refresh({ contextKey: "ctx-b", formDirty: true });
+    expect(hookOf(bucket).chat.needsRebuild).toBe(true);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBeNull();
+    refresh({ formJob: formJob(), formDirty: false, contextKey: "ctx-b" });
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)).toEqual([
+      chatBudgetFromForm(hookOf(bucket).form),
+      "form-1",
+    ]);
+    renderer.unmount();
+  });
+
+  it("does not mark a chat estimate dirty when contextKey is unchanged", () => {
+    const { bucket, refresh } = mount({ contextKey: "ctx-a" });
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    refresh({ contextKey: "ctx-a" });
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
   });
 

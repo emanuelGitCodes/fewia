@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchConfig, isAbortError } from "./api";
 import type { GroceryConfig, GroceryJobCreate } from "./apiTypes";
 import { buildRequest, initialForm, type FormState } from "./BudgetForm";
+import { configFingerprint } from "./chatWorkspaceModel";
 import { useGroceryJob } from "./useGroceryJob";
 
 const CONFIG_MS = 20_000;
@@ -48,8 +49,10 @@ export function useGroceryDemo() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [lastBody, setLastBody] = useState<GroceryJobCreate | null>(null);
+  const [lastFingerprint, setLastFingerprint] = useState("");
   const { job, error, pending, submit, clear } = useGroceryJob();
   const reloadConfig = useCallback((): void => {
+    setConfigPending(true);
     setRetryTick((tick) => tick + 1);
   }, []);
 
@@ -107,6 +110,7 @@ export function useGroceryDemo() {
         clear();
       }
       setLastBody(body);
+      setLastFingerprint(configFingerprint(config));
       await submit(body);
     },
     [clear, config, configError, configPending, job, pending, submit],
@@ -143,7 +147,9 @@ export function useGroceryDemo() {
   return {
     config, configPending, configError, reloadConfig, form, setForm, formError,
     job, error, pending, submitForm, retry, newRequest, example, togglePantry,
-    dirty: isDirty(config, form, lastBody),
+    dirty:
+      isDirty(config, form, lastBody) ||
+      (lastBody !== null && lastFingerprint !== configFingerprint(config)),
   };
 }
 
