@@ -2931,3 +2931,16 @@ configuration. An unset path variable fails interpolation. Runbook links resolve
 A documentation review corrected the missing-variable versus missing-file
 explanation and the fixed 30-by-3 corpus contract. All 1,863 candidate backend
 tests and static checks passed. The runtime mount check follows integration.
+
+## 2026-09-22 — Checked-in overlay runtime verification
+
+The coordinator rebuilt the isolated Compose project with `compose.yaml`,
+`compose.bedrock.yaml`, and the checked-in `compose.spoonacular.yaml`.
+Bootstrap completed. The API became healthy. Health, provider configuration,
+and owned Item inventory returned HTTP 200. Spending remains fixture data.
+Plaid and Instacart remain unconfigured. The Item inventory is empty.
+
+A live supermarket-estimate request returned HTTP 200 with `Cache-Control:
+no-store`, a complete estimate, and the source notice. The coordinator retained
+only status and completeness evidence. No vendor price values were saved.
+The temporary Compose overlay is no longer needed for this runtime setup.
