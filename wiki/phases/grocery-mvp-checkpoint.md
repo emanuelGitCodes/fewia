@@ -1,5 +1,7 @@
 # Grocery MVP checkpoint for professor feedback
 
+**Historical record.** This page preserves the 2026-09-08 professor-feedback checkpoint. It is not the current product record. Current grocery completion lives in [grocery-completion-20260922.md](grocery-completion-20260922.md). Do not rewrite the evidence below.
+
 - **Date**: 2026-09-08
 - **Status**: live chat VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Feature work is PAUSED as the user requested. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
