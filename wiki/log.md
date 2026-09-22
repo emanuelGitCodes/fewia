@@ -2654,3 +2654,14 @@ retained price, hidden supermarket lookup, and available follow-up chat.
 The first stronger browser run passed four journeys and failed two because
 "Message" also matched the message list. Grok low made the textbox selector
 exact. All six journeys then passed.
+
+## 2026-09-22 — Clarification flow integration check
+
+The integrated frontend passed 413 unit tests, the production build, and six
+browser journeys. The isolated demo at port 5178 used the real API, worker,
+and Bedrock provider. Breakfast burritos produced a sample estimate of $18.53.
+"Make it vegan" returned the egg conflict and retained the previous estimate.
+The supermarket action disappeared. Follow-up chat stayed available.
+"Use bean tacos instead" retained two servings and the vegan restriction.
+It produced a current sample estimate of $17.03. The supermarket action returned.
+This check did not request vendor prices or perform a purchase.
