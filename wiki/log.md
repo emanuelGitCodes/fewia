@@ -2871,3 +2871,9 @@ IDs, and partial or empty observations. Missing values remain distinct from
 explicit null values. The coordinator inspected the helpers and 28 focused
 tests passed. Strict mypy passed 113 source files. These helpers do not score
 model quality or call providers.
+
+## 2026-09-22 — Structural value integration gates
+
+Ruff passed. Formatting passed 224 files. Strict mypy passed 115 source files.
+All 1,855 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+These checks include the extracted value helpers and their mutation cases.
