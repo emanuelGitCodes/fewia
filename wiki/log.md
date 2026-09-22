@@ -2834,3 +2834,9 @@ It records publication 2026-09-17 and rates effective 2026-09-01, retrieved
 million input tokens and $2.75 per million output tokens. Global routing uses
 a different rate pair. The estimator requires matching routing metadata.
 No runtime price default or network lookup is added.
+
+## 2026-09-22 — Rate configuration integration gates
+
+Ruff passed. Formatting passed 220 files. Strict mypy passed 113 source files.
+All 1,805 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The public pricing fixture is repository-relative and needs no network access.
