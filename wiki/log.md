@@ -3047,3 +3047,14 @@ scope. Remaining provider evidence and evaluation gaps stay explicit.
 The coordinator checked every repository link against the integrated tree.
 Each item has a key-reference row. The record separates historical batch counts,
 strict cap-argument mismatches, enforced budgets, and unassessed quality targets.
+
+## 2026-09-22 — Current grocery scope and nutrition record
+
+Grok 4.6 aligned the active plan, project context, and current-state section of
+decision 0012. Instacart remains deferred. Quantity-scaled nutrition is recorded
+as implemented. The public answer uses validated plan facts and allowlisted
+conflicts. Sample prices still control budget acceptance.
+
+The coordinator checked relative links and preserved the historical phase body.
+The older checkpoint remains under its historical date. Decision 0012's proposed
+no-tool evaluation remains a proposal. These edits do not claim its completion.
