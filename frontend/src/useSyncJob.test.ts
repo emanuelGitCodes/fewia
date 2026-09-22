@@ -23,7 +23,7 @@ const KEY1 = "00000000-0000-4000-8000-000000000001";
 const KEY2 = "00000000-0000-4000-8000-000000000002";
 const RAW = "do-not-echo-this";
 const EMPTY_ITEM = "Enter a sync item id.";
-const SYNC_FAILURE = "The sync request failed. Retry checks the same request.";
+const SYNC_FAILURE = "The sync request failed. Start a new refresh.";
 const TIMEOUT_ERROR =
   "The sync request is still processing and may continue. Retry checks the same request.";
 const HTTP_FALLBACK = "The sync request failed. Check the item, then retry.";
@@ -340,6 +340,47 @@ describe("useSyncJob", () => {
     expect(mockedSubmit).toHaveBeenCalledTimes(2);
     expect(mockedSubmit).toHaveBeenNthCalledWith(1, ITEM, KEY1, expect.any(AbortSignal));
     expect(mockedSubmit).toHaveBeenNthCalledWith(2, ITEM, KEY2, expect.any(AbortSignal));
+    expect(hookOf(bucket).job).toEqual(job("succeeded"));
+    expect(hookOf(bucket).error).toBeNull();
+    renderer.unmount();
+  });
+
+  it("settles a live AbortError from POST with a static error", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(KEY1).mockReturnValueOnce(KEY2);
+    mockedSubmit.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+    const { bucket, renderer } = mount();
+    await act(async () => {
+      await hookOf(bucket).start(ITEM);
+    });
+    expect(hookOf(bucket).pending).toBe(false);
+    expect(hookOf(bucket).error).toBe(HTTP_FALLBACK);
+    expect(hookOf(bucket).error).not.toContain("Aborted");
+    expect(hookOf(bucket).job).toBeNull();
+    mockedSubmit.mockResolvedValue(ack);
+    mockedPoll.mockResolvedValue(job("succeeded"));
+    await act(async () => {
+      await hookOf(bucket).start(ITEM);
+    });
+    expect(hookOf(bucket).job).toEqual(job("succeeded"));
+    expect(hookOf(bucket).error).toBeNull();
+    renderer.unmount();
+  });
+
+  it("settles a live AbortError from poll with a static error", async () => {
+    vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(KEY1).mockReturnValueOnce(KEY2);
+    mockedSubmit.mockResolvedValue(ack);
+    mockedPoll.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+    const { bucket, renderer } = mount();
+    await act(async () => {
+      await hookOf(bucket).start(ITEM);
+    });
+    expect(hookOf(bucket).pending).toBe(false);
+    expect(hookOf(bucket).error).toBe(HTTP_FALLBACK);
+    expect(hookOf(bucket).error).not.toContain("Aborted");
+    mockedPoll.mockResolvedValue(job("succeeded"));
+    await act(async () => {
+      await hookOf(bucket).start(ITEM);
+    });
     expect(hookOf(bucket).job).toEqual(job("succeeded"));
     expect(hookOf(bucket).error).toBeNull();
     renderer.unmount();

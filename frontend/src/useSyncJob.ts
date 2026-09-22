@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isAbortError } from "./api";
 import { SHAPE_ERROR } from "./apiTypes";
 import { submitSyncJob, type SyncJob } from "./syncApi";
 import { pollSyncJob } from "./syncPolling";
 
 const POST_MS = 15_000;
 const EMPTY_ITEM = "Enter a sync item id.";
-const SYNC_FAILURE = "The sync request failed. Retry checks the same request.";
+const SYNC_FAILURE = "The sync request failed. Start a new refresh.";
 const TIMEOUT_ERROR =
   "The sync request is still processing and may continue. Retry checks the same request.";
 const HTTP_FALLBACK = "The sync request failed. Check the item, then retry.";
@@ -103,7 +102,7 @@ export function useSyncJob(): {
             done(TIMEOUT_ERROR);
             return;
           }
-          if (!isAbortError(caught)) done(userError(caught));
+          done(userError(caught));
           return;
         } finally {
           clearTimeout(timer);
@@ -119,7 +118,8 @@ export function useSyncJob(): {
       if (!live()) return;
       done(current.status === "failed" ? SYNC_FAILURE : null, current);
     } catch (caught) {
-      if (live() && !isAbortError(caught)) done(userError(caught));
+      if (!live()) return;
+      done(userError(caught));
     }
   }, [abortActive]);
 
