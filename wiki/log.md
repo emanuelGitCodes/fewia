@@ -3137,3 +3137,7 @@ Added exclusive Markdown output with no-overwrite installation and owned tempora
 ## 2026-09-22 — Dated cost report section
 
 Added a cost Markdown section that uses the existing validated estimator. It separates known-subset cost from unknown overall cost. It records dated rates and source provenance. It does not claim observed billing. Independent review found Markdown link escape and Unicode whitespace cases; Grok added guards and regressions. Ruff, format, and strict mypy passed for 122 source files. PostgreSQL-enabled pytest passed: 1,961 tests, one existing Starlette warning.
+
+## 2026-09-22 — Isolated P05 resource lifecycle
+
+Added opt-in local PostgreSQL and Floci test resources. The fixture requires two explicit environment variables and rejects database query overrides. Each invocation owns one private schema and one unique queue. Independent review corrected search-path rollback, public-schema fallback, and cleanup registration before ownership. All 59 focused resource tests passed. Ruff and format passed after mechanical formatting. Strict mypy passed for 120 source files. PostgreSQL-enabled pytest passed: 1,983 tests, one existing Starlette warning. A real local smoke created exactly five private tables, preserved the private search path after rollback, created its unique queue, and completed cleanup. Durable worker, handoff, and S3 scenario checks remain pending.
