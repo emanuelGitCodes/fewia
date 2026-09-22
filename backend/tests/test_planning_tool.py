@@ -20,7 +20,13 @@ from app.agent.planning_tool import (
     planner_tool_spec,
 )
 from app.domain.budget import BudgetResult
-from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
+from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import (
+    SAMPLE_ESTIMATE_NOTICE,
+    SUPPORTED_RECIPE_IDS,
+    GroceryRequest,
+    MealRequest,
+)
 from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
 from app.providers.spoonacular import SpoonacularUnavailable
 from app.services.meal_nutrition import (
@@ -72,22 +78,115 @@ def _assert_static(error: BaseException, token: str) -> None:
     assert error.__context__ is None
 
 
+def _mapping(value: object) -> dict[str, object]:
+    assert isinstance(value, dict)
+    return value
+
+
+def _tool_json(spec: dict[str, object]) -> dict[str, object]:
+    tool_spec = _mapping(spec["toolSpec"])
+    input_schema = _mapping(tool_spec["inputSchema"])
+    return _mapping(input_schema["json"])
+
+
 def test_planner_tool_spec_uses_grocery_request_schema_bounds() -> None:
     spec = planner_tool_spec()
     tool_spec = spec["toolSpec"]
     assert isinstance(tool_spec, dict)
     assert tool_spec["name"] == TOOL_NAME
-    input_schema = tool_spec["inputSchema"]
-    assert isinstance(input_schema, dict)
-    schema = GroceryRequest.model_json_schema()
-    assert input_schema["json"] == schema
-    meals = schema["properties"]["meals"]
+    schema = _tool_json(spec)
+    public = GroceryRequest.model_json_schema()
+    meals = public["properties"]["meals"]
+    tool_meals = _mapping(_mapping(schema["properties"])["meals"])
     assert meals["minItems"] == 1
     assert meals["maxItems"] == 3
+    assert tool_meals["minItems"] == 1
+    assert tool_meals["maxItems"] == 3
     servings = MealRequest.model_json_schema()["properties"]["servings"]
+    tool_meal = _mapping(_mapping(schema["$defs"])["MealRequest"])
+    tool_servings = _mapping(_mapping(tool_meal["properties"])["servings"])
     assert servings["minimum"] == 1
     assert servings["maximum"] == 8
+    assert tool_servings["minimum"] == 1
+    assert tool_servings["maximum"] == 8
     json.dumps(spec)
+
+
+def _enum_list(schema: dict[str, object], *path: str) -> list[object]:
+    current: object = schema
+    for key in path:
+        current = _mapping(current)[key]
+    assert isinstance(current, list)
+    return current
+
+
+def test_planner_tool_spec_exposes_catalog_enums() -> None:
+    schema = _tool_json(planner_tool_spec())
+    catalog_ids = list(INGREDIENTS)
+    recipe_enum = _enum_list(
+        schema, "$defs", "MealRequest", "properties", "recipe_id", "enum"
+    )
+    pantry_enum = _enum_list(
+        schema, "properties", "pantry_ingredients", "items", "enum"
+    )
+    exclusion_enum = _enum_list(
+        schema, "properties", "ingredient_exclusions", "items", "enum"
+    )
+    assert recipe_enum == list(SUPPORTED_RECIPE_IDS)
+    assert pantry_enum == catalog_ids
+    assert exclusion_enum == catalog_ids
+    assert "olive_oil" in pantry_enum
+    assert "olive oil" not in pantry_enum
+    public = GroceryRequest.model_json_schema()
+    public_pantry = public["properties"]["pantry_ingredients"]["items"]
+    public_recipe = public["$defs"]["MealRequest"]["properties"]["recipe_id"]
+    assert "enum" not in public_pantry
+    assert "enum" not in public_recipe
+
+
+def test_planner_tool_spec_mutation_does_not_affect_later_call() -> None:
+    first = _tool_json(planner_tool_spec())
+    _enum_list(first, "$defs", "MealRequest", "properties", "recipe_id", "enum").append(
+        "not_a_recipe"
+    )
+    _enum_list(first, "properties", "pantry_ingredients", "items", "enum").append(
+        "olive oil"
+    )
+    _enum_list(first, "properties", "ingredient_exclusions", "items", "enum").append(
+        "olive oil"
+    )
+    later = _tool_json(planner_tool_spec())
+    catalog_ids = list(INGREDIENTS)
+    assert _enum_list(
+        later, "$defs", "MealRequest", "properties", "recipe_id", "enum"
+    ) == list(SUPPORTED_RECIPE_IDS)
+    assert (
+        _enum_list(later, "properties", "pantry_ingredients", "items", "enum")
+        == catalog_ids
+    )
+    assert (
+        _enum_list(later, "properties", "ingredient_exclusions", "items", "enum")
+        == catalog_ids
+    )
+    public = GroceryRequest.model_json_schema()
+    assert "enum" not in public["properties"]["pantry_ingredients"]["items"]
+
+
+def test_olive_oil_catalog_id_is_accepted() -> None:
+    result = execute_plan(arguments(pantry_ingredients=["olive_oil"]), budget(), PERIOD)
+    plan = result["plan"]
+    assert isinstance(plan, dict)
+    lines = plan["lines"]
+    assert isinstance(lines, list)
+    oil = next(line for line in lines if line["ingredient_id"] == "olive_oil")
+    assert oil["from_pantry"] is True
+
+
+def test_olive_oil_display_name_is_rejected_without_normalization() -> None:
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(pantry_ingredients=["olive oil"]), budget(), PERIOD)
+    _assert_static(caught.value, "olive oil")
+    assert str(caught.value) == "catalog constraint is invalid"
 
 
 def test_model_cap_cannot_increase_available() -> None:

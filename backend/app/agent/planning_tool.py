@@ -1,6 +1,7 @@
 import hashlib
 import json
 from calendar import monthrange
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import date
 from typing import Literal, cast
@@ -8,7 +9,8 @@ from typing import Literal, cast
 from pydantic import ValidationError
 
 from app.domain.budget import BudgetResult
-from app.domain.grocery import GroceryRequest
+from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
 from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
 from app.services.meal_nutrition import meal_nutrition
 from app.services.supermarket_overlay import (
@@ -25,8 +27,28 @@ class PlanningToolError(ValueError):
     """A planning-tool failure with a static message and no raw input."""
 
 
+def _object_map(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise TypeError("schema is invalid")
+    return cast(dict[str, object], value)
+
+
+def _apply_catalog_enums(schema: dict[str, object]) -> None:
+    defs = _object_map(schema.get("$defs"))
+    meal = _object_map(defs.get("MealRequest"))
+    recipe = _object_map(_object_map(meal.get("properties")).get("recipe_id"))
+    recipe["enum"] = list(SUPPORTED_RECIPE_IDS)
+    properties = _object_map(schema.get("properties"))
+    catalog_ids = list(INGREDIENTS)
+    for field in ("pantry_ingredients", "ingredient_exclusions"):
+        items = _object_map(_object_map(properties.get(field)).get("items"))
+        items["enum"] = list(catalog_ids)
+
+
 def planner_tool_spec() -> dict[str, object]:
     """Return the Bedrock toolSpec for plan_groceries."""
+    schema = _object_map(deepcopy(GroceryRequest.model_json_schema()))
+    _apply_catalog_enums(schema)
     return {
         "toolSpec": {
             "name": TOOL_NAME,
@@ -35,7 +57,7 @@ def planner_tool_spec() -> dict[str, object]:
                 "The tool does not purchase items."
             ),
             "inputSchema": {
-                "json": cast(dict[str, object], GroceryRequest.model_json_schema()),
+                "json": schema,
             },
         }
     }
