@@ -2750,3 +2750,10 @@ returned tool errors without retaining prompts or tool schemas. The coordinator
 reviewed the fixture and six focused tests passed. Ruff formatting and strict
 mypy passed. Malformed responses remain intentional test inputs.
 This helper does not call a real model or establish model quality.
+
+## 2026-09-22 — Protocol fixture integration gates
+
+The integrated fixture passed Ruff. Formatting passed 212 files. Strict mypy
+passed 109 source files. All 1,746 PostgreSQL-enabled tests passed, with one
+existing Starlette warning. The protocol observer and scorer remain separate
+work items until their checks pass.
