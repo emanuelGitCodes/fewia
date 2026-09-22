@@ -25,7 +25,7 @@ ARG = "evaluation arguments are invalid"
 FAIL = "evaluation failed"
 CONFIG = "Provider configuration is invalid"
 MODEL = "eval-fake-v1"
-OBSERVED = 24
+OBSERVED = 30
 
 
 @pytest.fixture(autouse=True)
@@ -282,7 +282,7 @@ def test_mocked_bedrock_writes_fresh_providers(
     assert summary["counts"] == {
         "scored": 51,
         "observed": OBSERVED,
-        "unassessed": 15,
+        "unassessed": 9,
         "failed": 0,
     }
     assert summary["metrics_status"] == "unassessed"

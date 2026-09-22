@@ -11,7 +11,9 @@ from app.domain.budget import BudgetResult
 from app.domain.catalog import CATALOG_VERSION
 from app.evaluation_budget_inputs import fixture_budget
 
-SUPPORTED_IDS = frozenset({"F01", "F02", "F04", "F05", "X02", "X03", "X04", "A01"})
+SUPPORTED_IDS = frozenset(
+    {"F01", "F02", "F04", "F05", "X02", "X03", "X04", "A01", "A03", "A04"}
+)
 _EVIDENCE = frozenset({"deterministic_fake_provider", "real_bedrock"})
 
 

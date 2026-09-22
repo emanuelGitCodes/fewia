@@ -24,10 +24,10 @@ SECRET = "do-not-echo-raw-input"
 EVIDENCE: Literal["deterministic_fake_provider", "real_bedrock"] = (
     "deterministic_fake_provider"
 )
-UNSUPPORTED_IDS = frozenset({"P04", "P05", "A02", "A03", "A04"})
+UNSUPPORTED_IDS = frozenset({"P04", "P05", "A02"})
 SCORED_COUNT = 51
-OBSERVED_COUNT = 24
-UNASSESSED_COUNT = 15
+OBSERVED_COUNT = 30
+UNASSESSED_COUNT = 9
 
 
 class ScriptedProvider:
@@ -335,6 +335,12 @@ def test_on_slot_emits_ninety_unique_events_and_fresh_providers() -> None:
         assert assessment["passed"] is False
         checks = _mapping(assessment["checks"], "checks")
         assert checks["request_plan_cap"] is False
+    for case_id in ("A03", "A04"):
+        rows = [item for item in observed if item["case_id"] == case_id]
+        assert len(rows) == 3
+        for slot in rows:
+            assert slot["status"] == "observed"
+            assert "structural_assessment" not in slot
 
 
 def test_factory_failure_emits_failed_callback() -> None:
