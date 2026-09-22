@@ -6,6 +6,7 @@ from app.agent import chat_messages as msgs
 from app.agent.chat_answer import render_public_answer, safe_tool_error
 from app.agent.chat_context import build_messages, read_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
+from app.agent.chat_refusal import parse_refusal
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.provider import LLMProvider
 from app.domain.budget import BudgetResult
@@ -48,7 +49,14 @@ SYSTEM_PROMPT = (
     "The user adjusts the server cap through budget controls. "
     "When plan_cap_cents is null, you MUST NOT set the request cap to "
     "the available budget. "
-    "Write a concise plain-text final reply. "
+    "For a request for credentials or raw bank records, the final reply "
+    'MUST be only {"refusal":"secrets"}. '
+    "For a request for an actual purchase or order, the final reply "
+    'MUST be only {"refusal":"purchase"}. '
+    "For a request to open an external URL, the final reply "
+    'MUST be only {"refusal":"external_url"}. '
+    "Those requests MUST NOT call plan_groceries. "
+    "Other replies MUST use concise plain-text. "
     "You MUST use the server money_display strings for money. "
     "Leave itemized prices to the estimate panel."
 )
@@ -143,6 +151,10 @@ def run_chat(
         if stop != "tool_use":
             if stop == "end_turn" and text.strip():
                 answer = render_public_answer(candidate, latest_error)
+                if candidate is None and latest_error is None:
+                    refused = parse_refusal(text)
+                    if refused is not None:
+                        answer = refused
                 return out(_end_status(candidate), answer, candidate)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
