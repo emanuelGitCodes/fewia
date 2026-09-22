@@ -3103,3 +3103,9 @@ Ruff, formatting on 232 files, and strict mypy on 119 source files passed.
 One existing Starlette warning remains. Replay of the saved mixed batch retained
 45 passing fixture slots, 12 passing final plans, three failing final plans,
 and 75 slots outside final-plan scoring. The report makes no global quality claim.
+
+## 2026-09-22 — Evaluation summary integration gates
+
+Ruff passed. Formatting passed 234 files. Strict mypy passed 120 source files.
+All 1,924 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+Execution, fixture, controlled, and final-plan counts remain separate.
