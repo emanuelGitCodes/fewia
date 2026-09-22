@@ -3153,3 +3153,7 @@ Added a local CLI that renders a saved batch as Markdown without provider calls.
 ## 2026-09-22 — Latest pantry instruction priority
 
 Placed server JSON context before the latest user text. Marked previous_request as prior state. The planning schema now describes the full current pantry list and removes credit when the user asks to buy an ingredient again. No keyword router or case-specific rule was added. Independent review passed. The first full run found two test adapters that assumed the old block order; Grok updated those without weakening their history checks. Ruff, format, and strict mypy passed for 125 source files. PostgreSQL-enabled pytest passed: 2,007 tests, one existing Starlette warning. Live retests passed all five F02 pantry transitions and all three F05 serving changes. All three A01 observations still omitted the explicit request cap; the one-cent server budget remained intact. Source hashes match the uncommitted application files used in this live retest. These bounded repeats do not establish universal model reliability.
+
+## 2026-09-22 — Combined pantry and report integration
+
+Branch55 passed Ruff, format for 248 files, strict mypy for 126 source files, and 2,088 PostgreSQL-enabled tests. One existing Starlette warning remains. The isolated demo API and agent worker rebuilt from this branch. Bootstrap exited successfully. PostgreSQL and Floci remained healthy. The default user stack was unchanged.
