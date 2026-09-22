@@ -2630,3 +2630,10 @@ answers named eggs and stated that fixed recipes cannot omit the ingredient.
 All X03 turns clarified before any planner call. All nine grounded-output
 checks passed. These are direct chat-loop observations with a source hash,
 not HTTP/database proof or a complete model-quality benchmark.
+
+## 2026-09-22 — Integrated grounded-answer verification
+
+The grounded-answer layer passed all backend gates after integration. Ruff
+passed. Formatting passed 208 files. Strict mypy passed 107 source files. All
+1,725 tests passed against isolated PostgreSQL, with one existing Starlette
+warning. The targeted nine-run Bedrock check remains separate from these gates.
