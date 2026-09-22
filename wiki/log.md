@@ -2522,3 +2522,10 @@ failure stops subsequent provider calls. Eleven focused batch tests passed.
 Ruff, formatting, and strict mypy passed for the candidate. A separate Grok
 4.6 medium review found no batch-contract blockers, with confidence 8/10.
 The IO layer remains separate and needs a test-fixture repair before release.
+
+## 2026-09-22 — Integrated callback verification
+
+The integrated callback layer passed all backend gates against isolated
+PostgreSQL: Ruff passed, 202 files passed formatting, strict mypy passed
+104 source files, and 1,647 tests passed. One existing Starlette warning
+remains. The callback tests include failure propagation and exactly 90 events.
