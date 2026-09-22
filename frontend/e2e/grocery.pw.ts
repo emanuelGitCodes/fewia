@@ -307,7 +307,7 @@ async function assertNoHorizontalOverflow(page: Page): Promise<void> {
 async function openApp(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByLabel("Monthly limit")).toBeVisible();
-  await expect(page.getByLabel("Message")).toBeEnabled();
+  await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeEnabled();
 }
 
 async function pressControl(page: Page, name: string): Promise<void> {
@@ -359,7 +359,7 @@ test.describe("grocery browser journeys", () => {
     await expect(page.getByText("$17.03", { exact: true })).toBeVisible();
     await expect(page.getByText("Source Demo spending", { exact: true })).toBeVisible();
 
-    await page.getByLabel("Message").fill(CHAT_MESSAGE);
+    await page.getByRole("textbox", { name: "Message", exact: true }).fill(CHAT_MESSAGE);
     await pressControl(page, "Send");
     await expect(statusText(page, "Your request is in progress.")).toBeVisible();
     await expect(page.getByText(CHAT_ANSWER, { exact: true })).toBeVisible();
@@ -437,9 +437,14 @@ test.describe("grocery browser journeys", () => {
       request: plans.beans2.request,
     });
 
-    await page.getByLabel("Message").fill(CHAT_MESSAGE);
+    await page.getByRole("textbox", { name: "Message", exact: true }).fill(CHAT_MESSAGE);
     await pressControl(page, "Send");
     await expect(statusText(page, CHAT_FAIL)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Previous estimate" })).toBeVisible();
+    await expect(page.getByText("$17.03", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check supermarket estimate" })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
     expect(harness.chatPosts).toHaveLength(1);
     expect(harness.chatPosts[0]?.id).toBeTruthy();
 
@@ -447,6 +452,11 @@ test.describe("grocery browser journeys", () => {
     await pressControl(page, "Retry the same request");
     await expect(statusText(page, CHAT_HTTP)).toBeVisible();
     await expect(page.getByText(GROCERY_HTTP, { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Previous estimate" })).toBeVisible();
+    await expect(page.getByText("$17.03", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check supermarket estimate" })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 
     expect(harness.unknown).toEqual([]);
     expect(harness.chatPosts).toHaveLength(2);

@@ -39,7 +39,9 @@ export default function App(): JSX.Element {
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
   const busy = demo.pending || chat.pending;
   const estimateJob = chat.estimateJob ?? demo.job;
-  const estimateDirty = chat.estimateJob !== null ? chat.estimateDirty : demo.dirty;
+  const estimateDirty =
+    (chat.estimateJob !== null ? chat.estimateDirty : demo.dirty) ||
+    chat.unresolvedChatEstimate;
   const showNotice = estimateJob?.status !== "succeeded" || estimateJob.result === null;
   const jobId = estimateJob?.status === "succeeded" ? estimateJob.id : null;
   const result = estimateJob?.status === "succeeded" ? estimateJob.result : null;

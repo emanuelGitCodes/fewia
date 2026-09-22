@@ -56,6 +56,7 @@ export function useChatWorkspace({
   retryProviders: () => void;
   conversation: ReturnType<typeof useChatConversation>;
   needsRebuild: boolean;
+  unresolvedChatEstimate: boolean;
   instacartConfigured: boolean;
   plaidConfigured: boolean;
 } {
@@ -63,6 +64,7 @@ export function useChatWorkspace({
   const [source, setSource] = useState<EstimateSource | null>(null);
   const [appliedKey, setAppliedKey] = useState<string | null>(null);
   const [chatEstimate, setChatEstimate] = useState<GroceryJob | null>(null);
+  const [unresolvedChatEstimate, setUnresolvedChatEstimate] = useState(false);
   const owned =
     source !== null && appliedKey !== null && formKey(form, contextKey) === appliedKey;
   const contextId = owned ? source.id : null;
@@ -80,6 +82,8 @@ export function useChatWorkspace({
   const contextReady = useRef(false);
   const seenChat = useRef(new Set<string>());
   const seenForm = useRef<string | null>(null);
+  const hasCurrentEstimate = useRef(false);
+  hasCurrentEstimate.current = source !== null;
 
   useEffect(() => {
     if (applying.current) {
@@ -114,6 +118,9 @@ export function useChatWorkspace({
     sendManualGen.current = manualGen.current;
     sendContextGen.current = contextGen.current;
     lastUserId.current = userId;
+    if (hasCurrentEstimate.current) {
+      setUnresolvedChatEstimate(true);
+    }
   }, [conversation.messages]);
 
   useEffect(() => {
@@ -148,6 +155,7 @@ export function useChatWorkspace({
     setAppliedKey(formKey(next, contextKey));
     setChatEstimate(estimate);
     setSource({ kind: "chat", id: job.id });
+    setUnresolvedChatEstimate(false);
   }, [conversation.job, form, formJob, setForm, contextKey]);
 
   useEffect(() => {
@@ -161,6 +169,7 @@ export function useChatWorkspace({
     manualGen.current += 1;
     setChatEstimate(null);
     setSource({ kind: "form", id: formJob.id });
+    setUnresolvedChatEstimate(false);
     if (!formDirty) {
       setAppliedKey(formKey(form, contextKey));
     }
@@ -178,6 +187,7 @@ export function useChatWorkspace({
     retryProviders: providers.retry,
     conversation,
     needsRebuild,
+    unresolvedChatEstimate,
     instacartConfigured: providers.capabilities?.instacart_configured === true,
     plaidConfigured: providers.capabilities?.plaid_configured === true,
   };

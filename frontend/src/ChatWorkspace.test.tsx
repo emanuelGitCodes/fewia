@@ -87,6 +87,40 @@ function chatJob(
   return { id, status, result, error_code: null };
 }
 
+function nullPlanResult(status: ChatResult["status"], answer: string): ChatResult {
+  return plannedResult({
+    status,
+    answer,
+    plan: null,
+    budget: null,
+    request: null,
+    evidence_revision_id: null,
+  });
+}
+
+function acceptPlan(
+  refresh: (next?: {
+    formJob?: GroceryJob | null;
+    formPending?: boolean;
+    formDirty?: boolean;
+    contextKey?: string;
+  }) => void,
+  userIds: string[] = ["user-1"],
+  id = "chat-1",
+): void {
+  chatState = conversationState({ messages: userTurnList(userIds), hasRequest: true });
+  refresh();
+  chatState = conversationState({
+    messages: [
+      ...userTurnList(userIds),
+      { id, role: "assistant", content: "Bean tacos fit the budget." },
+    ],
+    job: chatJob(plannedResult(), "succeeded", id),
+    hasRequest: true,
+  });
+  refresh();
+}
+
 function userTurnList(ids: string[]): ChatTurn[] {
   return ids.map((id) => ({
     id,
@@ -406,21 +440,13 @@ describe("ChatWorkspace", () => {
         { id: "user-1", role: "user", content: "Plan dinner." },
         { id: "chat-1", role: "assistant", content: "Which meals should I plan?" },
       ],
-      job: chatJob(
-        plannedResult({
-          status: "clarification",
-          answer: "Which meals should I plan?",
-          plan: null,
-          budget: null,
-          request: null,
-          evidence_revision_id: null,
-        }),
-      ),
+      job: chatJob(nullPlanResult("clarification", "Which meals should I plan?")),
       hasRequest: true,
     });
     refresh();
     expect(hookOf(bucket).form).toEqual(start);
     expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
     expect(childText(renderer.root)).toContain("Which meals should I plan?");
     expect(childText(renderer.root)).not.toContain("fake");
     renderer.unmount();
@@ -698,23 +724,11 @@ describe("ChatWorkspace", () => {
     const { bucket, refresh } = mount({
       start: { ...initialForm(), monthly: "250", cap: "40" },
     });
-    chatState = conversationState({
-      messages: userTurnList(["user-1"]),
-      hasRequest: true,
-    });
-    refresh();
-    chatState = conversationState({
-      messages: [
-        { id: "user-1", role: "user", content: "Plan lentil soup." },
-        { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
-      ],
-      job: chatJob(plannedResult()),
-      hasRequest: true,
-    });
-    refresh();
+    acceptPlan(refresh);
     expect(hookOf(bucket).form.monthly).toBe("250");
     expect(hookOf(bucket).form.cap).toBe("40");
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
     chatState = conversationState({
       messages: userTurnList(["user-1", "user-2"]),
       job: chatJob(null, "queued", "chat-2"),
@@ -722,6 +736,8 @@ describe("ChatWorkspace", () => {
     });
     refresh();
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
     chatState = conversationState({
       messages: userTurnList(["user-1", "user-2"]),
       job: { id: "chat-2", status: "failed", result: null, error_code: "tool" },
@@ -729,20 +745,14 @@ describe("ChatWorkspace", () => {
     });
     refresh();
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
     chatState = conversationState({
       messages: [
         ...userTurnList(["user-1", "user-2"]),
         { id: "chat-3", role: "assistant", content: "Which meals should I plan?" },
       ],
       job: chatJob(
-        plannedResult({
-          status: "clarification",
-          answer: "Which meals should I plan?",
-          plan: null,
-          budget: null,
-          request: null,
-          evidence_revision_id: null,
-        }),
+        nullPlanResult("clarification", "Which meals should I plan?"),
         "succeeded",
         "chat-3",
       ),
@@ -753,6 +763,180 @@ describe("ChatWorkspace", () => {
     expect(hookOf(bucket).form.cap).toBe("40");
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+  });
+
+  it("keeps an unresolved chat estimate after a limit result", () => {
+    const { bucket, refresh } = mount({});
+    acceptPlan(refresh);
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-2", role: "assistant", content: "The request hit a limit." },
+      ],
+      job: chatJob(nullPlanResult("limit", "The request hit a limit."), "succeeded", "chat-2"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+  });
+
+  it("clears unresolved chat estimate after a retry applies a valid plan", () => {
+    const { bucket, refresh } = mount({});
+    acceptPlan(refresh);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: { id: "chat-2", status: "failed", result: null, error_code: "tool" },
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-3", role: "assistant", content: "Bean tacos fit the budget." },
+      ],
+      job: chatJob(plannedResult(), "succeeded", "chat-3"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-3");
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+  });
+
+  it("lets a clarification follow-up send with the previous accepted job id", () => {
+    const { bucket, refresh, renderer } = mount({});
+    acceptPlan(refresh);
+    chatState = conversationState({
+      message: "Bean tacos for two.",
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-2", role: "assistant", content: "Which meals should I plan?" },
+      ],
+      job: chatJob(
+        nullPlanResult("clarification", "Which meals should I plan?"),
+        "succeeded",
+        "chat-2",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
+    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBe("chat-1");
+    renderer.unmount();
+  });
+
+  it("clears unresolved chat estimate on a new manual rebuild and ignores a late chat job", () => {
+    const { bucket, refresh } = mount({});
+    acceptPlan(refresh);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: { id: "chat-2", status: "failed", result: null, error_code: "tool" },
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    refresh({ formJob: formJob() });
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-2", role: "assistant", content: "Bean tacos fit the budget." },
+      ],
+      job: chatJob(plannedResult(), "succeeded", "chat-2"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+  });
+
+  it("does not clear unresolved chat estimate when the form matches again after an ignored result", () => {
+    const { bucket, refresh } = mount({});
+    acceptPlan(refresh);
+    const accepted = structuredClone(hookOf(bucket).form);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      hasRequest: true,
+    });
+    refresh();
+    act(() => {
+      hookOf(bucket).setForm({ ...hookOf(bucket).form, pantry: [] });
+    });
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-2", role: "assistant", content: "Bean tacos fit the budget." },
+      ],
+      job: chatJob(plannedResult(), "succeeded", "chat-2"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    act(() => {
+      hookOf(bucket).setForm(accepted);
+    });
+    expect(hookOf(bucket).form).toEqual(accepted);
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+  });
+
+  it("marks a manual estimate unresolved after a failed chat revision and keeps Send", () => {
+    const start = {
+      ...initialForm(),
+      pantry: ["black_beans"],
+      meals: [{ recipe_id: "lentil_soup", servings: 4 }],
+    };
+    const { bucket, refresh, renderer } = mount({ formJob: formJob(), start });
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBe("form-1");
+    chatState = conversationState({
+      message: "Make it vegan.",
+      messages: userTurnList(["user-1"]),
+      job: { id: "chat-1", status: "failed", result: null, error_code: "tool" },
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).chat.needsRebuild).toBe(false);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBe("form-1");
+    renderer.unmount();
+  });
+
+  it("does not clear unresolved chat estimate when the conversation resets", () => {
+    const { bucket, refresh } = mount({});
+    acceptPlan(refresh);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: { id: "chat-2", status: "failed", result: null, error_code: "tool" },
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: [],
+      job: null,
+      hasRequest: false,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
   });
 
   it("exposes plaidConfigured from the shared provider snapshot", () => {

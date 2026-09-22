@@ -138,8 +138,8 @@ function plannedChat(): ChatResult {
   };
 }
 
-function chatJob(result: ChatResult): ChatJob {
-  return { id: "chat-1", status: "succeeded", result, error_code: null };
+function chatJob(result: ChatResult, id = "chat-1"): ChatJob {
+  return { id, status: "succeeded", result, error_code: null };
 }
 
 const demoConfig: GroceryConfig = {
@@ -279,6 +279,52 @@ function mount(
     throw new Error("renderer failed to mount");
   }
   return renderer;
+}
+
+function paint(
+  renderer: ReactTestRenderer,
+  demo: GroceryDemo,
+  chat: ChatHook = chatState(),
+  provider: ReturnType<typeof useProviderCapabilities> = {
+    capabilities: providersReady,
+    pending: false,
+    error: null,
+    retry: vi.fn(),
+  },
+  handoff: HandoffHook = handoffState(),
+): void {
+  vi.mocked(useGroceryDemo).mockReturnValue(demo);
+  vi.mocked(useChatConversation).mockReturnValue(chat);
+  vi.mocked(useProviderCapabilities).mockReturnValue(provider);
+  vi.mocked(useHandoff).mockReturnValue(handoff);
+  act(() => {
+    renderer.update(createElement(App));
+  });
+}
+
+function acceptedChat(overrides: Partial<ChatHook> = {}): ChatHook {
+  return chatState({
+    messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+    job: chatJob(plannedChat()),
+    hasRequest: true,
+    ...overrides,
+  });
+}
+
+function revisionChat(job: ChatHook["job"], answer?: string): ChatHook {
+  const messages: ChatHook["messages"] = [
+    { id: "user-1", role: "user", content: "Plan lentil soup." },
+    { id: "user-2", role: "user", content: "Make it vegan." },
+  ];
+  if (answer !== undefined) {
+    messages.push({ id: job?.id ?? "chat-2", role: "assistant", content: answer });
+  }
+  return chatState({
+    message: "Bean tacos for two.",
+    messages,
+    job,
+    hasRequest: true,
+  });
 }
 
 describe("App", () => {
@@ -749,6 +795,219 @@ describe("App", () => {
     });
     expect(start).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledWith("job-1");
+    renderer.unmount();
+  });
+
+  it("labels unresolved chat revisions as Previous estimate and hides handoff and overlay", () => {
+    const setForm = vi.fn();
+    const providers = instacartProviders();
+    const start = { ...initialForm(), monthly: "300", cap: "40" };
+    const renderer = mount(demoState({ setForm, form: start }), acceptedChat(), providers);
+    const next = setForm.mock.calls[0]?.[0] as FormState;
+    const demo = demoState({ setForm, form: next });
+    paint(renderer, demo, acceptedChat(), providers);
+    expect(childText(renderer.root)).toContain("Grocery estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(true);
+    const jobs: Array<{ job: ChatHook["job"]; answer?: string }> = [
+      { job: { id: "chat-2", status: "failed", result: null, error_code: "tool" } },
+      {
+        job: chatJob(
+          {
+            ...plannedChat(),
+            status: "clarification",
+            answer: "Which meals should I plan?",
+            plan: null,
+            budget: null,
+            request: null,
+            evidence_revision_id: null,
+          },
+          "chat-3",
+        ),
+        answer: "Which meals should I plan?",
+      },
+      {
+        job: chatJob(
+          {
+            ...plannedChat(),
+            status: "limit",
+            answer: "The request hit a limit.",
+            plan: null,
+            budget: null,
+            request: null,
+            evidence_revision_id: null,
+          },
+          "chat-4",
+        ),
+        answer: "The request hit a limit.",
+      },
+    ];
+    for (const item of jobs) {
+      paint(renderer, demo, revisionChat(item.job, item.answer), providers);
+      expect(childText(renderer.root)).toContain("Previous estimate");
+      expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+      expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(false);
+      expect(childText(renderer.root)).toContain("$17.03");
+    }
+    renderer.unmount();
+  });
+
+  it("restores the current estimate after a retry applies a valid chat plan", () => {
+    const setForm = vi.fn();
+    const providers = instacartProviders();
+    const start = { ...initialForm(), monthly: "300", cap: "40" };
+    const renderer = mount(demoState({ setForm, form: start }), acceptedChat(), providers);
+    const next = setForm.mock.calls[0]?.[0] as FormState;
+    const demo = demoState({ setForm, form: next });
+    paint(renderer, demo, acceptedChat(), providers);
+    paint(
+      renderer,
+      demo,
+      revisionChat({ id: "chat-2", status: "failed", result: null, error_code: "tool" }),
+      providers,
+    );
+    expect(childText(renderer.root)).toContain("Previous estimate");
+    paint(
+      renderer,
+      demo,
+      revisionChat(chatJob(plannedChat(), "chat-3"), "Bean tacos fit the budget."),
+      providers,
+    );
+    const applied = setForm.mock.calls.at(-1)?.[0] as FormState;
+    paint(renderer, demoState({ setForm, form: applied }), revisionChat(chatJob(plannedChat(), "chat-3"), "Bean tacos fit the budget."), providers);
+    expect(childText(renderer.root)).toContain("Grocery estimate");
+    expect(childText(renderer.root)).not.toContain("Previous estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(true);
+    renderer.unmount();
+  });
+
+  it("keeps Send available for a clarification follow-up while the estimate stays previous", () => {
+    const setForm = vi.fn();
+    const providers = instacartProviders();
+    const start = { ...initialForm(), monthly: "300", cap: "40" };
+    const renderer = mount(demoState({ setForm, form: start }), acceptedChat(), providers);
+    const next = setForm.mock.calls[0]?.[0] as FormState;
+    const demo = demoState({ setForm, form: next });
+    paint(renderer, demo, acceptedChat(), providers);
+    paint(
+      renderer,
+      demo,
+      revisionChat(
+        chatJob(
+          {
+            ...plannedChat(),
+            status: "clarification",
+            answer: "Which meals should I plan?",
+            plan: null,
+            budget: null,
+            request: null,
+            evidence_revision_id: null,
+          },
+          "chat-2",
+        ),
+        "Which meals should I plan?",
+      ),
+      providers,
+    );
+    expect(childText(renderer.root)).toContain("Previous estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(false);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
+    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBe("chat-1");
+    renderer.unmount();
+  });
+
+  it("clears Previous estimate after a new manual rebuild and ignores a late chat job", () => {
+    const setForm = vi.fn();
+    const providers = instacartProviders();
+    const start = { ...initialForm(), monthly: "300", cap: "40" };
+    const renderer = mount(demoState({ setForm, form: start }), acceptedChat(), providers);
+    const next = setForm.mock.calls[0]?.[0] as FormState;
+    const demo = demoState({ setForm, form: next });
+    paint(renderer, demo, acceptedChat(), providers);
+    paint(
+      renderer,
+      demo,
+      revisionChat({ id: "chat-2", status: "failed", result: null, error_code: "tool" }),
+      providers,
+    );
+    expect(childText(renderer.root)).toContain("Previous estimate");
+    const rebuilt = demoState({ setForm, form: next, job: succeededJob, dirty: false });
+    paint(
+      renderer,
+      rebuilt,
+      revisionChat({ id: "chat-2", status: "failed", result: null, error_code: "tool" }),
+      providers,
+    );
+    expect(childText(renderer.root)).toContain("Grocery estimate");
+    expect(childText(renderer.root)).not.toContain("Previous estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(true);
+    paint(
+      renderer,
+      rebuilt,
+      revisionChat(chatJob(plannedChat(), "chat-2"), "Bean tacos fit the budget."),
+      providers,
+    );
+    expect(childText(renderer.root)).toContain("Grocery estimate");
+    expect(childText(renderer.root)).not.toContain("Previous estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
+    renderer.unmount();
+  });
+
+  it("labels a failed chat revision of a manual estimate as Previous estimate", () => {
+    const providers = instacartProviders();
+    const renderer = mount(demoState({ job: succeededJob }), chatState(), providers);
+    expect(childText(renderer.root)).toContain("Grocery estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(true);
+    paint(
+      renderer,
+      demoState({ job: succeededJob }),
+      chatState({
+        message: "Make it vegan.",
+        messages: [{ id: "user-1", role: "user", content: "Make it vegan." }],
+        job: { id: "chat-1", status: "failed", result: null, error_code: "tool" },
+        hasRequest: true,
+      }),
+      providers,
+    );
+    expect(childText(renderer.root)).toContain("Previous estimate");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(false);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
+    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    expect(vi.mocked(useChatConversation).mock.calls.at(-1)?.[1]).toBe("job-1");
+    renderer.unmount();
+  });
+
+  it("does not show Previous estimate when a first chat request has no plan", () => {
+    const renderer = mount(
+      demoState(),
+      chatState({
+        messages: [
+          { id: "user-1", role: "user", content: "Plan dinner." },
+          { id: "chat-1", role: "assistant", content: "Which meals should I plan?" },
+        ],
+        job: chatJob({
+          ...plannedChat(),
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        hasRequest: true,
+      }),
+      instacartProviders(),
+    );
+    expect(childText(renderer.root)).not.toContain("Previous estimate");
+    expect(childText(renderer.root)).toContain("No grocery budget or meal plan is set yet.");
+    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    expect(hasButton(renderer.root, "Check supermarket estimate")).toBe(false);
     renderer.unmount();
   });
 });
