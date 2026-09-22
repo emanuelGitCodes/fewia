@@ -2606,3 +2606,27 @@ still needs to enforce manifest, provider execution, and final-write order.
 The persistence layer passed all backend gates after integration. Ruff passed.
 Formatting passed 206 files. Strict mypy passed 106 source files. All 1,708
 tests passed against isolated PostgreSQL, with one existing Starlette warning.
+
+## 2026-09-22 — Grounded public planning answers
+
+Public chat answers now use validated plan totals, planning budgets, and
+allowlisted catalog conflicts. The model still interprets requests and selects
+tools. The server formats public facts and supported next steps. Incomplete
+plans remain unaccepted. Stale-budget warnings remain visible. Clarification
+uses readable catalog names without guessing unsupported ingredient groups.
+Raw model prose no longer supplies public prices or substitution claims.
+
+Grok 4.6 medium wrote the change. Its first attempt reached the 30-turn writer
+limit after saving a partial change. Narrow Grok low tasks completed the test
+and formatting repairs. A separate Grok 4.6 medium source review found no
+blockers, with confidence 8/10. The coordinator passed Ruff, formatting,
+strict mypy, and 1,677 PostgreSQL-enabled tests. One existing Starlette warning
+remains. Earlier failures exposed old raw-answer and catalog-label assertions;
+the repairs retained structured-output and trace-sanitization checks.
+
+Nine real Bedrock observations repeated F02, F04, and X03 three times. All
+F02 plans removed pantry credit and retained 1,703 sample cents. All F04
+answers named eggs and stated that fixed recipes cannot omit the ingredient.
+All X03 turns clarified before any planner call. All nine grounded-output
+checks passed. These are direct chat-loop observations with a source hash,
+not HTTP/database proof or a complete model-quality benchmark.

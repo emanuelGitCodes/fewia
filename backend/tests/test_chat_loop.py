@@ -9,6 +9,7 @@ import pytest
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
+from app.agent.chat_answer import CLARIFY_ANSWER, render_public_answer
 from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
     MAX_MODEL_TURNS,
@@ -269,7 +270,8 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     result, provider = _run(_planner_then_final())
     assert len(provider.requests) == 2
     assert result["status"] == "planned"
-    assert result["answer"] == "Here is a labeled estimate."
+    assert result["answer"] == render_public_answer(expected)
+    assert result["answer"] != "Here is a labeled estimate."
     assert result["plan"] == expected["plan"]
     assert result["budget"] == expected["budget"]
     assert result["request"] == expected["request"]
@@ -327,7 +329,8 @@ def test_plain_final_without_tool_is_clarification() -> None:
     result, provider = _run([_reply([_text_block("How many servings?")], "end_turn")])
     assert len(provider.requests) == 1
     assert result["status"] == "clarification"
-    assert result["answer"] == "How many servings?"
+    assert result["answer"] == CLARIFY_ANSWER
+    assert result["answer"] != "How many servings?"
     assert result["plan"] is None
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
@@ -392,6 +395,8 @@ def test_three_planner_calls_in_one_turn_keep_last_valid() -> None:
     assert result["status"] == "planned"
     assert result["planner_revisions"] == 3
     assert result["model_turns"] == 2
+    assert result["answer"] == render_public_answer(expected)
+    assert result["answer"] != "done"
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["plan"] == expected["plan"]
     assert len(provider.requests) == 2
@@ -450,6 +455,8 @@ def test_eighth_turn_may_finish_with_text() -> None:
     result, provider = _run(replies)
     assert len(provider.requests) == MAX_MODEL_TURNS
     assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFY_ANSWER
+    assert result["answer"] != "Need a meal choice."
     assert result["model_turns"] == MAX_MODEL_TURNS
     assert result["plan"] is None
     assert result["planner_revisions"] == 0
@@ -480,10 +487,13 @@ def test_three_planner_revisions_then_final_is_planned() -> None:
     ]
     replies.append(_reply([_text_block("ready")], "end_turn"))
     result, provider = _run(replies)
+    expected = execute_plan(plan_args(), budget(), PERIOD)
     assert len(provider.requests) == MAX_PLANNER_REVISIONS + 1
     assert result["status"] == "planned"
     assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
-    assert result["plan"] is not None
+    assert result["answer"] == render_public_answer(expected)
+    assert result["answer"] != "ready"
+    assert result["plan"] == expected["plan"]
     assert result["evidence_id"] is not None
     assert result["evidence_revision_id"] is None
 
@@ -512,6 +522,8 @@ def test_invalid_later_call_clears_candidate() -> None:
     ]
     result, _provider = _run(replies)
     assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFY_ANSWER
+    assert result["answer"] != "I cannot finish that plan."
     assert result["plan"] is None
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
@@ -535,6 +547,8 @@ def test_unsupported_later_call_clears_candidate() -> None:
     ]
     result, _provider = _run(replies)
     assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFY_ANSWER
+    assert result["answer"] != "I will not purchase items."
     assert result["plan"] is None
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
@@ -559,6 +573,8 @@ def test_invalid_then_valid_keeps_last_candidate() -> None:
     ]
     result, _provider = _run(replies)
     assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
+    assert result["answer"] != "updated"
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["plan"] == expected["plan"]
 
@@ -613,7 +629,9 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
         _reply([_text_block("ready", reasoning=hidden)], "end_turn"),
     ]
     result, provider = _run(replies)
+    expected = execute_plan(plan_args(), budget(), PERIOD)
     assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
     dumped_result = json.dumps(result)
     assert "reasoningContent" not in dumped_result
     assert "hidden plan" not in dumped_result
@@ -831,10 +849,13 @@ def test_olive_oil_catalog_id_plans_and_display_name_fails() -> None:
         ]
     )
     assert failed["status"] == "clarification"
+    assert failed["answer"] == CLARIFY_ANSWER
+    assert failed["answer"] != "I need a supported pantry catalog ID."
     assert failed["plan"] is None
+    assert failed["request"] is None
     assert failed["tool_trace"][0]["outcome"] == "error"
-    dumped = json.dumps(failed)
-    assert "olive oil" not in dumped
+    assert "olive oil" not in json.dumps(failed["tool_trace"])
+    assert "olive oil" not in json.dumps(failed["request"])
 
 
 def test_invalid_request_uses_context_validation() -> None:
@@ -852,6 +873,9 @@ def test_needs_revision_keeps_uncapped_plan() -> None:
         _planner_then_final(payload=payload), available_cents=1_000
     )
     assert result["status"] == "needs_revision"
+    assert result["answer"] == render_public_answer(expected)
+    assert result["answer"] != "Here is a labeled estimate."
+    assert "not reduced" in str(result["answer"])
     assert result["plan"] == expected["plan"]
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["evidence_revision_id"] is None
@@ -1046,7 +1070,13 @@ def test_vegan_breakfast_burritos_tool_result_reaches_provider() -> None:
         _reply([_text_block("That recipe includes eggs.")], "end_turn"),
     ]
     result, provider = _run(replies)
+    expected_answer = render_public_answer(
+        None, {"error": "diet_conflict", "ingredient_id": "eggs"}
+    )
     assert result["status"] == "clarification"
+    assert result["answer"] == expected_answer
+    assert result["answer"] != "That recipe includes eggs."
+    assert "pantry" not in str(result["answer"])
     assert result["plan"] is None
     assert result["evidence_id"] is None
     assert result["tool_trace"] == [_error_trace(TOOL_NAME, "vegan-1")]
@@ -1068,7 +1098,12 @@ def test_excluded_pantry_chicken_reaches_provider_as_exclusion() -> None:
         _reply([_text_block("chicken_breast stays excluded.")], "end_turn"),
     ]
     result, provider = _run(replies)
+    expected_answer = render_public_answer(
+        None, {"error": "exclusion_conflict", "ingredient_id": "chicken_breast"}
+    )
     assert result["status"] == "clarification"
+    assert result["answer"] == expected_answer
+    assert result["answer"] != "chicken_breast stays excluded."
     assert result["plan"] is None
     json_body = _followup_tool_json(provider)
     assert json_body == {
@@ -1092,6 +1127,8 @@ def test_invalid_and_unknown_pantry_stay_generic_in_chat() -> None:
         result, provider = _run(replies)
         json_body = _followup_tool_json(provider)
         assert json_body == {"error": "arguments are invalid"}
+        assert result["answer"] == CLARIFY_ANSWER
+        assert result["answer"] != "I need a supported request."
         dumped = json.dumps({"result": result, "body": json_body})
         assert "diet_conflict" not in dumped
         assert "exclusion_conflict" not in dumped
@@ -1125,6 +1162,8 @@ def test_malicious_exception_metadata_stays_generic_in_chat(
     result, provider = _run(replies)
     json_body = _followup_tool_json(provider)
     assert json_body == {"error": "arguments are invalid"}
+    assert result["answer"] == CLARIFY_ANSWER
+    assert result["answer"] != "I cannot complete that plan."
     dumped = json.dumps({"result": result, "requests": provider.requests})
     assert _SECRET not in dumped
     assert "diet_conflict" not in dumped

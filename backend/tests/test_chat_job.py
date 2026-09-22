@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.agent.chat_answer import render_public_answer
 from app.agent.chat_loop import ChatUnavailable
 from app.agent.planning_tool import TOOL_NAME, execute_plan
 from app.domain.budget import (
@@ -15,6 +16,7 @@ from app.domain.budget import (
     StaleSpendingError,
     calculate_budget,
 )
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
 from app.services.plan_job import SpendingInput
@@ -165,9 +167,14 @@ def test_chat_job_plan_then_final_and_followup(
     result = chat_job_module.chat_job(
         chat_payload(), lambda: None, provider=provider, factory=FACTORY
     )
+    public_answer = render_public_answer(expected)
 
     assert result["status"] == "planned"
-    assert result["answer"] == "Here is a labeled estimate."
+    assert result["answer"] == public_answer
+    assert "USD $23.73" in str(result["answer"])
+    assert "USD $75.00" in str(result["answer"])
+    assert SAMPLE_ESTIMATE_NOTICE in str(result["answer"])
+    assert "Here is a labeled estimate." not in str(result["answer"])
     assert result["plan"] == expected["plan"]
     assert result["request"] == expected["request"]
     assert result["evidence_id"] == expected["evidence_id"]
@@ -189,7 +196,7 @@ def test_chat_job_plan_then_final_and_followup(
             },
             history=[
                 {"role": "user", "text": "plan chicken tacos"},
-                {"role": "assistant", "text": "Here is a labeled estimate."},
+                {"role": "assistant", "text": str(result["answer"])},
             ],
         ),
         lambda: None,
