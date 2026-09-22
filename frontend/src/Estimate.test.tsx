@@ -3,7 +3,7 @@
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NUTRITION_NOTICE,
   NUTRITION_PORTION_NOTICE,
@@ -24,6 +24,10 @@ function childText(node: ReactTestInstance | string): string {
     return node;
   }
   return node.children.map((child) => childText(child)).join("");
+}
+
+function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance | undefined {
+  return root.findAllByType("button").find((node) => childText(node) === name);
 }
 
 function line(overrides: Partial<PlanLine> = {}): PlanLine {
@@ -113,6 +117,20 @@ function mount(
 }
 
 describe("Estimate", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        throw new Error("fetch must not run");
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("renders an empty state when no job is present", () => {
     const renderer = mount();
     expect(childText(renderer.root)).toContain("No grocery budget or meal plan is set yet.");
@@ -168,11 +186,13 @@ describe("Estimate", () => {
     ]);
     expect(text.toLowerCase()).not.toMatch(/checkout/);
     expect(text).not.toContain("Average supermarket estimate");
-    expect(text).not.toContain("Spoonacular");
+    expect(text).toContain("Spoonacular estimate");
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeDefined();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
-  it("shows catalog dollars and overlay dollars when present", () => {
+  it("does not render a job overlay and waits for an explicit lookup", () => {
     const renderer = mount({
       job: succeeded({
         supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
@@ -180,14 +200,15 @@ describe("Estimate", () => {
     });
     const text = childText(renderer.root);
     expect(text).toContain("$4.78");
-    expect(text).toContain("Average supermarket estimate");
-    expect(text).toContain("$12.99");
-    expect(text).toContain(SPOONACULAR_COST_NOTICE);
-    expect(text).toContain(NOTICE);
+    expect(text).not.toContain("$12.99");
+    expect(text).not.toContain("Average supermarket estimate");
+    expect(text).not.toContain(SPOONACULAR_COST_NOTICE);
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeDefined();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
-  it("omits overlay copy when the key is absent", () => {
+  it("omits overlay dollars when the job has no supermarket_estimate", () => {
     const renderer = mount({ job: succeeded() });
     const text = childText(renderer.root);
     expect(text).toContain("$4.78");
@@ -195,6 +216,7 @@ describe("Estimate", () => {
     expect(text).not.toContain("Average supermarket estimate");
     expect(text).not.toContain("$12.99");
     expect(text).not.toContain(SPOONACULAR_COST_NOTICE);
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeDefined();
     renderer.unmount();
   });
 
@@ -275,7 +297,8 @@ describe("Estimate", () => {
     });
     expect(toggle).toHaveBeenCalledWith("tortillas");
     expect(childText(renderer.root)).toContain("$4.78");
-    expect(renderer.root.findAllByType("button")).toHaveLength(0);
+    expect(buttonNamed(renderer.root, "Rebuild estimate")).toBeUndefined();
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeUndefined();
     renderer.unmount();
   });
 
@@ -311,9 +334,9 @@ describe("Estimate", () => {
       dirty: true,
       onRebuild,
     });
-    const button = renderer.root.findAllByType("button")[0];
+    const button = buttonNamed(renderer.root, "Rebuild estimate");
     expect(button?.props.disabled).toBe(false);
-    expect(childText(button as ReactTestInstance)).toBe("Rebuild estimate");
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeUndefined();
     act(() => {
       (button?.props.onClick as (() => void) | undefined)?.();
     });
@@ -325,12 +348,14 @@ describe("Estimate", () => {
   it("disables rebuild when blocked and omits it without a callback", () => {
     const onRebuild = vi.fn();
     const blocked = mount({ job: succeeded(), dirty: true, onRebuild, rebuildDisabled: true });
-    expect(blocked.root.findAllByType("button")[0]?.props.disabled).toBe(true);
+    expect(buttonNamed(blocked.root, "Rebuild estimate")?.props.disabled).toBe(true);
+    expect(buttonNamed(blocked.root, "Check supermarket estimate")).toBeUndefined();
     expect(onRebuild).not.toHaveBeenCalled();
     expect(childText(blocked.root)).toContain("$4.78");
     blocked.unmount();
     const clean = mount({ job: succeeded(), dirty: false, onRebuild });
-    expect(clean.root.findAllByType("button")).toHaveLength(0);
+    expect(buttonNamed(clean.root, "Rebuild estimate")).toBeUndefined();
+    expect(buttonNamed(clean.root, "Check supermarket estimate")).toBeDefined();
     clean.unmount();
   });
 
@@ -344,6 +369,7 @@ describe("Estimate", () => {
       "https://fdc.nal.usda.gov/",
     ]);
     expect(childText(renderer.root)).toContain("$4.78");
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeUndefined();
     renderer.unmount();
   });
 
@@ -448,6 +474,40 @@ describe("Estimate", () => {
     expect(after).toContain("200 kcal");
     expect(after).toContain("2.0 g");
     expect(after).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("resets the supermarket lookup when the plan job changes", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: () => Promise.resolve({ total_cents: 1299, notice: SPOONACULAR_COST_NOTICE }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const renderer = mount({ job: succeeded() });
+    await act(async () => {
+      const lookup = buttonNamed(renderer.root, "Check supermarket estimate");
+      if (lookup === undefined) {
+        throw new Error("missing lookup");
+      }
+      (lookup.props.onClick as () => void)();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(childText(renderer.root)).toContain("$12.99");
+    act(() => {
+      renderer.update(
+        createElement(Estimate, {
+          job: { ...succeeded(), id: "job-2" },
+          pending: false,
+          dirty: false,
+          pantry: [],
+          onPantryToggle: (): void => {},
+        }),
+      );
+    });
+    expect(childText(renderer.root)).not.toContain("$12.99");
+    expect(buttonNamed(renderer.root, "Check supermarket estimate")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     renderer.unmount();
   });
 });

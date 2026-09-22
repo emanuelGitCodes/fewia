@@ -2318,3 +2318,29 @@ Browser verification on isolated port 5178 showed bean tacos for two:
 1703 sample cents, 758 plan kcal, and 379 kcal per serving.
 Backend source did not change. The recorded 1515-test PostgreSQL gate
 remains the backend baseline. Live provider verification is separate.
+
+## 2026-09-21 — Recover request-only supermarket estimates
+
+The coordinator recovered the existing Spoonacular stack from commits
+57a3842 through bdbaea8. These changes had not reached main.
+The stack removes response caching and durable root price overlays.
+Migration 0008 removes old root overlays from jobs only.
+Manual and chat plans share the owner-scoped estimate endpoint.
+The response uses no-store. The browser requests the overlay explicitly.
+It clears the overlay when the active plan or view changes.
+Sample catalog cents still control budget acceptance.
+
+Grok reviewed the backend independently with confidence 7/10.
+The reviewer reported an overflow concern. The coordinator reproduced
+Python's OverflowError for math.isfinite(10**400). The parser already
+catches it. The cited regression test passed. No repair was needed.
+The reviewer did not run tests or observe a live provider.
+
+The recovered backend passed Ruff, format on 196 files, strict mypy on
+101 files, and 1566 PostgreSQL tests with one Starlette warning.
+An earlier test run shared the demo database and failed on a user foreign
+key. A dedicated test database resolved that environmental failure.
+Grok adapted recovered UI tests to the current nutrition contract.
+Initial integration tests found three outdated overlay assertions and an
+old nutrition import. After repair, 346 frontend tests and build passed.
+This record does not claim live Spoonacular verification.

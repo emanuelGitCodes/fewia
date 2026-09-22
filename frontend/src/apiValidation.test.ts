@@ -102,16 +102,26 @@ describe("parseJob", () => {
   });
 
   it("accepts overlay 1299 with the Spoonacular notice", () => {
+    const request = { meals: [{ recipe_id: "bean_tacos", servings: 2 }] };
     const parsed = parseJob(
       job({
         result: jobResult({
           supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
+          evidence_revision_id: "rev-1",
+          request,
+          answer: "Bean tacos fit the budget.",
         }),
       }),
     );
+    const extra = parsed.result as
+      | { evidence_revision_id?: unknown; request?: unknown; answer?: unknown }
+      | null
+      | undefined;
     expect(parsed.result?.plan.total_cents).toBe(129);
-    expect(parsed.result?.supermarket_estimate?.total_cents).toBe(1299);
-    expect(parsed.result?.supermarket_estimate?.notice).toBe(SPOONACULAR_COST_NOTICE);
+    expect(parsed.result?.supermarket_estimate).toBeUndefined();
+    expect(extra?.evidence_revision_id).toBe("rev-1");
+    expect(extra?.request).toEqual(request);
+    expect(extra?.answer).toBe("Bean tacos fit the budget.");
   });
 
   it("rejects overlay notice store price and a negative overlay total", () => {
