@@ -3021,3 +3021,9 @@ without copying profile names or credential paths.
 The coordinator reviewed the integration. All 1,882 candidate PostgreSQL-enabled
 tests passed. Ruff passed, formatting passed 228 files, and strict mypy passed
 117 source files. One existing Starlette warning remains.
+
+## 2026-09-22 — Batch assessment integration gates
+
+Ruff passed. Formatting passed 232 files. Strict mypy passed 119 source files.
+All 1,905 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The batch keeps execution status separate from final-plan assessment status.
