@@ -2790,3 +2790,12 @@ PostgreSQL-enabled tests passed, with one existing Starlette warning. Ruff
 passed, formatting passed 212 files, and strict mypy passed 109 source files.
 The observer remains labeled deterministic fake-provider evidence. It does
 not establish Plaid Sandbox access, model answers, or plan acceptance.
+
+## 2026-09-22 — Refresh observer integration and fresh migrations
+
+Ruff passed. Formatting passed 216 files. Strict mypy passed 111 source files.
+All 1,768 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The coordinator also created a separate empty database and ran
+`uv run alembic upgrade head`. It reached revision 0008 with 13 public tables.
+The coordinator removed that temporary database after verification. The running
+demo database and the separate test database were not migration-test targets.
