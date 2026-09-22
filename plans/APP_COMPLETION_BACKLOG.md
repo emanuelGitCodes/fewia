@@ -84,15 +84,15 @@ A meal MAY include one to eight (1-8) servings.
 | --- | --- |
 | Description | Drive provider-failure and adversarial fixtures from the 30-scenario matrix. |
 | Status | in progress |
-| Next step | Finish P02 batch routing. Keep P04 on its controlled label. Add P05, A02, A03, and A04 as specified below. |
-| Acceptance | P01 and P03 stay integrated as controlled fixtures. P02 fixture and observer are integrated. P02 batch routing remains in progress. P04 keeps a distinct controlled-guard label. P05, A02, A03, and A04 meet the acceptance below. |
+| Next step | Keep P04 on its controlled label. Finish P05 evaluator batch routing. Add A02, A03, and A04 as specified below. |
+| Acceptance | P01 and P03 stay integrated as controlled fixtures. P02 fixture, observer, and batch routing are integrated. P04 keeps a distinct controlled-guard label. P05 opt-in test proof is complete. P05 evaluator routing remains pending. A02, A03, and A04 meet the acceptance below. |
 | Key references | [backend/tests/evaluation/scenarios.json](../backend/tests/evaluation/scenarios.json); [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md); [backend/app/evaluation_protocol.py](../backend/app/evaluation_protocol.py); [backend/app/evaluation_refresh.py](../backend/app/evaluation_refresh.py); [backend/app/evaluation_runner.py](../backend/app/evaluation_runner.py); [backend/app/evaluation_handoff.py](../backend/app/evaluation_handoff.py); [backend/app/evaluation_handoff_fixture.py](../backend/app/evaluation_handoff_fixture.py) |
 | Evidence class | deterministic fixtures |
 
 Remaining fixture scope:
 
-P02 fixture and observer are integrated.
-Next step is P02 batch routing. The batch CLI is not complete.
+P02 fixture, observer, and batch routing are complete.
+The later fixture CLI scored 51 pass and 39 unassessed.
 Acceptance is an Instacart timeout after simulated acceptance.
 The path shows a visible uncertain retry choice.
 The path forbids an automatic duplicate write.
@@ -112,11 +112,16 @@ Target refs: [backend/app/evaluation_protocol.py](../backend/app/evaluation_prot
 [backend/app/evaluation_runner.py](../backend/app/evaluation_runner.py);
 [backend/tests/evaluation/scenarios.json](../backend/tests/evaluation/scenarios.json) `P04`.
 
-P05 next step is an opt-in isolated PostgreSQL and Floci duplicate-delivery evaluator.
+P05 opt-in isolated PostgreSQL and Floci test proof is complete.
+Evaluator batch routing remains pending.
+Do not change 15 unassessed mixed-batch slots to 12.
 Acceptance is one durable completion and no duplicate handoff.
 Fake unit reports MUST NOT substitute PostgreSQL or Floci.
+Commands live in [docs/GROCERY_EVALUATION.md](../docs/GROCERY_EVALUATION.md).
 Target refs: [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md);
 [backend/tests/evaluation/scenarios.json](../backend/tests/evaluation/scenarios.json) `P05`;
+[backend/tests/test_p05_local_integration.py](../backend/tests/test_p05_local_integration.py);
+[backend/tests/p05_resources.py](../backend/tests/p05_resources.py);
 [backend/app/services/job_consumer.py](../backend/app/services/job_consumer.py);
 [backend/app/worker.py](../backend/app/worker.py);
 [backend/app/services/outbox_publisher.py](../backend/app/services/outbox_publisher.py);
@@ -154,9 +159,9 @@ Writers MUST NOT invent live provider access for those cases.
 | --- | --- |
 | Description | Score the 30-scenario matrix. Export reports. Compare against a frozen deterministic reference. |
 | Status | in progress |
-| Next step | Add the clarification scorer, the public-claims scorer, report exports, and deterministic reference comparison. |
+| Next step | Add the clarification scorer, the public-claims scorer, and the reference comparison driver. |
 | Acceptance | Reports name model, prompt hash, catalog version, and evidence class. Fixture-only scores MUST NOT claim model quality. Backend pytest counts live in [wiki/log.md](../wiki/log.md). |
-| Key references | [backend/app/evaluation_telemetry.py](../backend/app/evaluation_telemetry.py); [backend/app/evaluation_rates.py](../backend/app/evaluation_rates.py); [backend/app/evaluation_cost.py](../backend/app/evaluation_cost.py); [backend/app/evaluation_refresh.py](../backend/app/evaluation_refresh.py); [backend/app/evaluation_protocol.py](../backend/app/evaluation_protocol.py); [backend/app/evaluation_model_score.py](../backend/app/evaluation_model_score.py); [backend/app/evaluate.py](../backend/app/evaluate.py); [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md) |
+| Key references | [backend/app/evaluation_telemetry.py](../backend/app/evaluation_telemetry.py); [backend/app/evaluation_rates.py](../backend/app/evaluation_rates.py); [backend/app/evaluation_cost.py](../backend/app/evaluation_cost.py); [backend/app/evaluation_refresh.py](../backend/app/evaluation_refresh.py); [backend/app/evaluation_protocol.py](../backend/app/evaluation_protocol.py); [backend/app/evaluation_model_score.py](../backend/app/evaluation_model_score.py); [backend/app/evaluation_reference.py](../backend/app/evaluation_reference.py); [backend/app/evaluate.py](../backend/app/evaluate.py); [backend/app/evaluation_report.py](../backend/app/evaluation_report.py); [docs/GROCERY_EVALUATION.md](../docs/GROCERY_EVALUATION.md); [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md) |
 | Evidence class | mixed until remaining scorers exist |
 
 Telemetry and dated cost are integrated.
@@ -167,13 +172,38 @@ Full 1881 tests passed at that point.
 Latest counts live in [wiki/log.md](../wiki/log.md).
 
 These scores cover the final plan only.
-Clarification scoring, public-claims scoring, report exports, and remaining quality work stay pending.
+The report core and CLI are complete.
+Explicit `--rates` is integrated at primary branch 57, source `21c7f3d`.
+The CLI reads explicit dated rates.
+It requires the recorded model and region.
+It MUST NOT default, fetch, or guess rates.
+A model or region mismatch fails.
+The CLI accepts only `metrics_status` `unassessed`.
+The CLI MUST NOT certify global quality.
+The current mixed-batch report estimates USD 0.13718265.
+That figure is not billing.
+The old 45/24/21 mixed-run estimate USD 0.13163909 stays separate.
+`observe_reference_case` is complete for F01, F02, F05, X04, and A01.
+The comparison driver remains pending until the coordinator verifies.
+Clarification scoring and public-claims scoring stay pending.
 
-In 24 live observations: 12 final plans passed, 3 A01 cap-argument mismatches, 9 unassessed clarifications.
+Keep live final-plan counts distinct.
+Old mixed run: 12 pass, 3 fail, 9 unassessed clarifications.
+New mixed run at `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`: 11 pass, 4 fail, 9 unassessed clarifications.
+Do not claim that newest full 90-slot batch all passed.
 
-A01 returns a null cap. The request fails the strict argument.
-Server budget and UI keep cap $0.01. The path rejects $34.71.
-Treat A01 as a strict-argument mismatch. Cap $0.01 remains the retained server and UI value.
+Historical pantry-fix retest: three A01 observations failed.
+Explicit cap context is integrated at branch 58, source `44fe333`.
+The path passes the parsed plan cap into model context and the prompt.
+It does not mutate scores or gold.
+It does not silently normalize arguments.
+Bounded live retest 11 all passed: A01 five, F02 three, F05 three.
+Those retests stay separate from the full 90-slot batch.
+They are not a universal quality claim.
+
+A $0.01 server and UI cap still rejects a $34.71 estimate.
+Treat historical A01 failures as a strict-argument mismatch.
+Cap $0.01 remains the retained server and UI value.
 
 ## 8. Browser manual-to-chat path
 
@@ -191,8 +221,8 @@ Treat A01 as a strict-argument mismatch. Cap $0.01 remains the retained server a
 | Field | Value |
 | --- | --- |
 | Description | Align `project-plan.md`, this backlog, and `docs/GROCERY_VERIFICATION_PLAN.md` with resumed grocery work. |
-| Status | in progress |
-| Next step | Keep this backlog current. Reconcile `project-plan.md` and `docs/GROCERY_VERIFICATION_PLAN.md` in later doc assignments. |
+| Status | complete for first-release reconciliation; maintenance ongoing |
+| Next step | Keep this backlog current. Follow [docs/GROCERY_EVALUATION.md](../docs/GROCERY_EVALUATION.md) for commands. |
 | Acceptance | Active grocery direction is at the top of `project-plan.md`. Health phases stay historical. Instacart proof stays deferred. Corpus `requires_model` is 12 true and 18 false, or a stated difference. |
 | Key references | [APP_COMPLETION_BACKLOG.md](APP_COMPLETION_BACKLOG.md); [project-plan.md](../project-plan.md); [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md) |
 | Evidence class | documentation only |
@@ -203,15 +233,16 @@ Treat A01 as a strict-argument mismatch. Cap $0.01 remains the retained server a
 | --- | --- |
 | Description | Run the 30-scenario matrix three times. Freeze model, prompts, and catalog per run. |
 | Status | in progress for mixed slots; pending as a quality benchmark |
-| Next step | Finish remaining scorers in item 7. Then label every slot. Keep the mixed run and the later fixture CLI run as separate counts. |
-| Acceptance | Ninety labeled records are necessary. They are not sufficient for global quality. Global quality also needs full rubric coverage and an evidence class. The current 90 mixed run remains unassessed. This item MUST NOT report quality until those conditions hold. |
-| Key references | [backend/tests/evaluation/scenarios.json](../backend/tests/evaluation/scenarios.json); [backend/app/evaluate.py](../backend/app/evaluate.py); [backend/app/evaluation_batch.py](../backend/app/evaluation_batch.py); [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md); [wiki/log.md](../wiki/log.md) |
-| Evidence class | mixed at `f6f6335`; not a quality benchmark |
+| Next step | Finish remaining scorers in item 7. Then label every slot. Keep mixed runs and the later fixture CLI run as separate counts. |
+| Acceptance | Ninety labeled records are necessary. They are not sufficient for global quality. Global quality also needs full rubric coverage and an evidence class. Mixed 90-slot runs remain unassessed as quality. This item MUST NOT report quality until those conditions hold. |
+| Key references | [backend/tests/evaluation/scenarios.json](../backend/tests/evaluation/scenarios.json); [backend/app/evaluate.py](../backend/app/evaluate.py); [backend/app/evaluation_batch.py](../backend/app/evaluation_batch.py); [docs/GROCERY_EVALUATION.md](../docs/GROCERY_EVALUATION.md); [docs/GROCERY_VERIFICATION_PLAN.md](../docs/GROCERY_VERIFICATION_PLAN.md); [wiki/log.md](../wiki/log.md) |
+| Evidence class | mixed at `f6f6335` and `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`; not a quality benchmark |
 
 Recorded slot counts, kept separate:
 
 - Mixed 90-slot run at `f6f6335`: 45 fixture, 24 real, 21 unassessed.
-- Later fixture CLI: 48 scored, 42 unassessed. P04 controlled 3, all pass.
+- Later fixture CLI: 51 pass, 39 unassessed. P02 batch routing is included.
+- Mixed 90-slot run at `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`: 51 fixture, 24 real, 15 unassessed, 0 execution failed.
 
 ## 11. Live provider observations
 
@@ -251,4 +282,6 @@ Writers MUST separate deterministic, sandbox, live, and deployed evidence.
 Synthetic or sample data MUST NOT become verified retailer, financial, or population claims.
 Fixture scores MUST NOT become a 90-run quality result.
 Deployed AWS evidence is outside the current local MVP.
-`compose.spoonacular.yaml` and `docs/LOCAL_GROCERY_DEMO.md` are known main paths.
+`compose.spoonacular.yaml` and `docs/LOCAL_GROCERY_DEMO.md` are current repository paths.
+The stack is unpublished.
+Graphify refresh and push remain pending until weekly usage remaining reaches 8%.

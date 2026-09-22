@@ -19,18 +19,113 @@ No run stores hidden reasoning, credentials, or raw bank records.
 Deterministic, sandbox, live, and deployed evidence stay in separate classes.
 Retailer, financial, and population claims need matching evidence classes.
 
+Commands live in [GROCERY_EVALUATION.md](GROCERY_EVALUATION.md).
+
+Every estimate MUST show this notice:
+
+> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+
+The catalog supports ten meals.
+A request uses one to three (1-3) meals.
+Each meal uses one to eight (1-8) servings.
+
 ## Current coverage
 
 The matrix has a fixed 90-slot layout of 30 scenarios times three runs.
-Commit `f6f6335` mixed 45 fixture, 24 real, and 21 unassessed observations.
-A later fixture CLI scored 48 rows and left 42 unassessed.
-P04 adds three controlled observations separate from that CLI score.
-The final plan structural scorer records 12 pass results.
-Three A01 observations fail the strict cap argument.
-Nine clarification observations stay unassessed among 24 observations.
-That scorer covers final-turn scope only. Global quality stays unassessed.
+Keep these runs separate.
+
+Commit `f6f633539afec4e38b77c00e830ca0ad9f76b3ca` mixed 45 fixture, 24 real,
+and 21 unassessed observations.
+Final-plan replay on that mixed run: 12 pass, 3 fail (A01 omitted request cap),
+9 clarification unassessed.
+
+A later fixture CLI scored 51 pass and 39 unassessed.
+P02 batch routing is in that fixture CLI.
+P04 remains a controlled protocol guard.
+
+New mixed live batch at
+`18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`:
+
+- 90 slots, 51 fixture, 24 real, 15 unassessed, 0 execution failed
+- Final-plan replay: 11 pass, 4 fail
+- Failures: 3 A01 cap null, and F02 repeat 2 retained black beans after buy-again
+- 9 clarifications unassessed
+- Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
+
+Do not change 15 unassessed to 12.
+P05 evaluator batch routing remains pending.
+
+Historical pantry-fix retest: F02 five and F05 three passed.
+That same retest failed three A01 observations.
+That record remains historical.
+
+Explicit cap context is integrated at branch 58, source `44fe333`.
+The path passes the parsed plan cap into model context and the prompt.
+It does not mutate scores or gold.
+It does not silently normalize arguments.
+Bounded live retest 11 all passed: A01 five, F02 three, F05 three.
+These retests stay separate from the full 90-slot batch.
+The full 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
+These bounded passes are not a universal quality claim.
+
 A $0.01 server and UI cap still rejects a $34.71 estimate.
-Clarification, claim support, report exports, and reference comparison stay pending. See [`evaluation_model_score.py`](../backend/app/evaluation_model_score.py) and [`evaluate.py`](../backend/app/evaluate.py).
+Treat historical A01 failures as a strict-argument mismatch.
+The path does not bypass the user cap.
+
+The final-plan structural scorer covers final-turn scope only.
+Global quality stays unassessed.
+Reports preserve unknown usage.
+
+The report CLI exists.
+It does not call providers.
+It MUST NOT overwrite existing output.
+Start at the repository root.
+Then change into `backend`.
+Use `--revision "$(git rev-parse HEAD)"`.
+Use a new output path such as `../artifacts/evaluation/fixture-20260922.json`.
+Use a different new path for live Bedrock.
+Commands live in [GROCERY_EVALUATION.md](GROCERY_EVALUATION.md).
+A second run of the same command refuses existing files.
+
+Explicit `--rates` is integrated at primary branch 57, source `21c7f3d`.
+The CLI reads explicit dated rates.
+It requires the recorded model and region.
+It MUST NOT default, fetch, or guess rates.
+A model or region mismatch fails.
+The fixture batch records `model_id` and `source_region` as null.
+The first fixture report example MUST omit `--rates`.
+`--rates` on that fixture file MUST fail.
+Run the live Bedrock batch first.
+Then report `../artifacts/evaluation/bedrock-20260922.json` with `--rates`.
+Use the recorded model and region from that live file.
+Those values MUST match the rate file.
+The operator MUST NOT guess model or region.
+The runnable rates file is
+`tests/evaluation/pricing/nova2-lite-use1-20260922.json`.
+The CLI accepts only `metrics_status` `unassessed`.
+The CLI MUST NOT certify global quality.
+The current mixed-batch report estimates USD 0.13718265.
+That figure is not billing.
+The old 45/24/21 mixed-run estimate USD 0.13163909 stays separate.
+
+`observe_reference_case` supports F01, F02, F05, X04, and A01.
+It does not interpret language.
+It does not persist evidence.
+The comparison driver remains pending until the coordinator verifies.
+
+P05 opt-in isolated PostgreSQL and Floci integration is proven on a local
+named Compose project.
+Two SQS deliveries produce one job, one attempt, one handler, and one evidence
+row.
+Owned resources are cleaned.
+That proof is not deployed AWS.
+That proof is not live Instacart.
+See [GROCERY_EVALUATION.md](GROCERY_EVALUATION.md).
+
+Clarification scoring, public-claims scoring, and reference
+comparison stay pending.
+See [`evaluation_model_score.py`](../backend/app/evaluation_model_score.py)
+and [`evaluate.py`](../backend/app/evaluate.py).
 
 ## Scenario matrix
 
