@@ -3193,3 +3193,7 @@ The chat loop now forwards only validated tool-use blocks during tool cycles. It
 ## 2026-09-22 — Reference comparisons in batch reports
 
 Batch slots now include the structured-reference comparison before journal callbacks. Summaries count it separately from fixture, controlled, and final-plan checks. Markdown reports show its final-result scope and exclude language-understanding claims. Missing historical comparisons stay outside scope. Independent review passed. Ruff and format passed after mechanical formatting. Strict mypy passed for 127 source files. The full PostgreSQL suite with P05 enabled passed 2,157 tests, with one existing Starlette warning. A saved-observation replay rendered 15 assessed reference comparisons: 11 passed and four failed, with 75 slots outside scope. This replay did not mutate the saved original batch.
+
+## 2026-09-22 — Typed refusal renderer
+
+Added a bounded JSON refusal renderer with three enum values. It returns fixed public text and rejects extra fields, duplicate keys, malformed JSON, nonfinite values, and oversized input. It does not classify English user text or forward raw model prose. Independent review passed. Ruff and format passed after mechanical formatting. Strict mypy passed for 128 source files. The helper snapshot passed 2,194 PostgreSQL-enabled tests with P05 enabled, including 44 refusal tests. One existing Starlette warning remains. Chat-loop integration remains a separate step.
