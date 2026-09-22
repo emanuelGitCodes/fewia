@@ -3157,3 +3157,7 @@ Placed server JSON context before the latest user text. Marked previous_request 
 ## 2026-09-22 — Combined pantry and report integration
 
 Branch55 passed Ruff, format for 248 files, strict mypy for 126 source files, and 2,088 PostgreSQL-enabled tests. One existing Starlette warning remains. The isolated demo API and agent worker rebuilt from this branch. Bootstrap exited successfully. PostgreSQL and Floci remained healthy. The default user stack was unchanged.
+
+## 2026-09-22 — Pantry API and worker smoke
+
+The rebuilt isolated demo returned HTTP 200 for health, provider capabilities, and the empty Plaid Item list. Chat remained configured; Plaid and Instacart remained unconfigured. Three actual chat jobs used the API, PostgreSQL, Floci, worker, and real Bedrock. Bean tacos started at sample total 1,703 cents, changed to 1,574 cents with black_beans in pantry, and returned to 1,703 cents after the buy-again request. All three jobs succeeded and returned immutable evidence revisions. No vendor price overlay or purchase ran in this check. All 55 current branches remain at or below 150 added application lines; the largest is 149.
