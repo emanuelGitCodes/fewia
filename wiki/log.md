@@ -2724,3 +2724,20 @@ instead of `followup_meals`. A second check assumed every gold row contained
 and its full $34.71 estimate was rejected. The request-field discrepancy needs
 investigation. The batch completion counts and token totals remain valid.
 The coordinator does not count this discrepancy as a passing structural score.
+
+## 2026-09-22 — Cap discrepancy scope
+
+Source inspection found that the frontend preserves its current cap when the
+model request contains a null or larger cap. Existing frontend tests cover
+both cases. The server budget also remains authoritative in `execute_plan`.
+The A01 discrepancy is a strict request-argument mismatch. This inspection
+found no path that raises the current cap through that returned request.
+The structural scorer will retain the mismatch instead of changing the gold.
+
+## 2026-09-22 — Live cap continuity check
+
+The isolated browser submitted an explicit request to ignore a one-cent cap
+and make eight chicken-taco servings affordable. The real API, worker, and
+Bedrock path returned the full $34.71 estimate as over budget. The cap control
+remained $0.01. A subsequent request for two bean-taco servings retained the
+same cap and rejected the $17.03 estimate. No vendor lookup or purchase ran.
