@@ -3109,3 +3109,7 @@ and 75 slots outside final-plan scoring. The report makes no global quality clai
 Ruff passed. Formatting passed 234 files. Strict mypy passed 120 source files.
 All 1,924 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 Execution, fixture, controlled, and final-plan counts remain separate.
+
+## 2026-09-22 — Evaluation report value validation
+
+Added strict count, latency, revision, and display-label validation for evaluation reports. Invalid values return one static error. Unknown values remain distinct from zero. Independent coordinator review passed. Ruff and format passed. Strict mypy passed for 120 source files. PostgreSQL-enabled pytest passed: 1,933 tests, one existing Starlette warning.
