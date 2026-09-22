@@ -2558,3 +2558,23 @@ The combined batch, callback, and catalog-conflict layers passed all backend
 gates against isolated PostgreSQL. Ruff passed. Formatting passed 202 files.
 Strict mypy passed 104 source files. All 1,671 tests passed, with one existing
 Starlette warning. Public-answer grounding remains a separate work item.
+
+## 2026-09-22 — Evaluation telemetry coverage
+
+Added slot-level latency and token summaries. Latency uses nearest-rank p50 and
+p95 over complete measured slot timings. Token reports separate the known
+subset from overall totals. Missing, partial, or malformed usage remains
+unknown. Fixture-only data does not imply measured zero usage.
+
+Grok 4.6 medium wrote the layer. A separate Grok 4.6 medium source review found
+no producer-contract blockers, with confidence 8/10. Grok low repaired strict
+typing and hardened malformed observation status. Codex inspected the repair
+and ran all backend gates. Ruff and formatting passed. Strict mypy passed
+104 source files. All 1,654 tests passed against isolated PostgreSQL, with one
+existing Starlette warning. A long test signature needed mechanical formatting.
+
+Replaying the 24 recorded Bedrock observations matched an independent summary:
+23 slots had known usage; one remained unknown. The known subset contained
+177,422 input tokens and 45,801 output tokens. Overall token totals remained
+null. Measured p50 was 7.85 seconds; p95 was 54.60 seconds. These measurements
+do not establish model quality, a complete 90-run result, or provider readiness.
