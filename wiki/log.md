@@ -3027,3 +3027,12 @@ tests passed. Ruff passed, formatting passed 228 files, and strict mypy passed
 Ruff passed. Formatting passed 232 files. Strict mypy passed 119 source files.
 All 1,905 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The batch keeps execution status separate from final-plan assessment status.
+
+## 2026-09-22 — Grocery verification scope alignment
+
+Grok 4.6 medium aligned the verification plan with the current local scope.
+Instacart development proof stays deferred. The matrix now matches all 30
+corpus flags: 12 model-required cases and 18 cases without that requirement.
+P01 and P02 were incorrectly marked as model-required in the prior table.
+The coordinator checked every flag and all relative links. The coverage record
+separates the mixed batch, later fixture batch, and final-plan scoring subset.

@@ -3,13 +3,34 @@
 ## Evidence boundaries
 
 Local deterministic checks prove application behavior under controlled inputs.
-They do not prove model interpretation or provider availability. Release needs
-separate Bedrock, Plaid Sandbox, and Instacart development observations.
+They do not prove model interpretation or provider availability.
+
+Real Bedrock is observed.
+Plaid Sandbox evidence stays pending credentials.
+Instacart development proof is deferred per [0010](../wiki/decisions/0010-usda-spoonacular-overlay.md).
+A Spoonacular request proves live HTTP 200 and no-store only.
+That Spoonacular proof stays separate from grocery evidence.
 
 Each run records the model, prompt hash, catalog version, input snapshot,
 ordered tool revisions, public answer, latency, and token usage. Missing usage
 stays unknown. Estimated cost needs a dated price source and model identifier.
 No run stores hidden reasoning, credentials, or raw bank records.
+
+Deterministic, sandbox, live, and deployed evidence stay in separate classes.
+Retailer, financial, and population claims need matching evidence classes.
+
+## Current coverage
+
+The matrix has a fixed 90-slot layout of 30 scenarios times three runs.
+Commit `f6f6335` mixed 45 fixture, 24 real, and 21 unassessed observations.
+A later fixture CLI scored 48 rows and left 42 unassessed.
+P04 adds three controlled observations separate from that CLI score.
+The final plan structural scorer records 12 pass results.
+Three A01 observations fail the strict cap argument.
+Nine clarification observations stay unassessed among 24 observations.
+That scorer covers final-turn scope only. Global quality stays unassessed.
+A $0.01 server and UI cap still rejects a $34.71 estimate.
+Clarification, claim support, report exports, and reference comparison stay pending. See [`evaluation_model_score.py`](../backend/app/evaluation_model_score.py) and [`evaluate.py`](../backend/app/evaluate.py).
 
 ## Scenario matrix
 
@@ -40,8 +61,8 @@ Fixture scripts can verify their deterministic guards and failure paths.
 | X02 | Unsupported salmon tacos | Offer supported meals without inventing a recipe | Yes |
 | X03 | Unknown pantry item or restriction | Request clarification | Yes |
 | X04 | Eight chicken-taco servings under one cent | Explain the limit without silently reducing the request | Yes |
-| P01 | Plaid refresh failure with stale spending | Require refresh or an explicit temporary cap | Yes |
-| P02 | Instacart timeout after simulated acceptance | Show uncertainty; prevent automatic duplicate writes | Yes |
+| P01 | Plaid refresh failure with stale spending | Require refresh or an explicit temporary cap | No |
+| P02 | Instacart timeout after simulated acceptance | Show uncertainty; prevent automatic duplicate writes | No |
 | P03 | Bedrock unavailable | Return a bounded failure without a fabricated answer | No |
 | P04 | Malformed or unsupported tool call | Enforce eight model turns and three planner revisions | Yes |
 | P05 | Duplicate SQS delivery | Preserve one durable completion and safe external state | No |
