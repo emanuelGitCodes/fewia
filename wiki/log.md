@@ -2856,3 +2856,9 @@ explicit rate configuration. The earlier 24-observation batch yields a text
 input/output token estimate of $0.13163909. A separate Decimal calculation
 matched. This excludes cache, other charges, and account adjustments. It is
 not an AWS invoice or observed billing.
+
+## 2026-09-22 — Cost estimator integration gates
+
+Ruff passed. Formatting passed 222 files. Strict mypy passed 114 source files.
+All 1,827 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The estimator preserves unknown totals and the explicit dated-rate boundary.
