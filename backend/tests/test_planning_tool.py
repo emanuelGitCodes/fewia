@@ -18,6 +18,7 @@ from app.agent.planning_tool import (
     PlanningToolError,
     execute_plan,
     planner_tool_spec,
+    tool_error_body,
 )
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS
@@ -29,6 +30,7 @@ from app.domain.grocery import (
 )
 from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
 from app.providers.spoonacular import SpoonacularUnavailable
+from app.services.grocery_planner import PlanEstimate, PlanningError
 from app.services.meal_nutrition import (
     NOTICE,
     PORTION_NOTICE,
@@ -508,3 +510,115 @@ def test_unavailable_overlay_is_none_and_keeps_accepted() -> None:
     assert isinstance(failed_plan, dict)
     assert estimate["total_cents"] is None
     assert failed_plan["accepted"] == without_plan["accepted"]
+
+
+def test_vegan_breakfast_burritos_raises_static_diet_conflict() -> None:
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(
+            arguments(
+                meals=[{"recipe_id": "breakfast_burritos", "servings": 1}],
+                diet="vegan",
+            ),
+            budget(),
+            PERIOD,
+        )
+    error = caught.value
+    assert str(error) == "catalog constraint is invalid"
+    _assert_static(error, "eggs")
+    assert error.code == "diet_conflict"
+    assert error.ingredient_id == "eggs"
+    assert tool_error_body(error) == {
+        "error": "diet_conflict",
+        "ingredient_id": "eggs",
+    }
+
+
+def test_excluded_pantry_chicken_raises_static_exclusion_conflict() -> None:
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(
+            arguments(
+                pantry_ingredients=["chicken_breast"],
+                ingredient_exclusions=["chicken_breast"],
+            ),
+            budget(),
+            PERIOD,
+        )
+    error = caught.value
+    assert str(error) == "catalog constraint is invalid"
+    _assert_static(error, "chicken_breast")
+    assert error.code == "exclusion_conflict"
+    assert error.ingredient_id == "chicken_breast"
+    assert tool_error_body(error) == {
+        "error": "exclusion_conflict",
+        "ingredient_id": "chicken_breast",
+    }
+
+
+def test_unknown_pantry_stays_generic_catalog_constraint() -> None:
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(pantry_ingredients=["not_in_catalog"]), budget(), PERIOD)
+    error = caught.value
+    assert str(error) == "catalog constraint is invalid"
+    _assert_static(error, "not_in_catalog")
+    assert error.code is None
+    assert error.ingredient_id is None
+    assert tool_error_body(error) == {"error": "arguments are invalid"}
+
+
+def test_planning_tool_error_string_constructor_stays_compatible() -> None:
+    error = PlanningToolError("arguments are invalid")
+    assert str(error) == "arguments are invalid"
+    assert error.code is None
+    assert error.ingredient_id is None
+    assert tool_error_body(error) == {"error": "arguments are invalid"}
+
+
+def test_planning_error_message_is_not_parsed_into_conflict() -> None:
+    def boom(*_args: object, **_kwargs: object) -> PlanEstimate:
+        raise PlanningError("ingredient conflicts with diet: eggs")
+
+    with patch("app.agent.planning_tool.plan_groceries", boom):
+        with pytest.raises(PlanningToolError) as caught:
+            execute_plan(arguments(), budget(), PERIOD)
+    error = caught.value
+    assert str(error) == "catalog constraint is invalid"
+    _assert_static(error, "eggs")
+    assert error.code is None
+    assert error.ingredient_id is None
+    assert tool_error_body(error) == {"error": "arguments are invalid"}
+
+
+def test_malicious_tool_error_metadata_is_generic() -> None:
+    unknown_code = PlanningToolError(
+        "catalog constraint is invalid",
+        code="leak",
+        ingredient_id="eggs",
+    )
+    unknown_id = PlanningToolError(
+        "catalog constraint is invalid",
+        code="diet_conflict",
+        ingredient_id="not_in_catalog",
+    )
+    assert tool_error_body(unknown_code) == {"error": "arguments are invalid"}
+    assert tool_error_body(unknown_id) == {"error": "arguments are invalid"}
+    dumped = json.dumps([tool_error_body(unknown_code), tool_error_body(unknown_id)])
+    assert "diet_conflict" not in dumped
+    assert "eggs" not in dumped
+    assert "not_in_catalog" not in dumped
+    assert "leak" not in dumped
+
+
+def test_vegan_overnight_oats_execute_plan_is_unchanged() -> None:
+    result = execute_plan(
+        arguments(
+            meals=[{"recipe_id": "overnight_oats", "servings": 2}],
+            diet="vegan",
+        ),
+        budget(),
+        PERIOD,
+    )
+    plan = result["plan"]
+    assert isinstance(plan, dict)
+    assert plan["accepted"] is True
+    assert "error" not in result
+    assert "ingredient_id" not in result

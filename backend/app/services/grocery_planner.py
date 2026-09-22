@@ -5,9 +5,37 @@ from app.domain.budget import BudgetResult
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES, Ingredient, Recipe
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 
+SAFE_CONFLICT_CODES: frozenset[str] = frozenset({"diet_conflict", "exclusion_conflict"})
+
 
 class PlanningError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        ingredient_id: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.ingredient_id = ingredient_id
+
+
+def safe_conflict(
+    code: object,
+    ingredient_id: object,
+    *,
+    ingredients: Mapping[str, Ingredient] = INGREDIENTS,
+) -> dict[str, str] | None:
+    """Return allowlisted conflict fields. Unknown codes and IDs MUST return None."""
+    if (
+        isinstance(code, str)
+        and code in SAFE_CONFLICT_CODES
+        and isinstance(ingredient_id, str)
+        and ingredient_id in ingredients
+    ):
+        return {"error": code, "ingredient_id": ingredient_id}
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,11 +103,19 @@ def plan_groceries(
                 raise PlanningError(f"ingredient quantity is invalid: {ingredient_id}")
             ingredient = ingredients[ingredient_id]
             if ingredient_id in exclusions:
-                raise PlanningError(f"ingredient is excluded: {ingredient_id}")
+                raise PlanningError(
+                    f"ingredient is excluded: {ingredient_id}",
+                    code="exclusion_conflict",
+                    ingredient_id=ingredient_id,
+                )
             if (request.diet == "vegetarian" and not ingredient.vegetarian) or (
                 request.diet == "vegan" and not ingredient.vegan
             ):
-                raise PlanningError(f"ingredient conflicts with diet: {ingredient_id}")
+                raise PlanningError(
+                    f"ingredient conflicts with diet: {ingredient_id}",
+                    code="diet_conflict",
+                    ingredient_id=ingredient_id,
+                )
             quantities[ingredient_id] = quantities.get(ingredient_id, 0) + (
                 per_serving_quantity * meal.servings
             )

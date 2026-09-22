@@ -18,7 +18,12 @@ from app.agent.chat_loop import (
     run_chat,
 )
 from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError
-from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
+from app.agent.planning_tool import (
+    TOOL_NAME,
+    PlanningToolError,
+    execute_plan,
+    planner_tool_spec,
+)
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
@@ -1008,3 +1013,152 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
     assert incomplete["plan"] is None
     assert incomplete["evidence_id"] is None
     assert incomplete["evidence_revision_id"] is None
+
+
+def _followup_tool_json(provider: FakeLLM) -> dict[str, object]:
+    assert len(provider.requests) >= 2
+    messages = provider.requests[1]["messages"]
+    assert isinstance(messages, list)
+    tool_user = messages[-1]
+    assert isinstance(tool_user, dict)
+    content = tool_user["content"]
+    assert isinstance(content, list)
+    first = content[0]
+    assert isinstance(first, dict)
+    result = first["toolResult"]
+    assert isinstance(result, dict)
+    blocks = result["content"]
+    assert isinstance(blocks, list)
+    body = blocks[0]
+    assert isinstance(body, dict)
+    json_body = body["json"]
+    assert isinstance(json_body, dict)
+    return json_body
+
+
+def test_vegan_breakfast_burritos_tool_result_reaches_provider() -> None:
+    payload = plan_args(
+        meals=[{"recipe_id": "breakfast_burritos", "servings": 1}],
+        diet="vegan",
+    )
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("vegan-1", payload=payload)], "tool_use"),
+        _reply([_text_block("That recipe includes eggs.")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["tool_trace"] == [_error_trace(TOOL_NAME, "vegan-1")]
+    json_body = _followup_tool_json(provider)
+    assert json_body == {"error": "diet_conflict", "ingredient_id": "eggs"}
+    dumped = json.dumps({"result": result, "requests": provider.requests})
+    assert "reasoningContent" not in dumped
+    assert _SECRET not in dumped
+    assert "breakfast_burritos" not in json.dumps(result["tool_trace"])
+
+
+def test_excluded_pantry_chicken_reaches_provider_as_exclusion() -> None:
+    payload = plan_args(
+        pantry_ingredients=["chicken_breast"],
+        ingredient_exclusions=["chicken_breast"],
+    )
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("ex-1", payload=payload)], "tool_use"),
+        _reply([_text_block("chicken_breast stays excluded.")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    json_body = _followup_tool_json(provider)
+    assert json_body == {
+        "error": "exclusion_conflict",
+        "ingredient_id": "chicken_breast",
+    }
+    assert result["tool_trace"][0]["outcome"] == "error"
+    dumped = json.dumps(result["tool_trace"])
+    assert "chicken_breast" not in dumped
+    assert "from_pantry" not in dumped
+
+
+def test_invalid_and_unknown_pantry_stay_generic_in_chat() -> None:
+    invalid = plan_args(meals=[{"recipe_id": "chicken_tacos", "servings": 9}])
+    unknown = plan_args(pantry_ingredients=["not_in_catalog"])
+    for payload, tool_id in ((invalid, "bad-args"), (unknown, "bad-pantry")):
+        replies: list[dict[str, object] | BaseException] = [
+            _reply([_tool_block(tool_id, payload=payload)], "tool_use"),
+            _reply([_text_block("I need a supported request.")], "end_turn"),
+        ]
+        result, provider = _run(replies)
+        json_body = _followup_tool_json(provider)
+        assert json_body == {"error": "arguments are invalid"}
+        dumped = json.dumps({"result": result, "body": json_body})
+        assert "diet_conflict" not in dumped
+        assert "exclusion_conflict" not in dumped
+        assert "not_in_catalog" not in dumped
+        assert result["tool_trace"][0]["outcome"] == "error"
+        assert result["plan"] is None
+
+
+def test_malicious_exception_metadata_stays_generic_in_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_execute(
+        _arguments: object,
+        _budget: BudgetResult,
+        _period: date,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        error = PlanningToolError(
+            "catalog constraint is invalid",
+            code="leak",
+            ingredient_id="eggs",
+        )
+        error.secret = _SECRET  # type: ignore[attr-defined]
+        raise error
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("evil-1")], "tool_use"),
+        _reply([_text_block("I cannot complete that plan.")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    json_body = _followup_tool_json(provider)
+    assert json_body == {"error": "arguments are invalid"}
+    dumped = json.dumps({"result": result, "requests": provider.requests})
+    assert _SECRET not in dumped
+    assert "diet_conflict" not in dumped
+    assert "leak" not in dumped
+    assert result["tool_trace"][0]["outcome"] == "error"
+    assert result["plan"] is None
+
+
+def test_accepted_plan_chat_payload_has_no_conflict_error() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    result, provider = _run(_planner_then_final())
+    assert result["status"] == "planned"
+    assert result["plan"] == expected["plan"]
+    json_body = _followup_tool_json(provider)
+    assert "error" not in json_body
+    assert json_body["plan"] == expected["plan"]
+    assert result["tool_trace"][0]["outcome"] == "success"
+
+
+def test_system_prompt_requires_clarification_before_unknown_restriction() -> None:
+    assert "Catalog recipe ingredients are fixed." in SYSTEM_PROMPT
+    assert "BEFORE a tool call" in SYSTEM_PROMPT
+    assert "unsupported restriction" in SYSTEM_PROMPT
+    assert "alternative recipe" in SYSTEM_PROMPT
+    assert "You MUST NOT invent ingredients." in SYSTEM_PROMPT
+    assert (
+        "You MUST NOT silently remove conflicting ingredients or diet." in SYSTEM_PROMPT
+    )
+    assert "Call that tool for a supported concrete plan." in SYSTEM_PROMPT
+
+
+def test_system_prompt_states_pantry_credit_removal_is_not_purchase() -> None:
+    assert "pantry credit" in SYSTEM_PROMPT
+    assert "previous_request" in SYSTEM_PROMPT
+    assert "not a purchase or checkout" in SYSTEM_PROMPT
+    assert "MUST NOT silently restore the old pantry list" in SYSTEM_PROMPT
+    assert "MUST NOT purchase" in SYSTEM_PROMPT

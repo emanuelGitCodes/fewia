@@ -2529,3 +2529,25 @@ The integrated callback layer passed all backend gates against isolated
 PostgreSQL: Ruff passed, 202 files passed formatting, strict mypy passed
 104 source files, and 1,647 tests passed. One existing Starlette warning
 remains. The callback tests include failure propagation and exactly 90 events.
+
+## 2026-09-22 — Catalog conflict evidence in chat
+
+Planner diet and exclusion errors now carry an allowlisted conflict code and
+catalog ingredient ID. Chat receives the actual conflict instead of a generic
+argument error. Other errors remain generic. The prompt separates pantry
+credit changes from purchases and asks for unknown-restriction clarification.
+
+Grok 4.6 medium wrote the change. A separate Grok 4.6 medium source review found
+no deterministic-contract blockers. Contract confidence was 8/10; live scenario
+closure remained unverified by that reviewer. The coordinator passed Ruff,
+formatting, strict mypy, and 1,660 PostgreSQL-enabled tests. Four formatting
+issues were corrected before the final checks. One existing Starlette warning
+remains.
+
+The coordinator repeated F02, F04, and X03 three times with Nova 2 Lite through
+the real Bedrock provider. All F02 final plans removed pantry credit and cost
+1,703 sample cents. All F04 final turns requested clarification about eggs.
+All X03 final turns requested clarification without a plan. These are direct
+chat-loop observations, not HTTP or database evidence. Some public replies
+still guessed item prices, unsupported substitutions, or ingredient groups.
+Those answer-grounding defects remain open. No model-quality target is claimed.

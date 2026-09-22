@@ -11,7 +11,12 @@ from pydantic import ValidationError
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
-from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
+from app.services.grocery_planner import (
+    PlanEstimate,
+    PlanningError,
+    plan_groceries,
+    safe_conflict,
+)
 from app.services.meal_nutrition import meal_nutrition
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
@@ -25,6 +30,31 @@ _VALID_SOURCES: frozenset[str] = frozenset({"fixture", "plaid_sandbox"})
 
 class PlanningToolError(ValueError):
     """A planning-tool failure with a static message and no raw input."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        ingredient_id: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.ingredient_id = ingredient_id
+
+
+def tool_error_body(error: PlanningToolError) -> dict[str, object]:
+    conflict = safe_conflict(
+        getattr(error, "code", None),
+        getattr(error, "ingredient_id", None),
+    )
+    if conflict is None:
+        return {"error": "arguments are invalid"}
+    body: dict[str, object] = {
+        "error": conflict["error"],
+        "ingredient_id": conflict["ingredient_id"],
+    }
+    return body
 
 
 def _object_map(value: object) -> dict[str, object]:
@@ -102,12 +132,23 @@ def execute_plan(
         budget.warnings,
     )
     plan: PlanEstimate | None
+    conflict: dict[str, str] | None = None
     try:
         plan = plan_groceries(request, planning_budget)
-    except PlanningError:
+    except PlanningError as error:
         plan = None
+        conflict = safe_conflict(
+            getattr(error, "code", None),
+            getattr(error, "ingredient_id", None),
+        )
     if plan is None:
-        raise PlanningToolError("catalog constraint is invalid")
+        if conflict is None:
+            raise PlanningToolError("catalog constraint is invalid")
+        raise PlanningToolError(
+            "catalog constraint is invalid",
+            code=conflict["error"],
+            ingredient_id=conflict["ingredient_id"],
+        )
     request_payload: object = request.model_dump(mode="json")
     plan_payload: object = json.loads(json.dumps(asdict(plan), allow_nan=False))
     nutrition_payload: object = json.loads(

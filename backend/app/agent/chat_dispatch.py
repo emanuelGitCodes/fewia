@@ -3,7 +3,12 @@ from datetime import date
 from typing import Literal
 
 from app.agent import chat_messages as msgs
-from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.planning_tool import (
+    TOOL_NAME,
+    PlanningToolError,
+    execute_plan,
+    tool_error_body,
+)
 from app.domain.budget import BudgetResult
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
@@ -104,12 +109,14 @@ def dispatch(
         return None, msgs.tool_result_block(
             call.tool_use_id, {"error": "unsupported tool"}, success=False
         )
+    error_body: dict[str, object] = {"error": "arguments are invalid"}
     try:
         payload: dict[str, object] | None = execute_plan(
             call.tool_input, budget, period, user_id=user_id, spending_source=source
         )
-    except PlanningToolError:
+    except PlanningToolError as error:
         payload = None
+        error_body = tool_error_body(error)
     if payload is None:
         trace.append(
             _entry(
@@ -120,9 +127,7 @@ def dispatch(
                 revision_index=_revision_index(trace),
             )
         )
-        return None, msgs.tool_result_block(
-            call.tool_use_id, {"error": "arguments are invalid"}, success=False
-        )
+        return None, msgs.tool_result_block(call.tool_use_id, error_body, success=False)
     if record_evidence is not None:
         revision = record_evidence(payload)
         if not _is_revision_id(revision):

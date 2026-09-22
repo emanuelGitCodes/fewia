@@ -13,6 +13,7 @@ from app.services.grocery_planner import (
     PlanningError,
     ShoppingLine,
     plan_groceries,
+    safe_conflict,
 )
 
 
@@ -206,3 +207,69 @@ def test_estimate_records_are_immutable_and_versioned() -> None:
 def test_available_budget_requires_a_nonnegative_integer(available: object) -> None:
     with pytest.raises((TypeError, ValueError)):
         plan_groceries(request(), BudgetResult(available, 0, False, ()))  # type: ignore[arg-type]
+
+
+def test_vegan_breakfast_burritos_raises_diet_conflict_for_eggs() -> None:
+    with pytest.raises(PlanningError) as caught:
+        plan_groceries(
+            request(
+                meals=[{"recipe_id": "breakfast_burritos", "servings": 1}],
+                diet="vegan",
+            ),
+            budget(),
+        )
+    error = caught.value
+    assert str(error) == "ingredient conflicts with diet: eggs"
+    assert error.code == "diet_conflict"
+    assert error.ingredient_id == "eggs"
+    assert safe_conflict(error.code, error.ingredient_id) == {
+        "error": "diet_conflict",
+        "ingredient_id": "eggs",
+    }
+
+
+def test_excluded_pantry_chicken_raises_exclusion_conflict() -> None:
+    with pytest.raises(PlanningError) as caught:
+        plan_groceries(
+            request(
+                pantry_ingredients=["chicken_breast"],
+                ingredient_exclusions=["chicken_breast"],
+            ),
+            budget(),
+        )
+    error = caught.value
+    assert str(error) == "ingredient is excluded: chicken_breast"
+    assert error.code == "exclusion_conflict"
+    assert error.ingredient_id == "chicken_breast"
+    assert safe_conflict(error.code, error.ingredient_id) == {
+        "error": "exclusion_conflict",
+        "ingredient_id": "chicken_breast",
+    }
+
+
+def test_planning_error_string_constructor_has_no_conflict() -> None:
+    error = PlanningError("ingredient conflicts with diet: eggs")
+    assert str(error) == "ingredient conflicts with diet: eggs"
+    assert error.code is None
+    assert error.ingredient_id is None
+    assert safe_conflict(error.code, error.ingredient_id) is None
+
+
+def test_safe_conflict_rejects_unknown_codes_and_ids() -> None:
+    assert safe_conflict("diet_conflict", "not_in_catalog") is None
+    assert safe_conflict("secret_leak", "eggs") is None
+    assert safe_conflict("diet_conflict", None) is None
+    assert safe_conflict({"error": "diet_conflict"}, "eggs") is None
+
+
+def test_vegan_overnight_oats_plan_is_accepted() -> None:
+    result = plan_groceries(
+        request(
+            meals=[{"recipe_id": "overnight_oats", "servings": 2}],
+            diet="vegan",
+        ),
+        budget(),
+    )
+    assert result.accepted is True
+    assert result.total_cents is not None
+    assert all(line.ingredient_id != "eggs" for line in result.lines)
