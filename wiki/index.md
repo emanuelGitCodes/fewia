@@ -30,6 +30,12 @@ chronological record lives in [log.md](log.md).
 
 The grocery completion record is the current product record. The 2026-09-08 MVP checkpoint is historical. Phases 0 through 3 remain historical.
 
+## Current grocery completion
+
+- [Grocery completion review stack](../plans/APP_COMPLETION_STACK.md)
+- [Grocery evaluation guide](../docs/GROCERY_EVALUATION.md)
+- [Evidence classes README](../docs/evidence/README.md)
+
 ## Development operations
 
 - [Development writer supervisor](../docs/DEV_SUPERVISOR.md)

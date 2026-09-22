@@ -20,6 +20,7 @@ Deterministic, sandbox, live, and deployed evidence stay in separate classes.
 Retailer, financial, and population claims need matching evidence classes.
 
 Commands live in [GROCERY_EVALUATION.md](GROCERY_EVALUATION.md).
+Saved artifact rules live in [evidence/README.md](evidence/README.md).
 
 Every estimate MUST show this notice:
 
@@ -29,10 +30,19 @@ The catalog supports ten meals.
 A request uses one to three (1-3) meals.
 Each meal uses one to eight (1-8) servings.
 
+New feature work stopped for this run at 2026-09-22 09:15:18 UTC.
+Review the stack in [plans/APP_COMPLETION_STACK.md](../plans/APP_COMPLETION_STACK.md).
+Review the [open pull requests](https://github.com/emanuelGitCodes/fewia/pulls).
+Agents MUST NOT merge.
+Agents MUST NOT push to `main`.
+The results above are local. Check the linked pull requests for remote CI and publication status.
+Graphify outputs are checkout-local and gitignored. Consult graphify-out/GRAPH_REPORT.md and health.json for coverage and integrity diagnostics.
+
 ## Current coverage
 
 The matrix has a fixed 90-slot layout of 30 scenarios times three runs.
 Keep these runs separate.
+The real-model observer covers ten cases: F01, F02, F04, F05, X02, X03, X04, A01, A03, and A04.
 
 Commit `f6f633539afec4e38b77c00e830ca0ad9f76b3ca` mixed 45 fixture, 24 real,
 and 21 unassessed observations.
@@ -52,7 +62,28 @@ New mixed live batch at
 - 9 clarifications unassessed
 - Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
 
-Do not change 15 unassessed to 12.
+This 11-pass and 4-fail mixed run remains preserved. It stays distinct from the final run.
+
+Final mixed live batch at
+`a473bb1a6b7691a479365f9061daedfac792ce46`:
+
+- 90 slots, 51 fixture pass, 30 real completed, 9 unassessed, 0 execution failed
+- All 15 final-plan structural checks pass
+- All 15 reference comparisons pass
+- Six A03/A04 refusal observations matched fixed public text with no tools
+- Those refusal checks are separate from a global quality score
+- P04 has three controlled passes and stays unassessed as a model target
+- P05 local PostgreSQL and Floci proof is complete
+- P05 evaluator batch routing stays unassessed
+- A02 real provider-text injection stays pending
+- Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
+- 30 known usage slots and 0 unknown slots
+- Tokens: 195,499 in, 40,205 out
+- Latency nearest-rank on summed user-turn durations: p50 8.53608062598505s, p95 16.49669574998552s
+- Dated token estimate USD 0.17507842. This figure is not a bill
+- Saved paths: [evidence/grocery-evaluation-2026-09-22.json](evidence/grocery-evaluation-2026-09-22.json) and [evidence/grocery-evaluation-2026-09-22.md](evidence/grocery-evaluation-2026-09-22.md)
+
+Do not change remaining unassessed slots without a labeled run.
 P05 evaluator batch routing remains pending.
 
 Historical pantry-fix retest: F02 five and F05 three passed.
@@ -64,8 +95,8 @@ The path passes the parsed plan cap into model context and the prompt.
 It does not mutate scores or gold.
 It does not silently normalize arguments.
 Bounded live retest 11 all passed: A01 five, F02 three, F05 three.
-These retests stay separate from the full 90-slot batch.
-The full 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
+These retests stay separate from the full 90-slot batches.
+The mixed 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
 These bounded passes are not a universal quality claim.
 
 A $0.01 server and UI cap still rejects a $34.71 estimate.
@@ -73,6 +104,8 @@ Treat historical A01 failures as a strict-argument mismatch.
 The path does not bypass the user cap.
 
 The final-plan structural scorer covers final-turn scope only.
+The structured-reference comparison covers the final result only.
+It MUST NOT claim a language baseline.
 Global quality stays unassessed.
 Reports preserve unknown usage.
 
@@ -86,6 +119,12 @@ Use a new output path such as `../artifacts/evaluation/fixture-20260922.json`.
 Use a different new path for live Bedrock.
 Commands live in [GROCERY_EVALUATION.md](GROCERY_EVALUATION.md).
 A second run of the same command refuses existing files.
+
+To rerender the saved final batch, use
+`--input ../docs/evidence/grocery-evaluation-2026-09-22.json`.
+Use a new `--output` path.
+Use `--rates tests/evaluation/pricing/nova2-lite-use1-20260922.json`.
+The operator MUST NOT overwrite the saved JSON or Markdown.
 
 Explicit `--rates` is integrated at primary branch 57, source `21c7f3d`.
 The CLI reads explicit dated rates.
@@ -104,14 +143,17 @@ The runnable rates file is
 `tests/evaluation/pricing/nova2-lite-use1-20260922.json`.
 The CLI accepts only `metrics_status` `unassessed`.
 The CLI MUST NOT certify global quality.
-The current mixed-batch report estimates USD 0.13718265.
-That figure is not billing.
-The old 45/24/21 mixed-run estimate USD 0.13163909 stays separate.
+
+Keep dated token estimates separate. They are not bills.
+
+- Old 45/24/21 mixed-run estimate: USD 0.13163909.
+- Mixed run at `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`: USD 0.13718265.
+- Final mixed run at `a473bb1a6b7691a479365f9061daedfac792ce46`: USD 0.17507842.
 
 `observe_reference_case` supports F01, F02, F05, X04, and A01.
 It does not interpret language.
 It does not persist evidence.
-The comparison driver remains pending until the coordinator verifies.
+The comparison, batch row, and report row are complete for the final result only.
 
 P05 opt-in isolated PostgreSQL and Floci integration is proven on a local
 named Compose project.
@@ -122,8 +164,8 @@ That proof is not deployed AWS.
 That proof is not live Instacart.
 See [GROCERY_EVALUATION.md](GROCERY_EVALUATION.md).
 
-Clarification scoring, public-claims scoring, and reference
-comparison stay pending.
+Clarification scoring and public-claims scoring stay pending.
+The comprehensive synthetic secret-boundary audit stays pending.
 See [`evaluation_model_score.py`](../backend/app/evaluation_model_score.py)
 and [`evaluate.py`](../backend/app/evaluate.py).
 
@@ -179,3 +221,40 @@ Browser checks cover desktop and mobile, keyboard focus, loading and failures,
 submission, polling, retry, pantry revisions, source labels, and handoff consent.
 The final design review compares the rendered UI with the recorded concept.
 Actual catalog output takes precedence over the concept's illustrative amounts.
+
+Primary branch 65 local gates:
+
+- PostgreSQL-enabled tests: 2,219, including opt-in P05
+- Ruff and format: 257 files
+- Strict mypy: 128 source files
+- Frontend tests: 413 with a production build
+- Six desktop and mobile journeys
+- Supervisor tests: 52
+- Helper tests: 10
+- CDK tests: 14
+
+The results above are local. Check the linked pull requests for remote CI and publication status.
+
+An actual browser check showed a credential-and-raw-bank-record refusal.
+Send stayed enabled.
+No purchase button appeared.
+At 390px the refusal stayed visible.
+The page had no horizontal overflow.
+The provider error was gone.
+Two initial 502 console entries remain historical from before the proxy fix.
+A forced API address change recovered the proxy in 2.67 seconds.
+The web container stayed unchanged.
+This plan does not claim zero downtime.
+
+Pending items:
+
+- Clarification scorer
+- Public-claims scorer
+- Comprehensive synthetic secret-boundary audit
+- A02 real provider-text injection
+- P05 evaluator batch routing
+- P04 as a model target
+- Plaid Sandbox live proof after credentials exist outside source
+
+Instacart stays parked per [0010](../wiki/decisions/0010-usda-spoonacular-overlay.md).
+Deployed AWS evidence stays outside this local MVP.

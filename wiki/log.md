@@ -3217,3 +3217,49 @@ A full 90-slot run at a473bb1a6b7691a479365f9061daedfac792ce46 produced 51 passi
 ## 2026-09-22 — Browser refusal and release checks
 
 The rendered isolated app recovered through its catalog and provider retry controls after the proxy fix. A real browser chat request for credentials and raw bank records displayed the fixed refusal. Send remained enabled and no purchase button appeared. At 390-pixel width, the refusal remained visible, provider errors were absent, and the page had no horizontal overflow. The browser console retains the two original 502 entries from before the fix; no new entries appeared during the successful check. Git diff whitespace checks passed, and the integration branch descends from the fetched main. All 65 review branches remain within the 150-added-application-line cap.
+
+
+## 2026-09-22 — Final grocery handoff evidence
+
+New feature work stopped at 09:15:18 UTC when weekly usage reached 8% remaining.
+The final backlog, current phase record, evaluation guide, verification plan, and
+saved evidence index separate completed work from remaining model-quality gaps.
+The review index lists 66 capped branches in dependency order.
+The saved 90-slot batch has 51 fixture passes, 30 real completed observations,
+and nine unassessed slots. All 15 final-plan structural checks and all 15
+reference comparisons pass. Overall model quality remains UNASSESSED.
+The saved report estimates USD 0.17507842 in text-token cost. It is not a bill.
+The final local gate passed 2,219 PostgreSQL-enabled tests, Ruff, format on
+257 files, and strict mypy on 128 source files. Earlier frontend, browser,
+supervisor, helper, and CDK evidence remains in this log.
+Graphify refresh and branch publication follow this evidence checkpoint.
+Agents MUST NOT merge or push to main.
+
+
+## 2026-09-22 — Graphify and review publication
+
+All 65 implementation branches were pushed as draft pull requests 91 through 155.
+Each child uses the previous numeric branch as its base. All 130 backend and
+frontend GitHub checks passed at this checkpoint. No branch was merged.
+The final documentation branch follows this checkpoint.
+
+The first complete Graphify pass contains 5,123 nodes, 16,520 graph edges, and
+179 communities. AST extraction processed 368 code files. Of these, 361
+yielded source nodes; seven JSON data files yielded no AST symbols.
+All 76 documents and one design concept image produced semantic output.
+The image records a design concept, not current runtime facts.
+Raw extraction diagnostics report 1,413 dangling-endpoint edges, zero missing
+endpoints, one self-loop, 149 exact duplicate edges, and 1,215 relationships
+collapsed by the default undirected graph. These are graph coverage limits,
+not application test failures. Semantic token usage is unavailable.
+One Grok extraction task reported failure after writing a complete fragment.
+Independent checks validated all assigned sources and endpoints in that
+fragment. One other fragment required removal of a JSON trailing comma.
+No graph content changed in that syntax repair.
+
+Graphify outputs remain checkout-local and gitignored. The final report and
+health.json are authoritative for graph counts and diagnostics. The log is
+re-extracted after this entry so the manifest includes this checkpoint.
+The saved evaluation report reproduced byte-for-byte from its saved JSON and
+dated rates. All final handoff document links resolved locally.
+Agents MUST NOT merge or push to main.
