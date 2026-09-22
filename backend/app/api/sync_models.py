@@ -1,6 +1,15 @@
-"""HTTP models for Plaid Item sync jobs."""
+"""HTTP models for Plaid Item sync."""
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from datetime import UTC, datetime
+
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictStr,
+    field_validator,
+)
 
 
 class CreateSyncJobBody(BaseModel):
@@ -22,3 +31,21 @@ class CreateSyncJobBody(BaseModel):
             payload.get("item_id") == self.item_id
             and payload.get("operation") == "plaid_sync"
         )
+
+
+class SyncItemView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: StrictStr
+    last_synced_at: AwareDatetime | None
+
+    @field_validator("last_synced_at", mode="before")
+    @classmethod
+    def as_utc(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, datetime):
+            return value
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)

@@ -2365,3 +2365,14 @@ These three runs do not establish the full evaluation targets.
 The isolated live Spoonacular endpoint returned HTTP 200, no-store, a
 complete estimate, and the required notice. Vendor price values were not
 retained. This does not verify retailer prices or availability.
+
+## 2026-09-21 — Plaid refresh inventory
+
+Grok 4.6 medium added the owner-scoped sync Item inventory endpoint.
+The response contains only an internal id and the last sync timestamp.
+Independent Grok 4.6 low review approved it with confidence 8/10.
+The reviewer ran source checks only. The coordinator ran all gates.
+An initial format check failed on a trailing blank line. Ruff fixed it.
+Ruff check passed. Format passed on 191 files. Strict mypy passed on
+98 source files. PostgreSQL tests reported 1522 passed and one existing
+Starlette warning. No live Plaid call ran. Sandbox configuration is absent.

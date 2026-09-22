@@ -1,4 +1,4 @@
-"""HTTP routes for Plaid Item sync jobs."""
+"""HTTP routes for Plaid Item sync."""
 
 from typing import Annotated, cast
 from uuid import UUID
@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
-from app.api.sync_models import CreateSyncJobBody
+from app.api.sync_models import CreateSyncJobBody, SyncItemView
 from app.deps import get_session
 from app.job_models import Job
 from app.plaid_models import PlaidItem
@@ -67,6 +67,20 @@ def _plaid_is_configured() -> bool:
     except ProviderConfigurationError:
         pass
     return configured
+
+
+@router.get("/items")
+def list_sync_items(
+    session: Annotated[Session, Depends(get_session)],
+) -> list[SyncItemView]:
+    items = session.scalars(
+        select(PlaidItem)
+        .where(PlaidItem.user_id == DEMO_USER_ID)
+        .order_by(PlaidItem.id)
+    ).all()
+    return [
+        SyncItemView(id=item.id, last_synced_at=item.last_synced_at) for item in items
+    ]
 
 
 @router.post("/jobs", status_code=202)
