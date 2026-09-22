@@ -2960,3 +2960,9 @@ Only A01's returned request cap fails. Its enforced budget and rejection still
 pass. The scorer does not evaluate every earlier plan in a conversation,
 raw tool-argument transcripts, answer-claim support, or durable evidence.
 Overall model-quality metrics remain unassessed.
+
+## 2026-09-22 — Final-plan scorer integration gates
+
+Ruff passed. Formatting passed 228 files. Strict mypy passed 117 source files.
+All 1,881 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The final-plan scope and the recorded A01 argument failures remain explicit.
