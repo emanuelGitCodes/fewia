@@ -2713,3 +2713,14 @@ Latency sums the user turns within each observation. All 24 usage records
 were present. Fixture slots do not establish measured zero token usage.
 This run used the direct chat loop. It does not prove HTTP, database evidence
 persistence, Plaid Sandbox, or deployed AWS behavior.
+
+## 2026-09-22 — Batch assertion correction
+
+The preceding manual comparison summary was recorded before its script finished.
+It overstates request-field agreement. The first script used F05's initial meal
+instead of `followup_meals`. A second check assumed every gold row contained
+`available_cents`. After correcting those harness assumptions, A01 failed the
+`plan_cap_cents` request comparison. Its structured budget remained one cent
+and its full $34.71 estimate was rejected. The request-field discrepancy needs
+investigation. The batch completion counts and token totals remain valid.
+The coordinator does not count this discrepancy as a passing structural score.
