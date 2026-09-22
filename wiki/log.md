@@ -2908,3 +2908,12 @@ remain unchanged. Unknown provider scenarios remain unassessed.
 The coordinator inspected the dispatch changes. All 1,865 candidate
 PostgreSQL-enabled tests passed. Ruff passed. Formatting passed 226 files.
 Strict mypy passed 116 source files. One existing Starlette warning remains.
+
+## 2026-09-22 — Provider report integration gates and command check
+
+Ruff passed. Formatting passed 226 files. Strict mypy passed 116 source files.
+All 1,865 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The actual fixture command produced 48 scored slots and 42 unassessed slots.
+All three P01 reports passed their checks. All three P04 controlled reports
+passed their checks while their model slots remained unassessed. The journal
+contains 91 records. These counts do not establish model-quality targets.
