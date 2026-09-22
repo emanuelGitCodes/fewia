@@ -3113,3 +3113,7 @@ Execution, fixture, controlled, and final-plan counts remain separate.
 ## 2026-09-22 — Evaluation report value validation
 
 Added strict count, latency, revision, and display-label validation for evaluation reports. Invalid values return one static error. Unknown values remain distinct from zero. Independent coordinator review passed. Ruff and format passed. Strict mypy passed for 120 source files. PostgreSQL-enabled pytest passed: 1,933 tests, one existing Starlette warning.
+
+## 2026-09-22 — Structured planning reference
+
+Added a deterministic reference for F01, F02, F05, X04, and A01. It uses scenario inputs and the production planner. It does not use gold outputs, interpret language, call providers, or persist evidence. Overall quality stays unassessed. Coordinator review passed. Ruff and format passed. Strict mypy passed for 120 source files. PostgreSQL-enabled pytest passed: 1,916 tests, one existing Starlette warning.
