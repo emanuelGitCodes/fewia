@@ -2770,3 +2770,9 @@ passed six tests and failed one naive-versus-UTC timestamp comparison. Grok low
 normalized that test assertion. Ruff applied its UTC alias fix. The repaired
 fixture passes. SQLite evidence does not establish PostgreSQL locking or Plaid
 Sandbox behavior. Full candidate gates include the separate observer layer.
+
+## 2026-09-22 — Refresh fixture integration gates
+
+Ruff passed. Formatting passed 214 files. Strict mypy passed 110 source files.
+All 1,753 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The earlier mixed batch's 45 deterministic slots also have no failed checks.
