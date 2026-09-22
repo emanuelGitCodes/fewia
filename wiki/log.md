@@ -2665,3 +2665,20 @@ The supermarket action disappeared. Follow-up chat stayed available.
 "Use bean tacos instead" retained two servings and the vegan restriction.
 It produced a current sample estimate of $17.03. The supermarket action returned.
 This check did not request vendor prices or perform a purchase.
+
+## 2026-09-22 — Evaluation command
+
+Added `python -m app.evaluate` with fixture and explicit Bedrock modes. The
+command requires an output path and a 40-character revision. It writes a
+manifest before provider construction, journals each slot, and publishes final
+JSON only after execution completes. Interrupted runs retain their journals.
+Existing evidence files are not overwritten. Errors use static messages.
+
+Grok 4.6 medium wrote the CLI. An independent Grok review found that the
+manifest overwrote the mixed-evidence label. Grok low repaired that label and
+replaced an unnecessary `Any` annotation. Both header and final report now
+retain `mode: mixed_fixture_model` and `requested_mode: bedrock` for a Bedrock
+batch. Fixture mode remains explicit. Codex inspected the repair and passed
+all backend gates: Ruff, formatting of 206 files, strict mypy over 106 source
+files, and 1,652 PostgreSQL-enabled tests. One existing Starlette warning remains.
+The command does not claim task-success or supported-claim quality targets.
