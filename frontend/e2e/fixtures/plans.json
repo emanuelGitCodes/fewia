@@ -1,0 +1,644 @@
+{
+  "evidence_class": "deterministic_browser_fixture",
+  "config": {
+    "budget_period": "2026-09-01",
+    "source": "fixture",
+    "catalog_version": "sample-prices-v1",
+    "posted_cents": 18000,
+    "pending_cents": 1200,
+    "spending_refreshed_at": "2026-09-21T18:00:00Z",
+    "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+    "recipes": [
+      {
+        "id": "chicken_tacos",
+        "name": "chicken tacos"
+      },
+      {
+        "id": "bean_tacos",
+        "name": "bean tacos"
+      },
+      {
+        "id": "vegetable_pasta",
+        "name": "vegetable pasta"
+      },
+      {
+        "id": "chicken_and_rice_bowls",
+        "name": "chicken and rice bowls"
+      },
+      {
+        "id": "lentil_soup",
+        "name": "lentil soup"
+      },
+      {
+        "id": "chickpea_curry",
+        "name": "chickpea curry"
+      },
+      {
+        "id": "vegetable_stir_fry",
+        "name": "vegetable stir fry"
+      },
+      {
+        "id": "baked_potatoes_with_beans",
+        "name": "baked potatoes with beans"
+      },
+      {
+        "id": "breakfast_burritos",
+        "name": "breakfast burritos"
+      },
+      {
+        "id": "overnight_oats",
+        "name": "overnight oats"
+      }
+    ],
+    "ingredients": [
+      {
+        "id": "chicken_breast",
+        "name": "chicken breast"
+      },
+      {
+        "id": "eggs",
+        "name": "eggs"
+      },
+      {
+        "id": "black_beans",
+        "name": "black beans"
+      },
+      {
+        "id": "tortillas",
+        "name": "corn tortillas"
+      },
+      {
+        "id": "salsa",
+        "name": "salsa"
+      },
+      {
+        "id": "rice",
+        "name": "white rice"
+      },
+      {
+        "id": "pasta",
+        "name": "dry pasta"
+      },
+      {
+        "id": "tomato",
+        "name": "canned tomato"
+      },
+      {
+        "id": "onion",
+        "name": "onion"
+      },
+      {
+        "id": "garlic",
+        "name": "garlic"
+      },
+      {
+        "id": "olive_oil",
+        "name": "olive oil"
+      },
+      {
+        "id": "cumin",
+        "name": "ground cumin"
+      },
+      {
+        "id": "salt",
+        "name": "salt"
+      },
+      {
+        "id": "lentils",
+        "name": "brown lentils"
+      },
+      {
+        "id": "chickpeas",
+        "name": "chickpeas"
+      },
+      {
+        "id": "coconut_milk",
+        "name": "coconut milk"
+      },
+      {
+        "id": "curry_powder",
+        "name": "curry powder"
+      },
+      {
+        "id": "mixed_vegetables",
+        "name": "mixed vegetables"
+      },
+      {
+        "id": "soy_sauce",
+        "name": "soy sauce"
+      },
+      {
+        "id": "potato",
+        "name": "russet potato"
+      },
+      {
+        "id": "oats",
+        "name": "rolled oats"
+      },
+      {
+        "id": "oat_milk",
+        "name": "oat milk"
+      }
+    ]
+  },
+  "beans2": {
+    "request": {
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 2
+        }
+      ],
+      "budget_period": "2026-09-01",
+      "plan_cap_cents": 4000,
+      "pantry_ingredients": [],
+      "ingredient_exclusions": [],
+      "diet": "omnivore"
+    },
+    "plan": {
+      "lines": [
+        {
+          "ingredient_id": "black_beans",
+          "name": "black beans",
+          "unit": "g",
+          "quantity": 240,
+          "packages": 1,
+          "cost_cents": 129,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "cumin",
+          "name": "ground cumin",
+          "unit": "g",
+          "quantity": 2,
+          "packages": 1,
+          "cost_cents": 199,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "olive_oil",
+          "name": "olive oil",
+          "unit": "g",
+          "quantity": 20,
+          "packages": 1,
+          "cost_cents": 599,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "onion",
+          "name": "onion",
+          "unit": "g",
+          "quantity": 60,
+          "packages": 1,
+          "cost_cents": 129,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salsa",
+          "name": "salsa",
+          "unit": "g",
+          "quantity": 80,
+          "packages": 1,
+          "cost_cents": 249,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salt",
+          "name": "salt",
+          "unit": "g",
+          "quantity": 2,
+          "packages": 1,
+          "cost_cents": 99,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "tortillas",
+          "name": "corn tortillas",
+          "unit": "each",
+          "quantity": 4,
+          "packages": 1,
+          "cost_cents": 299,
+          "from_pantry": false
+        }
+      ],
+      "total_cents": 1703,
+      "accepted": true,
+      "warnings": [],
+      "catalog_version": "sample-prices-v1",
+      "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified."
+    },
+    "budget": {
+      "available_cents": 4000,
+      "pending_cents": 1200,
+      "stale": false,
+      "warnings": []
+    },
+    "meal_nutrition": {
+      "notice": "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.",
+      "portion_notice": "Portion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.",
+      "total": {
+        "energy_kcal": 758,
+        "protein_mg": 28968,
+        "carbohydrate_mg": 111559,
+        "fat_mg": 24673
+      },
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 2,
+          "per_serving": {
+            "energy_kcal": 379,
+            "protein_mg": 14484,
+            "carbohydrate_mg": 55780,
+            "fat_mg": 12337
+          },
+          "total": {
+            "energy_kcal": 758,
+            "protein_mg": 28968,
+            "carbohydrate_mg": 111559,
+            "fat_mg": 24673
+          }
+        }
+      ]
+    },
+    "spending_source": "fixture",
+    "evidence_id": "grocery-d45442dbf6b4ff56e767d4b4:user-1:2026-09",
+    "evidence_revision_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "beans4": {
+    "request": {
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 4
+        }
+      ],
+      "budget_period": "2026-09-01",
+      "plan_cap_cents": 4000,
+      "pantry_ingredients": [],
+      "ingredient_exclusions": [],
+      "diet": "omnivore"
+    },
+    "plan": {
+      "lines": [
+        {
+          "ingredient_id": "black_beans",
+          "name": "black beans",
+          "unit": "g",
+          "quantity": 480,
+          "packages": 2,
+          "cost_cents": 258,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "cumin",
+          "name": "ground cumin",
+          "unit": "g",
+          "quantity": 4,
+          "packages": 1,
+          "cost_cents": 199,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "olive_oil",
+          "name": "olive oil",
+          "unit": "g",
+          "quantity": 40,
+          "packages": 1,
+          "cost_cents": 599,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "onion",
+          "name": "onion",
+          "unit": "g",
+          "quantity": 120,
+          "packages": 1,
+          "cost_cents": 129,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salsa",
+          "name": "salsa",
+          "unit": "g",
+          "quantity": 160,
+          "packages": 1,
+          "cost_cents": 249,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salt",
+          "name": "salt",
+          "unit": "g",
+          "quantity": 4,
+          "packages": 1,
+          "cost_cents": 99,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "tortillas",
+          "name": "corn tortillas",
+          "unit": "each",
+          "quantity": 8,
+          "packages": 1,
+          "cost_cents": 299,
+          "from_pantry": false
+        }
+      ],
+      "total_cents": 1832,
+      "accepted": true,
+      "warnings": [],
+      "catalog_version": "sample-prices-v1",
+      "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified."
+    },
+    "budget": {
+      "available_cents": 4000,
+      "pending_cents": 1200,
+      "stale": false,
+      "warnings": []
+    },
+    "meal_nutrition": {
+      "notice": "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.",
+      "portion_notice": "Portion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.",
+      "total": {
+        "energy_kcal": 1515,
+        "protein_mg": 57936,
+        "carbohydrate_mg": 223118,
+        "fat_mg": 49347
+      },
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 4,
+          "per_serving": {
+            "energy_kcal": 379,
+            "protein_mg": 14484,
+            "carbohydrate_mg": 55780,
+            "fat_mg": 12337
+          },
+          "total": {
+            "energy_kcal": 1515,
+            "protein_mg": 57936,
+            "carbohydrate_mg": 223118,
+            "fat_mg": 49347
+          }
+        }
+      ]
+    },
+    "spending_source": "fixture",
+    "evidence_id": "grocery-9d483e32af952f5e9fa4cd90:user-1:2026-09",
+    "evidence_revision_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "beans2PantryOil": {
+    "request": {
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 2
+        }
+      ],
+      "budget_period": "2026-09-01",
+      "plan_cap_cents": 4000,
+      "pantry_ingredients": [
+        "olive_oil"
+      ],
+      "ingredient_exclusions": [],
+      "diet": "omnivore"
+    },
+    "plan": {
+      "lines": [
+        {
+          "ingredient_id": "black_beans",
+          "name": "black beans",
+          "unit": "g",
+          "quantity": 240,
+          "packages": 1,
+          "cost_cents": 129,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "cumin",
+          "name": "ground cumin",
+          "unit": "g",
+          "quantity": 2,
+          "packages": 1,
+          "cost_cents": 199,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "olive_oil",
+          "name": "olive oil",
+          "unit": "g",
+          "quantity": 20,
+          "packages": 0,
+          "cost_cents": 0,
+          "from_pantry": true
+        },
+        {
+          "ingredient_id": "onion",
+          "name": "onion",
+          "unit": "g",
+          "quantity": 60,
+          "packages": 1,
+          "cost_cents": 129,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salsa",
+          "name": "salsa",
+          "unit": "g",
+          "quantity": 80,
+          "packages": 1,
+          "cost_cents": 249,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salt",
+          "name": "salt",
+          "unit": "g",
+          "quantity": 2,
+          "packages": 1,
+          "cost_cents": 99,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "tortillas",
+          "name": "corn tortillas",
+          "unit": "each",
+          "quantity": 4,
+          "packages": 1,
+          "cost_cents": 299,
+          "from_pantry": false
+        }
+      ],
+      "total_cents": 1104,
+      "accepted": true,
+      "warnings": [],
+      "catalog_version": "sample-prices-v1",
+      "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified."
+    },
+    "budget": {
+      "available_cents": 4000,
+      "pending_cents": 1200,
+      "stale": false,
+      "warnings": []
+    },
+    "meal_nutrition": {
+      "notice": "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.",
+      "portion_notice": "Portion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.",
+      "total": {
+        "energy_kcal": 758,
+        "protein_mg": 28968,
+        "carbohydrate_mg": 111559,
+        "fat_mg": 24673
+      },
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 2,
+          "per_serving": {
+            "energy_kcal": 379,
+            "protein_mg": 14484,
+            "carbohydrate_mg": 55780,
+            "fat_mg": 12337
+          },
+          "total": {
+            "energy_kcal": 758,
+            "protein_mg": 28968,
+            "carbohydrate_mg": 111559,
+            "fat_mg": 24673
+          }
+        }
+      ]
+    },
+    "spending_source": "fixture",
+    "evidence_id": "grocery-cb30977451668efcfbe9cff5:user-1:2026-09",
+    "evidence_revision_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "beans4PantryOil": {
+    "request": {
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 4
+        }
+      ],
+      "budget_period": "2026-09-01",
+      "plan_cap_cents": 4000,
+      "pantry_ingredients": [
+        "olive_oil"
+      ],
+      "ingredient_exclusions": [],
+      "diet": "omnivore"
+    },
+    "plan": {
+      "lines": [
+        {
+          "ingredient_id": "black_beans",
+          "name": "black beans",
+          "unit": "g",
+          "quantity": 480,
+          "packages": 2,
+          "cost_cents": 258,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "cumin",
+          "name": "ground cumin",
+          "unit": "g",
+          "quantity": 4,
+          "packages": 1,
+          "cost_cents": 199,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "olive_oil",
+          "name": "olive oil",
+          "unit": "g",
+          "quantity": 40,
+          "packages": 0,
+          "cost_cents": 0,
+          "from_pantry": true
+        },
+        {
+          "ingredient_id": "onion",
+          "name": "onion",
+          "unit": "g",
+          "quantity": 120,
+          "packages": 1,
+          "cost_cents": 129,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salsa",
+          "name": "salsa",
+          "unit": "g",
+          "quantity": 160,
+          "packages": 1,
+          "cost_cents": 249,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "salt",
+          "name": "salt",
+          "unit": "g",
+          "quantity": 4,
+          "packages": 1,
+          "cost_cents": 99,
+          "from_pantry": false
+        },
+        {
+          "ingredient_id": "tortillas",
+          "name": "corn tortillas",
+          "unit": "each",
+          "quantity": 8,
+          "packages": 1,
+          "cost_cents": 299,
+          "from_pantry": false
+        }
+      ],
+      "total_cents": 1233,
+      "accepted": true,
+      "warnings": [],
+      "catalog_version": "sample-prices-v1",
+      "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified."
+    },
+    "budget": {
+      "available_cents": 4000,
+      "pending_cents": 1200,
+      "stale": false,
+      "warnings": []
+    },
+    "meal_nutrition": {
+      "notice": "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.",
+      "portion_notice": "Portion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.",
+      "total": {
+        "energy_kcal": 1515,
+        "protein_mg": 57936,
+        "carbohydrate_mg": 223118,
+        "fat_mg": 49347
+      },
+      "meals": [
+        {
+          "recipe_id": "bean_tacos",
+          "servings": 4,
+          "per_serving": {
+            "energy_kcal": 379,
+            "protein_mg": 14484,
+            "carbohydrate_mg": 55780,
+            "fat_mg": 12337
+          },
+          "total": {
+            "energy_kcal": 1515,
+            "protein_mg": 57936,
+            "carbohydrate_mg": 223118,
+            "fat_mg": 49347
+          }
+        }
+      ]
+    },
+    "spending_source": "fixture",
+    "evidence_id": "grocery-8daffaed17832eae0de4873f:user-1:2026-09",
+    "evidence_revision_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}
