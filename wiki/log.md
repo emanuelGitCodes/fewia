@@ -2454,3 +2454,14 @@ Cancellation after clear or unmount still suppresses late updates.
 Two added regressions cover unexpected live POST and poll abort errors.
 The coordinator verified 377 integrated frontend tests and a passed build.
 The hook stays within 148 application lines. No backend source changed.
+
+## 2026-09-21 — Spending refresh panel
+
+Grok 4.6 medium added the connection picker and explicit refresh panel.
+It reports unavailable setup, loading, retries, terminal results, and
+last-sync timestamps. It reloads configuration once per successful job.
+Initial tests passed, but TypeScript rejected an inferred mock callback.
+Grok 4.6 low typed that fixture against the public component props.
+The repaired branch passed 355 frontend tests and the production build.
+One Node localStorage experimental warning remains in the test harness.
+The panel adds 143 application lines. App mounting remains separate.
