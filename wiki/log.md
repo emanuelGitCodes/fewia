@@ -2682,3 +2682,11 @@ batch. Fixture mode remains explicit. Codex inspected the repair and passed
 all backend gates: Ruff, formatting of 206 files, strict mypy over 106 source
 files, and 1,652 PostgreSQL-enabled tests. One existing Starlette warning remains.
 The command does not claim task-success or supported-claim quality targets.
+
+## 2026-09-22 — Integrated evaluation command gates
+
+The coordinator verified the integrated evaluation command. Ruff passed.
+Formatting passed 210 files. Strict mypy passed 108 source files. All 1,740
+PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The command preserves a manifest and each completed slot in a local journal.
+A completed batch does not establish the model-quality release targets.
