@@ -129,11 +129,13 @@ def test_default_fixture_skips_provider(
     assert journal[0]["requested_mode"] == "fixture"
     assert body["revision"] == REV
     assert body["model_id"] is None
+    assert body["source_region"] is None
     assert body["catalog_version"] == CATALOG_VERSION
     assert body["prompt_hash"] == _digest(SYSTEM_PROMPT)
     assert body["corpus_hash"] == corpus_hash
     assert body["metrics_status"] == "unassessed"
     assert journal[0]["model_id"] is None
+    assert journal[0]["source_region"] is None
     assert journal[0]["revision"] == REV
     assert len(journal) == 91
     assert len(cast(list[object], body["slots"])) == 90
@@ -261,9 +263,11 @@ def test_mocked_bedrock_writes_fresh_providers(
     assert journal[0]["mode"] == "mixed_fixture_model"
     assert journal[0]["requested_mode"] == "bedrock"
     assert journal[0]["model_id"] == MODEL
+    assert journal[0]["source_region"] == "us-east-1"
     assert body["mode"] == "mixed_fixture_model"
     assert body["requested_mode"] == "bedrock"
     assert body["model_id"] == MODEL
+    assert body["source_region"] == "us-east-1"
     assert body["revision"] == REV
     assert body["metrics_status"] == "unassessed"
     assert summary["counts"] == {
@@ -275,6 +279,41 @@ def test_mocked_bedrock_writes_fresh_providers(
     assert summary["metrics_status"] == "unassessed"
     assert "slots" not in summary
     assert "Choose a supported meal." not in json.dumps(summary)
+    blob = json.dumps(body) + json.dumps(journal[0])
+    assert SECRET not in blob
+    assert "aws_profile" not in journal[0]
+    assert "plaid_secret_file" not in journal[0]
+
+
+def test_mocked_bedrock_copies_loaded_source_region(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    providers: list[ScriptedProvider] = []
+    settings = GroceryProviderSettings(
+        bedrock_model_id=MODEL, bedrock_region="us-west-2"
+    )
+
+    def load() -> GroceryProviderSettings:
+        return settings
+
+    def build(_settings: GroceryProviderSettings) -> LLMProvider:
+        provider = ScriptedProvider()
+        providers.append(provider)
+        return provider
+
+    monkeypatch.setattr("app.evaluate.load_provider_settings", load)
+    monkeypatch.setattr("app.evaluate.build_bedrock", build)
+    output = tmp_path / "out.json"
+    assert main(_cli(output, ["--mode", "bedrock"])) == 0
+    body = json.loads(output.read_text(encoding="utf-8"))
+    journal = _rows(_journal(output))
+    capsys.readouterr()
+    assert body["source_region"] == "us-west-2"
+    assert journal[0]["source_region"] == "us-west-2"
+    assert "aws_profile" not in body
+    assert providers != []
 
 
 def test_existing_files_refuse_before_provider(

@@ -7,6 +7,8 @@ from app.agent.chat_loop import SYSTEM_PROMPT
 from app.agent.provider import LLMProvider
 from app.domain.catalog import CATALOG_VERSION
 from app.evaluation_model import SUPPORTED_IDS, observe_model_case
+from app.evaluation_model_score import SUPPORTED_IDS as PLAN_IDS
+from app.evaluation_model_score import score_model_plan
 from app.evaluation_runner import run_evaluation
 
 INVALID = "evaluation input is invalid"
@@ -137,6 +139,11 @@ def run_observed_evaluation(
                     slot["observation"] = observation
                     completed = observation.get("status") == "completed"
                     slot["status"] = "observed" if completed else "failed"
+                observed = slot.get("observation")
+                if case_id in PLAN_IDS and isinstance(observed, dict):
+                    slot["structural_assessment"] = score_model_plan(
+                        cases[case_id], observed
+                    )
         if on_slot is not None:
             on_slot(slot)
     result["mode"] = "mixed_fixture_model"

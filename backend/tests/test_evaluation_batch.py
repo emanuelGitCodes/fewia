@@ -15,6 +15,7 @@ from app.agent.provider import LLMProvider
 from app.domain.catalog import CATALOG_VERSION
 from app.evaluation_batch import INVALID, run_observed_evaluation
 from app.evaluation_model import SUPPORTED_IDS
+from app.evaluation_model_score import SUPPORTED_IDS as PLAN_IDS
 from app.evaluation_runner import run_evaluation
 
 CORPUS_PATH = Path(__file__).parent / "evaluation" / "scenarios.json"
@@ -127,6 +128,14 @@ def test_observed_batch_counts_and_fresh_providers() -> None:
         observation = _mapping(slot["observation"], "observation")
         assert observation["status"] == "completed"
         assert slot["report"] is None
+        if case_id in PLAN_IDS:
+            assessment = _mapping(slot["structural_assessment"], "assessment")
+            assert assessment["scope"] == "structural_plan"
+            assert assessment["metrics_status"] == "unassessed"
+            assert assessment["evidence_class"] == EVIDENCE
+            assert type(assessment["passed"]) is bool
+        else:
+            assert "structural_assessment" not in slot
     assert set(repeats) == set(SUPPORTED_IDS)
     for values in repeats.values():
         assert values == {1, 2, 3}
@@ -135,6 +144,7 @@ def test_observed_batch_counts_and_fresh_providers() -> None:
         assert slot["reason"] == "unsupported_scenario"
         assert slot["report"] is None
         assert "observation" not in slot
+        assert "structural_assessment" not in slot
         if slot["case_id"] == "P04":
             report = _mapping(slot["controlled_report"], "controlled_report")
             assert report["evidence_class"] == "deterministic_fake_provider"
@@ -228,6 +238,9 @@ def test_factory_failure_isolates_other_cases() -> None:
     observation = _mapping(first["observation"], "observation")
     assert observation["status"] == "failed"
     assert observation["reason"] == "provider_initialization_failed"
+    assessment = _mapping(first["structural_assessment"], "assessment")
+    assert assessment["status"] == "failed"
+    assert assessment["passed"] is False
     blob = json.dumps(result, default=str)
     assert SECRET not in blob
     assert len([slot for slot in slots if slot["status"] == "scored"]) == SCORED_COUNT
@@ -296,6 +309,22 @@ def test_on_slot_emits_ninety_unique_events_and_fresh_providers() -> None:
         assert slot["report"] is None
         report = _mapping(slot["controlled_report"], "controlled_report")
         assert report["case_id"] == "P04"
+        assert "structural_assessment" not in slot
+    planned = [item for item in observed if item["case_id"] in PLAN_IDS]
+    assert planned
+    for slot in planned:
+        assessment = _mapping(slot["structural_assessment"], "assessment")
+        assert assessment["case_id"] == slot["case_id"]
+        assert assessment["evidence_class"] == EVIDENCE
+    a01 = [item for item in observed if item["case_id"] == "A01"]
+    assert len(a01) == 3
+    for slot in a01:
+        assert slot["status"] == "observed"
+        assessment = _mapping(slot["structural_assessment"], "assessment")
+        assert assessment["status"] == "failed"
+        assert assessment["passed"] is False
+        checks = _mapping(assessment["checks"], "checks")
+        assert checks["request_plan_cap"] is False
 
 
 def test_factory_failure_emits_failed_callback() -> None:
@@ -325,6 +354,9 @@ def test_factory_failure_emits_failed_callback() -> None:
     assert first["repeat"] == 1
     observation = _mapping(first["observation"], "observation")
     assert observation["reason"] == "provider_initialization_failed"
+    assessment = _mapping(first["structural_assessment"], "assessment")
+    assert assessment["status"] == "failed"
+    assert assessment["passed"] is False
     blob = json.dumps(result, default=str)
     assert SECRET not in blob
 
