@@ -2980,3 +2980,9 @@ review removed unnecessary table deletion so engine disposal cannot be skipped
 by that deletion failing. Full candidate gates passed with the separate observer.
 This fixture does not prove PostgreSQL locking, restart durability, or live
 provider behavior.
+
+## 2026-09-22 — Handoff fixture integration gates
+
+Ruff passed. Formatting passed 230 files. Strict mypy passed 118 source files.
+All 1,893 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The fixture remains isolated and uses no live shopping provider.
