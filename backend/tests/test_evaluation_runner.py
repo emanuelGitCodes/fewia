@@ -35,6 +35,7 @@ EXISTING_SCORED = frozenset(
         "M07",
         "F03",
         "X01",
+        "P01",
     }
 )
 
@@ -188,14 +189,14 @@ def test_p03_slot_is_scored_with_bounded_failure() -> None:
         assert checks["max_model_turns"] is True
 
 
-def test_scored_count_is_forty_five() -> None:
+def test_scored_count_is_forty_eight() -> None:
     slots = _slots(run_evaluation(load_corpus()))
     scored_ids = {slot["case_id"] for slot in slots if slot["status"] == "scored"}
     unassessed = [slot for slot in slots if slot["status"] == "unassessed"]
     scored = [slot for slot in slots if slot["status"] == "scored"]
     assert len(slots) == 90
-    assert len(scored) == 45
-    assert len(unassessed) == 45
+    assert len(scored) == 48
+    assert len(unassessed) == 42
     assert scored_ids == EXISTING_SCORED | {"P03"}
 
 
@@ -211,7 +212,7 @@ def test_existing_scored_reports_keep_status() -> None:
 
 def test_other_provider_cases_stay_unassessed() -> None:
     slots = _slots(run_evaluation(load_corpus()))
-    for case_id in ("P01", "P02", "P04", "P05"):
+    for case_id in ("P02", "P04", "P05"):
         matches = [item for item in slots if item["case_id"] == case_id]
         assert len(matches) == 3
         for slot in matches:
@@ -271,3 +272,57 @@ def test_fake_provider_variant_without_fake_flag_stays_unassessed() -> None:
     for slot in matches:
         assert slot["status"] == "unassessed"
         assert slot["report"] is None
+
+
+def test_p01_slot_is_scored_with_nonempty_passing_checks() -> None:
+    slots = _slots(run_evaluation(load_corpus()))
+    scored = [item for item in slots if item["case_id"] == "P01"]
+    assert len(scored) == 3
+    for slot in scored:
+        assert slot["group"] == "provider"
+        assert slot["status"] == "scored"
+        report = _mapping(slot["report"], "report")
+        checks = _mapping(report["checks"], "checks")
+        assert checks
+        for value in checks.values():
+            assert value is True
+        assert report["evidence_class"] == "deterministic_fake_provider"
+        observed = _mapping(report["observed"], "observed")
+        assert observed["evidence_class"] == "deterministic_fake_provider"
+
+
+def test_p04_stays_unassessed_with_controlled_fake_report() -> None:
+    corpus = load_corpus()
+    rows = corpus["scenarios"]
+    assert isinstance(rows, list)
+    case = next(_mapping(item, "case") for item in rows if item.get("id") == "P04")
+    assert case["requires_model"] is True
+    slots = _slots(run_evaluation(corpus))
+    matches = [item for item in slots if item["case_id"] == "P04"]
+    assert len(matches) == 3
+    forbidden = FORBIDDEN_SCORE_KEYS | {
+        "p50_latency",
+        "p95_latency",
+        "token_use",
+        "estimated_cost",
+        "model_calls",
+        "success_rate",
+    }
+    for slot in matches:
+        assert slot["status"] == "unassessed"
+        assert slot["report"] is None
+        report = _mapping(slot["controlled_report"], "controlled_report")
+        assert report["case_id"] == "P04"
+        assert report["evidence_class"] == "deterministic_fake_provider"
+        assert report["target_evidence_class"] == "real_bedrock"
+        checks = _mapping(report["checks"], "checks")
+        assert checks
+        for value in checks.values():
+            assert value is True
+        keys = {str(key).lower() for key in report}
+        assert keys.isdisjoint(forbidden)
+        for item in _walk(report):
+            if not isinstance(item, dict):
+                continue
+            nested = {str(key).lower() for key in item}
+            assert nested.isdisjoint(FORBIDDEN_SCORE_KEYS)

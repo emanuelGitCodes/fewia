@@ -2897,3 +2897,14 @@ Its real-Bedrock target and broader model-quality criteria remain unassessed.
 Ruff passed. Formatting passed 226 files. Strict mypy passed 116 source files.
 All 1,863 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The scorer retains its controlled-provider label and unassessed model target.
+
+## 2026-09-22 — Controlled provider reports in batch output
+
+Grok 4.6 low connected the P01 refresh report to fixture scoring. P04 keeps its
+unassessed model status and receives a separate `controlled_report` field.
+The batch callback and journal preserve that field. The corpus model flags
+remain unchanged. Unknown provider scenarios remain unassessed.
+
+The coordinator inspected the dispatch changes. All 1,865 candidate
+PostgreSQL-enabled tests passed. Ruff passed. Formatting passed 226 files.
+Strict mypy passed 116 source files. One existing Starlette warning remains.
