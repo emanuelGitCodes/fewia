@@ -104,6 +104,7 @@ def run_observed_evaluation(
     *,
     model_id: str,
     evidence_class: EvidenceClass,
+    on_slot: Callable[[dict[str, object]], None] | None = None,
 ) -> dict[str, object]:
     """Observe supported unassessed slots with one fresh provider each."""
 
@@ -114,27 +115,30 @@ def run_observed_evaluation(
     cases = _cases(working)
     slots = cast(list[dict[str, object]], result["slots"])
     for slot in slots:
-        if slot["status"] != "unassessed":
-            continue
-        case_id = slot["case_id"]
-        if type(case_id) is not str or case_id not in SUPPORTED_IDS:
-            slot["reason"] = UNSUPPORTED
-            continue
-        try:
-            provider = provider_factory()
-        except Exception:
-            slot["status"] = "failed"
-            slot["observation"] = _init_failed(case_id, evidence_class, model_id)
-            continue
-        observation = observe_model_case(
-            cases[case_id],
-            provider,
-            evidence_class=evidence_class,
-            model_id=model_id,
-        )
-        slot["observation"] = observation
-        completed = observation.get("status") == "completed"
-        slot["status"] = "observed" if completed else "failed"
+        if slot["status"] == "unassessed":
+            case_id = slot["case_id"]
+            if type(case_id) is not str or case_id not in SUPPORTED_IDS:
+                slot["reason"] = UNSUPPORTED
+            else:
+                try:
+                    provider = provider_factory()
+                except Exception:
+                    slot["status"] = "failed"
+                    slot["observation"] = _init_failed(
+                        case_id, evidence_class, model_id
+                    )
+                else:
+                    observation = observe_model_case(
+                        cases[case_id],
+                        provider,
+                        evidence_class=evidence_class,
+                        model_id=model_id,
+                    )
+                    slot["observation"] = observation
+                    completed = observation.get("status") == "completed"
+                    slot["status"] = "observed" if completed else "failed"
+        if on_slot is not None:
+            on_slot(slot)
     result["mode"] = "mixed_fixture_model"
     result["corpus_hash"] = corpus_hash
     result["model_id"] = model_id

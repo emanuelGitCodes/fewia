@@ -75,6 +75,7 @@ def _run(
     *,
     model_id: str = MODEL_ID,
     evidence_class: str = EVIDENCE,
+    on_slot: Callable[[dict[str, object]], None] | None = None,
 ) -> dict[str, object]:
     labeled = cast(
         Literal["deterministic_fake_provider", "real_bedrock"],
@@ -85,6 +86,7 @@ def _run(
         factory,
         model_id=model_id,
         evidence_class=labeled,
+        on_slot=on_slot,
     )
 
 
@@ -264,3 +266,71 @@ def test_fixture_gold_reports_are_unchanged() -> None:
         assert right["repeat"] == left["repeat"]
         assert right["report"] == left["report"]
         assert "observation" not in right
+
+
+def test_on_slot_emits_ninety_unique_events_and_fresh_providers() -> None:
+    corpus = load_corpus()
+    providers, factory = _factory()
+    events: list[dict[str, object]] = []
+    result = _run(corpus, factory, on_slot=events.append)
+    keys = {(item["case_id"], item["repeat"]) for item in events}
+    scored = [item for item in events if item["status"] == "scored"]
+    observed = [item for item in events if item["status"] == "observed"]
+    unassessed = [item for item in events if item["status"] == "unassessed"]
+    assert len(_slots(result)) == 90
+    assert len(events) == 90
+    assert len(keys) == 90
+    assert len(scored) == SCORED_COUNT
+    assert len(observed) == OBSERVED_COUNT
+    assert len(unassessed) == UNASSESSED_COUNT
+    assert len(providers) == OBSERVED_COUNT
+    assert len({id(item) for item in providers}) == OBSERVED_COUNT
+
+
+def test_factory_failure_emits_failed_callback() -> None:
+    providers: list[ScriptedProvider] = []
+    calls = 0
+    events: list[dict[str, object]] = []
+
+    def make() -> LLMProvider:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError(SECRET)
+        provider = ScriptedProvider()
+        providers.append(provider)
+        return provider
+
+    result = _run(load_corpus(), make, on_slot=events.append)
+    failed = [item for item in events if item["status"] == "failed"]
+    observed = [item for item in events if item["status"] == "observed"]
+    assert len(events) == 90
+    assert calls == OBSERVED_COUNT
+    assert len(providers) == OBSERVED_COUNT - 1
+    assert len(failed) == 1
+    assert len(observed) == OBSERVED_COUNT - 1
+    first = failed[0]
+    assert first["case_id"] == "F01"
+    assert first["repeat"] == 1
+    observation = _mapping(first["observation"], "observation")
+    assert observation["reason"] == "provider_initialization_failed"
+    blob = json.dumps(result, default=str)
+    assert SECRET not in blob
+
+
+def test_callback_error_at_first_observed_stops_provider_calls() -> None:
+    providers, factory = _factory()
+    events: list[dict[str, object]] = []
+
+    def on_slot(slot: dict[str, object]) -> None:
+        events.append(slot)
+        if slot["status"] == "observed":
+            raise RuntimeError(SECRET)
+
+    with pytest.raises(RuntimeError, match=f"^{SECRET}$"):
+        _run(load_corpus(), factory, on_slot=on_slot)
+    observed = [item for item in events if item["status"] == "observed"]
+    assert len(providers) == 1
+    assert len(observed) == 1
+    assert observed[0]["case_id"] == "F01"
+    assert observed[0]["repeat"] == 1
