@@ -367,8 +367,9 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert last["role"] == "user"
     content = last["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "use two servings"}
-    context = json.loads(cast(str, content[1]["text"]))
+    assert len(content) == 2
+    context = json.loads(cast(str, content[0]["text"]))
+    assert content[1] == {"text": "use two servings"}
     assert context["previous_request"]["pantry_ingredients"] == ["salt"]
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
