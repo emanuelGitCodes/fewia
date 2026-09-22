@@ -643,8 +643,19 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
     assert isinstance(assistant, list)
     content = assistant[1]["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "public"}
-    assert "reasoningContent" not in content[1]
+    assert len(content) == 1
+    assert content[0] == {
+        "toolUse": {
+            "toolUseId": "call-1",
+            "name": TOOL_NAME,
+            "input": plan_args(),
+        }
+    }
+    dumped_content = json.dumps(content)
+    assert "text" not in content[0]
+    assert "public" not in dumped_content
+    assert "reasoningContent" not in dumped_content
+    assert "reasoningContent" not in content[0]
 
 
 def test_duplicate_ids_raise_protocol_error() -> None:

@@ -139,10 +139,7 @@ def run_chat(
         heartbeat()
         turns += 1
         usage = _sum_usage(usage, raw)
-        stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)
-        kept = sanitized.get("content")
-        if isinstance(kept, list) and kept:
-            messages.append(sanitized)
+        stop, text, calls, _ = msgs.parse_provider_response(raw, seen)
         if stop != "tool_use":
             if stop == "end_turn" and text.strip():
                 answer = render_public_answer(candidate, latest_error)
@@ -150,6 +147,21 @@ def run_chat(
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
+        messages.append(
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "toolUse": {
+                            "toolUseId": call.tool_use_id,
+                            "name": call.name,
+                            "input": call.tool_input,
+                        }
+                    }
+                    for call in calls
+                ],
+            }
+        )
         blocks: list[dict[str, object]] = []
         for call in calls:
             heartbeat()
