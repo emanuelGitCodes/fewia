@@ -2690,3 +2690,26 @@ Formatting passed 210 files. Strict mypy passed 108 source files. All 1,740
 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The command preserves a manifest and each completed slot in a local journal.
 A completed batch does not establish the model-quality release targets.
+
+## 2026-09-22 — Repeated mixed evaluation command
+
+The Bedrock command completed at revision
+`f6f633539afec4e38b77c00e830ca0ad9f76b3ca`. The manifest records the model,
+corpus hash, prompt hash, catalog version, and start time. The journal contains
+one manifest and 90 slots. It preserves 45 deterministic fixture scores,
+24 completed Bedrock observations, and 21 unassessed slots. No observation
+failed. Overall quality metrics remain unassessed.
+
+The coordinator compared all 24 final results with the supported corpus cases.
+All checked requests, totals, pantry fields, and available budgets matched.
+F04 returned the egg conflict in three repeats. X02 and X03 asked for
+clarification without a planner call in all repeats. X04 and A01 retained the
+full request and rejected the $34.71 estimate against the one-cent cap.
+These checks do not assess every release rubric or raw model answer.
+
+The 24 observations reported 166,198 input tokens and 27,925 output tokens.
+Nearest-rank latency was 6.24 seconds at p50 and 13.70 seconds at p95.
+Latency sums the user turns within each observation. All 24 usage records
+were present. Fixture slots do not establish measured zero token usage.
+This run used the direct chat loop. It does not prove HTTP, database evidence
+persistence, Plaid Sandbox, or deployed AWS behavior.
