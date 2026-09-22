@@ -2891,3 +2891,9 @@ All 1,728 candidate PostgreSQL-enabled tests passed. Ruff passed. Formatting
 passed 212 files. Strict mypy passed 109 source files. One existing Starlette
 warning remains. The report labels this controlled evidence as deterministic.
 Its real-Bedrock target and broader model-quality criteria remain unassessed.
+
+## 2026-09-22 — Protocol scorer integration gates
+
+Ruff passed. Formatting passed 226 files. Strict mypy passed 116 source files.
+All 1,863 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The scorer retains its controlled-provider label and unassessed model target.
