@@ -2578,3 +2578,9 @@ Replaying the 24 recorded Bedrock observations matched an independent summary:
 177,422 input tokens and 45,801 output tokens. Overall token totals remained
 null. Measured p50 was 7.85 seconds; p95 was 54.60 seconds. These measurements
 do not establish model quality, a complete 90-run result, or provider readiness.
+
+## 2026-09-22 — Integrated telemetry verification
+
+The integrated telemetry layer passed Ruff, formatting, strict mypy, and all
+1,689 backend tests against isolated PostgreSQL. Formatting covered 204 files.
+Mypy covered 105 source files. One existing Starlette warning remains.
