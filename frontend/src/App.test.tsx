@@ -37,6 +37,7 @@ vi.mock("./useHandoff", () => ({
 }));
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
+const USDA_HREF = "https://fdc.nal.usda.gov/";
 const CATALOG_UNAVAILABLE = "The grocery catalog is unavailable. Retry the catalog request.";
 const PROVIDER_UNAVAILABLE =
   "The provider configuration is unavailable. Retry the provider request.";
@@ -175,6 +176,14 @@ function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
 
 function hasButton(root: ReactTestInstance, name: string): boolean {
   return root.findAllByType("button").some((node) => childText(node) === name);
+}
+
+function expectUsdaAttributionAndNoShoppingLink(root: ReactTestInstance): void {
+  const links = root.findAllByType("a");
+  expect(links).toHaveLength(1);
+  expect(links[0]?.props.href).toBe(USDA_HREF);
+  expect(hasButton(root, "Create shopping list")).toBe(false);
+  expect(childText(root)).not.toContain("Open shopping list");
 }
 
 function handoffState(overrides: Partial<HandoffHook> = {}): HandoffHook {
@@ -345,7 +354,7 @@ describe("App", () => {
       "Meal chat",
       "Grocery estimate",
     ]);
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    expectUsdaAttributionAndNoShoppingLink(renderer.root);
     renderer.unmount();
   });
 
@@ -601,9 +610,7 @@ describe("App", () => {
 
   it("hides start and shopping links when Instacart is not configured", () => {
     const renderer = mount(demoState({ job: succeededJob }));
-    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
-    expect(childText(renderer.root)).not.toContain("Open shopping list");
+    expectUsdaAttributionAndNoShoppingLink(renderer.root);
     renderer.unmount();
   });
 
