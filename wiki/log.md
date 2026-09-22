@@ -2498,3 +2498,18 @@ repaired them. A temporary mutation that dropped chat pantry state caused the
 expected browser assertion to fail. The coordinator restored that mutation.
 The isolated Compose rebuild passed. API health and provider status returned
 HTTP 200. Plaid configuration remains absent; the UI shows that state.
+
+## 2026-09-22 — Repeated evaluation batches
+
+Added a mixed evaluation runner for 30 scenarios and three repeats. It keeps
+45 deterministic fixture scores, observes 24 supported model slots, and marks
+21 unsupported slots unassessed. Each model slot gets a fresh provider.
+Reports retain the corpus hash, prompt hash, catalog version, and model ID.
+Observed execution does not establish task success or supported-claim quality.
+
+Grok 4.6 medium wrote the layer. A separate Grok 4.6 medium source review found
+no batch-contract blockers, with confidence 8/10. The coordinator passed
+`uv run ruff check app tests`, `uv run ruff format --check app tests`,
+`uv run mypy --strict app`, and `uv run pytest` against isolated PostgreSQL.
+Results: Ruff passed; 202 files were formatted; mypy passed 104 source files;
+1,644 tests passed. One existing Starlette deprecation warning remains.
