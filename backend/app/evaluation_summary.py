@@ -60,11 +60,18 @@ def _outcome(report: object, allowed: frozenset[str]) -> str:
     return "passed" if all(checks.values()) else "failed"
 
 
-def _plan(report: object) -> str:
+def _plan(
+    report: object,
+    *,
+    scope: str = "structural_plan",
+    condition: str | None = None,
+) -> str:
     if report is None:
         return "outside_scope"
     body = as_map(report)
-    if body is None or body.get("scope") != "structural_plan":
+    if body is None or body.get("scope") != scope:
+        return "invalid"
+    if condition is not None and body.get("condition") != condition:
         return "invalid"
     kind = _outcome(body, _PLAN_EVIDENCE)
     passed = body.get("passed")
@@ -90,6 +97,7 @@ def summarize_evaluation(slots: list[dict[str, object]]) -> dict[str, object]:
     fixture = _counts(*_GROUP_KEYS)
     controlled = _counts(*_GROUP_KEYS)
     final_plan = _counts(*_GROUP_KEYS)
+    reference = _counts(*_GROUP_KEYS)
     observation = _counts(FAKE, REAL, UNKNOWN)
     for item in slots:
         slot = as_map(item)
@@ -98,6 +106,7 @@ def summarize_evaluation(slots: list[dict[str, object]]) -> dict[str, object]:
             _tally(fixture, "invalid")
             _tally(controlled, "invalid")
             _tally(final_plan, "invalid")
+            _tally(reference, "invalid")
             continue
         status = slot.get("status")
         if type(status) is str and status in _EXEC:
@@ -107,6 +116,14 @@ def summarize_evaluation(slots: list[dict[str, object]]) -> dict[str, object]:
         _tally(fixture, _outcome(slot.get("report"), _FAKE_ONLY))
         _tally(controlled, _outcome(slot.get("controlled_report"), _FAKE_ONLY))
         _tally(final_plan, _plan(slot.get("structural_assessment")))
+        _tally(
+            reference,
+            _plan(
+                slot.get("reference_comparison"),
+                scope="deterministic_reference_final_plan",
+                condition="deterministic_structured_input",
+            ),
+        )
         if "observation" not in slot:
             continue
         observed = as_map(slot.get("observation"))
@@ -121,6 +138,7 @@ def summarize_evaluation(slots: list[dict[str, object]]) -> dict[str, object]:
         "fixture_checks": fixture,
         "controlled_checks": controlled,
         "final_plan_checks": final_plan,
+        "reference_checks": reference,
         "evidence_breakdown": {"observation": observation},
         "metrics_status": UNASSESSED,
         "quality_note": QUALITY_NOTE,
