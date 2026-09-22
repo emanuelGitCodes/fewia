@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import NoReturn, cast
 
+from app.evaluation_cost import token_rate_config
+from app.evaluation_cost_markdown import render_cost_markdown
 from app.evaluation_io import FILE_UNAVAILABLE, OUTPUT_EXISTS
 from app.evaluation_markdown import render_evaluation_markdown
 from app.evaluation_report_io import write_markdown
@@ -52,6 +54,31 @@ def _opt_label(body: dict[str, object], key: str) -> str | None:
     return cast(str, value)
 
 
+def _need_label(body: dict[str, object], key: str) -> str:
+    value = _opt_label(body, key)
+    if value is None:
+        _invalid()
+    return value
+
+
+def _cost(
+    body: dict[str, object],
+    telemetry: dict[str, object],
+    rates: dict[str, object],
+) -> str:
+    config = token_rate_config(rates)
+    routing = _opt_label(body, "routing")
+    service_tier = _opt_label(body, "service_tier")
+    return render_cost_markdown(
+        telemetry,
+        config,
+        model_id=_need_label(body, "model_id"),
+        source_region=_need_label(body, "source_region"),
+        routing=config.routing if routing is None else routing,
+        service_tier=config.service_tier if service_tier is None else service_tier,
+    )
+
+
 def _load(path: Path) -> dict[str, object]:
     try:
         info = path.lstat()
@@ -73,7 +100,10 @@ def _load(path: Path) -> dict[str, object]:
     return _plain_map(payload)
 
 
-def _render(body: dict[str, object]) -> tuple[str, int]:
+def _render(
+    body: dict[str, object],
+    rates: dict[str, object] | None = None,
+) -> tuple[str, int]:
     if body.get("metrics_status") != "unassessed":
         _invalid()
     if "revision" not in body:
@@ -91,15 +121,18 @@ def _render(body: dict[str, object]) -> tuple[str, int]:
     catalog = _opt_label(body, "catalog_version")
     if catalog is not None:
         extra.append(f"Catalog version: {label(catalog)}")
+    telemetry = summarize_telemetry(slots)
     text = render_evaluation_markdown(
         summarize_evaluation(slots),
-        summarize_telemetry(slots),
+        telemetry,
         revision=revision(body["revision"]),
         model_id=_opt_label(body, "model_id"),
         source_region=_opt_label(body, "source_region"),
     )
     if extra:
         text = text + "\n".join(extra) + "\n"
+    if rates is not None:
+        text = text + _cost(body, telemetry, rates)
     return text, len(slots)
 
 
@@ -112,8 +145,11 @@ def main(argv: list[str] | None = None) -> int:
         parser = _Parser(prog="evaluation_report")
         parser.add_argument("--input", required=True)
         parser.add_argument("--output", required=True)
+        parser.add_argument("--rates")
         args = parser.parse_args(argv)
-        text, total = _render(_load(Path(str(args.input))))
+        body = _load(Path(str(args.input)))
+        rates = None if args.rates is None else _load(Path(str(args.rates)))
+        text, total = _render(body, rates)
         write_markdown(Path(str(args.output)), text)
         print("evaluation report written")
         print(f"slots: {total}")
