@@ -3000,3 +3000,11 @@ candidate PostgreSQL-enabled tests passed. Ruff passed, formatting passed
 226 files, and strict mypy passed 116 source files. One existing Starlette
 warning remains. The report identifies SQLite and a deterministic fake provider.
 It does not establish live Instacart, PostgreSQL concurrency, or full plan rows.
+
+## 2026-09-22 — Handoff observer integration gates
+
+Ruff passed. Formatting passed 232 files. Strict mypy passed 119 source files.
+All 1,904 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The coordinator used a writable integration clone after automatic permission
+review twice timed out on the original worktree's Git metadata update.
+The original checkout and its uncommitted log addition remain preserved.
