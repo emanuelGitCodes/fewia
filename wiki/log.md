@@ -3129,3 +3129,7 @@ Added the current grocery completion record. The wiki index and historical pages
 ## 2026-09-22 — Combined report renderer gates
 
 At branch50, Ruff and format passed for 240 files. Strict mypy passed for 123 source files. PostgreSQL-enabled pytest passed: 1,984 tests, one existing Starlette warning. The renderer replay reproduced 45 passing fixture checks and 12 passing plus three failing final-plan checks from the earlier live batch. The first preview script assumed a source_region key and failed before writing. The corrected preview displays the absent historical field as not recorded. The old observation file remains unchanged. P05 fixture review found a public-schema fallback and a transactional search_path setting; the writer is correcting these before any live fixture use.
+
+## 2026-09-22 — Atomic Markdown export
+
+Added exclusive Markdown output with no-overwrite installation and owned temporary-file cleanup. Independent review found whitespace-only and invalid UTF-8 text edge cases; Grok repaired both. Ruff, format, and strict mypy passed for 124 source files. PostgreSQL-enabled pytest passed: 1,999 tests, one existing Starlette warning. Existing outputs and race-created outputs remain intact.
