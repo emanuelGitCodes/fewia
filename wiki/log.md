@@ -2813,3 +2813,9 @@ formatting, and strict mypy passed before scorer development started.
 A concurrent full-suite attempt later hit a collection error because the
 scorer test appeared before its module. That unfinished scorer is excluded
 from this observer commit. Integrated gates run in the coordinator checkout.
+
+## 2026-09-22 — Protocol observer integration gates
+
+Ruff passed. Formatting passed 218 files. Strict mypy passed 112 source files.
+All 1,774 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+Only the completed observer and its tests were included in this verification.
