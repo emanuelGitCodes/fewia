@@ -6,6 +6,7 @@ import type { ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroceryJobCreate } from "./apiTypes";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import { useGroceryJob } from "./useGroceryJob";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -62,6 +63,7 @@ const succeededJob = {
       catalog_version: "sample-prices-v1",
       notice: NOTICE,
     },
+    meal_nutrition: sampleNutrition(),
   },
 };
 

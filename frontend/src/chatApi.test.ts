@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 import { HTTP_ERROR, SAMPLE_ESTIMATE_NOTICE, SHAPE_ERROR } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import { fetchChatJob, submitChatJob } from "./chatApi";
 import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
 
@@ -51,6 +52,7 @@ const result: ChatResult = {
     ingredient_exclusions: [],
     diet: "omnivore",
   },
+  meal_nutrition: sampleNutrition(),
   evidence_id: null,
   evidence_revision_id: REVISION,
   spending_source: "fixture",

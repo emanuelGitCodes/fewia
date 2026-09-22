@@ -5,6 +5,7 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import { Conversation } from "./Conversation";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -34,6 +35,7 @@ function job(status: GroceryJob["status"], accepted = true, total: number | null
         ? {
             spending_source: "fixture",
             budget: { available_cents: 5000, pending_cents: 0, stale: false, warnings: [] },
+            meal_nutrition: sampleNutrition(),
             plan: {
               lines: [
                 {

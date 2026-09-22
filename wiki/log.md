@@ -2246,3 +2246,57 @@ fixture-only repair. The reviewer did not run gates. Reviewer checkpoint
 This log does not claim live Bedrock, Plaid, or Spoonacular evidence.
 This log does not claim a deployment.
 The coordinator will supply final gate evidence separately.
+
+## 2026-09-19 — Frontend meal nutrition contracts
+
+Grok 4.6 added frontend types for `meal_nutrition` payloads.
+Grok 4.6 added strict validation for those payloads.
+The payloads cover manual grocery-job and chat-job requests.
+Chat-to-estimate conversion preserves nutrition.
+The conversion deep-copies nutrition.
+Nutrition does not change sample-catalog pricing.
+Nutrition does not change plan acceptance.
+The estimate panel does not render nutrition yet.
+Added application lines: 122.
+
+The coordinator fixed the Grok workflow.
+The coordinator used the verified file-only supervisor from local branch `codex/grok-permission-diagnostics`.
+That supervisor exposes `Read`, `Edit`, and `Write` only.
+Earlier default-tool runs ended as `task_failed` when Grok attempted terminal work.
+
+Frontend verification: 25 files and 315 tests passed.
+The production build passed.
+
+Backend verification: ruff passed.
+Format covered 191 files.
+Strict mypy passed on 98 source files.
+Pytest reported 1,501 passed with 14 skipped.
+One existing Starlette warning remains.
+
+An isolated mutation removed the chat-to-estimate nutrition clone.
+The focused test failed as expected: 1 failed and 12 passed.
+
+Independent read-only Grok review returned `APPROVE`.
+Confidence is 8/10.
+The reviewer found no blocking findings.
+The reviewer did not rerun commands.
+
+Branch: `codex/nutrition-frontend`.
+No push or merge occurred.
+This log MUST NOT claim live provider evidence.
+This log MUST NOT claim browser verification.
+
+## 2026-09-21 — Frontend nutrition compatibility integration
+
+The coordinator recovered the Grok nutrition contract changes from
+`codex/nutrition-frontend`. Grok 4.6 medium added legacy response support.
+Older manual and chat plans remain usable without nutrition.
+Malformed supplied nutrition remains invalid. Present nutrition is copied.
+
+Frontend tests reported 316 passed. The production build passed.
+Backend Ruff reported `All checks passed!`. Format reported
+`191 files already formatted`. Strict mypy passed 98 source files.
+The isolated PostgreSQL run reported 1515 passed and one Starlette warning.
+The earlier default run reported 1501 passed and 14 skipped.
+Independent review of the compatibility change remains pending.
+No live provider verification occurred.

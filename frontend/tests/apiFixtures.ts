@@ -1,6 +1,51 @@
-import { SAMPLE_ESTIMATE_NOTICE } from "../src/apiTypes";
+import {
+  NUTRITION_NOTICE,
+  NUTRITION_PORTION_NOTICE,
+  SAMPLE_ESTIMATE_NOTICE,
+  type MealPlanNutrition,
+} from "../src/apiTypes";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
+
+export function sampleNutrition(
+  overrides: Partial<MealPlanNutrition> = {},
+): MealPlanNutrition {
+  return {
+    notice: NUTRITION_NOTICE,
+    portion_notice: NUTRITION_PORTION_NOTICE,
+    total: {
+      energy_kcal: 200,
+      protein_mg: 2000,
+      carbohydrate_mg: 4000,
+      fat_mg: 1000,
+    },
+    meals: [
+      {
+        recipe_id: "bean_tacos",
+        servings: 2,
+        per_serving: {
+          energy_kcal: 100,
+          protein_mg: 1000,
+          carbohydrate_mg: 2000,
+          fat_mg: 500,
+        },
+        total: {
+          energy_kcal: 200,
+          protein_mg: 2000,
+          carbohydrate_mg: 4000,
+          fat_mg: 1000,
+        },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function mealPlanNutrition(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return { ...sampleNutrition(), ...overrides };
+}
 
 export function line(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -42,6 +87,7 @@ export function jobResult(overrides: Record<string, unknown> = {}): Record<strin
     plan: plan(),
     budget: budget(),
     spending_source: "fixture",
+    meal_nutrition: mealPlanNutrition(),
     ...overrides,
   };
 }

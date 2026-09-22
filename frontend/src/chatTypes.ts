@@ -1,4 +1,10 @@
-import type { GroceryBudget, GroceryPlan, GroceryRequest, JobStatus } from "./apiTypes";
+import type {
+  GroceryBudget,
+  GroceryPlan,
+  GroceryRequest,
+  JobStatus,
+  MealPlanNutrition,
+} from "./apiTypes";
 
 export type ChatResultStatus =
   | "planned"
@@ -32,6 +38,7 @@ export type ChatResult = {
   plan: GroceryPlan | null;
   budget: GroceryBudget | null;
   request: GroceryRequest | null;
+  meal_nutrition: MealPlanNutrition | null;
   evidence_id: string | null;
   evidence_revision_id: string | null;
   spending_source: ChatSpendingSource;

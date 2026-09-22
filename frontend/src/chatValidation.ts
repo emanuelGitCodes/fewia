@@ -7,7 +7,7 @@ import {
   isString,
   type GroceryRequest,
 } from "./apiTypes";
-import { isBudget, isPlan } from "./apiValidation";
+import { copyMealPlanNutrition, isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage } from "./chatTypes";
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -102,14 +102,19 @@ export function parseChatResult(value: unknown): ChatResult {
     throw new Error(SHAPE_ERROR);
   }
   const plan = value.plan;
+  const nutritionMissing =
+    value.meal_nutrition === null || value.meal_nutrition === undefined;
+  const nutrition = nutritionMissing ? null : copyMealPlanNutrition(value.meal_nutrition);
   const planOk =
     isPlan(plan) && isBudget(value.budget) && isRequest(value.request) &&
+    (nutritionMissing || nutrition !== null) &&
     isString(value.evidence_revision_id) && HEX64.test(value.evidence_revision_id) &&
     (value.evidence_id === null || isNonemptyString(value.evidence_id)) &&
     plan.accepted === planned;
   const extrasNull =
     value.budget === null && value.request === null &&
-    value.evidence_id === null && value.evidence_revision_id === null;
+    value.evidence_id === null && value.evidence_revision_id === null &&
+    nutritionMissing;
   const drop = status === "limit" || status === "incomplete";
   const need = planned || status === "needs_revision";
   if ((plan !== null && (drop || !planOk)) || (plan === null && (need || !extrasNull))) {
@@ -121,6 +126,7 @@ export function parseChatResult(value: unknown): ChatResult {
     plan: structuredClone(plan) as ChatResult["plan"],
     budget: structuredClone(value.budget) as ChatResult["budget"],
     request: structuredClone(value.request) as ChatResult["request"],
+    meal_nutrition: nutrition,
     evidence_id: value.evidence_id as string | null,
     evidence_revision_id: value.evidence_revision_id as string | null,
     spending_source: value.spending_source as ChatResult["spending_source"],

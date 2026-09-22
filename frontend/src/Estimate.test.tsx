@@ -12,6 +12,7 @@ import {
   type SupermarketEstimate,
 } from "./apiTypes";
 import { Estimate } from "./Estimate";
+import { sampleNutrition } from "../tests/apiFixtures";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 
@@ -53,6 +54,7 @@ function succeeded(overrides: {
     error_code: null,
     result: {
       spending_source: overrides.source ?? "fixture",
+      meal_nutrition: sampleNutrition(),
       budget: {
         available_cents: overrides.available ?? 5000,
         pending_cents: overrides.pending ?? 200,

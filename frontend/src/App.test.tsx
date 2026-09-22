@@ -18,6 +18,7 @@ import { useChatConversation } from "./useChatConversation";
 import { useGroceryDemo, type GroceryDemo } from "./useGroceryDemo";
 import { useHandoff } from "./useHandoff";
 import { useProviderCapabilities } from "./useProviderCapabilities";
+import { sampleNutrition } from "../tests/apiFixtures";
 
 vi.mock("./useGroceryDemo", () => ({
   useGroceryDemo: vi.fn(),
@@ -98,6 +99,7 @@ function plannedChat(): ChatResult {
       ingredient_exclusions: [],
       diet: "vegetarian",
     },
+    meal_nutrition: sampleNutrition(),
     evidence_id: null,
     evidence_revision_id: REVISION,
     spending_source: "fixture",
@@ -134,6 +136,7 @@ const succeededJob: GroceryJob = {
   result: {
     spending_source: "fixture",
     budget: { available_cents: 5000, pending_cents: 200, stale: false, warnings: [] },
+    meal_nutrition: sampleNutrition(),
     plan: {
       lines: [
         {

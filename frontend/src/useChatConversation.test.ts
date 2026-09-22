@@ -5,6 +5,7 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestRenderer } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
 import {
   BUDGET_ERROR,
@@ -62,6 +63,7 @@ function resultOf(status: ChatResult["status"], answer: string): ChatResult {
           ingredient_exclusions: [],
           diet: "omnivore",
         },
+    meal_nutrition: extras ? null : sampleNutrition(),
     evidence_id: null,
     evidence_revision_id: extras ? null : "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     spending_source: "fixture",

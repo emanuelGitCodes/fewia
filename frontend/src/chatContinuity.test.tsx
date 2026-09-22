@@ -5,6 +5,7 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import { initialForm, type FormState } from "./BudgetForm";
 import { ChatWorkspace, REBUILD_CHAT_GUIDANCE, useChatWorkspace } from "./ChatWorkspace";
 import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
@@ -57,6 +58,7 @@ function plannedResult(): ChatResult {
       ingredient_exclusions: [],
       diet: "vegetarian",
     },
+    meal_nutrition: sampleNutrition(),
     evidence_id: null,
     evidence_revision_id: REVISION,
     spending_source: "fixture",
@@ -79,6 +81,7 @@ function formJob(id = "form-1"): GroceryJob {
     result: {
       spending_source: "fixture",
       budget: { available_cents: 5000, pending_cents: 0, stale: false, warnings: [] },
+      meal_nutrition: sampleNutrition(),
       plan: {
         lines: [],
         total_cents: 100,
