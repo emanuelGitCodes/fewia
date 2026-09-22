@@ -2600,3 +2600,9 @@ The coordinator passed all backend gates: Ruff passed; formatting passed
 204 files; strict mypy passed 105 source files; 1,637 tests passed against
 isolated PostgreSQL. One existing Starlette warning remains. The CLI caller
 still needs to enforce manifest, provider execution, and final-write order.
+
+## 2026-09-22 — Integrated evaluation persistence verification
+
+The persistence layer passed all backend gates after integration. Ruff passed.
+Formatting passed 206 files. Strict mypy passed 106 source files. All 1,708
+tests passed against isolated PostgreSQL, with one existing Starlette warning.
