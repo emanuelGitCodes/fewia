@@ -2840,3 +2840,19 @@ No runtime price default or network lookup is added.
 Ruff passed. Formatting passed 220 files. Strict mypy passed 113 source files.
 All 1,805 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The public pricing fixture is repository-relative and needs no network access.
+
+## 2026-09-22 — Model token cost estimates
+
+Grok 4.6 added the token-cost estimator. A separate Grok review found that typed
+rate objects bypassed validation. Grok repaired the path and extracted the
+rate parser into its own review layer. The coordinator inspected the repair.
+All 1,778 candidate PostgreSQL-enabled tests passed, including 22 cost tests
+and 31 rate tests. Ruff passed. Formatting passed 212 files. Strict mypy passed
+109 source files. One existing Starlette warning remains.
+
+Unknown usage keeps the overall cost unknown. Known-subset cost is separate.
+An observed zero stays zero. Model, region, routing, and tier must match the
+explicit rate configuration. The earlier 24-observation batch yields a text
+input/output token estimate of $0.13163909. A separate Decimal calculation
+matched. This excludes cache, other charges, and account adjustments. It is
+not an AWS invoice or observed billing.
