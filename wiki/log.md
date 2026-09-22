@@ -3036,3 +3036,14 @@ corpus flags: 12 model-required cases and 18 cases without that requirement.
 P01 and P02 were incorrectly marked as model-required in the prior table.
 The coordinator checked every flag and all relative links. The coverage record
 separates the mixed batch, later fixture batch, and final-plan scoring subset.
+
+## 2026-09-22 — Referenced application completion backlog
+
+Grok 4.6 updated the grocery backlog with descriptions, acceptance boundaries,
+next steps, and references for all 12 work areas. Completed nutrition, browser,
+refresh-client, overlay, and evaluation foundations stay closed for their stated
+scope. Remaining provider evidence and evaluation gaps stay explicit.
+
+The coordinator checked every repository link against the integrated tree.
+Each item has a key-reference row. The record separates historical batch counts,
+strict cap-argument mismatches, enforced budgets, and unassessed quality targets.
