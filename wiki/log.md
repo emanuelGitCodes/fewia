@@ -2551,3 +2551,10 @@ All X03 final turns requested clarification without a plan. These are direct
 chat-loop observations, not HTTP or database evidence. Some public replies
 still guessed item prices, unsupported substitutions, or ingredient groups.
 Those answer-grounding defects remain open. No model-quality target is claimed.
+
+## 2026-09-22 — Integrated catalog-conflict verification
+
+The combined batch, callback, and catalog-conflict layers passed all backend
+gates against isolated PostgreSQL. Ruff passed. Formatting passed 202 files.
+Strict mypy passed 104 source files. All 1,671 tests passed, with one existing
+Starlette warning. Public-answer grounding remains a separate work item.
