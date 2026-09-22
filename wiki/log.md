@@ -3133,3 +3133,7 @@ At branch50, Ruff and format passed for 240 files. Strict mypy passed for 123 so
 ## 2026-09-22 — Atomic Markdown export
 
 Added exclusive Markdown output with no-overwrite installation and owned temporary-file cleanup. Independent review found whitespace-only and invalid UTF-8 text edge cases; Grok repaired both. Ruff, format, and strict mypy passed for 124 source files. PostgreSQL-enabled pytest passed: 1,999 tests, one existing Starlette warning. Existing outputs and race-created outputs remain intact.
+
+## 2026-09-22 — Dated cost report section
+
+Added a cost Markdown section that uses the existing validated estimator. It separates known-subset cost from unknown overall cost. It records dated rates and source provenance. It does not claim observed billing. Independent review found Markdown link escape and Unicode whitespace cases; Grok added guards and regressions. Ruff, format, and strict mypy passed for 122 source files. PostgreSQL-enabled pytest passed: 1,961 tests, one existing Starlette warning.
