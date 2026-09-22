@@ -310,6 +310,111 @@ def test_chat_job_stale_cap_and_period(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["plan"] is not None
 
 
+def _job_context(provider: FakeLLM) -> dict[str, object]:
+    first = provider.requests[0]["messages"]
+    assert isinstance(first, list)
+    last = first[-1]
+    assert isinstance(last, dict)
+    content = last["content"]
+    assert isinstance(content, list)
+    block = content[0]
+    assert isinstance(block, dict)
+    text = block["text"]
+    assert isinstance(text, str)
+    loaded: object = json.loads(text)
+    assert isinstance(loaded, dict)
+    return {str(key): value for key, value in loaded.items()}
+
+
+def test_chat_job_passes_explicit_plan_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    saved: list[dict[str, object]] = []
+    _patch_save(monkeypatch, saved)
+    provider = FakeLLM(_planner_then_final())
+    payload = chat_payload(plan_cap_cents=20_000)
+    original = copy.deepcopy(payload)
+    result = chat_job_module.chat_job(
+        payload, lambda: None, provider=provider, factory=FACTORY
+    )
+    assert result["status"] in {"planned", "needs_revision"}
+    context = _job_context(provider)
+    assert context["plan_cap_cents"] == 20_000
+    budget_payload = context["budget"]
+    assert isinstance(budget_payload, dict)
+    expected_budget = calculate_budget(
+        10_000,
+        SpendingSnapshot(PERIOD, 2_500, 400, NOW - timedelta(hours=1)),
+        now=NOW,
+        plan_cap_cents=20_000,
+    )
+    assert budget_payload["available_cents"] == expected_budget.available_cents
+    assert budget_payload["available_cents"] == 7_500
+    inputs = saved[0]["inputs"]
+    assert isinstance(inputs, EvidenceInputs)
+    assert inputs.plan_cap_cents == 20_000
+    assert payload == original
+    last = provider.requests[0]["messages"]
+    assert isinstance(last, list)
+    content = last[-1]["content"]
+    assert isinstance(content, list)
+    assert content[-1] == {"text": "plan chicken tacos"}
+
+
+def test_chat_job_preserves_cap_zero_one_and_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    saved: list[dict[str, object]] = []
+    _patch_save(monkeypatch, saved)
+    cases = (
+        (0, 0),
+        (1, 1),
+        (None, 7_500),
+    )
+    for cap, available in cases:
+        saved.clear()
+        payload = chat_payload() if cap is None else chat_payload(plan_cap_cents=cap)
+        provider = FakeLLM(_planner_then_final())
+        chat_job_module.chat_job(
+            payload, lambda: None, provider=provider, factory=FACTORY
+        )
+        context = _job_context(provider)
+        assert context["plan_cap_cents"] == cap
+        budget_payload = context["budget"]
+        assert isinstance(budget_payload, dict)
+        assert budget_payload["available_cents"] == available
+        inputs = saved[0]["inputs"]
+        assert isinstance(inputs, EvidenceInputs)
+        assert inputs.plan_cap_cents == cap
+
+
+def test_chat_job_rejects_invalid_plan_cap_before_provider() -> None:
+    provider = FailLLM()
+    with pytest.raises(ValidationError):
+        chat_job_module.chat_job(
+            chat_payload(plan_cap_cents=-1),
+            lambda: None,
+            provider=provider,
+            factory=FACTORY,
+        )
+    with pytest.raises(ValidationError):
+        chat_job_module.chat_job(
+            chat_payload(plan_cap_cents=True),
+            lambda: None,
+            provider=provider,
+            factory=FACTORY,
+        )
+    with pytest.raises(ValidationError):
+        chat_job_module.chat_job(
+            chat_payload(plan_cap_cents="1"),
+            lambda: None,
+            provider=provider,
+            factory=FACTORY,
+        )
+
+
 def test_chat_job_omits_raw_ledger_from_model_inputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

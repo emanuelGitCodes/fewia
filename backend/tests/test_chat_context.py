@@ -17,6 +17,7 @@ from app.agent.chat_context import (
     build_messages,
     read_usage,
 )
+from app.agent.chat_loop import run_chat
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult
 from app.domain.grocery import GroceryRequest
@@ -48,6 +49,17 @@ def pair(index: int) -> list[dict[str, str]]:
         {"role": "user", "text": f"user-{index}"},
         {"role": "assistant", "text": f"assistant-{index}"},
     ]
+
+
+class _FailLLM:
+    def converse(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        del system_prompt, messages, tools
+        raise AssertionError("provider must not run")
 
 
 def _assert_static(error: BaseException, token: str) -> None:
@@ -98,7 +110,14 @@ def test_followup_history_appends_current_user_and_context() -> None:
     assert len(content) == 2
     assert content[-1] == {"text": "use two servings"}
     payload = _context(messages)
-    assert set(payload) == {"budget", "context_role", "period", "previous_request"}
+    assert set(payload) == {
+        "budget",
+        "context_role",
+        "period",
+        "plan_cap_cents",
+        "previous_request",
+    }
+    assert payload["plan_cap_cents"] is None
     assert payload["context_role"] == CONTEXT_ROLE
     assert payload["period"] == "2026-09-01"
     assert payload["previous_request"] == GroceryRequest.model_validate(
@@ -257,7 +276,12 @@ def test_build_messages_does_not_mutate_inputs_or_chain_errors() -> None:
     original_prev = copy.deepcopy(prev)
     snapshot = budget(1_000)
     messages = build_messages(
-        "now", snapshot, PERIOD, previous_request=prev, history=history
+        "now",
+        snapshot,
+        PERIOD,
+        previous_request=prev,
+        history=history,
+        plan_cap_cents=0,
     )
     history[0]["text"] = _SECRET
     history.append({"role": "user", "text": "late"})
@@ -269,6 +293,7 @@ def test_build_messages_does_not_mutate_inputs_or_chain_errors() -> None:
         original_prev
     ).model_dump(mode="json")
     assert snapshot == budget(1_000)
+    assert _context(messages)["plan_cap_cents"] == 0
     with pytest.raises(ChatProtocolError) as caught:
         build_messages(_SECRET, budget(), PERIOD, user_id=0)
     _assert_static(caught.value, _SECRET)
@@ -319,6 +344,12 @@ def test_build_messages_does_not_mutate_inputs_or_chain_errors() -> None:
             },
             "warn",
         ),
+        ({"plan_cap_cents": True}, "True"),
+        ({"plan_cap_cents": False}, "False"),
+        ({"plan_cap_cents": -1}, "-1"),
+        ({"plan_cap_cents": "1"}, "1"),
+        ({"plan_cap_cents": 1.0}, "1.0"),
+        ({"plan_cap_cents": _SECRET}, _SECRET),
     ],
 )
 def test_request_constraints_raise_static_errors(
@@ -395,3 +426,41 @@ def test_read_usage_valid_and_unknown() -> None:
 )
 def test_read_usage_invalid_returns_none_without_zero(response: object) -> None:
     assert read_usage(response) is None
+
+
+@pytest.mark.parametrize("cap", [0, 1, 50_000])
+def test_explicit_plan_cap_is_preserved_in_context(cap: int) -> None:
+    snapshot = budget(available_cents=10_000)
+    messages = build_messages("ok", snapshot, PERIOD, plan_cap_cents=cap)
+    payload = _context(messages)
+    assert payload["plan_cap_cents"] == cap
+    assert payload["budget"]["available_cents"] == 10_000
+    last = messages[-1]
+    content = last["content"]
+    assert isinstance(content, list)
+    assert content[-1] == {"text": "ok"}
+
+
+def test_none_plan_cap_stays_none_and_does_not_copy_available() -> None:
+    snapshot = budget(available_cents=1)
+    omitted = _context(build_messages("ok", snapshot, PERIOD))
+    explicit = _context(build_messages("ok", snapshot, PERIOD, plan_cap_cents=None))
+    assert omitted["plan_cap_cents"] is None
+    assert explicit["plan_cap_cents"] is None
+    assert omitted["budget"]["available_cents"] == 1
+    assert explicit["budget"]["available_cents"] == 1
+
+
+@pytest.mark.parametrize("cap", [True, False, -1, "1", 1.0, _SECRET])
+def test_invalid_plan_cap_rejects_before_provider(cap: object) -> None:
+    provider = _FailLLM()
+    with pytest.raises(ChatProtocolError) as caught:
+        run_chat(
+            provider,
+            "ok",
+            budget(),
+            PERIOD,
+            plan_cap_cents=cast(int | None, cap),
+        )
+    _assert_static(caught.value, str(cap))
+    assert str(caught.value) == "request is invalid"

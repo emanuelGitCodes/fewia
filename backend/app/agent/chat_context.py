@@ -43,6 +43,10 @@ def _budget_ok(budget: object) -> TypeGuard[BudgetResult]:
     )
 
 
+def _plan_cap_ok(value: object) -> TypeGuard[int | None]:
+    return value is None or (_exact_int(value) and value >= 0)
+
+
 def _previous(
     previous_request: dict[str, object] | None,
 ) -> dict[str, object] | None:
@@ -90,6 +94,7 @@ def build_messages(
     spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
+    plan_cap_cents: int | None = None,
 ) -> list[dict[str, object]]:
     if (
         not _public_text(message)
@@ -99,6 +104,7 @@ def build_messages(
         or type(period) is not date
         or period.day != 1
         or not _budget_ok(budget)
+        or not _plan_cap_ok(plan_cap_cents)
     ):
         raise ChatProtocolError(_REQUEST)
     previous = _previous(previous_request)
@@ -108,6 +114,7 @@ def build_messages(
             "budget": asdict(budget),
             "context_role": CONTEXT_ROLE,
             "period": period.isoformat(),
+            "plan_cap_cents": plan_cap_cents,
             "previous_request": previous,
         },
         sort_keys=True,
