@@ -113,16 +113,42 @@ describe("parseSyncJob", () => {
       result: null,
       error_code: null,
     });
+    expect(parseSyncJob(job({ status: "running", result: null, error_code: null }))).toEqual({
+      id: JOB_ID,
+      status: "running",
+      result: null,
+      error_code: null,
+    });
     expect(parseSyncJob(job({ result: result({ changed_count: 3 }) })).result).toEqual({
       source: "plaid_sandbox",
       changed_count: 3,
+    });
+    expect(
+      parseSyncJob(job({ status: "failed", result: null, error_code: "attempts_exhausted" })),
+    ).toEqual({
+      id: JOB_ID,
+      status: "failed",
+      result: null,
+      error_code: "attempts_exhausted",
     });
   });
 
   it("rejects succeeded jobs without a result and invalid status", () => {
     expectShapeError(job({ status: "succeeded", result: null }), parseSyncJob);
+    expectShapeError(job({ status: "succeeded", error_code: "sync_failed" }), parseSyncJob);
     expectShapeError(job({ status: "done" }), parseSyncJob);
     expectShapeError(job({ status: RAW }), parseSyncJob);
+  });
+
+  it("rejects invalid result and error_code pairs for each status", () => {
+    expectShapeError(job({ status: "queued", result: result() }), parseSyncJob);
+    expectShapeError(job({ status: "running", result: result() }), parseSyncJob);
+    expectShapeError(job({ status: "queued", result: null, error_code: "sync_failed" }), parseSyncJob);
+    expectShapeError(job({ status: "running", result: null, error_code: "sync_failed" }), parseSyncJob);
+    expectShapeError(job({ status: "failed", result: result(), error_code: "sync_failed" }), parseSyncJob);
+    expectShapeError(job({ status: "failed", result: null, error_code: null }), parseSyncJob);
+    expectShapeError(job({ status: "failed", result: null, error_code: "" }), parseSyncJob);
+    expectShapeError(job({ status: "failed", result: null, error_code: " " }), parseSyncJob);
   });
 
   it("rejects malformed counts and grocery-shaped results", () => {

@@ -85,14 +85,24 @@ export function parseSyncJob(value: unknown): SyncJob {
   if (!isRecord(value) || !exactKeys(value, JOB_KEYS) || !isPublicId(value.id) || !isStatus(value.status)) {
     fail();
   }
-  if (value.error_code !== null && !isString(value.error_code)) {
+  const error = value.error_code;
+  if (error !== null && (!isNonemptyString(error) || error.trim() === "")) {
     fail();
   }
   const result = parseResult(value.result);
-  if (value.status === "succeeded" && result === null) {
+  const status = value.status;
+  if (status === "succeeded") {
+    if (result === null || error !== null) {
+      fail();
+    }
+  } else if (status === "failed") {
+    if (result !== null || error === null) {
+      fail();
+    }
+  } else if (result !== null || error !== null) {
     fail();
   }
-  return { id: value.id, status: value.status, result, error_code: value.error_code };
+  return { id: value.id, status, result, error_code: error };
 }
 
 export async function fetchSyncItems(signal?: AbortSignal): Promise<SyncItem[]> {
