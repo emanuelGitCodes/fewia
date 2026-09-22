@@ -3058,3 +3058,11 @@ conflicts. Sample prices still control budget acceptance.
 The coordinator checked relative links and preserved the historical phase body.
 The older checkpoint remains under its historical date. Decision 0012's proposed
 no-tool evaluation remains a proposal. These edits do not claim its completion.
+
+## 2026-09-22 — Active document verification
+
+The coordinator verified all relative links in the active backlog, plan,
+project context, local demo runbook, verification plan, and decision 0012.
+The verification table matches all 30 corpus model flags. Historical health
+phases remain unchanged. Current grocery work no longer inherits the prior
+paused checkpoint as its active instruction.
