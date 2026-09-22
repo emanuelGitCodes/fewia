@@ -2877,3 +2877,17 @@ model quality or call providers.
 Ruff passed. Formatting passed 224 files. Strict mypy passed 115 source files.
 All 1,855 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 These checks include the extracted value helpers and their mutation cases.
+
+## 2026-09-22 — Controlled protocol scoring
+
+Grok 4.6 medium added the P04 scorer over the verified observer. It compares
+actual call counts, planner revisions, static malformed-response rejection,
+and unknown-tool errors with the corpus. Mutated bounds, unexpected accepted
+plans, and repeated malformed calls fail their checks. The coordinator found
+an arbitrary case-ID output during review. Grok low restricted it to P04 or
+`invalid_case` and added a regression check.
+
+All 1,728 candidate PostgreSQL-enabled tests passed. Ruff passed. Formatting
+passed 212 files. Strict mypy passed 109 source files. One existing Starlette
+warning remains. The report labels this controlled evidence as deterministic.
+Its real-Bedrock target and broader model-quality criteria remain unassessed.
