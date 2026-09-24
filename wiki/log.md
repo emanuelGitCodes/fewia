@@ -2741,3 +2741,19 @@ and make eight chicken-taco servings affordable. The real API, worker, and
 Bedrock path returned the full $34.71 estimate as over budget. The cap control
 remained $0.01. A subsequent request for two bean-taco servings retained the
 same cap and rejected the $17.03 estimate. No vendor lookup or purchase ran.
+
+## 2026-09-22 — Controlled protocol provider fixture
+
+Grok 4.6 medium added a file-scoped provider fixture for protocol evaluation.
+It generates unique tool-call IDs and copies response payloads. It records
+returned tool errors without retaining prompts or tool schemas. The coordinator
+reviewed the fixture and six focused tests passed. Ruff formatting and strict
+mypy passed. Malformed responses remain intentional test inputs.
+This helper does not call a real model or establish model quality.
+
+## 2026-09-22 — Protocol fixture integration gates
+
+The integrated fixture passed Ruff. Formatting passed 212 files. Strict mypy
+passed 109 source files. All 1,746 PostgreSQL-enabled tests passed, with one
+existing Starlette warning. The protocol observer and scorer remain separate
+work items until their checks pass.
