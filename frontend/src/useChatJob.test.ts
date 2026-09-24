@@ -5,6 +5,7 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
 import { useChatJob } from "./useChatJob";
 
@@ -68,6 +69,7 @@ const planned: ChatResult = {
     ingredient_exclusions: [],
     diet: "omnivore",
   },
+  meal_nutrition: sampleNutrition(),
   evidence_id: null,
   evidence_revision_id: REVISION,
   spending_source: "fixture",
@@ -123,6 +125,7 @@ const clarificationJob: ChatJob = {
     plan: null,
     budget: null,
     request: null,
+    meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
   },
@@ -139,6 +142,7 @@ const limitJob: ChatJob = {
     plan: null,
     budget: null,
     request: null,
+    meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
   },

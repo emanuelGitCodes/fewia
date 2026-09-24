@@ -64,10 +64,32 @@ export type SupermarketEstimate = {
   notice: string;
 };
 
+export type MacroTotals = {
+  energy_kcal: number;
+  protein_mg: number;
+  carbohydrate_mg: number;
+  fat_mg: number;
+};
+
+export type MealNutrition = {
+  recipe_id: string;
+  servings: number;
+  per_serving: MacroTotals;
+  total: MacroTotals;
+};
+
+export type MealPlanNutrition = {
+  notice: string;
+  portion_notice: string;
+  total: MacroTotals | null;
+  meals: MealNutrition[];
+};
+
 export type GroceryJobResult = {
   plan: GroceryPlan;
   budget: GroceryBudget;
   spending_source: string;
+  meal_nutrition?: MealPlanNutrition;
   supermarket_estimate?: SupermarketEstimate;
 };
 
@@ -99,6 +121,12 @@ export type GroceryJob = {
 
 export const SAMPLE_ESTIMATE_NOTICE =
   "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
+
+export const NUTRITION_NOTICE =
+  "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.";
+
+export const NUTRITION_PORTION_NOTICE =
+  "Portion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.";
 
 export const SPOONACULAR_COST_NOTICE =
   "Average supermarket estimate from Spoonacular. Not a store price. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";

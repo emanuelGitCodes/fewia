@@ -1,9 +1,15 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { SAMPLE_ESTIMATE_NOTICE, SHAPE_ERROR, SPOONACULAR_COST_NOTICE } from "./apiTypes";
-import { parseConfig, parseJob } from "./apiValidation";
-import { budget, config, job, jobResult, line, plan } from "../tests/apiFixtures";
+import {
+  NUTRITION_NOTICE,
+  NUTRITION_PORTION_NOTICE,
+  SAMPLE_ESTIMATE_NOTICE,
+  SHAPE_ERROR,
+  SPOONACULAR_COST_NOTICE,
+} from "./apiTypes";
+import { copyMealPlanNutrition, parseConfig, parseJob } from "./apiValidation";
+import { budget, config, job, jobResult, line, mealPlanNutrition, plan } from "../tests/apiFixtures";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const CATALOG = "sample-prices-v1";
@@ -127,6 +133,134 @@ describe("parseJob", () => {
         }),
       ),
     ).toThrow(SHAPE_ERROR);
+  });
+
+  it("accepts required nutrition and keeps budget acceptance unchanged", () => {
+    const parsed = parseJob(job());
+    expect(parsed.result?.meal_nutrition?.notice).toBe(NUTRITION_NOTICE);
+    expect(parsed.result?.meal_nutrition?.portion_notice).toBe(NUTRITION_PORTION_NOTICE);
+    expect(parsed.result?.meal_nutrition?.total?.energy_kcal).toBe(200);
+    expect(parsed.result?.plan.accepted).toBe(true);
+    const rejected = parseJob(
+      job({
+        result: jobResult({
+          plan: plan({ accepted: false, warnings: ["Over the remaining budget"] }),
+        }),
+      }),
+    );
+    expect(rejected.result?.plan.accepted).toBe(false);
+    expect(rejected.result?.meal_nutrition?.total?.energy_kcal).toBe(200);
+  });
+
+  it("accepts a legacy manual result that omits meal_nutrition", () => {
+    const result = jobResult();
+    delete result.meal_nutrition;
+    const parsed = parseJob(job({ result }));
+    expect(parsed.result?.meal_nutrition).toBeUndefined();
+    expect(parsed.result?.plan.accepted).toBe(true);
+    expect(parsed.result?.plan.total_cents).toBe(129);
+  });
+
+  it("rejects malformed nutrition fields and wrong notices", () => {
+    expect(() => parseJob(job({ result: jobResult({ meal_nutrition: null }) }))).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ notice: "wrong" }) }) })),
+    ).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(
+        job({
+          result: jobResult({ meal_nutrition: mealPlanNutrition({ portion_notice: "wrong" }) }),
+        }),
+      ),
+    ).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(
+        job({
+          result: jobResult({
+            meal_nutrition: mealPlanNutrition({
+              meals: [
+                {
+                  recipe_id: "",
+                  servings: 2,
+                  per_serving: { energy_kcal: 1, protein_mg: 1, carbohydrate_mg: 1, fat_mg: 1 },
+                  total: { energy_kcal: 1, protein_mg: 1, carbohydrate_mg: 1, fat_mg: 1 },
+                },
+              ],
+            }),
+          }),
+        }),
+      ),
+    ).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(
+        job({
+          result: jobResult({
+            meal_nutrition: mealPlanNutrition({
+              total: { energy_kcal: -1, protein_mg: 0, carbohydrate_mg: 0, fat_mg: 0 },
+            }),
+          }),
+        }),
+      ),
+    ).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(
+        job({
+          result: jobResult({
+            meal_nutrition: mealPlanNutrition({
+              meals: [
+                {
+                  recipe_id: "bean_tacos",
+                  servings: 9,
+                  per_serving: { energy_kcal: 1, protein_mg: 1, carbohydrate_mg: 1, fat_mg: 1 },
+                  total: { energy_kcal: 1, protein_mg: 1, carbohydrate_mg: 1, fat_mg: 1 },
+                },
+              ],
+            }),
+          }),
+        }),
+      ),
+    ).toThrow(SHAPE_ERROR);
+    const meal = {
+      recipe_id: "bean_tacos",
+      servings: 1,
+      per_serving: { energy_kcal: 1, protein_mg: 1, carbohydrate_mg: 1, fat_mg: 1 },
+      total: { energy_kcal: 1, protein_mg: 1, carbohydrate_mg: 1, fat_mg: 1 },
+    };
+    expect(() =>
+      parseJob(
+        job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ meals: [meal, meal, meal, meal] }) }) }),
+      ),
+    ).toThrow(SHAPE_ERROR);
+  });
+
+  it("accepts a null nutrition total only with an empty meals array", () => {
+    const parsed = parseJob(
+      job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ total: null, meals: [] }) }) }),
+    );
+    expect(parsed.result?.meal_nutrition?.total).toBeNull();
+    expect(parsed.result?.meal_nutrition?.meals).toEqual([]);
+    expect(() =>
+      parseJob(job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ total: null }) }) })),
+    ).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseJob(job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ meals: [] }) }) })),
+    ).toThrow(SHAPE_ERROR);
+  });
+});
+
+describe("copyMealPlanNutrition", () => {
+  it("deep-copies nutrition and does not mutate the input", () => {
+    const input = mealPlanNutrition();
+    const copied = copyMealPlanNutrition(input);
+    if (copied === null || copied.total === null) {
+      throw new Error("expected cloned nutrition");
+    }
+    copied.total.energy_kcal = 1;
+    copied.meals[0].recipe_id = "mutated";
+    copied.meals.push(copied.meals[0]);
+    expect((input.total as { energy_kcal: number }).energy_kcal).toBe(200);
+    expect((input.meals as { recipe_id: string }[])[0]?.recipe_id).toBe("bean_tacos");
+    expect((input.meals as unknown[]).length).toBe(1);
   });
 });
 

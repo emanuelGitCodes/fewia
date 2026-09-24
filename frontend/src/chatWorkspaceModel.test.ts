@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryConfig } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import { initialForm, type FormState } from "./BudgetForm";
 import type { ChatJob, ChatResult } from "./chatTypes";
 import {
@@ -61,6 +62,7 @@ function plannedResult(overrides: Partial<ChatResult> = {}): ChatResult {
       ingredient_exclusions: [],
       diet: "omnivore",
     },
+    meal_nutrition: sampleNutrition(),
     evidence_id: null,
     evidence_revision_id: REVISION,
     spending_source: "fixture",
@@ -82,6 +84,7 @@ function noPlanResult(status: ChatResult["status"]): ChatResult {
     plan: null,
     budget: null,
     request: null,
+    meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
   });
@@ -145,6 +148,7 @@ describe("chatEstimateJob", () => {
         plan: source.result?.plan,
         budget: source.result?.budget,
         spending_source: "fixture",
+        meal_nutrition: source.result?.meal_nutrition,
       },
     });
     const clarification = plannedResult({
@@ -190,6 +194,33 @@ describe("chatEstimateJob", () => {
     expect(display?.result?.plan?.total_cents).toBe(129);
     expect(display?.result?.plan?.warnings).toEqual(["display"]);
     expect(source.result?.plan?.warnings).toEqual(["mutated"]);
+  });
+
+  it("preserves nutrition, deep-copies it, and does not change budget acceptance", () => {
+    const source = succeededJob(plannedResult());
+    const display = chatEstimateJob(source);
+    const original = source.result?.meal_nutrition;
+    const copied = display?.result?.meal_nutrition;
+    if (original == null || copied == null || original.total === null || copied.total === null) {
+      throw new Error("expected cloned nutrition");
+    }
+    expect(display?.result?.plan.accepted).toBe(true);
+    const legacySource = succeededJob(plannedResult({ meal_nutrition: null }));
+    const legacy = chatEstimateJob(legacySource);
+    expect(legacy?.result?.plan.accepted).toBe(true);
+    expect(legacy?.result?.plan.total_cents).toBe(129);
+    expect(legacy?.result?.meal_nutrition).toBeUndefined();
+    legacySource.result?.plan?.warnings.push("mutated");
+    expect(legacy?.result?.plan.warnings).toEqual([]);
+    const unavailable = plannedResult({ meal_nutrition: sampleNutrition({ total: null, meals: [] }) });
+    expect(chatEstimateJob(succeededJob(unavailable))?.result?.plan.accepted).toBe(true);
+    expect(chatEstimateJob(succeededJob(unavailable))?.result?.meal_nutrition?.total).toBeNull();
+    original.total.energy_kcal = 1;
+    original.meals[0].recipe_id = "mutated";
+    copied.meals[0].servings = 8;
+    expect(display?.result?.meal_nutrition?.total?.energy_kcal).toBe(200);
+    expect(display?.result?.meal_nutrition?.meals[0]?.recipe_id).toBe("bean_tacos");
+    expect(source.result?.meal_nutrition?.meals[0]?.servings).toBe(2);
   });
 });
 

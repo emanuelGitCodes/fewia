@@ -11,6 +11,7 @@ import {
   type GroceryJob,
   type GroceryJobCreate,
 } from "./apiTypes";
+import { sampleNutrition } from "../tests/apiFixtures";
 import { buildRequest, initialForm } from "./BudgetForm";
 import { useGroceryDemo, type GroceryDemo } from "./useGroceryDemo";
 import { useGroceryJob } from "./useGroceryJob";
@@ -45,6 +46,7 @@ const succeededJob: GroceryJob = {
   result: {
     spending_source: "fixture",
     budget: { available_cents: 5000, pending_cents: 0, stale: false, warnings: [] },
+    meal_nutrition: sampleNutrition(),
     plan: {
       lines: [
         {

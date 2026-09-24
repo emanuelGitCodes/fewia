@@ -1,4 +1,6 @@
 import {
+  NUTRITION_NOTICE,
+  NUTRITION_PORTION_NOTICE,
   SAMPLE_ESTIMATE_NOTICE,
   SHAPE_ERROR,
   SPOONACULAR_COST_NOTICE,
@@ -16,6 +18,9 @@ import {
   type GroceryJobAck,
   type GroceryJobResult,
   type GroceryPlan,
+  type MacroTotals,
+  type MealNutrition,
+  type MealPlanNutrition,
   type PlanLine,
   type SupermarketEstimate,
 } from "./apiTypes";
@@ -94,6 +99,71 @@ export function isBudget(value: unknown): value is GroceryBudget {
   );
 }
 
+function copyMacros(value: unknown): MacroTotals | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const energy = value.energy_kcal;
+  const protein = value.protein_mg;
+  const carb = value.carbohydrate_mg;
+  const fat = value.fat_mg;
+  if (
+    !isNonnegativeCents(energy) ||
+    !isNonnegativeCents(protein) ||
+    !isNonnegativeCents(carb) ||
+    !isNonnegativeCents(fat)
+  ) {
+    return null;
+  }
+  return {
+    energy_kcal: energy,
+    protein_mg: protein,
+    carbohydrate_mg: carb,
+    fat_mg: fat,
+  };
+}
+
+function copyMealNutrition(value: unknown): MealNutrition | null {
+  if (!isRecord(value) || !isNonemptyString(value.recipe_id)) {
+    return null;
+  }
+  const servings = value.servings;
+  const perServing = copyMacros(value.per_serving);
+  const total = copyMacros(value.total);
+  if (!isSafeInteger(servings) || servings < 1 || servings > 8 || perServing === null || total === null) {
+    return null;
+  }
+  return { recipe_id: value.recipe_id, servings, per_serving: perServing, total };
+}
+
+function planNutrition(total: MacroTotals | null, meals: MealNutrition[]): MealPlanNutrition {
+  return { notice: NUTRITION_NOTICE, portion_notice: NUTRITION_PORTION_NOTICE, total, meals };
+}
+
+export function copyMealPlanNutrition(value: unknown): MealPlanNutrition | null {
+  if (
+    !isRecord(value) ||
+    value.notice !== NUTRITION_NOTICE ||
+    value.portion_notice !== NUTRITION_PORTION_NOTICE ||
+    !Array.isArray(value.meals)
+  ) {
+    return null;
+  }
+  const meals: MealNutrition[] = [];
+  for (const item of value.meals) {
+    const meal = copyMealNutrition(item);
+    if (meal === null) {
+      return null;
+    }
+    meals.push(meal);
+  }
+  if (value.total === null) {
+    return meals.length === 0 ? planNutrition(null, []) : null;
+  }
+  const total = copyMacros(value.total);
+  return total !== null && meals.length >= 1 && meals.length <= 3 ? planNutrition(total, meals) : null;
+}
+
 function isSupermarketEstimate(value: unknown): value is SupermarketEstimate {
   if (!isRecord(value)) {
     return false;
@@ -110,7 +180,8 @@ function isResult(value: unknown): value is GroceryJobResult {
     !isRecord(value) ||
     !isPlan(value.plan) ||
     !isBudget(value.budget) ||
-    !isNonemptyString(value.spending_source)
+    !isNonemptyString(value.spending_source) ||
+    (value.meal_nutrition !== undefined && copyMealPlanNutrition(value.meal_nutrition) === null)
   ) {
     return false;
   }

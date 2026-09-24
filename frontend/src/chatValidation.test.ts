@@ -1,8 +1,8 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { SHAPE_ERROR } from "./apiTypes";
-import { budget, line, plan } from "../tests/apiFixtures";
+import { NUTRITION_NOTICE, SHAPE_ERROR } from "./apiTypes";
+import { budget, line, mealPlanNutrition, plan } from "../tests/apiFixtures";
 import { parseChatJob, parseChatResult } from "./chatValidation";
 
 const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -39,6 +39,7 @@ function candidate(overrides: Record<string, unknown> = {}): Record<string, unkn
     request: request(),
     evidence_id: null,
     evidence_revision_id: REVISION,
+    meal_nutrition: mealPlanNutrition(),
     spending_source: "fixture",
     tool_trace: [trace()],
     model_turns: 2,
@@ -56,6 +57,7 @@ function noPlan(overrides: Record<string, unknown> = {}): Record<string, unknown
     request: null,
     evidence_id: null,
     evidence_revision_id: null,
+    meal_nutrition: null,
     ...overrides,
   });
 }
@@ -220,6 +222,51 @@ describe("parseChatResult", () => {
     expect((input.tool_trace as { tool: string }[])[0]?.tool).toBe("select_meals");
     expect((input.usage as { inputTokens: number }).inputTokens).toBe(11);
     expect((input.request as { meals: unknown[] }).meals).toHaveLength(1);
+  });
+
+  it("normalizes omitted nutrition on retained candidates and keeps dropped candidates null", () => {
+    const retained = parseChatResult(candidate());
+    expect(retained.meal_nutrition?.notice).toBe(NUTRITION_NOTICE);
+    expect(retained.meal_nutrition?.total?.energy_kcal).toBe(200);
+    const omitted = candidate();
+    delete omitted.meal_nutrition;
+    const parsedOmit = parseChatResult(omitted);
+    expect(parsedOmit.meal_nutrition).toBeNull();
+    expect(parsedOmit.plan?.accepted).toBe(true);
+    parsedOmit.plan?.warnings.push("Changed");
+    expect((omitted.plan as { warnings: string[] }).warnings).toEqual([]);
+    expect(parseChatResult(candidate({ meal_nutrition: null })).meal_nutrition).toBeNull();
+    expect(parseChatResult(noPlan()).meal_nutrition).toBeNull();
+    const droppedOmit = noPlan();
+    delete droppedOmit.meal_nutrition;
+    expect(parseChatResult(droppedOmit).meal_nutrition).toBeNull();
+    expect(
+      parseChatResult(candidate({ meal_nutrition: mealPlanNutrition({ total: null, meals: [] }) }))
+        .meal_nutrition?.total,
+    ).toBeNull();
+    expectShapeError(noPlan({ meal_nutrition: mealPlanNutrition() }));
+    expectShapeError(candidate({ meal_nutrition: mealPlanNutrition({ notice: "wrong" }) }));
+    expectShapeError(
+      candidate({
+        meal_nutrition: mealPlanNutrition({
+          total: { energy_kcal: 1.5, protein_mg: 0, carbohydrate_mg: 0, fat_mg: 0 },
+        }),
+      }),
+    );
+  });
+
+  it("deep-copies meal_nutrition and does not mutate the input", () => {
+    const input = candidate();
+    const parsed = parseChatResult(input);
+    if (parsed.meal_nutrition === null || parsed.meal_nutrition.total === null) {
+      throw new Error("expected cloned nutrition");
+    }
+    parsed.meal_nutrition.total.energy_kcal = 1;
+    parsed.meal_nutrition.meals[0].recipe_id = "mutated";
+    expect((input.meal_nutrition as { total: { energy_kcal: number } }).total.energy_kcal).toBe(200);
+    expect((input.meal_nutrition as { meals: { recipe_id: string }[] }).meals[0]?.recipe_id).toBe(
+      "bean_tacos",
+    );
   });
 });
 
