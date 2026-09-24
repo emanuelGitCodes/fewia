@@ -2584,3 +2584,25 @@ do not establish model quality, a complete 90-run result, or provider readiness.
 The integrated telemetry layer passed Ruff, formatting, strict mypy, and all
 1,689 backend tests against isolated PostgreSQL. Formatting covered 204 files.
 Mypy covered 105 source files. One existing Starlette warning remains.
+
+## 2026-09-22 — Recoverable evaluation files
+
+Added exclusive observation journals and atomic final result files. Each
+journal record is flushed. Final JSON is written to a temporary sibling and
+installed without overwriting an existing path. Write failures preserve the
+journal and do not publish a partial final result. Symlinks and journal-name
+collisions are refused.
+
+Grok 4.6 medium wrote the layer and atomic-write repair. A separate Grok 4.6
+low source review found no blockers, with confidence 9/10. Two test-fixture
+errors were repaired: a reused exclusive path and a recursive race mock.
+The coordinator passed all backend gates: Ruff passed; formatting passed
+204 files; strict mypy passed 105 source files; 1,637 tests passed against
+isolated PostgreSQL. One existing Starlette warning remains. The CLI caller
+still needs to enforce manifest, provider execution, and final-write order.
+
+## 2026-09-22 — Integrated evaluation persistence verification
+
+The persistence layer passed all backend gates after integration. Ruff passed.
+Formatting passed 206 files. Strict mypy passed 106 source files. All 1,708
+tests passed against isolated PostgreSQL, with one existing Starlette warning.
