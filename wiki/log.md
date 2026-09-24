@@ -3117,3 +3117,7 @@ Added strict count, latency, revision, and display-label validation for evaluati
 ## 2026-09-22 — Structured planning reference
 
 Added a deterministic reference for F01, F02, F05, X04, and A01. It uses scenario inputs and the production planner. It does not use gold outputs, interpret language, call providers, or persist evidence. Overall quality stays unassessed. Coordinator review passed. Ruff and format passed. Strict mypy passed for 120 source files. PostgreSQL-enabled pytest passed: 1,916 tests, one existing Starlette warning.
+
+## 2026-09-22 — Evaluation Markdown core
+
+Added a Markdown renderer for execution counts, scoped checks, evidence classes, latency, and known token usage. Unknown usage stays unknown. Overall quality stays unassessed. The renderer excludes raw answers and arbitrary metadata. Coordinator review passed. Ruff fixed import order and formatting before all lint checks passed. Strict mypy passed for 121 source files. PostgreSQL-enabled pytest passed: 1,954 tests, one existing Starlette warning. Cost formatting and file export remain separate work.
