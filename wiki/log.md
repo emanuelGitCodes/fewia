@@ -2799,3 +2799,23 @@ The coordinator also created a separate empty database and ran
 `uv run alembic upgrade head`. It reached revision 0008 with 13 public tables.
 The coordinator removed that temporary database after verification. The running
 demo database and the separate test database were not migration-test targets.
+
+## 2026-09-22 — Bounded protocol observer
+
+Grok 4.6 medium completed the protocol observer as a separate layer. It runs
+actual chat-loop bounds with a controlled provider. The unknown-tool case
+observes eight calls and seven returned errors. The planner case observes
+three revisions and four calls. The malformed case observes the static
+protocol error. Unexpected accepted plans remain visible to the scorer.
+
+The coordinator reviewed the observer and six focused tests passed. Ruff,
+formatting, and strict mypy passed before scorer development started.
+A concurrent full-suite attempt later hit a collection error because the
+scorer test appeared before its module. That unfinished scorer is excluded
+from this observer commit. Integrated gates run in the coordinator checkout.
+
+## 2026-09-22 — Protocol observer integration gates
+
+Ruff passed. Formatting passed 218 files. Strict mypy passed 112 source files.
+All 1,774 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+Only the completed observer and its tests were included in this verification.
