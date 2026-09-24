@@ -1,5 +1,10 @@
 # Grocery build progress
 
+**Current record.** Grocery completion status lives in
+[wiki/phases/grocery-completion-20260922.md](../wiki/phases/grocery-completion-20260922.md).
+Open work lives in [APP_COMPLETION_BACKLOG.md](APP_COMPLETION_BACKLOG.md).
+The sections below keep historical slice and checkpoint evidence.
+
 The active scope is [.codex/project-context.md](../.codex/project-context.md).
 The user authorized continued implementation through the local grocery demo.
 Live provider access remains pending. No push or merge is authorized here.

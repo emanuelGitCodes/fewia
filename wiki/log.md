@@ -3121,3 +3121,11 @@ Added a deterministic reference for F01, F02, F05, X04, and A01. It uses scenari
 ## 2026-09-22 — Evaluation Markdown core
 
 Added a Markdown renderer for execution counts, scoped checks, evidence classes, latency, and known token usage. Unknown usage stays unknown. Overall quality stays unassessed. The renderer excludes raw answers and arbitrary metadata. Coordinator review passed. Ruff fixed import order and formatting before all lint checks passed. Strict mypy passed for 121 source files. PostgreSQL-enabled pytest passed: 1,954 tests, one existing Starlette warning. Cost formatting and file export remain separate work.
+
+## 2026-09-22 — Current grocery record and runbook
+
+Added the current grocery completion record. The wiki index and historical pages link to it. The infrastructure runbook now distinguishes Compose host port 4567 from the adapter allowlist on 4566. Coordinator review checked source defaults and all edited local links. Historical evidence remains intact. The combined branch48 backend gate passed 1,963 tests, Ruff, format, and strict mypy. Frontend passed 413 tests, build, and six browser journeys. Supervisor passed 52 tests and all three static gates. The Bedrock session helper passed 10 tests. An initial helper command used an incorrect path and ran no tests; the corrected path passed. CDK first failed collection because jsii could not touch its user cache. With a writable temporary cache, all 14 CDK tests passed. Existing Starlette and Node test-environment warnings remain.
+
+## 2026-09-22 — Combined report renderer gates
+
+At branch50, Ruff and format passed for 240 files. Strict mypy passed for 123 source files. PostgreSQL-enabled pytest passed: 1,984 tests, one existing Starlette warning. The renderer replay reproduced 45 passing fixture checks and 12 passing plus three failing final-plan checks from the earlier live batch. The first preview script assumed a source_region key and failed before writing. The corrected preview displays the absent historical field as not recorded. The old observation file remains unchanged. P05 fixture review found a public-schema fallback and a transactional search_path setting; the writer is correcting these before any live fixture use.

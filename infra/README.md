@@ -1,3 +1,119 @@
+# Local Floci and Compose stack
+
+This file describes current local service defaults. It does not prove
+deployment. It does not prove evaluation quality.
+
+The local stack is React and TypeScript chat, FastAPI, PostgreSQL, a
+worker, and Floci SQS and S3 paths. Follow
+[`docs/LOCAL_GROCERY_DEMO.md`](../docs/LOCAL_GROCERY_DEMO.md) for the
+full demo runbook.
+
+## Current start
+
+From the repository root, start the default fixture stack:
+
+```bash
+docker compose -p fewia-demo up -d --build
+```
+
+[`compose.yaml`](../compose.yaml) binds these loopback host ports by
+default:
+
+| Service | Host variable | Default host port | Container port |
+| --- | --- | --- | --- |
+| API | `API_HOST_PORT` | 8010 | 8000 |
+| Web | `WEB_HOST_PORT` | 5173 | 80 |
+| PostgreSQL | `POSTGRES_HOST_PORT` | 55435 | 5432 |
+| Floci | `FLOCI_HOST_PORT` | 4567 | 4566 |
+
+Floci listens on container port 4566. The host bind is loopback only.
+A parallel Compose project MUST use a unique project name. It MAY
+override the four host ports.
+
+Bootstrap runs `python -m app.bootstrap_demo --endpoint http://floci:4566`.
+The worker uses the same Floci endpoint. The API serves uvicorn on
+container port 8000.
+
+Copy `.env.example` to `.env`. Keep `.env` private. Do not paste host
+paths or secret values into this file.
+
+Optional Bedrock and Spoonacular overlays live in the demo runbook.
+Spoonacular stays request-only and no-store. Instacart stays parked
+under [decision 0010](../wiki/decisions/0010-usda-spoonacular-overlay.md).
+
+Every grocery estimate MUST show this notice:
+
+> Estimated from the demo price catalog. Instacart prices, availability,
+> taxes, delivery fees, and tips are not verified.
+
+## Current resources
+
+| Resource | Purpose |
+|---|---|
+| `fewia-sync` | Background Plaid synchronization jobs |
+| `fewia-sync-dlq` | Exhausted synchronization jobs |
+| `fewia-agent` | Background grocery agent jobs |
+| `fewia-agent-dlq` | Exhausted grocery agent jobs |
+| `fewia-eval` | Sanitized evaluation exports |
+
+Both source queues use a 120-second visibility timeout and a three-receive
+dead-letter policy. Queue provisioning alone does not implement leases,
+retries, or durable jobs.
+
+## Client boundary
+
+Host adapters accept only `http://127.0.0.1:4566`,
+`http://localhost:4566`, and `http://floci:4566`.
+The default Compose host bind is `127.0.0.1:4567` mapped to container 4566.
+The default host port 4567 is not accepted by the host-side adapter allowlist.
+
+To run host-side Floci checks, start a separate uniquely named Compose
+project with `FLOCI_HOST_PORT=4566` and unique other host ports.
+In-container checks use `http://floci:4566`.
+
+Do not set a global `AWS_ENDPOINT_URL`. Bedrock requires its own real
+endpoint and credentials. Floci dummy credentials stay separate.
+
+Compose pins Floci 2.0.1 to a verified image digest. The `floci-data`
+named volume holds persistent emulator state.
+
+```bash
+docker compose -p fewia-demo stop floci
+docker compose -p fewia-demo start floci
+```
+
+These commands preserve emulator state. Do not remove volumes when
+stopping the service.
+
+## Checks
+
+```bash
+docker compose config --quiet
+cd backend
+uv run ruff check app tests
+uv run ruff format --check app tests
+uv run ruff check --config pyproject.toml ../infra
+uv run ruff format --check --config pyproject.toml ../infra
+uv run mypy --strict app
+uv run pytest
+```
+
+Unit tests use injected fake AWS clients. Provider access checks remain
+separate from queue and bucket tests. Only synthetic smoke data belongs
+in the local emulator.
+
+## Sources
+
+- [Floci repository](https://github.com/floci-io/floci)
+- [Accepted grocery scope](../.codex/project-context.md)
+- [Local grocery demo](../docs/LOCAL_GROCERY_DEMO.md)
+- [Current grocery completion](../wiki/phases/grocery-completion-20260922.md)
+
+## Historical Floci foundation evidence
+
+The text below is the earlier Floci-only foundation record. It is not
+the current Compose default. Current run commands are above.
+
 # Local Floci foundation
 
 Floci provides the grocery bot's local SQS and S3 resources. PostgreSQL remains
