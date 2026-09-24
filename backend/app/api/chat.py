@@ -19,6 +19,7 @@ from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
+from app.services.job_result import without_supermarket_estimate
 from app.services.job_submission import IdempotencyConflict, create_job
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
@@ -134,6 +135,6 @@ def read_chat_job(
     return GroceryJobView(
         id=job.id,
         status=job.status,
-        result=job.result,
+        result=without_supermarket_estimate(job.result),
         error_code=job.error_code,
     )
