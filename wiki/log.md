@@ -2637,3 +2637,31 @@ The grounded-answer layer passed all backend gates after integration. Ruff
 passed. Formatting passed 208 files. Strict mypy passed 107 source files. All
 1,725 tests passed against isolated PostgreSQL, with one existing Starlette
 warning. The targeted nine-run Bedrock check remains separate from these gates.
+
+## 2026-09-22 — Unresolved chat estimates
+
+A new chat revision marks the existing estimate unresolved until a current
+plan or manual rebuild succeeds. Failed, limited, and clarification responses
+retain the previous estimate label. Handoff and supermarket lookup stay
+unavailable for that estimate. The user can answer a clarification without
+losing the previous request context. Forms and conversation history remain.
+
+Grok 4.6 medium wrote the change. A separate Grok 4.6 medium source review
+found no blockers, with confidence 8/10. The coordinator passed 413 frontend
+unit tests and the production build. Six browser journeys passed at desktop
+and mobile widths. Added failure-path assertions verify the previous estimate,
+retained price, hidden supermarket lookup, and available follow-up chat.
+The first stronger browser run passed four journeys and failed two because
+"Message" also matched the message list. Grok low made the textbox selector
+exact. All six journeys then passed.
+
+## 2026-09-22 — Clarification flow integration check
+
+The integrated frontend passed 413 unit tests, the production build, and six
+browser journeys. The isolated demo at port 5178 used the real API, worker,
+and Bedrock provider. Breakfast burritos produced a sample estimate of $18.53.
+"Make it vegan" returned the egg conflict and retained the previous estimate.
+The supermarket action disappeared. Follow-up chat stayed available.
+"Use bean tacos instead" retained two servings and the vegan restriction.
+It produced a current sample estimate of $17.03. The supermarket action returned.
+This check did not request vendor prices or perform a purchase.
