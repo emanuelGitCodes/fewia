@@ -2425,3 +2425,13 @@ Integrated Ruff passed. Format passed on 200 files. Strict mypy passed
 103 source files. PostgreSQL tests reported 1636 passed and one existing
 Starlette warning. The observer adds 149 application lines.
 No full real-model batch or model-quality score is claimed here.
+
+## 2026-09-21 — Bounded Plaid refresh polling
+
+Grok 4.6 medium added two-second polling with a six-minute bound.
+Caller cancellation aborts the request and suppresses late updates.
+One timeout test initially attached its rejection handler too late.
+Vitest reported 335 passing tests but one unhandled rejection.
+Grok 4.6 low repaired the test ordering. No polling code changed.
+The rerun reported 335 passed with no unhandled errors. Build passed.
+This slice adds 116 source lines. Independent review remains pending.
