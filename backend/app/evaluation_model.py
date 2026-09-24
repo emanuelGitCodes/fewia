@@ -47,7 +47,9 @@ def observe_model_case(
             out.append(cast(str, content))
         return out
 
-    def setup(inputs: dict[str, object]) -> tuple[date, BudgetResult] | None:
+    def setup(
+        inputs: dict[str, object],
+    ) -> tuple[date, BudgetResult, int | None] | None:
         raw = inputs.get("budget_period")
         if type(raw) is not str:
             return None
@@ -57,8 +59,16 @@ def observe_model_case(
             return None
         if period.day != 1:
             return None
+        cap_raw = inputs.get("plan_cap_cents")
+        plan_cap: int | None
+        if cap_raw is None:
+            plan_cap = None
+        elif type(cap_raw) is int and cap_raw >= 0:
+            plan_cap = cap_raw
+        else:
+            return None
         try:
-            return period, fixture_budget(inputs)
+            return period, fixture_budget(inputs), plan_cap
         except Exception:
             return None
 
@@ -104,7 +114,7 @@ def observe_model_case(
     prepared = setup(cast(dict[str, object], raw)) if isinstance(raw, dict) else None
     if prepared is None:
         return report(case_id, bad, bad, [])
-    period, budget = prepared
+    period, budget, plan_cap_cents = prepared
     history: list[dict[str, str]] = []
     previous: dict[str, object] | None = None
     turns: list[dict[str, object]] = []
@@ -120,6 +130,7 @@ def observe_model_case(
                 period,
                 previous_request=previous,
                 history=history or None,
+                plan_cap_cents=plan_cap_cents,
             )
         except chat_loop.ChatUnavailable:
             failure, result = "provider_unavailable", None

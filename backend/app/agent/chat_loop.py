@@ -42,6 +42,12 @@ SYSTEM_PROMPT = (
     "All *_cents amounts are integer USD cents. "
     "You MUST NOT treat cents as yen or as another currency. "
     "You MUST NOT treat raw cents as a whole-currency amount. "
+    "When plan_cap_cents is an integer, you MUST copy it into the "
+    "planning request or lower it. "
+    "You MUST NOT clear or raise that cap. "
+    "The user adjusts the server cap through budget controls. "
+    "When plan_cap_cents is null, you MUST NOT set the request cap to "
+    "the available budget. "
     "Write a concise plain-text final reply. "
     "You MUST use the server money_display strings for money. "
     "Leave itemized prices to the estimate panel."
@@ -90,6 +96,7 @@ def run_chat(
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
+    plan_cap_cents: int | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -99,6 +106,7 @@ def run_chat(
         spending_source=spending_source,
         previous_request=previous_request,
         history=history,
+        plan_cap_cents=plan_cap_cents,
     )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []

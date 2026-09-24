@@ -496,3 +496,65 @@ def test_report_does_not_claim_snapshots() -> None:
     assert "snapshot" not in blob
     assert report["metrics_status"] == "unassessed"
     assert report.get("snapshots_created") is None
+
+
+def test_observe_passes_input_plan_cap_for_a01() -> None:
+    case = _load_case("A01")
+    original = copy.deepcopy(case)
+    replies = [_reply([_text_block(MODEL_PROSE)], "end_turn")]
+    report, provider = _observe(case, replies)
+    assert report["status"] == "completed"
+    assert len(provider.requests) == 1
+    context = _context(provider.requests[0]["messages"])
+    inputs = case["inputs"]
+    assert isinstance(inputs, dict)
+    budget = fixture_budget(cast(dict[str, object], inputs))
+    assert context["plan_cap_cents"] == 1
+    assert context["budget"]["available_cents"] == budget.available_cents
+    assert context["budget"]["available_cents"] == 1
+    messages = provider.requests[0]["messages"]
+    assert isinstance(messages, list)
+    last = messages[-1]
+    assert isinstance(last, dict)
+    content = last["content"]
+    assert isinstance(content, list)
+    users = case["messages"]
+    assert isinstance(users, list)
+    opening = users[0]
+    assert isinstance(opening, dict)
+    assert content[-1] == {"text": opening["content"]}
+    assert case == original
+    assert "When plan_cap_cents is an integer" in SYSTEM_PROMPT
+    assert "MUST NOT set the request cap to the available budget" in SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize("case_id", ("F02", "F05"))
+def test_observe_null_plan_cap_stays_none(case_id: str) -> None:
+    case = _load_case(case_id)
+    users = case["messages"]
+    assert isinstance(users, list)
+    replies = [_reply([_text_block(MODEL_PROSE)], "end_turn") for _ in users]
+    _report, provider = _observe(case, replies)
+    inputs = case["inputs"]
+    assert isinstance(inputs, dict)
+    budget = fixture_budget(cast(dict[str, object], inputs))
+    assert len(provider.requests) == len(users)
+    for request in provider.requests:
+        context = _context(request["messages"])
+        assert context["plan_cap_cents"] is None
+        assert context["budget"]["available_cents"] == budget.available_cents
+        assert context["budget"]["available_cents"] == 10_000
+
+
+@pytest.mark.parametrize("cap", [True, False, -1, "1", SECRET])
+def test_invalid_plan_cap_does_not_call_provider(cap: object) -> None:
+    case = _load_case("A01")
+    inputs = case["inputs"]
+    assert isinstance(inputs, dict)
+    inputs["plan_cap_cents"] = cap
+    report, provider = _observe(case, [])
+    assert report["status"] == "invalid_input"
+    assert report["reason"] == "invalid_input"
+    assert report["turns"] == []
+    assert provider.requests == []
+    assert SECRET not in _blob(report)
