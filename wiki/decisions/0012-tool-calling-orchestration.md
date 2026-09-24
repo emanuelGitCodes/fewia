@@ -32,8 +32,12 @@ structured calls. The ledger service aggregates Plaid transaction rows into a
 spending snapshot. The current demo uses fixture spending. Live Plaid Sandbox
 evidence remains pending.
 
-The USDA overlay reports facts per 100 g. Quantity-scaled nutrition totals
-remain proposed work.
+Quantity-scaled USDA nutrition reports per-serving, per-meal, and selected-plan
+totals. Pantry ingredients stay in those totals.
+[`meal_nutrition.py`](../../backend/app/services/meal_nutrition.py) computes
+the macros. [`Nutrition.tsx`](../../frontend/src/Nutrition.tsx) renders them.
+Budget acceptance still uses the sample catalog. Spoonacular cost stays a
+request-only overlay.
 
 ## Evaluation
 

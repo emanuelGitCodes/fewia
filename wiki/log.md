@@ -3027,3 +3027,42 @@ tests passed. Ruff passed, formatting passed 228 files, and strict mypy passed
 Ruff passed. Formatting passed 232 files. Strict mypy passed 119 source files.
 All 1,905 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The batch keeps execution status separate from final-plan assessment status.
+
+## 2026-09-22 — Grocery verification scope alignment
+
+Grok 4.6 medium aligned the verification plan with the current local scope.
+Instacart development proof stays deferred. The matrix now matches all 30
+corpus flags: 12 model-required cases and 18 cases without that requirement.
+P01 and P02 were incorrectly marked as model-required in the prior table.
+The coordinator checked every flag and all relative links. The coverage record
+separates the mixed batch, later fixture batch, and final-plan scoring subset.
+
+## 2026-09-22 — Referenced application completion backlog
+
+Grok 4.6 updated the grocery backlog with descriptions, acceptance boundaries,
+next steps, and references for all 12 work areas. Completed nutrition, browser,
+refresh-client, overlay, and evaluation foundations stay closed for their stated
+scope. Remaining provider evidence and evaluation gaps stay explicit.
+
+The coordinator checked every repository link against the integrated tree.
+Each item has a key-reference row. The record separates historical batch counts,
+strict cap-argument mismatches, enforced budgets, and unassessed quality targets.
+
+## 2026-09-22 — Current grocery scope and nutrition record
+
+Grok 4.6 aligned the active plan, project context, and current-state section of
+decision 0012. Instacart remains deferred. Quantity-scaled nutrition is recorded
+as implemented. The public answer uses validated plan facts and allowlisted
+conflicts. Sample prices still control budget acceptance.
+
+The coordinator checked relative links and preserved the historical phase body.
+The older checkpoint remains under its historical date. Decision 0012's proposed
+no-tool evaluation remains a proposal. These edits do not claim its completion.
+
+## 2026-09-22 — Active document verification
+
+The coordinator verified all relative links in the active backlog, plan,
+project context, local demo runbook, verification plan, and decision 0012.
+The verification table matches all 30 corpus model flags. Historical health
+phases remain unchanged. Current grocery work no longer inherits the prior
+paused checkpoint as its active instruction.

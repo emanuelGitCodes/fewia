@@ -1,10 +1,17 @@
 # FEWIA Build Plan: MVP + Agent Delegation
 
-> **Active direction:** Preserve the local grocery MVP for professor feedback.
-> The accepted brief is [.codex/project-context.md](.codex/project-context.md).
-> The demo is a budget-aware grocery planner. It is not a completed AI product.
-> Do not expand features in this checkpoint. The health-prediction phases below
-> are historical planning material. Do not resume their training tasks.
+> **Active direction (2026-09-22):** The user authorized continued grocery
+> completion. The active plan is
+> [plans/APP_COMPLETION_BACKLOG.md](plans/APP_COMPLETION_BACKLOG.md).
+> Grocery scope remains budget-aware sample pricing, nutrition, and
+> request-only Spoonacular. Plaid Sandbox proof is blocked by missing
+> credentials. Instacart remains parked under
+> [decision 0010](wiki/decisions/0010-usda-spoonacular-overlay.md).
+> This plan MUST NOT claim a full model-quality target.
+> See [wiki/log.md](wiki/log.md) and
+> [docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md).
+
+## Historical checkpoint — 2026-09-08
 
 > **Status**: Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning
 > effort `low`
@@ -47,6 +54,8 @@
 > the phases, deliverables, and verification steps directly.
 
 ## Context
+
+**Historical health plan.** The sections below record the earlier health-prediction plan.
 
 At the start of this plan, the `fewia` repo held only `docs/`. The proposal ([writing-block.md](docs/writing-block.md)) and the MVP plan ([CAP6938_MVP_PROJECT_PLAN.md](docs/CAP6938_MVP_PROJECT_PLAN.md)) define the Financial and Environmental Wellness Intelligence Agent for CAP 6938. The goal is a working MVP that runs one narrow path end to end: synthetic data → PostgreSQL → typed FastAPI tools → three prediction models → a Bedrock tool-use agent → a grounded, evidence-cited answer.
 
