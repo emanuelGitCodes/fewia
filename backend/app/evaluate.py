@@ -89,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
             "catalog_version": CATALOG_VERSION,
             "prompt_hash": _digest(SYSTEM_PROMPT),
             "started_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "source_region": None if settings is None else settings.bedrock_region,
         }
         journal = open_journal(output, manifest)
     except (KeyboardInterrupt, Exception) as exc:

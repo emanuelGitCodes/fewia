@@ -3008,3 +3008,22 @@ All 1,904 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The coordinator used a writable integration clone after automatic permission
 review twice timed out on the original worktree's Git metadata update.
 The original checkout and its uncommitted log addition remain preserved.
+
+## 2026-09-22 — Structural assessments in batch journals
+
+Grok 4.6 low attached final-plan assessments to the five supported plan cases.
+Execution status remains separate from assessment status. A completed response
+can fail its structural checks. Failed observations also receive failed checks.
+The callback and journal preserve each assessment. Other cases remain outside
+this scorer's scope. The CLI manifest now records the configured source region,
+without copying profile names or credential paths.
+
+The coordinator reviewed the integration. All 1,882 candidate PostgreSQL-enabled
+tests passed. Ruff passed, formatting passed 228 files, and strict mypy passed
+117 source files. One existing Starlette warning remains.
+
+## 2026-09-22 — Batch assessment integration gates
+
+Ruff passed. Formatting passed 232 files. Strict mypy passed 119 source files.
+All 1,905 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The batch keeps execution status separate from final-plan assessment status.
