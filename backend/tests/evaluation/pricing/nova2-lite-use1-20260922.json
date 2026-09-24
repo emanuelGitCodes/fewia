@@ -1,0 +1,90 @@
+{
+  "model_id": "us.amazon.nova-2-lite-v1:0",
+  "source_region": "us-east-1",
+  "routing": "geographic",
+  "service_tier": "standard",
+  "currency": "USD",
+  "input_usd_per_million": "0.33",
+  "output_usd_per_million": "2.75",
+  "effective_date": "2026-09-01",
+  "retrieved_date": "2026-09-22",
+  "source_url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-east-1/index.json",
+  "source_version": "20260917231609",
+  "source_publication_date": "2026-09-17T23:16:09Z",
+  "routing_source_url": "https://docs.aws.amazon.com/en_en/bedrock/latest/userguide/cross-region-inference.html",
+  "scope": "Text input/output token estimate only. Excludes cache, other services, taxes, and account-specific adjustments. Not an invoice.",
+  "source_rows": [
+    {
+      "sku": "FY8T82UUN7VZR55K",
+      "attributes": {
+        "servicecode": "AmazonBedrock",
+        "location": "US East (N. Virginia)",
+        "locationType": "AWS Region",
+        "usagetype": "USE1-Nova2.0Lite-input-tokens",
+        "operation": "",
+        "feature": "On-demand Inference",
+        "inferenceType": "Input tokens",
+        "model": "Nova 2.0 Lite",
+        "regionCode": "us-east-1",
+        "servicename": "Amazon Bedrock"
+      },
+      "terms": {
+        "FY8T82UUN7VZR55K.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "FY8T82UUN7VZR55K",
+          "effectiveDate": "2026-09-01T00:00:00Z",
+          "priceDimensions": {
+            "FY8T82UUN7VZR55K.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "FY8T82UUN7VZR55K.JRTCKXETXF.6YS6EN2CT7",
+              "description": "$0.00033 per 1K tokens for USE1-Nova2.0Lite-input-tokens in US East (N. Virginia)",
+              "beginRange": "0",
+              "endRange": "Inf",
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0003300000"
+              },
+              "appliesTo": []
+            }
+          },
+          "termAttributes": {}
+        }
+      }
+    },
+    {
+      "sku": "DY69Q8C3F88CHA2Q",
+      "attributes": {
+        "servicecode": "AmazonBedrock",
+        "location": "US East (N. Virginia)",
+        "locationType": "AWS Region",
+        "usagetype": "USE1-Nova2.0Lite-output-tokens",
+        "operation": "",
+        "feature": "On-demand Inference",
+        "inferenceType": "Output tokens",
+        "model": "Nova 2.0 Lite",
+        "regionCode": "us-east-1",
+        "servicename": "Amazon Bedrock"
+      },
+      "terms": {
+        "DY69Q8C3F88CHA2Q.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "DY69Q8C3F88CHA2Q",
+          "effectiveDate": "2026-09-01T00:00:00Z",
+          "priceDimensions": {
+            "DY69Q8C3F88CHA2Q.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "DY69Q8C3F88CHA2Q.JRTCKXETXF.6YS6EN2CT7",
+              "description": "$0.00275 per 1K tokens for USE1-Nova2.0Lite-output-tokens in US East (N. Virginia)",
+              "beginRange": "0",
+              "endRange": "Inf",
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0027500000"
+              },
+              "appliesTo": []
+            }
+          },
+          "termAttributes": {}
+        }
+      }
+    }
+  ]
+}

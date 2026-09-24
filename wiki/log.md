@@ -2819,3 +2819,24 @@ from this observer commit. Integrated gates run in the coordinator checkout.
 Ruff passed. Formatting passed 218 files. Strict mypy passed 112 source files.
 All 1,774 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 Only the completed observer and its tests were included in this verification.
+
+## 2026-09-22 — Dated model price configuration
+
+Grok 4.6 medium added a separate dated rate parser. It validates both mappings
+and typed rate objects. Negative and non-finite rates, non-USD currency,
+invalid date order, and embedded URL credentials are rejected. The coordinator
+reviewed the extracted layer and passed 31 focused tests. The test price file
+now uses a repository-relative path.
+
+The checked-in public snapshot comes from the AWS Bedrock Price List API.
+It records publication 2026-09-17 and rates effective 2026-09-01, retrieved
+2026-09-22. The US East 1 geographic standard Nova 2 Lite rates are $0.33 per
+million input tokens and $2.75 per million output tokens. Global routing uses
+a different rate pair. The estimator requires matching routing metadata.
+No runtime price default or network lookup is added.
+
+## 2026-09-22 — Rate configuration integration gates
+
+Ruff passed. Formatting passed 220 files. Strict mypy passed 113 source files.
+All 1,805 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The public pricing fixture is repository-relative and needs no network access.
