@@ -2917,3 +2917,30 @@ The actual fixture command produced 48 scored slots and 42 unassessed slots.
 All three P01 reports passed their checks. All three P04 controlled reports
 passed their checks while their model slots remained unassessed. The journal
 contains 91 records. These counts do not establish model-quality targets.
+
+## 2026-09-22 — Reproducible Spoonacular Compose setup
+
+Grok 4.6 low added an optional Compose overlay and local demo runbook.
+The overlay mounts the existing host key-file setting into the API only.
+The mount is read-only and cannot create a missing host path. The example
+environment no longer suggests an unused raw Spoonacular key variable.
+
+The coordinator checked the merged Compose configuration with synthetic files.
+Only the API receives the mount. Key contents do not appear in the generated
+configuration. An unset path variable fails interpolation. Runbook links resolve.
+A documentation review corrected the missing-variable versus missing-file
+explanation and the fixed 30-by-3 corpus contract. All 1,863 candidate backend
+tests and static checks passed. The runtime mount check follows integration.
+
+## 2026-09-22 — Checked-in overlay runtime verification
+
+The coordinator rebuilt the isolated Compose project with `compose.yaml`,
+`compose.bedrock.yaml`, and the checked-in `compose.spoonacular.yaml`.
+Bootstrap completed. The API became healthy. Health, provider configuration,
+and owned Item inventory returned HTTP 200. Spending remains fixture data.
+Plaid and Instacart remain unconfigured. The Item inventory is empty.
+
+A live supermarket-estimate request returned HTTP 200 with `Cache-Control:
+no-store`, a complete estimate, and the source notice. The coordinator retained
+only status and completeness evidence. No vendor price values were saved.
+The temporary Compose overlay is no longer needed for this runtime setup.
