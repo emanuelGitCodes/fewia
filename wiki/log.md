@@ -2435,3 +2435,22 @@ Vitest reported 335 passing tests but one unhandled rejection.
 Grok 4.6 low repaired the test ordering. No polling code changed.
 The rerun reported 335 passed with no unhandled errors. Build passed.
 This slice adds 116 source lines. Independent review remains pending.
+
+## 2026-09-21 — Explicit Plaid refresh hook
+
+Grok 4.6 medium added the explicit refresh hook in 148 source lines.
+It prevents duplicate clicks, retains idempotency keys, and retries known
+jobs by polling. Clearing or unmounting invalidates late updates.
+Frontend tests reported 344 passed. The production build passed.
+The new hook is not yet mounted. Independent review remains pending.
+
+## 2026-09-21 — Refresh hook review repair
+
+Independent Grok review confirmed the polling and idempotency paths.
+It found misleading terminal-failure text. Grok 4.6 low now directs the
+user to start a new refresh after a terminal failure.
+Live request rejections also settle pending state, including AbortError.
+Cancellation after clear or unmount still suppresses late updates.
+Two added regressions cover unexpected live POST and poll abort errors.
+The coordinator verified 377 integrated frontend tests and a passed build.
+The hook stays within 148 application lines. No backend source changed.
