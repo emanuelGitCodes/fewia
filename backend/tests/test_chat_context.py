@@ -11,6 +11,7 @@ from botocore.session import Session
 from botocore.validate import validate_parameters
 
 from app.agent.chat_context import (
+    CONTEXT_ROLE,
     MAX_HISTORY,
     MAX_MESSAGE_LEN,
     build_messages,
@@ -59,7 +60,7 @@ def _context(messages: list[dict[str, object]]) -> dict[str, object]:
     last = messages[-1]
     content = last["content"]
     assert isinstance(content, list)
-    block = content[1]
+    block = content[0]
     assert isinstance(block, dict)
     text = block["text"]
     assert isinstance(text, str)
@@ -94,9 +95,11 @@ def test_followup_history_appends_current_user_and_context() -> None:
     assert messages[2]["role"] == "user"
     content = messages[2]["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "use two servings"}
+    assert len(content) == 2
+    assert content[-1] == {"text": "use two servings"}
     payload = _context(messages)
-    assert set(payload) == {"budget", "period", "previous_request"}
+    assert set(payload) == {"budget", "context_role", "period", "previous_request"}
+    assert payload["context_role"] == CONTEXT_ROLE
     assert payload["period"] == "2026-09-01"
     assert payload["previous_request"] == GroceryRequest.model_validate(
         previous()
@@ -117,6 +120,9 @@ def test_empty_and_max_history_keep_even_public_pairs() -> None:
     empty = build_messages("hello", budget(), PERIOD, history=None)
     assert len(empty) == 1
     assert empty[0]["role"] == "user"
+    empty_content = empty[0]["content"]
+    assert isinstance(empty_content, list)
+    assert empty_content[-1] == {"text": "hello"}
     history = pair(0) + pair(1) + pair(2) + pair(3)
     assert len(history) == MAX_HISTORY
     messages = build_messages("now", budget(), PERIOD, history=history)
@@ -132,6 +138,9 @@ def test_empty_and_max_history_keep_even_public_pairs() -> None:
         "assistant",
     ]
     assert messages[-1]["role"] == "user"
+    last_content = messages[-1]["content"]
+    assert isinstance(last_content, list)
+    assert last_content[-1] == {"text": "now"}
 
 
 @pytest.mark.parametrize(
@@ -212,6 +221,7 @@ def test_previous_request_json_dump_and_invalid_data() -> None:
         mode="json"
     )
     assert payload["previous_request"] == expected
+    assert payload["context_role"] == CONTEXT_ROLE
     with pytest.raises(ChatProtocolError) as caught:
         build_messages(
             "ok",

@@ -146,6 +146,25 @@ def test_planner_tool_spec_exposes_catalog_enums() -> None:
     assert "enum" not in public_recipe
 
 
+def test_planner_tool_spec_pantry_description_replaces_full_list() -> None:
+    schema = _tool_json(planner_tool_spec())
+    pantry = _mapping(_mapping(schema["properties"])["pantry_ingredients"])
+    public = GroceryRequest.model_json_schema()["properties"]["pantry_ingredients"]
+    description = pantry["description"]
+    assert isinstance(description, str)
+    assert "Full current pantry list" in description
+    assert "Remove an ingredient" in description
+    assert "include or buy it in the proposed shopping list again" in description
+    assert "does not purchase" in description
+    items = dict(_mapping(pantry["items"]))
+    assert items.pop("enum") == list(INGREDIENTS)
+    remaining = dict(pantry)
+    del remaining["description"]
+    remaining["items"] = items
+    assert remaining == public
+    assert "description" not in public
+
+
 def test_planner_tool_spec_mutation_does_not_affect_later_call() -> None:
     first = _tool_json(planner_tool_spec())
     _enum_list(first, "$defs", "MealRequest", "properties", "recipe_id", "enum").append(

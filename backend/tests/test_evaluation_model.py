@@ -191,7 +191,7 @@ def _context(messages: object, index: int = -1) -> dict[str, object]:
     assert isinstance(last, dict)
     content = last["content"]
     assert isinstance(content, list)
-    parsed: object = json.loads(cast(str, content[1]["text"]))
+    parsed: object = json.loads(cast(str, content[0]["text"]))
     assert isinstance(parsed, dict)
     return cast(dict[str, object], parsed)
 

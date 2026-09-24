@@ -15,6 +15,9 @@ _SOURCES = frozenset({"fixture", "plaid_sandbox"})
 _ROLES = ("user", "assistant")
 _REQUEST = "request is invalid"
 _PREVIOUS = "previous_request is invalid"
+CONTEXT_ROLE = (
+    "previous_request is prior state; apply latest explicit additions and removals"
+)
 
 
 def _exact_int(value: object) -> TypeGuard[int]:
@@ -103,13 +106,14 @@ def build_messages(
     context = dumps(
         {
             "budget": asdict(budget),
+            "context_role": CONTEXT_ROLE,
             "period": period.isoformat(),
             "previous_request": previous,
         },
         sort_keys=True,
         separators=(",", ":"),
     )
-    messages.append({"role": "user", "content": [{"text": message}, {"text": context}]})
+    messages.append({"role": "user", "content": [{"text": context}, {"text": message}]})
     return messages
 
 

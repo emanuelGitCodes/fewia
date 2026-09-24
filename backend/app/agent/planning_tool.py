@@ -79,6 +79,14 @@ def planner_tool_spec() -> dict[str, object]:
     """Return the Bedrock toolSpec for plan_groceries."""
     schema = _object_map(deepcopy(GroceryRequest.model_json_schema()))
     _apply_catalog_enums(schema)
+    pantry = _object_map(
+        _object_map(schema.get("properties")).get("pantry_ingredients")
+    )
+    pantry["description"] = (
+        "Full current pantry list. Remove an ingredient when the user asks "
+        "to include or buy it in the proposed shopping list again. "
+        "The tool does not purchase items."
+    )
     return {
         "toolSpec": {
             "name": TOOL_NAME,
