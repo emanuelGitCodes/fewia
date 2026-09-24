@@ -2862,3 +2862,18 @@ not an AWS invoice or observed billing.
 Ruff passed. Formatting passed 222 files. Strict mypy passed 114 source files.
 All 1,827 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The estimator preserves unknown totals and the explicit dated-rate boundary.
+
+## 2026-09-22 — Structural score value checks
+
+Grok 4.6 medium added typed comparison and observation-shape helpers. They
+reject bool-versus-int substitutions at nested fields, duplicate ingredient
+IDs, and partial or empty observations. Missing values remain distinct from
+explicit null values. The coordinator inspected the helpers and 28 focused
+tests passed. Strict mypy passed 113 source files. These helpers do not score
+model quality or call providers.
+
+## 2026-09-22 — Structural value integration gates
+
+Ruff passed. Formatting passed 224 files. Strict mypy passed 115 source files.
+All 1,855 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+These checks include the extracted value helpers and their mutation cases.
