@@ -6,7 +6,7 @@ import pytest
 
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
-from app.agent.planning_tool import TOOL_NAME, execute_plan
+from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult
 
 PERIOD = date(2026, 9, 1)
@@ -464,3 +464,98 @@ def test_missing_total_stays_unknown_and_does_not_become_zero(
     assert display["pending"] == "USD $2.50"
     assert display.get("total") != "USD $0.00"
     assert "available_cents" not in budget_payload
+
+
+def test_vegan_breakfast_burritos_tool_result_is_diet_conflict() -> None:
+    args = arguments(
+        meals=[{"recipe_id": "breakfast_burritos", "servings": 1}],
+        diet="vegan",
+    )
+    call = ToolCall("call-diet", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert block["toolResult"]["status"] == "error"
+    assert _tool_json(block) == {
+        "error": "diet_conflict",
+        "ingredient_id": "eggs",
+    }
+    assert trace == [_error_trace(TOOL_NAME, "call-diet")]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "reasoningContent" not in dumped
+    assert "breakfast_burritos" not in json.dumps(trace)
+    assert "arguments are invalid" not in dumped
+
+
+def test_excluded_pantry_chicken_tool_result_is_exclusion_conflict() -> None:
+    args = arguments(
+        pantry_ingredients=["chicken_breast"],
+        ingredient_exclusions=["chicken_breast"],
+    )
+    call = ToolCall("call-ex", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert _tool_json(block) == {
+        "error": "exclusion_conflict",
+        "ingredient_id": "chicken_breast",
+    }
+    assert trace == [_error_trace(TOOL_NAME, "call-ex")]
+    dumped = json.dumps(trace)
+    assert "chicken_breast" not in dumped
+    assert "pantry_ingredients" not in dumped
+
+
+def test_unknown_pantry_dispatch_is_generic() -> None:
+    args = arguments(pantry_ingredients=["not_in_catalog"])
+    call = ToolCall("call-unknown", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "diet_conflict" not in dumped
+    assert "exclusion_conflict" not in dumped
+    assert "not_in_catalog" not in dumped
+
+
+def test_malicious_exception_metadata_dispatch_is_generic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_execute(
+        _arguments: object,
+        _budget: BudgetResult,
+        _period: date,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        error = PlanningToolError(
+            "catalog constraint is invalid",
+            code="leak",
+            ingredient_id="eggs",
+        )
+        error.secret = _SECRET  # type: ignore[attr-defined]
+        raise error
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
+    call = ToolCall("call-evil", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "diet_conflict" not in dumped
+    assert "leak" not in dumped
+    assert "eggs" not in dumped
+    assert trace == [_error_trace(TOOL_NAME, "call-evil")]
+
+
+def test_accepted_plan_tool_result_has_no_conflict_fields() -> None:
+    call = ToolCall("call-ok", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is not None
+    json_body = _tool_json(block)
+    assert "error" not in json_body
+    assert json_body["plan"] == candidate["plan"]
+    assert trace[0]["outcome"] == "success"
