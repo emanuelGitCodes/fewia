@@ -1,6 +1,7 @@
 import type { GroceryJob, GroceryJobResult, PlanLine } from "./apiTypes";
 import { formatDollars } from "./money";
 import { Nutrition } from "./Nutrition";
+import { SupermarketEstimate } from "./SupermarketEstimate";
 
 export type EstimateProps = {
   job: GroceryJob | null;
@@ -92,7 +93,7 @@ export function Estimate({
   rebuildDisabled = false,
 }: EstimateProps): JSX.Element {
   const result = job?.status === "succeeded" ? job.result : null;
-  if (result === null) {
+  if (job === null || result === null) {
     return (
       <section className="estimate-panel" aria-labelledby="estimate-heading">
         <h2 id="estimate-heading">Grocery estimate</h2>
@@ -127,15 +128,7 @@ export function Estimate({
         {planWording(result)}
       </p>
       <p className="estimate-total">{formatDollars(result.plan.total_cents)}</p>
-      {result.supermarket_estimate !== undefined ? (
-        <>
-          <p className="estimate-overlay-label">Average supermarket estimate</p>
-          <p className="estimate-overlay-total">
-            {formatDollars(result.supermarket_estimate.total_cents)}
-          </p>
-          <p className="estimate-notice">{result.supermarket_estimate.notice}</p>
-        </>
-      ) : null}
+      {!pending && !dirty ? <SupermarketEstimate key={job.id} jobId={job.id} /> : null}
       <p className="estimate-available">{`Available for this plan ${formatDollars(result.budget.available_cents)}`}</p>
       <p className="estimate-pending">{`Pending ${formatDollars(result.budget.pending_cents)}`}</p>
       <p className="estimate-source">{`Source ${sourceLabel(result.spending_source)}`}</p>

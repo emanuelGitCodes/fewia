@@ -233,5 +233,11 @@ export function parseJob(value: unknown): GroceryJob {
   if (value.result !== null && !isResult(value.result)) {
     throw new Error(SHAPE_ERROR);
   }
-  return value as GroceryJob;
+  const job: Record<string, unknown> = { ...value };
+  if (isRecord(value.result)) {
+    const result: Record<string, unknown> = { ...value.result };
+    delete result.supermarket_estimate;
+    job.result = result;
+  }
+  return job as GroceryJob;
 }
