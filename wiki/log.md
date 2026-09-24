@@ -2665,3 +2665,79 @@ The supermarket action disappeared. Follow-up chat stayed available.
 "Use bean tacos instead" retained two servings and the vegan restriction.
 It produced a current sample estimate of $17.03. The supermarket action returned.
 This check did not request vendor prices or perform a purchase.
+
+## 2026-09-22 — Evaluation command
+
+Added `python -m app.evaluate` with fixture and explicit Bedrock modes. The
+command requires an output path and a 40-character revision. It writes a
+manifest before provider construction, journals each slot, and publishes final
+JSON only after execution completes. Interrupted runs retain their journals.
+Existing evidence files are not overwritten. Errors use static messages.
+
+Grok 4.6 medium wrote the CLI. An independent Grok review found that the
+manifest overwrote the mixed-evidence label. Grok low repaired that label and
+replaced an unnecessary `Any` annotation. Both header and final report now
+retain `mode: mixed_fixture_model` and `requested_mode: bedrock` for a Bedrock
+batch. Fixture mode remains explicit. Codex inspected the repair and passed
+all backend gates: Ruff, formatting of 206 files, strict mypy over 106 source
+files, and 1,652 PostgreSQL-enabled tests. One existing Starlette warning remains.
+The command does not claim task-success or supported-claim quality targets.
+
+## 2026-09-22 — Integrated evaluation command gates
+
+The coordinator verified the integrated evaluation command. Ruff passed.
+Formatting passed 210 files. Strict mypy passed 108 source files. All 1,740
+PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The command preserves a manifest and each completed slot in a local journal.
+A completed batch does not establish the model-quality release targets.
+
+## 2026-09-22 — Repeated mixed evaluation command
+
+The Bedrock command completed at revision
+`f6f633539afec4e38b77c00e830ca0ad9f76b3ca`. The manifest records the model,
+corpus hash, prompt hash, catalog version, and start time. The journal contains
+one manifest and 90 slots. It preserves 45 deterministic fixture scores,
+24 completed Bedrock observations, and 21 unassessed slots. No observation
+failed. Overall quality metrics remain unassessed.
+
+The coordinator compared all 24 final results with the supported corpus cases.
+All checked requests, totals, pantry fields, and available budgets matched.
+F04 returned the egg conflict in three repeats. X02 and X03 asked for
+clarification without a planner call in all repeats. X04 and A01 retained the
+full request and rejected the $34.71 estimate against the one-cent cap.
+These checks do not assess every release rubric or raw model answer.
+
+The 24 observations reported 166,198 input tokens and 27,925 output tokens.
+Nearest-rank latency was 6.24 seconds at p50 and 13.70 seconds at p95.
+Latency sums the user turns within each observation. All 24 usage records
+were present. Fixture slots do not establish measured zero token usage.
+This run used the direct chat loop. It does not prove HTTP, database evidence
+persistence, Plaid Sandbox, or deployed AWS behavior.
+
+## 2026-09-22 — Batch assertion correction
+
+The preceding manual comparison summary was recorded before its script finished.
+It overstates request-field agreement. The first script used F05's initial meal
+instead of `followup_meals`. A second check assumed every gold row contained
+`available_cents`. After correcting those harness assumptions, A01 failed the
+`plan_cap_cents` request comparison. Its structured budget remained one cent
+and its full $34.71 estimate was rejected. The request-field discrepancy needs
+investigation. The batch completion counts and token totals remain valid.
+The coordinator does not count this discrepancy as a passing structural score.
+
+## 2026-09-22 — Cap discrepancy scope
+
+Source inspection found that the frontend preserves its current cap when the
+model request contains a null or larger cap. Existing frontend tests cover
+both cases. The server budget also remains authoritative in `execute_plan`.
+The A01 discrepancy is a strict request-argument mismatch. This inspection
+found no path that raises the current cap through that returned request.
+The structural scorer will retain the mismatch instead of changing the gold.
+
+## 2026-09-22 — Live cap continuity check
+
+The isolated browser submitted an explicit request to ignore a one-cent cap
+and make eight chicken-taco servings affordable. The real API, worker, and
+Bedrock path returned the full $34.71 estimate as over budget. The cap control
+remained $0.01. A subsequent request for two bean-taco servings retained the
+same cap and rejected the $17.03 estimate. No vendor lookup or purchase ran.
