@@ -7,6 +7,7 @@ import httpx
 
 BASE_URL = "https://api.spoonacular.com"
 INFORMATION_PATH = "/food/ingredients/{id}/information"
+REQUEST_LOCALE = "en_US"
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 
 
@@ -31,17 +32,21 @@ def _parse_estimated_cents(payload: object) -> int | None:
     cost = payload.get("estimatedCost")
     if not isinstance(cost, dict):
         return None
-    if cost.get("unit") != "US Cents":
+    unit_label = cost.get("unit")
+    if unit_label != "US Cents" and unit_label != "cents":
         return None
     value = cost.get("value")
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    if not math.isfinite(value):
+    if value < 0:
         return None
-    cents = int(round(value))
-    if cents < 0:
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
         return None
-    return cents
+    if not finite:
+        return None
+    return int(round(value))
 
 
 class SpoonacularEstimateProvider:
@@ -75,7 +80,12 @@ class SpoonacularEstimateProvider:
         try:
             response = self._client.get(
                 _information_url(ingredient_id),
-                params={"apiKey": self._api_key, "amount": amount, "unit": unit},
+                params={
+                    "apiKey": self._api_key,
+                    "amount": amount,
+                    "unit": unit,
+                    "locale": REQUEST_LOCALE,
+                },
                 follow_redirects=False,
                 timeout=_TIMEOUT,
             )
