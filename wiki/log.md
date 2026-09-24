@@ -2757,3 +2757,22 @@ The integrated fixture passed Ruff. Formatting passed 212 files. Strict mypy
 passed 109 source files. All 1,746 PostgreSQL-enabled tests passed, with one
 existing Starlette warning. The protocol observer and scorer remain separate
 work items until their checks pass.
+
+## 2026-09-22 — Isolated refresh evaluation fixture
+
+Grok 4.6 medium added an isolated SQLite fixture for refresh failure checks.
+It seeds a user, Item, and ledger rows with foreign keys enabled. Explicit
+flushes preserve their dependency order. Each fixture owns its database and
+closes its engine. It uses synthetic provider references only.
+
+The coordinator reviewed the source and seven focused tests. The first run
+passed six tests and failed one naive-versus-UTC timestamp comparison. Grok low
+normalized that test assertion. Ruff applied its UTC alias fix. The repaired
+fixture passes. SQLite evidence does not establish PostgreSQL locking or Plaid
+Sandbox behavior. Full candidate gates include the separate observer layer.
+
+## 2026-09-22 — Refresh fixture integration gates
+
+Ruff passed. Formatting passed 214 files. Strict mypy passed 110 source files.
+All 1,753 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The earlier mixed batch's 45 deterministic slots also have no failed checks.
