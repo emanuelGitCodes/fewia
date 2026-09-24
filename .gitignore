@@ -8,4 +8,7 @@ backend/artifacts/*
 !backend/artifacts/.gitkeep
 graphify-out/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+.playwright-cli
 /.fewia-supervisor-*/

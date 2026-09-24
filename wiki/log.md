@@ -2481,3 +2481,20 @@ failed one invalid-notice fixture. Grok corrected the fixture without changing
 API validation. Retry can check an existing request after context changes; its
 late result cannot replace the current estimate. Live Plaid remains unverified
 because Sandbox credentials are absent.
+
+## 2026-09-22 — Browser regression journeys
+
+Added Playwright journeys for manual planning, chat pantry changes, rebuilds,
+retry payloads, and the request-only supermarket estimate. Chromium runs at
+desktop and mobile widths. Every API request uses a deterministic browser
+fixture. Unknown API paths fail. CI installs Chromium and runs the suite.
+These fixtures do not establish model quality or live-provider readiness.
+
+Grok 4.6 medium wrote the tests. A separate Grok 4.6 medium source review found
+no blockers, with confidence 8/10. The integrated frontend passed 400 unit
+tests, six browser journeys, and the production build. The initial browser
+run found request key-order and selector mismatches in the harness. Grok
+repaired them. A temporary mutation that dropped chat pantry state caused the
+expected browser assertion to fail. The coordinator restored that mutation.
+The isolated Compose rebuild passed. API health and provider status returned
+HTTP 200. Plaid configuration remains absent; the UI shows that state.
