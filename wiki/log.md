@@ -2404,3 +2404,24 @@ The form showed four servings and cap 40. The pantry checkbox stayed
 selected. The estimate showed 12.33 sample dollars. Nutrition updated.
 Document width stayed 390 pixels. Browser console errors and warnings
 were zero. This is an observed browser check, not a saved browser suite.
+
+## 2026-09-21 — Model evaluation observation executor
+
+Grok 4.6 medium added an in-process observer behind LLMProvider.
+It executes supported multi-turn scenarios from actual messages.
+Expected answers do not drive execution. Other scenarios stay unassessed.
+The observer records public results, elapsed time, model id, prompt hash,
+and catalog version. It does not claim database evidence snapshots.
+Missing token usage remains unknown. Errors use static labels.
+
+Independent Grok review identified three test gaps. Grok added coverage
+for all supported and unsupported corpus ids, unassessed accepted-plan
+metrics, and per-turn timing. The coordinator ran three mutations in
+an isolated temporary copy. Dropping F02 caused one test failure.
+Claiming task success caused two failures. Removing timing caused ten.
+The unmodified focused suite passed 40 tests.
+
+Integrated Ruff passed. Format passed on 200 files. Strict mypy passed
+103 source files. PostgreSQL tests reported 1636 passed and one existing
+Starlette warning. The observer adds 149 application lines.
+No full real-model batch or model-quality score is claimed here.
