@@ -2944,3 +2944,25 @@ A live supermarket-estimate request returned HTTP 200 with `Cache-Control:
 no-store`, a complete estimate, and the source notice. The coordinator retained
 only status and completeness evidence. No vendor price values were saved.
 The temporary Compose overlay is no longer needed for this runtime setup.
+
+## 2026-09-22 — Final structured-plan scoring
+
+Grok 4.6 medium completed the scorer after extraction of its shared value
+helpers. A separate Grok 4.6 medium review found no material defect in the
+final structured-plan scope, with confidence 7/10. The coordinator passed all
+1,784 candidate PostgreSQL-enabled tests, Ruff, formatting on 214 files, and
+strict mypy on 110 source files. One existing Starlette warning remains.
+Two redundant casts found by mypy were removed by Grok low before those gates.
+
+Replay of the 24 recorded Bedrock observations produced 12 passes, three
+strict cap-argument failures, and nine unassessed clarification observations.
+Only A01's returned request cap fails. Its enforced budget and rejection still
+pass. The scorer does not evaluate every earlier plan in a conversation,
+raw tool-argument transcripts, answer-claim support, or durable evidence.
+Overall model-quality metrics remain unassessed.
+
+## 2026-09-22 — Final-plan scorer integration gates
+
+Ruff passed. Formatting passed 228 files. Strict mypy passed 117 source files.
+All 1,881 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The final-plan scope and the recorded A01 argument failures remain explicit.
