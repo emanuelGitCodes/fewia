@@ -21,6 +21,11 @@ _SCOPE_NOTE = (
     "Final-plan checks cover the last structured plan only. "
     "Fake evidence and live evidence are not interchangeable."
 )
+_REFERENCE_NOTE = (
+    "Structured-reference checks use structured inputs. "
+    "They compare the final result only. "
+    "They do not measure language understanding or earlier-turn quality."
+)
 
 
 def _body(value: object) -> dict[str, object]:
@@ -63,6 +68,16 @@ def render_evaluation_markdown(
         _need(_body(_need(record, "evidence_breakdown")), "observation"),
         _EVIDENCE,
     )
+    check_rows: list[tuple[str, ...]] = [
+        ("fixture", *(fixture[key] for key in _CHECK)),
+        ("control", *(control[key] for key in _CHECK)),
+        ("final-plan", *(final_plan[key] for key in _CHECK)),
+    ]
+    notes = [_SCOPE_NOTE]
+    if "reference_checks" in record:
+        reference = group(record["reference_checks"], _CHECK)
+        check_rows.append(("structured-reference", *(reference[key] for key in _CHECK)))
+        notes.extend(["", _REFERENCE_NOTE])
     return "\n".join(
         [
             "# FEWIA evaluation record",
@@ -79,14 +94,7 @@ def render_evaluation_markdown(
             "",
             "## Check groups",
             "",
-            _table(
-                ("group", *_CHECK),
-                (
-                    ("fixture", *(fixture[key] for key in _CHECK)),
-                    ("control", *(control[key] for key in _CHECK)),
-                    ("final-plan", *(final_plan[key] for key in _CHECK)),
-                ),
-            ),
+            _table(("group", *_CHECK), tuple(check_rows)),
             "",
             "## Observation evidence",
             "",
@@ -110,7 +118,7 @@ def render_evaluation_markdown(
             f"input_tokens: {optional_count(_need(measures, 'input_tokens'))}",
             f"output_tokens: {optional_count(_need(measures, 'output_tokens'))}",
             "",
-            _SCOPE_NOTE,
+            *notes,
             "",
         ]
     )

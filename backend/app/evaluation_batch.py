@@ -6,6 +6,7 @@ from typing import Literal, NoReturn, cast
 from app.agent.chat_loop import SYSTEM_PROMPT
 from app.agent.provider import LLMProvider
 from app.domain.catalog import CATALOG_VERSION
+from app.evaluation_comparison import compare_reference
 from app.evaluation_model import SUPPORTED_IDS, observe_model_case
 from app.evaluation_model_score import SUPPORTED_IDS as PLAN_IDS
 from app.evaluation_model_score import score_model_plan
@@ -142,6 +143,9 @@ def run_observed_evaluation(
                 observed = slot.get("observation")
                 if case_id in PLAN_IDS and isinstance(observed, dict):
                     slot["structural_assessment"] = score_model_plan(
+                        cases[case_id], observed
+                    )
+                    slot["reference_comparison"] = compare_reference(
                         cases[case_id], observed
                     )
         if on_slot is not None:
