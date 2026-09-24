@@ -2966,3 +2966,23 @@ Overall model-quality metrics remain unassessed.
 Ruff passed. Formatting passed 228 files. Strict mypy passed 117 source files.
 All 1,881 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The final-plan scope and the recorded A01 argument failures remain explicit.
+
+## 2026-09-22 — Isolated handoff evaluation fixture
+
+Grok 4.6 medium added a synthetic handoff fixture. It computes the plan from
+inputs, requires explicit consent and an accepted estimate, and builds the
+actual shopping payload. It creates only user and handoff tables in a separate
+in-memory SQLite database. Its provider raises an uncertain-result error and
+records only a call count. It never contacts Instacart.
+
+The coordinator reviewed the fixture. Twelve focused tests passed. A cleanup
+review removed unnecessary table deletion so engine disposal cannot be skipped
+by that deletion failing. Full candidate gates passed with the separate observer.
+This fixture does not prove PostgreSQL locking, restart durability, or live
+provider behavior.
+
+## 2026-09-22 — Handoff fixture integration gates
+
+Ruff passed. Formatting passed 230 files. Strict mypy passed 118 source files.
+All 1,893 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+The fixture remains isolated and uses no live shopping provider.
