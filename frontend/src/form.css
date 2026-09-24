@@ -76,6 +76,17 @@ select:disabled {
   border-top: 1px solid var(--line);
 }
 
+.spending-refresh {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0 0 1.25rem;
+}
+
+.spending-refresh h2 {
+  margin: 0;
+}
+
 .budget-form,
 .budget-form fieldset {
   display: flex;

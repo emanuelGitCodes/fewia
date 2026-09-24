@@ -545,4 +545,71 @@ describe("useGroceryDemo", () => {
     await expectNewPeriod(() => hookOf(bucket).example("vegan"));
     renderer.unmount();
   });
+
+  it("marks the last estimate dirty when spending fingerprint changes", async () => {
+    const nextConfig: GroceryConfig = {
+      ...demoConfig,
+      posted_cents: 2400,
+      spending_refreshed_at: "2026-09-08T16:00:00Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonOk(demoConfig))
+      .mockResolvedValueOnce(jsonOk(nextConfig));
+    vi.stubGlobal("fetch", fetchMock);
+    const { bucket, renderer, refresh } = mount();
+    await flush();
+    await act(async () => {
+      await hookOf(bucket).submitForm();
+    });
+    const original = jobState.submit.mock.calls[0]?.[0];
+    jobState.job = succeededJob;
+    refresh();
+    expect(hookOf(bucket).dirty).toBe(false);
+    const submittedForm = hookOf(bucket).form;
+    await act(async () => {
+      hookOf(bucket).reloadConfig();
+    });
+    await flush();
+    expect(hookOf(bucket).config?.posted_cents).toBe(2400);
+    expect(hookOf(bucket).dirty).toBe(true);
+    expect(hookOf(bucket).form).toEqual(submittedForm);
+    expect(hookOf(bucket).job?.result?.plan.total_cents).toBe(129);
+    act(() => {
+      hookOf(bucket).retry();
+    });
+    expect(jobState.submit).toHaveBeenLastCalledWith(original);
+    renderer.unmount();
+  });
+
+  it("does not mark dirty when the config fingerprint is unchanged", async () => {
+    const nextConfig: GroceryConfig = {
+      ...demoConfig,
+      recipes: demoConfig.recipes.map((recipe) =>
+        recipe.id === "bean_tacos" ? { ...recipe, name: "Bean tacos (display)" } : recipe,
+      ),
+      ingredients: [...demoConfig.ingredients],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonOk(demoConfig))
+      .mockResolvedValueOnce(jsonOk(nextConfig));
+    vi.stubGlobal("fetch", fetchMock);
+    const { bucket, renderer, refresh } = mount();
+    await flush();
+    await act(async () => {
+      await hookOf(bucket).submitForm();
+    });
+    jobState.job = succeededJob;
+    refresh();
+    await act(async () => {
+      hookOf(bucket).reloadConfig();
+    });
+    await flush();
+    expect(hookOf(bucket).config?.notice).toBe(SAMPLE_ESTIMATE_NOTICE);
+    expect(hookOf(bucket).config?.recipes).toEqual(nextConfig.recipes);
+    expect(hookOf(bucket).dirty).toBe(false);
+    expect(hookOf(bucket).job?.result?.plan.total_cents).toBe(129);
+    renderer.unmount();
+  });
 });

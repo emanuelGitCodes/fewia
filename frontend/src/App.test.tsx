@@ -36,6 +36,33 @@ vi.mock("./useHandoff", () => ({
   useHandoff: vi.fn(),
 }));
 
+vi.mock("./SpendingRefresh", async () => {
+  const { createElement } = await import("react");
+  return {
+    SpendingRefresh: (props: {
+      configured: boolean;
+      disabled?: boolean;
+      onRefreshed: () => void;
+    }) =>
+      createElement(
+        "section",
+        { "aria-labelledby": "spending-refresh-heading" },
+        createElement("h2", { id: "spending-refresh-heading" }, "Spending refresh"),
+        props.configured
+          ? createElement(
+              "button",
+              {
+                type: "button",
+                disabled: props.disabled === true,
+                onClick: props.onRefreshed,
+              },
+              "Refresh connection",
+            )
+          : createElement("p", { className: "panel-note" }, "Sandbox refresh unavailable."),
+      ),
+  };
+});
+
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const USDA_HREF = "https://fdc.nal.usda.gov/";
 const CATALOG_UNAVAILABLE = "The grocery catalog is unavailable. Retry the catalog request.";
@@ -282,6 +309,8 @@ describe("App", () => {
     expect(childText(status)).toBe("Loading the grocery catalog.");
     expect(childText(renderer.root)).not.toContain("Submitting your grocery request.");
     expect(renderer.root.findAllByType("form")).toHaveLength(1);
+    expect(childText(renderer.root)).toContain("Spending refresh");
+    expect(childText(renderer.root)).toContain("Sandbox refresh unavailable.");
     expect(childText(renderer.root)).toContain("Meal chat");
     expect(childText(renderer.root)).toContain(NOTICE);
     expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
@@ -351,6 +380,7 @@ describe("App", () => {
     expect(text).toContain("black beans");
     expect(renderer.root.findAllByType("h2").map(childText)).toEqual([
       "Your conversation",
+      "Spending refresh",
       "Meal chat",
       "Grocery estimate",
     ]);
@@ -640,6 +670,69 @@ describe("App", () => {
       instacartProviders(),
     );
     expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    renderer.unmount();
+  });
+
+  it("shows sandbox refresh unavailable when Plaid is not configured", () => {
+    const renderer = mount(demoState());
+    expect(childText(renderer.root)).toContain("Sandbox refresh unavailable.");
+    expect(hasButton(renderer.root, "Refresh connection")).toBe(false);
+    renderer.unmount();
+  });
+
+  it("disables spending refresh while providers are pending or work is busy", () => {
+    const plaidReady = {
+      capabilities: { ...providersReady, plaid_configured: true },
+      pending: false,
+      error: null,
+      retry: vi.fn(),
+    };
+    const waiting = mount(demoState(), chatState(), { ...plaidReady, pending: true });
+    expect(buttonNamed(waiting.root, "Refresh connection").props.disabled).toBe(true);
+    waiting.unmount();
+    const mealBusy = mount(demoState({ pending: true }), chatState(), plaidReady);
+    expect(buttonNamed(mealBusy.root, "Refresh connection").props.disabled).toBe(true);
+    mealBusy.unmount();
+    const chatBusy = mount(demoState(), chatState({ pending: true }), plaidReady);
+    expect(buttonNamed(chatBusy.root, "Refresh connection").props.disabled).toBe(true);
+    chatBusy.unmount();
+  });
+
+  it("reloads grocery config after a successful spending refresh", () => {
+    const reloadConfig = vi.fn();
+    const renderer = mount(demoState({ reloadConfig }), chatState(), {
+      capabilities: { ...providersReady, plaid_configured: true },
+      pending: false,
+      error: null,
+      retry: vi.fn(),
+    });
+    act(() => {
+      (buttonNamed(renderer.root, "Refresh connection").props.onClick as () => void)();
+    });
+    expect(reloadConfig).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it("labels Plaid Sandbox spending in the budget source line", () => {
+    const renderer = mount(
+      demoState({
+        config: { ...demoConfig, source: "plaid_sandbox" },
+      }),
+    );
+    expect(childText(renderer.root)).toContain("Source Plaid Sandbox. Pending -$0.50");
+    expect(childText(renderer.root)).not.toContain("Source Demo spending");
+    expect(childText(renderer.root).toLowerCase()).not.toContain("bank connected");
+    renderer.unmount();
+  });
+
+  it("shows Previous estimate when spending context is dirty and blocks a fresh chat send", () => {
+    const renderer = mount(
+      demoState({ job: succeededJob, dirty: true }),
+      chatState({ message: "Add soup to the plan." }),
+    );
+    expect(childText(renderer.root)).toContain("Previous estimate");
+    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
     renderer.unmount();
   });
 
