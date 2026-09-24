@@ -141,9 +141,9 @@ def test_default_fixture_skips_provider(
     assert len(cast(list[object], body["slots"])) == 90
     assert summary == {
         "counts": {
-            "scored": 48,
+            "scored": 51,
             "observed": 0,
-            "unassessed": 42,
+            "unassessed": 39,
             "failed": 0,
         },
         "output": str(output),
@@ -151,6 +151,15 @@ def test_default_fixture_skips_provider(
     }
     assert "slots" not in summary
     blob = json.dumps(summary)
+    p02 = [row for row in journal[1:] if row.get("case_id") == "P02"]
+    assert len(p02) == 3
+    for row in p02:
+        assert row["status"] == "scored"
+        report = cast(dict[str, object], row["report"])
+        assert report["evidence_class"] == "deterministic_fake_provider"
+        observed = cast(dict[str, object], report["observed"])
+        assert observed["provider_calls"] == 1
+        assert observed["state_uncertain"] is True
     assert "Choose a supported meal." not in blob
     assert SECRET not in blob
 
@@ -271,9 +280,9 @@ def test_mocked_bedrock_writes_fresh_providers(
     assert body["revision"] == REV
     assert body["metrics_status"] == "unassessed"
     assert summary["counts"] == {
-        "scored": 48,
+        "scored": 51,
         "observed": OBSERVED,
-        "unassessed": 18,
+        "unassessed": 15,
         "failed": 0,
     }
     assert summary["metrics_status"] == "unassessed"

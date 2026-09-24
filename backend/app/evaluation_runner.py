@@ -2,6 +2,7 @@ from typing import cast
 
 from app.evaluation_budget import evaluate_budget_case
 from app.evaluation_followup import evaluate_followup_case
+from app.evaluation_handoff import evaluate_handoff_case
 from app.evaluation_meals import evaluate_meal_case
 from app.evaluation_missing import evaluate_missing_case
 from app.evaluation_protocol import evaluate_protocol_case
@@ -60,6 +61,8 @@ def _dispatch(
             return "scored", evaluate_provider_case(case)
         if _case_id(case) == "P01" and kind == "plaid_refresh_failure" and fake:
             return "scored", evaluate_refresh_case(case)
+        if _case_id(case) == "P02" and kind == "instacart_timeout" and fake:
+            return "scored", evaluate_handoff_case(case)
         return UNASSESSED, None
     return UNASSESSED, None
 
