@@ -2376,3 +2376,31 @@ An initial format check failed on a trailing blank line. Ruff fixed it.
 Ruff check passed. Format passed on 191 files. Strict mypy passed on
 98 source files. PostgreSQL tests reported 1522 passed and one existing
 Starlette warning. No live Plaid call ran. Sandbox configuration is absent.
+
+## 2026-09-21 — Typed Plaid refresh browser client
+
+Grok 4.6 medium added the sync Item and job browser client.
+The client validates public fields and rejects unexpected credential data.
+It preserves abort signals, no-store reads, and idempotency headers.
+The source slice adds 128 lines. Frontend tests reported 328 passed.
+The production build passed. Backend source is unchanged from the
+1522-test gate. Client independent review remains pending.
+
+## 2026-09-21 — Plaid client review repair
+
+Independent Grok review found invalid sync result and error combinations
+in the browser parser. Grok 4.6 low tightened those combinations.
+The coordinator checked the backend terminal-state writes and the repair.
+The review also alleged an acknowledgement leak. The existing parser
+projects only job_id and status, so that allegation did not require a fix.
+Integrated frontend tests reported 359 passed. The build passed.
+Backend source did not change in this repair.
+
+## 2026-09-21 — Mobile manual-to-chat verification
+
+The 390 by 844 browser workflow built bean tacos manually, then sent a
+live chat request for four servings with olive oil in the pantry.
+The form showed four servings and cap 40. The pantry checkbox stayed
+selected. The estimate showed 12.33 sample dollars. Nutrition updated.
+Document width stayed 390 pixels. Browser console errors and warnings
+were zero. This is an observed browser check, not a saved browser suite.
