@@ -4,6 +4,7 @@
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Backlog**: [`plans/APP_COMPLETION_BACKLOG.md`](../../plans/APP_COMPLETION_BACKLOG.md)
 - **Local demo runbook**: [`docs/LOCAL_GROCERY_DEMO.md`](../../docs/LOCAL_GROCERY_DEMO.md)
+- **Evaluation commands**: [`docs/GROCERY_EVALUATION.md`](../../docs/GROCERY_EVALUATION.md)
 - **Historical checkpoint**: [`grocery-mvp-checkpoint.md`](grocery-mvp-checkpoint.md)
 - **Proof store**: [`log.md`](../log.md)
 - **Publication**: unpublished. Graphify refresh is pending. No deployment proof.
@@ -36,18 +37,22 @@ The current stack is local and unpublished. Publication and Graphify refresh rem
 
 ## Integration evidence
 
-Latest combined local gate on branch `codex/app-completion-48`:
+Latest combined local gate at branch 58:
 
-- The backend gate passed 1,963 PostgreSQL-enabled tests.
-- Ruff passed.
-- Format passed on 238 files.
-- Strict mypy passed on 122 source files.
-- Frontend tests passed at 413 with a production build.
-- Operators reran six browser journeys.
-- Supervisor tests passed at 52.
-- Helper tests passed at 10.
-- Infrastructure test rerun is pending after a local jsii cache permission error.
-- This page MUST NOT claim that infrastructure rerun passed.
+- PostgreSQL-enabled tests: 2,126, including opt-in P05
+- Ruff and format: 250 files
+- Strict mypy: 126 source files
+- Frontend tests: 413 with a production build
+- Six browser journeys
+- Supervisor tests: 52
+- Helper tests: 10
+- CDK tests: 14
+
+Frontend, browser, supervisor, helper, and CDK counts stay unchanged from the latest recorded values.
+Dated verification for the earlier P05 opt-in 1,984-test gate is in [`log.md`](../log.md)
+under `2026-09-22 — P05 local end-to-end evidence`.
+
+Earlier checkpoint on branch `codex/app-completion-48` passed 1,963 PostgreSQL-enabled tests. Ruff, format, and strict mypy passed on 122 files. Frontend tests passed at 413 with a production build. Six browser journeys exist. Supervisor tests passed at 52. Helper tests passed at 10. Infrastructure rerun was pending after a local jsii cache permission error.
 
 Earlier checkpoint through `app-completion46` passed 1,924 PostgreSQL-enabled tests. Ruff, format, and strict mypy passed on 120 files. Frontend tests passed at 413 with a production build. Six mocked browser journeys exist. Actual local browser and Bedrock follow-ups were also observed. See [`log.md`](../log.md).
 
@@ -55,7 +60,7 @@ These counts are local. They are not CI proof. They are not deployment proof.
 
 ## Evaluation evidence — keep runs separate
 
-Do not combine the old live mixed batch with the later fixture-only batch.
+Do not combine mixed live batches with the later fixture-only batch.
 
 Old live mixed batch at revision `f6f633539afec4e38b77c00e830ca0ad9f76b3ca`:
 
@@ -72,13 +77,56 @@ Final-plan replay on that mixed run:
 
 A01 is a strict-argument mismatch. The server retained a 1-cent budget. The path does not bypass the user cap.
 
-Latest fixture-only batch:
+Later fixture-only batch:
 
 - 51 pass
 - 39 unassessed
 - Includes P01, P02, P03, and P04 controlled paths
+- P02 batch routing is complete on this fixture CLI
 
-Overall model quality is UNASSESSED. Report export remains in progress. P05 live integration remains in progress. This page MUST NOT claim those items complete.
+New mixed live batch at revision `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`:
+
+- 90 slots
+- 51 fixture
+- 24 real
+- 15 unassessed
+- 0 execution failed
+- Final-plan replay: 11 pass, 4 fail
+- Failures: 3 A01 cap null, and F02 repeat 2 retained black beans after buy-again
+- 9 clarifications unassessed
+- Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
+
+Do not change 15 unassessed to 12.
+P05 evaluator batch routing remains pending.
+
+Historical pantry-fix retest: F02 five and F05 three passed.
+That same retest failed three A01 observations.
+That record remains historical.
+
+Explicit cap context is integrated at branch 58, source `44fe333`.
+The path passes the parsed plan cap into model context and the prompt.
+It does not mutate scores or gold.
+It does not silently normalize arguments.
+Bounded live retest 11 all passed: A01 five, F02 three, F05 three.
+These retests stay separate from the full 90-slot batch.
+The full 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
+These bounded passes are not a universal quality claim.
+
+Overall model quality is UNASSESSED.
+The report CLI exists and MUST NOT overwrite output.
+The CLI accepts only `metrics_status` `unassessed`.
+The CLI MUST NOT certify global quality.
+Explicit `--rates` is integrated at primary branch 57, source `21c7f3d`.
+The CLI reads explicit dated rates.
+It requires the recorded model and region.
+It MUST NOT default, fetch, or guess rates.
+A model or region mismatch fails.
+The current mixed-batch report estimates USD 0.13718265.
+That figure is not billing.
+The old 24-observation estimate USD 0.13163909 stays separate.
+P05 opt-in isolated stack proof is complete.
+P05 evaluator routing remains pending.
+This page MUST NOT claim global quality.
 
 ## Latency and estimated cost — old 24 live observations
 
@@ -102,15 +150,21 @@ Dated estimated text-token cost is $0.13163909. This figure is not a bill. It us
 | Live | Real Bedrock and request-only Spoonacular overlay | Bedrock follow-ups observed. Instacart parked |
 | Deployed | Public hosting and production AWS | Not claimed |
 
+P05 isolated proof uses local PostgreSQL, worker, Floci SQS, and Floci S3.
+It is not deployed AWS.
+It is not live Instacart.
+
 Fixture data is not a verified retailer or bank claim.
 
 ## Open work
 
-1. Finish report exports and remaining scorers.
-2. Finish P05 live integration on isolated PostgreSQL and Floci.
-3. Collect Plaid Sandbox proof after credentials exist outside source.
-4. Keep Instacart parked until a later decision reopens it.
-5. Stop new implementation when weekly usage remaining reaches 8%. Then finalize the wiki and Graphify. Then push reviewed feature branches and open capped PRs. Agents MUST NOT merge or push `main`.
-6. Refresh Graphify before final publication. The user requires this order.
+1. Add clarification scoring and public-claims scoring.
+2. Add the reference comparison driver. That work remains pending until the coordinator verifies. `observe_reference_case` already supports F01, F02, F05, X04, and A01.
+3. Finish P05 evaluator batch routing. Isolated opt-in test proof is complete.
+4. Finish A02, A03, and A04 controlled fixtures.
+5. Collect Plaid Sandbox proof after credentials exist outside source.
+6. Keep Instacart parked until a later decision reopens it.
+7. Stop new implementation when weekly usage remaining reaches 8%. Then finalize the wiki and Graphify. Then push reviewed feature branches and open capped PRs. Agents MUST NOT merge or push `main`.
+8. Refresh Graphify before final publication. The user requires this order.
 
 Handoff browser contract and client exist. Live Instacart write and button proof remain unfinished. Feature work follows [`plans/APP_COMPLETION_BACKLOG.md`](../../plans/APP_COMPLETION_BACKLOG.md).
