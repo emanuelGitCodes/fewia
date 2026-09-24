@@ -14,6 +14,7 @@ from app.api.evidence import router as evidence_router
 from app.api.grocery import router as grocery_router
 from app.api.handoff import router as handoff_router
 from app.api.predict import router as predict_router
+from app.api.supermarket import router as supermarket_router
 from app.api.sync import router as sync_router
 from app.tools.base import ToolError
 
@@ -79,6 +80,7 @@ def healthz() -> dict[str, str]:
 
 app.include_router(context_router)
 app.include_router(grocery_router)
+app.include_router(supermarket_router)
 app.include_router(chat_router)
 app.include_router(predict_router)
 app.include_router(evidence_router)
