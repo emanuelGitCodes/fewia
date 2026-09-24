@@ -1,6 +1,7 @@
 """Tests for the Plaid sync HTTP routes."""
 
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,7 +26,10 @@ from app.services.job_submission import create_job
 ITEM_ID = "item-1"
 OTHER_ITEM_ID = "item-2"
 JOBS_PATH = "/grocery/sync/jobs"
+ITEMS_PATH = "/grocery/sync/items"
 SENTINEL = "SECRET_DB_TOKEN"
+SYNCED_AT = datetime(2026, 9, 6, 15, 0, tzinfo=UTC)
+ITEM_PUBLIC_FIELDS = frozenset({"id", "last_synced_at"})
 FORBIDDEN_FIELDS = ("token", "account", "transaction", "access_token", "cursor")
 INTERNAL_JOB_FIELDS = (
     "payload",
@@ -111,13 +115,22 @@ def post_job(
 
 
 def seed_item(
-    session: Session, *, item_id: str = ITEM_ID, user_id: int = 1
+    session: Session,
+    *,
+    item_id: str = ITEM_ID,
+    user_id: int = 1,
+    last_synced_at: datetime | None = None,
+    credential_ref: str = "plaid-item-ref",
+    cursor: str | None = None,
+    provider_item_id: str | None = None,
 ) -> PlaidItem:
     item = PlaidItem(
         id=item_id,
         user_id=user_id,
-        provider_item_id=f"provider-{item_id}",
-        credential_ref="plaid-item-ref",
+        provider_item_id=provider_item_id or f"provider-{item_id}",
+        credential_ref=credential_ref,
+        cursor=cursor,
+        last_synced_at=last_synced_at,
     )
     session.add(item)
     session.flush()
@@ -171,6 +184,7 @@ def test_sync_routes_are_mounted_on_main_app() -> None:
     }
     assert (JOBS_PATH, "POST") in routes
     assert (f"{JOBS_PATH}/{{job_id}}", "GET") in routes
+    assert (ITEMS_PATH, "GET") in routes
 
 
 def test_repeated_identical_request_reuses_job_and_outbox(
@@ -637,3 +651,123 @@ def test_http_changed_body_integrity_error_conflicts(
     assert SENTINEL not in secret_blob(response.text)
     assert stored is not None
     assert stored.payload == payload
+
+
+def test_item_inventory_is_empty_without_owned_rows(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    response = client.get(ITEMS_PATH)
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_item_inventory_returns_owned_rows_sorted_by_id(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    seed_item(session, item_id="item-c")
+    seed_item(session, item_id="item-a", last_synced_at=SYNCED_AT)
+    seed_item(session, item_id="item-b")
+    response = client.get(ITEMS_PATH)
+    body = response.json()
+
+    assert response.status_code == 200
+    assert [row["id"] for row in body] == ["item-a", "item-b", "item-c"]
+    assert body[0]["last_synced_at"] in (
+        "2026-09-06T15:00:00Z",
+        "2026-09-06T15:00:00+00:00",
+    )
+    assert body[1]["last_synced_at"] is None
+    assert body[2]["last_synced_at"] is None
+
+
+def test_item_inventory_hides_other_users_rows(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    seed_user(2, "Other user")
+    seed_item(session, item_id=ITEM_ID)
+    seed_item(
+        session,
+        item_id=OTHER_ITEM_ID,
+        user_id=2,
+        credential_ref=SENTINEL,
+        cursor=SENTINEL,
+        provider_item_id=SENTINEL,
+    )
+    response = client.get(ITEMS_PATH)
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body == [{"id": ITEM_ID, "last_synced_at": None}]
+    assert SENTINEL not in secret_blob(body)
+    assert OTHER_ITEM_ID not in secret_blob(body)
+
+
+def test_item_inventory_exposes_only_public_fields(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    seed_item(session, last_synced_at=SYNCED_AT)
+    response = client.get(ITEMS_PATH)
+    body = response.json()
+
+    assert response.status_code == 200
+    assert len(body) == 1
+    assert set(body[0]) == ITEM_PUBLIC_FIELDS
+    for field in (*FORBIDDEN_FIELDS, "provider_item_id", "credential_ref", "user_id"):
+        assert field not in body[0]
+
+
+def test_item_inventory_omits_secret_sentinels(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    seed_item(
+        session,
+        credential_ref=SENTINEL,
+        cursor=SENTINEL,
+        provider_item_id=SENTINEL,
+    )
+    response = client.get(ITEMS_PATH)
+    blob = secret_blob(response.json()) + secret_blob(response.text)
+
+    assert response.status_code == 200
+    assert SENTINEL.lower() not in blob
+    for field in ("provider_item_id", "credential_ref", "cursor", "user_id"):
+        assert field not in response.json()[0]
+
+
+def test_item_inventory_allows_null_last_synced_at(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    seed_item(session, last_synced_at=None)
+    response = client.get(ITEMS_PATH)
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": ITEM_ID, "last_synced_at": None}]
+
+
+def test_item_inventory_ignores_unconfigured_provider(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    seed_item(session)
+
+    def boom(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("provider capabilities MUST NOT run")
+
+    monkeypatch.setattr(
+        sync_api, "get_provider_settings", lambda: GroceryProviderSettings()
+    )
+    monkeypatch.setattr(sync_api, "capabilities", boom)
+    response = client.get(ITEMS_PATH)
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": ITEM_ID, "last_synced_at": None}]
