@@ -3088,3 +3088,24 @@ All 1,907 PostgreSQL-enabled tests passed, with one existing Starlette warning.
 The actual fixture command produced 51 passing fixture slots and 39 unassessed
 slots. Every P02 repeat observed one controlled provider call. The fixture
 manifest records no source region. Global quality metrics remain unassessed.
+
+## 2026-09-22 — Honest evaluation count summaries
+
+Grok 4.6 added separate execution, fixture, controlled, and final-plan count
+summaries. The coordinator found an attachment-key mismatch and an unhashable
+label path during review. Grok aligned the input with `structural_assessment`,
+kept unassessed plans outside scope, and counted unknown observation labels.
+A test incorrectly treated a mapping proxy as a supported dictionary. Grok
+corrected that case while retaining valid-input immutability coverage.
+
+All 1,910 candidate PostgreSQL-enabled tests passed, including 17 summary tests.
+Ruff, formatting on 232 files, and strict mypy on 119 source files passed.
+One existing Starlette warning remains. Replay of the saved mixed batch retained
+45 passing fixture slots, 12 passing final plans, three failing final plans,
+and 75 slots outside final-plan scoring. The report makes no global quality claim.
+
+## 2026-09-22 — Evaluation summary integration gates
+
+Ruff passed. Formatting passed 234 files. Strict mypy passed 120 source files.
+All 1,924 PostgreSQL-enabled tests passed, with one existing Starlette warning.
+Execution, fixture, controlled, and final-plan counts remain separate.
