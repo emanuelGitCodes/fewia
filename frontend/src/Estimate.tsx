@@ -1,5 +1,6 @@
 import type { GroceryJob, GroceryJobResult, PlanLine } from "./apiTypes";
 import { formatDollars } from "./money";
+import { Nutrition } from "./Nutrition";
 
 export type EstimateProps = {
   job: GroceryJob | null;
@@ -155,6 +156,7 @@ export function Estimate({
         </p>
       ))}
       <p className="estimate-notice">{result.plan.notice}</p>
+      <Nutrition nutrition={result.meal_nutrition} dirty={dirty} />
     </section>
   );
 }

@@ -2300,3 +2300,21 @@ The isolated PostgreSQL run reported 1515 passed and one Starlette warning.
 The earlier default run reported 1501 passed and 14 skipped.
 Independent review of the compatibility change remains pending.
 No live provider verification occurred.
+
+## 2026-09-21 — Nutrition display and browser integration
+
+Grok 4.6 medium restored the nutrition component from `2df4b2e`.
+The panel shows per-serving, per-meal, and selected-plan totals.
+Legacy and unavailable results have explicit messages.
+USDA attribution and portion assumptions remain visible.
+The application change adds 143 lines.
+
+Independent Grok review found outdated App test assertions that forbade
+all links. Grok 4.6 low repaired those assertions. They now require the
+USDA link and still reject shopping controls. Reviewer confidence: 8/10.
+The coordinator reproduced both original failures. After repair, 327
+frontend tests and the production build passed.
+Browser verification on isolated port 5178 showed bean tacos for two:
+1703 sample cents, 758 plan kcal, and 379 kcal per serving.
+Backend source did not change. The recorded 1515-test PostgreSQL gate
+remains the backend baseline. Live provider verification is separate.

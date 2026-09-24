@@ -5,9 +5,12 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import {
+  NUTRITION_NOTICE,
+  NUTRITION_PORTION_NOTICE,
   SAMPLE_ESTIMATE_NOTICE,
   SPOONACULAR_COST_NOTICE,
   type GroceryJob,
+  type MealPlanNutrition,
   type PlanLine,
   type SupermarketEstimate,
 } from "./apiTypes";
@@ -46,6 +49,8 @@ function succeeded(overrides: {
   planWarnings?: string[];
   budgetWarnings?: string[];
   supermarket_estimate?: SupermarketEstimate;
+  meal_nutrition?: MealPlanNutrition;
+  omitNutrition?: boolean;
 } = {}): GroceryJob {
   const lines = overrides.lines ?? [line(), line({ ingredient_id: "tortillas", name: "tortillas", unit: "ct", quantity: 8, packages: 1, cost_cents: 349 })];
   return {
@@ -54,7 +59,7 @@ function succeeded(overrides: {
     error_code: null,
     result: {
       spending_source: overrides.source ?? "fixture",
-      meal_nutrition: sampleNutrition(),
+      ...(overrides.omitNutrition ? {} : { meal_nutrition: overrides.meal_nutrition ?? sampleNutrition() }),
       budget: {
         available_cents: overrides.available ?? 5000,
         pending_cents: overrides.pending ?? 200,
@@ -158,7 +163,9 @@ describe("Estimate", () => {
     expect(text.split("Budget warning")).toHaveLength(2);
     expect(text).toContain(NOTICE);
     expect(renderer.root.findAllByType("input")).toHaveLength(2);
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    expect(renderer.root.findAllByType("a").map((node) => node.props.href)).toEqual([
+      "https://fdc.nal.usda.gov/",
+    ]);
     expect(text.toLowerCase()).not.toMatch(/checkout/);
     expect(text).not.toContain("Average supermarket estimate");
     expect(text).not.toContain("Spoonacular");
@@ -333,8 +340,114 @@ describe("Estimate", () => {
       expect(box.props.disabled).toBe(true);
       expect(box.props.checked).toBe(false);
     }
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    expect(renderer.root.findAllByType("a").map((node) => node.props.href)).toEqual([
+      "https://fdc.nal.usda.gov/",
+    ]);
     expect(childText(renderer.root)).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("shows fixture nutrition values, grams, meal totals, and USDA notes", () => {
+    const renderer = mount({ job: succeeded() });
+    const text = childText(renderer.root);
+    expect(text).toContain("Estimated nutrition");
+    expect(text).toContain("Total for selected plan");
+    expect(text).toContain("Total for this meal");
+    expect(text).toContain("Per serving");
+    expect(text).toContain("Bean Tacos");
+    expect(text).toContain("2 servings");
+    expect(text).toContain("200 kcal");
+    expect(text).toContain("100 kcal");
+    expect(text).toContain("2.0 g");
+    expect(text).toContain("4.0 g");
+    expect(text).toContain("1.0 g");
+    expect(text).toContain("0.5 g");
+    expect(text).toContain(NUTRITION_NOTICE);
+    expect(text).toContain(NUTRITION_PORTION_NOTICE);
+    expect(text).toContain("USDA FoodData Central");
+    expect(text.toLowerCase()).not.toMatch(/weekly|medical/);
+    renderer.unmount();
+  });
+
+  it("asks to rebuild when legacy nutrition is missing", () => {
+    const renderer = mount({ job: succeeded({ omitNutrition: true }) });
+    const text = childText(renderer.root);
+    expect(text).toContain("$4.78");
+    expect(text).toContain("Rebuild this plan to see nutrition.");
+    expect(text).not.toContain("Calories (kcal)");
+    expect(text).not.toContain("Nutrition is unavailable for this plan.");
+    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it("shows unavailable nutrition when the plan total is null", () => {
+    const renderer = mount({
+      job: succeeded({ meal_nutrition: sampleNutrition({ total: null }) }),
+    });
+    const text = childText(renderer.root);
+    expect(text).toContain("$4.78");
+    expect(text).toContain("Nutrition is unavailable for this plan.");
+    expect(text).not.toContain("Calories (kcal)");
+    expect(text).not.toContain("0 kcal");
+    expect(text).not.toContain("Total for selected plan");
+    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it("keeps previous nutrition when the draft is dirty and servings changed", () => {
+    const renderer = mount({
+      job: succeeded({
+        meal_nutrition: sampleNutrition({
+          meals: [
+            {
+              recipe_id: "bean_tacos",
+              servings: 2,
+              per_serving: {
+                energy_kcal: 100,
+                protein_mg: 1000,
+                carbohydrate_mg: 2000,
+                fat_mg: 500,
+              },
+              total: {
+                energy_kcal: 200,
+                protein_mg: 2000,
+                carbohydrate_mg: 4000,
+                fat_mg: 1000,
+              },
+            },
+          ],
+        }),
+      }),
+      dirty: true,
+    });
+    const text = childText(renderer.root);
+    expect(text).toContain("Previous estimate");
+    expect(text).toContain("Nutrition for previous plan");
+    expect(text).toContain("These values belong to the last saved plan.");
+    expect(text).toContain("2 servings");
+    expect(text).toContain("200 kcal");
+    expect(text).toContain("100 kcal");
+    expect(text).not.toContain("3 servings");
+    expect(text).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("keeps server nutrition after a pantry toggle", () => {
+    const renderer = mount({
+      job: succeeded(),
+      dirty: true,
+      pantry: ["black_beans"],
+    });
+    const before = childText(renderer.root);
+    expect(before).toContain("200 kcal");
+    expect(before).toContain("2.0 g");
+    act(() => {
+      (renderer.root.findAllByType("input")[1]?.props.onChange as (() => void) | undefined)?.();
+    });
+    const after = childText(renderer.root);
+    expect(after).toContain("200 kcal");
+    expect(after).toContain("2.0 g");
+    expect(after).toContain("$4.78");
     renderer.unmount();
   });
 });
