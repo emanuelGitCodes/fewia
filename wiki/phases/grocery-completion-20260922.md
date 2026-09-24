@@ -1,13 +1,18 @@
 # Grocery completion record — 2026-09-22
 
-- **Status**: local grocery completion in progress. This is not a completed product. This is not a deployed release.
+- **Status**: New feature work stopped for this run at 2026-09-22 09:15:18 UTC. This is not a completed product. This is not a deployed release.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Backlog**: [`plans/APP_COMPLETION_BACKLOG.md`](../../plans/APP_COMPLETION_BACKLOG.md)
+- **Review stack**: [`plans/APP_COMPLETION_STACK.md`](../../plans/APP_COMPLETION_STACK.md)
+- **Pull requests**: [open pull requests](https://github.com/emanuelGitCodes/fewia/pulls)
 - **Local demo runbook**: [`docs/LOCAL_GROCERY_DEMO.md`](../../docs/LOCAL_GROCERY_DEMO.md)
 - **Evaluation commands**: [`docs/GROCERY_EVALUATION.md`](../../docs/GROCERY_EVALUATION.md)
+- **Saved evidence**: [`docs/evidence/README.md`](../../docs/evidence/README.md)
 - **Historical checkpoint**: [`grocery-mvp-checkpoint.md`](grocery-mvp-checkpoint.md)
 - **Proof store**: [`log.md`](../log.md)
-- **Publication**: unpublished. Graphify refresh is pending. No deployment proof.
+- **Publication**: Review the stack and the [open pull requests](https://github.com/emanuelGitCodes/fewia/pulls).
+- **Merge rule**: Agents MUST NOT merge. Agents MUST NOT push to `main`. The results above are local. Check the linked pull requests for remote CI and publication status.
+- **Graphify**: Graphify outputs are checkout-local and gitignored. Consult graphify-out/GRAPH_REPORT.md and health.json for coverage and integrity diagnostics.
 
 This page is the current product record. It records verified facts only.
 
@@ -33,11 +38,36 @@ Plaid Item list, client, polling, refresh UI, and refresh state exist. Live Plai
 
 Instacart development shopping-list proof stays parked per [decision 0010](../decisions/0010-usda-spoonacular-overlay.md). The adapter remains for a later handoff. Public chat answer facts render from the validated plan and allowlisted conflicts. They MUST NOT use untrusted raw LLM prices.
 
-The current stack is local and unpublished. Publication and Graphify refresh remain pending.
+The typed refusal parser and chat protocol are complete. The assistant-prose tool-history guard is complete. New feature work stopped for this run at 2026-09-22 09:15:18 UTC.
+
+The current stack is local. Review publication through [`plans/APP_COMPLETION_STACK.md`](../../plans/APP_COMPLETION_STACK.md). Review the [open pull requests](https://github.com/emanuelGitCodes/fewia/pulls). 66 review branches include final documentation.
 
 ## Integration evidence
 
-Latest combined local gate at branch 58:
+Latest combined local gate at primary branch 65:
+
+- PostgreSQL-enabled tests: 2,219, including opt-in P05
+- Ruff and format: 257 files
+- Strict mypy: 128 source files
+- Frontend tests: 413 with a production build
+- Six desktop and mobile browser journeys
+- Supervisor tests: 52
+- Helper tests: 10
+- CDK tests: 14
+- `nginx -t` passed
+- Web image build passed
+
+A forced actual API address change recovered the proxy in 2.67 seconds. The web container stayed unchanged. This page MUST NOT claim zero downtime.
+
+An actual browser check showed a credential-and-raw-bank-record refusal. Send stayed enabled. No purchase button appeared. At 390px the refusal stayed visible. The page had no horizontal overflow. The provider error was gone. Two initial 502 console entries remain as historical records from before the proxy fix.
+
+The results above are local. Check the linked pull requests for remote CI and publication status.
+
+Frontend, browser, supervisor, helper, and CDK counts stay unchanged from the latest recorded values.
+Dated verification for the earlier P05 opt-in 1,984-test gate is in [`log.md`](../log.md)
+under `2026-09-22 — P05 local end-to-end evidence`.
+
+Earlier checkpoint on branch 58:
 
 - PostgreSQL-enabled tests: 2,126, including opt-in P05
 - Ruff and format: 250 files
@@ -48,15 +78,9 @@ Latest combined local gate at branch 58:
 - Helper tests: 10
 - CDK tests: 14
 
-Frontend, browser, supervisor, helper, and CDK counts stay unchanged from the latest recorded values.
-Dated verification for the earlier P05 opt-in 1,984-test gate is in [`log.md`](../log.md)
-under `2026-09-22 — P05 local end-to-end evidence`.
-
 Earlier checkpoint on branch `codex/app-completion-48` passed 1,963 PostgreSQL-enabled tests. Ruff, format, and strict mypy passed on 122 files. Frontend tests passed at 413 with a production build. Six browser journeys exist. Supervisor tests passed at 52. Helper tests passed at 10. Infrastructure rerun was pending after a local jsii cache permission error.
 
 Earlier checkpoint through `app-completion46` passed 1,924 PostgreSQL-enabled tests. Ruff, format, and strict mypy passed on 120 files. Frontend tests passed at 413 with a production build. Six mocked browser journeys exist. Actual local browser and Bedrock follow-ups were also observed. See [`log.md`](../log.md).
-
-These counts are local. They are not CI proof. They are not deployment proof.
 
 ## Evaluation evidence — keep runs separate
 
@@ -96,7 +120,28 @@ New mixed live batch at revision `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`:
 - 9 clarifications unassessed
 - Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
 
-Do not change 15 unassessed to 12.
+This 11-pass and 4-fail mixed run remains preserved. It stays distinct from the final run.
+
+Final mixed live batch at revision `a473bb1a6b7691a479365f9061daedfac792ce46`:
+
+- 90 slots
+- 51 fixture pass
+- 30 real completed
+- 9 unassessed
+- 0 execution failed
+- All 15 final-plan structural checks pass
+- All 15 reference comparisons pass
+- Six A03/A04 refusal observations matched fixed public text with no tools
+- Those refusal checks are separate from a global quality score
+- P04 has three controlled passes and stays unassessed as a model target
+- P05 local PostgreSQL and Floci proof is complete
+- P05 evaluator batch routing stays unassessed
+- A02 real provider-text injection stays pending
+- Observer covers ten cases
+- Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
+- Saved artifacts: [`docs/evidence/grocery-evaluation-2026-09-22.json`](../../docs/evidence/grocery-evaluation-2026-09-22.json) and [`docs/evidence/grocery-evaluation-2026-09-22.md`](../../docs/evidence/grocery-evaluation-2026-09-22.md)
+
+Do not change remaining unassessed slots without a labeled run.
 P05 evaluator batch routing remains pending.
 
 Historical pantry-fix retest: F02 five and F05 three passed.
@@ -108,8 +153,8 @@ The path passes the parsed plan cap into model context and the prompt.
 It does not mutate scores or gold.
 It does not silently normalize arguments.
 Bounded live retest 11 all passed: A01 five, F02 three, F05 three.
-These retests stay separate from the full 90-slot batch.
-The full 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
+These retests stay separate from the full 90-slot batches.
+The mixed 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
 These bounded passes are not a universal quality claim.
 
 Overall model quality is UNASSESSED.
@@ -121,14 +166,18 @@ The CLI reads explicit dated rates.
 It requires the recorded model and region.
 It MUST NOT default, fetch, or guess rates.
 A model or region mismatch fails.
-The current mixed-batch report estimates USD 0.13718265.
+The structured-reference comparison covers the final result only.
+It MUST NOT claim a language baseline.
+The final mixed-batch report estimates USD 0.17507842.
 That figure is not billing.
+The mixed-batch estimate USD 0.13718265 stays separate.
 The old 24-observation estimate USD 0.13163909 stays separate.
 P05 opt-in isolated stack proof is complete.
 P05 evaluator routing remains pending.
-This page MUST NOT claim global quality.
 
-## Latency and estimated cost — old 24 live observations
+## Latency and estimated cost — keep runs separate
+
+### Old 24 live observations
 
 Latency uses 24 observations. Values are nearest-rank on summed user-turn durations.
 
@@ -137,7 +186,29 @@ Latency uses 24 observations. Values are nearest-rank on summed user-turn durati
 
 Tokens: 166,198 in, 27,925 out.
 
-Dated estimated text-token cost is $0.13163909. This figure is not a bill. It uses the checked-in pricing JSON at [`nova2-lite-use1-20260922.json`](../../backend/tests/evaluation/pricing/nova2-lite-use1-20260922.json) and the cost module [`evaluation_cost.py`](../../backend/app/evaluation_cost.py).
+Dated estimated text-token cost is USD 0.13163909. This figure is not a bill. It uses the checked-in pricing JSON at [`nova2-lite-use1-20260922.json`](../../backend/tests/evaluation/pricing/nova2-lite-use1-20260922.json). It uses the cost module [`evaluation_cost.py`](../../backend/app/evaluation_cost.py).
+
+### Mixed run at `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`
+
+Latency uses 24 observations. Values are nearest-rank on summed user-turn durations.
+
+- p50: 7.216191832994809s
+- p95: 14.151481499982765s
+
+Tokens: 166,230 in, 29,937 out.
+
+Dated estimated text-token cost is USD 0.13718265. This figure is not a bill.
+
+### Final run at `a473bb1a6b7691a479365f9061daedfac792ce46`
+
+Latency uses 30 known usage slots and 0 unknown slots. Values are nearest-rank on summed user-turn durations.
+
+- p50: 8.53608062598505s
+- p95: 16.49669574998552s
+
+Tokens: 195,499 in, 40,205 out.
+
+Dated estimated text-token cost is USD 0.17507842. This figure is not a bill.
 
 ## Evidence classes
 
@@ -159,12 +230,14 @@ Fixture data is not a verified retailer or bank claim.
 ## Open work
 
 1. Add clarification scoring and public-claims scoring.
-2. Add the reference comparison driver. That work remains pending until the coordinator verifies. `observe_reference_case` already supports F01, F02, F05, X04, and A01.
+2. Keep the structured-reference comparison at final-result scope. Do not claim a language baseline.
 3. Finish P05 evaluator batch routing. Isolated opt-in test proof is complete.
-4. Finish A02, A03, and A04 controlled fixtures.
-5. Collect Plaid Sandbox proof after credentials exist outside source.
-6. Keep Instacart parked until a later decision reopens it.
-7. Stop new implementation when weekly usage remaining reaches 8%. Then finalize the wiki and Graphify. Then push reviewed feature branches and open capped PRs. Agents MUST NOT merge or push `main`.
-8. Refresh Graphify before final publication. The user requires this order.
+4. Finish A02 real provider-text injection.
+5. Finish the comprehensive synthetic secret-boundary audit. Bounded A03/A04 refusals are already observed.
+6. Keep P04 unassessed as a model target. Three controlled passes exist.
+7. Collect Plaid Sandbox proof after credentials exist outside source.
+8. Instacart stays parked under [decision 0010](../decisions/0010-usda-spoonacular-overlay.md).
+9. Review source through [`plans/APP_COMPLETION_STACK.md`](../../plans/APP_COMPLETION_STACK.md). Review the [open pull requests](https://github.com/emanuelGitCodes/fewia/pulls). Agents MUST NOT merge. Agents MUST NOT push to `main`.
+10. Graphify outputs are checkout-local and gitignored. Consult graphify-out/GRAPH_REPORT.md and health.json for coverage and integrity diagnostics.
 
-Handoff browser contract and client exist. Live Instacart write and button proof remain unfinished. Feature work follows [`plans/APP_COMPLETION_BACKLOG.md`](../../plans/APP_COMPLETION_BACKLOG.md).
+Handoff browser contract and client exist. Live Instacart write and button proof remain unfinished. Instacart stays deferred under [decision 0010](../decisions/0010-usda-spoonacular-overlay.md). Deployed AWS stays outside this local MVP.

@@ -29,6 +29,15 @@ Corpus and scoring sources:
 - [backend/app/evaluate.py](../backend/app/evaluate.py)
 - [backend/app/evaluation_report.py](../backend/app/evaluation_report.py)
 - [docs/GROCERY_VERIFICATION_PLAN.md](GROCERY_VERIFICATION_PLAN.md)
+- [docs/evidence/README.md](evidence/README.md)
+
+New feature work stopped for this run at 2026-09-22 09:15:18 UTC.
+Review the stack in [plans/APP_COMPLETION_STACK.md](../plans/APP_COMPLETION_STACK.md).
+Review the [open pull requests](https://github.com/emanuelGitCodes/fewia/pulls).
+Agents MUST NOT merge.
+Agents MUST NOT push to `main`.
+The results above are local. Check the linked pull requests for remote CI and publication status.
+Graphify outputs are checkout-local and gitignored. Consult graphify-out/GRAPH_REPORT.md and health.json for coverage and integrity diagnostics.
 
 ## Fixture batch
 
@@ -103,9 +112,34 @@ A second run of the same command refuses those existing files.
 The report preserves unknown usage.
 The CLI accepts only `metrics_status` `unassessed`.
 The CLI MUST NOT certify global quality.
-The current mixed-batch report estimates USD 0.13718265.
-That figure is not billing.
-The old 45/24/21 mixed-run estimate USD 0.13163909 stays separate.
+
+Keep dated token estimates separate. They are not bills.
+
+- Old 45/24/21 mixed-run estimate: USD 0.13163909.
+- Mixed run at `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9`: USD 0.13718265.
+- Final mixed run at `a473bb1a6b7691a479365f9061daedfac792ce46`: USD 0.17507842.
+
+## Saved final-batch artifacts
+
+The saved final mixed batch is at these relative paths:
+
+- [docs/evidence/grocery-evaluation-2026-09-22.json](evidence/grocery-evaluation-2026-09-22.json)
+- [docs/evidence/grocery-evaluation-2026-09-22.md](evidence/grocery-evaluation-2026-09-22.md)
+
+Reproduce a fresh Markdown report from `backend`.
+`--output` MUST be a new path.
+The CLI MUST NOT overwrite the saved artifacts.
+
+```bash
+cd backend
+mkdir -p ../artifacts/evaluation
+uv run python -m app.evaluation_report \
+  --input ../docs/evidence/grocery-evaluation-2026-09-22.json \
+  --output ../artifacts/evaluation/grocery-evaluation-2026-09-22-rerender.md \
+  --rates tests/evaluation/pricing/nova2-lite-use1-20260922.json
+```
+
+See [docs/evidence/README.md](evidence/README.md) for hashes and evidence classes.
 
 ## Live mixed batches — keep runs separate
 
@@ -133,7 +167,32 @@ New mixed live batch at revision
 - 9 clarifications unassessed
 - Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
 
-Do not change 15 unassessed to 12.
+This 11-pass and 4-fail mixed run remains preserved. It stays distinct from the final run.
+
+Final mixed live batch at revision
+`a473bb1a6b7691a479365f9061daedfac792ce46`:
+
+- 90 slots
+- 51 fixture pass
+- 30 real completed
+- 9 unassessed
+- 0 execution failed
+- All 15 final-plan structural checks pass
+- All 15 reference comparisons pass
+- Six A03/A04 refusal observations matched fixed public text with no tools
+- Those refusal checks are separate from a global quality score
+- P04 has three controlled passes and stays unassessed as a model target
+- P05 local PostgreSQL and Floci proof is complete
+- P05 evaluator batch routing stays unassessed
+- A02 real provider-text injection stays pending
+- Observer covers ten cases
+- Model `us.amazon.nova-2-lite-v1:0` in region `us-east-1`
+- 30 known usage slots and 0 unknown slots
+- Tokens: 195,499 in, 40,205 out
+- Latency nearest-rank on summed user-turn durations: p50 8.53608062598505s, p95 16.49669574998552s
+- Dated token estimate USD 0.17507842. This figure is not a bill.
+
+Do not change remaining unassessed slots without a labeled run.
 P05 batch routing remains pending.
 
 Historical pantry-fix retest: F02 five and F05 three passed.
@@ -145,8 +204,8 @@ The path passes the parsed plan cap into model context and the prompt.
 It does not mutate scores or gold.
 It does not silently normalize arguments.
 Bounded live retest 11 all passed: A01 five, F02 three, F05 three.
-These retests stay separate from the full 90-slot batch.
-The full 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
+These retests stay separate from the full 90-slot batches.
+The mixed 90-slot source `18bb537cf655a6dd3a15aea522a034ff3cc2e3a9` stays 11 pass and 4 fail.
 These bounded passes are not a universal quality claim.
 
 ## Structured reference
@@ -157,7 +216,8 @@ supports F01, F02, F05, X04, and A01.
 It uses structured inputs.
 It does not interpret language.
 It does not persist evidence.
-The comparison driver remains pending until the coordinator verifies.
+The comparison, batch row, and report row are complete for the final result only.
+They MUST NOT claim a structured-reference language baseline.
 
 ## P05 isolated PostgreSQL and Floci
 
@@ -210,6 +270,7 @@ Owned resources cleaned.
 Full-source P05 with opt-in passed 1,984 tests.
 That dated verification is in [wiki/log.md](../wiki/log.md)
 under `2026-09-22 — P05 local end-to-end evidence`.
+Primary branch 65 later recorded 2,219 PostgreSQL-enabled tests with opt-in P05.
 
 ## Real Bedrock
 
@@ -252,5 +313,7 @@ It is not deployed evidence.
 ## Related records
 
 - [plans/APP_COMPLETION_BACKLOG.md](../plans/APP_COMPLETION_BACKLOG.md)
+- [plans/APP_COMPLETION_STACK.md](../plans/APP_COMPLETION_STACK.md)
 - [wiki/phases/grocery-completion-20260922.md](../wiki/phases/grocery-completion-20260922.md)
 - [docs/GROCERY_VERIFICATION_PLAN.md](GROCERY_VERIFICATION_PLAN.md)
+- [docs/evidence/README.md](evidence/README.md)
