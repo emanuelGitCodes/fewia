@@ -23,10 +23,10 @@ SECRET = "do-not-echo-raw-input"
 EVIDENCE: Literal["deterministic_fake_provider", "real_bedrock"] = (
     "deterministic_fake_provider"
 )
-UNSUPPORTED_IDS = frozenset({"P01", "P02", "P04", "P05", "A02", "A03", "A04"})
-SCORED_COUNT = 45
+UNSUPPORTED_IDS = frozenset({"P02", "P04", "P05", "A02", "A03", "A04"})
+SCORED_COUNT = 48
 OBSERVED_COUNT = 24
-UNASSESSED_COUNT = 21
+UNASSESSED_COUNT = 18
 
 
 class ScriptedProvider:
@@ -135,6 +135,9 @@ def test_observed_batch_counts_and_fresh_providers() -> None:
         assert slot["reason"] == "unsupported_scenario"
         assert slot["report"] is None
         assert "observation" not in slot
+        if slot["case_id"] == "P04":
+            report = _mapping(slot["controlled_report"], "controlled_report")
+            assert report["evidence_class"] == "deterministic_fake_provider"
     assert result["mode"] == "mixed_fixture_model"
     assert result["model_id"] == MODEL_ID
     assert result["catalog_version"] == CATALOG_VERSION
@@ -285,6 +288,14 @@ def test_on_slot_emits_ninety_unique_events_and_fresh_providers() -> None:
     assert len(unassessed) == UNASSESSED_COUNT
     assert len(providers) == OBSERVED_COUNT
     assert len({id(item) for item in providers}) == OBSERVED_COUNT
+    p04 = [item for item in events if item["case_id"] == "P04"]
+    assert len(p04) == 3
+    for slot in p04:
+        assert slot["status"] == "unassessed"
+        assert slot["reason"] == "unsupported_scenario"
+        assert slot["report"] is None
+        report = _mapping(slot["controlled_report"], "controlled_report")
+        assert report["case_id"] == "P04"
 
 
 def test_factory_failure_emits_failed_callback() -> None:

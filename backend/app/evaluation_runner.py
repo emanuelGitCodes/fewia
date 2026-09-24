@@ -4,7 +4,9 @@ from app.evaluation_budget import evaluate_budget_case
 from app.evaluation_followup import evaluate_followup_case
 from app.evaluation_meals import evaluate_meal_case
 from app.evaluation_missing import evaluate_missing_case
+from app.evaluation_protocol import evaluate_protocol_case
 from app.evaluation_provider import evaluate_provider_case
+from app.evaluation_refresh import evaluate_refresh_case
 
 REPEAT_COUNT = 3
 UNASSESSED = "unassessed"
@@ -52,11 +54,12 @@ def _dispatch(
         return "scored", evaluate_missing_case(case)
     if group == "provider" and case.get("requires_model") is False:
         behavior = _as_case(case.get("fixture_behavior"))
-        if (
-            behavior.get("kind") == "bedrock_unavailable"
-            and behavior.get("provider") == "fake"
-        ):
+        kind = behavior.get("kind")
+        fake = behavior.get("provider") == "fake"
+        if kind == "bedrock_unavailable" and fake:
             return "scored", evaluate_provider_case(case)
+        if _case_id(case) == "P01" and kind == "plaid_refresh_failure" and fake:
+            return "scored", evaluate_refresh_case(case)
         return UNASSESSED, None
     return UNASSESSED, None
 
@@ -64,13 +67,22 @@ def _dispatch(
 def _slot(case: dict[str, object], repeat: int) -> dict[str, object]:
     group = _group(case)
     status, report = _dispatch(group, case)
-    return {
+    slot: dict[str, object] = {
         "case_id": _case_id(case),
         "repeat": repeat,
         "group": group,
         "status": status,
         "report": report,
     }
+    behavior = _as_case(case.get("fixture_behavior"))
+    if (
+        _case_id(case) == "P04"
+        and case.get("requires_model") is True
+        and behavior.get("kind") == "malformed_or_unknown_tool"
+        and behavior.get("provider") == "fake"
+    ):
+        slot["controlled_report"] = evaluate_protocol_case(case)
+    return slot
 
 
 def run_evaluation(corpus: dict[str, object]) -> dict[str, object]:

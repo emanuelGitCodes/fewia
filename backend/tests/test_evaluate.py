@@ -139,9 +139,9 @@ def test_default_fixture_skips_provider(
     assert len(cast(list[object], body["slots"])) == 90
     assert summary == {
         "counts": {
-            "scored": 45,
+            "scored": 48,
             "observed": 0,
-            "unassessed": 45,
+            "unassessed": 42,
             "failed": 0,
         },
         "output": str(output),
@@ -267,9 +267,9 @@ def test_mocked_bedrock_writes_fresh_providers(
     assert body["revision"] == REV
     assert body["metrics_status"] == "unassessed"
     assert summary["counts"] == {
-        "scored": 45,
+        "scored": 48,
         "observed": OBSERVED,
-        "unassessed": 21,
+        "unassessed": 18,
         "failed": 0,
     }
     assert summary["metrics_status"] == "unassessed"
