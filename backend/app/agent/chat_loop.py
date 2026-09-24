@@ -3,6 +3,7 @@ from datetime import date
 from typing import Literal
 
 from app.agent import chat_messages as msgs
+from app.agent.chat_answer import render_public_answer, safe_tool_error
 from app.agent.chat_context import build_messages, read_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
@@ -102,6 +103,7 @@ def run_chat(
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
     candidate: dict[str, object] | None = None
+    latest_error: dict[str, str] | None = None
     revisions = 0
     turns = 0
     usage: dict[str, int] | None = {"inputTokens": 0, "outputTokens": 0}
@@ -135,7 +137,8 @@ def run_chat(
             messages.append(sanitized)
         if stop != "tool_use":
             if stop == "end_turn" and text.strip():
-                return out(_end_status(candidate), text, candidate)
+                answer = render_public_answer(candidate, latest_error)
+                return out(_end_status(candidate), answer, candidate)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
@@ -156,5 +159,9 @@ def run_chat(
                 record_evidence=record_evidence,
             )
             blocks.append(block)
+            if candidate is not None:
+                latest_error = None
+            else:
+                latest_error = safe_tool_error(block)
         messages.append({"role": "user", "content": blocks})
     return out("limit", _LIMIT, None)

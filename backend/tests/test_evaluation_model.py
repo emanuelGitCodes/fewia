@@ -9,6 +9,7 @@ from typing import Any, Literal, cast
 
 import pytest
 
+from app.agent.chat_answer import CLARIFY_ANSWER, render_public_answer
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import SYSTEM_PROMPT
 from app.agent.planning_tool import TOOL_NAME, execute_plan
@@ -20,7 +21,7 @@ CORPUS_PATH = Path(__file__).parent / "evaluation" / "scenarios.json"
 PERIOD = date(2026, 9, 1)
 MODEL_ID = "eval-fake-v1"
 SECRET = "do-not-echo-raw-input"
-SIMPLE_ANSWER = "Choose a supported meal."
+MODEL_PROSE = "Choose a supported meal."
 MODEL_CASE_IDS = ("F01", "F02", "F04", "F05", "X02", "X03", "X04", "A01")
 Evidence = Literal["deterministic_fake_provider", "real_bedrock"]
 
@@ -217,8 +218,16 @@ def test_f05_multi_turn_returns_request_and_public_history(
     inputs = case["inputs"]
     assert isinstance(inputs, dict)
     budget = fixture_budget(cast(dict[str, object], inputs))
-    assert first_result["request"] == execute_plan(first, budget, PERIOD)["request"]
-    assert second_result["request"] == execute_plan(second, budget, PERIOD)["request"]
+    first_expected = execute_plan(first, budget, PERIOD)
+    second_expected = execute_plan(second, budget, PERIOD)
+    first_answer = render_public_answer(first_expected)
+    second_answer = render_public_answer(second_expected)
+    assert first_result["request"] == first_expected["request"]
+    assert second_result["request"] == second_expected["request"]
+    assert first_result["answer"] == first_answer
+    assert second_result["answer"] == second_answer
+    assert first_result["answer"] != "Here is a labeled estimate."
+    assert second_result["answer"] != "Updated to four servings."
     assert report["metrics_status"] == "unassessed"
     _assert_elapsed(turns[0])
     _assert_elapsed(turns[1])
@@ -233,7 +242,7 @@ def test_f05_multi_turn_returns_request_and_public_history(
     assert follow[0] == {"role": "user", "content": [{"text": first_text}]}
     assert follow[1] == {
         "role": "assistant",
-        "content": [{"text": "Here is a labeled estimate."}],
+        "content": [{"text": first_answer}],
     }
     assert len(follow) == 3
     assert follow[2]["role"] == "user"
@@ -261,8 +270,9 @@ def test_history_stays_within_max_history() -> None:
     assert "turn-0" not in _blob(public)
     assert public[-1] == {
         "role": "assistant",
-        "content": [{"text": "answer-4"}],
+        "content": [{"text": CLARIFY_ANSWER}],
     }
+    assert "answer-4" not in _blob(public)
 
 
 @pytest.mark.parametrize("case_id", MODEL_CASE_IDS)
@@ -274,7 +284,7 @@ def test_supported_id_observes_simple_final_response(
     case = _load_case(case_id)
     messages = case["messages"]
     assert isinstance(messages, list)
-    replies = [_reply([_text_block(SIMPLE_ANSWER)], "end_turn") for _ in messages]
+    replies = [_reply([_text_block(MODEL_PROSE)], "end_turn") for _ in messages]
     report, provider = _observe(case, replies)
     assert report["case_id"] == case_id
     assert report["status"] == "completed"
@@ -286,7 +296,8 @@ def test_supported_id_observes_simple_final_response(
     for turn in turns:
         _assert_elapsed(turn)
         result = _turn_result(turn)
-        assert result["answer"] == SIMPLE_ANSWER
+        assert result["answer"] == CLARIFY_ANSWER
+        assert result["answer"] != MODEL_PROSE
         assert result["status"] == "clarification"
     assert report["metrics_status"] == "unassessed"
 
@@ -416,7 +427,7 @@ def test_missing_token_usage_remains_none() -> None:
     case = _load_case("X02")
     replies = [
         _reply(
-            [_text_block("Choose a supported meal.")],
+            [_text_block(MODEL_PROSE)],
             "end_turn",
             omit_usage=True,
         )
@@ -427,6 +438,8 @@ def test_missing_token_usage_remains_none() -> None:
     assert isinstance(turns, list)
     result = _turn_result(turns[0])
     assert result["usage"] is None
+    assert result["answer"] == CLARIFY_ANSWER
+    assert result["answer"] != MODEL_PROSE
     assert result["status"] == "clarification"
     assert len(provider.requests) == 1
 
@@ -471,6 +484,8 @@ def test_gold_changes_do_not_affect_observation() -> None:
     assert isinstance(plan, dict)
     assert plan["total_cents"] != 1
     assert last["request"] is not None
+    assert last["answer"] != "Black beans are in the pantry."
+    assert last["answer"] != "Bean taco estimate."
 
 
 def test_report_does_not_claim_snapshots() -> None:
