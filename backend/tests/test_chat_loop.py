@@ -20,6 +20,7 @@ from app.agent.chat_loop import (
 from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.domain.budget import BudgetResult
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
@@ -759,6 +760,76 @@ def test_system_prompt_states_usd_cents_contract() -> None:
     assert "money_display" in SYSTEM_PROMPT
     assert "estimate panel" in SYSTEM_PROMPT
     assert "concise plain-text" in SYSTEM_PROMPT
+
+
+def test_system_prompt_maps_ingredient_names_to_catalog_ids() -> None:
+    assert "Map ingredient names to plan_groceries catalog IDs." in SYSTEM_PROMPT
+    assert "Ask about unsupported pantry or restrictions." in SYSTEM_PROMPT
+    assert "You MUST NOT drop pantry or restrictions." in SYSTEM_PROMPT
+
+
+def test_provider_tool_schema_exposes_catalog_enums() -> None:
+    _result, provider = _run(_planner_then_final())
+    tools = provider.requests[0]["tools"]
+    assert isinstance(tools, list)
+    tool = tools[0]
+    assert isinstance(tool, dict)
+    spec = tool["toolSpec"]
+    assert isinstance(spec, dict)
+    input_schema = spec["inputSchema"]
+    assert isinstance(input_schema, dict)
+    schema = input_schema["json"]
+    assert isinstance(schema, dict)
+    defs = schema["$defs"]
+    assert isinstance(defs, dict)
+    meal = defs["MealRequest"]
+    assert isinstance(meal, dict)
+    meal_properties = meal["properties"]
+    assert isinstance(meal_properties, dict)
+    recipe = meal_properties["recipe_id"]
+    assert isinstance(recipe, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    pantry = properties["pantry_ingredients"]
+    exclusions = properties["ingredient_exclusions"]
+    assert isinstance(pantry, dict)
+    assert isinstance(exclusions, dict)
+    pantry_items = pantry["items"]
+    exclusion_items = exclusions["items"]
+    assert isinstance(pantry_items, dict)
+    assert isinstance(exclusion_items, dict)
+    catalog_ids = list(INGREDIENTS)
+    assert recipe["enum"] == list(SUPPORTED_RECIPE_IDS)
+    assert pantry_items["enum"] == catalog_ids
+    assert exclusion_items["enum"] == catalog_ids
+    assert "olive_oil" in catalog_ids
+    assert "olive oil" not in catalog_ids
+
+
+def test_olive_oil_catalog_id_plans_and_display_name_fails() -> None:
+    good = plan_args(pantry_ingredients=["olive_oil"])
+    expected = execute_plan(good, budget(), PERIOD)
+    planned, _provider = _run(_planner_then_final(payload=good))
+    assert planned["status"] == "planned"
+    plan = planned["plan"]
+    assert plan == expected["plan"]
+    assert isinstance(plan, dict)
+    lines = plan["lines"]
+    assert isinstance(lines, list)
+    oil = next(line for line in lines if line["ingredient_id"] == "olive_oil")
+    assert oil["from_pantry"] is True
+    bad = plan_args(pantry_ingredients=["olive oil"])
+    failed, _failed_provider = _run(
+        [
+            _reply([_tool_block("bad-oil", payload=bad)], "tool_use"),
+            _reply([_text_block("I need a supported pantry catalog ID.")], "end_turn"),
+        ]
+    )
+    assert failed["status"] == "clarification"
+    assert failed["plan"] is None
+    assert failed["tool_trace"][0]["outcome"] == "error"
+    dumped = json.dumps(failed)
+    assert "olive oil" not in dumped
 
 
 def test_invalid_request_uses_context_validation() -> None:

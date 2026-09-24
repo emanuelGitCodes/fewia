@@ -2344,3 +2344,24 @@ Grok adapted recovered UI tests to the current nutrition contract.
 Initial integration tests found three outdated overlay assertions and an
 old nutrition import. After repair, 346 frontend tests and build passed.
 This record does not claim live Spoonacular verification.
+
+## 2026-09-21 — Catalog ids in chat tools
+
+A live pantry follow-up sent the display name olive oil instead of the
+catalog id olive_oil. The model then removed the requested pantry item.
+Grok 4.6 medium added recipe, pantry, and exclusion enums to the tool
+schema. The public request schema and deterministic planner stay unchanged.
+The prompt requires catalog ids and clarification for unsupported inputs.
+Independent Grok source review approved the change with confidence 7/10.
+
+The coordinator fixed import ordering with Ruff. Integrated Ruff, format
+on 196 files, and strict mypy on 101 files passed. PostgreSQL tests
+reported 1573 passed and one existing Starlette warning.
+Three live Bedrock repetitions preserved olive_oil and four bean-taco
+servings. Each returned 1233 sample cents with one planner revision and
+two model turns. Each returned 1515 kcal for the selected plan.
+These three runs do not establish the full evaluation targets.
+
+The isolated live Spoonacular endpoint returned HTTP 200, no-store, a
+complete estimate, and the required notice. Vendor price values were not
+retained. This does not verify retailer prices or availability.
