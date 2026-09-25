@@ -100,17 +100,18 @@ def main() -> None:
     parts.append(FORMAT)
     dest = root / ".fewia-supervisor-reviews" / f"{sha}-{model}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile("w", delete=False)
-    handle.write("\n".join(parts))
-    handle.close()
     cmd = ["codex", "exec", "--model", model, "--cd", str(cwd)]
     cmd += ["--sandbox", "read-only", "--ephemeral", "--ignore-user-config", "--json"]
     cmd += ["-c", f'model_reasoning_effort="{effort}"', "-o", str(dest), "-"]
-    with Path(handle.name).open("rb") as source:
-        raw, timed_out, elapsed_ms = run_codex(cmd, cwd, source, args.timeout)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        prompt_path = Path(tmp_dir) / "prompt.txt"
+        prompt_path.write_text("\n".join(parts))
+        with prompt_path.open("rb") as source:
+            raw, timed_out, elapsed_ms = run_codex(cmd, cwd, source, args.timeout)
     totals = parse_stdout(raw)
     if not dest.exists() or dest.stat().st_size == 0:
-        dest.write_text("VERDICT: BLOCKED\n")
+        reason = "timed out" if timed_out else "produced no output"
+        dest.write_text(f"No review report. codex {reason}.\n")
     message = dest.read_text()
     verdict, found = "BLOCKED", False
     for line in message.splitlines():

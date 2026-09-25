@@ -85,6 +85,7 @@ def install_run(
         seen["args"] = args
         seen["cwd"] = cwd
         seen["timeout"] = timeout
+        seen["prompt_path"] = Path(stdin.name)
         seen["prompt"] = stdin.read().decode()
         dest = Path(args[args.index("-o") + 1])
         seen["dest"] = dest
@@ -293,6 +294,24 @@ def test_verdict_parsing(
     assert summary(capsys.readouterr().out)["verdict"] == verdict
 
 
+def test_missing_report_is_not_a_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_repo(tmp_path)
+    seen = install_run(monkeypatch, write=False)
+    assert run_main(monkeypatch, argv(root)) == 2
+    row = json.loads(ledger_path(root).read_text().splitlines()[0])
+    assert row["outcome"] == "task_failed"
+    dest = seen["dest"]
+    assert isinstance(dest, Path)
+    banned = ("VERDICT: APPROVE", "VERDICT: REQUEST_CHANGES", "VERDICT: BLOCKED")
+    for line in dest.read_text().splitlines():
+        assert line not in banned
+    prompt_path = seen["prompt_path"]
+    assert isinstance(prompt_path, Path)
+    assert not prompt_path.exists()
+
+
 class TimeoutProc:
     def __init__(self) -> None:
         self.pid = 99
@@ -323,6 +342,16 @@ def test_timeout_calls_stop(
 
     monkeypatch.setattr(review.subprocess, "Popen", popen)
     monkeypatch.setattr(review, "stop", fake_stop)
+    captured: dict[str, Path] = {}
+    real_run = review.run_codex
+
+    def capturing_run(
+        args: list[str], cwd: Path, stdin: IO[bytes], timeout: float
+    ) -> tuple[bytes, bool, int]:
+        captured["prompt_path"] = Path(stdin.name)
+        return real_run(args, cwd, stdin, timeout)
+
+    monkeypatch.setattr(review, "run_codex", capturing_run)
     code = run_main(monkeypatch, argv(root, ["--timeout", "0.01"]))
     assert code == 2
     assert stopped
@@ -330,6 +359,7 @@ def test_timeout_calls_stop(
     assert data["verdict"] == "BLOCKED"
     row = json.loads(ledger_path(root).read_text().splitlines()[0])
     assert row["outcome"] == "timeout"
+    assert not captured["prompt_path"].exists()
 
 
 def test_stdout_truncation(
@@ -366,9 +396,12 @@ def test_usage_row_written(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
             },
         }
     )
-    install_run(monkeypatch, stdout=(event + "\n").encode())
+    seen = install_run(monkeypatch, stdout=(event + "\n").encode())
     code = run_main(monkeypatch, argv(root, ["--work-item", "cap-1"]))
     assert code == 0
+    prompt_path = seen["prompt_path"]
+    assert isinstance(prompt_path, Path)
+    assert not prompt_path.exists()
     row = json.loads(ledger_path(root).read_text().splitlines()[0])
     assert row["phase"] == "review"
     assert row["provider"] == "codex"
