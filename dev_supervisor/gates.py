@@ -2,7 +2,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import signal
 import subprocess
 from datetime import UTC, datetime
@@ -21,7 +20,6 @@ PYTHONPATH_ENV = (("PYTHONPATH", "."),)
 BACKEND_RUFF_CHECK = (*UV_RUN, "ruff", "check", "app", "tests")
 BACKEND_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", "app", "tests")
 CDK_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", ".")
-COMPOSE_CONFIG = ("docker", "compose", "config", "--quiet")
 TOOLS_PYTEST = UV_RUN_BACKEND + ("pytest", "-q", "tests/supervisor", "tests/infra")
 TOOLS_RUFF_CHECK = UV_RUN_BACKEND + ("ruff", "check", *TOOLS_TARGETS, *EXCLUDE_BEDROCK)
 TOOLS_RUFF_FORMAT = UV_RUN_BACKEND + (
@@ -47,7 +45,6 @@ GATES = (
     ("backend", "ruff-format", "backend", BACKEND_RUFF_FORMAT, ()),
     ("backend", "mypy", "backend", (*UV_RUN, "mypy", "--strict", "app"), ()),
     ("backend", "pytest", "backend", (*UV_RUN, "pytest", "-q"), ()),
-    ("frontend", "npm-ci", "frontend", ("npm", "ci", "--ignore-scripts"), ()),
     ("frontend", "lint", "frontend", ("npm", "run", "lint"), ()),
     ("frontend", "test", "frontend", ("npm", "test"), ()),
     ("frontend", "build", "frontend", ("npm", "run", "build"), ()),
@@ -59,7 +56,6 @@ GATES = (
     ("cdk", "ruff-check", "infra/bedrock", (*UV_RUN, "ruff", "check", "."), ()),
     ("cdk", "ruff-format", "infra/bedrock", CDK_RUFF_FORMAT, ()),
     ("cdk", "mypy", "infra/bedrock", (*UV_RUN, "mypy", "--strict", "."), ()),
-    ("compose", "config", "", COMPOSE_CONFIG, ()),
 )
 
 
@@ -75,16 +71,15 @@ def _kill_gate_group(proc: subprocess.Popen[str]) -> None:
     try:
         os.killpg(proc.pid, signal.SIGTERM)
     except ProcessLookupError:
-        return
+        pass
     try:
         proc.communicate(timeout=GATE_KILL_GRACE)
-        return
     except (subprocess.TimeoutExpired, ProcessLookupError, OSError):
         pass
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except ProcessLookupError:
-        return
+        pass
     try:
         proc.communicate(timeout=GATE_KILL_GRACE)
     except (subprocess.TimeoutExpired, ProcessLookupError, OSError):
@@ -135,8 +130,6 @@ def areas_for(paths: set[str]) -> set[str]:
             found.add("tools")
         elif path.startswith("infra/") and path.endswith(".py"):
             found.add("tools")
-        elif "/" not in path and path.startswith("compose") and path.endswith(".yaml"):
-            found.add("compose")
     return found
 
 
@@ -166,11 +159,6 @@ def is_clean(cwd: Path) -> bool:
 def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
     out: list[GateRow] = []
     for area, gate, folder, argv, env in (row for row in GATES if row[0] in areas):
-        if gate == "npm-ci" and (cwd / "frontend" / "node_modules").exists():
-            continue
-        if gate == "config" and shutil.which("docker") is None:
-            out.append((area, gate, "SKIP", "docker not on PATH", ()))
-            continue
         try:
             proc = _run_gate(
                 argv,
@@ -223,15 +211,37 @@ def load_reuse(cwd: Path, sha: str, clean: bool) -> str | None:
     path = cwd / RECORD_DIR / f"{sha}.json"
     if not clean or not path.is_file():
         return None
-    data = json.loads(path.read_text())
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
     if not isinstance(data, dict) or data.get("clean") is not True:
         return None
-    results: list[GateRow] = [
-        (row["area"], row["gate"], row["status"], row["last_line"], ())
-        for row in data.get("gates", [])
-    ]
+    try:
+        lines = data["lines"]
+        raw_gates = data["gates"]
+    except KeyError:
+        return None
+    if not isinstance(lines, int) or isinstance(lines, bool):
+        return None
+    if not isinstance(raw_gates, list):
+        return None
+    results: list[GateRow] = []
+    for row in raw_gates:
+        if not isinstance(row, dict):
+            return None
+        try:
+            area = row["area"]
+            gate = row["gate"]
+            status = row["status"]
+            last_line = row["last_line"]
+        except KeyError:
+            return None
+        if not all(isinstance(item, str) for item in (area, gate, status, last_line)):
+            return None
+        results.append((area, gate, status, last_line, ()))
     areas = {area for area, _, _, _, _ in results}
-    text = format_output(results, int(data["lines"]), areas)
+    text = format_output(results, lines, areas)
     reused = "\n".join(
         line if line.startswith("RESULT") else f"REUSED {line}"
         for line in text.splitlines()

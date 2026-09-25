@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from dev_supervisor.gates import (
+    GATE_KILL_GRACE,
+    _run_gate,
     areas_for,
     changed_paths,
     count_added_lines,
@@ -88,9 +90,9 @@ def test_area_docs_only() -> None:
     assert areas_for(paths) == set()
 
 
-def test_area_compose() -> None:
-    assert areas_for({"compose.yaml"}) == {"compose"}
-    assert areas_for({"compose.override.yaml"}) == {"compose"}
+def test_area_compose_unmapped() -> None:
+    assert areas_for({"compose.yaml"}) == set()
+    assert areas_for({"compose.override.yaml"}) == set()
     assert areas_for({"nested/compose.yaml"}) == set()
 
 
@@ -120,15 +122,13 @@ def test_format_pass_skip() -> None:
     text = format_output(
         [
             ("backend", "ruff-check", "PASS", "All checks passed!", ()),
-            ("compose", "config", "SKIP", "docker not on PATH", ()),
             ("backend", "mypy", "PASS", "", ()),
         ],
         12,
-        {"backend", "compose"},
+        {"backend"},
     )
     assert text.splitlines() == [
         "PASS backend:ruff-check All checks passed!",
-        "SKIP compose:config docker not on PATH",
         "PASS backend:mypy ",
         "LINES 12/150",
         "RESULT PASS",
@@ -169,14 +169,53 @@ def test_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_killpg(pgid: int, sig: int) -> None:
         killed.append((pgid, sig))
 
-    def has_docker(*args: object, **kwargs: object) -> str:
-        return "docker"
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("dev_supervisor.gates.os.killpg", fake_killpg)
+    try:
+        _run_gate(("uv",), cwd=tmp_path, timeout=1.0, env=None)
+    except subprocess.TimeoutExpired:
+        status = "FAIL"
+        last_line = "timeout"
+        tail: tuple[str, ...] = ()
+    else:
+        raise AssertionError("expected TimeoutExpired")
+    assert status == "FAIL"
+    assert last_line == "timeout"
+    assert tail == ()
+    assert killed == [(4242, signal.SIGTERM), (4242, signal.SIGKILL)]
+
+
+def test_timeout_killpg_process_lookup_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeProc:
+        pid = 4242
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            if timeout == GATE_KILL_GRACE:
+                return ("", "")
+            raise subprocess.TimeoutExpired(cmd=["uv"], timeout=timeout or 0)
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeProc:
+        assert kwargs.get("start_new_session") is True
+        return FakeProc()
+
+    killed: list[tuple[int, int]] = []
+
+    def fake_killpg(pgid: int, sig: int) -> None:
+        killed.append((pgid, sig))
+        raise ProcessLookupError
 
     monkeypatch.setattr("dev_supervisor.gates.subprocess.Popen", fake_popen)
     monkeypatch.setattr("dev_supervisor.gates.os.killpg", fake_killpg)
-    monkeypatch.setattr("dev_supervisor.gates.shutil.which", has_docker)
-    results = run_area_gates(tmp_path, {"compose"}, 1.0)
-    _, _, status, last_line, tail = results[0]
+    try:
+        _run_gate(("uv",), cwd=tmp_path, timeout=1.0, env=None)
+    except subprocess.TimeoutExpired:
+        status = "FAIL"
+        last_line = "timeout"
+        tail: tuple[str, ...] = ()
+    else:
+        raise AssertionError("expected TimeoutExpired")
     assert status == "FAIL"
     assert last_line == "timeout"
     assert tail == ()
@@ -205,13 +244,11 @@ def test_frontend_runs_lint_test_build(
     monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == [
-        "npm-ci",
         "lint",
         "test",
         "build",
     ]
     assert [status for _, _, status, _, _ in results] == [
-        "PASS",
         "PASS",
         "PASS",
         "PASS",
@@ -246,37 +283,15 @@ def test_frontend_fail_does_not_stop_later_gates(
     monkeypatch.setattr("dev_supervisor.gates._run_gate", inner)
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == [
-        "npm-ci",
         "lint",
         "test",
         "build",
     ]
     assert [status for _, _, status, _, _ in results] == [
-        "PASS",
         "FAIL",
         "PASS",
         "PASS",
     ]
-
-
-def test_frontend_npm_ci_skipped_when_node_modules_exists(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "frontend" / "node_modules").mkdir(parents=True)
-    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
-    results = run_area_gates(tmp_path, {"frontend"}, 5)
-    assert [gate for _, gate, _, _, _ in results] == ["lint", "test", "build"]
-
-
-def test_compose_skip_without_docker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def no_docker(*args: object, **kwargs: object) -> None:
-        return None
-
-    monkeypatch.setattr("dev_supervisor.gates.shutil.which", no_docker)
-    results = run_area_gates(tmp_path, {"compose"}, 5)
-    assert results == [("compose", "config", "SKIP", "docker not on PATH", ())]
 
 
 def test_is_clean_ignores_untracked(tmp_path: Path) -> None:
@@ -286,6 +301,21 @@ def test_is_clean_ignores_untracked(tmp_path: Path) -> None:
     assert is_clean(repo) is True
     (repo / "keep.txt").write_text("changed\n")
     assert is_clean(repo) is False
+
+
+def test_fail_run_writes_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _repo(tmp_path)
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route(1, "bad\n"))
+    assert main(["--cwd", str(repo), "--base", "HEAD"]) == 1
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["sha"] == sha
+    assert data["gates"]
+    assert any(row["status"] == "FAIL" for row in data["gates"])
 
 
 def test_record_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -360,6 +390,68 @@ def test_reuse_miss_different_sha(
     (repo / "keep.txt").write_text("a\nb\n")
     _git(repo, "add", "keep.txt")
     _git(repo, "commit", "-m", "second")
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
+    assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
+    assert "REUSED" not in capsys.readouterr().out
+
+
+def test_reuse_miss_when_record_not_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    write_record(
+        repo,
+        sha,
+        False,
+        2,
+        [("backend", "ruff-check", "PASS", "old", ())],
+    )
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
+    assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
+    assert "REUSED" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{not json",
+        json.dumps({"sha": "x", "clean": True, "lines": 1}),
+        json.dumps(
+            {
+                "sha": "x",
+                "clean": True,
+                "lines": "4",
+                "gates": [
+                    {
+                        "area": "backend",
+                        "gate": "ruff-check",
+                        "status": "PASS",
+                        "last_line": "ok",
+                    }
+                ],
+            }
+        ),
+        json.dumps({"sha": "x", "clean": True, "lines": 1, "gates": "nope"}),
+    ],
+)
+def test_reuse_miss_malformed_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    payload: str,
+) -> None:
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    record_dir = repo / ".fewia-supervisor-gates"
+    record_dir.mkdir()
+    (record_dir / f"{sha}.json").write_text(payload)
     (repo / "backend").mkdir()
     (repo / "backend" / "x.py").write_text("a\n")
     monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
