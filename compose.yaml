@@ -47,7 +47,7 @@ services:
       postgres:
         condition: service_healthy
       floci:
-        condition: service_started
+        condition: service_healthy
     restart: "no"
 
   api:

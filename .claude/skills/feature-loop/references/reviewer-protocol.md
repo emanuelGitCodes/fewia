@@ -43,6 +43,15 @@ brief, and the writer model. Stop with `BLOCKED` when one is missing.
      -c model_reasoning_effort="high" - < "$REVIEW_BRIEF"
    ```
 
+   The read-only sandbox cannot run `uv`, `npm test`, or Docker. Tell the
+   model not to run commands that write, and give it your gate output as
+   input. The model's verdict covers code findings only. A `BLOCKED` that
+   cites only the sandbox limit is not a code finding.
+
+   Wait for the model to finish before you hand back. `APPROVE` MUST
+   include a completed model verdict. If the model cannot finish, return
+   `BLOCKED` and say so. The senior can run the model from its own session.
+
 5. **Run the gates yourself** on the pinned revision. Use the gate list in
    the brief. Record the last line of each real output.
 6. **Count the added code lines** with the counter in

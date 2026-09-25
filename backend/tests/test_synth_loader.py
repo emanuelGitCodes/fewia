@@ -4,11 +4,11 @@ from collections.abc import Iterator
 from datetime import date
 
 import pytest
+from conftest import require_test_database_url, skip_or_fail_unreachable_test_database
 from sqlalchemy import Engine, create_engine, delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import DailyEnvironment, DailyFinance, DailyHealth, Prediction, User
 from app.synth import PROFILES, generate
 from app.synth.loader import load
@@ -17,10 +17,6 @@ END_DATE = date(2099, 1, 2)
 DATASET = generate(seed=42, days=2, end_date=END_DATE)
 START_DATE = DATASET.finance[0].observation_date
 USER_IDS = [profile.user_id for profile in PROFILES]
-SKIP_MESSAGE = (
-    "No database answers at DATABASE_URL. Start Postgres with "
-    "`docker compose up -d postgres` and run `uv run alembic upgrade head`."
-)
 
 
 @pytest.fixture(scope="module")
@@ -28,7 +24,7 @@ def engine() -> Iterator[Engine]:
     """Give a connected engine, or skip the module."""
 
     engine = create_engine(
-        settings.database_url,
+        require_test_database_url(),
         connect_args={"connect_timeout": 3},
     )
     try:
@@ -36,7 +32,7 @@ def engine() -> Iterator[Engine]:
             pass
     except SQLAlchemyError as error:
         engine.dispose()
-        pytest.skip(f"{SKIP_MESSAGE} Driver said: {error.__class__.__name__}.")
+        skip_or_fail_unreachable_test_database(error)
     yield engine
     engine.dispose()
 

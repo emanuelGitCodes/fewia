@@ -1,12 +1,12 @@
 """Opt-in PostgreSQL concurrency checks for job submission."""
 
-import os
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from uuid import uuid4
 
 import pytest
+from conftest import require_test_database_url
 from sqlalchemy import Connection, Engine, create_engine, delete, event, func, select
 from sqlalchemy.orm import Session
 
@@ -17,11 +17,7 @@ from app.services.job_submission import create_job
 
 @pytest.fixture()
 def postgres_user() -> Iterator[tuple[Engine, int]]:
-    url = os.environ.get("FEWIA_JOB_TEST_DATABASE_URL")
-    if not url:
-        pytest.skip(
-            "Set FEWIA_JOB_TEST_DATABASE_URL to an isolated migrated PostgreSQL."
-        )
+    url = require_test_database_url()
     engine = create_engine(
         url,
         connect_args={"options": "-c statement_timeout=15000 -c lock_timeout=10000"},
