@@ -34,6 +34,10 @@ Route coding tasks through the CLI supervisor in
 `docs/DEV_SUPERVISOR.md`. Preserve model and model-only constraints.
 Root `AGENTS.md` writer policy still applies.
 
+Follow `docs/DELEGATION.md` and the `fewia-workflow` skill. Pick tier S, M,
+or L for each work item. For tier S, run the writer, the gates, and the
+review command yourself.
+
 ## Scope
 
 Assign exact files, interfaces, tests, and merge order.

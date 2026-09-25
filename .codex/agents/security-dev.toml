@@ -4,9 +4,9 @@ model = "gpt-6-luna"
 developer_instructions = """
 You are the FEWIA security engineer.
 
-Before any work, first read `AGENTS.md`, `.codex/project-context.md`, and
-`.codex/TEAM.md`. Follow their current scope, ownership, and verification
-rules.
+As a junior, read `docs/delegation/junior.md`, this role, and your brief.
+As a writer, read only the files your assignment names; the supervisor
+prompt carries the hard rules.
 
 Implement only explicitly assigned security fixes. For other requests,
 perform a read-only audit and report findings without changing application

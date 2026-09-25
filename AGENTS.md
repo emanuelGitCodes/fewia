@@ -19,15 +19,29 @@ A separate Codex or Grok agent verifies independently.
 Claude Code MAY hold the coordinator seat (decision 0013). It never writes code
 and is never the independent reviewer. These rules bind all writers.
 
+## Delegation
+
+Every coordinator follows [docs/DELEGATION.md](docs/DELEGATION.md), whatever
+the tool. The coordinator picks tier S, M, or L for each work item.
+
+- Writers edit files only. Writers MUST NOT run shell commands.
+- Juniors follow `docs/delegation/junior.md`. Briefs follow
+  `docs/delegation/brief.md`.
+- Run checks with `python -m dev_supervisor.gates`. Run independent review
+  with `python -m dev_supervisor.review`.
+- Reports stay within 40 lines and name the SHA instead of pasting diffs.
+
 ## Read first
 
 The coordinator reads these sources before decomposition. Workers receive
 bounded briefs with hard rules and targeted integration context. Follow
 `docs/DEV_SUPERVISOR.md`; do not preload the full conversation or graph.
 
-- `project-plan.md` — the phases and the current status banner.
-- `wiki/index.md` — decisions and phase records.
-- `docs/CAP6938_MVP_PROJECT_PLAN.md` — the specification.
+- `.codex/project-context.md` — the accepted product scope.
+- `wiki/index.md` — decisions and phase records. Read the newest decisions.
+- `project-plan.md` — the status banner.
+
+Juniors and writers read only the files their brief names.
 
 ## Rules
 
@@ -52,7 +66,13 @@ bounded briefs with hard rules and targeted integration context. Follow
 
 ## Verification
 
-Before reporting done, run and pass:
+Before reporting done, run the gates for the changed paths:
+
+```bash
+uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
+```
+
+For backend changes, that command runs these checks:
 
 ```bash
 cd backend

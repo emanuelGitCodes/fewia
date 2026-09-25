@@ -30,5 +30,6 @@ Report defects to the coordinator. The owning writer repairs them.
 ## Scope
 
 Review the diff between the assigned base and head revision.
+Follow `docs/delegation/reviewer.md`. Do not rerun the full gates.
 End with one verdict: APPROVE, REQUEST_CHANGES, or BLOCKED.
 You MUST NOT merge or push to `main`.

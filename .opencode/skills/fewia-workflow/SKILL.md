@@ -1,58 +1,59 @@
 ---
 name: fewia-workflow
-description: Run FEWIA grocery-bot work with bounded roles, CLI supervisor writes, independent Codex or Grok review, and required backend gates.
+description: Run FEWIA work with the tiered delegation loop, CLI supervisor writes, the shared gates and review commands, and bounded reports.
 ---
 
 # FEWIA workflow
 
-Read root `AGENTS.md`, `.codex/TEAM.md`, and `.codex/project-context.md`.
-Canonical role scope lives in `.codex/agents/<role>.toml` under
-`developer_instructions`.
+The rulebook is [docs/DELEGATION.md](../../../docs/DELEGATION.md). This skill
+adds only the OpenCode mechanics. Canonical role scope lives in
+`.codex/agents/<role>.toml` under `developer_instructions`.
 
-The grocery MVP checkpoint is current.
 You MUST NOT resume health-model training.
 
-## Bounded work
+## Reading
 
-Own only assigned files. Preserve other edits.
-Child workers MUST NOT switch branches in a shared checkout.
-Serialize writes to shared files.
-Native OpenCode has no implicit worktree isolation.
+- `tech-lead` reads root `AGENTS.md`, `.codex/project-context.md`,
+  `.codex/TEAM.md`, and `docs/DELEGATION.md`.
+- A specialist reads its role file, `docs/delegation/junior.md`, and its
+  brief.
 
-`tech-lead` MAY delegate bounded exploration with native OpenCode `task`.
-Specialists MUST NOT spawn further agents.
-Native OpenCode `task` is not supervisor fallback.
+## Tiers in OpenCode
 
-## Writes
+`tech-lead` picks tier S, M, or L for each work item.
 
-Route all repository writes through the CLI
-supervisor. Example:
+- **Tier S.** `tech-lead` runs the writer, the gates, and the review command
+  itself. It calls no specialist.
+- **Tier M.** `tech-lead` calls one specialist, such as `@backend-dev`, with
+  a brief from `docs/delegation/brief.md`. `tech-lead` runs the review
+  command.
+- **Tier L.** `tech-lead` also calls `@code-reviewer`, which follows
+  `docs/delegation/reviewer.md`.
+
+Specialists MUST NOT spawn further agents. Native OpenCode `task` is for
+bounded exploration only. It is not supervisor fallback.
+
+## Worktrees
+
+Native OpenCode has no implicit worktree isolation. Give each specialist
+its own worktree with `git worktree add`. Child workers MUST NOT switch
+branches in a shared checkout.
+
+## Commands
+
+Run every command from the item worktree root.
 
 ```bash
 uv run --project backend python -m dev_supervisor \
-  --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file relative/path
+  --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
+  --complexity standard --write-file relative/path \
+  --work-item fewia-42 --phase implement
+uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
+uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
+  --base main --brief "$BRIEF_FILE" --complexity standard \
+  --writer-model grok-4.6 --work-item fewia-42
+uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
 ```
 
-The supervisor requires `--complexity`.
-Use `standard` for ordinary coding work.
-The coordinator MUST NOT select `maximum` for ordinary tasks.
-The assignment MUST name owned files. Repeat `--write-file` for each
-owned path. Details live in `docs/DEV_SUPERVISOR.md`.
-
-## Review and gates
-
-A separate Codex or Grok agent independently verifies the result.
-The writer MUST NOT certify its own independent review.
-
-Before reporting done, run and report the root verification gates:
-
-```bash
-cd backend
-uv run ruff check app tests
-uv run ruff format --check app tests
-uv run mypy --strict app
-uv run pytest
-```
-
-Report actual command output, including failures.
+Writers edit files only. The specialist or `tech-lead` runs every command.
+Reports stay within 40 lines and name the SHA.
