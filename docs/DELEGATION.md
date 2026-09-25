@@ -44,7 +44,9 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 ## The loop
 
 1. **Intake.** Read `project-plan.md`, `wiki/index.md`, the newest
-   decisions in `wiki/decisions/`, and the source files in the path.
+   decisions in `wiki/decisions/`, and the source files in the path. Use a
+   search agent or `/graphify query` for broad questions. Do not load the
+   whole graph into a brief.
 2. **Probe.** For each acceptance criterion that depends on a repository
    fact, run one cheap check before dispatch. Examples: a `grep` for a
    `downgrade()` body, `docker inspect` for a built-in healthcheck, or
@@ -63,7 +65,8 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 8. **Repair.** Send blocking findings back to the owner. Stop an item after
    three review rounds and escalate to the user.
 9. **Publish and record.** Publish only with user authorization. Record
-   tokens and time per item in the loop ledger and the wiki log.
+   tokens and time per item in the loop ledger and the wiki log. Update the
+   wiki pages that the work touched.
 
 ## Commands
 
@@ -142,12 +145,16 @@ The agent files stay thin and stable. Lessons land in three layers:
    its own pull request that links the wiki entry for the incident. An
    agent MUST NOT edit its own definition outside this flow.
 3. **Mechanical rules** become tested `dev_supervisor` checks or CI checks.
+   Installing global hooks is outside this workflow.
 
 ## Review and merge
 
 1. Each work item delivers a branch and a pull request. A pull request
    MUST NOT add more than 150 lines of code. A larger change ships as a
    stack with the merge order in each pull request body.
-2. Agents MUST NOT push to `main`. Agents merge only with user
-   authorization for that stack.
-3. After a stack merges, run `/graphify` to refresh the knowledge graph.
+2. Agents MUST NOT push to `main`. Writers and juniors MUST NOT merge. A
+   coordinator merges only when the user explicitly authorizes merging for
+   that stack. Otherwise the user merges.
+3. Prose in documents, comments, and commit messages follows ASD-STE100.
+   Requirement words are MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY.
+4. After a stack merges, run `/graphify` to refresh the knowledge graph.
