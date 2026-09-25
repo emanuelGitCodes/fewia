@@ -1,0 +1,76 @@
+name: Tooling
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tools:
+    name: Tooling checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install the dependencies
+        run: uv sync --project backend --frozen
+
+      - name: Lint
+        run: uv run --project backend ruff check dev_supervisor tests infra --exclude infra/bedrock
+
+      - name: Check the format
+        run: uv run --project backend ruff format --check dev_supervisor tests infra --exclude infra/bedrock
+
+      - name: Type check
+        run: uv run --project backend mypy --strict dev_supervisor infra/bedrock_session.py infra/floci_bootstrap.py
+
+      - name: Test
+        run: uv run --project backend pytest -q tests/supervisor tests/infra
+        env:
+          PYTHONPATH: .
+
+  bedrock-infra:
+    name: Bedrock CDK checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infra/bedrock
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22.23.0"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: infra/bedrock/uv.lock
+
+      - name: Install the dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check the format
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy --strict .
+
+      - name: Test
+        run: uv run pytest
