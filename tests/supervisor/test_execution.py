@@ -331,3 +331,41 @@ def test_guard_overrides_role_check_instructions() -> None:
         in GUARD
     )
     assert "record the checks you would run as remaining work in progress.md" in GUARD
+
+
+def test_writer_prompt_omits_version_control_command_names(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+    captured: list[str] = []
+
+    def runner(
+        args: list[str],
+        cwd: Path,
+        prompt: Path,
+        state: Path,
+        token: str,
+        idle: float,
+        limit: float,
+    ) -> str:
+        captured.append(prompt.read_text())
+        return "completed"
+
+    with patch("dev_supervisor.__main__.attempt", runner):
+        assert (
+            execute(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order(None, False, MODELS),
+                1,
+                2,
+                "standard",
+            )
+            == "completed"
+        )
+    assert captured
+    text = captured[0]
+    assert "git status" not in text
+    assert "git diff" not in text
+    assert "inspect the working tree" not in text

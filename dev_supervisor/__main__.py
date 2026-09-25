@@ -36,8 +36,8 @@ Edit only the assigned files. The coordinator runs all verification and records
 the results.
 This rule overrides any role or assignment text that asks you to run checks; record the checks you would run as remaining work in progress.md.
 Update progress.md after each completed edit and before changing work stages.
-Record edits made, remaining work, and uncertain operations. On handoff inspect
-the working tree first. Do not repeat an uncertain external action. A separate
+Record edits made, remaining work, and uncertain operations. On handoff read
+the owned files first. Do not repeat an uncertain external action. A separate
 Codex or Grok agent independently verifies the result.
 """
 
@@ -85,7 +85,7 @@ def execute(
             + assignment
             + "\nCheckpoint:\n"
             + progress.read_text()
-            + "\nInspect git status and diff; interrupted edits remain in this worktree.\n"
+            + "\nInterrupted edits remain in this worktree. Read the owned files before you edit them.\n"
         )
         result = attempt(
             command(
