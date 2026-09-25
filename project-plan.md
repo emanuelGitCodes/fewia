@@ -1,50 +1,10 @@
-# FEWIA Build Plan: MVP + Agent Delegation
+# FEWIA Project Plan
 
-> **Active direction:** Preserve the local grocery MVP for professor feedback.
-> The accepted brief is [.codex/project-context.md](.codex/project-context.md).
-> The demo is a budget-aware grocery planner. It is not a completed AI product.
-> Do not expand features in this checkpoint. The health-prediction phases below
-> are historical planning material. Do not resume their training tasks.
-
-> **Status**: Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning
-> effort `low`
-> ([wiki/phases/grocery-mvp-checkpoint.md](wiki/phases/grocery-mvp-checkpoint.md)).
-> Two-servings bean tacos returned USD 17.03. A four-servings follow-up
-> returned USD 18.32. The budget 40 stayed preserved. The form updated to
-> 4. The browser showed no errors. Sample prices remain. Fixture spending
-> remains. Code checks: 1,383 backend tests passed, eight database skips,
-> plus lint, format, and mypy. CDK 14 tests passed. Helper 10 tests
-> passed. No 90-run evaluation exists. This is not a completed AI product.
-> Real Plaid and Instacart remain unverified. Full manual-to-chat transfer
-> remains unfinished. Feature work is PAUSED as the user requested. Local
-> commits are `282f682` (model) and `06d41f3` (currency). No push or merge
-> occurred. Pull request [42](https://github.com/emanuelGitCodes/fewia/pull/42)
-> merged into `main` at `5bcf21b31523f7c2e1b22bb1aa069b9bb8a08c14` on
-> 2026-09-07. GitHub Backend checks and Frontend checks passed.
-> Published consolidation local checks remain 1,374 PostgreSQL-enabled
-> backend tests, 238 frontend tests, ruff, format, and strict mypy on 85
-> files, frontend build, and migrations through 0007. One existing
-> Starlette deprecation warning remains. Preserved drafts are included
-> and locally checked. Graphify rebuilt after that merge in the saved
-> checkout. That record covers the prior merged checkpoint. A local chat
-> graph refresh is not yet recorded. Local ignored artifacts are
-> `graphify-out/graph.html`, `graph.json`, `GRAPH_REPORT.md`, and
-> `health.json`. Full source coverage is 237 code files, 44 documents, and
-> 1 image. Raw extraction excludes 979 unresolved endpoint references,
-> mostly external imports. The default undirected graph collapses 919
-> repeated endpoint relationships. The extract records 121 exact duplicate
-> raw edges. These counts are analysis coverage limits. They are not
-> application failures. Semantic agent token usage is unavailable. This
-> plan does not claim the graph has no errors. Phase 0 through Phase 3
-> remain complete historical records
-> ([wiki/phases/phase-0.md](wiki/phases/phase-0.md),
-> [wiki/phases/phase-1.md](wiki/phases/phase-1.md),
-> [wiki/phases/phase-2.md](wiki/phases/phase-2.md),
-> [wiki/phases/phase-3.md](wiki/phases/phase-3.md)).
-> `wiki/` records work and decisions. An executor MUST read `AGENTS.md`
-> and `wiki/index.md` before starting. The delegation sections assume
-> Claude Code (Agent tool, skills, worktrees); another executor follows
-> the phases, deliverables, and verification steps directly.
+> The grocery bot is the active product. The accepted scope is in
+> [.codex/project-context.md](.codex/project-context.md).
+> Every phase below is the historical health-era plan. Do not resume training tasks from it.
+> [wiki/index.md](wiki/index.md) holds current decisions and phase records.
+> [wiki/log.md](wiki/log.md) holds the dated history. Read those pages for status.
 
 ## Context
 
