@@ -1,8 +1,12 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
-from dev_supervisor.__main__ import execute
+import pytest
+
+from dev_supervisor.__main__ import GUARD, dispatch, execute, main
+from dev_supervisor.lease import lease
 from dev_supervisor.policy import MODELS, order
 
 
@@ -206,3 +210,162 @@ def test_real_subprocess_handoff(tmp_path: Path) -> None:
         )
     results = json.loads((tmp_path / "result.json").read_text())
     assert [row["outcome"] for row in results] == ["quota", "completed"]
+
+
+def _supervisor_paths(root: Path) -> list[Path]:
+    return [
+        path
+        for path in root.iterdir()
+        if path.name.startswith(".fewia-supervisor-")
+        or path.name == "fewia-supervisor.lock"
+    ]
+
+
+def _state_dir(root: Path) -> Path:
+    matches = [
+        path
+        for path in root.iterdir()
+        if path.is_dir() and path.name.startswith(".fewia-supervisor-")
+    ]
+    assert len(matches) == 1
+    return matches[0]
+
+
+def _main_argv(tmp_path: Path, task: str, role: str) -> list[str]:
+    return [
+        "dev_supervisor",
+        "--task",
+        task,
+        "--role",
+        role,
+        "--cwd",
+        str(tmp_path),
+        "--complexity",
+        "standard",
+    ]
+
+
+def test_inline_task_exits_before_lease(tmp_path: Path) -> None:
+    setup(tmp_path)
+    with patch("sys.argv", _main_argv(tmp_path, "implement the change", "backend-dev")):
+        with pytest.raises(SystemExit):
+            main()
+    assert _supervisor_paths(tmp_path) == []
+
+
+def test_missing_role_exits_before_lease(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+    with patch("sys.argv", _main_argv(tmp_path, str(task), "missing-role")):
+        with pytest.raises(SystemExit):
+            main()
+    assert _supervisor_paths(tmp_path) == []
+
+
+def test_prelaunch_failure_releases_lease(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+
+    def boom(*args: object, **kwargs: object) -> str:
+        raise Exception("prelaunch")
+
+    with patch("dev_supervisor.__main__.execute", boom):
+        with pytest.raises(Exception, match="prelaunch"):  # noqa: B017
+            dispatch(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order(None, False, MODELS),
+                1,
+                2,
+                "standard",
+            )
+    status = json.loads((_state_dir(tmp_path) / "status.json").read_text())
+    assert status["state"] == "stopped"
+    with lease(tmp_path) as granted:
+        assert granted.name.startswith(".fewia-supervisor-")
+
+
+def test_existing_status_blocks_after_execute_failure(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+    payload = {"pid": os.getpgrp(), "state": "running"}
+
+    def write_then_fail(*args: object, **kwargs: object) -> str:
+        state = args[3]
+        assert isinstance(state, Path)
+        (state / "status.json").write_text(json.dumps(payload))
+        raise Exception("after launch")
+
+    with patch("dev_supervisor.__main__.execute", write_then_fail):
+        with pytest.raises(Exception, match="after launch"):  # noqa: B017
+            dispatch(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order(None, False, MODELS),
+                1,
+                2,
+                "standard",
+            )
+    status_path = _state_dir(tmp_path) / "status.json"
+    assert json.loads(status_path.read_text()) == payload
+    with pytest.raises(RuntimeError, match="Prior writer"), lease(tmp_path):
+        pass
+
+
+def test_guard_forbids_writer_commands() -> None:
+    assert (
+        "You MUST NOT run shell commands, tests, package managers, or git commands"
+        in GUARD
+    )
+    assert "Never claim an unfinished check passed" not in GUARD
+    assert "Record completed checks" not in GUARD
+    assert "after each completed check" not in GUARD
+
+
+def test_guard_overrides_role_check_instructions() -> None:
+    assert (
+        "This rule overrides any role or assignment text that asks you to run checks"
+        in GUARD
+    )
+    assert "record the checks you would run as remaining work in progress.md" in GUARD
+
+
+def test_writer_prompt_omits_version_control_command_names(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+    captured: list[str] = []
+
+    def runner(
+        args: list[str],
+        cwd: Path,
+        prompt: Path,
+        state: Path,
+        token: str,
+        idle: float,
+        limit: float,
+    ) -> str:
+        captured.append(prompt.read_text())
+        return "completed"
+
+    with patch("dev_supervisor.__main__.attempt", runner):
+        assert (
+            execute(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order(None, False, MODELS),
+                1,
+                2,
+                "standard",
+            )
+            == "completed"
+        )
+    assert captured
+    text = captured[0]
+    assert "git status" not in text
+    assert "git diff" not in text
+    assert "inspect the working tree" not in text

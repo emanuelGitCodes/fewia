@@ -22,7 +22,7 @@ from dev_supervisor.policy import (
     resolve_effort,
     writes,
 )
-from dev_supervisor.process import attempt
+from dev_supervisor.process import attempt, publish
 
 GUARD = """
 Use assigned files only. Preserve all changes. Follow AGENTS.md hard rules.
@@ -31,10 +31,14 @@ within the given scope. Query graphs on demand; report missing relevant context.
 Do not spawn agents, detach processes, merge, push, or change global settings.
 Do not perform external mutations. Return external actions to the coordinator.
 Do not read credentials or include secrets in prompts, logs, or checkpoints.
-Update progress.md after each completed check and before changing work stages.
-Record completed checks, remaining work, and uncertain operations. Never claim
-an unfinished check passed. On handoff inspect the working tree first. Do not
-repeat an uncertain external action. A separate Codex or Grok agent independently verifies the result.
+You MUST NOT run shell commands, tests, package managers, or git commands.
+Edit only the assigned files. The coordinator runs all verification and records
+the results.
+This rule overrides any role or assignment text that asks you to run checks; record the checks you would run as remaining work in progress.md.
+Update progress.md after each completed edit and before changing work stages.
+Record edits made, remaining work, and uncertain operations. On handoff read
+the owned files first. Do not repeat an uncertain external action. A separate
+Codex or Grok agent independently verifies the result.
 """
 
 
@@ -81,7 +85,7 @@ def execute(
             + assignment
             + "\nCheckpoint:\n"
             + progress.read_text()
-            + "\nInspect git status and diff; interrupted edits remain in this worktree.\n"
+            + "\nInterrupted edits remain in this worktree. Read the owned files before you edit them.\n"
         )
         result = attempt(
             command(
@@ -107,6 +111,43 @@ def execute(
     return "all_providers_exhausted"
 
 
+def dispatch(
+    cwd: Path,
+    task: Path,
+    role: str,
+    git_dir: Path,
+    models: dict[str, Model],
+    sequence: list[str],
+    idle: float,
+    limit: float,
+    complexity: str,
+    effort: str | None = None,
+    files: list[Path] | None = None,
+) -> str:
+    with lease(git_dir, cwd) as state:
+        print(f"Private checkpoint directory: {state}", flush=True)
+        try:
+            result = execute(
+                cwd,
+                task,
+                role,
+                state,
+                models,
+                sequence,
+                idle,
+                limit,
+                complexity,
+                effort,
+                files,
+            )
+        except Exception:  # noqa: BLE001
+            if not (state / "status.json").exists():
+                publish(state, {"state": "stopped"})
+            raise
+        print(result, flush=True)
+        return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", type=Path, required=True)
@@ -128,6 +169,11 @@ def main() -> None:
         parser.error("Time bounds must be positive")
     if Path(args.role).name != args.role:
         parser.error("Role must be a file stem")
+    if not args.task.is_file():
+        parser.error("--task takes a file path, not inline text")
+    role_file = cwd / ".codex/agents" / f"{args.role}.toml"
+    if not role_file.is_file():
+        parser.error(f"Missing role file: {role_file}")
     models = dict(MODELS)
     try:
         if args.registry:
@@ -153,23 +199,20 @@ def main() -> None:
             text=True,
         ).strip()
     )
-    with lease(git_dir, cwd) as state:
-        print(f"Private checkpoint directory: {state}", flush=True)
-        result = execute(
-            cwd,
-            args.task,
-            args.role,
-            state,
-            models,
-            sequence,
-            args.idle_seconds,
-            args.limit_seconds,
-            args.complexity,
-            args.effort,
-            authorized,
-        )
-        print(result, flush=True)
-        raise SystemExit(0 if result == "completed" else 1)
+    result = dispatch(
+        cwd,
+        args.task,
+        args.role,
+        git_dir,
+        models,
+        sequence,
+        args.idle_seconds,
+        args.limit_seconds,
+        args.complexity,
+        args.effort,
+        authorized,
+    )
+    raise SystemExit(0 if result == "completed" else 1)
 
 
 if __name__ == "__main__":
