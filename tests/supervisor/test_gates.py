@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -8,8 +9,11 @@ from dev_supervisor.gates import (
     changed_paths,
     count_added_lines,
     format_output,
+    is_clean,
+    load_reuse,
     main,
     run_area_gates,
+    write_record,
 )
 
 _REAL_RUN = subprocess.run
@@ -83,10 +87,14 @@ def test_area_docs_only() -> None:
         "wiki/log.md",
         "README.md",
         ".github/a.yml",
-        "compose.yaml",
-        "compose.override.yaml",
     }
     assert areas_for(paths) == set()
+
+
+def test_area_compose() -> None:
+    assert areas_for({"compose.yaml"}) == {"compose"}
+    assert areas_for({"compose.override.yaml"}) == {"compose"}
+    assert areas_for({"nested/compose.yaml"}) == set()
 
 
 def test_changed_paths_union(tmp_path: Path) -> None:
@@ -181,8 +189,18 @@ def test_frontend_runs_lint_test_build(
 ) -> None:
     monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
     results = run_area_gates(tmp_path, {"frontend"}, 5)
-    assert [gate for _, gate, _, _, _ in results] == ["lint", "test", "build"]
-    assert [status for _, _, status, _, _ in results] == ["PASS", "PASS", "PASS"]
+    assert [gate for _, gate, _, _, _ in results] == [
+        "npm-ci",
+        "lint",
+        "test",
+        "build",
+    ]
+    assert [status for _, _, status, _, _ in results] == [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+    ]
 
 
 def test_tools_sets_pythonpath(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,5 +230,145 @@ def test_frontend_fail_does_not_stop_later_gates(
 
     monkeypatch.setattr("dev_supervisor.gates.subprocess.run", inner)
     results = run_area_gates(tmp_path, {"frontend"}, 5)
+    assert [gate for _, gate, _, _, _ in results] == [
+        "npm-ci",
+        "lint",
+        "test",
+        "build",
+    ]
+    assert [status for _, _, status, _, _ in results] == [
+        "PASS",
+        "FAIL",
+        "PASS",
+        "PASS",
+    ]
+
+
+def test_frontend_npm_ci_skipped_when_node_modules_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "frontend" / "node_modules").mkdir(parents=True)
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == ["lint", "test", "build"]
-    assert [status for _, _, status, _, _ in results] == ["FAIL", "PASS", "PASS"]
+
+
+def test_compose_skip_without_docker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_docker(*args: object, **kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr("dev_supervisor.gates.shutil.which", no_docker)
+    results = run_area_gates(tmp_path, {"compose"}, 5)
+    assert results == [("compose", "config", "SKIP", "docker not on PATH", ())]
+
+
+def test_is_clean_ignores_untracked(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert is_clean(repo) is True
+    (repo / "untracked.txt").write_text("x\n")
+    assert is_clean(repo) is True
+    (repo / "keep.txt").write_text("changed\n")
+    assert is_clean(repo) is False
+
+
+def test_record_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo = _repo(tmp_path)
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    assert main(["--cwd", str(repo), "--base", "HEAD"]) == 0
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["sha"] == sha
+    assert data["clean"] is True
+    assert data["lines"] == 1
+    assert isinstance(data["finished"], str)
+    assert "T" in data["finished"]
+    assert data["gates"]
+    for row in data["gates"]:
+        assert set(row) == {"area", "gate", "status", "last_line"}
+        assert row["status"] == "PASS"
+        assert row["area"] == "backend"
+
+
+def test_reuse_hit_makes_no_subprocess_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    sha = "abc123"
+    write_record(
+        tmp_path,
+        sha,
+        True,
+        4,
+        [("backend", "ruff-check", "PASS", "ok", ())],
+    )
+    cached = load_reuse(tmp_path, sha, True)
+    assert cached is not None
+
+    def always_sha(*args: object, **kwargs: object) -> list[str]:
+        return [sha]
+
+    def always_clean(_cwd: Path) -> bool:
+        return True
+
+    def never_run(*args: object, **kwargs: object) -> None:
+        raise AssertionError("subprocess.run must not be called")
+
+    monkeypatch.setattr("dev_supervisor.gates._git", always_sha)
+    monkeypatch.setattr("dev_supervisor.gates.is_clean", always_clean)
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", never_run)
+    assert main(["--cwd", str(tmp_path), "--base", "main", "--reuse"]) == 0
+    out = capsys.readouterr().out
+    assert "REUSED PASS backend:ruff-check ok" in out
+    assert "REUSED LINES 4/150" in out
+    assert out.strip().endswith("RESULT PASS")
+
+
+def test_reuse_miss_different_sha(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    write_record(
+        repo,
+        sha,
+        True,
+        2,
+        [("backend", "ruff-check", "PASS", "old", ())],
+    )
+    (repo / "keep.txt").write_text("a\nb\n")
+    _git(repo, "add", "keep.txt")
+    _git(repo, "commit", "-m", "second")
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
+    assert "REUSED" not in capsys.readouterr().out
+
+
+def test_reuse_miss_when_dirty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    write_record(
+        repo,
+        sha,
+        True,
+        2,
+        [("backend", "ruff-check", "PASS", "old", ())],
+    )
+    (repo / "keep.txt").write_text("dirty\n")
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
+    assert "REUSED" not in capsys.readouterr().out
