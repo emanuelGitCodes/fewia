@@ -1,6 +1,5 @@
 """Test bounded Plaid Item sync application and rollback."""
 
-import os
 import sqlite3
 import time
 from collections.abc import Iterator
@@ -11,6 +10,7 @@ from threading import Event
 from uuid import uuid4
 
 import pytest
+from conftest import require_test_database_url
 from sqlalchemy import Connection, Engine, create_engine, delete, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -495,11 +495,7 @@ def test_final_heartbeat_rolls_back_ledger_and_cursor(
 
 @pytest.fixture()
 def postgres_plaid() -> Iterator[tuple[Engine, int, str]]:
-    url = os.environ.get("FEWIA_JOB_TEST_DATABASE_URL")
-    if not url:
-        pytest.skip(
-            "Set FEWIA_JOB_TEST_DATABASE_URL to an isolated migrated PostgreSQL."
-        )
+    url = require_test_database_url()
     engine = create_engine(
         url,
         connect_args={"options": "-c statement_timeout=15000 -c lock_timeout=10000"},
