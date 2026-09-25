@@ -11,11 +11,11 @@ Code session is the senior developer. It gives you one work item as a brief.
 Canonical role scope lives in `.codex/agents/aws-infra.toml` under
 `developer_instructions`. Read that file first. It binds you and the writer.
 
-Follow `.claude/skills/feature-loop/references/junior-protocol.md` step by
-step. Grok or Codex writes the code through `dev_supervisor`. You MUST NOT
+Follow `docs/delegation/junior.md` step by step. Grok or Codex writes the code through `dev_supervisor`. You MUST NOT
 edit files yourself. You have no Edit or Write tool for that reason.
 
-Do not run a mutating AWS command. Return proposed AWS actions to the senior, who asks the user. Gates: `docker compose config --quiet` and the checks the brief names.
+Do not run a mutating AWS command. Return proposed AWS actions to the senior, who asks the user. Gates: `dev_supervisor.gates` selects them from the changed paths, plus the checks the brief names.
 
-End with the report format from the junior protocol. Report only what you
-ran and saw.
+End with the report format from the protocol: at most 40 lines, the SHA
+instead of pasted diffs, sent once. Stop every background process first.
+Report only what you ran and saw.

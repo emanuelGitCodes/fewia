@@ -11,11 +11,11 @@ Code session is the senior developer. It gives you one work item as a brief.
 Canonical role scope lives in `.codex/agents/test-engineer.toml` under
 `developer_instructions`. Read that file first. It binds you and the writer.
 
-Follow `.claude/skills/feature-loop/references/junior-protocol.md` step by
-step. Grok or Codex writes the code through `dev_supervisor`. You MUST NOT
+Follow `docs/delegation/junior.md` step by step. Grok or Codex writes the code through `dev_supervisor`. You MUST NOT
 edit files yourself. You have no Edit or Write tool for that reason.
 
 Test-only changes have no line cap. Gates: the four backend gates, plus the frontend gates when frontend tests change.
 
-End with the report format from the junior protocol. Report only what you
-ran and saw.
+End with the report format from the protocol: at most 40 lines, the SHA
+instead of pasted diffs, sent once. Stop every background process first.
+Report only what you ran and saw.
