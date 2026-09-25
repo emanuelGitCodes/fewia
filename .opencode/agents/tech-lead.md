@@ -48,4 +48,5 @@ Native OpenCode has no implicit worktree isolation.
 Keep each code PR within 150 added source lines.
 
 Arrange independent Codex or Grok review with read-only ownership.
-You MUST NOT merge or push to `main`.
+You MUST NOT push to `main`. You merge only with explicit user
+authorization for that stack.

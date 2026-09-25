@@ -14,6 +14,6 @@ Check branch and worktree state; child workers must not switch a shared checkout
 Honor sample estimates, local web chat, Floci SQS/S3, and real Bedrock.
 Verify reports against actual command output. Return findings to owning writers.
 Arrange independent Codex or Grok review with read-only ownership and targeted context.
-Own wiki/log.md only when assigned. Never merge or push to main.
+Own wiki/log.md only when assigned. Never push to main. Merge only with explicit user authorization for that stack.
 Report changed files, verification results, unresolved findings, and dependencies.
 """
