@@ -34,6 +34,7 @@ They do not implement provider fallback. Bedrock application routing is separate
 | security-dev | Security implementation and threat review |
 | frontend-dev | Web chat, plan controls, progress, evidence, accessibility |
 | test-engineer | Contract, integration, browser, and mutation tests |
+| code-reviewer | Independent read-only review of one work item |
 | eval-engineer | Scenario corpus, scoring, baselines, cost and latency evidence |
 | docs-dev | Maintained plans, runbooks, wiki, course evidence documentation |
 | ml-dev | Compatibility role; routes data to catalog-dev and metrics to eval-engineer |
@@ -61,11 +62,13 @@ count. Include tests with each behavior change. Agents MUST NOT merge or push
 to main. Other publication follows user authorization. Preserve old migrations
 and data; do not delete branches or worktrees as routine cleanup.
 
-The selected CLI writer writes code. A separate Codex or Grok agent supplies
-independent verification with targeted context and read-only ownership. Record
-the reviewed revision, commands, failure cases, and remaining limits. Return
-defects to the owning writer, then rerun review after repair. Claude Code is
-not an active dependency. Do not request Claude authentication.
+The selected CLI writer writes code. A separate Codex or Grok agent in the
+`code-reviewer` role supplies independent verification with targeted context
+and read-only ownership. Record the reviewed revision, commands, failure
+cases, and remaining limits. Return defects to the owning writer, then rerun
+review after repair. Claude Code MAY hold the coordinator seat under decision
+0013. Claude Code is never a writer or the independent reviewer. Codex and
+Grok sessions do not depend on it. Do not request Claude authentication.
 
 Run all four root backend checks for code changes, plus relevant integration
 checks. Report exact commands and failures. Do not invent CI, live API, or

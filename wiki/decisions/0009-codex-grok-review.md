@@ -1,7 +1,7 @@
 # 0009 — Codex and Grok development review
 
 - Date: 2026-09-06
-- Status: accepted
+- Status: accepted; amended by [0011](0011-dynamic-delegated-effort.md) and [0013](0013-claude-senior-coordinator.md)
 
 ## Decision
 

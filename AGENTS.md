@@ -16,7 +16,8 @@ An explicit `--effort` override MUST stay within the model ceiling.
 Explicit task model or effort requests override automatic selection when
 supported. Model-only requests forbid substitution.
 A separate Codex or Grok agent verifies independently.
-Claude Code is not an active workflow dependency. These rules bind all writers.
+Claude Code MAY hold the coordinator seat (decision 0013). It never writes code
+and is never the independent reviewer. These rules bind all writers.
 
 ## Read first
 
