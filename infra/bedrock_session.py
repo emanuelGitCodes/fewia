@@ -278,7 +278,7 @@ def main(
             credentials_path=credentials_path,
             sts_client=sts_client,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         print(ERROR_MESSAGE, file=sys.stderr)
         return 1
     print(f"Wrote {DEST_PROFILE} credentials. Expires {expiration}.")
