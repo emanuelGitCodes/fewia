@@ -48,6 +48,10 @@ export default function App(): JSX.Element {
     result.plan.lines.some((line) => !line.from_pantry);
   useEffect(() => {
     handoff.clear();
+    // handoff.clear is stable via useCallback; the handoff object itself is
+    // recreated every render, and depending on it would re-run this effect
+    // on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, estimateDirty, handoff.clear]);
   return (
     <div className="app-shell">
