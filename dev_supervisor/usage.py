@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import IO, Any
 
@@ -139,3 +140,13 @@ def write_usage(
         handle.write(text + "\n")
         handle.flush()
         os.fsync(handle.fileno())
+
+
+def ledger_path(cwd: Path) -> Path:
+    common = subprocess.check_output(
+        ["git", "rev-parse", "--git-common-dir"], cwd=cwd, text=True
+    ).strip()
+    root = Path(common)
+    if not root.is_absolute():
+        root = cwd / root
+    return root.resolve() / LEDGER
