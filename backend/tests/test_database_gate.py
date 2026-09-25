@@ -9,8 +9,11 @@ def test_require_test_database_url_skips_when_unset(
 ) -> None:
     monkeypatch.delenv("FEWIA_JOB_TEST_DATABASE_URL", raising=False)
     monkeypatch.delenv("FEWIA_REQUIRE_DB", raising=False)
-    with pytest.raises(pytest.skip.Exception):
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
         require_test_database_url()
+    assert caught.type is pytest.skip.Exception, (
+        f"expected Skipped, got {caught.type.__name__}"
+    )
 
 
 def test_require_test_database_url_fails_when_required(
@@ -18,8 +21,11 @@ def test_require_test_database_url_fails_when_required(
 ) -> None:
     monkeypatch.delenv("FEWIA_JOB_TEST_DATABASE_URL", raising=False)
     monkeypatch.setenv("FEWIA_REQUIRE_DB", "1")
-    with pytest.raises(pytest.fail.Exception) as caught:
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
         require_test_database_url()
+    assert caught.type is pytest.fail.Exception, (
+        f"expected Failed, got {caught.type.__name__}"
+    )
     message = str(caught.value)
     assert "FEWIA_REQUIRE_DB" in message
     assert "FEWIA_JOB_TEST_DATABASE_URL" in message
@@ -38,12 +44,28 @@ def test_require_test_database_url_returns_set_value(
     assert require_test_database_url() == sample
 
 
+@pytest.mark.parametrize("value", ["true", "yes", "0", "TRUE"])
+def test_require_test_database_url_skips_for_non_one_require_db(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.delenv("FEWIA_JOB_TEST_DATABASE_URL", raising=False)
+    monkeypatch.setenv("FEWIA_REQUIRE_DB", value)
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
+        require_test_database_url()
+    assert caught.type is pytest.skip.Exception, (
+        f"expected Skipped, got {caught.type.__name__}"
+    )
+
+
 def test_skip_or_fail_unreachable_test_database_skips_when_optional(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("FEWIA_REQUIRE_DB", raising=False)
-    with pytest.raises(pytest.skip.Exception) as caught:
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
         skip_or_fail_unreachable_test_database(RuntimeError("boom"))
+    assert caught.type is pytest.skip.Exception, (
+        f"expected Skipped, got {caught.type.__name__}"
+    )
     assert "FEWIA_JOB_TEST_DATABASE_URL" in str(caught.value)
 
 
@@ -51,8 +73,11 @@ def test_skip_or_fail_unreachable_test_database_fails_when_required(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("FEWIA_REQUIRE_DB", "1")
-    with pytest.raises(pytest.fail.Exception) as caught:
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
         skip_or_fail_unreachable_test_database(RuntimeError("boom"))
+    assert caught.type is pytest.fail.Exception, (
+        f"expected Failed, got {caught.type.__name__}"
+    )
     message = str(caught.value)
     assert "FEWIA_REQUIRE_DB" in message
     assert "FEWIA_JOB_TEST_DATABASE_URL" in message
