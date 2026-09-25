@@ -58,6 +58,9 @@ jobs:
       - name: Migrate the database
         run: uv run alembic upgrade head
 
+      - name: Check for migration drift
+        run: uv run alembic check
+
       - name: Test
         run: uv run pytest
 
