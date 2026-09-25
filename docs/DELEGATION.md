@@ -127,6 +127,9 @@ Reading per role:
 - A review model verdict covers code findings only. A `BLOCKED` verdict
   that cites only sandbox limits is not a code finding.
 - An `APPROVE` MUST come from a completed review model run.
+- Code MUST NOT be compressed to fit the 150-line cap. File-level lint
+  suppressions, `# fmt: off` blocks, joined statements, and encoded tables
+  defeat the review. Split the item instead.
 
 ## Measure
 
