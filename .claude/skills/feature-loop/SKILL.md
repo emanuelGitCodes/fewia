@@ -77,7 +77,9 @@ Record the answers in the ledger. Do not dispatch before the user answers.
 
 For each released item whose parent is `verified` or which has base `main`:
 
-1. Fill `references/brief-template.md`. The brief MUST stand alone.
+1. Fill `references/brief-template.md`. The brief MUST stand alone. For
+   documentation items, cite the newest decisions in `wiki/decisions/`,
+   not only `.codex/project-context.md`.
 2. Spawn the owner junior with `isolation: "worktree"` and
    `run_in_background: true`. Pass the brief as the prompt.
 3. Set the item to `in_progress` in the ledger. Record the agent ID.
@@ -93,7 +95,10 @@ Read the report. Record the branch, SHA, worktree, and writer model.
 - `blocked` or `failed`: read the reason. Fix the brief, split the item, or
   escalate. Do not send the same brief again unchanged.
 - `done`: spawn `code-reviewer` with the worktree path, the base, the head
-  SHA, the brief, and the writer model. Set the item to `review`.
+  SHA, the brief, and the writer model. Set the item to `review`. For a
+  small diff, you MAY run the review model yourself with a background
+  `codex exec --sandbox read-only` call. The model stays the independent
+  reviewer; you only start it.
 
 ## 6. Handle a review
 

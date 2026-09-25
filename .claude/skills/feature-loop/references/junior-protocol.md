@@ -38,8 +38,14 @@ report.
    ```
 
    Include the goal, owned files, contracts, acceptance, tests, and out of
-   scope. Add this line: "Commit nothing. The junior commits."
-4. **Run the writer.** Start it with `run_in_background: true`:
+   scope. Add these lines: "Commit nothing. The junior commits." and "Do
+   not run commands. Edit files only. The junior runs every command."
+
+   The writer is file-only. `dev_supervisor` gives Grok `Write` and `Edit`
+   on the owned paths and nothing else. A writer that tries a shell command
+   ends with `task_failed`. Codex runs without network access.
+4. **Run the writer.** `--task` takes a file path, never inline text.
+   Start it with `run_in_background: true`:
 
    ```bash
    uv run --project backend python -m dev_supervisor \
@@ -52,6 +58,11 @@ report.
    `status.json` when you need to watch it. On `needs_inspection`, follow
    the stall procedure in `docs/DEV_SUPERVISOR.md`. Never confirm a stall
    from time alone.
+
+   The `task_failed` outcome does not prove the edits are wrong. Inspect
+   the diff before you decide. A crash before the writer starts can leave
+   a lease that blocks the next run. Confirm with `ps` that no writer
+   process exists before you clear it, and report that you cleared it.
 5. **Inspect.** Run `git status --short` and `git diff`. Every changed file
    MUST be in the owned list. The diff MUST implement the brief and the
    required tests. A private `.fewia-supervisor-*` directory is expected.
@@ -63,7 +74,11 @@ report.
    ```
 
    For frontend changes, run `npm ci` when `node_modules` is absent, then
-   `npm test` and `npm run build` in `frontend/`.
+   `npm run lint`, `npm test`, and `npm run build` in `frontend/`.
+
+   When the writer declares a new dependency, you run `npm install` or
+   `uv lock` to sync the lockfile. Do not hand-edit a manifest or a
+   lockfile.
 7. **Self-repair.** When a gate fails or the diff misses the brief, write a
    repair assignment that names the failure output. Run the writer again
    in the same worktree with the same model constraints. You MAY do this
