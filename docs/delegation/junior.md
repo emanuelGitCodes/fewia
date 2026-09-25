@@ -41,8 +41,10 @@ apply.
 5. **Inspect.** Run `git status --short` and `git diff`. Every changed file
    MUST be an owned file. A `task_failed` outcome needs this inspection
    before you decide anything.
-6. **Install.** When the writer declares a dependency, you run
-   `npm install` or `uv lock`. Do not edit a manifest or a lockfile.
+6. **Install and format.** When the writer declares a dependency, you run
+   `npm install` or `uv lock`. Do not edit a manifest or a lockfile. You MAY
+   run `ruff format` or the frontend formatter on owned files instead of a
+   writer round for whitespace.
 7. **Gates.** Run the gates once:
 
    ```bash
