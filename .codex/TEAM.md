@@ -61,8 +61,9 @@ Spawn only for concrete independent tasks. Use explicit bases and integration
 order for worktrees. Child agents MUST NOT switch branches in a shared checkout.
 
 Each code PR MUST stay within 150 added source lines. Tests and docs do not
-count. Include tests with each behavior change. Agents MUST NOT merge or push
-to main. Other publication follows user authorization. Preserve old migrations
+count. Include tests with each behavior change. Agents MUST NOT push to main.
+Writers and juniors MUST NOT merge; a coordinator merges only with explicit
+user authorization for that stack. Other publication follows user authorization. Preserve old migrations
 and data; do not delete branches or worktrees as routine cleanup.
 
 The selected CLI writer writes code. A separate Codex or Grok agent in the

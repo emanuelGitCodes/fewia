@@ -51,7 +51,9 @@ Juniors and writers read only the files their brief names.
 - A pull request MUST NOT add more than 150 lines of code. Tests, docs,
   lockfiles, and generated files do not count. A larger change ships as
   a stack with the merge order in each PR body.
-- Work on a branch. Codex MUST NOT merge, and MUST NOT push to `main`.
+- Work on a branch. Agents MUST NOT push to `main`. Writers and juniors
+  MUST NOT merge. A coordinator merges only with explicit user
+  authorization for that stack.
 - LLM calls go through the `LLMProvider` protocol in
   `backend/app/agent/`. Do not import boto3 outside the provider and
   infra modules.
