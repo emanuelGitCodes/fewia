@@ -2,8 +2,7 @@
 
 > The grocery bot is the active product. The accepted scope is in
 > [.codex/project-context.md](.codex/project-context.md).
-> Phase 0 through Phase 3 and the MVP checkpoint below are the historical
-> health-era plan. Do not resume training tasks from it.
+> Every phase below is the historical health-era plan. Do not resume training tasks from it.
 > [wiki/index.md](wiki/index.md) holds current decisions and phase records.
 > [wiki/log.md](wiki/log.md) holds the dated history. Read those pages for status.
 
