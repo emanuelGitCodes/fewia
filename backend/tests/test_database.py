@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 
 import pytest
+from conftest import require_test_database_url, skip_or_fail_unreachable_test_database
 from sqlalchemy import Engine, create_engine, inspect
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import SQLAlchemyError
@@ -20,17 +21,12 @@ EXPECTED_TABLES = {
     "predictions",
 }
 
-SKIP_MESSAGE = (
-    "No database answers at DATABASE_URL. Start Postgres with "
-    "`docker compose up -d postgres` and run `uv run alembic upgrade head`."
-)
-
 
 @pytest.fixture(scope="module")
 def engine() -> Iterator[Engine]:
     """Give a connected engine, or skip the module."""
     engine = create_engine(
-        settings.database_url,
+        require_test_database_url(),
         connect_args={"connect_timeout": 3},
     )
     try:
@@ -38,7 +34,7 @@ def engine() -> Iterator[Engine]:
             pass
     except SQLAlchemyError as error:
         engine.dispose()
-        pytest.skip(f"{SKIP_MESSAGE} Driver said: {error.__class__.__name__}.")
+        skip_or_fail_unreachable_test_database(error)
     yield engine
     engine.dispose()
 

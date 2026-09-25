@@ -1,9 +1,10 @@
 """Shared fixtures for deterministic tool tests."""
 
+import os
 from collections.abc import Collection, Iterator, Mapping
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Protocol
+from typing import NoReturn, Protocol
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,64 @@ from app import models
 from app.db import Base
 from app.deps import get_session
 from app.main import app
+
+_JOB_TEST_DATABASE_URL = "FEWIA_JOB_TEST_DATABASE_URL"
+_REQUIRE_DB = "FEWIA_REQUIRE_DB"
+_database_skip_count = 0
+
+
+def _skip_or_fail_test_database(message: str) -> NoReturn:
+    """Skip the test, or fail it when FEWIA_REQUIRE_DB equals 1."""
+    if os.environ.get(_REQUIRE_DB) == "1":
+        pytest.fail(f"{_REQUIRE_DB}=1 requires {_JOB_TEST_DATABASE_URL}. {message}")
+    pytest.skip(message)
+
+
+def require_test_database_url() -> str:
+    """Give FEWIA_JOB_TEST_DATABASE_URL, or skip or fail the test."""
+    url = os.environ.get(_JOB_TEST_DATABASE_URL)
+    if url:
+        return url
+    _skip_or_fail_test_database(
+        "Set FEWIA_JOB_TEST_DATABASE_URL to an isolated migrated PostgreSQL."
+    )
+
+
+def skip_or_fail_unreachable_test_database(error: BaseException) -> NoReturn:
+    """Skip or fail when the test database does not answer."""
+    _skip_or_fail_test_database(
+        "No database answers at FEWIA_JOB_TEST_DATABASE_URL. Start Postgres with "
+        "`docker compose up -d postgres` and run `uv run alembic upgrade head`. "
+        f"Driver said: {error.__class__.__name__}."
+    )
+
+
+def _database_skip_reason(report: pytest.TestReport) -> str:
+    longrepr = report.longrepr
+    if isinstance(longrepr, tuple) and len(longrepr) >= 3:
+        return str(longrepr[2])
+    return str(longrepr)
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    global _database_skip_count
+    if report.when != "setup" or not report.skipped:
+        return
+    if _JOB_TEST_DATABASE_URL in _database_skip_reason(report):
+        _database_skip_count += 1
+
+
+def pytest_terminal_summary(
+    terminalreporter: object, exitstatus: int, config: pytest.Config
+) -> None:
+    if _database_skip_count <= 0:
+        return
+    write_line = getattr(terminalreporter, "write_line", print)
+    write_line(
+        "FEWIA: "
+        f"{_database_skip_count} database tests skipped; "
+        "set FEWIA_JOB_TEST_DATABASE_URL to run them"
+    )
 
 
 class UserSeeder(Protocol):

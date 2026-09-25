@@ -1,5 +1,4 @@
 import copy
-import os
 import sqlite3
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -9,6 +8,7 @@ from threading import Barrier
 from uuid import uuid4
 
 import pytest
+from conftest import require_test_database_url
 from sqlalchemy import Connection, Engine, create_engine, event, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -186,11 +186,7 @@ def test_conflicting_row_is_not_overwritten(
 
 @pytest.fixture()
 def postgres_factory() -> Iterator[sessionmaker[Session]]:
-    url = os.environ.get("FEWIA_JOB_TEST_DATABASE_URL")
-    if not url:
-        pytest.skip(
-            "Set FEWIA_JOB_TEST_DATABASE_URL to an isolated migrated PostgreSQL."
-        )
+    url = require_test_database_url()
     schema = f"evidence_{uuid4().hex}"
     admin = create_engine(url)
     if admin.dialect.name != "postgresql":
