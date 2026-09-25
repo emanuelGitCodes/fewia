@@ -26,7 +26,17 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const ENCODED_CONTROL = /%(?:[01][0-9a-f]|7f)/i;
 const HOST_CHARS = /^[a-z0-9.-]+$/i;
-const RAW_UNSAFE = /[\s\\#\u0000-\u001f\u007f-\u009f]/u;
+const RAW_UNSAFE = /[\s\\#]/u;
+
+function hasControlChar(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function fail(): never {
   throw new Error(SHAPE_ERROR);
@@ -71,7 +81,13 @@ function rawAuthority(value: string): { host: string; port: string } | null {
 }
 
 function isSafeHandoffUrl(value: string): boolean {
-  if (!value || value.length > 2048 || RAW_UNSAFE.test(value) || ENCODED_CONTROL.test(value)) {
+  if (
+    !value ||
+    value.length > 2048 ||
+    RAW_UNSAFE.test(value) ||
+    hasControlChar(value) ||
+    ENCODED_CONTROL.test(value)
+  ) {
     return false;
   }
   const parts = rawAuthority(value);
