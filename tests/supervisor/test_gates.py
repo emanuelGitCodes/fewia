@@ -1,4 +1,5 @@
 import json
+import signal
 import subprocess
 from pathlib import Path
 
@@ -44,10 +45,6 @@ def _route(code: int = 0, output: str = "ok\n") -> object:
         cmd = args[0]
         assert isinstance(cmd, list | tuple)
         argv = [str(part) for part in cmd]
-        if argv and argv[0] == "git":
-            return _REAL_RUN(
-                argv, cwd=kwargs.get("cwd"), capture_output=True, text=True
-            )
         return subprocess.CompletedProcess(argv, code, output, "")
 
     return inner
@@ -157,15 +154,33 @@ def test_format_no_gates() -> None:
 
 
 def test_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(*args: object, **kwargs: object) -> None:
-        raise subprocess.TimeoutExpired(cmd=["uv"], timeout=1)
+    class FakeProc:
+        pid = 4242
 
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", boom)
-    results = run_area_gates(tmp_path, {"backend"}, 1.0)
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            raise subprocess.TimeoutExpired(cmd=["uv"], timeout=timeout or 0)
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeProc:
+        assert kwargs.get("start_new_session") is True
+        return FakeProc()
+
+    killed: list[tuple[int, int]] = []
+
+    def fake_killpg(pgid: int, sig: int) -> None:
+        killed.append((pgid, sig))
+
+    def has_docker(*args: object, **kwargs: object) -> str:
+        return "docker"
+
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("dev_supervisor.gates.os.killpg", fake_killpg)
+    monkeypatch.setattr("dev_supervisor.gates.shutil.which", has_docker)
+    results = run_area_gates(tmp_path, {"compose"}, 1.0)
     _, _, status, last_line, tail = results[0]
     assert status == "FAIL"
     assert last_line == "timeout"
     assert tail == ()
+    assert killed == [(4242, signal.SIGTERM), (4242, signal.SIGKILL)]
 
 
 def test_exit_codes(
@@ -178,16 +193,16 @@ def test_exit_codes(
     assert capsys.readouterr().out == "RESULT PASS (no gates for these paths)\n"
     (repo / "backend").mkdir()
     (repo / "backend" / "x.py").write_text("a\n")
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     assert main(["--cwd", str(repo), "--base", "HEAD"]) == 0
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route(1, "bad\n"))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route(1, "bad\n"))
     assert main(["--cwd", str(repo), "--base", "HEAD"]) == 1
 
 
 def test_frontend_runs_lint_test_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == [
         "npm-ci",
@@ -210,7 +225,7 @@ def test_tools_sets_pythonpath(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         seen.append(kwargs.get("env"))
         return subprocess.CompletedProcess(["uv"], 0, "ok\n", "")
 
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", inner)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", inner)
     run_area_gates(tmp_path, {"tools"}, 5)
     assert seen
     for env in seen:
@@ -228,7 +243,7 @@ def test_frontend_fail_does_not_stop_later_gates(
         code = 1 if argv[:2] == ["npm", "run"] and argv[2:] == ["lint"] else 0
         return subprocess.CompletedProcess(argv, code, "x\n", "")
 
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", inner)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", inner)
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == [
         "npm-ci",
@@ -248,7 +263,7 @@ def test_frontend_npm_ci_skipped_when_node_modules_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "frontend" / "node_modules").mkdir(parents=True)
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == ["lint", "test", "build"]
 
@@ -277,7 +292,7 @@ def test_record_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo = _repo(tmp_path)
     (repo / "backend").mkdir()
     (repo / "backend" / "x.py").write_text("a\n")
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     assert main(["--cwd", str(repo), "--base", "HEAD"]) == 0
     sha = _git(repo, "rev-parse", "HEAD").strip()
     data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
@@ -316,11 +331,11 @@ def test_reuse_hit_makes_no_subprocess_call(
         return True
 
     def never_run(*args: object, **kwargs: object) -> None:
-        raise AssertionError("subprocess.run must not be called")
+        raise AssertionError("_run_gate must not be called")
 
     monkeypatch.setattr("dev_supervisor.gates._git", always_sha)
     monkeypatch.setattr("dev_supervisor.gates.is_clean", always_clean)
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", never_run)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", never_run)
     assert main(["--cwd", str(tmp_path), "--base", "main", "--reuse"]) == 0
     out = capsys.readouterr().out
     assert "REUSED PASS backend:ruff-check ok" in out
@@ -347,7 +362,7 @@ def test_reuse_miss_different_sha(
     _git(repo, "commit", "-m", "second")
     (repo / "backend").mkdir()
     (repo / "backend" / "x.py").write_text("a\n")
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
     assert "REUSED" not in capsys.readouterr().out
 
@@ -369,6 +384,39 @@ def test_reuse_miss_when_dirty(
     (repo / "keep.txt").write_text("dirty\n")
     (repo / "backend").mkdir()
     (repo / "backend" / "x.py").write_text("a\n")
-    monkeypatch.setattr("dev_supervisor.gates.subprocess.run", _route())
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
     assert "REUSED" not in capsys.readouterr().out
+
+
+def test_unknown_base_fails(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    repo = _repo(tmp_path)
+    assert main(["--cwd", str(repo), "--base", "no-such-ref"]) == 1
+    out = capsys.readouterr().out
+    assert out.startswith("RESULT FAIL (git: ")
+    assert "RESULT PASS" not in out
+
+
+def test_rename_reports_old_and_new_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_git(_cwd: Path, *args: str) -> list[str]:
+        if args[:2] == ("merge-base", "main"):
+            return ["deadbeef"]
+        if args[:3] == ("ls-files", "--others", "--exclude-standard"):
+            return []
+        if args[:3] == ("diff", "--name-only", "--no-renames"):
+            return ["backend/old.py", "backend/new.py"]
+        raise AssertionError(args)
+
+    monkeypatch.setattr("dev_supervisor.gates._git", fake_git)
+    assert changed_paths(tmp_path, "main") == {
+        "backend/old.py",
+        "backend/new.py",
+    }
+
+
+def test_untracked_counts_final_line_without_newline(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "app.py").write_text("one\ntwo")
+    assert count_added_lines(repo, "HEAD") == 2
