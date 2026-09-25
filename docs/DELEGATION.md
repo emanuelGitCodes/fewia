@@ -70,7 +70,8 @@ The coordinator invokes the supervisor with its role, worktree, task file, and
 `--complexity`. The writer implements and checks. A separate Codex or Grok
 reviewer reads the diff, reruns checks, and tests failure paths.
 The reviewer MUST NOT fix reviewed code. Findings return to the owning writer
-with the same model constraints. You merge. Claude Code is not used.
+with the same model constraints. You merge. In a Claude Code session, the main
+session is the coordinator (decision 0013); Claude Code never writes code.
 
 ## Retro: how the agents learn
 

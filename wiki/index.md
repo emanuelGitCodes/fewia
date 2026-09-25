@@ -18,6 +18,7 @@ chronological record lives in [log.md](log.md).
 - [0010 — Park Instacart. Use USDA nutrition and Spoonacular cost](decisions/0010-usda-spoonacular-overlay.md)
 - [0011 — Dynamic delegated effort](decisions/0011-dynamic-delegated-effort.md)
 - [0012 — Tool calling as the orchestration boundary](decisions/0012-tool-calling-orchestration.md)
+- [0013 — Claude Code as senior coordinator](decisions/0013-claude-senior-coordinator.md)
 
 ## Phases
 

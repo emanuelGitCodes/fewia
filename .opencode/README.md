@@ -25,6 +25,7 @@ supervisor fallback.
     aws-infra.md
     backend-dev.md
     catalog-dev.md
+    code-reviewer.md
     database-dev.md
     docs-dev.md
     eval-engineer.md
@@ -50,7 +51,7 @@ opencode --agent tech-lead
 
 `tech-lead` is the only project-defined primary.
 Built-in Build and Plan remain available.
-The other 13 roles are subagents.
+The other 14 roles are subagents.
 
 ## Invoke a specialist
 

@@ -2300,3 +2300,16 @@ The isolated PostgreSQL run reported 1515 passed and one Starlette warning.
 The earlier default run reported 1501 passed and 14 skipped.
 Independent review of the compatibility change remains pending.
 No live provider verification occurred.
+
+## 2026-09-25 — Claude Code senior and junior loop
+
+The user asked for a senior and junior agent loop in Claude Code.
+[Decision 0013](decisions/0013-claude-senior-coordinator.md) records it.
+`CLAUDE.md` now makes the main session the coordinator.
+Thirteen junior adapters in `.claude/agents/` mirror the Codex roles.
+The stale health-era Claude definitions are replaced.
+The Claude `tech-lead` subagent is removed.
+A new `code-reviewer` role exists for Codex, OpenCode, and Claude Code.
+The `/feature-loop` skill holds the procedure, the brief template, the
+junior and reviewer protocols, and the ledger template.
+No application code changed. No loop has run yet.

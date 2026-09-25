@@ -9,3 +9,4 @@ backend/artifacts/*
 graphify-out/
 frontend/dist/
 /.fewia-supervisor-*/
+.claude/loop/

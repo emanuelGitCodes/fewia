@@ -1,7 +1,7 @@
 # 0006 — Codex writes, Claude verifies
 
 - **Date**: 2026-08-31
-- **Status**: accepted
+- **Status**: superseded by [0009](0009-codex-grok-review.md)
 
 ## Decision
 
