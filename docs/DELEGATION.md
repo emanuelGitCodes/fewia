@@ -1,96 +1,153 @@
 # Delegation guide
 
-This guide shows how to hand FEWIA work to the agent team in
-`.codex/agents/`.
+This guide is the single rulebook for delegated FEWIA work. Claude Code,
+Codex, and OpenCode follow the same rules. Each tool keeps only its own
+mechanics in a thin adapter:
 
-## The team
+| Tool | Coordinator | Adapter files |
+|---|---|---|
+| Claude Code | The main session | `CLAUDE.md`, `.claude/skills/feature-loop/`, `.claude/agents/` |
+| Codex | The `tech-lead` role | `.codex/TEAM.md`, `.codex/agents/` |
+| OpenCode | The `tech-lead` primary agent | `.opencode/skills/fewia-workflow/`, `.opencode/agents/` |
 
-The current role map lives in [.codex/TEAM.md](../.codex/TEAM.md).
-Role areas are routing hints, not blanket write permission. Each assignment
-MUST name exact owned files and relevant contracts.
+The role map lives in [.codex/TEAM.md](../.codex/TEAM.md). Writer model
+selection lives in [DEV_SUPERVISOR.md](DEV_SUPERVISOR.md). Decision
+[0014](../wiki/decisions/0014-tiered-delegation.md) records why these rules
+exist.
 
-## Hand off one task
+## Roles in the loop
 
-Name the agent in your message:
+- **Coordinator.** Reads broadly, designs, picks the tier, briefs, verifies,
+  and publishes. The coordinator never writes application code.
+- **Junior.** One role subagent per work item. It drives the writer, runs
+  the gates, and reports. It follows [delegation/junior.md](delegation/junior.md).
+- **Writer.** A Grok or Codex CLI that `dev_supervisor` starts. The writer
+  edits files only. It runs no commands.
+- **Review model.** A separate Codex model that `dev_supervisor.review`
+  starts read-only. It is the independent reviewer.
+- **Reviewer agent.** Tier L only. It runs probes and mutation checks and
+  follows [delegation/reviewer.md](delegation/reviewer.md).
 
-> Use backend-dev to implement the assigned grocery budget endpoint
-> on an isolated branch. Own only the files named in the task brief.
+## Tiers
 
-The coordinator invokes the writer supervisor. The bounded brief names the
-goal, files, interfaces, verification command, and branch. A separate Codex or
-Grok reviewer receives the current diff and targeted acceptance criteria.
+The coordinator picks one tier per work item from its complexity class.
 
-## Hand off a phase
+| Tier | Use it for | Flow |
+|---|---|---|
+| S | `simple`: configuration or a narrow change, no new contract, no security surface | The coordinator runs the writer, the gates, and the review command. No subagents. |
+| M | `standard` | One junior drives the writer and the gates. The coordinator runs the review command. |
+| L | `complex` or harder, a security boundary, or tests that guard other code | One junior, one reviewer agent, and the review command. |
 
-Give the phase to `tech-lead`:
+A security boundary or a test-gate deliverable is tier L at any size.
+When the tier is unclear, the coordinator SHOULD pick the higher tier.
 
-> Use tech-lead to decompose the authorized grocery work item.
+## The loop
 
-`tech-lead` decomposes the phase, spawns the specialists, verifies their
-reports, and states the PR merge order. You review and merge.
+1. **Intake.** Read `project-plan.md`, `wiki/index.md`, the newest
+   decisions in `wiki/decisions/`, and the source files in the path.
+2. **Probe.** For each acceptance criterion that depends on a repository
+   fact, run one cheap check before dispatch. Examples: a `grep` for a
+   `downgrade()` body, `docker inspect` for a built-in healthcheck, or
+   the current lint output.
+3. **Design.** Fix the shared contracts. Split the work into items of 150
+   added code lines or fewer. Give each item one owner, exact owned files,
+   a complexity class, a tier, a base branch, and a runnable check.
+4. **Approve.** Show the design to the user. Dispatch only released items.
+5. **Dispatch.** Write one brief per item from
+   [delegation/brief.md](delegation/brief.md). Run at most three subagents
+   at a time. Review commands and gates do not count toward that limit.
+6. **Review.** Run the review command on the committed head. Tier L also
+   gets a reviewer agent.
+7. **Verify.** Read the diff. Run the gates once. Confirm the reviewed SHA
+   equals the head SHA.
+8. **Repair.** Send blocking findings back to the owner. Stop an item after
+   three review rounds and escalate to the user.
+9. **Publish and record.** Publish only with user authorization. Record
+   tokens and time per item in the loop ledger and the wiki log.
 
-## Run agents in parallel
+## Commands
 
-Independent tasks can run at the same time. Ask for it directly:
+Run every command from the item worktree root.
 
-> Run catalog-dev on the assigned recipe data and backend-dev on the
-> assigned budget endpoint, each in its own worktree.
+```bash
+# Writer: edits files only.
+uv run --project backend python -m dev_supervisor \
+  --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
+  --complexity standard --write-file backend/app/example.py \
+  --work-item fewia-42 --phase implement
 
-Worktree isolation gives each agent its own copy of the repository, so
-parallel edits do not collide. Each agent delivers its own branch.
+# Gates: selects checks from the changed paths and records them by SHA.
+uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 
-## Continue an agent
+# Review: independent, read-only, time-capped, short output.
+uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
+  --base main --brief "$BRIEF_FILE" --complexity standard \
+  --writer-model grok-4.6 --work-item fewia-42
 
-A native coordinator or reviewer may retain session context. Supervised CLI
-writers use new bounded assignments and explicit checkpoints. Carry the task
-scope, completed checks, remaining work, and model constraints into repairs.
-Do not assume an ephemeral CLI session can resume by name or `--last`.
+# Usage: token and time totals per work item.
+uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
+```
 
-## Supervised CLI writers
+`--task` and `--brief` take a file path. The review command exits 0 for
+`APPROVE`, 1 for `REQUEST_CHANGES`, and 2 for `BLOCKED`.
 
-Use [the development supervisor](DEV_SUPERVISOR.md) for coding assignments.
-The default order is Grok 4.6, Spark at its CLI default effort, then Luna.
-The coordinator classifies each task before delegation.
-Grok 4.6 uses `low` for simple tasks.
-Grok 4.6 uses `medium` for every harder automatic tier.
-Grok 4.6 MUST NOT receive `high`, `xhigh`, or `max`.
-Spark does not accept an effort override in this supervisor.
-Luna and Sol support automatic selection through `max`.
-The coordinator MUST NOT select `maximum` for ordinary tasks.
-Explicit models override the starting model.
-An explicit `--effort` override MUST stay within the model ceiling.
-Model-only requests forbid substitution.
-Native role files keep the Luna model.
-They MUST NOT pin `model_reasoning_effort`.
-Native dispatch MUST select effort from the complexity rubric.
-Native role pins do not select Grok.
+## Budgets
 
-The coordinator decomposes the assignment.
-The coordinator invokes the supervisor with its role, worktree, task file, and
-`--complexity`. The writer implements and checks. A separate Codex or Grok
-reviewer reads the diff, reruns checks, and tests failure paths.
-The reviewer MUST NOT fix reviewed code. Findings return to the owning writer
-with the same model constraints. You merge. In a Claude Code session, the main
-session is the coordinator (decision 0013); Claude Code never writes code.
+| Item | Limit |
+|---|---|
+| Brief | About 60 lines. List file paths. Do not paste file contents. |
+| Report | 40 lines in the fixed format. Name the SHA. Do not paste diffs or files. Send it once. |
+| Review model effort | `low` for S, `medium` for M, `high` for L |
+| Review model time | 900 seconds |
+| Gate runs per SHA | The junior runs them once. The coordinator runs them once. The reviewer agent does not rerun them. |
+| Review rounds per item | Three, then escalate |
+
+Reading per role:
+
+- The coordinator reads what intake needs.
+- A junior reads its role file, `delegation/junior.md`, the brief, and the
+  files that the brief names.
+- A writer reads the supervisor prompt only.
+- A reviewer agent reads `delegation/reviewer.md`, the brief, and the diff.
+
+## Rules that prevent known waste
+
+- The writer MUST NOT run commands. Grok has file permissions only, and a
+  command ends its run as `task_failed`. Codex writers have no network.
+- The junior runs every install, lint, test, and build.
+- A `task_failed` outcome does not prove the edits are wrong. The junior
+  MUST inspect the diff before deciding.
+- A brief for documentation MUST cite the newest decisions, not only
+  `.codex/project-context.md`.
+- Every agent MUST stop its background processes before it reports.
+- Every long command MUST run with a timeout.
+- A review model verdict covers code findings only. A `BLOCKED` verdict
+  that cites only sandbox limits is not a code finding.
+- An `APPROVE` MUST come from a completed review model run.
+
+## Measure
+
+`dev_supervisor` records writer and review tokens in one ledger per
+repository. `dev_supervisor.usage` prints the totals. The coordinator adds
+subagent tokens from its own tool, then records one line per work item in
+the loop ledger and one total per loop in `wiki/log.md`.
 
 ## Retro: how the agents learn
 
 The agent files stay thin and stable. Lessons land in three layers:
 
 1. **Facts** go in the wiki. The coordinator selects relevant facts for
-   bounded task briefs. Workers can request more context.
-2. **Behavior** changes an agent file. After a phase merges, tech-lead
-   proposes the diff as its own pull request that links the wiki entry
-   for the triggering incident. You review and merge. An agent MUST NOT
-   edit its own definition outside this flow.
-3. **Mechanical rules** become tested supervisor checks or repository CI
-   checks. Installation of global hooks is outside this workflow.
+   bounded briefs. Workers can request more context.
+2. **Behavior** changes this guide or an agent file. The change ships as
+   its own pull request that links the wiki entry for the incident. An
+   agent MUST NOT edit its own definition outside this flow.
+3. **Mechanical rules** become tested `dev_supervisor` checks or CI checks.
 
 ## Review and merge
 
-1. Each agent delivers a branch and a pull request. A PR MUST NOT add
-   more than 150 lines of code; a larger change ships as a stack with
-   the merge order in each PR body.
-2. Review with the `/code-review` skill or the test-engineer agent.
-3. You merge. Agents MUST NOT merge or push to `main`.
-4. After a phase merges, run `/graphify` to refresh the knowledge graph.
+1. Each work item delivers a branch and a pull request. A pull request
+   MUST NOT add more than 150 lines of code. A larger change ships as a
+   stack with the merge order in each pull request body.
+2. Agents MUST NOT push to `main`. Agents merge only with user
+   authorization for that stack.
+3. After a stack merges, run `/graphify` to refresh the knowledge graph.
