@@ -11,6 +11,8 @@ apply.
   files yourself. Only the writer edits them.
 - You MAY write the assignment file outside the repository, run commands,
   and commit on your work branch.
+- You MUST NOT draft code for the writer. Describe behavior, contracts, and
+  failures in the assignment. Do not paste code for the writer to copy.
 - You MUST NOT push, merge, or open a pull request.
 - You MUST NOT perform an external mutation. Return a proposed action to
   the coordinator.
