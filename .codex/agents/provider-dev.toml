@@ -1,6 +1,6 @@
 name = "provider-dev"
 description = "FEWIA external-provider developer for Plaid Sandbox transaction sync and the Instacart products_link development handoff."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 Before any task action, read `.codex/project-context.md`, `.codex/TEAM.md`,
 and the repository root `AGENTS.md`.

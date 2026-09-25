@@ -198,7 +198,7 @@ order, MVP checkpoint, and legacy cleanup gates. No application code changed.
 Updated the project agent team for Plaid, Instacart, real Bedrock, and Floci.
 Added AI, provider, catalog, database, reliability, security, evaluation, and
 documentation roles. Preserved `ml-dev` as a compatibility role without health
-training. Each role selects `gpt-5.6-luna` with `xhigh` effort. The shared
+training. Each role selects `gpt-6-luna` with `xhigh` effort. The shared
 project brief records local web chat and sample-price estimates. The team
 guide defines file ownership, parallel work, and independent review boundaries.
 Agent configuration is complete before application implementation starts.
@@ -1293,7 +1293,7 @@ The role permits `InvokeModel` only.
 The allow list is the selected US Luna profile default project plus three profile-conditioned models.
 
 Role tags are Project FEWIA, Environment development, and ManagedBy AWS-CDK.
-Further tags are Component bedrock-chat, Model openai.gpt-5.6-luna, and ReasoningEffort low.
+Further tags are Component bedrock-chat, Model openai.gpt-6-luna, and ReasoningEffort low.
 No IAM user was created.
 No access key was created.
 
@@ -1356,7 +1356,7 @@ Live Bedrock evidence: the first browser meal request failed before an
 answer. Direct Converse with the restricted role returned this error:
 
 ```
-AccessDeniedException: openai.gpt-5.6-luna is not available for this account, explore other models or contact AWS Sales
+AccessDeniedException: openai.gpt-6-luna is not available for this account, explore other models or contact AWS Sales
 ```
 
 Direct Converse with the admin identity returned the same error.

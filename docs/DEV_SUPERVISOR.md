@@ -49,7 +49,7 @@ The supervisor skips incompatible fallback models.
 |---|---|---|---|
 | 1 | `~/.grok/bin/grok` | `grok-4.6` | ceiling `medium` |
 | 2 | `codex exec` | `gpt-5.3-codex-spark` | CLI model default |
-| 3 | `codex exec` | `gpt-5.6-luna` | ceiling `max` |
+| 3 | `codex exec` | `gpt-6-luna` | ceiling `max` |
 
 Grok 4.6 uses `low` for simple tasks.
 Grok 4.6 uses `medium` for every harder automatic tier.
@@ -62,9 +62,9 @@ Authentication remains with the CLI.
 The supervisor does not edit global configuration.
 
 An explicit model request MUST become `--model MODEL_ID`. “Use GPT 5.6 Sol”
-becomes `--model gpt-5.6-sol`. It runs first. Eligible failures use the remaining
+becomes `--model gpt-6-sol`. It runs first. Eligible failures use the remaining
 default sequence without duplicates. Each selected model and outcome is printed.
-“Only use Sol” MUST include `--only --model gpt-5.6-sol`. No substitute runs.
+“Only use Sol” MUST include `--only --model gpt-6-sol`. No substitute runs.
 An explicit effort request MUST become `--effort LEVEL` when the model supports
 effort.
 Unknown models stop before execution. Extend the map with `--registry FILE`:

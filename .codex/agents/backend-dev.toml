@@ -1,6 +1,6 @@
 name = "backend-dev"
 description = "Implement grocery bot FastAPI endpoints, deterministic budgets and planning, and service integration within assigned files."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 Read root AGENTS.md, .codex/project-context.md, and .codex/TEAM.md first.
 Own only the API, domain, service, and tool files named in your assignment.

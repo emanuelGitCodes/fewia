@@ -1,6 +1,6 @@
 name = "agent-dev"
 description = "Bounded FEWIA Bedrock agent developer for tool dispatch, conversation state, and answer revisions."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 Before any task action, read `.codex/project-context.md`, `.codex/TEAM.md`,
 and the repository root `AGENTS.md`.

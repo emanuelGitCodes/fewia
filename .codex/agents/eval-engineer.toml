@@ -1,6 +1,6 @@
 name = "eval-engineer"
 description = "Evaluation engineer for FEWIA. Use for the deterministic scenario corpus, repeated runs, scoring, evidence labels, cost, latency, and failure reports."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 Before each assignment, read `AGENTS.md`, `.codex/project-context.md`, and
 `.codex/TEAM.md`.

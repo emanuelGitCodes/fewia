@@ -11,7 +11,7 @@ _SUPPORTED_STOP_REASONS = frozenset(
     "end_turn tool_use max_tokens stop_sequence "
     "guardrail_intervened content_filtered model_context_window_exceeded".split()
 )
-_LUNA_US_MODEL_ID = "us.openai.gpt-5.6-luna"
+_LUNA_US_MODEL_ID = "us.openai.gpt-6-luna"
 _NOVA2_US_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 _LUNA_MAX_TOKENS = 4096
 _NOVA2_MAX_TOKENS = 4096

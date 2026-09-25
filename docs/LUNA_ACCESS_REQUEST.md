@@ -21,7 +21,7 @@ Account: 275452506840
 
 Origin region: us-east-1
 
-Model: `us.openai.gpt-5.6-luna`
+Model: `us.openai.gpt-6-luna`
 
 API: Amazon Bedrock Converse
 
@@ -31,7 +31,7 @@ Project FEWIA is a local academic grocery planner. One developer tests
 the application.
 
 Please confirm whether this account is eligible to invoke
-`us.openai.gpt-5.6-luna` through Converse. Enable the model if the
+`us.openai.gpt-6-luna` through Converse. Enable the model if the
 account is eligible. Identify any remaining requirement if it is not.
 
 The coordinator reported these availability states. The admin identity
@@ -49,7 +49,7 @@ The agreement availability progressed from PENDING to AVAILABLE.
 A later runtime Converse probe still returned this error:
 
 ```
-AccessDeniedException: openai.gpt-5.6-luna is not available for this account, explore other models or contact AWS Sales
+AccessDeniedException: openai.gpt-6-luna is not available for this account, explore other models or contact AWS Sales
 ```
 
 The same denial occurred for the restricted assumed role and for the

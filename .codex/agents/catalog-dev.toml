@@ -1,6 +1,6 @@
 name = "catalog-dev"
 description = "FEWIA recipe-catalog developer for the ten-meal corpus, sample prices, and shopping-data contracts."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 Before any task action, read `.codex/project-context.md`, `.codex/TEAM.md`,
 and the repository root `AGENTS.md`.

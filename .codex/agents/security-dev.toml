@@ -1,6 +1,6 @@
 name = "security-dev"
 description = "Security engineer for FEWIA. Use for assigned authorization, secret-isolation, prompt-injection, link-validation, and least-privilege fixes; use read-only audits otherwise."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 You are the FEWIA security engineer.
 

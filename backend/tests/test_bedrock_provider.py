@@ -46,9 +46,9 @@ def response() -> dict[str, object]:
     }
 
 
-_LUNA_US_ID = "us.openai.gpt-5.6-luna"
+_LUNA_US_ID = "us.openai.gpt-6-luna"
 _LUNA_US_ARN = (
-    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.openai.gpt-5.6-luna"
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.openai.gpt-6-luna"
 )
 _NOVA2_US_ID = "us.amazon.nova-2-lite-v1:0"
 _NOVA2_US_ARN = (
@@ -162,9 +162,9 @@ def test_luna_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize(
     "model_id",
     [
-        "openai.gpt-5.6-luna",
-        "global.openai.gpt-5.6-luna",
-        "us.openai.gpt-5.6-luna-extra",
+        "openai.gpt-6-luna",
+        "global.openai.gpt-6-luna",
+        "us.openai.gpt-6-luna-extra",
     ],
 )
 def test_non_us_luna_identifiers_keep_default_inference(

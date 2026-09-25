@@ -39,7 +39,7 @@ def test_write_usage_privacy_and_grok_null(tmp_path: Path) -> None:
         "cap-1",
         "implement",
         "codex",
-        "gpt-5.6-luna",
+        "gpt-6-luna",
         "medium",
         "completed",
         {**_meta(), "prompt": "SECRET", "error": "credential=abc"},

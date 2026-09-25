@@ -45,15 +45,15 @@ def test_registered_model_explicit_effort_keeps_fallbacks() -> None:
     effort = "medium"
     ranked = order("custom-model", False, models, effort)
     assert ranked[0] == "custom-model"
-    assert ranked == ["custom-model", "grok-4.6", "gpt-5.6-luna"]
+    assert ranked == ["custom-model", "grok-4.6", "gpt-6-luna"]
     assert "gpt-5.3-codex-spark" not in ranked
     assert effort == "medium"
 
 
 def test_order_and_explicit_only() -> None:
     assert order(None, False, MODELS) == list(MODELS)[:3]
-    assert order("gpt-5.6-sol", False, MODELS)[0] == "gpt-5.6-sol"
-    assert order("gpt-5.6-sol", True, MODELS) == ["gpt-5.6-sol"]
+    assert order("gpt-6-sol", False, MODELS)[0] == "gpt-6-sol"
+    assert order("gpt-6-sol", True, MODELS) == ["gpt-6-sol"]
     with pytest.raises(ValueError):
         order("unknown", False, MODELS)
     with pytest.raises(ValueError):
@@ -61,16 +61,16 @@ def test_order_and_explicit_only() -> None:
 
 
 def test_default_order_explicit_medium_skips_spark() -> None:
-    assert order(None, False, MODELS, "medium") == ["grok-4.6", "gpt-5.6-luna"]
+    assert order(None, False, MODELS, "medium") == ["grok-4.6", "gpt-6-luna"]
 
 
 def test_explicit_luna_high_keeps_only_luna() -> None:
-    assert order("gpt-5.6-luna", False, MODELS, "high") == ["gpt-5.6-luna"]
+    assert order("gpt-6-luna", False, MODELS, "high") == ["gpt-6-luna"]
 
 
 def test_explicit_luna_low_keeps_luna_then_grok() -> None:
-    assert order("gpt-5.6-luna", False, MODELS, "low") == [
-        "gpt-5.6-luna",
+    assert order("gpt-6-luna", False, MODELS, "low") == [
+        "gpt-6-luna",
         "grok-4.6",
     ]
 
@@ -86,7 +86,7 @@ def test_automatic_selection_preserves_default_order() -> None:
     assert order(None, False, MODELS) == [
         "grok-4.6",
         "gpt-5.3-codex-spark",
-        "gpt-5.6-luna",
+        "gpt-6-luna",
     ]
     assert order(None, False, MODELS) == list(MODELS)[:3]
 
@@ -115,8 +115,8 @@ def test_supported_commands() -> None:
 def test_complexity_maps_ceilings_and_rejects_explicit_over_ceiling() -> None:
     grok = MODELS["grok-4.6"]
     spark = MODELS["gpt-5.3-codex-spark"]
-    luna = MODELS["gpt-5.6-luna"]
-    sol = MODELS["gpt-5.6-sol"]
+    luna = MODELS["gpt-6-luna"]
+    sol = MODELS["gpt-6-sol"]
     for complexity, effort in COMPLEXITY.items():
         assert resolve_effort(complexity, luna) == effort
         assert resolve_effort(complexity, sol) == effort
@@ -127,7 +127,7 @@ def test_complexity_maps_ceilings_and_rejects_explicit_over_ceiling() -> None:
             "gpt-5.3-codex-spark", spark, Path.cwd(), Path("p"), effort=None
         )
         assert not any("model_reasoning_effort" in arg for arg in spark_cmd)
-    luna_max = command("gpt-5.6-luna", luna, Path.cwd(), Path("p"), effort="max")
+    luna_max = command("gpt-6-luna", luna, Path.cwd(), Path("p"), effort="max")
     assert any('model_reasoning_effort="max"' in arg for arg in luna_max)
     grok_cmd = command("grok-4.6", grok, Path.cwd(), Path("p"), effort="medium")
     assert grok_cmd[grok_cmd.index("--reasoning-effort") + 1] == "medium"
@@ -154,7 +154,7 @@ def test_roles_do_not_pin_reasoning_effort() -> None:
     for path in files:
         text = path.read_text()
         assert "model_reasoning_effort" not in text
-        assert 'model = "gpt-5.6-luna"' in text
+        assert 'model = "gpt-6-luna"' in text
 
 
 def test_write_paths_authorize_exact_grok_rules(tmp_path: Path) -> None:

@@ -45,8 +45,8 @@ _FORBIDDEN_FRAGMENTS = (
     "AdministratorAccess",
     "global.openai",
     "in.openai",
-    "openai.gpt-5.6-luna",
-    "us.openai.gpt-5.6-luna",
+    "openai.gpt-6-luna",
+    "us.openai.gpt-6-luna",
     "application-inference-profile",
     "foundation-model/*",
     "inference-profile/*",
@@ -310,7 +310,7 @@ def test_source_uses_synthetic_account_only() -> None:
     assert "amazon.nova-2-lite-v1:0" in stack
     assert '"Model": "amazon.nova-2-lite-v1:0"' in stack
     assert '"ReasoningEffort": "low"' in stack
-    assert "openai.gpt-5.6-luna" not in stack
+    assert "openai.gpt-6-luna" not in stack
     assert "project/default" not in stack
     assert "global.openai" not in stack
     assert _ACCOUNT == "111122223333"

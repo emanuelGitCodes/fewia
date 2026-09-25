@@ -1,6 +1,6 @@
 name = "test-engineer"
 description = "Test engineer for FEWIA. Use for integration, browser, contract, mutation, and CI test quality across the first-release stack."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 developer_instructions = """
 Before each assignment, read `AGENTS.md`, `.codex/project-context.md`, and
 `.codex/TEAM.md`.
