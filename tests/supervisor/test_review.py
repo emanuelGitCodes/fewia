@@ -294,6 +294,42 @@ def test_verdict_parsing(
     assert summary(capsys.readouterr().out)["verdict"] == verdict
 
 
+def test_stale_review_file_is_not_a_verdict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    dest = root / ".fewia-supervisor-reviews" / f"{sha_of(root)}-gpt-6-luna.md"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("VERDICT: APPROVE\n")
+    install_run(monkeypatch, write=False)
+    code = run_main(monkeypatch, argv(root))
+    assert code == 2
+    assert summary(capsys.readouterr().out)["verdict"] != "APPROVE"
+
+
+def test_run_codex_starts_new_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeProc:
+        def communicate(self, timeout: float | None = None) -> tuple[bytes, None]:
+            return b"", None
+
+    def popen(*args: object, **kwargs: object) -> FakeProc:
+        captured.update(kwargs)
+        return FakeProc()
+
+    monkeypatch.setattr(review.subprocess, "Popen", popen)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("ok\n")
+    with prompt.open("rb") as source:
+        review.run_codex(["codex"], tmp_path, source, 1.0)
+    assert captured["start_new_session"] is True
+
+
 def test_missing_report_is_not_a_verdict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

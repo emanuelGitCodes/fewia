@@ -100,6 +100,7 @@ def main() -> None:
     parts.append(FORMAT)
     dest = root / ".fewia-supervisor-reviews" / f"{sha}-{model}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.unlink(missing_ok=True)
     cmd = ["codex", "exec", "--model", model, "--cd", str(cwd)]
     cmd += ["--sandbox", "read-only", "--ephemeral", "--ignore-user-config", "--json"]
     cmd += ["-c", f'model_reasoning_effort="{effort}"', "-o", str(dest), "-"]
@@ -122,10 +123,9 @@ def main() -> None:
     extra = f"\n... truncated, full text: {dest}" if len(lines) > 60 else ""
     print("\n".join(lines[:60]) + extra)
     inn = None if totals is None else totals["input_tokens"]
-    out = None if totals is None else totals["output_tokens"]
     body = dict(verdict=verdict, model=model, effort=effort, sha=sha)
     body.update(elapsed_ms=elapsed_ms, saved=str(dest), input_tokens=inn)
-    body["output_tokens"] = out
+    body["output_tokens"] = None if totals is None else totals["output_tokens"]
     print(json.dumps(body))
     meta: dict[str, Any] = {"provenance": "none"}
     if totals is not None:
