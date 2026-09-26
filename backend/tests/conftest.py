@@ -55,6 +55,12 @@ def _database_skip_reason(report: pytest.TestReport) -> str:
     return str(longrepr)
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    global _database_skip_count
+    _database_skip_count = 0
+    _ = session
+
+
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     global _database_skip_count
     if report.when != "setup" or not report.skipped:
