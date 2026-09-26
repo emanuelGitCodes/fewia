@@ -2365,8 +2365,12 @@ Follow-ups:
 
 ## 2026-09-25 — Document shared and frontend checks
 
-Updated the root README.md Checks section. The section now starts with
-the shared gates command, then lists backend Ruff, Ruff format, strict
-mypy, and pytest. Frontend checks now include `npm run lint`, `npm test`,
-and `npm run build`. The writer did not run the gates. The coordinator
-MUST run `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base origin/main`.
+The root README.md Checks section now starts with the shared gates
+command. Frontend checks now include `npm run lint`.
+
+This item was the first Codex coordinator trial of decision 0014. Codex,
+as `tech-lead`, chose tier S. It ran the Grok writer through
+`dev_supervisor`, committed, ran the gates (`RESULT PASS`, docs only), and
+ran the review command. The review command failed inside the Codex
+sandbox, so Codex used the documented read-only Grok review, which
+returned APPROVE. No subagents ran.
