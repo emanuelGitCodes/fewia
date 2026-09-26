@@ -2362,3 +2362,15 @@ Follow-ups:
 - A timing-sensitive test in `tests/supervisor` fails under parallel load.
 - `dev_supervisor.review` needs a Grok provider fallback.
 - The subagent handback resends reports; the coordinator ignores duplicates.
+
+## 2026-09-25 — Document shared and frontend checks
+
+The root README.md Checks section now starts with the shared gates
+command. Frontend checks now include `npm run lint`.
+
+This item was the first Codex coordinator trial of decision 0014. Codex,
+as `tech-lead`, chose tier S. It ran the Grok writer through
+`dev_supervisor`, committed, ran the gates (`RESULT PASS`, docs only), and
+ran the review command. The review command failed inside the Codex
+sandbox, so Codex used the documented read-only Grok review, which
+returned APPROVE. No subagents ran.

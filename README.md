@@ -44,7 +44,13 @@ docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
 
 ## Checks
 
-Run the backend gates from `backend/`:
+Run the shared gates from the repository root:
+
+```bash
+uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base origin/main
+```
+
+Run the backend checks from `backend/`:
 
 ```bash
 cd backend
@@ -54,10 +60,11 @@ uv run mypy --strict app
 uv run pytest
 ```
 
-Run the frontend gates from `frontend/`:
+Run the frontend checks from `frontend/`:
 
 ```bash
 cd frontend
+npm run lint
 npm test
 npm run build
 ```
