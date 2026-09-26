@@ -419,6 +419,47 @@ def test_stdout_truncation(
     assert "... truncated, full text:" not in short_out
 
 
+def test_bold_inline_verdict_approves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    install_run(monkeypatch, message="The change is sound. **VERDICT: APPROVE**\n")
+    assert run_main(monkeypatch, argv(root)) == 0
+    assert summary(capsys.readouterr().out)["verdict"] == "APPROVE"
+
+
+def test_lowercase_verdict_does_not_count(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    install_run(monkeypatch, message="verdict: approve\n")
+    assert run_main(monkeypatch, argv(root)) == 2
+    assert summary(capsys.readouterr().out)["verdict"] == "BLOCKED"
+
+
+def test_missing_report_includes_codex_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    event = json.dumps({"type": "error", "message": "HTTP 401 unauthorized"})
+    seen = install_run(monkeypatch, write=False, stdout=(event + "\n").encode())
+    assert run_main(monkeypatch, argv(root)) == 2
+    dest = seen["dest"]
+    assert isinstance(dest, Path)
+    note = dest.read_text()
+    assert "HTTP 401 unauthorized" in note
+    assert "HTTP 401 unauthorized" in capsys.readouterr().out
+    banned = ("VERDICT: APPROVE", "VERDICT: REQUEST_CHANGES", "VERDICT: BLOCKED")
+    for line in note.splitlines():
+        assert line not in banned
+
+
 def test_usage_row_written(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = make_repo(tmp_path)
     event = json.dumps(
