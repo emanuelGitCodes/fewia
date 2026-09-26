@@ -2313,3 +2313,52 @@ A new `code-reviewer` role exists for Codex, OpenCode, and Claude Code.
 The `/feature-loop` skill holds the procedure, the brief template, the
 junior and reviewer protocols, and the ledger template.
 No application code changed. No loop has run yet.
+
+## 2026-09-25 — Tiered delegation for every coordinator tool
+
+[Decision 0014](decisions/0014-tiered-delegation.md) is in place. Claude
+Code, Codex, and OpenCode follow one rulebook, `docs/DELEGATION.md`. Tiers
+S, M, and L scale the process to each work item.
+
+Shared tooling merged:
+
+- #166: writers edit files only. `--task` must be a file. A pre-launch
+  failure releases the lease.
+- #167, #168, #170: `dev_supervisor.gates` runs only the checks for the
+  changed paths. It records results by SHA and supports `--reuse`.
+- #169, #171: `dev_supervisor.review` runs a read-only, time-capped Codex
+  review with short output.
+- #172, #173: the usage ledger records writer and review tokens and time.
+  `dev_supervisor.usage` prints the totals.
+
+Rules and adapters merged in #174, #175, and #176.
+
+Review found real defects in the new tooling:
+
+- a verdict that the command made up itself;
+- a stale report that a re-run read;
+- a git failure reported as a pass;
+- timeouts that left child processes running;
+- coverage that hid runs without token data.
+
+A live review exposed that the verdict parser rejected a bolded verdict.
+#171 fixed it.
+
+Codex returned 401 for every call during an OpenAI incident. Reviews ran
+in separate read-only Grok sessions until Codex recovered.
+
+Pilot, three tier S items, #177 to #179: no subagents ran. Review model
+runs took 11 to 37 seconds and used 36,307 to 212,200 input tokens. Grok
+writer runs took 16 to 138 seconds; Grok reports no token data. In Phase
+1, comparable one-to-six-line items used about 150,000 subagent tokens
+each.
+
+Tier M juniors in this stack still used 125,000 to 295,000 subagent
+tokens each. Code compression, drafting code for the writer, and
+repeated repairs drove that cost. The rulebook now forbids the first two.
+
+Follow-ups:
+
+- A timing-sensitive test in `tests/supervisor` fails under parallel load.
+- `dev_supervisor.review` needs a Grok provider fallback.
+- The subagent handback resends reports; the coordinator ignores duplicates.
