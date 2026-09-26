@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
+
+from dev_supervisor.usage import add_counts, parse_codex_usage
 
 CODES = {
     "rate_limit_exceeded": "rate_limit",
@@ -27,6 +29,7 @@ class Events:
     waiting: bool = False
     complete: bool = False
     saw_error: bool = False
+    tokens: dict[str, int | None] | None = None
 
     def feed(self, line: str) -> None:
         try:
@@ -35,6 +38,9 @@ class Events:
             return
         if not isinstance(event, dict):
             return
+        parsed = parse_codex_usage(cast(dict[str, Any], event))
+        if parsed is not None:
+            self.tokens = add_counts(self.tokens, parsed)
         kind = event.get("type")
         if kind in {"error", "turn.failed"}:
             self.saw_error = True

@@ -105,3 +105,19 @@ def test_embedded_grok_permission_code() -> None:
         )
     )
     assert state.outcome(1) == "permission"
+
+
+def test_sums_two_turn_completed_usages() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":1,"output_tokens":5,"reasoning_output_tokens":2}}'
+    )
+    state.feed(
+        '{"type":"turn.completed","usage":{"input_tokens":4,"cached_input_tokens":1,"output_tokens":3,"reasoning_output_tokens":2}}'
+    )
+    assert state.tokens == {
+        "input_tokens": 14,
+        "cached_tokens": 2,
+        "output_tokens": 8,
+        "reasoning_tokens": 4,
+    }

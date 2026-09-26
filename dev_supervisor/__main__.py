@@ -6,6 +6,7 @@ import math
 import subprocess
 import uuid
 from pathlib import Path
+from typing import Any
 
 import tomllib
 
@@ -23,6 +24,13 @@ from dev_supervisor.policy import (
     writes,
 )
 from dev_supervisor.process import attempt, publish
+from dev_supervisor.usage import (
+    ledger_path,
+    phase_name,
+    token,
+    work_item_id,
+    write_usage,
+)
 
 GUARD = """
 Use assigned files only. Preserve all changes. Follow AGENTS.md hard rules.
@@ -42,6 +50,44 @@ Codex or Grok agent independently verifies the result.
 """
 
 
+def _record_attempt(
+    cwd: Path,
+    state: Path,
+    attempt_id: str,
+    work_item: str | None,
+    phase: str | None,
+    provider: str,
+    model: str,
+    resolved: str | None,
+    result: str,
+) -> None:
+    meta: dict[str, Any] = {}
+    usage_file = state / "usage.json"
+    if usage_file.is_file():
+        try:
+            loaded = json.loads(usage_file.read_text())
+        except (OSError, ValueError, TypeError):
+            loaded = None
+        if isinstance(loaded, dict):
+            meta = loaded
+    elapsed_ms = token(meta.get("elapsed_ms")) or 0
+    try:
+        write_usage(
+            ledger_path(cwd),
+            attempt_id,
+            work_item,
+            phase,
+            provider,
+            model,
+            resolved,
+            result,
+            meta,
+            elapsed_ms,
+        )
+    except (OSError, ValueError, TypeError, subprocess.CalledProcessError):
+        print("warning: usage ledger write failed", flush=True)
+
+
 def execute(
     cwd: Path,
     task: Path,
@@ -54,6 +100,8 @@ def execute(
     complexity: str,
     effort: str | None = None,
     files: list[Path] | None = None,
+    work_item: str | None = None,
+    phase: str | None = None,
 ) -> str:
     instructions = tomllib.loads((cwd / ".codex/agents" / f"{role}.toml").read_text())
     assignment = task.read_text()
@@ -87,6 +135,7 @@ def execute(
             + progress.read_text()
             + "\nInterrupted edits remain in this worktree. Read the owned files before you edit them.\n"
         )
+        token = str(uuid.uuid4())
         result = attempt(
             command(
                 name,
@@ -99,13 +148,24 @@ def execute(
             cwd,
             prompt,
             state,
-            str(uuid.uuid4()),
+            token,
             idle,
             limit,
         )
         history.append({"model": name, "outcome": result})
         (state / "result.json").write_text(json.dumps(history, indent=2))
         print(json.dumps(history[-1]), flush=True)
+        _record_attempt(
+            cwd,
+            state,
+            token,
+            work_item,
+            phase,
+            models[name].provider,
+            name,
+            resolved,
+            result,
+        )
         if result not in RETRYABLE:
             return result
     return "all_providers_exhausted"
@@ -123,6 +183,8 @@ def dispatch(
     complexity: str,
     effort: str | None = None,
     files: list[Path] | None = None,
+    work_item: str | None = None,
+    phase: str | None = None,
 ) -> str:
     with lease(git_dir, cwd) as state:
         print(f"Private checkpoint directory: {state}", flush=True)
@@ -139,6 +201,8 @@ def dispatch(
                 complexity,
                 effort,
                 files,
+                work_item,
+                phase,
             )
         except Exception:  # noqa: BLE001
             if not (state / "status.json").exists():
@@ -161,6 +225,8 @@ def main() -> None:
     parser.add_argument("--idle-seconds", type=float, default=180)
     parser.add_argument("--limit-seconds", type=float, default=3600)
     parser.add_argument("--write-file", action="append", default=[], metavar="PATH")
+    parser.add_argument("--work-item")
+    parser.add_argument("--phase", choices=("implement", "repair"))
     args = parser.parse_args()
     cwd = args.cwd.resolve()
     if not all(
@@ -174,6 +240,15 @@ def main() -> None:
     role_file = cwd / ".codex/agents" / f"{args.role}.toml"
     if not role_file.is_file():
         parser.error(f"Missing role file: {role_file}")
+    work_item: str | None = None
+    phase: str | None = None
+    try:
+        if args.work_item is not None:
+            work_item = work_item_id(args.work_item)
+        if args.phase is not None:
+            phase = phase_name(args.phase)
+    except ValueError as error:
+        parser.error(str(error))
     models = dict(MODELS)
     try:
         if args.registry:
@@ -211,6 +286,8 @@ def main() -> None:
         args.complexity,
         args.effort,
         authorized,
+        work_item,
+        phase,
     )
     raise SystemExit(0 if result == "completed" else 1)
 

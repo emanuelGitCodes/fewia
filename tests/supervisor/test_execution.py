@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,6 +10,8 @@ import pytest
 from dev_supervisor.__main__ import GUARD, dispatch, execute, main
 from dev_supervisor.lease import lease
 from dev_supervisor.policy import MODELS, order
+from dev_supervisor.process import attempt
+from dev_supervisor.usage import ledger_path
 
 
 def setup(tmp_path: Path) -> Path:
@@ -369,3 +373,172 @@ def test_writer_prompt_omits_version_control_command_names(tmp_path: Path) -> No
     assert "git status" not in text
     assert "git diff" not in text
     assert "inspect the working tree" not in text
+
+
+def test_invalid_work_item_exits_before_lease(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+    argv = _main_argv(tmp_path, str(task), "backend-dev") + [
+        "--work-item",
+        "../secret",
+    ]
+    with patch("sys.argv", argv), pytest.raises(SystemExit) as caught:
+        main()
+    assert caught.value.code == 2
+    assert _supervisor_paths(tmp_path) == []
+
+
+def test_invalid_phase_exits_before_lease(tmp_path: Path) -> None:
+    task = setup(tmp_path)
+    argv = _main_argv(tmp_path, str(task), "backend-dev") + ["--phase", "done"]
+    with patch("sys.argv", argv), pytest.raises(SystemExit) as caught:
+        main()
+    assert caught.value.code == 2
+    assert _supervisor_paths(tmp_path) == []
+
+
+def test_attempt_writes_usage_on_completed(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt"
+    prompt.write_text("task")
+    event = {
+        "type": "turn.completed",
+        "usage": {
+            "input_tokens": 2,
+            "cached_input_tokens": 0,
+            "output_tokens": 3,
+            "reasoning_output_tokens": 1,
+        },
+    }
+    script = "print(" + json.dumps(json.dumps(event)) + ")"
+    result = attempt(
+        [sys.executable, "-c", script], tmp_path, prompt, tmp_path, "t", 1, 3
+    )
+    assert result == "completed"
+    body = json.loads((tmp_path / "usage.json").read_text())
+    assert body["input_tokens"] == 2
+    assert body["output_tokens"] == 3
+    assert body["cached_tokens"] == 0
+    assert body["reasoning_tokens"] == 1
+    assert body["provenance"] == "codex.turn.completed"
+    assert isinstance(body["elapsed_ms"], int)
+    assert body["elapsed_ms"] >= 0
+
+
+def test_attempt_writes_usage_on_stop(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt"
+    prompt.write_text("task")
+    result = attempt(
+        [sys.executable, "-c", "import time; time.sleep(2)"],
+        tmp_path,
+        prompt,
+        tmp_path,
+        "t",
+        0.02,
+        0.15,
+    )
+    assert result == "time_limit"
+    body = json.loads((tmp_path / "usage.json").read_text())
+    assert body["provenance"] == "none"
+    assert body["input_tokens"] is None
+    assert isinstance(body["elapsed_ms"], int)
+    assert body["elapsed_ms"] >= 0
+
+
+def _git_setup(tmp_path: Path) -> Path:
+    task = setup(tmp_path)
+    subprocess.check_call(["git", "init"], cwd=tmp_path, stdout=subprocess.DEVNULL)
+    subprocess.check_call(
+        ["git", "config", "user.email", "dev@example.test"], cwd=tmp_path
+    )
+    subprocess.check_call(["git", "config", "user.name", "Dev"], cwd=tmp_path)
+    subprocess.check_call(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path)
+    return task
+
+
+def test_execute_writes_ledger_row_per_attempt(tmp_path: Path) -> None:
+    task = _git_setup(tmp_path)
+    tokens: list[str] = []
+
+    def runner(
+        args: list[str],
+        cwd: Path,
+        prompt: Path,
+        state: Path,
+        token: str,
+        idle: float,
+        limit: float,
+    ) -> str:
+        tokens.append(token)
+        (state / "usage.json").write_text(
+            json.dumps(
+                {
+                    "provenance": "codex.turn.completed",
+                    "input_tokens": 2,
+                    "cached_tokens": 1,
+                    "output_tokens": 3,
+                    "reasoning_tokens": 4,
+                    "elapsed_ms": 1000,
+                }
+            )
+        )
+        return "quota" if len(tokens) == 1 else "completed"
+
+    with patch("dev_supervisor.__main__.attempt", runner):
+        assert (
+            execute(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order(None, False, MODELS),
+                1,
+                2,
+                "standard",
+                None,
+                None,
+                "cap-1",
+                "implement",
+            )
+            == "completed"
+        )
+    lines = ledger_path(tmp_path).read_text().splitlines()
+    assert len(lines) == 2
+    first = json.loads(lines[0])
+    second = json.loads(lines[1])
+    assert first["id"] == tokens[0]
+    assert second["id"] == tokens[1]
+    assert first["work_item"] == "cap-1"
+    assert first["phase"] == "implement"
+    assert second["work_item"] == "cap-1"
+    assert second["phase"] == "implement"
+    assert first["outcome"] == "quota"
+    assert second["outcome"] == "completed"
+    assert first["model"] == "grok-4.6"
+    assert second["model"] == "gpt-5.3-codex-spark"
+    assert first["elapsed_ms"] == 1000
+    assert second["input_tokens"] == 2
+    assert first["input_tokens"] is None
+    assert first["provenance"] == "unsupported"
+
+
+def test_ledger_write_failure_keeps_outcome(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task = setup(tmp_path)
+    with patch("dev_supervisor.__main__.attempt", return_value="completed"):
+        assert (
+            execute(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order("gpt-6-sol", True, MODELS),
+                1,
+                2,
+                "standard",
+            )
+            == "completed"
+        )
+    assert "warning: usage ledger write failed" in capsys.readouterr().out
