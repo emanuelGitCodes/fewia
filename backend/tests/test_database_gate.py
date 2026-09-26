@@ -1,7 +1,14 @@
 """Tests for the shared FEWIA_JOB_TEST_DATABASE_URL gate."""
 
+from typing import cast
+
+import conftest as test_conftest
 import pytest
-from conftest import require_test_database_url, skip_or_fail_unreachable_test_database
+from conftest import (
+    pytest_sessionstart,
+    require_test_database_url,
+    skip_or_fail_unreachable_test_database,
+)
 
 
 def test_require_test_database_url_skips_when_unset(
@@ -81,3 +88,13 @@ def test_skip_or_fail_unreachable_test_database_fails_when_required(
     message = str(caught.value)
     assert "FEWIA_REQUIRE_DB" in message
     assert "FEWIA_JOB_TEST_DATABASE_URL" in message
+
+
+def test_pytest_sessionstart_resets_database_skip_count() -> None:
+    original = test_conftest._database_skip_count
+    try:
+        test_conftest._database_skip_count = 4
+        pytest_sessionstart(cast(pytest.Session, object()))
+        assert test_conftest._database_skip_count == 0
+    finally:
+        test_conftest._database_skip_count = original
