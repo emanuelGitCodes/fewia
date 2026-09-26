@@ -250,7 +250,8 @@ def test_summarize_mixed_grok_and_complete_codex() -> None:
         elapsed_ms=2000,
     )
     assert summarize([grok, codex]) == [
-        "cap-1 implement runs=2 elapsed_s=3 input=2 output=3 coverage=partial no_tokens=1"
+        "cap-1 implement runs=2 elapsed_s=3 input=2 output=3 "
+        "coverage=partial no_tokens=1"
     ]
 
 
