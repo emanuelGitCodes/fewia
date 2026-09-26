@@ -17,9 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "model_runs", sa.Column("model_version", sa.Text(), nullable=False)
-    )
+    op.add_column("model_runs", sa.Column("model_version", sa.Text(), nullable=False))
     op.add_column("model_runs", sa.Column("random_seed", sa.Integer(), nullable=False))
     op.add_column(
         "model_runs", sa.Column("sample_size_train", sa.Integer(), nullable=False)
