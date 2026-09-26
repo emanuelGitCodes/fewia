@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,27 @@ GUARD, FORMAT = (
     "pattern: VERDICT: APPROVE or VERDICT: REQUEST_CHANGES or\n"
     "VERDICT: BLOCKED.",
 )
+VERDICT_PAT = re.compile(
+    r"[*_`~]*VERDICT[*_`~]*\s*:\s*[*_`~]*(APPROVE|REQUEST_CHANGES|BLOCKED)[*_`~]*"
+)
+
+
+def parse_verdict(text: str) -> tuple[str, bool]:
+    hits = VERDICT_PAT.findall(text)
+    return (hits[-1], True) if hits else ("BLOCKED", False)
+
+
+def first_error(raw: bytes) -> str:
+    for line in raw.decode(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            event = None
+        if isinstance(event, dict) and event.get("type") in ("error", "turn.failed"):
+            msg = event.get("message")
+            if isinstance(msg, str) and msg:
+                return msg[:200]
+    return ""
 
 
 def parse_stdout(raw: bytes) -> dict[str, int | None] | None:
@@ -112,12 +134,11 @@ def main() -> None:
     totals = parse_stdout(raw)
     if not dest.exists() or dest.stat().st_size == 0:
         reason = "timed out" if timed_out else "produced no output"
-        dest.write_text(f"No review report. codex {reason}.\n")
+        err = first_error(raw)
+        extra_err = f" {err}" if err else ""
+        dest.write_text(f"No review report. codex {reason}.{extra_err}\n")
     message = dest.read_text()
-    verdict, found = "BLOCKED", False
-    for line in message.splitlines():
-        if line in ("VERDICT: APPROVE", "VERDICT: REQUEST_CHANGES", "VERDICT: BLOCKED"):
-            verdict, found = line.split()[1], True
+    verdict, found = parse_verdict(message)
     outcome = "timeout" if timed_out else "completed" if found else "task_failed"
     lines = message.splitlines()
     extra = f"\n... truncated, full text: {dest}" if len(lines) > 60 else ""
