@@ -2362,3 +2362,11 @@ Follow-ups:
 - A timing-sensitive test in `tests/supervisor` fails under parallel load.
 - `dev_supervisor.review` needs a Grok provider fallback.
 - The subagent handback resends reports; the coordinator ignores duplicates.
+
+## 2026-09-25 — Document shared and frontend checks
+
+Updated the root README.md Checks section. The section now starts with
+the shared gates command, then lists backend Ruff, Ruff format, strict
+mypy, and pytest. Frontend checks now include `npm run lint`, `npm test`,
+and `npm run build`. The writer did not run the gates. The coordinator
+MUST run `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base origin/main`.
