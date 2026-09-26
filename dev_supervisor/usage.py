@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 import os
@@ -150,3 +151,91 @@ def ledger_path(cwd: Path) -> Path:
     if not root.is_absolute():
         root = cwd / root
     return root.resolve() / LEDGER
+
+
+def summarize(rows: list[dict[str, Any]]) -> list[str]:
+    groups: dict[tuple[object, object], list[dict[str, Any]]] = {}
+    order: list[tuple[object, object]] = []
+    lines: list[str] = []
+    for row in rows:
+        key = (row.get("work_item"), row.get("phase"))
+        if key not in groups:
+            order.append(key)
+            groups[key] = []
+        groups[key].append(row)
+    for work, phase in order:
+        bucket = groups[(work, phase)]
+        elapsed = 0
+        totals: dict[str, int | None] | None = None
+        labels: list[str] = []
+        for entry in bucket:
+            raw = token(entry.get("elapsed_ms"))
+            elapsed += 0 if raw is None else raw
+            provenance = entry.get("provenance")
+            if provenance == "unsupported" or entry.get("coverage") == "unsupported":
+                labels.append("unsupported")
+                continue
+            totals = add_counts(
+                totals, {name: token(entry.get(name)) for name in COUNTS}
+            )
+            labels.append(provenance if isinstance(provenance, str) else "none")
+        inn: int | None
+        out: int | None
+        if totals is None and labels and all(item == "unsupported" for item in labels):
+            cov, inn, out = "unsupported", None, None
+        elif totals is None:
+            cov, inn, out = "unknown", None, None
+        else:
+            source = "none"
+            if "codex.turn.completed" in labels:
+                source = "codex.turn.completed"
+            cov = coverage(totals, source)
+            inn = totals["input_tokens"]
+            out = totals["output_tokens"]
+        seconds = elapsed / 1000
+        sec = str(int(seconds)) if seconds == int(seconds) else str(seconds)
+        work_text = "-" if work is None else str(work)
+        phase_text = "-" if phase is None else str(phase)
+        inn_text = "n/a" if inn is None else str(inn)
+        out_text = "n/a" if out is None else str(out)
+        lines.append(
+            f"{work_text} {phase_text} runs={len(bucket)} elapsed_s={sec} "
+            f"input={inn_text} output={out_text} coverage={cov}"
+        )
+    return lines
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--work-item")
+    parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    args = parser.parse_args()
+    item: str | None = None
+    if args.work_item is not None:
+        try:
+            item = work_item_id(args.work_item)
+        except ValueError as error:
+            parser.error(str(error))
+    path = ledger_path(args.cwd.resolve())
+    rows: list[dict[str, Any]] = []
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                loaded = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(loaded, dict) and (
+                item is None or loaded.get("work_item") == item
+            ):
+                rows.append(loaded)
+    if not rows:
+        print("No usage recorded.")
+        return
+    for line in summarize(rows):
+        print(line)
+
+
+if __name__ == "__main__":
+    main()

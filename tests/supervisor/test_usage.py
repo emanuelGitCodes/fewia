@@ -1,6 +1,7 @@
 import json
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from dev_supervisor.usage import (
     COUNTS,
     LEDGER,
     ledger_path,
+    main,
     phase_name,
     work_item_id,
     write_usage,
@@ -162,3 +164,62 @@ def test_ledger_path_linked_worktree(tmp_path: Path) -> None:
     assert ledger_path(linked) == root.resolve() / LEDGER
     assert ledger_path(linked) == ledger_path(main)
     assert ledger_path(linked) != linked / LEDGER
+
+
+def test_usage_cli_summary_for_codex_and_grok(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_git(tmp_path / "repo")
+    path = ledger_path(repo)
+    write_usage(
+        path,
+        "a1",
+        "cap-1",
+        "implement",
+        "codex",
+        "gpt-6-luna",
+        "medium",
+        "completed",
+        _meta(),
+        2000,
+    )
+    write_usage(
+        path,
+        "a2",
+        "cap-1",
+        "repair",
+        "grok",
+        "grok-4.6",
+        "medium",
+        "task_failed",
+        _meta(8),
+        4000,
+    )
+    monkeypatch.setattr(sys, "argv", ["usage", "--cwd", str(repo)])
+    main()
+    out = capsys.readouterr().out.splitlines()
+    assert (
+        "cap-1 implement runs=1 elapsed_s=2 input=2 output=3 coverage=complete" in out
+    )
+    assert (
+        "cap-1 repair runs=1 elapsed_s=4 input=n/a output=n/a coverage=unsupported"
+        in out
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["usage", "--cwd", str(repo), "--work-item", "missing"]
+    )
+    main()
+    assert capsys.readouterr().out == "No usage recorded.\n"
+
+
+def test_usage_cli_no_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_git(tmp_path / "repo")
+    monkeypatch.setattr(sys, "argv", ["usage", "--cwd", str(repo)])
+    main()
+    assert capsys.readouterr().out == "No usage recorded.\n"
