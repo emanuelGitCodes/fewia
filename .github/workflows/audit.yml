@@ -30,12 +30,12 @@ jobs:
       - name: Audit the backend dependencies
         run: |
           uv export --frozen --no-hashes --project backend > req.txt
-          uvx pip-audit -r req.txt --strict
+          uvx pip-audit -r req.txt --strict --no-deps --disable-pip
 
       - name: Audit the Bedrock infrastructure dependencies
         run: |
           uv export --frozen --no-hashes --project infra/bedrock > req.txt
-          uvx pip-audit -r req.txt --strict
+          uvx pip-audit -r req.txt --strict --no-deps --disable-pip
 
   npm:
     name: npm dependency audit
