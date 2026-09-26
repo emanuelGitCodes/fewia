@@ -60,8 +60,9 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 5. **Dispatch.** Write one brief per item from
    [delegation/brief.md](delegation/brief.md). Run at most three subagents
    at a time. Review commands and gates do not count toward that limit.
-6. **Review.** Run the review command on the committed head. Tier L also
-   gets a reviewer agent.
+6. **Review.** Commit, run the gates on the committed head, then run the
+   review command on that head. The review prompt then includes the gates
+   record. Tier L also gets a reviewer agent.
 7. **Verify.** Read the diff. Run `dev_supervisor.gates --reuse` on the
    reviewed SHA; it reruns the gates when the record is missing or the tree
    changed. Confirm the reviewed SHA equals the head SHA.
