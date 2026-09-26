@@ -62,8 +62,9 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
    at a time. Review commands and gates do not count toward that limit.
 6. **Review.** Run the review command on the committed head. Tier L also
    gets a reviewer agent.
-7. **Verify.** Read the diff. Run the gates once. Confirm the reviewed SHA
-   equals the head SHA.
+7. **Verify.** Read the diff. Run `dev_supervisor.gates --reuse` on the
+   reviewed SHA; it reruns the gates when the record is missing or the tree
+   changed. Confirm the reviewed SHA equals the head SHA.
 8. **Repair.** Send blocking findings back to the owner. Stop an item after
    three review rounds and escalate to the user.
 9. **Publish and record.** Publish only with user authorization. Record
