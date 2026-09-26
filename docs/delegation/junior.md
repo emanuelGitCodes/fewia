@@ -45,17 +45,19 @@ apply.
    `npm install` or `uv lock`. Do not edit a manifest or a lockfile. You MAY
    run `ruff format` or the frontend formatter on owned files instead of a
    writer round for whitespace.
-7. **Gates.** Run the gates once:
+7. **Commit.** Commit the owned files on the work branch. Use a short
+   imperative subject and the attribution line that the brief gives.
+8. **Gates.** Run the gates once on the committed head. The record is keyed
+   to that SHA, so the coordinator's review includes it:
 
    ```bash
    uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base <base>
    ```
 
-8. **Repair.** When a gate fails or the diff misses the brief, write a
+9. **Repair.** When a gate fails or the diff misses the brief, write a
    repair assignment with the failure lines. Run the writer again with
-   `--phase repair`. You MAY do this twice. Then stop and report.
-9. **Commit.** Commit the owned files on the work branch. Use a short
-   imperative subject and the attribution line that the brief gives.
+   `--phase repair`, commit, and run the gates again. You MAY do this
+   twice. Then stop and report.
 10. **Clean up.** Stop every background process and watch that you
     started.
 11. **Report.** Send the report below once.
