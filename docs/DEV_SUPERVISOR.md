@@ -5,8 +5,15 @@ Run from the repository root with Python 3.12:
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file dev_supervisor/policy.py
+  --complexity standard --write-file dev_supervisor/policy.py \
+  --work-item fewia-42 --phase implement
 ```
+
+`--task` takes a file path. The supervisor rejects inline text and a missing
+role file before it takes the lease. The writer edits files only. The writer
+prompt forbids shell commands, tests, package managers, and git commands; the
+coordinator or the junior runs every check. The loop, the tiers, and the
+budgets live in [DELEGATION.md](DELEGATION.md).
 
 Replace the example file with each path named by the assignment.
 The assignment MUST name owned files, interfaces, acceptance checks, and scope.
@@ -157,13 +164,27 @@ A coordinator MAY copy a validated graph from an identical tree. Refresh only
 within the authorized scope. Ignored graph files may be absent from a worktree.
 A branch or session does not confer automatic graph or project knowledge.
 
+## Shared commands
+
+These commands serve every coordinator tool.
+
+| Command | Purpose |
+|---|---|
+| `python -m dev_supervisor.gates --cwd PATH --base REF [--reuse]` | Runs only the checks for the changed paths. Prints one line per check, `LINES n/150`, and `RESULT`. Records the result under `.fewia-supervisor-gates/<sha>.json`. |
+| `python -m dev_supervisor.review --cwd PATH --base REF --brief FILE --complexity C --writer-model M` | Runs a read-only Codex review with a model other than the writer, a time cap, and short output. Exits 0, 1, or 2 for `APPROVE`, `REQUEST_CHANGES`, or `BLOCKED`. |
+| `python -m dev_supervisor.usage [--work-item ID]` | Prints token and time totals per work item and phase from the shared ledger. |
+
+The usage ledger lives at `<git common dir>/fewia-supervisor-usage.jsonl`, so
+every worktree writes to one file. Grok runs report `unsupported` token
+coverage.
+
+When Codex is unavailable, run the review as a separate read-only Grok
+session with the diff in the prompt, and record the deviation.
+
 ## Verification and rollout
 
 ```bash
-PYTHONPATH=. uv run --project backend pytest -q tests/supervisor
-uv run --project backend ruff check dev_supervisor tests/supervisor
-uv run --project backend ruff format --check dev_supervisor tests/supervisor
-uv run --project backend mypy --strict dev_supervisor
+uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 ```
 
 Run the four root backend gates as well. Simulated events do not prove live
