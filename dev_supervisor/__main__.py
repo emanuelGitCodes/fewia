@@ -4,11 +4,10 @@ import argparse
 import json
 import math
 import subprocess
+import tomllib
 import uuid
 from pathlib import Path
 from typing import Any
-
-import tomllib
 
 from dev_supervisor.lease import lease
 from dev_supervisor.policy import (
@@ -42,7 +41,8 @@ Do not read credentials or include secrets in prompts, logs, or checkpoints.
 You MUST NOT run shell commands, tests, package managers, or git commands.
 Edit only the assigned files. The coordinator runs all verification and records
 the results.
-This rule overrides any role or assignment text that asks you to run checks; record the checks you would run as remaining work in progress.md.
+This rule overrides any role or assignment text that asks you to run checks;
+record the checks you would run as remaining work in progress.md.
 Update progress.md after each completed edit and before changing work stages.
 Record edits made, remaining work, and uncertain operations. On handoff read
 the owned files first. Do not repeat an uncertain external action. A separate
@@ -133,7 +133,8 @@ def execute(
             + assignment
             + "\nCheckpoint:\n"
             + progress.read_text()
-            + "\nInterrupted edits remain in this worktree. Read the owned files before you edit them.\n"
+            + "\nInterrupted edits remain in this worktree. "
+            "Read the owned files before you edit them.\n"
         )
         token = str(uuid.uuid4())
         result = attempt(

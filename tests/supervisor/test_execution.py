@@ -190,8 +190,16 @@ def test_real_subprocess_handoff(tmp_path: Path) -> None:
     task = setup(tmp_path)
     scripts = iter(
         [
-            'from pathlib import Path; Path(\'edit.txt\').write_text(\'kept\'); print(\'{"type":"error","code":"quota_exceeded"}\'); raise SystemExit(1)',
-            "from pathlib import Path; assert Path('edit.txt').read_text() == 'kept'; print('{\"type\":\"turn.completed\"}')",
+            (
+                "from pathlib import Path; Path('edit.txt').write_text('kept'); "
+                'print(\'{"type":"error","code":"quota_exceeded"}\'); '
+                "raise SystemExit(1)"
+            ),
+            (
+                "from pathlib import Path; "
+                "assert Path('edit.txt').read_text() == 'kept'; "
+                'print(\'{"type":"turn.completed"}\')'
+            ),
         ]
     )
     with patch(
@@ -330,11 +338,11 @@ def test_guard_forbids_writer_commands() -> None:
 
 
 def test_guard_overrides_role_check_instructions() -> None:
+    text = " ".join(GUARD.split())
     assert (
-        "This rule overrides any role or assignment text that asks you to run checks"
-        in GUARD
+        "This rule overrides any role or assignment text that asks you to run checks; "
+        "record the checks you would run as remaining work in progress.md" in text
     )
-    assert "record the checks you would run as remaining work in progress.md" in GUARD
 
 
 def test_writer_prompt_omits_version_control_command_names(tmp_path: Path) -> None:
