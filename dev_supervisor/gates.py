@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 from datetime import UTC, datetime
@@ -20,6 +21,7 @@ PYTHONPATH_ENV = (("PYTHONPATH", "."),)
 BACKEND_RUFF_CHECK = (*UV_RUN, "ruff", "check", "app", "tests")
 BACKEND_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", "app", "tests")
 CDK_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", ".")
+COMPOSE_CONFIG = ("docker", "compose", "config", "--quiet")
 TOOLS_PYTEST = UV_RUN_BACKEND + ("pytest", "-q", "tests/supervisor", "tests/infra")
 TOOLS_RUFF_CHECK = UV_RUN_BACKEND + ("ruff", "check", *TOOLS_TARGETS, *EXCLUDE_BEDROCK)
 TOOLS_RUFF_FORMAT = UV_RUN_BACKEND + (
@@ -45,6 +47,7 @@ GATES = (
     ("backend", "ruff-format", "backend", BACKEND_RUFF_FORMAT, ()),
     ("backend", "mypy", "backend", (*UV_RUN, "mypy", "--strict", "app"), ()),
     ("backend", "pytest", "backend", (*UV_RUN, "pytest", "-q"), ()),
+    ("frontend", "npm-ci", "frontend", ("npm", "ci", "--ignore-scripts"), ()),
     ("frontend", "lint", "frontend", ("npm", "run", "lint"), ()),
     ("frontend", "test", "frontend", ("npm", "test"), ()),
     ("frontend", "build", "frontend", ("npm", "run", "build"), ()),
@@ -56,6 +59,7 @@ GATES = (
     ("cdk", "ruff-check", "infra/bedrock", (*UV_RUN, "ruff", "check", "."), ()),
     ("cdk", "ruff-format", "infra/bedrock", CDK_RUFF_FORMAT, ()),
     ("cdk", "mypy", "infra/bedrock", (*UV_RUN, "mypy", "--strict", "."), ()),
+    ("compose", "config", "", COMPOSE_CONFIG, ()),
 )
 
 
@@ -130,6 +134,8 @@ def areas_for(paths: set[str]) -> set[str]:
             found.add("tools")
         elif path.startswith("infra/") and path.endswith(".py"):
             found.add("tools")
+        elif "/" not in path and path.startswith("compose") and path.endswith(".yaml"):
+            found.add("compose")
     return found
 
 
@@ -158,7 +164,17 @@ def is_clean(cwd: Path) -> bool:
 
 def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
     out: list[GateRow] = []
+    skip_frontend = False
     for area, gate, folder, argv, env in (row for row in GATES if row[0] in areas):
+        if gate == "npm-ci" and (cwd / "frontend" / "node_modules").exists():
+            out.append((area, gate, "SKIP", "node_modules present", ()))
+            continue
+        if skip_frontend and area == "frontend":
+            out.append((area, gate, "SKIP", "npm ci failed", ()))
+            continue
+        if gate == "config" and shutil.which("docker") is None:
+            out.append((area, gate, "SKIP", "docker not found", ()))
+            continue
         try:
             proc = _run_gate(
                 argv,
@@ -168,11 +184,15 @@ def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
             )
         except subprocess.TimeoutExpired:
             out.append((area, gate, "FAIL", "timeout", ()))
+            if gate == "npm-ci":
+                skip_frontend = True
             continue
         lines = [line for line in (proc.stdout or "").splitlines() if line]
         status = "PASS" if proc.returncode == 0 else "FAIL"
         last = lines[-1][:120] if lines else ""
         out.append((area, gate, status, last, tuple(lines[-20:])))
+        if gate == "npm-ci" and status == "FAIL":
+            skip_frontend = True
     return out
 
 

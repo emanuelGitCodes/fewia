@@ -90,9 +90,9 @@ def test_area_docs_only() -> None:
     assert areas_for(paths) == set()
 
 
-def test_area_compose_unmapped() -> None:
-    assert areas_for({"compose.yaml"}) == set()
-    assert areas_for({"compose.override.yaml"}) == set()
+def test_area_compose_root_yaml() -> None:
+    assert areas_for({"compose.yaml"}) == {"compose"}
+    assert areas_for({"compose.override.yaml"}) == {"compose"}
     assert areas_for({"nested/compose.yaml"}) == set()
 
 
@@ -244,11 +244,13 @@ def test_frontend_runs_lint_test_build(
     monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == [
+        "npm-ci",
         "lint",
         "test",
         "build",
     ]
     assert [status for _, _, status, _, _ in results] == [
+        "PASS",
         "PASS",
         "PASS",
         "PASS",
@@ -283,11 +285,13 @@ def test_frontend_fail_does_not_stop_later_gates(
     monkeypatch.setattr("dev_supervisor.gates._run_gate", inner)
     results = run_area_gates(tmp_path, {"frontend"}, 5)
     assert [gate for _, gate, _, _, _ in results] == [
+        "npm-ci",
         "lint",
         "test",
         "build",
     ]
     assert [status for _, _, status, _, _ in results] == [
+        "PASS",
         "FAIL",
         "PASS",
         "PASS",
@@ -512,3 +516,82 @@ def test_untracked_counts_final_line_without_newline(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     (repo / "app.py").write_text("one\ntwo")
     assert count_added_lines(repo, "HEAD") == 2
+
+
+def test_compose_docker_missing_skips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: list[object] = []
+
+    def never_run(*args: object, **kwargs: object) -> None:
+        started.append(args)
+        raise AssertionError("_run_gate must not start")
+
+    monkeypatch.setattr("dev_supervisor.gates.shutil.which", lambda _name: None)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", never_run)
+    results = run_area_gates(tmp_path, {"compose"}, 5)
+    assert results == [("compose", "config", "SKIP", "docker not found", ())]
+    assert started == []
+
+
+def test_npm_ci_skipped_when_node_modules_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "frontend" / "node_modules").mkdir(parents=True)
+    seen: list[list[str]] = []
+
+    def inner(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        cmd = args[0]
+        assert isinstance(cmd, list | tuple)
+        argv = [str(part) for part in cmd]
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "ok\n", "")
+
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", inner)
+    results = run_area_gates(tmp_path, {"frontend"}, 5)
+    assert [gate for _, gate, _, _, _ in results] == [
+        "npm-ci",
+        "lint",
+        "test",
+        "build",
+    ]
+    assert results[0][2:] == ("SKIP", "node_modules present", ())
+    assert [status for _, _, status, _, _ in results[1:]] == ["PASS", "PASS", "PASS"]
+    assert all(argv[:2] != ["npm", "ci"] for argv in seen)
+
+
+def test_npm_ci_failure_skips_later_frontend_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: list[list[str]] = []
+
+    def inner(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        cmd = args[0]
+        assert isinstance(cmd, list | tuple)
+        argv = [str(part) for part in cmd]
+        started.append(argv)
+        code = 1 if argv[:2] == ["npm", "ci"] else 0
+        return subprocess.CompletedProcess(argv, code, "err\n", "")
+
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", inner)
+    results = run_area_gates(tmp_path, {"frontend", "tools"}, 5)
+    frontend = [row for row in results if row[0] == "frontend"]
+    tools = [row for row in results if row[0] == "tools"]
+    assert [gate for _, gate, _, _, _ in frontend] == [
+        "npm-ci",
+        "lint",
+        "test",
+        "build",
+    ]
+    assert frontend[0][2] == "FAIL"
+    assert [status for _, _, status, last, _ in frontend[1:]] == [
+        "SKIP",
+        "SKIP",
+        "SKIP",
+    ]
+    assert all(last == "npm ci failed" for _, _, _, last, _ in frontend[1:])
+    assert all(status == "PASS" for _, _, status, _, _ in tools)
+    assert tools
+    assert all(
+        argv[:2] != ["npm", "run"] and argv != ["npm", "test"] for argv in started
+    )
