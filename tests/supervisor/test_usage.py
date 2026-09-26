@@ -1,5 +1,6 @@
 import json
 import stat
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from dev_supervisor.usage import (
     COUNTS,
     LEDGER,
+    ledger_path,
     phase_name,
     work_item_id,
     write_usage,
@@ -112,3 +114,51 @@ def test_write_usage_rejects_symlink_and_enforces_owner_mode(tmp_path: Path) -> 
     )
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert not path.is_symlink()
+
+
+def _init_git(path: Path) -> Path:
+    path.mkdir()
+    subprocess.check_call(["git", "init"], cwd=path, stdout=subprocess.DEVNULL)
+    subprocess.check_call(["git", "config", "user.email", "dev@example.test"], cwd=path)
+    subprocess.check_call(["git", "config", "user.name", "Dev"], cwd=path)
+    subprocess.check_call(["git", "config", "commit.gpgsign", "false"], cwd=path)
+    (path / "keep.txt").write_text("ok\n")
+    subprocess.check_call(["git", "add", "keep.txt"], cwd=path)
+    subprocess.check_call(
+        ["git", "commit", "-m", "init"], cwd=path, stdout=subprocess.DEVNULL
+    )
+    return path
+
+
+def _ledger_from_git(cwd: Path) -> Path:
+    common = subprocess.check_output(
+        ["git", "rev-parse", "--git-common-dir"], cwd=cwd, text=True
+    ).strip()
+    root = Path(common)
+    if not root.is_absolute():
+        root = cwd / root
+    return root.resolve() / LEDGER
+
+
+def test_ledger_path_plain_repo(tmp_path: Path) -> None:
+    repo = _init_git(tmp_path / "repo")
+    assert ledger_path(repo) == _ledger_from_git(repo)
+
+
+def test_ledger_path_linked_worktree(tmp_path: Path) -> None:
+    main = _init_git(tmp_path / "main")
+    linked = tmp_path / "linked"
+    subprocess.check_call(
+        ["git", "worktree", "add", "--detach", str(linked)],
+        cwd=main,
+        stdout=subprocess.DEVNULL,
+    )
+    common = subprocess.check_output(
+        ["git", "rev-parse", "--git-common-dir"], cwd=linked, text=True
+    ).strip()
+    root = Path(common)
+    if not root.is_absolute():
+        root = linked / root
+    assert ledger_path(linked) == root.resolve() / LEDGER
+    assert ledger_path(linked) == ledger_path(main)
+    assert ledger_path(linked) != linked / LEDGER
