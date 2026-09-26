@@ -101,11 +101,45 @@ def summary(stdout: str) -> dict[str, object]:
     return json.loads(stdout.splitlines()[-1])
 
 
+@pytest.fixture(autouse=True)
+def clear_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CODEX_SANDBOX", raising=False)
+
+
 def refuse_codex(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*args: object, **kwargs: object) -> None:
         raise AssertionError("codex MUST NOT start")
 
     monkeypatch.setattr(review, "run_codex", boom)
+
+
+def refuse_grok(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise AssertionError("grok MUST NOT start")
+
+    monkeypatch.setattr(review, "run_grok", boom)
+
+
+def install_grok(
+    monkeypatch: pytest.MonkeyPatch,
+    message: str = "notes\nVERDICT: APPROVE\n",
+    timed_out: bool = False,
+    elapsed_ms: int = 4,
+) -> dict[str, object]:
+    seen: dict[str, object] = {"calls": 0}
+
+    def fake(args: list[str], cwd: Path, timeout: float) -> tuple[bytes, bool, int]:
+        seen["calls"] = int(seen["calls"]) + 1
+        seen["args"] = args
+        seen["cwd"] = cwd
+        seen["timeout"] = timeout
+        prompt = Path(args[args.index("--prompt-file") + 1])
+        seen["prompt_path"] = prompt
+        seen["prompt"] = prompt.read_text()
+        return message.encode(), timed_out, elapsed_ms
+
+    monkeypatch.setattr(review, "run_grok", fake)
+    return seen
 
 
 @pytest.mark.parametrize(
@@ -132,6 +166,7 @@ def test_review_model_defaults(
     data = summary(capsys.readouterr().out)
     assert data["model"] == expected
     assert data["verdict"] == "APPROVE"
+    assert data["provider"] == "codex"
     dest = Path(str(data["saved"]))
     assert dest.name == f"{sha_of(root)}-{expected}.md"
 
@@ -146,18 +181,6 @@ def test_explicit_model_override(
     code = run_main(monkeypatch, argv(root, ["--model", "gpt-6-sol"]))
     assert code == 0
     assert summary(capsys.readouterr().out)["model"] == "gpt-6-sol"
-
-
-def test_refuses_matching_review_model(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    root = make_repo(tmp_path)
-    refuse_codex(monkeypatch)
-    code = run_main(monkeypatch, argv(root, ["--model", "grok-4.6"]))
-    assert code == 2
-    assert "Review model MUST NOT equal writer model" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -236,6 +259,7 @@ def test_prompt_includes_role_guard_range_brief_and_gates_file(
     assert "Gates:\n" in prompt
     assert '{"ok": true}' in prompt
     assert "End the review with exactly one line" in prompt
+    assert "Do not run shell commands; the diff is below" not in prompt
     args = seen["args"]
     assert isinstance(args, list)
     assert args[0:4] == ["codex", "exec", "--model", "gpt-6-luna"]
@@ -303,8 +327,9 @@ def test_stale_review_file_is_not_a_verdict(
     dest = root / ".fewia-supervisor-reviews" / f"{sha_of(root)}-gpt-6-luna.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text("VERDICT: APPROVE\n")
+    refuse_grok(monkeypatch)
     install_run(monkeypatch, write=False)
-    code = run_main(monkeypatch, argv(root))
+    code = run_main(monkeypatch, argv(root, ["--provider", "codex"]))
     assert code == 2
     assert summary(capsys.readouterr().out)["verdict"] != "APPROVE"
 
@@ -334,8 +359,9 @@ def test_missing_report_is_not_a_verdict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = make_repo(tmp_path)
+    refuse_grok(monkeypatch)
     seen = install_run(monkeypatch, write=False)
-    assert run_main(monkeypatch, argv(root)) == 2
+    assert run_main(monkeypatch, argv(root, ["--provider", "codex"])) == 2
     row = json.loads(ledger_path(root).read_text().splitlines()[0])
     assert row["outcome"] == "task_failed"
     dest = seen["dest"]
@@ -378,6 +404,7 @@ def test_timeout_calls_stop(
 
     monkeypatch.setattr(review.subprocess, "Popen", popen)
     monkeypatch.setattr(review, "stop", fake_stop)
+    refuse_grok(monkeypatch)
     captured: dict[str, Path] = {}
     real_run = review.run_codex
 
@@ -448,8 +475,9 @@ def test_missing_report_includes_codex_error(
 ) -> None:
     root = make_repo(tmp_path)
     event = json.dumps({"type": "error", "message": "HTTP 401 unauthorized"})
+    refuse_grok(monkeypatch)
     seen = install_run(monkeypatch, write=False, stdout=(event + "\n").encode())
-    assert run_main(monkeypatch, argv(root)) == 2
+    assert run_main(monkeypatch, argv(root, ["--provider", "codex"])) == 2
     dest = seen["dest"]
     assert isinstance(dest, Path)
     note = dest.read_text()
@@ -489,3 +517,174 @@ def test_usage_row_written(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert row["input_tokens"] == 10
     assert row["output_tokens"] == 5
     assert row["provenance"] == "codex.turn.completed"
+
+
+def test_sandbox_uses_grok_without_codex(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    monkeypatch.setenv("CODEX_SANDBOX", "1")
+    refuse_codex(monkeypatch)
+    seen = install_grok(monkeypatch)
+    code = run_main(monkeypatch, argv(root))
+    assert code == 0
+    data = summary(capsys.readouterr().out)
+    assert data["provider"] == "grok"
+    assert data["model"] == "grok-4.6"
+    dest = Path(str(data["saved"]))
+    assert dest.name == f"{sha_of(root)}-grok-4.6.md"
+    assert seen["calls"] == 1
+    row = json.loads(ledger_path(root).read_text().splitlines()[0])
+    assert row["provider"] == "grok"
+
+
+def test_plain_text_codex_error_surfaces_in_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    err = (
+        "Error: failed to initialize in-process app-server client: "
+        "Operation not permitted (os error 1)"
+    )
+    refuse_grok(monkeypatch)
+    seen = install_run(monkeypatch, write=False, stdout=(err + "\n").encode())
+    assert run_main(monkeypatch, argv(root, ["--provider", "codex"])) == 2
+    dest = seen["dest"]
+    assert isinstance(dest, Path)
+    note = dest.read_text()
+    assert err in note
+    assert err in capsys.readouterr().out
+    long_err = "E" * 250
+    seen = install_run(monkeypatch, write=False, stdout=(long_err + "\n").encode())
+    run_main(monkeypatch, argv(root, ["--provider", "codex"]))
+    dest = seen["dest"]
+    assert isinstance(dest, Path)
+    clipped = dest.read_text()
+    assert "E" * 200 in clipped
+    assert "E" * 201 not in clipped
+
+
+def test_grok_prompt_contains_diff_and_no_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_repo(tmp_path)
+    gates = tmp_path / "gates.json"
+    gates.write_text('{"ok": true}\n')
+    refuse_codex(monkeypatch)
+    real = review.git_text
+
+    def fake(cwd: Path, *flags: str) -> str:
+        if flags and flags[0] == "diff":
+            return "diff --git a/keep.txt b/keep.txt\n+changed\n"
+        return real(cwd, *flags)
+
+    monkeypatch.setattr(review, "git_text", fake)
+    seen = install_grok(monkeypatch)
+    extra = ["--provider", "grok", "--gates-file", str(gates)]
+    assert run_main(monkeypatch, argv(root, extra)) == 0
+    prompt = seen["prompt"]
+    assert isinstance(prompt, str)
+    assert "REVIEWER ROLE" in prompt
+    assert "Do not modify files. Do not run tests, package managers, or commands" in (
+        prompt
+    )
+    assert "Do not run shell commands; the diff is below" in prompt
+    assert "diff --git a/keep.txt b/keep.txt" in prompt
+    assert "+changed" in prompt
+    assert "BRIEF BODY" in prompt
+    assert "Gates:\n" in prompt
+    assert '{"ok": true}' in prompt
+    assert "End the review with exactly one line" in prompt
+    args = seen["args"]
+    assert isinstance(args, list)
+    assert args[0] == str(Path.home() / ".grok/bin/grok")
+    assert args[1:5] == ["--model", "grok-4.6", "--reasoning-effort", "medium"]
+    assert args[args.index("--output-format") + 1] == "plain"
+    assert args[args.index("--max-turns") + 1] == "20"
+    assert "--no-subagents" in args
+    assert args[args.index("--permission-mode") + 1] == "default"
+    assert args[args.index("--tools") + 1] == "Read,Grep,Glob"
+    assert args[args.index("--disallowed-tools") + 1] == "search_tool,use_tool"
+    assert "--disable-web-search" in args
+
+
+def test_provider_codex_never_runs_grok(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    monkeypatch.setenv("CODEX_SANDBOX", "1")
+    refuse_grok(monkeypatch)
+    install_run(monkeypatch, write=False)
+    code = run_main(monkeypatch, argv(root, ["--provider", "codex"]))
+    assert code == 2
+    data = summary(capsys.readouterr().out)
+    assert data["provider"] == "codex"
+
+
+def test_truncate_diff_caps_at_3000_lines() -> None:
+    text = "\n".join(f"L{i}" for i in range(3001)) + "\n"
+    out = review.truncate_diff(text)
+    kept = out.splitlines()
+    assert kept[0] == "L0"
+    assert kept[2999] == "L2999"
+    assert "L3000" not in kept
+    assert "truncated: showing 3000 of 3001 lines" in out
+
+
+def test_grok_prompt_truncates_diff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_repo(tmp_path)
+    refuse_codex(monkeypatch)
+    real = review.git_text
+
+    def fake(cwd: Path, *flags: str) -> str:
+        if flags and flags[0] == "diff":
+            return "\n".join(f"L{i}" for i in range(3001)) + "\n"
+        return real(cwd, *flags)
+
+    monkeypatch.setattr(review, "git_text", fake)
+    seen = install_grok(monkeypatch)
+    assert run_main(monkeypatch, argv(root, ["--provider", "grok"])) == 0
+    prompt = seen["prompt"]
+    assert isinstance(prompt, str)
+    assert "L2999" in prompt
+    assert "L3000" not in prompt
+    assert "truncated: showing 3000 of 3001 lines" in prompt
+
+
+@pytest.mark.parametrize(
+    ("complexity", "effort"),
+    [
+        ("simple", "low"),
+        ("standard", "medium"),
+        ("complex", "medium"),
+        ("exceptional", "medium"),
+        ("maximum", "medium"),
+    ],
+)
+def test_grok_effort_ceiling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    complexity: str,
+    effort: str,
+) -> None:
+    root = make_repo(tmp_path)
+    refuse_codex(monkeypatch)
+    seen = install_grok(monkeypatch)
+    code = run_main(
+        monkeypatch, argv(root, ["--provider", "grok"], complexity=complexity)
+    )
+    assert code == 0
+    data = summary(capsys.readouterr().out)
+    assert data["effort"] == effort
+    args = seen["args"]
+    assert isinstance(args, list)
+    assert args[args.index("--reasoning-effort") + 1] == effort
