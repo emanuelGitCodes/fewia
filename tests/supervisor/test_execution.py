@@ -196,7 +196,8 @@ def test_real_subprocess_handoff(tmp_path: Path) -> None:
                 "raise SystemExit(1)"
             ),
             (
-                "from pathlib import Path; assert Path('edit.txt').read_text() == 'kept'; "
+                "from pathlib import Path; "
+                "assert Path('edit.txt').read_text() == 'kept'; "
                 'print(\'{"type":"turn.completed"}\')'
             ),
         ]
