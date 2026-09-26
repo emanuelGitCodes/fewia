@@ -26,11 +26,15 @@ Update the ledger after each state change.
 
 1. Create a worktree: `git worktree add .claude/worktrees/<slug>-NN -b claude/<slug>-NN <base>`.
 2. Write the brief to a file in the scratchpad directory.
-3. Run the writer with the Bash tool and `run_in_background: true`.
-4. Run `dev_supervisor.gates` with `run_in_background: true`. When the
-   result is `PASS`, commit on the work branch.
-5. Run `dev_supervisor.review` on the committed head with
-   `run_in_background: true`. Read only its final lines.
+3. Run the writer with the Bash tool and `run_in_background: true`. Pass
+   `--work-item <slug>-NN --phase implement`.
+4. Run `ruff format` on the owned files. Commit on the work branch.
+5. Run `dev_supervisor.gates` on the committed head. It records the result
+   under the head SHA, so the review prompt includes it. On `FAIL`, repair
+   and commit again.
+6. Run `dev_supervisor.review` on the same head with
+   `run_in_background: true` and `--work-item <slug>-NN`. Read only its
+   final lines.
 
 **Tier M.** Spawn one junior from `.claude/agents/` with
 `isolation: "worktree"` and `run_in_background: true`. The brief is the
@@ -47,7 +51,7 @@ count toward that limit.
 
 Send findings to the same junior with `SendMessage`. The junior keeps its
 context. For tier S, write a repair brief and run the writer with
-`--phase repair`. Run the gates, commit the repair, and run the review
+`--phase repair`. Commit the repair, run the gates, and run the review
 command again on the new head. Stop after three review rounds.
 
 ## Verify
