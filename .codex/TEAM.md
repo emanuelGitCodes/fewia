@@ -29,7 +29,7 @@ They do not implement provider fallback. Bedrock application routing is separate
 | provider-dev | Plaid REST synchronization and Instacart list handoff |
 | agent-dev | Bedrock adapter, tools, conversation state, bounded execution |
 | catalog-dev | Recipes, sample prices, units, substitutions, pantry data |
-| aws-infra | Compose, Floci provisioning, client isolation, CI infrastructure |
+| aws-infra | Compose, Floci provisioning, client isolation, CI infrastructure, `dev_supervisor` tooling |
 | reliability-dev | Worker leases, retries, duplicate delivery, dead letters, observability |
 | security-dev | Security implementation and threat review |
 | frontend-dev | Web chat, plan controls, progress, evidence, accessibility |
@@ -43,9 +43,12 @@ Use catalog-dev and eval-engineer for new tasks. ml-dev does not resume health t
 
 ## Shared execution contract
 
-All agents MUST read root `AGENTS.md`, `.codex/project-context.md`, and this
-guide before task actions. Follow the user's accepted scope over older plans.
-Read the project sources required by root instructions.
+The loop, the tiers, and the budgets live in
+[docs/DELEGATION.md](../docs/DELEGATION.md). The coordinator reads root
+`AGENTS.md`, `.codex/project-context.md`, and this guide before decomposition.
+A junior reads its role file, `docs/delegation/junior.md`, and its brief. A
+writer reads only its supervisor prompt. Follow the user's accepted scope over
+older plans.
 
 Assignments specify exact files, interfaces, dependencies, verification, and
 completion evidence. Routing areas are not blanket write permission.
@@ -58,8 +61,9 @@ Spawn only for concrete independent tasks. Use explicit bases and integration
 order for worktrees. Child agents MUST NOT switch branches in a shared checkout.
 
 Each code PR MUST stay within 150 added source lines. Tests and docs do not
-count. Include tests with each behavior change. Agents MUST NOT merge or push
-to main. Other publication follows user authorization. Preserve old migrations
+count. Include tests with each behavior change. Agents MUST NOT push to main.
+Writers and juniors MUST NOT merge; a coordinator merges only with explicit
+user authorization for that stack. Other publication follows user authorization. Preserve old migrations
 and data; do not delete branches or worktrees as routine cleanup.
 
 The selected CLI writer writes code. A separate Codex or Grok agent in the
@@ -70,9 +74,17 @@ review after repair. Claude Code MAY hold the coordinator seat under decision
 0013. Claude Code is never a writer or the independent reviewer. Codex and
 Grok sessions do not depend on it. Do not request Claude authentication.
 
-Run all four root backend checks for code changes, plus relevant integration
-checks. Report exact commands and failures. Do not invent CI, live API, or
+Run `python -m dev_supervisor.gates` for code changes, plus relevant
+integration checks. Report the RESULT line and each FAIL line. Do not invent CI, live API, or
 deployment results. The coordinator appends one dated wiki entry per work item.
+
+## Codex mechanics
+
+The `tech-lead` role is the coordinator. For tier S it runs `dev_supervisor`,
+`dev_supervisor.gates`, and `dev_supervisor.review` itself. For tier M it
+dispatches one native role subagent per work item. For tier L it adds a
+`code-reviewer` subagent that follows `docs/delegation/reviewer.md`.
+Native subagents MUST NOT spawn further agents.
 
 ## Loading and use
 

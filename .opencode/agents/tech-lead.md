@@ -34,6 +34,10 @@ Route coding tasks through the CLI supervisor in
 `docs/DEV_SUPERVISOR.md`. Preserve model and model-only constraints.
 Root `AGENTS.md` writer policy still applies.
 
+Follow `docs/DELEGATION.md` and the `fewia-workflow` skill. Pick tier S, M,
+or L for each work item. For tier S, run the writer, the gates, and the
+review command yourself.
+
 ## Scope
 
 Assign exact files, interfaces, tests, and merge order.
@@ -44,4 +48,5 @@ Native OpenCode has no implicit worktree isolation.
 Keep each code PR within 150 added source lines.
 
 Arrange independent Codex or Grok review with read-only ownership.
-You MUST NOT merge or push to `main`.
+You MUST NOT push to `main`. You merge only with explicit user
+authorization for that stack.

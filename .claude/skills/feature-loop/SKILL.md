@@ -1,177 +1,74 @@
 ---
 name: feature-loop
-description: Build a FEWIA feature as the senior developer. Design the contracts, split the work into stacked items, delegate each item to a junior subagent, run independent review, verify, repair, and loop until every released item is done. Use when the user gives a feature, a phase, or a multi-item task, or says "resume" with a loop slug.
+description: Build a FEWIA feature as the senior coordinator with the tiered delegation loop. Design, probe, pick tier S, M, or L per item, run the writer, gates, and review commands, verify, repair, and publish. Use when the user gives a feature, a phase, or a multi-item task, or says "resume" with a loop slug.
 argument-hint: "<feature description> | resume <slug>"
 ---
 
 # Feature loop
 
-You are the senior developer. The juniors in `.claude/agents/` own one work
-item each. Grok or Codex writes the code through `dev_supervisor`. A
-`code-reviewer` junior runs the independent review. You design, delegate,
-verify, and decide.
+The rulebook is [docs/DELEGATION.md](../../../docs/DELEGATION.md). Follow it
+step by step. This skill adds only the Claude Code mechanics.
 
-References in this directory:
+## Start or resume
 
-- `references/brief-template.md` — the brief you give each junior.
-- `references/junior-protocol.md` — what a junior does with the brief.
-- `references/reviewer-protocol.md` — what `code-reviewer` does.
-- `references/ledger-template.md` — the loop state file.
+- New feature: pick a kebab-case slug. Copy
+  `references/ledger-template.md` to `.claude/loop/<slug>.md`. Git ignores
+  that directory.
+- `resume <slug>`: read the ledger. Check branches with `git branch --list`
+  and worktrees with `git worktree list`. Continue from the first item that
+  is not `verified`.
 
-## 0. Start or resume
+Update the ledger after each state change.
 
-For `resume <slug>`, read `.claude/loop/<slug>.md`. Check each branch and
-worktree against the ledger with `git branch --list` and
-`git worktree list`. Continue from the first item that is not `verified`.
+## Tier mechanics in Claude Code
 
-For a new feature, choose a short kebab-case slug. Copy the ledger template
-to `.claude/loop/<slug>.md`.
+**Tier S.** Use no subagent.
 
-## 1. Intake
+1. Create a worktree: `git worktree add .claude/worktrees/<slug>-NN -b claude/<slug>-NN <base>`.
+2. Write the brief to a file in the scratchpad directory.
+3. Run the writer with the Bash tool and `run_in_background: true`. Pass
+   `--work-item <slug>-NN --phase implement`.
+4. Run `ruff format` on the owned files. Commit on the work branch.
+5. Run `dev_supervisor.gates` on the committed head. It records the result
+   under the head SHA, so the review prompt includes it. On `FAIL`, repair
+   and commit again.
+6. Run `dev_supervisor.review` on the same head with
+   `run_in_background: true` and `--work-item <slug>-NN`. Read only its
+   final lines.
 
-Read `project-plan.md`, `wiki/index.md`, `.codex/project-context.md`, and
-the source files in the feature's path. Use `Explore` for a broad search.
+**Tier M.** Spawn one junior from `.claude/agents/` with
+`isolation: "worktree"` and `run_in_background: true`. The brief is the
+prompt. When the junior reports `done`, run `dev_supervisor.review` yourself
+in the background.
 
-Check the feature against the product rules. Stop and ask the user when the
-feature conflicts with a rule, such as checkout, live prices, or health-model
-training. Ask only what the code cannot answer.
+**Tier L.** Do tier M. Also spawn `code-reviewer` without isolation. Give it
+the worktree path, the base, the head SHA, the brief, and the probes to run.
 
-## 2. Design
+At most three subagents run at a time. Background Bash commands do not
+count toward that limit.
 
-Write the design into the ledger:
+## Repairs
 
-1. **Contracts.** Name each new type, endpoint, table, and function
-   signature that two items share. Fix these before any item starts.
-2. **Items.** Split the work by layer, by stage, or behind a flag. Each item
-   MUST pass the gates on its own and MUST add 150 code lines or fewer.
-   Never split code from its tests.
-3. **Owner.** Pick one junior per item from the routing table in `CLAUDE.md`.
-4. **Owned files.** List the exact files each item MAY change. Two items
-   that run at the same time MUST NOT share a file. Serialize models,
-   migrations, routers, dependency files, and shared fixtures.
-5. **Complexity.** Classify each item with the rubric below.
-6. **Stack.** Give each item a base branch: `main` or its parent item's
-   branch. Name branches `claude/<slug>-NN`.
-7. **Check.** Give each item a runnable acceptance check and the failure
-   cases the tests MUST cover.
+Send findings to the same junior with `SendMessage`. The junior keeps its
+context. For tier S, write a repair brief and run the writer with
+`--phase repair`. Commit the repair, run the gates, and run the review
+command again on the new head. Stop after three review rounds.
 
-| Complexity | Use for |
-|---|---|
-| `simple` | A rename, a constant, a narrow fix in one file |
-| `standard` | An ordinary item with known patterns |
-| `complex` | New cross-module contracts, concurrency, migrations with data |
-| `exceptional` | Security boundaries, money correctness, provider ambiguity |
-| `maximum` | Only the hardest cross-system work with data-loss risk |
+## Verify
 
-## 3. Approval checkpoint
+Read the diff. Run `dev_supervisor.gates --reuse` when the junior's record
+matches the head SHA and the tree is clean. Otherwise run the gates. Confirm
+that the review verdict names the head SHA.
 
-Show the user the contracts, the item table, and the merge order. Ask:
+## Measure
 
-- Which items to release. The default is every item, in stack order.
-- Whether you MAY push branches and open pull requests for verified items.
-- Any explicit writer model or effort. Pass it to every brief unchanged.
+Each subagent notification reports `subagent_tokens`. Record that number per
+item in the ledger. Add `dev_supervisor.usage --work-item <item>` for the
+writer and review tokens. Record the loop total in `wiki/log.md`.
 
-Record the answers in the ledger. Do not dispatch before the user answers.
+## Publish
 
-## 4. Dispatch
-
-For each released item whose parent is `verified` or which has base `main`:
-
-1. Fill `references/brief-template.md`. The brief MUST stand alone. For
-   documentation items, cite the newest decisions in `wiki/decisions/`,
-   not only `.codex/project-context.md`.
-2. Spawn the owner junior with `isolation: "worktree"` and
-   `run_in_background: true`. Pass the brief as the prompt.
-3. Set the item to `in_progress` in the ledger. Record the agent ID.
-
-Run at most three juniors at a time. Do not poll. The harness notifies you
-when a junior finishes. While juniors run, you MAY design the next items or
-answer the user.
-
-## 5. Handle a junior report
-
-Read the report. Record the branch, SHA, worktree, and writer model.
-
-- `blocked` or `failed`: read the reason. Fix the brief, split the item, or
-  escalate. Do not send the same brief again unchanged.
-- `done`: spawn `code-reviewer` with the worktree path, the base, the head
-  SHA, the brief, and the writer model. Set the item to `review`. For a
-  small diff, you MAY run the review model yourself with a background
-  `codex exec --sandbox read-only` call. The model stays the independent
-  reviewer; you only start it.
-
-## 6. Handle a review
-
-- `REQUEST_CHANGES`: send the blocking findings to the owner junior with
-  `SendMessage`. Keep its model constraints. Increase the review round. Set
-  the item to `repair`.
-- `BLOCKED`: resolve the cause, then review again.
-- `APPROVE`: verify the item yourself in step 7.
-
-Treat non-blocking findings as your decision. Fold small ones into the next
-repair or record them as follow-ups.
-
-After three review rounds on one item without `APPROVE`, stop that item and
-escalate to the user with the findings.
-
-## 7. Senior verification
-
-Work in the item worktree. Do not trust the reports.
-
-1. `git diff <base>...HEAD` — confirm the diff matches the brief and touches
-   only owned files.
-2. Count the added code lines with the counter in
-   `references/junior-protocol.md`.
-3. Run every gate that applies. Record the real output lines.
-4. Confirm the reviewed SHA equals the head SHA. A later commit needs a new
-   review.
-
-On any failure, return to step 6 as `REQUEST_CHANGES`. On success, set the
-item to `verified` and dispatch its children.
-
-## 8. Publish
-
-Only with user authorization for this feature:
-
-1. `git push -u origin claude/<slug>-NN`.
-2. `gh pr create --base <parent branch> --head claude/<slug>-NN`.
-3. The body states the summary, the parent, the merge order, the added code
-   lines, the gate output, the review verdict and model, and what you did
-   not verify. End it with the attribution line.
-4. Bind the pull request with the `ccd_pr` tools.
-
-When a parent changes after a child starts, rebase the child with the
-recipe in the `stacked-prs` skill. Review the child again.
-
-Never merge. Never push to `main`.
-
-## 9. Record
-
-Append one dated entry per work item to `wiki/log.md`. State the writer
-model and effort, the reviewer model and verdict, the added code lines, the
-gate numbers, and what you did not verify. Do not edit an older entry.
-Update the wiki pages that the feature touched. Add a decision page when the
-design fixed a new contract.
-
-## 10. Exit
-
-Stop the loop when:
-
-- every released item is `verified` or `published`, or
-- an escalation needs the user.
-
-Report to the user: the stack table with merge order, the pull request
-links, the gate numbers, the review verdicts, the follow-ups, and what you
-did not verify. Ask which item to merge or release next.
-
-## Escalate to the user
-
-Stop the affected item and ask the user when:
-
-- an item needs files outside its owned list or a change to a fixed contract;
-- an item cannot fit the cap after one more split;
-- a writer ends with `all_providers_exhausted` or an ambiguous launch;
-- any step needs an external mutation, such as AWS, a provider write, a
-  push, or a pull request without authorization;
-- anyone finds a secret in a diff, a brief, or a log;
-- the review budget of three rounds ends without `APPROVE`.
+Publish only with user authorization. Push the work branch, open the pull
+request with `gh pr create`, and bind it with the `ccd_pr` tools. The body
+states the parent, the merge order, the lines, the gates result, the review
+verdict and model, and what you did not verify.
