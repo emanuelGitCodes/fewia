@@ -12,6 +12,7 @@ from dev_supervisor.usage import (
     ledger_path,
     main,
     phase_name,
+    summarize,
     work_item_id,
     write_usage,
 )
@@ -204,14 +205,93 @@ def test_usage_cli_summary_for_codex_and_grok(
         "cap-1 implement runs=1 elapsed_s=2 input=2 output=3 coverage=complete" in out
     )
     assert (
-        "cap-1 repair runs=1 elapsed_s=4 input=n/a output=n/a coverage=unsupported"
-        in out
+        "cap-1 repair runs=1 elapsed_s=4 input=n/a output=n/a "
+        "coverage=unsupported no_tokens=1" in out
     )
     monkeypatch.setattr(
         sys, "argv", ["usage", "--cwd", str(repo), "--work-item", "missing"]
     )
     main()
     assert capsys.readouterr().out == "No usage recorded.\n"
+
+
+def _row(
+    coverage: str,
+    *,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    cached_tokens: int | None = None,
+    reasoning_tokens: int | None = None,
+    provenance: str = "none",
+    elapsed_ms: int = 1000,
+) -> dict[str, object]:
+    return {
+        "work_item": "cap-1",
+        "phase": "implement",
+        "elapsed_ms": elapsed_ms,
+        "input_tokens": input_tokens,
+        "cached_tokens": cached_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "provenance": provenance,
+        "coverage": coverage,
+    }
+
+
+def test_summarize_mixed_grok_and_complete_codex() -> None:
+    grok = _row("unsupported", provenance="unsupported", elapsed_ms=1000)
+    codex = _row(
+        "complete",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="codex.turn.completed",
+        elapsed_ms=2000,
+    )
+    assert summarize([grok, codex]) == [
+        "cap-1 implement runs=2 elapsed_s=3 input=2 output=3 coverage=partial no_tokens=1"
+    ]
+
+
+def test_summarize_all_grok_unsupported() -> None:
+    grok = _row("unsupported", provenance="unsupported", elapsed_ms=2000)
+    assert summarize([grok, grok]) == [
+        "cap-1 implement runs=2 elapsed_s=4 input=n/a output=n/a "
+        "coverage=unsupported no_tokens=2"
+    ]
+
+
+def test_summarize_all_complete_codex() -> None:
+    first = _row(
+        "complete",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="codex.turn.completed",
+        elapsed_ms=2000,
+    )
+    second = _row(
+        "complete",
+        input_tokens=5,
+        cached_tokens=1,
+        output_tokens=7,
+        reasoning_tokens=1,
+        provenance="codex.turn.completed",
+        elapsed_ms=1000,
+    )
+    assert summarize([first, second]) == [
+        "cap-1 implement runs=2 elapsed_s=3 input=7 output=10 coverage=complete"
+    ]
+
+
+def test_summarize_no_counts_unknown() -> None:
+    empty = _row("unknown", provenance="none", elapsed_ms=500)
+    assert summarize([empty]) == [
+        "cap-1 implement runs=1 elapsed_s=0.5 input=n/a output=n/a "
+        "coverage=unknown no_tokens=1"
+    ]
 
 
 def test_usage_cli_no_rows(

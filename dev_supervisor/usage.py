@@ -79,6 +79,16 @@ def coverage(usage: dict[str, int | None] | None, provenance: str) -> str:
     return "complete" if known == len(COUNTS) else "partial" if known else "unknown"
 
 
+def group_coverage(coverages: list[str], known_counts: int) -> str:
+    if coverages and all(item == "unsupported" for item in coverages):
+        return "unsupported"
+    if coverages and all(item == "complete" for item in coverages):
+        return "complete"
+    if known_counts == 0:
+        return "unknown"
+    return "partial"
+
+
 def _ledger_file(path: Path) -> IO[str]:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
@@ -167,29 +177,32 @@ def summarize(rows: list[dict[str, Any]]) -> list[str]:
         bucket = groups[(work, phase)]
         elapsed = 0
         totals: dict[str, int | None] | None = None
-        labels: list[str] = []
+        run_coverages: list[str] = []
+        no_tokens = 0
+        known_counts = 0
         for entry in bucket:
             raw = token(entry.get("elapsed_ms"))
             elapsed += 0 if raw is None else raw
+            counts = {name: token(entry.get(name)) for name in COUNTS}
+            known = sum(value is not None for value in counts.values())
+            known_counts += known
+            if known == 0:
+                no_tokens += 1
             provenance = entry.get("provenance")
-            if provenance == "unsupported" or entry.get("coverage") == "unsupported":
-                labels.append("unsupported")
-                continue
-            totals = add_counts(
-                totals, {name: token(entry.get(name)) for name in COUNTS}
-            )
-            labels.append(provenance if isinstance(provenance, str) else "none")
+            recorded = entry.get("coverage")
+            if isinstance(recorded, str):
+                run_coverages.append(recorded)
+            else:
+                source = provenance if isinstance(provenance, str) else "none"
+                run_coverages.append(coverage(counts, source))
+            if known:
+                totals = add_counts(totals, counts)
         inn: int | None
         out: int | None
-        if totals is None and labels and all(item == "unsupported" for item in labels):
-            cov, inn, out = "unsupported", None, None
-        elif totals is None:
-            cov, inn, out = "unknown", None, None
+        cov = group_coverage(run_coverages, known_counts)
+        if totals is None:
+            inn, out = None, None
         else:
-            source = "none"
-            if "codex.turn.completed" in labels:
-                source = "codex.turn.completed"
-            cov = coverage(totals, source)
             inn = totals["input_tokens"]
             out = totals["output_tokens"]
         seconds = elapsed / 1000
@@ -198,9 +211,10 @@ def summarize(rows: list[dict[str, Any]]) -> list[str]:
         phase_text = "-" if phase is None else str(phase)
         inn_text = "n/a" if inn is None else str(inn)
         out_text = "n/a" if out is None else str(out)
+        extra = f" no_tokens={no_tokens}" if no_tokens else ""
         lines.append(
             f"{work_text} {phase_text} runs={len(bucket)} elapsed_s={sec} "
-            f"input={inn_text} output={out_text} coverage={cov}"
+            f"input={inn_text} output={out_text} coverage={cov}{extra}"
         )
     return lines
 
