@@ -47,7 +47,8 @@ count toward that limit.
 
 Send findings to the same junior with `SendMessage`. The junior keeps its
 context. For tier S, write a repair brief and run the writer with
-`--phase repair`.
+`--phase repair`. Run the gates, commit the repair, and run the review
+command again on the new head. Stop after three review rounds.
 
 ## Verify
 
