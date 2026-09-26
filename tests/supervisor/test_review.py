@@ -607,6 +607,9 @@ def test_grok_prompt_contains_diff_and_no_shell(
     assert args[args.index("--max-turns") + 1] == "20"
     assert "--no-subagents" in args
     assert args[args.index("--permission-mode") + 1] == "default"
+    assert args[args.index("--tools") + 1] == "Read,Grep,Glob"
+    assert args[args.index("--disallowed-tools") + 1] == "search_tool,use_tool"
+    assert "--disable-web-search" in args
 
 
 def test_provider_codex_never_runs_grok(

@@ -125,6 +125,9 @@ def grok_command(cwd: Path, prompt: Path, effort: str) -> list[str]:
     cmd += ["--prompt-file", str(prompt), "--output-format", "plain"]
     cmd += ["--max-turns", "20", "--no-subagents"]
     cmd += ["--permission-mode", "default"]
+    cmd += ["--tools", "Read,Grep,Glob"]
+    cmd += ["--disallowed-tools", "search_tool,use_tool"]
+    cmd += ["--disable-web-search"]
     return cmd
 
 
