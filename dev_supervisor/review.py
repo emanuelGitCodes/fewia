@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -18,6 +19,8 @@ from dev_supervisor.usage import add_counts, ledger_path, parse_codex_usage, wri
 REVIEW_DEFAULT = {"grok-4.6": "gpt-6-luna", "gpt-5.3-codex-spark": "gpt-6-luna"}
 REVIEW_DEFAULT["gpt-6-luna"] = "gpt-6-sol"
 REVIEW_DEFAULT["gpt-6-sol"] = "gpt-6-luna"
+GROK_MODEL = "grok-4.6"
+DIFF_LIMIT = 3000
 EFFORT = {"simple": "low", "standard": "medium", "complex": "high"}
 EFFORT.update(exceptional="high", maximum="high")
 GUARD, FORMAT = (
@@ -28,6 +31,7 @@ GUARD, FORMAT = (
     "pattern: VERDICT: APPROVE or VERDICT: REQUEST_CHANGES or\n"
     "VERDICT: BLOCKED.",
 )
+NO_SHELL = "Do not run shell commands; the diff is below"
 VERDICT_PAT = re.compile(
     r"[*_`~]*VERDICT[*_`~]*\s*:\s*[*_`~]*(APPROVE|REQUEST_CHANGES|BLOCKED)[*_`~]*"
 )
@@ -38,17 +42,42 @@ def parse_verdict(text: str) -> tuple[str, bool]:
     return (hits[-1], True) if hits else ("BLOCKED", False)
 
 
+def grok_effort(complexity: str) -> str:
+    if complexity == "simple":
+        return "low"
+    return "medium"
+
+
+def choose_provider(requested: str) -> str:
+    if requested != "auto":
+        return requested
+    if "CODEX_SANDBOX" in os.environ:
+        return "grok"
+    return "codex"
+
+
+def truncate_diff(text: str, limit: int = DIFF_LIMIT) -> str:
+    lines = text.splitlines()
+    if len(lines) <= limit:
+        return text
+    note = f"truncated: showing {limit} of {len(lines)} lines"
+    return "\n".join(lines[:limit]) + "\n" + note + "\n"
+
+
 def first_error(raw: bytes) -> str:
+    plain = ""
     for line in raw.decode(errors="replace").splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
-            event = None
+            if line.strip() and not plain:
+                plain = line.strip()[:200]
+            continue
         if isinstance(event, dict) and event.get("type") in ("error", "turn.failed"):
             msg = event.get("message")
             if isinstance(msg, str) and msg:
                 return msg[:200]
-    return ""
+    return plain
 
 
 def parse_stdout(raw: bytes) -> dict[str, int | None] | None:
@@ -81,6 +110,24 @@ def run_codex(
     return stdout or b"", False, int((time.monotonic() - started) * 1000)
 
 
+def git_text(cwd: Path, *flags: str) -> str:
+    return subprocess.check_output(["git", *flags], cwd=cwd, text=True)
+
+
+def run_grok(args: list[str], cwd: Path, timeout: float) -> tuple[bytes, bool, int]:
+    with Path(os.devnull).open("rb") as source:
+        return run_codex(args, cwd, source, timeout)
+
+
+def grok_command(cwd: Path, prompt: Path, effort: str) -> list[str]:
+    cmd = [str(Path.home() / ".grok/bin/grok"), "--model", GROK_MODEL]
+    cmd += ["--reasoning-effort", effort, "--cwd", str(cwd)]
+    cmd += ["--prompt-file", str(prompt), "--output-format", "plain"]
+    cmd += ["--max-turns", "20", "--no-subagents"]
+    cmd += ["--permission-mode", "default"]
+    return cmd
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     for name in ("--cwd", "--base", "--brief", "--writer-model"):
@@ -89,11 +136,12 @@ def main() -> None:
     for opt in ("--model", "--work-item", "--gates-file"):
         parser.add_argument(opt)
     parser.add_argument("--timeout", type=float, default=900)
+    parser.add_argument("--provider", choices=("auto", "codex", "grok"), default="auto")
     args = parser.parse_args()
     cwd = Path(args.cwd).resolve()
 
     def git(*flags: str) -> str:
-        return subprocess.check_output(["git", *flags], cwd=cwd, text=True)
+        return git_text(cwd, *flags)
 
     if git("status", "--porcelain", "--untracked-files=no"):
         print("Tracked tree is dirty", file=sys.stderr)
@@ -105,8 +153,13 @@ def main() -> None:
     if args.model is not None and args.model == args.writer_model:
         print("Review model MUST NOT equal writer model", file=sys.stderr)
         raise SystemExit(2)
-    model = args.model or REVIEW_DEFAULT.get(args.writer_model, "gpt-6-luna")
-    effort = EFFORT[args.complexity]
+    provider = choose_provider(args.provider)
+    if provider == "grok":
+        model = GROK_MODEL
+        effort = grok_effort(args.complexity)
+    else:
+        model = args.model or REVIEW_DEFAULT.get(args.writer_model, "gpt-6-luna")
+        effort = EFFORT[args.complexity]
     sha = git("rev-parse", "HEAD").strip()
     root = Path(git("rev-parse", "--show-toplevel").strip())
     if args.gates_file is not None:
@@ -120,23 +173,43 @@ def main() -> None:
     if gates is not None:
         parts.append("Gates:\n" + gates)
     parts.append(FORMAT)
+    if provider == "grok":
+        parts.append(NO_SHELL)
+        parts.append(truncate_diff(git("diff", f"{args.base}...{sha}")))
     dest = root / ".fewia-supervisor-reviews" / f"{sha}-{model}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.unlink(missing_ok=True)
-    cmd = ["codex", "exec", "--model", model, "--cd", str(cwd)]
-    cmd += ["--sandbox", "read-only", "--ephemeral", "--ignore-user-config", "--json"]
-    cmd += ["-c", f'model_reasoning_effort="{effort}"', "-o", str(dest), "-"]
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        prompt_path = Path(tmp_dir) / "prompt.txt"
-        prompt_path.write_text("\n".join(parts))
-        with prompt_path.open("rb") as source:
-            raw, timed_out, elapsed_ms = run_codex(cmd, cwd, source, args.timeout)
-    totals = parse_stdout(raw)
+    if provider == "grok":
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompt_path = Path(tmp_dir) / "prompt.txt"
+            prompt_path.write_text("\n".join(parts))
+            grok_cmd = grok_command(cwd, prompt_path, effort)
+            raw, timed_out, elapsed_ms = run_grok(grok_cmd, cwd, args.timeout)
+        totals = None
+        text = raw.decode(errors="replace")
+        if text.strip():
+            dest.write_text(text)
+    else:
+        cmd = ["codex", "exec", "--model", model, "--cd", str(cwd)]
+        cmd += [
+            "--sandbox",
+            "read-only",
+            "--ephemeral",
+            "--ignore-user-config",
+            "--json",
+        ]
+        cmd += ["-c", f'model_reasoning_effort="{effort}"', "-o", str(dest), "-"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompt_path = Path(tmp_dir) / "prompt.txt"
+            prompt_path.write_text("\n".join(parts))
+            with prompt_path.open("rb") as source:
+                raw, timed_out, elapsed_ms = run_codex(cmd, cwd, source, args.timeout)
+        totals = parse_stdout(raw)
     if not dest.exists() or dest.stat().st_size == 0:
         reason = "timed out" if timed_out else "produced no output"
         err = first_error(raw)
         extra_err = f" {err}" if err else ""
-        dest.write_text(f"No review report. codex {reason}.{extra_err}\n")
+        dest.write_text(f"No review report. {provider} {reason}.{extra_err}\n")
     message = dest.read_text()
     verdict, found = parse_verdict(message)
     outcome = "timeout" if timed_out else "completed" if found else "task_failed"
@@ -144,14 +217,15 @@ def main() -> None:
     extra = f"\n... truncated, full text: {dest}" if len(lines) > 60 else ""
     print("\n".join(lines[:60]) + extra)
     inn = None if totals is None else totals["input_tokens"]
-    body = dict(verdict=verdict, model=model, effort=effort, sha=sha)
+    body: dict[str, object] = dict(verdict=verdict, model=model, effort=effort, sha=sha)
     body.update(elapsed_ms=elapsed_ms, saved=str(dest), input_tokens=inn)
     body["output_tokens"] = None if totals is None else totals["output_tokens"]
+    body["provider"] = provider
     print(json.dumps(body))
     meta: dict[str, Any] = {"provenance": "none"}
     if totals is not None:
         meta = {"provenance": "codex.turn.completed", **totals}
-    rec = [ledger_path(cwd), str(uuid.uuid4()), args.work_item, "review", "codex"]
+    rec = [ledger_path(cwd), str(uuid.uuid4()), args.work_item, "review", provider]
     write_usage(*cast(Any, rec + [model, effort, outcome, meta, elapsed_ms]))
     raise SystemExit({"APPROVE": 0, "REQUEST_CHANGES": 1}.get(verdict, 2))
 
