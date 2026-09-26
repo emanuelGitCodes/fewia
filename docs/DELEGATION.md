@@ -24,7 +24,9 @@ exist.
 - **Writer.** A Grok or Codex CLI that `dev_supervisor` starts. The writer
   edits files only. It runs no commands.
 - **Review model.** A separate Codex model that `dev_supervisor.review`
-  starts read-only. It is the independent reviewer.
+  starts read-only. It is the independent reviewer. When Codex is
+  unavailable, a separate read-only Grok session reviews the diff instead,
+  and the coordinator records the deviation.
 - **Reviewer agent.** Tier L only. It runs probes and mutation checks and
   follows [delegation/reviewer.md](delegation/reviewer.md).
 
