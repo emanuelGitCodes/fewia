@@ -294,6 +294,54 @@ def test_summarize_no_counts_unknown() -> None:
     ]
 
 
+def test_summarize_ignores_stored_unsupported_when_counts_complete() -> None:
+    row = _row(
+        "unsupported",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="codex.turn.completed",
+        elapsed_ms=1000,
+    )
+    assert summarize([row]) == [
+        "cap-1 implement runs=1 elapsed_s=1 input=2 output=3 coverage=complete"
+    ]
+
+
+def test_summarize_ignores_stored_complete_when_provenance_unsupported() -> None:
+    row = _row(
+        "complete",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="unsupported",
+        elapsed_ms=1000,
+    )
+    assert summarize([row]) == [
+        "cap-1 implement runs=1 elapsed_s=1 input=2 output=3 coverage=unsupported"
+    ]
+
+
+def test_summarize_unreadable_shape_unknown() -> None:
+    row: dict[str, object] = {
+        "work_item": "cap-1",
+        "phase": "implement",
+        "elapsed_ms": 1000,
+        "input_tokens": "2",
+        "cached_tokens": "1",
+        "output_tokens": "3",
+        "reasoning_tokens": "4",
+        "provenance": 12,
+        "coverage": "complete",
+    }
+    assert summarize([row]) == [
+        "cap-1 implement runs=1 elapsed_s=1 input=n/a output=n/a "
+        "coverage=unknown no_tokens=1"
+    ]
+
+
 def test_usage_cli_no_rows(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

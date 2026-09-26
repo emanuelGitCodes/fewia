@@ -181,6 +181,10 @@ def summarize(rows: list[dict[str, Any]]) -> list[str]:
         no_tokens = 0
         known_counts = 0
         for entry in bucket:
+            if not isinstance(entry, dict):
+                no_tokens += 1
+                run_coverages.append("unknown")
+                continue
             raw = token(entry.get("elapsed_ms"))
             elapsed += 0 if raw is None else raw
             counts = {name: token(entry.get(name)) for name in COUNTS}
@@ -189,12 +193,8 @@ def summarize(rows: list[dict[str, Any]]) -> list[str]:
             if known == 0:
                 no_tokens += 1
             provenance = entry.get("provenance")
-            recorded = entry.get("coverage")
-            if isinstance(recorded, str):
-                run_coverages.append(recorded)
-            else:
-                source = provenance if isinstance(provenance, str) else "none"
-                run_coverages.append(coverage(counts, source))
+            source = provenance if isinstance(provenance, str) else "none"
+            run_coverages.append(coverage(counts, source))
             if known:
                 totals = add_counts(totals, counts)
         inn: int | None
