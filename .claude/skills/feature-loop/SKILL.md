@@ -27,9 +27,10 @@ Update the ledger after each state change.
 1. Create a worktree: `git worktree add .claude/worktrees/<slug>-NN -b claude/<slug>-NN <base>`.
 2. Write the brief to a file in the scratchpad directory.
 3. Run the writer with the Bash tool and `run_in_background: true`.
-4. Run `dev_supervisor.gates`, then `dev_supervisor.review`, both with
-   `run_in_background: true`. Read only their final lines.
-5. Commit on the work branch.
+4. Run `dev_supervisor.gates` with `run_in_background: true`. When the
+   result is `PASS`, commit on the work branch.
+5. Run `dev_supervisor.review` on the committed head with
+   `run_in_background: true`. Read only its final lines.
 
 **Tier M.** Spawn one junior from `.claude/agents/` with
 `isolation: "worktree"` and `run_in_background: true`. The brief is the
