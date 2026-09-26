@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from dev_supervisor.events import Events
+from dev_supervisor.usage import COUNTS
 
 
 def publish(state_dir: Path, status: dict[str, Any]) -> None:
@@ -47,6 +48,17 @@ def stop(process: subprocess.Popen[bytes]) -> bool:
                 return True
             time.sleep(0.05)
     return False
+
+
+def _write_usage(state_dir: Path, events: Events, started: float) -> None:
+    elapsed = int((time.monotonic() - started) * 1000)
+    totals = events.tokens
+    payload: dict[str, Any] = {
+        name: None if totals is None else totals[name] for name in COUNTS
+    }
+    payload["provenance"] = "none" if totals is None else "codex.turn.completed"
+    payload["elapsed_ms"] = elapsed
+    (state_dir / "usage.json").write_text(json.dumps(payload))
 
 
 def attempt(
@@ -158,4 +170,5 @@ def attempt(
                     process.stdout.close()
             if clean:
                 publish(state_dir, snapshot("stopped", process.pid))
+            _write_usage(state_dir, events, started)
     return outcome if clean else "cleanup_failed"
