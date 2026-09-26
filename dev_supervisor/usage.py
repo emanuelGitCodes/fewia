@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 import os
@@ -78,6 +79,16 @@ def coverage(usage: dict[str, int | None] | None, provenance: str) -> str:
     return "complete" if known == len(COUNTS) else "partial" if known else "unknown"
 
 
+def group_coverage(coverages: list[str], known_counts: int) -> str:
+    if coverages and all(item == "unsupported" for item in coverages):
+        return "unsupported"
+    if coverages and all(item == "complete" for item in coverages):
+        return "complete"
+    if known_counts == 0:
+        return "unknown"
+    return "partial"
+
+
 def _ledger_file(path: Path) -> IO[str]:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
@@ -150,3 +161,95 @@ def ledger_path(cwd: Path) -> Path:
     if not root.is_absolute():
         root = cwd / root
     return root.resolve() / LEDGER
+
+
+def summarize(rows: list[dict[str, Any]]) -> list[str]:
+    groups: dict[tuple[object, object], list[dict[str, Any]]] = {}
+    order: list[tuple[object, object]] = []
+    lines: list[str] = []
+    for row in rows:
+        key = (row.get("work_item"), row.get("phase"))
+        if key not in groups:
+            order.append(key)
+            groups[key] = []
+        groups[key].append(row)
+    for work, phase in order:
+        bucket = groups[(work, phase)]
+        elapsed = 0
+        totals: dict[str, int | None] | None = None
+        run_coverages: list[str] = []
+        no_tokens = 0
+        known_counts = 0
+        for entry in bucket:
+            if not isinstance(entry, dict):
+                no_tokens += 1
+                run_coverages.append("unknown")
+                continue
+            raw = token(entry.get("elapsed_ms"))
+            elapsed += 0 if raw is None else raw
+            counts = {name: token(entry.get(name)) for name in COUNTS}
+            known = sum(value is not None for value in counts.values())
+            known_counts += known
+            if known == 0:
+                no_tokens += 1
+            provenance = entry.get("provenance")
+            source = provenance if isinstance(provenance, str) else "none"
+            run_coverages.append(coverage(counts, source))
+            if known:
+                totals = add_counts(totals, counts)
+        inn: int | None
+        out: int | None
+        cov = group_coverage(run_coverages, known_counts)
+        if totals is None:
+            inn, out = None, None
+        else:
+            inn = totals["input_tokens"]
+            out = totals["output_tokens"]
+        seconds = elapsed / 1000
+        sec = str(int(seconds)) if seconds == int(seconds) else str(seconds)
+        work_text = "-" if work is None else str(work)
+        phase_text = "-" if phase is None else str(phase)
+        inn_text = "n/a" if inn is None else str(inn)
+        out_text = "n/a" if out is None else str(out)
+        extra = f" no_tokens={no_tokens}" if no_tokens else ""
+        lines.append(
+            f"{work_text} {phase_text} runs={len(bucket)} elapsed_s={sec} "
+            f"input={inn_text} output={out_text} coverage={cov}{extra}"
+        )
+    return lines
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--work-item")
+    parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    args = parser.parse_args()
+    item: str | None = None
+    if args.work_item is not None:
+        try:
+            item = work_item_id(args.work_item)
+        except ValueError as error:
+            parser.error(str(error))
+    path = ledger_path(args.cwd.resolve())
+    rows: list[dict[str, Any]] = []
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                loaded = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(loaded, dict) and (
+                item is None or loaded.get("work_item") == item
+            ):
+                rows.append(loaded)
+    if not rows:
+        print("No usage recorded.")
+        return
+    for line in summarize(rows):
+        print(line)
+
+
+if __name__ == "__main__":
+    main()

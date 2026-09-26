@@ -1,6 +1,7 @@
 import json
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,9 @@ from dev_supervisor.usage import (
     COUNTS,
     LEDGER,
     ledger_path,
+    main,
     phase_name,
+    summarize,
     work_item_id,
     write_usage,
 )
@@ -162,3 +165,189 @@ def test_ledger_path_linked_worktree(tmp_path: Path) -> None:
     assert ledger_path(linked) == root.resolve() / LEDGER
     assert ledger_path(linked) == ledger_path(main)
     assert ledger_path(linked) != linked / LEDGER
+
+
+def test_usage_cli_summary_for_codex_and_grok(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_git(tmp_path / "repo")
+    path = ledger_path(repo)
+    write_usage(
+        path,
+        "a1",
+        "cap-1",
+        "implement",
+        "codex",
+        "gpt-6-luna",
+        "medium",
+        "completed",
+        _meta(),
+        2000,
+    )
+    write_usage(
+        path,
+        "a2",
+        "cap-1",
+        "repair",
+        "grok",
+        "grok-4.6",
+        "medium",
+        "task_failed",
+        _meta(8),
+        4000,
+    )
+    monkeypatch.setattr(sys, "argv", ["usage", "--cwd", str(repo)])
+    main()
+    out = capsys.readouterr().out.splitlines()
+    assert (
+        "cap-1 implement runs=1 elapsed_s=2 input=2 output=3 coverage=complete" in out
+    )
+    assert (
+        "cap-1 repair runs=1 elapsed_s=4 input=n/a output=n/a "
+        "coverage=unsupported no_tokens=1" in out
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["usage", "--cwd", str(repo), "--work-item", "missing"]
+    )
+    main()
+    assert capsys.readouterr().out == "No usage recorded.\n"
+
+
+def _row(
+    coverage: str,
+    *,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    cached_tokens: int | None = None,
+    reasoning_tokens: int | None = None,
+    provenance: str = "none",
+    elapsed_ms: int = 1000,
+) -> dict[str, object]:
+    return {
+        "work_item": "cap-1",
+        "phase": "implement",
+        "elapsed_ms": elapsed_ms,
+        "input_tokens": input_tokens,
+        "cached_tokens": cached_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "provenance": provenance,
+        "coverage": coverage,
+    }
+
+
+def test_summarize_mixed_grok_and_complete_codex() -> None:
+    grok = _row("unsupported", provenance="unsupported", elapsed_ms=1000)
+    codex = _row(
+        "complete",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="codex.turn.completed",
+        elapsed_ms=2000,
+    )
+    assert summarize([grok, codex]) == [
+        "cap-1 implement runs=2 elapsed_s=3 input=2 output=3 coverage=partial no_tokens=1"
+    ]
+
+
+def test_summarize_all_grok_unsupported() -> None:
+    grok = _row("unsupported", provenance="unsupported", elapsed_ms=2000)
+    assert summarize([grok, grok]) == [
+        "cap-1 implement runs=2 elapsed_s=4 input=n/a output=n/a "
+        "coverage=unsupported no_tokens=2"
+    ]
+
+
+def test_summarize_all_complete_codex() -> None:
+    first = _row(
+        "complete",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="codex.turn.completed",
+        elapsed_ms=2000,
+    )
+    second = _row(
+        "complete",
+        input_tokens=5,
+        cached_tokens=1,
+        output_tokens=7,
+        reasoning_tokens=1,
+        provenance="codex.turn.completed",
+        elapsed_ms=1000,
+    )
+    assert summarize([first, second]) == [
+        "cap-1 implement runs=2 elapsed_s=3 input=7 output=10 coverage=complete"
+    ]
+
+
+def test_summarize_no_counts_unknown() -> None:
+    empty = _row("unknown", provenance="none", elapsed_ms=500)
+    assert summarize([empty]) == [
+        "cap-1 implement runs=1 elapsed_s=0.5 input=n/a output=n/a "
+        "coverage=unknown no_tokens=1"
+    ]
+
+
+def test_summarize_ignores_stored_unsupported_when_counts_complete() -> None:
+    row = _row(
+        "unsupported",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="codex.turn.completed",
+        elapsed_ms=1000,
+    )
+    assert summarize([row]) == [
+        "cap-1 implement runs=1 elapsed_s=1 input=2 output=3 coverage=complete"
+    ]
+
+
+def test_summarize_ignores_stored_complete_when_provenance_unsupported() -> None:
+    row = _row(
+        "complete",
+        input_tokens=2,
+        cached_tokens=1,
+        output_tokens=3,
+        reasoning_tokens=4,
+        provenance="unsupported",
+        elapsed_ms=1000,
+    )
+    assert summarize([row]) == [
+        "cap-1 implement runs=1 elapsed_s=1 input=2 output=3 coverage=unsupported"
+    ]
+
+
+def test_summarize_unreadable_shape_unknown() -> None:
+    row: dict[str, object] = {
+        "work_item": "cap-1",
+        "phase": "implement",
+        "elapsed_ms": 1000,
+        "input_tokens": "2",
+        "cached_tokens": "1",
+        "output_tokens": "3",
+        "reasoning_tokens": "4",
+        "provenance": 12,
+        "coverage": "complete",
+    }
+    assert summarize([row]) == [
+        "cap-1 implement runs=1 elapsed_s=1 input=n/a output=n/a "
+        "coverage=unknown no_tokens=1"
+    ]
+
+
+def test_usage_cli_no_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_git(tmp_path / "repo")
+    monkeypatch.setattr(sys, "argv", ["usage", "--cwd", str(repo)])
+    main()
+    assert capsys.readouterr().out == "No usage recorded.\n"
