@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import run_chat
 from app.agent.provider import LLMProvider
-from app.domain.budget import SpendingSnapshot, calculate_budget
+from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
 from app.services.plan_job import SpendingInput
@@ -36,7 +36,7 @@ class ChatJobInput(BaseModel):
     message: StrictStr = Field(min_length=1, max_length=MAX_MESSAGE_LEN)
     monthly_limit_cents: StrictInt = Field(ge=0)
     spending: SpendingInput
-    spending_source: Literal["fixture", "plaid_sandbox"]
+    spending_source: SpendingSource
     plan_cap_cents: StrictInt | None = Field(default=None, ge=0)
     previous_request: dict[str, object] | None = None
     history: list[ChatHistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)

@@ -1,5 +1,5 @@
 import json
-from typing import Literal, cast
+from typing import cast
 
 from pydantic import (
     AwareDatetime,
@@ -11,7 +11,7 @@ from pydantic import (
 )
 
 from app.agent.planning_tool import execute_plan
-from app.domain.budget import SpendingSnapshot, calculate_budget
+from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.services.plan_job import SpendingInput
 
 _SNAPSHOT_ERROR = "evidence snapshot is invalid"
@@ -26,7 +26,7 @@ class EvidenceInputs(BaseModel):
 
     monthly_limit_cents: StrictInt = Field(ge=0)
     spending: SpendingInput
-    spending_source: Literal["fixture", "plaid_sandbox"]
+    spending_source: SpendingSource
     calculated_at: AwareDatetime
     plan_cap_cents: StrictInt | None = Field(default=None, ge=0)
 

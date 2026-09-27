@@ -1,11 +1,10 @@
 from collections.abc import Callable
 from datetime import UTC, date, datetime
-from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 
 from app.agent.planning_tool import execute_plan
-from app.domain.budget import SpendingSnapshot, calculate_budget
+from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.domain.grocery import GroceryRequest
 from app.services.supermarket_overlay import IngredientCostEstimator
 
@@ -25,7 +24,7 @@ class PlanJobInput(BaseModel):
     request: GroceryRequest
     monthly_limit_cents: StrictInt = Field(ge=0)
     spending: SpendingInput
-    spending_source: Literal["fixture", "plaid_sandbox"]
+    spending_source: SpendingSource
 
 
 PlanEvidenceRecorder = Callable[[dict[str, object], PlanJobInput, datetime], str]

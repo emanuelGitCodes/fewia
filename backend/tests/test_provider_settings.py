@@ -41,7 +41,7 @@ def _static(exc: BaseException, *markers: str) -> None:
 
 def test_defaults_from_env_prefix() -> None:
     settings = load_provider_settings()
-    assert settings.spending_source == "fixture"
+    assert settings.spending_source == "manual"
     assert settings.bedrock_model_id is None
     assert settings.bedrock_region == "us-east-1"
     assert settings.aws_profile is None
@@ -92,7 +92,7 @@ def test_ignores_dotenv_and_unprefixed_env(
     monkeypatch.setenv("SPENDING_SOURCE", "plaid_sandbox")
     monkeypatch.setenv("FEWIA_UNKNOWN", "ignore-me")
     settings = load_provider_settings()
-    assert settings.spending_source == "fixture"
+    assert settings.spending_source == "manual"
     assert settings.aws_profile is None
 
 
@@ -130,6 +130,13 @@ def test_settings_are_frozen() -> None:
     settings = GroceryProviderSettings()
     with pytest.raises(ValidationError):
         settings.spending_source = "plaid_sandbox"
+
+
+def test_spending_source_default_is_manual_and_rejects_invalid() -> None:
+    settings = GroceryProviderSettings()
+    assert settings.spending_source == "manual"
+    with pytest.raises(ValidationError):
+        GroceryProviderSettings.model_validate({"spending_source": "live"})
 
 
 def test_read_secret_file_strips_and_redacts(tmp_path: Path) -> None:

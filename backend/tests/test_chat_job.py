@@ -363,6 +363,13 @@ def test_chat_job_recorder_failure_skips_followup(
     assert len(provider.requests) == 1
 
 
+def test_chat_job_input_accepts_manual_spending_source() -> None:
+    parsed = chat_job_module.ChatJobInput.model_validate(
+        chat_payload(spending_source="manual")
+    )
+    assert parsed.spending_source == "manual"
+
+
 def test_chat_job_heartbeat_failure_is_before_provider() -> None:
     def heartbeat() -> None:
         raise RuntimeError("heartbeat-lost")

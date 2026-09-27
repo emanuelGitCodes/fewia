@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import TypeGuard
+from typing import Literal, TypeGuard
 from zoneinfo import ZoneInfo
 
 NEW_YORK = ZoneInfo("America/New_York")
+SpendingSource = Literal["manual", "fixture", "plaid_sandbox"]
 STALE_SPENDING_ERROR = (
     "Spending snapshot is stale; refresh it or provide an explicit temporary cap."
 )

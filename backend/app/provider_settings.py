@@ -8,6 +8,8 @@ from typing import Literal, NoReturn
 from pydantic import SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.budget import SpendingSource
+
 _MAX_FILE_BYTES = 65536
 
 
@@ -29,7 +31,7 @@ class GroceryProviderSettings(BaseSettings):
         env_prefix="FEWIA_", extra="ignore", frozen=True, env_file=None
     )
 
-    spending_source: Literal["fixture", "plaid_sandbox"] = "fixture"
+    spending_source: SpendingSource = "manual"
     bedrock_model_id: str | None = None
     bedrock_region: Literal["us-east-1", "us-west-2"] = "us-east-1"
     aws_profile: str | None = None

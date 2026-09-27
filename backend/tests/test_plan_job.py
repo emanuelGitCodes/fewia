@@ -188,6 +188,28 @@ def test_plan_job_preserves_budget_warnings_and_source(
     assert result["budget"] == expected["budget"]
 
 
+def test_plan_job_manual_source_uses_full_monthly_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+    body = payload(
+        monthly_limit_cents=10_000,
+        spending={
+            "period": date(2026, 9, 1),
+            "posted_cents": 0,
+            "pending_cents": 0,
+            "refreshed_at": NOW - timedelta(hours=1),
+        },
+        spending_source="manual",
+    )
+    result = plan_job_module.plan_job(body, lambda: None)
+    budget = result["budget"]
+
+    assert result["spending_source"] == "manual"
+    assert isinstance(budget, dict)
+    assert budget["available_cents"] == 10_000
+
+
 def test_plan_job_rejects_period_mismatch() -> None:
     with pytest.raises(ValueError, match="budget_period.*spending.period"):
         plan_job_module.plan_job(

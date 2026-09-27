@@ -1,13 +1,12 @@
 from collections.abc import Callable
 from datetime import date
-from typing import Literal
 
 from app.agent import chat_messages as msgs
 from app.agent.chat_context import build_messages, read_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.provider import LLMProvider
-from app.domain.budget import BudgetResult
+from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 
 MAX_MODEL_TURNS = 8
@@ -67,7 +66,7 @@ def run_chat(
     *,
     heartbeat: Callable[[], None] = _noop,
     user_id: int = 1,
-    spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
+    spending_source: SpendingSource = "fixture",
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
