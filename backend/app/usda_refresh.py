@@ -18,13 +18,7 @@ _KEY_FILE_ERROR = "FEWIA_USDA_FDC_KEY_FILE is unset, missing, or blank."
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 _ENERGY_NUMBERS = ("208", "957", "958")
 _MACRO_SCALE = {"203": 1000, "204": 1000, "205": 1000, "307": 1000}
-_COMPARE_FIELDS = (
-    "energy_kcal",
-    "protein_mg",
-    "fat_mg",
-    "carbohydrate_mg",
-    "sodium_mg",
-)
+_FIELDS = ("energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg", "sodium_mg")
 
 
 def _load_api_key() -> SecretStr | None:
@@ -62,7 +56,10 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
         amount = item.get("value")
         if isinstance(amount, bool) or not isinstance(amount, int | float):
             return None
-        parsed = float(amount)
+        try:
+            parsed = float(amount)
+        except OverflowError:
+            return None
         if parsed != parsed or abs(parsed) == float("inf"):
             return None
         values[number] = int(round(parsed * scale))
@@ -114,7 +111,7 @@ def compare(
         if remote is None:
             lines.append(f"{ingredient_id}: unavailable")
             continue
-        for field in _COMPARE_FIELDS:
+        for field in _FIELDS:
             stored_n = getattr(facts, field)
             usda_n = getattr(remote, field)
             if stored_n != usda_n:

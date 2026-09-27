@@ -77,6 +77,19 @@ def test_fetch_facts_returns_none_when_protein_missing() -> None:
     assert _fetch_payload(payload) is None
 
 
+def test_fetch_facts_returns_none_when_nutrient_value_overflows_float() -> None:
+    payload = {
+        "foodNutrients": [
+            {"nutrientNumber": "208", "value": 10**400},
+            {"nutrientNumber": "203", "value": 22.5},
+            {"nutrientNumber": "204", "value": 2.62},
+            {"nutrientNumber": "205", "value": 0},
+            {"nutrientNumber": "307", "value": 0.045},
+        ]
+    }
+    assert _fetch_payload(payload) is None
+
+
 def test_compare_reports_diff_unavailable_and_skips_match() -> None:
     stored = {
         "changed": NutritionFacts(1, 10, 20, 30, 40, 50),
