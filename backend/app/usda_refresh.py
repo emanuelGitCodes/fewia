@@ -18,7 +18,11 @@ _MAX_FILE_BYTES = 65536
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 _SCALE = {"208": 1, "203": 1000, "204": 1000, "205": 1000, "307": 1000}
 _COMPARE_FIELDS = (
-    "energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg", "sodium_mg"
+    "energy_kcal",
+    "protein_mg",
+    "fat_mg",
+    "carbohydrate_mg",
+    "sodium_mg",
 )
 
 
@@ -76,8 +80,12 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
         values[number] = converted
     try:
         return NutritionFacts(
-            fdc_id, values["208"], values["203"], values["204"],
-            values["205"], values["307"]
+            fdc_id,
+            values["208"],
+            values["203"],
+            values["204"],
+            values["205"],
+            values["307"],
         )
     except ValueError:
         return None
@@ -118,7 +126,9 @@ def compare(
             stored_n = getattr(facts, field)
             usda_n = getattr(remote, field)
             if stored_n != usda_n:
-                lines.append(f"{ingredient_id}: {field} stored={stored_n} usda={usda_n}")
+                lines.append(
+                    f"{ingredient_id}: {field} stored={stored_n} usda={usda_n}"
+                )
     return lines
 
 
