@@ -41,10 +41,10 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
     for item in nutrients:
         if not isinstance(item, dict):
             return None
-        raw: object = item.get("number")
-        if isinstance(raw, bool):
+        nutrient = item.get("nutrient")
+        if not isinstance(nutrient, dict):
             continue
-        number = str(raw) if isinstance(raw, int) else raw
+        number = nutrient.get("number")
         if not isinstance(number, str):
             continue
         if number not in _ENERGY_NUMBERS and number not in _MACRO_NUMBERS:
@@ -58,10 +58,11 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
             return None
         if parsed != parsed or abs(parsed) == float("inf"):
             return None
-        unit = item.get("unitName")
-        if unit == "G":
+        raw_unit = nutrient.get("unitName")
+        unit = raw_unit.lower() if isinstance(raw_unit, str) else ""
+        if unit == "g":
             parsed *= 1000
-        elif unit != "MG" and (unit != "KCAL" or number not in _ENERGY_NUMBERS):
+        elif unit != "mg" and (unit != "kcal" or number not in _ENERGY_NUMBERS):
             return None
         values[number] = int(round(parsed))
         if values[number] < 0:
@@ -88,7 +89,7 @@ def fetch_facts(
     try:
         response = client.get(
             FOOD_URL.format(fdc_id=fdc_id),
-            params={"api_key": api_key, "format": "abridged"},
+            params={"api_key": api_key, "format": "full"},
             follow_redirects=False,
             timeout=_TIMEOUT,
         )
