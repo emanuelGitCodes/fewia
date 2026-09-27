@@ -1,6 +1,8 @@
+import json
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -13,10 +15,14 @@ from app import models
 from app.agent.chat_loop import ChatUnavailable
 from app.db import Base
 from app.evidence_models import GroceryEvidence
+from app.job_models import Job, JobOutbox
+from app.providers.local_sqs_consumer import QueueMessage
 from app.services import chat_job as chat_job_module
 from app.services import plan_job as plan_job_module
 from app.services.agent_jobs import make_agent_handler
 from app.services.evidence_store import load_evidence
+from app.services.job_consumer import process_one
+from app.services.job_submission import create_job
 
 
 @pytest.fixture()
@@ -41,7 +47,12 @@ def evidence_engine(tmp_path: Path) -> Iterator[Engine]:
     def begin_sqlite_transaction(connection: Connection) -> None:
         connection.exec_driver_sql("BEGIN")
 
-    tables = [models.User.__table__, GroceryEvidence.__table__]
+    tables = [
+        models.User.__table__,
+        GroceryEvidence.__table__,
+        Job.__table__,
+        JobOutbox.__table__,
+    ]
     Base.metadata.create_all(test_engine, tables=tables)
     try:
         yield test_engine
@@ -70,6 +81,35 @@ def count_rows(factory: sessionmaker[Session]) -> int:
 def freeze_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+
+
+class FakeQueue:
+    def __init__(self, body: str) -> None:
+        self.message = QueueMessage(body=body, receipt_handle="receipt")
+
+    def receive(self) -> QueueMessage:
+        return self.message
+
+    def acknowledge(self, message: QueueMessage) -> None:
+        assert message == self.message
+
+    def extend(self, message: QueueMessage, seconds: int) -> None:
+        assert message == self.message
+        del seconds
+
+
+def submit_agent_job(factory: sessionmaker[Session], body: dict[str, object]) -> str:
+    with factory.begin() as session:
+        job, created = create_job(session, 1, "agent", str(uuid4()), body)
+        assert created is True
+        return job.id
+
+
+def stored_job(factory: sessionmaker[Session], job_id: str) -> Job:
+    with factory() as session:
+        job = session.get(Job, job_id)
+        assert job is not None
+        return job
 
 
 def test_handler_routes_plan_and_chat(
@@ -116,6 +156,41 @@ def test_handler_stores_no_supermarket_estimate_for_plan_and_chat(
     chat_result = handler(chat_payload(), lambda: None)
     assert "supermarket_estimate" not in plan_result
     assert "supermarket_estimate" not in chat_result
+
+
+def test_process_one_stores_no_supermarket_estimate_for_plan_and_chat(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    freeze_clocks(monkeypatch)
+    seed_user(factory)
+    provider = FakeLLM(_planner_then_final())
+    handler = make_agent_handler(factory, provider)
+    plan_body = plan_job_module.PlanJobInput.model_validate(payload()).model_dump(
+        mode="json"
+    )
+    chat_body = chat_job_module.ChatJobInput.model_validate(chat_payload()).model_dump(
+        mode="json"
+    )
+    plan_id = submit_agent_job(factory, plan_body)
+    chat_id = submit_agent_job(factory, chat_body)
+    plan_queue = FakeQueue(json.dumps({"job_id": plan_id}))
+    chat_queue = FakeQueue(json.dumps({"job_id": chat_id}))
+    assert (
+        process_one(factory, plan_queue, "agent", handler, now=lambda: NOW)
+        == "succeeded"
+    )
+    assert (
+        process_one(factory, chat_queue, "agent", handler, now=lambda: NOW)
+        == "succeeded"
+    )
+    plan_job_row = stored_job(factory, plan_id)
+    chat_job_row = stored_job(factory, chat_id)
+    assert plan_job_row.status == "succeeded"
+    assert chat_job_row.status == "succeeded"
+    assert plan_job_row.result is not None
+    assert chat_job_row.result is not None
+    assert "supermarket_estimate" not in plan_job_row.result
+    assert "supermarket_estimate" not in chat_job_row.result
 
 
 def test_handler_rejects_unknown_operation_before_external_work(
