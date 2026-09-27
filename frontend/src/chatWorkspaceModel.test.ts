@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { SAMPLE_ESTIMATE_NOTICE, type GroceryConfig } from "./apiTypes";
+import { SAMPLE_ESTIMATE_NOTICE, SPOONACULAR_COST_NOTICE, type GroceryConfig } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { initialForm, type FormState } from "./BudgetForm";
 import type { ChatJob, ChatResult } from "./chatTypes";
@@ -221,6 +221,28 @@ describe("chatEstimateJob", () => {
     expect(display?.result?.meal_nutrition?.total?.energy_kcal).toBe(200);
     expect(display?.result?.meal_nutrition?.meals[0]?.recipe_id).toBe("bean_tacos");
     expect(source.result?.meal_nutrition?.meals[0]?.servings).toBe(2);
+  });
+
+  it("copies supermarket_estimate when present and omits it when absent", () => {
+    const overlay = {
+      total_cents: 1299,
+      notice: SPOONACULAR_COST_NOTICE,
+      lines: [{ ingredient_id: "black_beans", cents: 199 }],
+    };
+    const source = succeededJob(plannedResult({ supermarket_estimate: overlay }));
+    const display = chatEstimateJob(source);
+    expect(display?.result?.supermarket_estimate).toEqual(overlay);
+    const copied = display?.result?.supermarket_estimate;
+    if (copied === undefined) {
+      throw new Error("expected cloned supermarket estimate");
+    }
+    copied.lines.push({ ingredient_id: "mutated", cents: 1 });
+    expect(source.result?.supermarket_estimate?.lines).toEqual([
+      { ingredient_id: "black_beans", cents: 199 },
+    ]);
+    const omitted = chatEstimateJob(succeededJob(plannedResult()));
+    expect(omitted?.result?.supermarket_estimate).toBeUndefined();
+    expect("supermarket_estimate" in (omitted?.result ?? {})).toBe(false);
   });
 });
 

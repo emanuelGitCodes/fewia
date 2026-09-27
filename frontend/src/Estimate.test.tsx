@@ -172,7 +172,7 @@ describe("Estimate", () => {
   it("shows catalog dollars and overlay dollars when present", () => {
     const renderer = mount({
       job: succeeded({
-        supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
+        supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE, lines: [] },
       }),
     });
     const text = childText(renderer.root);
@@ -358,6 +358,76 @@ describe("Estimate", () => {
     const renderer = mount({ job: succeeded({ omitNutrition: true }) });
     expect(childText(renderer.root)).not.toContain("Estimated nutrition");
     expect(childText(renderer.root)).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("shows Spoonacular avg dollars for a purchased matching line", () => {
+    const renderer = mount({
+      job: succeeded({
+        supermarket_estimate: {
+          total_cents: 1299,
+          notice: SPOONACULAR_COST_NOTICE,
+          lines: [{ ingredient_id: "black_beans", cents: 199 }],
+        },
+      }),
+    });
+    const text = childText(renderer.root);
+    expect(text).toContain("Spoonacular avg $1.99 for 425 g");
+    expect(text).toContain("$4.78");
+    expect(text).toContain("$12.99");
+    expect(text).toContain(SPOONACULAR_COST_NOTICE);
+    expect(renderer.root.findAllByProps({ className: "estimate-line-spoonacular" })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ className: "estimate-overlay-total" })).toHaveLength(1);
+    renderer.unmount();
+  });
+
+  it("shows Spoonacular avg unavailable for a matching null cents line", () => {
+    const renderer = mount({
+      job: succeeded({
+        supermarket_estimate: {
+          total_cents: 1299,
+          notice: SPOONACULAR_COST_NOTICE,
+          lines: [{ ingredient_id: "black_beans", cents: null }],
+        },
+      }),
+    });
+    expect(childText(renderer.root)).toContain("Spoonacular avg unavailable");
+    expect(childText(renderer.root)).toContain("$12.99");
+    expect(childText(renderer.root)).toContain(SPOONACULAR_COST_NOTICE);
+    renderer.unmount();
+  });
+
+  it("omits per-line Spoonacular text for a pantry line with a matching overlay", () => {
+    const renderer = mount({
+      job: succeeded({
+        lines: [line({ from_pantry: true })],
+        total: 129,
+        supermarket_estimate: {
+          total_cents: 1299,
+          notice: SPOONACULAR_COST_NOTICE,
+          lines: [{ ingredient_id: "black_beans", cents: 199 }],
+        },
+      }),
+    });
+    const text = childText(renderer.root);
+    expect(text).not.toContain("Spoonacular avg");
+    expect(text).toContain("$1.29");
+    expect(text).toContain("$12.99");
+    expect(text).toContain(SPOONACULAR_COST_NOTICE);
+    expect(renderer.root.findAllByProps({ className: "estimate-line-spoonacular" })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ className: "estimate-overlay-total" })).toHaveLength(1);
+    renderer.unmount();
+  });
+
+  it("omits per-line Spoonacular text when supermarket_estimate is absent", () => {
+    const renderer = mount({ job: succeeded() });
+    const text = childText(renderer.root);
+    expect(text).toContain("$4.78");
+    expect(text).toContain(NOTICE);
+    expect(text).not.toContain("Spoonacular avg");
+    expect(text).not.toContain("Average supermarket estimate");
+    expect(renderer.root.findAllByProps({ className: "estimate-line-spoonacular" })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ className: "estimate-overlay-total" })).toHaveLength(0);
     renderer.unmount();
   });
 });
