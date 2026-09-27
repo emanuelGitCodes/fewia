@@ -279,6 +279,23 @@ describe("copySupermarketEstimate", () => {
       }),
     ).toBeNull();
   });
+
+  it("rejects a present lines key that is undefined or a non-array", () => {
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: undefined,
+      }),
+    ).toBeNull();
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: "x",
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("copyMealPlanNutrition", () => {

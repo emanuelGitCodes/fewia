@@ -177,7 +177,7 @@ export function copySupermarketEstimate(value: unknown): SupermarketEstimate | n
     return null;
   }
   const totalCents = (total === null ? null : total) as number | null;
-  if (!("lines" in value) || value.lines === undefined) {
+  if (!("lines" in value)) {
     return { total_cents: totalCents, notice: SPOONACULAR_COST_NOTICE, lines: [] };
   }
   if (!Array.isArray(value.lines)) {
@@ -255,11 +255,15 @@ export function parseJob(value: unknown): GroceryJob {
   if (value.result !== null && !isResult(value.result)) {
     throw new Error(SHAPE_ERROR);
   }
-  if (isRecord(value.result) && value.result.supermarket_estimate !== undefined) {
-    const copied = copySupermarketEstimate(value.result.supermarket_estimate);
-    if (copied !== null) {
-      value.result.supermarket_estimate = copied;
+  if (isRecord(value.result) && "supermarket_estimate" in value.result) {
+    const supermarket_estimate = copySupermarketEstimate(value.result.supermarket_estimate);
+    if (supermarket_estimate === null) {
+      throw new Error(SHAPE_ERROR);
     }
+    return {
+      ...value,
+      result: { ...value.result, supermarket_estimate },
+    } as GroceryJob;
   }
   return value as GroceryJob;
 }
