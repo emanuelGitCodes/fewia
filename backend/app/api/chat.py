@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api import grocery as grocery_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
-from app.deps import get_provider_settings, get_session
+from app.deps import get_provider_settings, get_session, get_supermarket_estimator
 from app.domain.budget import NEW_YORK
 from app.job_models import Job
 from app.models import User
@@ -20,6 +20,10 @@ from app.provider_settings import GroceryProviderSettings
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
 from app.services.job_submission import IdempotencyConflict, create_job
+from app.services.supermarket_overlay import (
+    IngredientCostEstimator,
+    attach_supermarket_estimate,
+)
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 CHAT_KEY_PREFIX = "chat:"
@@ -119,7 +123,11 @@ def create_chat_job(
 
 @router.get("/chat/jobs/{job_id}")
 def read_chat_job(
-    job_id: UUID, session: Annotated[Session, Depends(get_session)]
+    job_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    estimator: Annotated[
+        IngredientCostEstimator | None, Depends(get_supermarket_estimator)
+    ],
 ) -> GroceryJobView:
     job = session.get(Job, str(job_id))
     payload = job.payload if job is not None else None
@@ -131,9 +139,12 @@ def read_chat_job(
         or payload.get("operation") != "chat"
     ):
         raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_MESSAGE)
+    result = job.result
+    if job.status == "succeeded" and isinstance(result, dict) and estimator is not None:
+        result = attach_supermarket_estimate(result, estimator)
     return GroceryJobView(
         id=job.id,
         status=job.status,
-        result=job.result,
+        result=result,
         error_code=job.error_code,
     )
