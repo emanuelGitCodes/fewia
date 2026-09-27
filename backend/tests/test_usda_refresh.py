@@ -94,6 +94,19 @@ def test_fetch_facts_returns_none_when_nutrient_value_overflows_float() -> None:
     assert _fetch_payload(payload) is None
 
 
+def test_fetch_facts_returns_none_when_scaled_amount_is_not_finite() -> None:
+    payload = {
+        "foodNutrients": [
+            {"nutrient": {"number": "208", "unitName": "kcal"}, "amount": 120.4},
+            {"nutrient": {"number": "203", "unitName": "g"}, "amount": 1e308},
+            {"nutrient": {"number": "204", "unitName": "g"}, "amount": 2.62},
+            {"nutrient": {"number": "205", "unitName": "g"}, "amount": 0},
+            {"nutrient": {"number": "307", "unitName": "mg"}, "amount": 45},
+        ]
+    }
+    assert _fetch_payload(payload) is None
+
+
 def test_fetch_facts_returns_none_when_tracked_unit_is_unexpected() -> None:
     payload = {
         "foodNutrients": [

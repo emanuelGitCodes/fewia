@@ -56,13 +56,13 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
             parsed = float(amount)
         except OverflowError:
             return None
-        if parsed != parsed or abs(parsed) == float("inf"):
-            return None
         raw_unit = nutrient.get("unitName")
         unit = raw_unit.lower() if isinstance(raw_unit, str) else ""
         if unit == "g":
             parsed *= 1000
         elif unit != "mg" and (unit != "kcal" or number not in _ENERGY_NUMBERS):
+            return None
+        if parsed != parsed or abs(parsed) == float("inf"):
             return None
         values[number] = int(round(parsed))
         if values[number] < 0:
