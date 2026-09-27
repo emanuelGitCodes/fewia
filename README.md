@@ -42,6 +42,14 @@ and `FEWIA_BEDROCK_CREDENTIALS_FILE`. Read
 docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
 ```
 
+To show Spoonacular prices, add the Spoonacular override. It reads the
+key from `FEWIA_SPOONACULAR_KEY_FILE`. Keep that file outside the
+repository with mode 600. To use Bedrock too, add both `-f` flags.
+
+```bash
+docker compose --env-file .env -f compose.yaml -f compose.spoonacular.yaml up -d
+```
+
 ## Checks
 
 Run the shared gates from the repository root:
