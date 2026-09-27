@@ -1,4 +1,4 @@
-import type { GroceryJob, GroceryJobResult, PlanLine } from "./apiTypes";
+import { sourceLabel, type GroceryJob, type GroceryJobResult, type PlanLine } from "./apiTypes";
 import { formatDollars } from "./money";
 
 export type EstimateProps = {
@@ -10,16 +10,6 @@ export type EstimateProps = {
   onRebuild?: () => void | Promise<void>;
   rebuildDisabled?: boolean;
 };
-
-function sourceLabel(source: string): string {
-  if (source === "fixture") {
-    return "Demo spending";
-  }
-  if (source === "plaid_sandbox") {
-    return "Plaid Sandbox";
-  }
-  return "Unverified spending source";
-}
 
 function isIncomplete(result: GroceryJobResult): boolean {
   return result.plan.total_cents === null || result.plan.lines.some((line) => line.cost_cents === null);
@@ -136,7 +126,9 @@ export function Estimate({
         </>
       ) : null}
       <p className="estimate-available">{`Available for this plan ${formatDollars(result.budget.available_cents)}`}</p>
-      <p className="estimate-pending">{`Pending ${formatDollars(result.budget.pending_cents)}`}</p>
+      {result.spending_source === "manual" ? null : (
+        <p className="estimate-pending">{`Pending ${formatDollars(result.budget.pending_cents)}`}</p>
+      )}
       <p className="estimate-source">{`Source ${sourceLabel(result.spending_source)}`}</p>
       <ul className="estimate-lines">
         {result.plan.lines.map((line) => (

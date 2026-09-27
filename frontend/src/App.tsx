@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
+import { SAMPLE_ESTIMATE_NOTICE, sourceLabel } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
 import { Conversation } from "./Conversation";
@@ -13,13 +13,6 @@ import "./estimate.css";
 import "./chat.css";
 
 const CATALOG_LOADING = "Loading the grocery catalog.";
-
-function sourceLabel(source: string): string {
-  if (source === "fixture") {
-    return "Demo spending";
-  }
-  return "Unverified spending source";
-}
 
 export default function App(): JSX.Element {
   const demo = useGroceryDemo();
@@ -97,7 +90,9 @@ export default function App(): JSX.Element {
                 }}
               >
                 <p className="budget-source">
-                  {`Source ${sourceLabel(demo.config.source)}. Pending ${formatDollars(demo.config.pending_cents)}`}
+                  {demo.config.source === "manual"
+                    ? `Source ${sourceLabel(demo.config.source)}.`
+                    : `Source ${sourceLabel(demo.config.source)}. Pending ${formatDollars(demo.config.pending_cents)}`}
                 </p>
                 <BudgetForm
                   config={demo.config}

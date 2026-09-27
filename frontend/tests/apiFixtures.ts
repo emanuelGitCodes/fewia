@@ -114,3 +114,11 @@ export function config(overrides: Record<string, unknown> = {}): Record<string, 
     ...overrides,
   };
 }
+
+export function manualConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return config({ source: "manual", ...overrides });
+}
+
+export function manualJobResult(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return jobResult({ spending_source: "manual", ...overrides });
+}
