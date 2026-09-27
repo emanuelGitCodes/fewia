@@ -821,4 +821,4 @@ def test_existing_job_replays_without_new_sandbox_snapshot(
     assert second.json() == first.json()
     assert stored is not None
     assert stored.payload == snapshot
-    assert stored.payload["spending_source"] == "fixture"
+    assert stored.payload["spending_source"] == "manual"

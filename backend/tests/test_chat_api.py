@@ -210,7 +210,7 @@ def test_providers_reports_capabilities_without_construction(
         "chat_configured": False,
         "plaid_configured": False,
         "instacart_configured": False,
-        "spending_source": "fixture",
+        "spending_source": "manual",
     }
     assert "token" not in str(body).lower()
     assert "secret" not in str(body).lower()
