@@ -1,11 +1,19 @@
-import { sourceLabel, type GroceryJob, type GroceryJobResult, type PlanLine } from "./apiTypes";
+import {
+  sourceLabel,
+  type CatalogItem,
+  type GroceryJob,
+  type GroceryJobResult,
+  type PlanLine,
+} from "./apiTypes";
 import { formatDollars } from "./money";
+import { Nutrition } from "./Nutrition";
 
 export type EstimateProps = {
   job: GroceryJob | null;
   pending: boolean;
   dirty: boolean;
   pantry: string[];
+  recipes: CatalogItem[];
   onPantryToggle: (id: string) => void;
   onRebuild?: () => void | Promise<void>;
   rebuildDisabled?: boolean;
@@ -76,6 +84,7 @@ export function Estimate({
   pending,
   dirty,
   pantry,
+  recipes,
   onPantryToggle,
   onRebuild,
   rebuildDisabled = false,
@@ -141,6 +150,9 @@ export function Estimate({
           />
         ))}
       </ul>
+      {result.meal_nutrition !== undefined ? (
+        <Nutrition nutrition={result.meal_nutrition} recipes={recipes} />
+      ) : null}
       {warnings.map((warning, index) => (
         <p key={`${index}-${warning}`} className="estimate-warning" role="status">
           {warning}

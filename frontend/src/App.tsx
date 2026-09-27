@@ -127,6 +127,7 @@ export default function App(): JSX.Element {
               pending={busy}
               dirty={estimateDirty}
               pantry={demo.form.pantry}
+              recipes={demo.config?.recipes ?? []}
               onPantryToggle={demo.togglePantry}
               onRebuild={demo.submitForm}
               rebuildDisabled={blocked || busy}
