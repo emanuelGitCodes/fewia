@@ -14,9 +14,17 @@ from httpx import Response
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from test_deps import (
+    PLAN_RESULT,
+    FixedEstimator,
+    ForbiddenEstimator,
+    clear_estimator_override,
+    override_estimator,
+)
 
 from app.api import grocery as grocery_api
 from app.api.grocery_models import CreateGroceryJobBody
+from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot, calculate_budget
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -822,3 +830,76 @@ def test_existing_job_replays_without_new_sandbox_snapshot(
     assert stored is not None
     assert stored.payload == snapshot
     assert stored.payload["spending_source"] == "manual"
+
+
+def _seed_grocery_job(
+    session: Session, *, key: str, status: str, result: dict[str, object] | None
+) -> Job:
+    job, _created = create_job(session, 1, "agent", key, stored_plan_payload())
+    job.status = status
+    job.result = result
+    session.flush()
+    return job
+
+
+def test_succeeded_grocery_job_attaches_overlay_without_storing(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    job = _seed_grocery_job(
+        session, key="overlay-ok", status="succeeded", result=dict(PLAN_RESULT)
+    )
+    override_estimator(FixedEstimator())
+    try:
+        response = client.get(f"/grocery/jobs/{job.id}")
+    finally:
+        clear_estimator_override()
+    body = response.json()
+    stored = session.get(Job, job.id)
+
+    assert response.status_code == 200
+    estimate = body["result"]["supermarket_estimate"]
+    assert isinstance(estimate, dict)
+    assert isinstance(estimate["lines"], list)
+    assert estimate["lines"]
+    assert stored is not None
+    assert isinstance(stored.result, dict)
+    assert "supermarket_estimate" not in stored.result
+
+
+def test_succeeded_grocery_job_keeps_stored_result_without_estimator(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    get_supermarket_estimator.cache_clear()
+    stored_result = dict(PLAN_RESULT)
+    job = _seed_grocery_job(
+        session, key="overlay-none", status="succeeded", result=stored_result
+    )
+    response = client.get(f"/grocery/jobs/{job.id}")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["result"] == stored_result
+    assert "supermarket_estimate" not in body["result"]
+
+
+@pytest.mark.parametrize("status", ["queued", "failed"])
+def test_unfinished_grocery_job_does_not_call_estimator(
+    client: TestClient, session: Session, seed_user: UserSeeder, status: str
+) -> None:
+    seed_user()
+    job = _seed_grocery_job(
+        session, key=f"overlay-{status}", status=status, result=dict(PLAN_RESULT)
+    )
+    override_estimator(ForbiddenEstimator())
+    try:
+        response = client.get(f"/grocery/jobs/{job.id}")
+    finally:
+        clear_estimator_override()
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["status"] == status
+    assert body["result"] == PLAN_RESULT
+    assert "supermarket_estimate" not in body["result"]

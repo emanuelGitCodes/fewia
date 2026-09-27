@@ -16,7 +16,7 @@ from app.api.grocery_models import (
     GroceryJobAccepted,
     GroceryJobView,
 )
-from app.deps import get_provider_settings, get_session
+from app.deps import get_provider_settings, get_session, get_supermarket_estimator
 from app.domain.budget import NEW_YORK
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -36,6 +36,10 @@ from app.services.grocery_context import (
 )
 from app.services.job_submission import IdempotencyConflict, create_job
 from app.services.plan_job import PlanJobInput, SpendingInput
+from app.services.supermarket_overlay import (
+    IngredientCostEstimator,
+    attach_supermarket_estimate,
+)
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 DEMO_USER_ID = 1
@@ -154,14 +158,21 @@ def create_grocery_job(
 
 @router.get("/jobs/{job_id}")
 def read_grocery_job(
-    job_id: UUID, session: Annotated[Session, Depends(get_session)]
+    job_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    estimator: Annotated[
+        IngredientCostEstimator | None, Depends(get_supermarket_estimator)
+    ],
 ) -> GroceryJobView:
     job = session.get(Job, str(job_id))
     if job is None or job.user_id != DEMO_USER_ID or job.kind != "agent":
         raise HTTPException(status_code=404, detail="Job not found")
+    result = job.result
+    if job.status == "succeeded" and isinstance(result, dict) and estimator is not None:
+        result = attach_supermarket_estimate(result, estimator)
     return GroceryJobView(
         id=job.id,
         status=job.status,
-        result=job.result,
+        result=result,
         error_code=job.error_code,
     )
