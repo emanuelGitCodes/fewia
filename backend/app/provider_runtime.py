@@ -3,6 +3,7 @@
 from typing import TypedDict
 
 from app.agent.provider import LLMProvider
+from app.domain.budget import SpendingSource
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
@@ -13,7 +14,6 @@ from app.providers.bedrock import BedrockConverseProvider
 from app.providers.instacart import InstacartDevelopmentProvider
 from app.providers.plaid import PlaidSandboxProvider
 from app.providers.spoonacular import SpoonacularEstimateProvider
-from app.services.grocery_context import SpendingSource
 
 
 class ProviderCapabilities(TypedDict):

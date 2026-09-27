@@ -6,9 +6,8 @@ from typing import TypeGuard, cast, get_args
 from pydantic import ValidationError
 
 from app.agent.chat_messages import ChatProtocolError
-from app.domain.budget import BudgetResult
+from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.grocery import GroceryRequest
-from app.services.grocery_context import SpendingSource
 
 MAX_MESSAGE_LEN = 4000
 MAX_HISTORY = 8

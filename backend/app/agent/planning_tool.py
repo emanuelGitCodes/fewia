@@ -7,9 +7,8 @@ from typing import cast, get_args
 
 from pydantic import ValidationError
 
-from app.domain.budget import BudgetResult
+from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.grocery import GroceryRequest
-from app.services.grocery_context import SpendingSource
 from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
 from app.services.meal_nutrition import meal_nutrition
 from app.services.supermarket_overlay import (

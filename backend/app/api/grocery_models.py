@@ -5,8 +5,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
+from app.domain.budget import SpendingSource
 from app.domain.grocery import GroceryRequest
-from app.services.grocery_context import SpendingSource
 
 
 class CatalogRef(BaseModel):

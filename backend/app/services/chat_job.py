@@ -9,10 +9,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import run_chat
 from app.agent.provider import LLMProvider
-from app.domain.budget import SpendingSnapshot, calculate_budget
+from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
-from app.services.grocery_context import SpendingSource
 from app.services.plan_job import SpendingInput
 
 

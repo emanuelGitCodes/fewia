@@ -1,26 +1,21 @@
 """Build server-owned grocery spending input for HTTP jobs."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy.orm import Session
 
 from app.domain.budget import NEW_YORK
+from app.domain.budget import SpendingSource as SpendingSource
 from app.services.ledger_budget import (
     SpendingUnavailable as SpendingUnavailable,
 )
 from app.services.ledger_budget import (
     load_spending,
 )
-
-if TYPE_CHECKING:
-    from app.services.plan_job import SpendingInput
+from app.services.plan_job import SpendingInput
 
 FIXTURE_POSTED_CENTS = 18000
 FIXTURE_PENDING_CENTS = 1200
-SpendingSource = Literal["manual", "fixture", "plaid_sandbox"]
 
 
 def spending_input(
@@ -29,8 +24,6 @@ def spending_input(
     source: str,
     now: datetime,
 ) -> SpendingInput:
-    from app.services.plan_job import SpendingInput
-
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now MUST be timezone-aware")
     period = now.astimezone(NEW_YORK).date().replace(day=1)

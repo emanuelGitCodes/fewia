@@ -11,8 +11,7 @@ from pydantic import (
 )
 
 from app.agent.planning_tool import execute_plan
-from app.domain.budget import SpendingSnapshot, calculate_budget
-from app.services.grocery_context import SpendingSource
+from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.services.plan_job import SpendingInput
 
 _SNAPSHOT_ERROR = "evidence snapshot is invalid"

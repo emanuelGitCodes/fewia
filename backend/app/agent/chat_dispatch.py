@@ -3,8 +3,7 @@ from datetime import date
 
 from app.agent import chat_messages as msgs
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
-from app.domain.budget import BudgetResult
-from app.services.grocery_context import SpendingSource
+from app.domain.budget import BudgetResult, SpendingSource
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
 

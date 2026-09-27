@@ -6,9 +6,8 @@ from app.agent.chat_context import build_messages, read_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.provider import LLMProvider
-from app.domain.budget import BudgetResult
+from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
-from app.services.grocery_context import SpendingSource
 
 MAX_MODEL_TURNS = 8
 MAX_PLANNER_REVISIONS = 3

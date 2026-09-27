@@ -8,7 +8,7 @@ from typing import Literal, NoReturn
 from pydantic import SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.services.grocery_context import SpendingSource
+from app.domain.budget import SpendingSource
 
 _MAX_FILE_BYTES = 65536
 

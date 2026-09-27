@@ -4,9 +4,8 @@ from datetime import UTC, date, datetime
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 
 from app.agent.planning_tool import execute_plan
-from app.domain.budget import SpendingSnapshot, calculate_budget
+from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.domain.grocery import GroceryRequest
-from app.services.grocery_context import SpendingSource
 from app.services.supermarket_overlay import IngredientCostEstimator
 
 
