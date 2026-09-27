@@ -17,18 +17,13 @@ _KEY_FILE_ERROR = "FEWIA_USDA_FDC_KEY_FILE is unset, missing, or blank."
 _MAX_FILE_BYTES = 65536
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 _SCALE = {"208": 1, "203": 1000, "204": 1000, "205": 1000, "307": 1000}
-_COMPARE_FIELDS = (
-    "energy_kcal",
-    "protein_mg",
-    "fat_mg",
-    "carbohydrate_mg",
-    "sodium_mg",
+_COMPARE_FIELDS = tuple(
+    "energy_kcal protein_mg fat_mg carbohydrate_mg sodium_mg".split()
 )
 
 
 def _load_api_key() -> str | None:
-    raw_path = os.environ.get(KEY_FILE_ENV)
-    if raw_path is None or not raw_path.strip():
+    if not (raw_path := os.environ.get(KEY_FILE_ENV)) or not raw_path.strip():
         return None
     try:
         with Path(raw_path.strip()).open("rb") as handle:
@@ -59,10 +54,8 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
         if not isinstance(item, dict):
             return None
         raw: object = item.get("nutrientNumber")
-        if raw is None:
-            nested = item.get("nutrient")
-            if isinstance(nested, dict):
-                raw = nested.get("number")
+        if raw is None and isinstance(nested := item.get("nutrient"), dict):
+            raw = nested.get("number")
         if isinstance(raw, bool):
             continue
         number = str(raw) if isinstance(raw, int) else raw
@@ -106,10 +99,9 @@ def fetch_facts(
     if response.status_code != 200:
         return None
     try:
-        payload: object = json.loads(response.content)
+        return _parse_facts(fdc_id, json.loads(response.content))
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
         return None
-    return _parse_facts(fdc_id, payload)
 
 
 def compare(
@@ -137,7 +129,6 @@ def main() -> None:
     if api_key is None:
         print(_KEY_FILE_ERROR)
         raise SystemExit(2)
-    lines: list[str] = []
     with httpx.Client(
         timeout=_TIMEOUT,
         follow_redirects=False,
