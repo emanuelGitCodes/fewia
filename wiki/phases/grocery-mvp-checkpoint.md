@@ -1,7 +1,7 @@
 # Grocery MVP checkpoint for professor feedback
 
 - **Date**: 2026-09-08
-- **Status**: live chat VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Feature work is PAUSED as the user requested. This is not a completed AI product.
+- **Status**: feature work resumed on 2026-09-27. Read "Current state" first. The sections after it record the 2026-09-08 checkpoint. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Decision**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md)
 - **Local proof store**: [log.md](../log.md)
@@ -11,7 +11,34 @@
 - **GitHub checks**: Backend checks passed. Frontend checks passed.
 - **Local branch**: `codex/bedrock-development-role`. Not pushed. Not merged.
 
-This page preserves the current grocery demo. It does not expand features.
+This page preserves the grocery demo for professor feedback. The first
+section records the state on `main` on 2026-09-30.
+
+## Current state
+
+- **Chat transfer.** A saved manual plan feeds chat. Unsaved form edits
+  need a rebuild first. This shipped on 2026-09-09. The sections below
+  still call it unfinished.
+- **Budget.** The default spending source is `manual`. The monthly limit
+  that the user enters is the whole budget. `fixture` and `plaid_sandbox`
+  stay valid settings. Plaid is paused until the end of the project.
+- **Nutrition.** The estimate shows USDA FoodData Central nutrition for
+  each meal and for the plan.
+- **Supermarket prices.** The estimate shows a Spoonacular average for
+  each purchased line and for the plan. The API computes it at read time
+  and stores none. Budget acceptance still uses sample-catalog cents.
+  Decision [0016](../decisions/0016-spoonacular-read-time-overlay.md)
+  records the rules.
+- **Instacart.** The handoff is parked. Instacart Developer Platform does
+  not accept new applicants. Decision
+  [0010](../decisions/0010-usda-spoonacular-overlay.md) records this. The
+  shopping button stays hidden.
+- **Evaluation.** The runner scores the budget and meal groups, F03, and
+  X01. The provider-failure group, the adversarial group, and the cases
+  that need the model stay unassessed. No 90-run evaluation has run.
+
+The demo outline below still uses fixture spending. With the `manual`
+source, a $100 limit shows $100 available.
 
 ## Active product
 

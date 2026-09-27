@@ -21,6 +21,7 @@ chronological record lives in [log.md](log.md).
 - [0013 — Claude Code as senior coordinator](decisions/0013-claude-senior-coordinator.md)
 - [0014 — Tiered delegation and token budgets](decisions/0014-tiered-delegation.md)
 - [0015 — Writer routing by difficulty](decisions/0015-writer-routing-by-difficulty.md)
+- [0016 — Spoonacular prices at read time, user-entered budget](decisions/0016-spoonacular-read-time-overlay.md)
 
 ## Phases
 
