@@ -5,6 +5,7 @@ import pytest
 from app.domain.supermarket_estimate import (
     SPOONACULAR_COST_NOTICE,
     SupermarketEstimate,
+    SupermarketLine,
 )
 
 
@@ -55,3 +56,22 @@ def test_supermarket_estimate_is_frozen() -> None:
     result = estimate()
     with pytest.raises(FrozenInstanceError):
         result.total_cents = 1  # type: ignore[misc]
+
+
+def test_rejects_negative_line_cents() -> None:
+    with pytest.raises(
+        ValueError, match="cents MUST be a non-negative integer or None"
+    ) as caught:
+        SupermarketLine(ingredient_id="eggs", cents=-1)
+    assert "-1" not in str(caught.value)
+
+
+def test_rejects_non_int_line_cents() -> None:
+    with pytest.raises(
+        ValueError, match="cents MUST be a non-negative integer or None"
+    ):
+        SupermarketLine(ingredient_id="eggs", cents=1.5)  # type: ignore[arg-type]
+    with pytest.raises(
+        ValueError, match="cents MUST be a non-negative integer or None"
+    ):
+        SupermarketLine(ingredient_id="eggs", cents=True)  # type: ignore[arg-type]
