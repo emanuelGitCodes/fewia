@@ -2,11 +2,11 @@
 
 import json
 from datetime import date, datetime
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.domain.grocery import GroceryRequest
+from app.services.grocery_context import SpendingSource
 
 
 class CatalogRef(BaseModel):
@@ -16,7 +16,7 @@ class CatalogRef(BaseModel):
 
 class GroceryConfig(BaseModel):
     budget_period: date
-    source: Literal["fixture", "plaid_sandbox"]
+    source: SpendingSource
     posted_cents: int
     pending_cents: int
     notice: str

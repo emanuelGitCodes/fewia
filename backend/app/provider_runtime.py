@@ -1,6 +1,6 @@
 """Build configured grocery providers from settings."""
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from app.agent.provider import LLMProvider
 from app.provider_settings import (
@@ -13,13 +13,14 @@ from app.providers.bedrock import BedrockConverseProvider
 from app.providers.instacart import InstacartDevelopmentProvider
 from app.providers.plaid import PlaidSandboxProvider
 from app.providers.spoonacular import SpoonacularEstimateProvider
+from app.services.grocery_context import SpendingSource
 
 
 class ProviderCapabilities(TypedDict):
     chat_configured: bool
     plaid_configured: bool
     instacart_configured: bool
-    spending_source: Literal["fixture", "plaid_sandbox"]
+    spending_source: SpendingSource
 
 
 def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:

@@ -1,10 +1,10 @@
 from collections.abc import Callable
 from datetime import date
-from typing import Literal
 
 from app.agent import chat_messages as msgs
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult
+from app.services.grocery_context import SpendingSource
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
 
@@ -87,7 +87,7 @@ def dispatch(
     budget: BudgetResult,
     period: date,
     user_id: int,
-    source: Literal["fixture", "plaid_sandbox"],
+    source: SpendingSource,
     trace: list[dict[str, object]],
     record_evidence: EvidenceRecorder | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:

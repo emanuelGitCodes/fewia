@@ -87,6 +87,25 @@ def test_catalog_ref_fields_exclude_price() -> None:
     assert "price" not in item.model_dump()
 
 
+def test_config_accepts_manual_zero_spending() -> None:
+    config = GroceryConfig(
+        budget_period=date(2026, 9, 1),
+        source="manual",
+        posted_cents=0,
+        pending_cents=0,
+        notice=SAMPLE_ESTIMATE_NOTICE,
+        recipes=[CatalogRef(id="bean_tacos", name="bean tacos")],
+        ingredients=[CatalogRef(id="beans", name="beans")],
+    )
+    dumped = config.model_dump(mode="json")
+
+    assert dumped["source"] == "manual"
+    assert dumped["posted_cents"] == 0
+    assert dumped["pending_cents"] == 0
+    with pytest.raises(ValidationError):
+        GroceryConfig.model_validate({**dumped, "source": "live"})
+
+
 def test_config_keeps_sample_price_notice() -> None:
     config = GroceryConfig(
         budget_period=date(2026, 9, 1),

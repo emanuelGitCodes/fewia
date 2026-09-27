@@ -1,17 +1,17 @@
 from dataclasses import asdict
 from datetime import date
 from json import dumps
-from typing import Literal, TypeGuard, cast
+from typing import TypeGuard, cast, get_args
 
 from pydantic import ValidationError
 
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult
 from app.domain.grocery import GroceryRequest
+from app.services.grocery_context import SpendingSource
 
 MAX_MESSAGE_LEN = 4000
 MAX_HISTORY = 8
-_SOURCES = frozenset({"fixture", "plaid_sandbox"})
 _ROLES = ("user", "assistant")
 _REQUEST = "request is invalid"
 _PREVIOUS = "previous_request is invalid"
@@ -84,7 +84,7 @@ def build_messages(
     period: date,
     *,
     user_id: int = 1,
-    spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
+    spending_source: SpendingSource = "fixture",
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
 ) -> list[dict[str, object]]:
@@ -92,7 +92,7 @@ def build_messages(
         not _public_text(message)
         or not _exact_int(user_id)
         or user_id < 1
-        or spending_source not in _SOURCES
+        or spending_source not in get_args(SpendingSource)
         or type(period) is not date
         or period.day != 1
         or not _budget_ok(budget)

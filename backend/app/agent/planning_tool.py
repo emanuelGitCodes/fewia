@@ -3,12 +3,13 @@ import json
 from calendar import monthrange
 from dataclasses import asdict
 from datetime import date
-from typing import Literal, cast
+from typing import cast, get_args
 
 from pydantic import ValidationError
 
 from app.domain.budget import BudgetResult
 from app.domain.grocery import GroceryRequest
+from app.services.grocery_context import SpendingSource
 from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
 from app.services.meal_nutrition import meal_nutrition
 from app.services.supermarket_overlay import (
@@ -18,7 +19,6 @@ from app.services.supermarket_overlay import (
 from app.tools.base import build_evidence_id
 
 TOOL_NAME = "plan_groceries"
-_VALID_SOURCES: frozenset[str] = frozenset({"fixture", "plaid_sandbox"})
 
 
 class PlanningToolError(ValueError):
@@ -47,13 +47,13 @@ def execute_plan(
     period: date,
     *,
     user_id: int = 1,
-    spending_source: Literal["fixture", "plaid_sandbox"] = "fixture",
+    spending_source: SpendingSource = "fixture",
     supermarket_estimator: IngredientCostEstimator | None = None,
 ) -> dict[str, object]:
     """Return a deterministic grocery plan from validated tool arguments."""
     if type(user_id) is not int or user_id < 1:
         raise PlanningToolError("user_id is invalid")
-    if spending_source not in _VALID_SOURCES:
+    if spending_source not in get_args(SpendingSource):
         raise PlanningToolError("spending_source is invalid")
     if type(period) is not date or period.day != 1:
         raise PlanningToolError("period is invalid")

@@ -116,6 +116,24 @@ def test_sandbox_zero_totals_stay_ledger_values(
     assert result.refreshed_at == SANDBOX_REFRESH
 
 
+def test_manual_returns_zero_cost_and_rejects_naive_time(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_args: object, **_kwargs: object) -> SpendingSnapshot:
+        raise AssertionError("manual mode MUST NOT load ledger spending")
+
+    monkeypatch.setattr("app.services.grocery_context.load_spending", boom)
+    result = spending_input(session, 1, "manual", FIXED_NY)
+    naive = datetime(2026, 9, 6, 12, 0)
+
+    assert result.period == date(2026, 9, 1)
+    assert result.posted_cents == 0
+    assert result.pending_cents == 0
+    assert result.refreshed_at == FIXED_NY.astimezone(UTC)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        spending_input(session, 1, "manual", naive)
+
+
 def test_rejects_naive_current_time(session: Session) -> None:
     naive = datetime(2026, 9, 6, 12, 0)
     with pytest.raises(ValueError, match="timezone-aware"):

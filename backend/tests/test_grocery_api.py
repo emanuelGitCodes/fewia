@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
 from app.api.grocery_models import CreateGroceryJobBody
-from app.domain.budget import NEW_YORK, SpendingSnapshot
+from app.domain.budget import NEW_YORK, SpendingSnapshot, calculate_budget
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.job_models import Job, JobOutbox
@@ -156,7 +156,7 @@ def stored_plan_payload(
     )
 
 
-def test_config_returns_fixture_values_and_catalog_names(
+def test_config_returns_manual_values_and_catalog_names(
     client: TestClient,
 ) -> None:
     response = client.get("/grocery/config")
@@ -166,9 +166,9 @@ def test_config_returns_fixture_values_and_catalog_names(
 
     assert response.status_code == 200
     assert body["budget_period"] == "2026-09-01"
-    assert body["source"] == "fixture"
-    assert body["posted_cents"] == FIXTURE_POSTED_CENTS
-    assert body["pending_cents"] == FIXTURE_PENDING_CENTS
+    assert body["source"] == "manual"
+    assert body["posted_cents"] == 0
+    assert body["pending_cents"] == 0
     assert body["catalog_version"] == CATALOG_VERSION
     refreshed = datetime.fromisoformat(
         str(body["spending_refreshed_at"]).replace("Z", "+00:00")
@@ -187,6 +187,21 @@ def test_config_returns_fixture_values_and_catalog_names(
     for item in catalog:
         assert set(item) == {"id", "name"}
         assert "price" not in item
+
+
+def test_config_returns_fixture_posted_and_pending(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    use_settings(monkeypatch, GroceryProviderSettings(spending_source="fixture"))
+    response = client.get("/grocery/config")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["source"] == "fixture"
+    assert body["posted_cents"] == FIXTURE_POSTED_CENTS
+    assert body["pending_cents"] == FIXTURE_PENDING_CENTS
+    assert body["posted_cents"] == 18000
+    assert body["pending_cents"] == 1200
 
 
 def test_repeated_identical_request_reuses_job_and_outbox(
@@ -540,12 +555,41 @@ def test_caller_cannot_inject_spending_or_user(
     assert accepted.status_code == 202
     assert job is not None
     payload = job.payload
-    assert payload["spending_source"] == "fixture"
-    assert payload["spending"]["posted_cents"] == FIXTURE_POSTED_CENTS
-    assert payload["spending"]["pending_cents"] == FIXTURE_PENDING_CENTS
+    assert payload["spending_source"] == "manual"
+    assert payload["spending"]["posted_cents"] == 0
+    assert payload["spending"]["pending_cents"] == 0
     parsed = parse_refreshed_at(payload)
     assert parsed == FIXED_NY.astimezone(UTC)
     PlanJobInput.model_validate(payload)
+
+
+def test_manual_job_uses_full_monthly_limit(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    response = post_job(
+        client, body=job_body(monthly_limit_cents=10000), key="manual-limit"
+    )
+    job = session.get(Job, response.json()["job_id"])
+
+    assert response.status_code == 202
+    assert job is not None
+    parsed = PlanJobInput.model_validate(job.payload)
+    assert parsed.spending_source == "manual"
+    assert parsed.spending.posted_cents == 0
+    assert parsed.spending.pending_cents == 0
+    budget = calculate_budget(
+        parsed.monthly_limit_cents,
+        SpendingSnapshot(
+            parsed.spending.period,
+            parsed.spending.posted_cents,
+            parsed.spending.pending_cents,
+            parsed.spending.refreshed_at,
+        ),
+        now=FIXED_NY,
+        plan_cap_cents=parsed.request.plan_cap_cents,
+    )
+    assert budget.available_cents == 10000
 
 
 def test_invalid_idempotency_key_is_rejected(
