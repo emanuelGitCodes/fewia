@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   SAMPLE_ESTIMATE_NOTICE,
   SPOONACULAR_COST_NOTICE,
+  type CatalogItem,
   type GroceryJob,
   type PlanLine,
   type SupermarketEstimate,
@@ -46,6 +47,7 @@ function succeeded(overrides: {
   planWarnings?: string[];
   budgetWarnings?: string[];
   supermarket_estimate?: SupermarketEstimate;
+  omitNutrition?: boolean;
 } = {}): GroceryJob {
   const lines = overrides.lines ?? [line(), line({ ingredient_id: "tortillas", name: "tortillas", unit: "ct", quantity: 8, packages: 1, cost_cents: 349 })];
   return {
@@ -54,7 +56,7 @@ function succeeded(overrides: {
     error_code: null,
     result: {
       spending_source: overrides.source ?? "fixture",
-      meal_nutrition: sampleNutrition(),
+      ...(overrides.omitNutrition === true ? {} : { meal_nutrition: sampleNutrition() }),
       budget: {
         available_cents: overrides.available ?? 5000,
         pending_cents: overrides.pending ?? 200,
@@ -82,6 +84,7 @@ function mount(
     pending: boolean;
     dirty: boolean;
     pantry: string[];
+    recipes: CatalogItem[];
     onPantryToggle: (id: string) => void;
     onRebuild: () => void | Promise<void>;
     rebuildDisabled: boolean;
@@ -95,6 +98,7 @@ function mount(
         pending: props.pending ?? false,
         dirty: props.dirty ?? false,
         pantry: props.pantry ?? [],
+        recipes: props.recipes ?? [],
         onPantryToggle: props.onPantryToggle ?? ((): void => {}),
         onRebuild: props.onRebuild,
         rebuildDisabled: props.rebuildDisabled,
@@ -334,6 +338,13 @@ describe("Estimate", () => {
       expect(box.props.checked).toBe(false);
     }
     expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    expect(childText(renderer.root)).toContain("$4.78");
+    renderer.unmount();
+  });
+
+  it("omits nutrition when meal_nutrition is undefined", () => {
+    const renderer = mount({ job: succeeded({ omitNutrition: true }) });
+    expect(childText(renderer.root)).not.toContain("Estimated nutrition");
     expect(childText(renderer.root)).toContain("$4.78");
     renderer.unmount();
   });
