@@ -326,6 +326,15 @@ def test_request_constraints_raise_static_errors(
     assert str(caught.value) == "request is invalid"
 
 
+def test_build_messages_accepts_manual_and_rejects_unknown_source() -> None:
+    messages = build_messages("ok", budget(), PERIOD, spending_source="manual")
+    assert messages[0]["role"] == "user"
+    with pytest.raises(ChatProtocolError) as caught:
+        build_messages("ok", budget(), PERIOD, spending_source="unknown")
+    _assert_static(caught.value, "unknown")
+    assert str(caught.value) == "request is invalid"
+
+
 def test_messages_match_json_native_converse_input() -> None:
     messages = build_messages(
         "hello",

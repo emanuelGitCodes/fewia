@@ -228,6 +228,18 @@ describe("Estimate", () => {
     over.unmount();
   });
 
+  it("hides pending amounts for a manual spending source", () => {
+    const manual = mount({ job: succeeded({ source: "manual" }) });
+    expect(childText(manual.root)).toContain("Source Your entered budget");
+    expect(manual.root.findAllByProps({ className: "estimate-pending" })).toHaveLength(0);
+    expect(childText(manual.root)).not.toContain("Pending $");
+    manual.unmount();
+    const fixture = mount({ job: succeeded({ source: "fixture" }) });
+    expect(childText(fixture.root)).toContain("Pending $2.00");
+    expect(fixture.root.findAllByProps({ className: "estimate-pending" })).toHaveLength(1);
+    fixture.unmount();
+  });
+
   it("labels fixture and Plaid Sandbox and marks unknown sources including plaid", () => {
     const fixture = mount({ job: succeeded({ source: "fixture" }) });
     expect(childText(fixture.root)).toContain("Source Demo spending");

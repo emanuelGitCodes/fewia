@@ -4,6 +4,7 @@ import type {
   GroceryRequest,
   JobStatus,
   MealPlanNutrition,
+  SpendingSource,
 } from "./apiTypes";
 
 export type ChatResultStatus =
@@ -13,7 +14,7 @@ export type ChatResultStatus =
   | "limit"
   | "incomplete";
 
-export type ChatSpendingSource = "fixture" | "plaid_sandbox";
+export type ChatSpendingSource = SpendingSource;
 
 export type ChatToolOutcome = "success" | "error";
 

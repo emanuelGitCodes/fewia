@@ -107,7 +107,7 @@ def test_unconfigured_defaults_have_zero_effects(
         "chat_configured": False,
         "plaid_configured": False,
         "instacart_configured": False,
-        "spending_source": "fixture",
+        "spending_source": "manual",
     }
 
 

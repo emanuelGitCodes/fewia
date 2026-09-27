@@ -3,6 +3,7 @@ import {
   isNonemptyString,
   isRecord,
   isSafeInteger,
+  isSpendingSource,
   isStatus,
   isString,
   type GroceryRequest,
@@ -94,7 +95,7 @@ export function parseChatResult(value: unknown): ChatResult {
     status === "limit" || status === "incomplete";
   if (
     traces === null || !knownStatus || !isNonemptyString(value.answer) ||
-    (value.spending_source !== "fixture" && value.spending_source !== "plaid_sandbox") ||
+    !isSpendingSource(value.spending_source) ||
     !isSafeInteger(value.model_turns) || value.model_turns < 0 || value.model_turns > 8 ||
     !isSafeInteger(value.planner_revisions) || value.planner_revisions < 0 ||
     value.planner_revisions > 3 || (value.usage !== null && !isUsage(value.usage))

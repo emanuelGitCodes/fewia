@@ -192,6 +192,15 @@ def test_notice_and_source_are_retained() -> None:
     assert sandbox["spending_source"] == "plaid_sandbox"
 
 
+def test_manual_source_is_retained_and_unknown_raises() -> None:
+    manual = execute_plan(arguments(), budget(), PERIOD, spending_source="manual")
+    assert manual["spending_source"] == "manual"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(), budget(), PERIOD, spending_source="unknown")
+    _assert_static(caught.value, "unknown")
+    assert str(caught.value) == "spending_source is invalid"
+
+
 def _expected_evidence(result: dict[str, object], user_id: int = 1) -> str:
     last_day = monthrange(PERIOD.year, PERIOD.month)[1]
     digest = sha256(
