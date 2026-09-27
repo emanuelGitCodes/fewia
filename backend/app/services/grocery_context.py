@@ -21,7 +21,7 @@ FIXTURE_PENDING_CENTS = 1200
 def spending_input(
     session: Session,
     user_id: int,
-    source: str,
+    source: SpendingSource,
     now: datetime,
 ) -> SpendingInput:
     if now.tzinfo is None or now.utcoffset() is None:
