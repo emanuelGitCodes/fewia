@@ -17,7 +17,7 @@ KEY_FILE_ENV = "FEWIA_USDA_FDC_KEY_FILE"
 _KEY_FILE_ERROR = "FEWIA_USDA_FDC_KEY_FILE is unset, missing, or blank."
 _TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 _ENERGY_NUMBERS = ("208", "957", "958")
-_MACRO_SCALE = {"203": 1000, "204": 1000, "205": 1000, "307": 1000}
+_MACRO_NUMBERS = ("203", "204", "205", "307")
 _FIELDS = ("energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg", "sodium_mg")
 
 
@@ -41,19 +41,15 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
     for item in nutrients:
         if not isinstance(item, dict):
             return None
-        raw: object = item.get("nutrientNumber")
-        nested = item.get("nutrient")
-        if raw is None and isinstance(nested, dict):
-            raw = nested.get("number")
+        raw: object = item.get("number")
         if isinstance(raw, bool):
             continue
         number = str(raw) if isinstance(raw, int) else raw
         if not isinstance(number, str):
             continue
-        scale = 1 if number in _ENERGY_NUMBERS else _MACRO_SCALE.get(number)
-        if scale is None:
+        if number not in _ENERGY_NUMBERS and number not in _MACRO_NUMBERS:
             continue
-        amount = item.get("value")
+        amount = item.get("amount")
         if isinstance(amount, bool) or not isinstance(amount, int | float):
             return None
         try:
@@ -62,11 +58,16 @@ def _parse_facts(fdc_id: int, payload: object) -> NutritionFacts | None:
             return None
         if parsed != parsed or abs(parsed) == float("inf"):
             return None
-        values[number] = int(round(parsed * scale))
+        unit = item.get("unitName")
+        if unit == "G":
+            parsed *= 1000
+        elif unit != "MG" and (unit != "KCAL" or number not in _ENERGY_NUMBERS):
+            return None
+        values[number] = int(round(parsed))
         if values[number] < 0:
             return None
     energy = next((values[n] for n in _ENERGY_NUMBERS if n in values), None)
-    if energy is None or not all(n in values for n in _MACRO_SCALE):
+    if energy is None or not all(n in values for n in _MACRO_NUMBERS):
         return None
     try:
         return NutritionFacts(

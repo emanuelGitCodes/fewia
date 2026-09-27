@@ -1,5 +1,6 @@
 """Tests for the USDA FoodData Central refresh command."""
 
+import json
 from pathlib import Path
 
 import httpx
@@ -10,13 +11,15 @@ from app.usda_refresh import compare, fetch_facts, main
 
 FAKE_API_KEY = "FAKE_USDA_FDC_KEY_VALUE"
 FDC_ID = 171077
+REAL_FDC_ID = 173735
+REAL_ABRIDGED = Path(__file__).parent / "fixtures" / "usda_173735_abridged.json"
 ABRIDGED_PAYLOAD = {
     "foodNutrients": [
-        {"nutrientNumber": "208", "value": 120.4},
-        {"nutrientNumber": "203", "value": 22.5},
-        {"nutrientNumber": "204", "value": 2.62},
-        {"nutrientNumber": "205", "value": 0},
-        {"nutrientNumber": "307", "value": 0.045},
+        {"number": "208", "amount": 120.4, "unitName": "KCAL"},
+        {"number": "203", "amount": 22.5, "unitName": "G"},
+        {"number": "204", "amount": 2.62, "unitName": "G"},
+        {"number": "205", "amount": 0, "unitName": "G"},
+        {"number": "307", "amount": 45, "unitName": "MG"},
     ]
 }
 PARSED_ABRIDGED = NutritionFacts(
@@ -29,7 +32,7 @@ PARSED_ABRIDGED = NutritionFacts(
 )
 
 
-def _fetch_payload(payload: object) -> NutritionFacts | None:
+def _fetch_payload(payload: object, fdc_id: int = FDC_ID) -> NutritionFacts | None:
     def handler(request: httpx.Request) -> httpx.Response:
         del request
         return httpx.Response(200, json=payload)
@@ -40,7 +43,7 @@ def _fetch_payload(payload: object) -> NutritionFacts | None:
         trust_env=False,
     )
     try:
-        return fetch_facts(FDC_ID, client, FAKE_API_KEY)
+        return fetch_facts(fdc_id, client, FAKE_API_KEY)
     finally:
         client.close()
 
@@ -52,11 +55,11 @@ def test_fetch_facts_parses_abridged_payload() -> None:
 def test_fetch_facts_parses_energy_nutrient_957() -> None:
     payload = {
         "foodNutrients": [
-            {"nutrientNumber": "957", "value": 120.4},
-            {"nutrientNumber": "203", "value": 22.5},
-            {"nutrientNumber": "204", "value": 2.62},
-            {"nutrientNumber": "205", "value": 0},
-            {"nutrientNumber": "307", "value": 0.045},
+            {"number": "957", "amount": 120.4, "unitName": "KCAL"},
+            {"number": "203", "amount": 22.5, "unitName": "G"},
+            {"number": "204", "amount": 2.62, "unitName": "G"},
+            {"number": "205", "amount": 0, "unitName": "G"},
+            {"number": "307", "amount": 45, "unitName": "MG"},
         ]
     }
     facts = _fetch_payload(payload)
@@ -68,10 +71,10 @@ def test_fetch_facts_parses_energy_nutrient_957() -> None:
 def test_fetch_facts_returns_none_when_protein_missing() -> None:
     payload = {
         "foodNutrients": [
-            {"nutrientNumber": "208", "value": 120.4},
-            {"nutrientNumber": "204", "value": 2.62},
-            {"nutrientNumber": "205", "value": 0},
-            {"nutrientNumber": "307", "value": 0.045},
+            {"number": "208", "amount": 120.4, "unitName": "KCAL"},
+            {"number": "204", "amount": 2.62, "unitName": "G"},
+            {"number": "205", "amount": 0, "unitName": "G"},
+            {"number": "307", "amount": 45, "unitName": "MG"},
         ]
     }
     assert _fetch_payload(payload) is None
@@ -80,14 +83,42 @@ def test_fetch_facts_returns_none_when_protein_missing() -> None:
 def test_fetch_facts_returns_none_when_nutrient_value_overflows_float() -> None:
     payload = {
         "foodNutrients": [
-            {"nutrientNumber": "208", "value": 10**400},
-            {"nutrientNumber": "203", "value": 22.5},
-            {"nutrientNumber": "204", "value": 2.62},
-            {"nutrientNumber": "205", "value": 0},
-            {"nutrientNumber": "307", "value": 0.045},
+            {"number": "208", "amount": 10**400, "unitName": "KCAL"},
+            {"number": "203", "amount": 22.5, "unitName": "G"},
+            {"number": "204", "amount": 2.62, "unitName": "G"},
+            {"number": "205", "amount": 0, "unitName": "G"},
+            {"number": "307", "amount": 45, "unitName": "MG"},
         ]
     }
     assert _fetch_payload(payload) is None
+
+
+def test_fetch_facts_returns_none_when_tracked_unit_is_unexpected() -> None:
+    payload = {
+        "foodNutrients": [
+            {"number": "208", "amount": 120.4, "unitName": "kJ"},
+            {"number": "203", "amount": 22.5, "unitName": "G"},
+            {"number": "204", "amount": 2.62, "unitName": "G"},
+            {"number": "205", "amount": 0, "unitName": "G"},
+            {"number": "307", "amount": 45, "unitName": "MG"},
+        ]
+    }
+    assert _fetch_payload(payload) is None
+
+
+def test_fetch_facts_parses_real_usda_173735_abridged() -> None:
+    payload = json.loads(REAL_ABRIDGED.read_text(encoding="utf-8"))
+    carb_g = next(
+        item["amount"] for item in payload["foodNutrients"] if item["number"] == "205"
+    )
+    facts = _fetch_payload(payload, fdc_id=REAL_FDC_ID)
+    assert facts is not None
+    assert facts.fdc_id == REAL_FDC_ID
+    assert facts.energy_kcal == 132
+    assert facts.protein_mg == 8860
+    assert facts.fat_mg == 540
+    assert facts.sodium_mg == 1
+    assert facts.carbohydrate_mg == int(round(carb_g * 1000))
 
 
 def test_compare_reports_diff_unavailable_and_skips_match() -> None:
