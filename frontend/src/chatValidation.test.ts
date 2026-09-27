@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { NUTRITION_NOTICE, SHAPE_ERROR } from "./apiTypes";
+import { NUTRITION_NOTICE, SHAPE_ERROR, SPOONACULAR_COST_NOTICE } from "./apiTypes";
 import { budget, line, mealPlanNutrition, plan } from "../tests/apiFixtures";
 import { parseChatJob, parseChatResult } from "./chatValidation";
 
@@ -258,6 +258,18 @@ describe("parseChatResult", () => {
         }),
       }),
     );
+  });
+
+  it("copies supermarket_estimate when present and omits it when absent", () => {
+    const overlay = {
+      total_cents: 1299,
+      notice: SPOONACULAR_COST_NOTICE,
+      lines: [{ ingredient_id: "black_beans", cents: 199 }],
+    };
+    const parsed = parseChatResult(candidate({ supermarket_estimate: overlay }));
+    expect(parsed.supermarket_estimate).toEqual(overlay);
+    const omitted = parseChatResult(candidate());
+    expect("supermarket_estimate" in omitted).toBe(false);
   });
 
   it("deep-copies meal_nutrition and does not mutate the input", () => {

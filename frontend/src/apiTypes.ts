@@ -59,9 +59,15 @@ export type GroceryBudget = {
   warnings: string[];
 };
 
+export type SupermarketLine = {
+  ingredient_id: string;
+  cents: number | null;
+};
+
 export type SupermarketEstimate = {
   total_cents: number | null;
   notice: string;
+  lines: SupermarketLine[];
 };
 
 export type MacroTotals = {

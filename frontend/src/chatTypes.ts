@@ -5,6 +5,7 @@ import type {
   JobStatus,
   MealPlanNutrition,
   SpendingSource,
+  SupermarketEstimate,
 } from "./apiTypes";
 
 export type ChatResultStatus =
@@ -40,6 +41,7 @@ export type ChatResult = {
   budget: GroceryBudget | null;
   request: GroceryRequest | null;
   meal_nutrition: MealPlanNutrition | null;
+  supermarket_estimate?: SupermarketEstimate;
   evidence_id: string | null;
   evidence_revision_id: string | null;
   spending_source: ChatSpendingSource;

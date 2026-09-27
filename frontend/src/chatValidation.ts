@@ -8,7 +8,7 @@ import {
   isString,
   type GroceryRequest,
 } from "./apiTypes";
-import { copyMealPlanNutrition, isBudget, isPlan } from "./apiValidation";
+import { copyMealPlanNutrition, copySupermarketEstimate, isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage } from "./chatTypes";
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -121,6 +121,13 @@ export function parseChatResult(value: unknown): ChatResult {
   if ((plan !== null && (drop || !planOk)) || (plan === null && (need || !extrasNull))) {
     throw new Error(SHAPE_ERROR);
   }
+  const overlay =
+    value.supermarket_estimate === undefined
+      ? undefined
+      : copySupermarketEstimate(value.supermarket_estimate);
+  if (overlay === null) {
+    throw new Error(SHAPE_ERROR);
+  }
   return {
     status: status as ChatResult["status"],
     answer: value.answer,
@@ -137,6 +144,7 @@ export function parseChatResult(value: unknown): ChatResult {
     usage: value.usage === null ? null : {
       inputTokens: value.usage.inputTokens, outputTokens: value.usage.outputTokens,
     },
+    ...(overlay === undefined ? {} : { supermarket_estimate: overlay }),
   };
 }
 export function parseChatJob(value: unknown): ChatJob {

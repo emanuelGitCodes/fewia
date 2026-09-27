@@ -23,6 +23,7 @@ import {
   type MealPlanNutrition,
   type PlanLine,
   type SupermarketEstimate,
+  type SupermarketLine,
 } from "./apiTypes";
 
 function isTimezoneTimestamp(value: unknown): value is string {
@@ -164,15 +165,36 @@ export function copyMealPlanNutrition(value: unknown): MealPlanNutrition | null 
   return total !== null && meals.length >= 1 && meals.length <= 3 ? planNutrition(total, meals) : null;
 }
 
-function isSupermarketEstimate(value: unknown): value is SupermarketEstimate {
+export function copySupermarketEstimate(value: unknown): SupermarketEstimate | null {
   if (!isRecord(value)) {
-    return false;
+    return null;
   }
   const total = value.total_cents;
   if (total !== null && !isNonnegativeCents(total)) {
-    return false;
+    return null;
   }
-  return value.notice === SPOONACULAR_COST_NOTICE;
+  if (value.notice !== SPOONACULAR_COST_NOTICE) {
+    return null;
+  }
+  const totalCents = (total === null ? null : total) as number | null;
+  if (!("lines" in value)) {
+    return { total_cents: totalCents, notice: SPOONACULAR_COST_NOTICE, lines: [] };
+  }
+  if (!Array.isArray(value.lines)) {
+    return null;
+  }
+  const lines: SupermarketLine[] = [];
+  for (const item of value.lines) {
+    if (!isRecord(item) || !isNonemptyString(item.ingredient_id)) {
+      return null;
+    }
+    const cents = item.cents;
+    if (cents !== null && !isNonnegativeCents(cents)) {
+      return null;
+    }
+    lines.push({ ingredient_id: item.ingredient_id, cents: cents as number | null });
+  }
+  return { total_cents: totalCents, notice: SPOONACULAR_COST_NOTICE, lines };
 }
 
 function isResult(value: unknown): value is GroceryJobResult {
@@ -188,7 +210,7 @@ function isResult(value: unknown): value is GroceryJobResult {
   if (!("supermarket_estimate" in value)) {
     return true;
   }
-  return isSupermarketEstimate(value.supermarket_estimate);
+  return copySupermarketEstimate(value.supermarket_estimate) !== null;
 }
 
 export function parseConfig(value: unknown): GroceryConfig {
@@ -232,6 +254,16 @@ export function parseJob(value: unknown): GroceryJob {
   }
   if (value.result !== null && !isResult(value.result)) {
     throw new Error(SHAPE_ERROR);
+  }
+  if (isRecord(value.result) && "supermarket_estimate" in value.result) {
+    const supermarket_estimate = copySupermarketEstimate(value.result.supermarket_estimate);
+    if (supermarket_estimate === null) {
+      throw new Error(SHAPE_ERROR);
+    }
+    return {
+      ...value,
+      result: { ...value.result, supermarket_estimate },
+    } as GroceryJob;
   }
   return value as GroceryJob;
 }

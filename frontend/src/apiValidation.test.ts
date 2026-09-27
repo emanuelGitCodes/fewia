@@ -8,7 +8,7 @@ import {
   SHAPE_ERROR,
   SPOONACULAR_COST_NOTICE,
 } from "./apiTypes";
-import { copyMealPlanNutrition, parseConfig, parseJob } from "./apiValidation";
+import { copyMealPlanNutrition, copySupermarketEstimate, parseConfig, parseJob } from "./apiValidation";
 import { budget, config, job, jobResult, line, mealPlanNutrition, plan } from "../tests/apiFixtures";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -245,6 +245,56 @@ describe("parseJob", () => {
     expect(() =>
       parseJob(job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ meals: [] }) }) })),
     ).toThrow(SHAPE_ERROR);
+  });
+});
+
+describe("copySupermarketEstimate", () => {
+  it("accepts overlay lines, treats omitted lines as empty, and rejects bad cents", () => {
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: [{ ingredient_id: "black_beans", cents: 199 }],
+      }),
+    ).toEqual({
+      total_cents: 1299,
+      notice: SPOONACULAR_COST_NOTICE,
+      lines: [{ ingredient_id: "black_beans", cents: 199 }],
+    });
+    expect(
+      copySupermarketEstimate({ total_cents: 1299, notice: SPOONACULAR_COST_NOTICE }),
+    ).toEqual({ total_cents: 1299, notice: SPOONACULAR_COST_NOTICE, lines: [] });
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: [{ ingredient_id: "black_beans", cents: -1 }],
+      }),
+    ).toBeNull();
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: [{ ingredient_id: "black_beans", cents: "1" }],
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects a present lines key that is undefined or a non-array", () => {
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: undefined,
+      }),
+    ).toBeNull();
+    expect(
+      copySupermarketEstimate({
+        total_cents: 1299,
+        notice: SPOONACULAR_COST_NOTICE,
+        lines: "x",
+      }),
+    ).toBeNull();
   });
 });
 
