@@ -1,7 +1,17 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { isRecord, isSafeInteger, isStatus } from "./apiTypes";
+import {
+  SHAPE_ERROR,
+  isRecord,
+  isSafeInteger,
+  isSpendingSource,
+  isStatus,
+  sourceLabel,
+} from "./apiTypes";
+import { parseConfig, parseJob } from "./apiValidation";
+import { parseProviders } from "./providerApi";
+import { config, job, manualConfig, manualJobResult } from "../tests/apiFixtures";
 
 describe("isRecord", () => {
   it("accepts a plain object", () => {
@@ -57,5 +67,55 @@ describe("isStatus", () => {
     expect(isStatus(0)).toBe(false);
     expect(isStatus(null)).toBe(false);
     expect(isStatus({ status: "queued" })).toBe(false);
+  });
+});
+
+describe("isSpendingSource", () => {
+  it("accepts manual, fixture, and plaid_sandbox", () => {
+    expect(isSpendingSource("manual")).toBe(true);
+    expect(isSpendingSource("fixture")).toBe(true);
+    expect(isSpendingSource("plaid_sandbox")).toBe(true);
+  });
+
+  it("rejects unknown source strings", () => {
+    expect(isSpendingSource("bedrock")).toBe(false);
+    expect(isSpendingSource("plaid")).toBe(false);
+    expect(isSpendingSource("")).toBe(false);
+    expect(isSpendingSource(null)).toBe(false);
+  });
+
+  it("lets config, provider, and job validators accept manual and reject unknown sources", () => {
+    const catalog = {
+      catalog_version: "sample-prices-v1",
+      spending_refreshed_at: "2026-09-07T16:00:00Z",
+    };
+    expect(parseConfig(manualConfig(catalog)).source).toBe("manual");
+    expect(
+      parseProviders({
+        chat_configured: true,
+        plaid_configured: false,
+        instacart_configured: false,
+        spending_source: "manual",
+      }).spending_source,
+    ).toBe("manual");
+    expect(parseJob(job({ result: manualJobResult() })).result?.spending_source).toBe("manual");
+    expect(() => parseConfig(config({ ...catalog, source: "bedrock" }))).toThrow(SHAPE_ERROR);
+    expect(() =>
+      parseProviders({
+        chat_configured: true,
+        plaid_configured: false,
+        instacart_configured: false,
+        spending_source: "bedrock",
+      }),
+    ).toThrow(SHAPE_ERROR);
+  });
+});
+
+describe("sourceLabel", () => {
+  it("labels known sources and marks unknown sources", () => {
+    expect(sourceLabel("manual")).toBe("Your entered budget");
+    expect(sourceLabel("fixture")).toBe("Demo spending");
+    expect(sourceLabel("plaid_sandbox")).toBe("Plaid Sandbox");
+    expect(sourceLabel("live")).toBe("Unverified spending source");
   });
 });

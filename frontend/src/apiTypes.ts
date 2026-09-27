@@ -2,7 +2,7 @@ export type Diet = "omnivore" | "vegetarian" | "vegan";
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
-export type SpendingSource = "fixture" | "plaid_sandbox";
+export type SpendingSource = "manual" | "fixture" | "plaid_sandbox";
 
 export type CatalogItem = {
   id: string;
@@ -167,5 +167,18 @@ export function isStatus(value: unknown): value is JobStatus {
 }
 
 export function isSpendingSource(value: unknown): value is SpendingSource {
-  return value === "fixture" || value === "plaid_sandbox";
+  return value === "manual" || value === "fixture" || value === "plaid_sandbox";
+}
+
+export function sourceLabel(source: string): string {
+  if (source === "manual") {
+    return "Your entered budget";
+  }
+  if (source === "fixture") {
+    return "Demo spending";
+  }
+  if (source === "plaid_sandbox") {
+    return "Plaid Sandbox";
+  }
+  return "Unverified spending source";
 }

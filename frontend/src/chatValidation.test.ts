@@ -125,6 +125,11 @@ describe("parseChatResult", () => {
     expectShapeError(candidate({ status: "incomplete" }));
   });
 
+  it("accepts spending_source manual and rejects an unknown source", () => {
+    expect(parseChatResult(candidate({ spending_source: "manual" })).spending_source).toBe("manual");
+    expectShapeError(candidate({ spending_source: "unknown" }));
+  });
+
   it("rejects malformed candidates, IDs, sources, usage, and traces", () => {
     expectShapeError(candidate({ status: "unknown" }));
     expectShapeError(candidate({ answer: "" }));

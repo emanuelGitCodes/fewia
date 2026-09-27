@@ -308,6 +308,18 @@ describe("App", () => {
     renderer.unmount();
   });
 
+  it("labels a manual spending source without pending amounts", () => {
+    const manual = mount(demoState({ config: { ...demoConfig, source: "manual" } }));
+    const manualSource = manual.root.findByProps({ className: "budget-source" });
+    expect(childText(manualSource)).toBe("Source Your entered budget.");
+    expect(childText(manualSource)).not.toContain("Pending");
+    manual.unmount();
+    const fixture = mount(demoState());
+    const fixtureSource = fixture.root.findByProps({ className: "budget-source" });
+    expect(childText(fixtureSource)).toBe("Source Demo spending. Pending -$0.50");
+    fixture.unmount();
+  });
+
   it("submits the composer form and shows form errors", () => {
     const submitForm = vi.fn(async () => undefined);
     const preventDefault = vi.fn();
