@@ -86,6 +86,8 @@ def _shopping_line(raw: object) -> ShoppingLine | None:
         or type(from_pantry) is not bool
     ):
         return None
+    if quantity <= 0:
+        return None
     return ShoppingLine(
         ingredient_id,
         ingredient_id,

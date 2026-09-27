@@ -272,3 +272,33 @@ def test_attach_skips_malformed_plan() -> None:
     assert "supermarket_estimate" not in missing_id_out
     assert missing_id_out["keep"] == 1
     assert estimator.calls == []
+
+
+def test_attach_skips_zero_quantity_line() -> None:
+    result = _plan_result(
+        _purchase("chicken_breast", "g", 100),
+        _purchase("eggs", "each", 0),
+    )
+    estimator = FakeEstimator({CHICKEN_ID: 150, EGG_ID: 50})
+
+    attached = attach_supermarket_estimate(result, estimator)
+
+    assert attached == result
+    assert attached is not result
+    assert "supermarket_estimate" not in attached
+    assert estimator.calls == []
+
+
+def test_attach_skips_negative_quantity_line() -> None:
+    result = _plan_result(
+        _purchase("chicken_breast", "g", 100),
+        _purchase("eggs", "each", -5),
+    )
+    estimator = FakeEstimator({CHICKEN_ID: 150, EGG_ID: 50})
+
+    attached = attach_supermarket_estimate(result, estimator)
+
+    assert attached == result
+    assert attached is not result
+    assert "supermarket_estimate" not in attached
+    assert estimator.calls == []
