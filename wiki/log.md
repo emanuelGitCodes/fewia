@@ -2375,16 +2375,66 @@ ran the review command. The review command failed inside the Codex
 sandbox, so Codex used the documented read-only Grok review, which
 returned APPROVE. No subagents ran.
 
-## 2026-09-27 — Spoonacular per-line prices
+## 2026-09-27 — User-entered budget and nutrition display
 
-Pull requests 186 to 190 merged the `spoonacular-prices` stack. The
-Spoonacular overlay now reports a price per line. The API computes the
-overlay at read time and does not store it. The `api` container reads
-the key from `FEWIA_SPOONACULAR_KEY_FILE`. The grocery and chat estimates
-show the per-line prices. A USDA FoodData Central refresh check compares
-the stored nutrition facts with the source. Budget acceptance still uses
-the sample-catalog cents
-([decision 0010](decisions/0010-usda-spoonacular-overlay.md)).
+Loop `frontend-ux`. The user paused Plaid until the end of the project.
+The budget now starts from the amount that the user enters.
+
+- [#183](https://github.com/emanuelGitCodes/fewia/pull/183): the frontend
+  accepts the `manual` spending source. 27 added code lines.
+- [#184](https://github.com/emanuelGitCodes/fewia/pull/184): the backend
+  default is `manual`. `SpendingSource` lives in `app/domain/budget.py`.
+  38 added code lines.
+- [#185](https://github.com/emanuelGitCodes/fewia/pull/185): the estimate
+  shows USDA nutrition. 48 added code lines.
+
+Manual-to-chat transfer and saved-plan transfer shipped on 2026-09-09.
+The checkpoint page listed them as unfinished.
+
+A browser preview showed $100 available for a $100 limit, a $17.03 bean
+tacos estimate, and a 758 kcal nutrition total. The preview found three
+UX gaps: the form defaults ($300 limit, $40 cap), the source label
+wording, and the unstyled nutrition list.
+
+Writer: grok-4.6 on every item. Review: gpt-6-luna APPROVE on each head.
+#184 took four review rounds; the user authorized the fourth. Subagent
+tokens: 52,273, 140,913, and 43,785. Review input tokens: 105,666,
+531,436, and 110,368.
+
+## 2026-09-27 — Spoonacular prices at read time
+
+Loop `spoonacular-prices`. Decision
+[0016](decisions/0016-spoonacular-read-time-overlay.md) records the rules.
+
+- [#186](https://github.com/emanuelGitCodes/fewia/pull/186): per-line
+  Spoonacular overlay and `attach_supermarket_estimate`. 116 lines.
+- [#187](https://github.com/emanuelGitCodes/fewia/pull/187): the API adds
+  the overlay at read time. The worker stores none. 51 lines.
+- [#188](https://github.com/emanuelGitCodes/fewia/pull/188):
+  `compose.spoonacular.yaml`. 14 lines.
+- [#189](https://github.com/emanuelGitCodes/fewia/pull/189): per-line
+  Spoonacular prices in grocery and chat estimates. 71 lines.
+- [#190](https://github.com/emanuelGitCodes/fewia/pull/190):
+  `python -m app.usda_refresh`. 148 lines.
+
+Merged `main` at `e818333`: backend 1,549 passed and 14 skipped; ruff and
+strict mypy pass. Frontend 336 tests pass; lint and build pass.
+
+Writer: grok-4.6 on every item. Review: gpt-6-luna APPROVE on each head.
+#190 took six review rounds; the user authorized rounds four to six. Two
+of those rounds corrected the coordinator's brief: the USDA field names
+and the `abridged` format, which rounds values. A public `DEMO_KEY` fetch
+of FDC 173735 confirmed both. Subagent tokens: 59,212, 92,561, 79,084, and
+191,244; #188 ran as tier S with no subagent. Review input tokens:
+204,844, 371,030, 34,520, 205,644, and 397,715.
+
+Follow-ups:
+
+- Two juniors wrote one scratchpad script name, and one gate run used the
+  wrong worktree. Briefs now require a work-item prefix for helper scripts.
+- Local job rows written before #187 can hold a stored Spoonacular total.
+  Deleting them needs a retention decision.
+- No run against live Spoonacular or all 22 USDA ids with the operator key.
 
 ## 2026-09-29 — Tech-debt audit, Phases 1 to 3
 

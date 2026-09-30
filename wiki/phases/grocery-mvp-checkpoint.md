@@ -1,7 +1,7 @@
 # Grocery MVP checkpoint for professor feedback
 
 - **Date**: 2026-09-08
-- **Status**: live chat VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Feature work is PAUSED as the user requested. This is not a completed AI product.
+- **Status**: feature work resumed on 2026-09-27. Read "Current state" first. The sections after it record the 2026-09-08 checkpoint. This is not a completed AI product.
 - **Accepted brief**: [`.codex/project-context.md`](../../.codex/project-context.md)
 - **Decision**: [0008 — Grocery bot with local Floci services](../decisions/0008-grocery-bot-pivot.md)
 - **Local proof store**: [log.md](../log.md)
@@ -11,7 +11,33 @@
 - **GitHub checks**: Backend checks passed. Frontend checks passed.
 - **Local branch**: `codex/bedrock-development-role`. Not pushed. Not merged.
 
-This page preserves the current grocery demo. It does not expand features.
+This page preserves the grocery demo for professor feedback. The first
+section records the state on `main` on 2026-09-30.
+
+## Current state
+
+- **Chat transfer.** A saved manual plan feeds chat. Unsaved form edits
+  need a rebuild first. This shipped on 2026-09-09.
+- **Budget.** The default spending source is `manual`. The monthly limit
+  that the user enters is the whole budget. `fixture` and `plaid_sandbox`
+  stay valid settings. Plaid is paused until the end of the project.
+- **Nutrition.** The estimate shows USDA FoodData Central nutrition for
+  each meal and for the plan.
+- **Supermarket prices.** The estimate shows a Spoonacular average for
+  each purchased line and for the plan. The API computes it at read time
+  and stores none. Budget acceptance still uses sample-catalog cents.
+  Decision [0016](../decisions/0016-spoonacular-read-time-overlay.md)
+  records the rules.
+- **Instacart.** The handoff is parked. Instacart Developer Platform does
+  not accept new applicants. Decision
+  [0010](../decisions/0010-usda-spoonacular-overlay.md) records this. The
+  shopping button stays hidden.
+- **Evaluation.** The runner scores the budget and meal groups, F03, and
+  X01. The provider-failure group, the adversarial group, and the cases
+  that need the model stay unassessed. No 90-run evaluation has run.
+
+The demo outline below still uses fixture spending. With the `manual`
+source, a $100 limit shows $100 available.
 
 ## Active product
 
@@ -49,9 +75,9 @@ The current demo uses fixture spending. No real bank account is validated. Plaid
 
 The local `App` mounts `ChatWorkspace` and `ChatPanel` beside the manual planner. The page uses the existing provider capability hook and chat controller. A valid chat result updates the shared form and estimate. The budget cap stays preserved. Stale-result protection applies.
 
-Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. A two-servings bean-tacos request produced a live reply and estimate of USD 17.03. A four-servings follow-up produced USD 18.32. The budget 40 stayed preserved. The form updated to 4. The browser showed no errors. The first live display used the wrong currency. A later fix used server USD display. Stored plan and evidence were not changed. Full context transfer from the manual planner to chat remains unfinished.
+Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. A two-servings bean-tacos request produced a live reply and estimate of USD 17.03. A four-servings follow-up produced USD 18.32. The budget 40 stayed preserved. The form updated to 4. The browser showed no errors. The first live display used the wrong currency. A later fix used server USD display. Stored plan and evidence were not changed. On 2026-09-08, full context transfer from the manual planner to chat was unfinished. It shipped on 2026-09-09.
 
-This page MUST NOT claim a completed AI product. This page MUST NOT claim real Plaid or Instacart proof. This page MUST NOT claim a 90-run evaluation. Feature work is PAUSED as the user requested.
+This page MUST NOT claim a completed AI product. This page MUST NOT claim real Plaid or Instacart proof. This page MUST NOT claim a 90-run evaluation. Feature work was PAUSED from 2026-09-08 to 2026-09-27.
 
 The handoff browser contract and client exist. The button flow remains unfinished. Instacart code creates development shopping-list links. It does not verify live prices, availability, taxes, fees, or tips. An uncertain Instacart write needs a visible retry, not blind replay. Handoff URLs need validation before navigation.
 
@@ -89,18 +115,18 @@ Fixture data is not a verified retailer or bank claim.
 13. State that Instacart links are development handoff, not live prices.
 14. State that Plaid Sandbox adapters exist. The demo still uses fixture spending.
 15. State that the 30-scenario corpus exists. No 90-run result exists.
-16. State that full manual-to-chat transfer remains unfinished.
-17. State that feature work is PAUSED as the user requested.
+16. State that manual-to-chat transfer shipped on 2026-09-09.
+17. State that the default budget is now the amount that the user enters.
 
 ## Honest limitations
 
-This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Sample prices remain. Fixture spending remains. The demo does not use a real bank. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. Full manual-plan context transfer is unfinished. Handoff button flow is incomplete. Feature work is PAUSED as the user requested. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. That record covers the prior merged checkpoint. A local chat graph refresh is not yet recorded.
+This checkpoint is an early MVP for professor feedback. The product does not complete the original health-prediction experiment. The product does not complete every grocery feature in the accepted brief. Live chat is VERIFIED with Amazon Nova 2 Lite, reasoning effort `low`. Sample prices remain. Fixture spending remains. The demo does not use a real bank. Instacart prices are not verified. No 90-run evaluation exists. No model-quality result exists. On 2026-09-08, full manual-plan context transfer was unfinished. It shipped on 2026-09-09. Handoff button flow is incomplete. Instacart is parked. Pull request 42 merged into `main`. Graphify ran after that merge in the saved checkout. That record covers the prior merged checkpoint. A local chat graph refresh is not yet recorded.
 
 ## Next work after professor feedback
 
 1. Renew the one-hour MFA session before the next live test.
 2. Finish full manual-plan context transfer.
-3. Keep feature work paused until the user requests it.
+3. Keep feature work paused until the user requests it. Done: the user resumed feature work on 2026-09-27.
 4. Keep the user cap, or apply a lower explicit cap.
 5. Transfer a saved plan safely.
 6. Wire explicit handoff retries.
