@@ -1,6 +1,7 @@
 # Plaid and Instacart Repository Update Plan
 
-**Status:** Proposed
+**Status:** Superseded. See `.codex/project-context.md` and
+`wiki/decisions/`. Plaid work is paused, and decision 0010 parks Instacart.
 
 **Date:** 2026-09-03
 

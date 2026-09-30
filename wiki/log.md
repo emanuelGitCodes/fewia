@@ -2374,3 +2374,27 @@ as `tech-lead`, chose tier S. It ran the Grok writer through
 ran the review command. The review command failed inside the Codex
 sandbox, so Codex used the documented read-only Grok review, which
 returned APPROVE. No subagents ran.
+
+## 2026-09-27 — Spoonacular per-line prices
+
+Pull requests 186 to 190 merged the `spoonacular-prices` stack. The
+Spoonacular overlay now reports a price per line. The API computes the
+overlay at read time and does not store it. The `api` container reads
+the key from `FEWIA_SPOONACULAR_KEY_FILE`. The grocery and chat estimates
+show the per-line prices. A USDA FoodData Central refresh check compares
+the stored nutrition facts with the source. Budget acceptance still uses
+the sample-catalog cents
+([decision 0010](decisions/0010-usda-spoonacular-overlay.md)).
+
+## 2026-09-29 — Tech-debt audit, Phases 1 to 3
+
+An audit ranked the debt by (impact + risk) × (6 − effort). Phase 1 fixes
+documentation drift, unused ML dependencies, CI permissions, a compose
+validation job, and a Postgres image pin. Phase 2 enables the `BLE` and
+`DTZ` lint rules in the backend and adds a notice parity test. Phase 3
+shares the HTTP and AWS client settings, one `DEMO_USER_ID`, one job
+lookup, and one frontend polling hook. Phase 4 is paused: the Plaid
+decision, React 19, and ESLint 10.
+
+Two audit findings were already fixed. CI sets `FEWIA_REQUIRE_DB=1`, and
+the Floci image ships its own healthcheck.

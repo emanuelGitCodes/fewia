@@ -20,10 +20,15 @@ The user can declare pantry ingredients, exclusions, and a dietary preference.
 
 ## Operating context
 
-The application runs locally through Docker Compose. Plaid uses Sandbox.
-Instacart provides development shopping-list handoff links. Provider fixtures
-permit development while live access is pending. Evidence labels distinguish
-fixtures, emulator behavior, Sandbox behavior, and real model calls.
+The application runs locally through Docker Compose. The budget starts from
+a user-entered amount and fixture spending. Plaid Sandbox work is paused; the
+adapters stay in the code. The Instacart handoff is parked, and the
+shopping-link button stays hidden
+([decision 0010](wiki/decisions/0010-usda-spoonacular-overlay.md)).
+Nutrition facts come from USDA FoodData Central. An optional overlay shows
+the Spoonacular average supermarket cost. Budget acceptance still uses the
+sample catalog. Evidence labels distinguish fixtures, emulator behavior,
+Sandbox behavior, and real model calls.
 
 ## Constraints
 

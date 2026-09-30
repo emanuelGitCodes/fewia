@@ -122,3 +122,11 @@ uv run pytest tests/test_job_leases.py tests/test_job_leases_postgres.py -q
 The next slices consume SQS messages, renew visibility, handle duplicate
 delivery, and apply retry backoff and dead-letter policy. The publisher is a bounded
 CLI command; it is not yet a continuously running worker.
+
+## Migration rollback
+
+Migrations `0001` through `0004` have working `downgrade()` bodies.
+Migrations `0005`, `0006`, and `0007` are forward-only. Their `downgrade()`
+raises `RuntimeError`. Do not downgrade below `0007` on a database that holds
+data. Restore from a backup instead. Migration `0007` creates a PostgreSQL
+trigger function with raw SQL, so `alembic check` does not see it.
