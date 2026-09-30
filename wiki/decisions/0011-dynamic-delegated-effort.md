@@ -1,7 +1,7 @@
 # 0011 — Dynamic delegated effort
 
 - Date: 2026-09-18
-- Status: accepted
+- Status: accepted; writer order superseded by [0015](0015-writer-routing-by-difficulty.md)
 
 ## Decision
 

@@ -2387,3 +2387,27 @@ A Grok writer keeps the no-shell rule. A Codex writer now MAY run read-only
 shell commands. It still runs no tests, package managers, or git commands.
 A run that changes no owned file now ends as `no_edits`, and the supervisor
 tries the next model. The user chose this option on 2026-09-29.
+
+## 2026-09-30 — Route writers by difficulty
+
+Decision 0015 routes each work item to one rung of a writer ladder: Luna
+`xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol `high`. The
+Artificial Analysis Intelligence Index v4.3.2 scores set the order. `docs/DELEGATION.md`,
+`docs/DEV_SUPERVISOR.md`, `.codex/TEAM.md`, and both coordinator skills
+now name this rule. The supervisor code did not change.
+
+Tier L no longer spawns a reviewer agent. The coordinator runs the probes,
+and the review model gives the verdict.
+
+## 2026-09-30 — Merge the writer routing stack
+
+Pull requests #203 and #204 merged as `3fb78ea` and `efa0c7d`. Writers now
+follow the ladder in decision 0015. Tier L runs coordinator probes, and the
+review model gives the verdict. The Claude Code and OpenCode `code-reviewer`
+subagents are deleted. The Codex `code-reviewer` role stays, because
+`dev_supervisor.review` reads it. `gpt-6.1-sol` at `medium` reviewed both
+items. Item 01 (the ladder) needed three rounds. Item 02 (the tier L
+change) needed four; the user asked for the fourth to fix a non-blocking
+count in `.opencode/README.md`. All findings were documentation conflicts.
+The gates had no checks for these paths. No writer or tier L probe run has
+used the new rules yet.

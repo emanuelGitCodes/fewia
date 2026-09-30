@@ -1,7 +1,10 @@
 # Grocery bot agent team
 
-Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md):
-Grok 4.6, then Spark at its CLI default effort, then Luna.
+Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md).
+The coordinator picks the writer by difficulty from
+[Writer selection](../docs/DELEGATION.md#writer-selection): Luna `xhigh` for
+simple work, and Grok `low` or `medium` or Sol `medium` or `high` for harder work. Every writer run passes
+`--only --model MODEL --effort LEVEL`. Spark MUST NOT write code.
 The coordinator classifies each task before delegation.
 Valid complexity values are `simple`, `standard`, `complex`, `exceptional`,
 and `maximum`.
@@ -82,8 +85,10 @@ deployment results. The coordinator appends one dated wiki entry per work item.
 
 The `tech-lead` role is the coordinator. For tier S it runs `dev_supervisor`,
 `dev_supervisor.gates`, and `dev_supervisor.review` itself. For tier M it
-dispatches one native role subagent per work item. For tier L it adds a
-`code-reviewer` subagent that follows `docs/delegation/reviewer.md`.
+dispatches one native role subagent per work item. For tier L it runs the
+probes in `docs/delegation/reviewer.md` itself and passes the record to the
+review command. The `code-reviewer` role supplies the review model's
+instructions; it is not a subagent.
 Native subagents MUST NOT spawn further agents.
 
 ## Loading and use

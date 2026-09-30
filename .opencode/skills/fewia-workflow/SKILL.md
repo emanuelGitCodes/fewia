@@ -27,8 +27,9 @@ You MUST NOT resume health-model training.
 - **Tier M.** `tech-lead` calls one specialist, such as `@backend-dev`, with
   a brief from `docs/delegation/brief.md`. `tech-lead` runs the review
   command.
-- **Tier L.** `tech-lead` also calls `@code-reviewer`, which follows
-  `docs/delegation/reviewer.md`.
+- **Tier L.** `tech-lead` also runs the probes in
+  `docs/delegation/reviewer.md` and passes the record to the review command.
+  It does not call `@code-reviewer`.
 
 Specialists MUST NOT spawn further agents. Native OpenCode `task` is for
 bounded exploration only. It is not supervisor fallback.
@@ -46,8 +47,8 @@ Run every command from the item worktree root.
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file relative/path \
-  --work-item fewia-42 --phase implement
+  --complexity standard --only --model grok-4.6 --effort medium \
+  --write-file relative/path --work-item fewia-42 --phase implement
 uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
   --base main --brief "$BRIEF_FILE" --complexity standard \
@@ -55,5 +56,6 @@ uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
 uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
 ```
 
-Writers edit files only. The specialist or `tech-lead` runs every command.
+Pick the writer model and effort from Writer selection in
+`docs/DELEGATION.md`. Writers edit files only. The specialist or `tech-lead` runs every command.
 Reports stay within 40 lines and name the SHA.
