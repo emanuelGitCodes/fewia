@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.handoff_types import SnapshotPlan
+from app.demo import DEMO_USER_ID
 from app.job_models import Job
 from app.services.evidence_contract import canonical_json
 from app.services.evidence_store import load_evidence
@@ -18,7 +19,6 @@ PLANNING_KEYS: tuple[str, ...] = (
     "spending_source",
     "evidence_id",
 )
-DEMO_USER_ID = 1
 JOB_MISSING = "Job not found"
 REBUILD = "Plan requires a rebuild."
 DENIED = "Plan is not ready for shopping handoff."

@@ -4,13 +4,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.demo import DEMO_USER_ID
 from app.providers.plaid import PlaidNotReady, PlaidSyncMutation, PlaidUnavailable
 from app.services.job_delivery import JobHandler, LeaseLost, RetryableJobError
 from app.services.plaid_sync import SyncProvider, sync_item
 
 _UNAVAILABLE = "The Plaid provider is unavailable."
 _RETRY = "Plaid sync is retryable."
-_DEMO_USER_ID = 1
 
 
 class SyncJobInput(BaseModel):
@@ -42,7 +42,7 @@ def make_sync_handler(
                 factory,
                 parsed.item_id,
                 provider,
-                user_id=_DEMO_USER_ID,
+                user_id=DEMO_USER_ID,
                 heartbeat=heartbeat,
             )
         except LeaseLost:

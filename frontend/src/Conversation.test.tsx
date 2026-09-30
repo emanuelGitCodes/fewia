@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob } from "./apiTypes";
+import { SAMPLE_ESTIMATE_NOTICE, type CatalogItem, type GroceryJob } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { Conversation } from "./Conversation";
 
@@ -65,6 +65,8 @@ function mount(
     error: string | null;
     pending: boolean;
     freshRequestsDisabled: boolean;
+    recipes: CatalogItem[];
+    ingredients: CatalogItem[];
   }> = {},
   extras: { children?: JSX.Element } = {},
 ): {
@@ -86,6 +88,8 @@ function mount(
           error: props.error ?? null,
           pending: props.pending ?? false,
           freshRequestsDisabled: props.freshRequestsDisabled,
+          recipes: props.recipes,
+          ingredients: props.ingredients,
           onExample,
           onRetry,
           onNewRequest,
@@ -240,6 +244,39 @@ describe("Conversation", () => {
     });
     expect(buttonNamed(progress.renderer.root, "Check progress").props.disabled).toBe(false);
     progress.renderer.unmount();
+  });
+
+  it("names the excluded ingredient on exclusion_reject", () => {
+    const { renderer } = mount({
+      job: {
+        id: "job-1",
+        status: "failed",
+        result: null,
+        error_code: "exclusion_reject",
+        error_detail: { recipe_id: "vegetable_pasta", ingredient_id: "onion" },
+      },
+      recipes: [{ id: "vegetable_pasta", name: "vegetable pasta" }],
+      ingredients: [{ id: "onion", name: "onion" }],
+    });
+    expect(childText(renderer.root)).toContain(
+      "Vegetable pasta needs onion, which is excluded. Clear the onion exclusion or choose another meal, then rebuild.",
+    );
+    renderer.unmount();
+  });
+
+  it("keeps the generic failed text when exclusion_reject has no error_detail", () => {
+    const { renderer } = mount({
+      job: {
+        id: "job-1",
+        status: "failed",
+        result: null,
+        error_code: "exclusion_reject",
+      },
+    });
+    expect(childText(renderer.root)).toContain(
+      "The grocery request failed. Check meals, servings, and budget, then retry.",
+    );
+    renderer.unmount();
   });
 
   it("places children in the composer slot", () => {

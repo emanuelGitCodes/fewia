@@ -478,6 +478,26 @@ describe("App", () => {
     renderer.unmount();
   });
 
+  it("shows named exclusion reject text on the conversation status", () => {
+    const renderer = mount(
+      demoState({
+        config: demoConfig,
+        job: {
+          id: "job-3",
+          status: "failed",
+          result: null,
+          error_code: "exclusion_reject",
+          error_detail: { recipe_id: "lentil_soup", ingredient_id: "black_beans" },
+        },
+      }),
+    );
+    const status = renderer.root.findByProps({ className: "conversation-status" });
+    expect(childText(status)).toBe(
+      "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
+    );
+    renderer.unmount();
+  });
+
   it("keeps Retry request available when the catalog is blocked", () => {
     const retry = vi.fn();
     const renderer = mount(
