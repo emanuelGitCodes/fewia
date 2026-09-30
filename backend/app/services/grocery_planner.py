@@ -10,6 +10,15 @@ class PlanningError(ValueError):
     pass
 
 
+class ExclusionConflict(PlanningError):
+    error_code = "exclusion_reject"
+
+    def __init__(self, recipe_id: str, ingredient_id: str) -> None:
+        self.recipe_id = recipe_id
+        self.ingredient_id = ingredient_id
+        super().__init__(f"ingredient is excluded: {ingredient_id}")
+
+
 @dataclass(frozen=True, slots=True)
 class ShoppingLine:
     ingredient_id: str
@@ -75,7 +84,7 @@ def plan_groceries(
                 raise PlanningError(f"ingredient quantity is invalid: {ingredient_id}")
             ingredient = ingredients[ingredient_id]
             if ingredient_id in exclusions:
-                raise PlanningError(f"ingredient is excluded: {ingredient_id}")
+                raise ExclusionConflict(meal.recipe_id, ingredient_id)
             if (request.diet == "vegetarian" and not ingredient.vegetarian) or (
                 request.diet == "vegan" and not ingredient.vegan
             ):

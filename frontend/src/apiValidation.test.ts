@@ -95,6 +95,29 @@ describe("parseJob", () => {
     expect(parsed.status).toBe("queued");
   });
 
+  it("keeps a valid error_detail and turns a malformed one into null", () => {
+    const valid = parseJob(
+      job({
+        status: "failed",
+        result: null,
+        error_code: "exclusion_reject",
+        error_detail: { recipe_id: "vegetable_pasta", ingredient_id: "onion", extra: "drop" },
+      }),
+    );
+    expect(valid.error_detail).toEqual({ recipe_id: "vegetable_pasta", ingredient_id: "onion" });
+    expect(
+      parseJob(
+        job({
+          status: "failed",
+          result: null,
+          error_code: "handler_failed",
+          error_detail: { recipe_id: 1, ingredient_id: "onion" },
+        }),
+      ).error_detail,
+    ).toBeNull();
+    expect(parseJob(job({ status: "queued", result: null, error_detail: null })).error_detail).toBeNull();
+  });
+
   it("accepts a result with no overlay", () => {
     const parsed = parseJob(job());
     expect(parsed.result?.plan.total_cents).toBe(129);

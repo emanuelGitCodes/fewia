@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import subprocess
@@ -38,7 +39,6 @@ within the given scope. Query graphs on demand; report missing relevant context.
 Do not spawn agents, detach processes, merge, push, or change global settings.
 Do not perform external mutations. Return external actions to the coordinator.
 Do not read credentials or include secrets in prompts, logs, or checkpoints.
-You MUST NOT run shell commands, tests, package managers, or git commands.
 Edit only the assigned files. The coordinator runs all verification and records
 the results.
 This rule overrides any role or assignment text that asks you to run checks;
@@ -48,6 +48,38 @@ Record edits made, remaining work, and uncertain operations. On handoff read
 the owned files first. Do not repeat an uncertain external action. A separate
 Codex or Grok agent independently verifies the result.
 """
+
+_SHELL_FORBIDDEN = (
+    "You MUST NOT run shell commands, tests, package managers, or git commands."
+)
+_SHELL_CODEX = (
+    "You MAY run read-only shell commands to read and search files: cat, sed -n, "
+    "head, tail, ls, rg, grep, and find. Edit files only with apply_patch. You "
+    "MUST NOT run tests, package managers, git commands, or any command that "
+    "writes, moves, or deletes a file."
+)
+
+
+def _shell_rule(provider: str) -> str:
+    if provider == "codex":
+        return _SHELL_CODEX
+    return _SHELL_FORBIDDEN
+
+
+def _prompt_guard(provider: str) -> str:
+    marker = "Edit only the assigned files."
+    head, tail = GUARD.split(marker, 1)
+    return f"{head}{_shell_rule(provider)}\n{marker}{tail}"
+
+
+def _file_hash(path: Path) -> str:
+    if not path.is_file():
+        return "absent"
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _owned_hashes(files: list[Path]) -> dict[str, str]:
+    return {str(path): _file_hash(path) for path in files if path.name != "progress.md"}
 
 
 def _record_attempt(
@@ -126,7 +158,7 @@ def execute(
         print(json.dumps(checkpoint), flush=True)
         prompt = state / "prompt.txt"
         prompt.write_text(
-            GUARD
+            _prompt_guard(models[name].provider)
             + f"\nProgress file: {progress}\n"
             + instructions["developer_instructions"]
             + "\nAssignment:\n"
@@ -137,6 +169,8 @@ def execute(
             "Read the owned files before you edit them.\n"
         )
         token = str(uuid.uuid4())
+        tracked = [path for path in (files or []) if path.name != "progress.md"]
+        before = _owned_hashes(tracked) if tracked else None
         result = attempt(
             command(
                 name,
@@ -153,6 +187,12 @@ def execute(
             idle,
             limit,
         )
+        if (
+            result == "completed"
+            and before is not None
+            and _owned_hashes(tracked) == before
+        ):
+            result = "no_edits"
         history.append({"model": name, "outcome": result})
         (state / "result.json").write_text(json.dumps(history, indent=2))
         print(json.dumps(history[-1]), flush=True)
@@ -167,7 +207,7 @@ def execute(
             resolved,
             result,
         )
-        if result not in RETRYABLE:
+        if result not in RETRYABLE and result != "no_edits":
             return result
     return "all_providers_exhausted"
 

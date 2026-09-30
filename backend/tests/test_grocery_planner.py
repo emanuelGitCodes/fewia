@@ -9,6 +9,7 @@ from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES, Ingredient, Recipe
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 from app.services.grocery_planner import (
+    ExclusionConflict,
     PlanEstimate,
     PlanningError,
     ShoppingLine,
@@ -98,6 +99,21 @@ def test_diet_and_exclusions_apply_before_pantry_removal() -> None:
 def test_unknown_control_ids_fail_even_when_unused(field: str) -> None:
     with pytest.raises(PlanningError, match="unknown"):
         plan_groceries(request(**{field: ["not_in_catalog"]}), budget())
+
+
+def test_exclusion_conflict_has_recipe_and_ingredient_ids() -> None:
+    with pytest.raises(ExclusionConflict) as caught:
+        plan_groceries(
+            request(
+                meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+                ingredient_exclusions=["onion"],
+            ),
+            budget(),
+        )
+    assert caught.value.error_code == "exclusion_reject"
+    assert caught.value.recipe_id == "vegetable_pasta"
+    assert caught.value.ingredient_id == "onion"
+    assert str(caught.value) == "ingredient is excluded: onion"
 
 
 def test_missing_recipe_and_ingredient_fail() -> None:

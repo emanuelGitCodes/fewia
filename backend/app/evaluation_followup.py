@@ -2,9 +2,7 @@ from typing import cast
 
 from app.evaluation_budget import EVIDENCE_CLASS, UNASSESSED
 from app.evaluation_plan_inputs import fixture_plan
-from app.services.grocery_planner import PlanningError
-
-_EXCLUSION_PREFIX = "ingredient is excluded:"
+from app.services.grocery_planner import ExclusionConflict, PlanningError
 
 
 def _as_map(value: object) -> dict[str, object]:
@@ -22,7 +20,7 @@ def _observe(inputs: dict[str, object]) -> dict[str, object]:
     try:
         result = fixture_plan(inputs)
     except PlanningError as exc:
-        if str(exc).startswith(_EXCLUSION_PREFIX):
+        if isinstance(exc, ExclusionConflict):
             return {"accepted": False, "outcome": "exclusion_reject"}
         return {"accepted": False, "outcome": "diet_conflict"}
     except Exception:  # noqa: BLE001

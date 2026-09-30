@@ -1,3 +1,5 @@
+import json
+import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -7,6 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.job_models import Job
 from app.services.heartbeat import Heartbeat
 from app.services.job_delivery import (
+    JobFailure,
     JobHandler,
     JobQueue,
     LeaseLost,
@@ -93,6 +96,30 @@ def process_one(
                 session, job_id, token, now=now(), result=result, error_code=error_code
             )
 
+    def fail(
+        exc: Exception, error_code: str, result: dict[str, object] | None = None
+    ) -> str:
+        try:
+            renew()
+        except Exception:
+            return "lease_lost"
+        if not finalize(error_code=error_code, result=result):
+            return "lease_lost"
+        print(
+            json.dumps(
+                {
+                    "event": "job_failed",
+                    "job_id": job_id,
+                    "error_code": error_code,
+                    "exception": type(exc).__name__,
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        queue.acknowledge(message)
+        return "handler_failed"
+
     try:
         with Heartbeat(renew) as heartbeat:
             result = _json_object(handler(payload, heartbeat))
@@ -102,15 +129,10 @@ def process_one(
         return "retry"
     except LeaseLost:
         return "lease_lost"
-    except Exception:  # noqa: BLE001
-        try:
-            renew()
-        except Exception:  # noqa: BLE001
-            return "lease_lost"
-        if not finalize(error_code="handler_failed"):
-            return "lease_lost"
-        queue.acknowledge(message)
-        return "handler_failed"
+    except JobFailure as exc:
+        return fail(exc, exc.error_code, {"error_detail": exc.detail})
+    except Exception as exc:
+        return fail(exc, "handler_failed")
 
     if not finalize(result=result):
         return "lease_lost"

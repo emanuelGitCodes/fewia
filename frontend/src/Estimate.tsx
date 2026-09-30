@@ -1,4 +1,5 @@
 import {
+  HTTP_ERROR,
   sourceLabel,
   type CatalogItem,
   type GroceryJob,
@@ -6,6 +7,7 @@ import {
   type PlanLine,
   type SupermarketLine,
 } from "./apiTypes";
+import { exclusionMessage } from "./exclusionMessage";
 import { formatDollars } from "./money";
 import { Nutrition } from "./Nutrition";
 
@@ -15,6 +17,7 @@ export type EstimateProps = {
   dirty: boolean;
   pantry: string[];
   recipes: CatalogItem[];
+  ingredients?: CatalogItem[];
   onPantryToggle: (id: string) => void;
   onRebuild?: () => void | Promise<void>;
   rebuildDisabled?: boolean;
@@ -34,7 +37,12 @@ function planWording(result: GroceryJobResult): string {
   return "This plan is over budget.";
 }
 
-function statusText(job: GroceryJob | null, pending: boolean): string {
+function statusText(
+  job: GroceryJob | null,
+  pending: boolean,
+  recipes: CatalogItem[],
+  ingredients: CatalogItem[],
+): string {
   if (job?.status === "queued") {
     return "The grocery request is queued.";
   }
@@ -45,7 +53,7 @@ function statusText(job: GroceryJob | null, pending: boolean): string {
     return "The grocery request is in progress.";
   }
   if (job?.status === "failed") {
-    return "The grocery request failed.";
+    return exclusionMessage(job, recipes, ingredients) ?? HTTP_ERROR;
   }
   return "No grocery budget or meal plan is set yet.";
 }
@@ -95,6 +103,7 @@ export function Estimate({
   dirty,
   pantry,
   recipes,
+  ingredients = [],
   onPantryToggle,
   onRebuild,
   rebuildDisabled = false,
@@ -105,7 +114,7 @@ export function Estimate({
       <section className="estimate-panel" aria-labelledby="estimate-heading">
         <h2 id="estimate-heading">Grocery estimate</h2>
         <p className="estimate-status" role="status" aria-live="polite">
-          {statusText(job, pending)}
+          {statusText(job, pending, recipes, ingredients)}
         </p>
       </section>
     );

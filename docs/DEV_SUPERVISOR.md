@@ -5,7 +5,8 @@ Run from the repository root with Python 3.12:
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file dev_supervisor/policy.py \
+  --complexity standard --only --model grok-4.6 --effort medium \
+  --write-file dev_supervisor/policy.py \
   --work-item fewia-42 --phase implement
 ```
 
@@ -28,6 +29,11 @@ not blanket tool approval or a new scope grant. Paths that escape through
 symlinks or contain permission-rule syntax are rejected before execution.
 
 ## Model selection
+
+The coordinator picks the writer model and effort per work item from
+[Writer selection](DELEGATION.md#writer-selection), and passes them with
+`--only --model MODEL --effort LEVEL`. The default order below applies
+only when a run omits `--model`. FEWIA work MUST NOT omit it.
 
 The supervisor requires `--complexity`.
 Valid values are `simple`, `standard`, `complex`, `exceptional`, and `maximum`.
@@ -69,9 +75,9 @@ Authentication remains with the CLI.
 The supervisor does not edit global configuration.
 
 An explicit model request MUST become `--model MODEL_ID`. “Use GPT 5.6 Sol”
-becomes `--model gpt-6-sol`. It runs first. Eligible failures use the remaining
+becomes `--model gpt-6.1-sol`. It runs first. Eligible failures use the remaining
 default sequence without duplicates. Each selected model and outcome is printed.
-“Only use Sol” MUST include `--only --model gpt-6-sol`. No substitute runs.
+“Only use Sol” MUST include `--only --model gpt-6.1-sol`. No substitute runs.
 An explicit effort request MUST become `--effort LEVEL` when the model supports
 effort.
 Unknown models stop before execution. Extend the map with `--registry FILE`:

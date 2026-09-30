@@ -103,12 +103,26 @@ def dispatch(
         return None, msgs.tool_result_block(
             call.tool_use_id, {"error": "unsupported tool"}, success=False
         )
+    error_body: dict[str, object] = {"error": "arguments are invalid"}
     try:
         payload: dict[str, object] | None = execute_plan(
             call.tool_input, budget, period, user_id=user_id, spending_source=source
         )
-    except PlanningToolError:
+    except PlanningToolError as exc:
         payload = None
+        recipe_id = exc.detail.get("recipe_id")
+        ingredient_id = exc.detail.get("ingredient_id")
+        if (
+            exc.error_code == "exclusion_reject"
+            and isinstance(recipe_id, str)
+            and isinstance(ingredient_id, str)
+        ):
+            error_body = {
+                "error": "ingredient is excluded",
+                "error_code": "exclusion_reject",
+                "recipe_id": recipe_id,
+                "ingredient_id": ingredient_id,
+            }
     if payload is None:
         trace.append(
             _entry(
@@ -119,9 +133,7 @@ def dispatch(
                 revision_index=_revision_index(trace),
             )
         )
-        return None, msgs.tool_result_block(
-            call.tool_use_id, {"error": "arguments are invalid"}, success=False
-        )
+        return None, msgs.tool_result_block(call.tool_use_id, error_body, success=False)
     if record_evidence is not None:
         revision = record_evidence(payload)
         if not _is_revision_id(revision):

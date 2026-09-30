@@ -33,6 +33,19 @@ def _canonical(payload: dict[str, object]) -> str:
     return encoded
 
 
+def find_job(
+    session: Session,
+    user_id: int,
+    kind: Literal["sync", "agent"],
+    request_key: str,
+) -> Job | None:
+    return session.scalar(
+        select(Job).where(
+            Job.user_id == user_id, Job.kind == kind, Job.request_key == request_key
+        )
+    )
+
+
 def create_job(
     session: Session,
     user_id: int,
@@ -50,10 +63,7 @@ def create_job(
     ):
         raise ValueError("request_key must contain 1 to 128 nonblank characters")
     canonical = _canonical(payload)
-    query = select(Job).where(
-        Job.user_id == user_id, Job.kind == kind, Job.request_key == request_key
-    )
-    existing = session.scalar(query)
+    existing = find_job(session, user_id, kind, request_key)
     if existing is None:
         try:
             with session.begin_nested():
@@ -69,7 +79,7 @@ def create_job(
                 session.flush()
             return job, True
         except IntegrityError:
-            existing = session.scalar(query)
+            existing = find_job(session, user_id, kind, request_key)
             if existing is None:
                 raise
     if _canonical(existing.payload) != canonical:
