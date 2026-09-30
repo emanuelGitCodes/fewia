@@ -60,6 +60,7 @@ def test_fallback_keeps_worktree_and_checkpoint(tmp_path: Path) -> None:
             return "quota"
         assert (cwd / "partial.py").exists()
         assert "Check A passed. Check B remains." in prompt.read_text()
+        owned.write_text("value = 2\n")
         return "completed"
 
     with patch("dev_supervisor.__main__.attempt", runner):
@@ -332,8 +333,9 @@ def test_existing_status_blocks_after_execute_failure(tmp_path: Path) -> None:
 def test_guard_forbids_writer_commands() -> None:
     assert (
         "You MUST NOT run shell commands, tests, package managers, or git commands"
-        in GUARD
+        not in GUARD
     )
+    assert "You MAY run read-only shell commands" not in GUARD
     assert "Never claim an unfinished check passed" not in GUARD
     assert "Record completed checks" not in GUARD
     assert "after each completed check" not in GUARD
