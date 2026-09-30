@@ -26,7 +26,7 @@ export function Nutrition(props: {
           return (
             <li key={`${meal.recipe_id}-${String(meal.servings)}`} className="nutrition-meal">
               <p className="nutrition-meal-name">{name}</p>
-              <p className="nutrition-meal-servings">{`${meal.servings} servings`}</p>
+              <p className="nutrition-meal-servings">{`${meal.servings} ${meal.servings === 1 ? "serving" : "servings"}`}</p>
               <p className="nutrition-meal-per-serving">{`Per serving ${formatMacros(meal.per_serving)}`}</p>
               <p className="nutrition-meal-total">{`Meal total ${formatMacros(meal.total)}`}</p>
             </li>

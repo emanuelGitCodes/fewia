@@ -87,6 +87,30 @@ describe("Nutrition", () => {
     renderer.unmount();
   });
 
+  it("renders a singular serving label for one serving", () => {
+    const renderer = mount({
+      nutrition: nutrition({
+        meals: [
+          {
+            recipe_id: "bean_tacos",
+            servings: 1,
+            per_serving: macros({
+              energy_kcal: 225,
+              protein_mg: 6172,
+              carbohydrate_mg: 1000,
+              fat_mg: 500,
+            }),
+            total: macros(),
+          },
+        ],
+      }),
+    });
+    const text = childText(renderer.root);
+    expect(text).toContain("1 serving");
+    expect(text).not.toContain("1 servings");
+    renderer.unmount();
+  });
+
   it("renders both notices as text", () => {
     const renderer = mount();
     const text = childText(renderer.root);
