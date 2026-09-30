@@ -1,11 +1,37 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
   pull_request:
 
 jobs:
+  compose:
+    name: Compose config
+    runs-on: ubuntu-latest
+    env:
+      FEWIA_BEDROCK_CREDENTIALS_FILE: /tmp/fewia-ci/bedrock-credentials
+      FEWIA_SPOONACULAR_KEY_FILE: /tmp/fewia-ci/spoonacular-key
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Create overlay secret files
+        run: |
+          mkdir -p /tmp/fewia-ci
+          : > /tmp/fewia-ci/bedrock-credentials
+          : > /tmp/fewia-ci/spoonacular-key
+
+      - name: Validate compose files
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.bedrock.yaml config --quiet
+          docker compose -f compose.yaml -f compose.spoonacular.yaml config --quiet
+
   backend:
     name: Backend checks
     runs-on: ubuntu-latest
@@ -21,7 +47,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
         env:
           POSTGRES_USER: fewia
           POSTGRES_PASSWORD: fewia
