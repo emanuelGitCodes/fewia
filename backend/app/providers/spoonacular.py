@@ -7,10 +7,11 @@ from collections.abc import Callable
 
 import httpx
 
+from app.providers.http_client import DEFAULT_TIMEOUT, build_http_client
+
 BASE_URL = "https://api.spoonacular.com"
 INFORMATION_PATH = "/food/ingredients/{id}/information"
 CACHE_SECONDS = 3600
-_TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 
 
 class SpoonacularUnavailable(Exception):
@@ -58,13 +59,7 @@ class SpoonacularEstimateProvider:
         self._clock = time.monotonic if clock is None else clock
         self._cache: dict[tuple[int, int, str], tuple[float, int | None]] = {}
         if client is None:
-            self._client = httpx.Client(
-                base_url=BASE_URL,
-                timeout=_TIMEOUT,
-                follow_redirects=False,
-                trust_env=False,
-                transport=httpx.HTTPTransport(retries=0, trust_env=False),
-            )
+            self._client = build_http_client(BASE_URL)
             self._owns_client = True
         else:
             self._client = client
@@ -89,7 +84,7 @@ class SpoonacularEstimateProvider:
                 _information_url(ingredient_id),
                 params={"apiKey": self._api_key, "amount": amount, "unit": unit},
                 follow_redirects=False,
-                timeout=_TIMEOUT,
+                timeout=DEFAULT_TIMEOUT,
             )
         except (httpx.RequestError, httpx.InvalidURL, TypeError, ValueError):
             pass

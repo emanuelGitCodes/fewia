@@ -4,7 +4,8 @@ import json
 from typing import Protocol, cast
 
 import boto3  # type: ignore[import-untyped]
-from botocore.config import Config  # type: ignore[import-untyped]
+
+from app.providers.aws_config import aws_client_config
 
 ALLOWED_ENDPOINTS = frozenset(
     {"http://127.0.0.1:4566", "http://localhost:4566", "http://floci:4566"}
@@ -34,12 +35,7 @@ class LocalSqsSender:
             session.client(
                 "sqs",
                 endpoint_url=endpoint_url,
-                config=Config(
-                    connect_timeout=3,
-                    read_timeout=5,
-                    retries={"total_max_attempts": 1},
-                    proxies={},
-                ),
+                config=aws_client_config(5, local=True),
             ),
         )
 

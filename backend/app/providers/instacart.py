@@ -6,9 +6,10 @@ from urllib.parse import SplitResult, urlsplit
 
 import httpx
 
+from app.providers.http_client import DEFAULT_TIMEOUT, build_http_client
+
 PRODUCTS_LINK_URL = "https://connect.dev.instacart.tools/idp/v1/products/products_link"
 _DEV_BASE_URL = "https://connect.dev.instacart.tools"
-_TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 _ALLOWED_HOSTS = frozenset(
     {
         "www.instacart.com",
@@ -113,13 +114,7 @@ class InstacartDevelopmentProvider:
     def __init__(self, api_key: str, client: httpx.Client | None = None) -> None:
         self._api_key = _require_api_key(api_key)
         if client is None:
-            self._client = httpx.Client(
-                base_url=_DEV_BASE_URL,
-                timeout=_TIMEOUT,
-                follow_redirects=False,
-                trust_env=False,
-                transport=httpx.HTTPTransport(retries=0, trust_env=False),
-            )
+            self._client = build_http_client(_DEV_BASE_URL)
             self._owns_client = True
         else:
             self._client = client
@@ -140,7 +135,7 @@ class InstacartDevelopmentProvider:
                     "Accept": "application/json",
                 },
                 follow_redirects=False,
-                timeout=_TIMEOUT,
+                timeout=DEFAULT_TIMEOUT,
             )
         except (httpx.RequestError, httpx.InvalidURL, TypeError, ValueError):
             pass
