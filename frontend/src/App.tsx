@@ -63,6 +63,8 @@ export default function App(): JSX.Element {
             error={demo.error}
             pending={busy}
             freshRequestsDisabled={blocked || chat.pending}
+            recipes={demo.config?.recipes ?? []}
+            ingredients={demo.config?.ingredients ?? []}
             onExample={demo.example}
             onRetry={demo.retry}
             onNewRequest={demo.newRequest}

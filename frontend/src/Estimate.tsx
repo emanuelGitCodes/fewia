@@ -7,6 +7,7 @@ import {
   type PlanLine,
   type SupermarketLine,
 } from "./apiTypes";
+import { exclusionMessage } from "./exclusionMessage";
 import { formatDollars } from "./money";
 import { Nutrition } from "./Nutrition";
 
@@ -36,18 +37,6 @@ function planWording(result: GroceryJobResult): string {
   return "This plan is over budget.";
 }
 
-function catalogName(items: CatalogItem[], id: string): string {
-  return items.find((item) => item.id === id)?.name ?? id;
-}
-
-function recipeTitle(items: CatalogItem[], id: string): string {
-  const match = items.find((item) => item.id === id)?.name;
-  if (match === undefined) {
-    return id;
-  }
-  return `${match.slice(0, 1).toUpperCase()}${match.slice(1)}`;
-}
-
 function statusText(
   job: GroceryJob | null,
   pending: boolean,
@@ -64,13 +53,7 @@ function statusText(
     return "The grocery request is in progress.";
   }
   if (job?.status === "failed") {
-    const detail = job.error_detail;
-    if (job.error_code === "exclusion_reject" && detail != null) {
-      const recipeName = recipeTitle(recipes, detail.recipe_id);
-      const ingredientName = catalogName(ingredients, detail.ingredient_id);
-      return `The grocery request failed. ${recipeName} needs ${ingredientName}, which is excluded. Clear the ${ingredientName} exclusion or choose another meal, then rebuild.`;
-    }
-    return HTTP_ERROR;
+    return exclusionMessage(job, recipes, ingredients) ?? HTTP_ERROR;
   }
   return "No grocery budget or meal plan is set yet.";
 }
