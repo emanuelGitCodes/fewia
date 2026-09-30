@@ -4,9 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from app.domain.nutrition import USDA_NUTRITION_NOTICE
 from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
-from app.services.meal_nutrition import PORTION_NOTICE
+from app.services.meal_nutrition import NOTICE, PORTION_NOTICE
 
 
 FRONTEND_TYPES = (
@@ -17,7 +16,7 @@ FRONTEND_TYPES = (
 @pytest.mark.parametrize(
     ("frontend_name", "backend_notice"),
     [
-        ("NUTRITION_NOTICE", USDA_NUTRITION_NOTICE),
+        ("NUTRITION_NOTICE", NOTICE),
         ("NUTRITION_PORTION_NOTICE", PORTION_NOTICE),
         ("SPOONACULAR_COST_NOTICE", SPOONACULAR_COST_NOTICE),
     ],
