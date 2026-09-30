@@ -11,6 +11,7 @@ from app.api.grocery_models import (
     GroceryConfig,
     GroceryJobAccepted,
     GroceryJobView,
+    PlanJobView,
 )
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
@@ -155,8 +156,8 @@ def test_config_keeps_sample_price_notice() -> None:
         assert "price" not in item
 
 
-def test_job_view_exposes_public_fields_only() -> None:
-    view = GroceryJobView(id="job-1", status="queued", result=None, error_code=None)
+def test_plan_job_view_exposes_public_fields_only() -> None:
+    view = PlanJobView(id="job-1", status="queued", result=None, error_code=None)
 
     assert set(view.model_dump()) == {
         "id",
@@ -170,9 +171,21 @@ def test_job_view_exposes_public_fields_only() -> None:
     assert set(accepted.model_dump()) == {"job_id", "status"}
 
 
-def test_job_view_accepts_typed_exclusion_detail() -> None:
+def test_grocery_job_view_has_no_error_detail_field() -> None:
+    view = GroceryJobView(id="job-1", status="queued", result=None, error_code=None)
+
+    assert set(GroceryJobView.model_fields) == {
+        "id",
+        "status",
+        "result",
+        "error_code",
+    }
+    assert "error_detail" not in view.model_dump()
+
+
+def test_plan_job_view_accepts_typed_exclusion_detail() -> None:
     detail = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
-    view = GroceryJobView(
+    view = PlanJobView(
         id="job-1",
         status="failed",
         result=None,

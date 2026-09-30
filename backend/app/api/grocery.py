@@ -14,7 +14,7 @@ from app.api.grocery_models import (
     CreateGroceryJobBody,
     GroceryConfig,
     GroceryJobAccepted,
-    GroceryJobView,
+    PlanJobView,
 )
 from app.deps import get_provider_settings, get_session, get_supermarket_estimator
 from app.domain.budget import NEW_YORK
@@ -163,7 +163,7 @@ def read_grocery_job(
     estimator: Annotated[
         IngredientCostEstimator | None, Depends(get_supermarket_estimator)
     ],
-) -> GroceryJobView:
+) -> PlanJobView:
     job = session.get(Job, str(job_id))
     if job is None or job.user_id != DEMO_USER_ID or job.kind != "agent":
         raise HTTPException(status_code=404, detail="Job not found")
@@ -179,7 +179,7 @@ def read_grocery_job(
         result = None
     if job.status == "succeeded" and isinstance(result, dict) and estimator is not None:
         result = attach_supermarket_estimate(result, estimator)
-    return GroceryJobView(
+    return PlanJobView(
         id=job.id,
         status=job.status,
         result=result,

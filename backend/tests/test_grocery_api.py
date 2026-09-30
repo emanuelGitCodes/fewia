@@ -23,7 +23,7 @@ from test_deps import (
 )
 
 from app.api import grocery as grocery_api
-from app.api.grocery_models import CreateGroceryJobBody
+from app.api.grocery_models import CreateGroceryJobBody, PlanJobView
 from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot, calculate_budget
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
@@ -953,6 +953,7 @@ def test_failed_job_ignores_invalid_error_detail(
     job = _seed_grocery_job(session, key="invalid-detail", status="failed", result=None)
     job.result = {"error_detail": detail}
     view = grocery_api.read_grocery_job(UUID(job.id), session, None)
+    assert isinstance(view, PlanJobView)
     assert view.result is None
     assert view.error_detail is None
 
