@@ -43,6 +43,35 @@ The coordinator picks one tier per work item from its complexity class.
 A security boundary or a test-gate deliverable is tier L at any size.
 When the tier is unclear, the coordinator SHOULD pick the higher tier.
 
+## Writer selection
+
+The coordinator picks one writer model and one effort per work item.
+Decision [0015](../wiki/decisions/0015-writer-routing-by-difficulty.md)
+records the rule.
+
+| Difficulty | Writer | Effort | `--complexity` |
+|---|---|---|---|
+| Simple: configuration, one narrow change, no new contract | `gpt-6-luna` | `low` | `simple` |
+| Harder, fully specified, follows a known pattern in the repository | `grok-4.6` | `low` or `medium` | `standard` |
+| Harder, ambiguous, cross-cutting, a new contract, debugging, security, or test-gate work | `gpt-6.1-sol` | `medium` or `high` | `standard` or `complex` |
+
+- Every writer run MUST pass `--only --model MODEL --effort LEVEL`.
+- Grok uses `low` for a small mechanical change and `medium` otherwise.
+- Sol uses `medium` for `standard` work and `high` for `complex` or harder
+  work. Sol MUST NOT receive `xhigh` or `max`.
+- Only these three models write code. `gpt-5.3-codex-spark` and Sonnet
+  MUST NOT write code.
+- When the difficulty is unclear, the coordinator SHOULD pick Sol.
+- `--complexity` still sets the tier and the review effort.
+
+Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
+`stalled`): Luna goes to Grok `low`, Grok goes to Sol `medium`, and Sol
+goes to Grok `medium`. A failed task does not trigger fallback.
+
+A repair keeps the same writer. After two repair rounds with no progress,
+the coordinator MAY move the item one step up: Luna to Grok or Sol, and
+Grok to Sol. The ledger records each change of writer.
+
 ## The loop
 
 1. **Intake.** Read `project-plan.md`, `wiki/index.md`, the newest
@@ -66,8 +95,10 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 7. **Verify.** Read the diff. Run `dev_supervisor.gates --reuse` on the
    reviewed SHA; it reruns the gates when the record is missing or the tree
    changed. Confirm the reviewed SHA equals the head SHA.
-8. **Repair.** Send blocking findings back to the owner. Stop an item after
-   three review rounds and escalate to the user.
+8. **Repair.** Write a repair brief with the blocking findings from the
+   review command and from the coordinator's own diff read and checks.
+   Send it back to the owner. Stop an item after three review rounds and
+   escalate to the user.
 9. **Publish and record.** Publish only with user authorization. Record
    tokens and time per item in the loop ledger and the wiki log. Update the
    wiki pages that the work touched.
@@ -77,10 +108,11 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 Run every command from the item worktree root.
 
 ```bash
-# Writer: edits files only.
+# Writer: edits files only. Pick the model and effort from "Writer selection".
 uv run --project backend python -m dev_supervisor \
   --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file backend/app/example.py \
+  --complexity standard --only --model gpt-6.1-sol --effort medium \
+  --write-file backend/app/example.py \
   --work-item fewia-42 --phase implement
 
 # Gates: selects checks from the changed paths and records them by SHA.
@@ -89,7 +121,7 @@ uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 # Review: independent, read-only, time-capped, short output.
 uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
   --base main --brief "$BRIEF_FILE" --complexity standard \
-  --writer-model grok-4.6 --work-item fewia-42
+  --writer-model gpt-6.1-sol --work-item fewia-42
 
 # Usage: token and time totals per work item.
 uv run --project backend python -m dev_supervisor.usage --work-item fewia-42

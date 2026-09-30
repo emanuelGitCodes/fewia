@@ -2374,3 +2374,11 @@ as `tech-lead`, chose tier S. It ran the Grok writer through
 ran the review command. The review command failed inside the Codex
 sandbox, so Codex used the documented read-only Grok review, which
 returned APPROVE. No subagents ran.
+
+## 2026-09-30 — Route writers by difficulty
+
+Decision 0015 routes each work item to one writer. Luna `low` takes simple
+work. Grok `low` or `medium` takes fully specified harder work. Sol
+`medium` or `high` takes ambiguous or high-risk work. `docs/DELEGATION.md`,
+`docs/DEV_SUPERVISOR.md`, `.codex/TEAM.md`, and both coordinator skills
+now name this rule. The supervisor code did not change.

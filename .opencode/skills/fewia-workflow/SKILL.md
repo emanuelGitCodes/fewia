@@ -46,14 +46,15 @@ Run every command from the item worktree root.
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file relative/path \
-  --work-item fewia-42 --phase implement
+  --complexity standard --only --model gpt-6.1-sol --effort medium \
+  --write-file relative/path --work-item fewia-42 --phase implement
 uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
   --base main --brief "$BRIEF_FILE" --complexity standard \
-  --writer-model grok-4.6 --work-item fewia-42
+  --writer-model gpt-6.1-sol --work-item fewia-42
 uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
 ```
 
-Writers edit files only. The specialist or `tech-lead` runs every command.
+Pick the writer model and effort from Writer selection in
+`docs/DELEGATION.md`. Writers edit files only. The specialist or `tech-lead` runs every command.
 Reports stay within 40 lines and name the SHA.

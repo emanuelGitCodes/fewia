@@ -29,6 +29,11 @@ symlinks or contain permission-rule syntax are rejected before execution.
 
 ## Model selection
 
+The coordinator picks the writer model and effort per work item from
+[Writer selection](DELEGATION.md#writer-selection), and passes them with
+`--only --model MODEL --effort LEVEL`. The default order below applies
+only when a run omits `--model`. FEWIA work MUST NOT omit it.
+
 The supervisor requires `--complexity`.
 Valid values are `simple`, `standard`, `complex`, `exceptional`, and `maximum`.
 The coordinator classifies each task before delegation:
