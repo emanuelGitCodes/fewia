@@ -2,7 +2,7 @@
 
 Feature: <one-line request from the user>
 Publish authorized: no | yes
-Writer model constraint: default order | <explicit request>
+Writer model constraint: Writer selection | <explicit request>
 
 ## Contracts
 
@@ -10,9 +10,9 @@ Writer model constraint: default order | <explicit request>
 
 ## Items
 
-| ID | Title | Owner | Complexity | Base | Branch | Owned files | Depends on | State | Round | Review | PR |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| 01 | | | | main | claude/<slug>-01 | | — | queued | 0 | — | — |
+| ID | Title | Owner | Complexity | Writer (model, effort) | Base | Branch | Owned files | Depends on | State | Round | Review | PR |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 01 | | | | | main | claude/<slug>-01 | | — | queued | 0 | — | — |
 
 States: `queued`, `released`, `in_progress`, `review`, `repair`,
 `verified`, `published`, `merged`, `blocked`.

@@ -5,7 +5,10 @@ import json
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from app.evaluation_followup import evaluate_followup_case
+from app.services.grocery_planner import ExclusionConflict, PlanningError
 
 CORPUS_PATH = Path(__file__).parent / "evaluation" / "scenarios.json"
 SECRET_MARKER = "FIXTURE_SECRET_MARKER"
@@ -38,6 +41,32 @@ def test_f03_accepted_and_exclusion_reject() -> None:
     assert checks["accepted"] is True
     assert observed["outcome"] == "exclusion_reject"
     assert checks["outcome"] is True
+
+
+def test_f03_scores_typed_conflict_without_message_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject(_inputs: dict[str, object]) -> None:
+        error = ExclusionConflict("vegetable_pasta", "onion")
+        error.args = ("excluded ingredient",)
+        raise error
+
+    monkeypatch.setattr("app.evaluation_followup.fixture_plan", reject)
+    report = evaluate_followup_case(_followup_case())
+    assert _mapping(report["observed"], "observed")["outcome"] == "exclusion_reject"
+    assert _mapping(report["checks"], "checks")["outcome"] is True
+
+
+def test_exclusion_message_without_typed_conflict_is_diet_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject(_inputs: dict[str, object]) -> None:
+        raise PlanningError("ingredient is excluded: onion")
+
+    monkeypatch.setattr("app.evaluation_followup.fixture_plan", reject)
+    report = evaluate_followup_case(_followup_case())
+    observed = _mapping(report["observed"], "observed")
+    assert observed["outcome"] == "diet_conflict"
 
 
 def test_f03_omits_null_total_cents_check() -> None:

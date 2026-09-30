@@ -18,6 +18,7 @@ import {
   type GroceryJobAck,
   type GroceryJobResult,
   type GroceryPlan,
+  type JobErrorDetail,
   type MacroTotals,
   type MealNutrition,
   type MealPlanNutrition,
@@ -242,6 +243,13 @@ export function parseAck(value: unknown): GroceryJobAck {
   return { job_id: value.job_id, status: value.status };
 }
 
+function copyErrorDetail(value: unknown): JobErrorDetail | null {
+  if (!isRecord(value) || !isString(value.recipe_id) || !isString(value.ingredient_id)) {
+    return null;
+  }
+  return { recipe_id: value.recipe_id, ingredient_id: value.ingredient_id };
+}
+
 export function parseJob(value: unknown): GroceryJob {
   if (!isRecord(value) || !isNonemptyString(value.id) || !isStatus(value.status)) {
     throw new Error(SHAPE_ERROR);
@@ -255,6 +263,7 @@ export function parseJob(value: unknown): GroceryJob {
   if (value.result !== null && !isResult(value.result)) {
     throw new Error(SHAPE_ERROR);
   }
+  const error_detail = copyErrorDetail(value.error_detail);
   if (isRecord(value.result) && "supermarket_estimate" in value.result) {
     const supermarket_estimate = copySupermarketEstimate(value.result.supermarket_estimate);
     if (supermarket_estimate === null) {
@@ -262,8 +271,9 @@ export function parseJob(value: unknown): GroceryJob {
     }
     return {
       ...value,
+      error_detail,
       result: { ...value.result, supermarket_estimate },
     } as GroceryJob;
   }
-  return value as GroceryJob;
+  return { ...value, error_detail } as GroceryJob;
 }

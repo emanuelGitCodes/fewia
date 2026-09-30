@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import type { GroceryJob } from "./apiTypes";
+import type { CatalogItem, GroceryJob } from "./apiTypes";
+import { exclusionMessage } from "./exclusionMessage";
 
 export type ExampleKind = "beans" | "vegan";
 
@@ -8,6 +9,8 @@ export type ConversationProps = {
   error: string | null;
   pending: boolean;
   freshRequestsDisabled?: boolean;
+  recipes?: CatalogItem[];
+  ingredients?: CatalogItem[];
   onExample: (kind: ExampleKind) => void;
   onRetry: () => void;
   onNewRequest: () => void;
@@ -30,7 +33,12 @@ function successSummary(job: GroceryJob): string {
   return "The plan is over budget.";
 }
 
-function liveStatus(job: GroceryJob | null, pending: boolean): string | null {
+function liveStatus(
+  job: GroceryJob | null,
+  pending: boolean,
+  recipes: CatalogItem[],
+  ingredients: CatalogItem[],
+): string | null {
   if (pending && job === null) {
     return "Submitting your grocery request.";
   }
@@ -44,7 +52,10 @@ function liveStatus(job: GroceryJob | null, pending: boolean): string | null {
     return successSummary(job);
   }
   if (job?.status === "failed") {
-    return "The grocery request failed. Check meals, servings, and budget, then retry.";
+    return (
+      exclusionMessage(job, recipes, ingredients) ??
+      "The grocery request failed. Check meals, servings, and budget, then retry."
+    );
   }
   return null;
 }
@@ -54,12 +65,14 @@ export function Conversation({
   error,
   pending,
   freshRequestsDisabled = false,
+  recipes = [],
+  ingredients = [],
   onExample,
   onRetry,
   onNewRequest,
   children,
 }: ConversationProps): JSX.Element {
-  const status = liveStatus(job, pending);
+  const status = liveStatus(job, pending, recipes, ingredients);
   const showAction = error !== null || job?.status === "failed";
   const failed = job?.status === "failed";
   const examplesDisabled = pending || freshRequestsDisabled;

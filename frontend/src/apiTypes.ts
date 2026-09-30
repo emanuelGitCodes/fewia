@@ -99,6 +99,11 @@ export type GroceryJobResult = {
   supermarket_estimate?: SupermarketEstimate;
 };
 
+export type JobErrorDetail = {
+  recipe_id: string;
+  ingredient_id: string;
+};
+
 export type GroceryConfig = {
   budget_period: string;
   source: SpendingSource;
@@ -123,6 +128,7 @@ export type GroceryJob = {
   status: JobStatus;
   result: GroceryJobResult | null;
   error_code: string | null;
+  error_detail?: JobErrorDetail | null;
 };
 
 export const SAMPLE_ESTIMATE_NOTICE =

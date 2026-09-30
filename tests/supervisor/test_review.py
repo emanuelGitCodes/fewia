@@ -147,8 +147,8 @@ def install_grok(
     [
         ("grok-4.6", "gpt-6-luna"),
         ("gpt-5.3-codex-spark", "gpt-6-luna"),
-        ("gpt-6-luna", "gpt-6-sol"),
-        ("gpt-6-sol", "gpt-6-luna"),
+        ("gpt-6-luna", "gpt-6.1-sol"),
+        ("gpt-6.1-sol", "gpt-6-luna"),
         ("unknown-writer", "gpt-6-luna"),
     ],
 )
@@ -178,9 +178,9 @@ def test_explicit_model_override(
 ) -> None:
     root = make_repo(tmp_path)
     install_run(monkeypatch)
-    code = run_main(monkeypatch, argv(root, ["--model", "gpt-6-sol"]))
+    code = run_main(monkeypatch, argv(root, ["--model", "gpt-6.1-sol"]))
     assert code == 0
-    assert summary(capsys.readouterr().out)["model"] == "gpt-6-sol"
+    assert summary(capsys.readouterr().out)["model"] == "gpt-6.1-sol"
 
 
 @pytest.mark.parametrize(

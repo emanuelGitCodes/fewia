@@ -20,6 +20,7 @@ from app.services.job_consumer import (
     RetryableJobError,
     process_one,
 )
+from app.services.job_delivery import JobFailure
 from app.services.job_leases import claim_job
 from app.services.job_submission import create_job
 
@@ -365,6 +366,7 @@ def test_retry_extends_without_finishing(factory: sessionmaker[Session]) -> None
 
 def test_handler_exception_persists_static_error_code(
     factory: sessionmaker[Session],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     job_id = seed_job(factory)
     queue = FakeQueue(body(job_id))
@@ -385,6 +387,58 @@ def test_handler_exception_persists_static_error_code(
     assert failed.result is None
     assert "secret-token" not in str(failed.error_code)
     assert queue.acknowledgments == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "secret-token" not in captured.err
+    assert captured.err.splitlines() == [
+        json.dumps(
+            {
+                "event": "job_failed",
+                "job_id": job_id,
+                "error_code": "handler_failed",
+                "exception": "RuntimeError",
+            },
+            sort_keys=True,
+        )
+    ]
+
+
+def test_job_failure_persists_detail_and_logs_once(
+    factory: sessionmaker[Session], capsys: pytest.CaptureFixture[str]
+) -> None:
+    job_id = seed_job(factory)
+    queue = FakeQueue(body(job_id))
+    detail = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
+
+    def handler(
+        payload: dict[str, object], heartbeat: Callable[[], None]
+    ) -> dict[str, object]:
+        heartbeat()
+        raise JobFailure("exclusion_reject", detail)
+
+    assert (
+        process_one(factory, queue, "agent", handler, now=lambda: T0)
+        == "handler_failed"
+    )
+    failed = stored_job(factory, job_id)
+    assert failed.status == "failed"
+    assert failed.error_code == "exclusion_reject"
+    assert failed.result == {"error_detail": detail}
+    assert queue.acknowledgments == 1
+    assert queue.events == ["receive", "extend", "extend", "extend", "ack"]
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.splitlines() == [
+        json.dumps(
+            {
+                "event": "job_failed",
+                "job_id": job_id,
+                "error_code": "exclusion_reject",
+                "exception": "JobFailure",
+            },
+            sort_keys=True,
+        )
+    ]
 
 
 def test_heartbeat_loss_prevents_completion_and_acknowledgment(

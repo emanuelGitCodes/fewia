@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api import grocery as grocery_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
+from app.demo import DEMO_USER_ID
 from app.deps import get_provider_settings, get_session, get_supermarket_estimator
 from app.domain.budget import NEW_YORK
 from app.job_models import Job
@@ -19,7 +20,7 @@ from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
-from app.services.job_submission import IdempotencyConflict, create_job
+from app.services.job_submission import IdempotencyConflict, create_job, find_job
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
     attach_supermarket_estimate,
@@ -38,7 +39,7 @@ def _ny_now() -> datetime:
 
 
 def _existing_chat_job(session: Session, request_key: str) -> Job | None:
-    return grocery_api._existing_agent_job(session, request_key)
+    return find_job(session, DEMO_USER_ID, "agent", request_key)
 
 
 @router.get("/providers")
@@ -64,16 +65,14 @@ def create_chat_job(
     settings = get_provider_settings()
     if not capabilities(settings)["chat_configured"]:
         raise HTTPException(status_code=503, detail=CHAT_UNAVAILABLE_MESSAGE)
-    if session.get(User, grocery_api.DEMO_USER_ID) is None:
+    if session.get(User, DEMO_USER_ID) is None:
         raise HTTPException(status_code=503, detail=grocery_api.DEMO_NOT_READY_MESSAGE)
     spending = grocery_api.require_spending(
         session, settings.spending_source, _ny_now()
     )
     loaded: tuple[list[dict[str, str]], dict[str, object] | None] | None = None
     try:
-        loaded = load_chat_context(
-            session, grocery_api.DEMO_USER_ID, body.previous_job_id
-        )
+        loaded = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
     except ChatContextUnavailable:
         pass
     if loaded is None:
@@ -98,9 +97,7 @@ def create_chat_job(
     error_status: int | None = None
     error_detail: str | None = None
     try:
-        job, _created = create_job(
-            session, grocery_api.DEMO_USER_ID, "agent", request_key, payload
-        )
+        job, _created = create_job(session, DEMO_USER_ID, "agent", request_key, payload)
     except (IdempotencyConflict, IntegrityError) as exc:
         winner = _existing_chat_job(session, request_key)
         if winner is not None and body.matches_stored_caller_fields(winner.payload):
@@ -133,7 +130,7 @@ def read_chat_job(
     payload = job.payload if job is not None else None
     if (
         job is None
-        or job.user_id != grocery_api.DEMO_USER_ID
+        or job.user_id != DEMO_USER_ID
         or job.kind != "agent"
         or not isinstance(payload, dict)
         or payload.get("operation") != "chat"

@@ -29,8 +29,9 @@ The skill in `.claude/skills/feature-loop/` holds the Claude Code mechanics.
 
 - The juniors in `.claude/agents/` are thin adapters over
   `.codex/agents/<role>.toml`. They follow `docs/delegation/junior.md`.
-- `code-reviewer` runs only for tier L and follows
-  `docs/delegation/reviewer.md`.
+- For tier L, the senior runs the probes in `docs/delegation/reviewer.md`
+  and the review model gives the verdict. The senior does not spawn
+  `code-reviewer`.
 - The senior MUST NOT write application, test, or infrastructure code with
   Edit or Write. The senior MAY edit prose, the wiki, and agent
   configuration directly.

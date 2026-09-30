@@ -60,6 +60,7 @@ def test_fallback_keeps_worktree_and_checkpoint(tmp_path: Path) -> None:
             return "quota"
         assert (cwd / "partial.py").exists()
         assert "Check A passed. Check B remains." in prompt.read_text()
+        owned.write_text("value = 2\n")
         return "completed"
 
     with patch("dev_supervisor.__main__.attempt", runner):
@@ -152,7 +153,7 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
                     "backend-dev",
                     tmp_path,
                     MODELS,
-                    order("gpt-6-sol", False, MODELS),
+                    order("gpt-6.1-sol", False, MODELS),
                     1,
                     2,
                     "complex",
@@ -160,7 +161,7 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
                 == outcome
             )
             assert runner.call_count == 1
-            assert "gpt-6-sol" in runner.call_args.args[0]
+            assert "gpt-6.1-sol" in runner.call_args.args[0]
     with patch("dev_supervisor.__main__.attempt", return_value="quota") as runner:
         assert (
             execute(
@@ -169,7 +170,7 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
                 "backend-dev",
                 tmp_path,
                 MODELS,
-                order("gpt-6-sol", True, MODELS),
+                order("gpt-6.1-sol", True, MODELS),
                 1,
                 2,
                 "maximum",
@@ -178,7 +179,9 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
             == "all_providers_exhausted"
         )
         assert runner.call_count == 1
-    assert json.loads((tmp_path / "result.json").read_text())[0]["model"] == "gpt-6-sol"
+    assert (
+        json.loads((tmp_path / "result.json").read_text())[0]["model"] == "gpt-6.1-sol"
+    )
     checkpoint = json.loads((tmp_path / "checkpoint.json").read_text())
     assert checkpoint["complexity"] == "maximum"
     assert checkpoint["effort"] == "max"
@@ -330,8 +333,9 @@ def test_existing_status_blocks_after_execute_failure(tmp_path: Path) -> None:
 def test_guard_forbids_writer_commands() -> None:
     assert (
         "You MUST NOT run shell commands, tests, package managers, or git commands"
-        in GUARD
+        not in GUARD
     )
+    assert "You MAY run read-only shell commands" not in GUARD
     assert "Never claim an unfinished check passed" not in GUARD
     assert "Record completed checks" not in GUARD
     assert "after each completed check" not in GUARD
@@ -542,7 +546,7 @@ def test_ledger_write_failure_keeps_outcome(
                 "backend-dev",
                 tmp_path,
                 MODELS,
-                order("gpt-6-sol", True, MODELS),
+                order("gpt-6.1-sol", True, MODELS),
                 1,
                 2,
                 "standard",

@@ -4,10 +4,11 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from app.agent.planning_tool import execute_plan
+from app.agent.planning_tool import PlanningToolError, execute_plan
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.services import plan_job as plan_job_module
+from app.services.job_delivery import JobFailure
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 _REV = "ab" * 32
@@ -178,6 +179,48 @@ def test_plan_job_manual_source_uses_full_monthly_limit(
     assert result["spending_source"] == "manual"
     assert isinstance(budget, dict)
     assert budget["available_cents"] == 10_000
+
+
+def test_plan_job_exclusion_raises_job_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+    with pytest.raises(JobFailure) as caught:
+        plan_job_module.plan_job(
+            payload(
+                request={
+                    "meals": [{"recipe_id": "vegetable_pasta", "servings": 2}],
+                    "budget_period": date(2026, 9, 1),
+                    "ingredient_exclusions": ["onion"],
+                }
+            ),
+            lambda: None,
+        )
+    assert str(caught.value) == caught.value.error_code == "exclusion_reject"
+    assert caught.value.__cause__ is None and caught.value.__suppress_context__ is True
+    assert caught.value.detail == {
+        "recipe_id": "vegetable_pasta",
+        "ingredient_id": "onion",
+    }
+
+
+def test_plan_job_preserves_untyped_planning_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+    with pytest.raises(PlanningToolError) as caught:
+        plan_job_module.plan_job(
+            payload(
+                request={
+                    "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+                    "budget_period": date(2026, 9, 1),
+                    "diet": "vegan",
+                }
+            ),
+            lambda: None,
+        )
+    assert caught.value.error_code is None
+    assert str(caught.value) == "catalog constraint is invalid"
 
 
 def test_plan_job_rejects_period_mismatch() -> None:

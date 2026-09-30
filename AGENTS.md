@@ -24,7 +24,10 @@ and is never the independent reviewer. These rules bind all writers.
 Every coordinator follows [docs/DELEGATION.md](docs/DELEGATION.md), whatever
 the tool. The coordinator picks tier S, M, or L for each work item.
 
-- Writers edit files only. Writers MUST NOT run shell commands.
+- Writers edit files only. A Grok writer MUST NOT run shell commands. A
+  Codex writer MAY run read-only shell commands to read and search files.
+  No writer runs tests, package managers, git commands, or commands that
+  write files.
 - Juniors follow `docs/delegation/junior.md`. Briefs follow
   `docs/delegation/brief.md`.
 - Run checks with `python -m dev_supervisor.gates`. Run independent review

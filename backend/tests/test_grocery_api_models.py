@@ -11,6 +11,7 @@ from app.api.grocery_models import (
     GroceryConfig,
     GroceryJobAccepted,
     GroceryJobView,
+    PlanJobView,
 )
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
@@ -62,6 +63,36 @@ def test_caller_fields_match_stored_payload_not_spending() -> None:
     assert body.matches_stored_caller_fields("job") is False
     assert body.matches_stored_caller_fields({"monthly_limit_cents": 40000}) is False
     assert one.matches_stored_caller_fields(bool_limit) is False
+
+
+def test_create_body_rejects_unknown_pantry_ingredient() -> None:
+    payload = valid_body()
+    request = payload["request"]
+    assert isinstance(request, dict)
+    request["pantry_ingredients"] = ["white_rice"]
+    with pytest.raises(ValidationError):
+        CreateGroceryJobBody.model_validate(payload)
+
+
+def test_create_body_rejects_unknown_exclusion_ingredient() -> None:
+    payload = valid_body()
+    request = payload["request"]
+    assert isinstance(request, dict)
+    request["ingredient_exclusions"] = ["not_an_ingredient"]
+    with pytest.raises(ValidationError):
+        CreateGroceryJobBody.model_validate(payload)
+
+
+def test_create_body_accepts_known_pantry_and_exclusion_ids() -> None:
+    payload = valid_body()
+    request = payload["request"]
+    assert isinstance(request, dict)
+    request["pantry_ingredients"] = ["rice"]
+    request["ingredient_exclusions"] = ["onion"]
+    body = CreateGroceryJobBody.model_validate(payload)
+
+    assert body.request.pantry_ingredients == ["rice"]
+    assert body.request.ingredient_exclusions == ["onion"]
 
 
 def test_create_body_rejects_caller_user_and_spending() -> None:
@@ -125,9 +156,40 @@ def test_config_keeps_sample_price_notice() -> None:
         assert "price" not in item
 
 
-def test_job_view_exposes_public_fields_only() -> None:
-    view = GroceryJobView(id="job-1", status="queued", result=None, error_code=None)
+def test_plan_job_view_exposes_public_fields_only() -> None:
+    view = PlanJobView(id="job-1", status="queued", result=None, error_code=None)
 
-    assert set(view.model_dump()) == {"id", "status", "result", "error_code"}
+    assert set(view.model_dump()) == {
+        "id",
+        "status",
+        "result",
+        "error_code",
+        "error_detail",
+    }
+    assert view.error_detail is None
     accepted = GroceryJobAccepted(job_id="job-1", status="queued")
     assert set(accepted.model_dump()) == {"job_id", "status"}
+
+
+def test_grocery_job_view_has_no_error_detail_field() -> None:
+    view = GroceryJobView(id="job-1", status="queued", result=None, error_code=None)
+
+    assert set(GroceryJobView.model_fields) == {
+        "id",
+        "status",
+        "result",
+        "error_code",
+    }
+    assert "error_detail" not in view.model_dump()
+
+
+def test_plan_job_view_accepts_typed_exclusion_detail() -> None:
+    detail = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
+    view = PlanJobView(
+        id="job-1",
+        status="failed",
+        result=None,
+        error_code="exclusion_reject",
+        error_detail=detail,
+    )
+    assert view.model_dump()["error_detail"] == detail

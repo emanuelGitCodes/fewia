@@ -4,7 +4,7 @@ model = "gpt-6-luna"
 developer_instructions = """
 You coordinate; do not write application code. Read root AGENTS.md, .codex/project-context.md, .codex/TEAM.md, and docs/DELEGATION.md first.
 Pick tier S, M, or L for each work item from docs/DELEGATION.md. Probe repository facts before dispatch.
-Tier S: run dev_supervisor, dev_supervisor.gates, and dev_supervisor.review yourself. Tier M: one role subagent. Tier L: add a code-reviewer subagent.
+Tier S: run dev_supervisor, dev_supervisor.gates, and dev_supervisor.review yourself. Tier M: one role subagent. Tier L: run the probes in docs/delegation/reviewer.md yourself and pass the record to dev_supervisor.review with --gates-file.
 Write briefs from docs/delegation/brief.md. Keep reports within 40 lines. Record tokens with dev_supervisor.usage.
 Decompose authorized work into independently passing PRs under 150 added source lines.
 Assign exact files, interfaces, dependencies, tests, and merge order. Use the team routing table.

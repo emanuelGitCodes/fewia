@@ -22,13 +22,14 @@ exist.
 - **Junior.** One role subagent per work item. It drives the writer, runs
   the gates, and reports. It follows [delegation/junior.md](delegation/junior.md).
 - **Writer.** A Grok or Codex CLI that `dev_supervisor` starts. The writer
-  edits files only. It runs no commands.
+  edits files only. It runs no checks.
 - **Review model.** A separate Codex model that `dev_supervisor.review`
   starts read-only. It is the independent reviewer. When Codex is
   unavailable, a separate read-only Grok session reviews the diff instead,
   and the coordinator records the deviation.
-- **Reviewer agent.** Tier L only. It runs probes and mutation checks and
-  follows [delegation/reviewer.md](delegation/reviewer.md).
+- **Tier L probes.** The coordinator runs probes and mutation checks and
+  gives the results to the review model. It follows
+  [delegation/reviewer.md](delegation/reviewer.md). No reviewer agent runs.
 
 ## Tiers
 
@@ -38,10 +39,46 @@ The coordinator picks one tier per work item from its complexity class.
 |---|---|---|
 | S | `simple`: configuration or a narrow change, no new contract, no security surface | The coordinator runs the writer, the gates, and the review command. No subagents. |
 | M | `standard` | One junior drives the writer and the gates. The coordinator runs the review command. |
-| L | `complex` or harder, a security boundary, or tests that guard other code | One junior, one reviewer agent, and the review command. |
+| L | `complex` or harder, a security boundary, or tests that guard other code | One junior, the coordinator's probes, and the review command at `high`. |
 
 A security boundary or a test-gate deliverable is tier L at any size.
 When the tier is unclear, the coordinator SHOULD pick the higher tier.
+
+## Writer selection
+
+The coordinator picks one writer model and one effort per work item.
+Decision [0015](../wiki/decisions/0015-writer-routing-by-difficulty.md)
+records the rule.
+
+The writers form one ladder. The score is the Artificial Analysis
+Intelligence Index v4.3.2. Pick the lowest rung that fits the work item.
+
+| Rung | Writer | Effort | Score | Use it for | `--complexity` |
+|---|---|---|---|---|---|
+| 1 | `gpt-6-luna` | `xhigh` | 34 | Simple: configuration, one narrow change, no new contract | `simple` |
+| 2 | `grok-4.6` | `low` | 35 | A small mechanical change that follows a pattern in the repository | `standard` |
+| 3 | `grok-4.6` | `medium` | 43 | Standard work that the brief fully specifies | `standard` |
+| 4 | `gpt-6.1-sol` | `medium` | 48 | Ambiguous or cross-cutting work, a new contract, or debugging | `complex` |
+| 5 | `gpt-6.1-sol` | `high` | 50 | Security, test-gate work, or the hardest cross-system work | `complex` or harder |
+
+- Every writer run MUST pass `--only --model MODEL --effort LEVEL`.
+- Only the five rungs above write code. Grok MUST NOT receive `high` or
+  above. Sol MUST NOT receive `low`, `xhigh`, or `max`. Luna MUST use
+  `xhigh`. `gpt-5.3-codex-spark` and Sonnet MUST NOT write code.
+- When the rung is unclear, the coordinator SHOULD pick the higher rung.
+- `--complexity` still sets the tier and the review effort.
+
+Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
+`stalled`): Luna goes to Grok `medium`, Grok goes to Sol `medium`, and Sol
+goes to Grok `medium`. A failed task does not trigger fallback. Each
+writer run gets at most one fallback. When the fallback model also returns
+a provider outcome, the coordinator stops the item, marks it `blocked`, and
+escalates to the user.
+
+A repair keeps the same writer. After two repair rounds with no progress,
+the coordinator MAY move the item up the ladder. Luna moves to rung 3,
+because rung 2 scores almost the same as Luna. The ledger records each
+change of writer.
 
 ## The loop
 
@@ -62,12 +99,15 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
    at a time. Review commands and gates do not count toward that limit.
 6. **Review.** Commit, run the gates on the committed head, then run the
    review command on that head. The review prompt then includes the gates
-   record. Tier L also gets a reviewer agent.
+   record. For tier L, the coordinator runs the probes first and passes the
+   gates and probe record with `--gates-file`.
 7. **Verify.** Read the diff. Run `dev_supervisor.gates --reuse` on the
    reviewed SHA; it reruns the gates when the record is missing or the tree
    changed. Confirm the reviewed SHA equals the head SHA.
-8. **Repair.** Send blocking findings back to the owner. Stop an item after
-   three review rounds and escalate to the user.
+8. **Repair.** Write a repair brief with the blocking findings from the
+   review command and from the coordinator's own diff read and checks.
+   Send it back to the owner. Stop an item after three review rounds and
+   escalate to the user.
 9. **Publish and record.** Publish only with user authorization. Record
    tokens and time per item in the loop ledger and the wiki log. Update the
    wiki pages that the work touched.
@@ -77,10 +117,11 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 Run every command from the item worktree root.
 
 ```bash
-# Writer: edits files only.
+# Writer: edits files only. Pick the model and effort from "Writer selection".
 uv run --project backend python -m dev_supervisor \
   --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file backend/app/example.py \
+  --complexity standard --only --model grok-4.6 --effort medium \
+  --write-file backend/app/example.py \
   --work-item fewia-42 --phase implement
 
 # Gates: selects checks from the changed paths and records them by SHA.
@@ -106,7 +147,7 @@ uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
 | Report | 40 lines in the fixed format. Name the SHA. Do not paste diffs or files. Send it once. |
 | Review model effort | `low` for S, `medium` for M, `high` for L |
 | Review model time | 900 seconds |
-| Gate runs per SHA | The junior runs them once. The coordinator runs them once. The reviewer agent does not rerun them. |
+| Gate runs per SHA | The junior runs them once. The coordinator runs them once. |
 | Review rounds per item | Three, then escalate |
 
 Reading per role:
@@ -115,12 +156,20 @@ Reading per role:
 - A junior reads its role file, `delegation/junior.md`, the brief, and the
   files that the brief names.
 - A writer reads the supervisor prompt only.
-- A reviewer agent reads `delegation/reviewer.md`, the brief, and the diff.
+- For tier L, the coordinator reads `delegation/reviewer.md`.
 
 ## Rules that prevent known waste
 
-- The writer MUST NOT run commands. Grok has file permissions only, and a
-  command ends its run as `task_failed`. Codex writers have no network.
+- A Grok writer MUST NOT run commands. Grok has file permissions only, and
+  a command ends its run as `task_failed`.
+- A Codex writer MAY run read-only shell commands to read and search
+  files, because Codex reads files only through a shell. It edits with
+  `apply_patch`. It MUST NOT run tests, package managers, git commands, or
+  commands that write files. Codex writers have no network.
+- A writer run that changes no owned file ends as `no_edits`, not
+  `completed`. With `--only`, the run then ends as
+  `all_providers_exhausted`. `no_edits` is not a provider outcome, so it
+  does not trigger the ladder fallback.
 - The junior runs every install, lint, test, and build.
 - A `task_failed` outcome does not prove the edits are wrong. The junior
   MUST inspect the diff before deciding.
