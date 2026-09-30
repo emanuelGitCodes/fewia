@@ -4,7 +4,7 @@ import json
 import os
 from datetime import UTC, date, datetime, timedelta
 from typing import cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import UserSeeder
@@ -23,7 +23,7 @@ from test_deps import (
 )
 
 from app.api import grocery as grocery_api
-from app.api.grocery_models import CreateGroceryJobBody
+from app.api.grocery_models import CreateGroceryJobBody, PlanJobView
 from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot, calculate_budget
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
@@ -674,11 +674,12 @@ def test_get_job_returns_public_fields_only(
     body = response.json()
 
     assert response.status_code == 200
-    assert set(body) == {"id", "status", "result", "error_code"}
+    assert set(body) == {"id", "status", "result", "error_code", "error_detail"}
     assert body["id"] == job_id
     assert body["status"] == "queued"
     assert body["result"] is None
     assert body["error_code"] is None
+    assert body["error_detail"] is None
     for field in INTERNAL_JOB_FIELDS:
         assert field not in body
 
@@ -914,5 +915,59 @@ def test_unfinished_grocery_job_does_not_call_estimator(
 
     assert response.status_code == 200
     assert body["status"] == status
-    assert body["result"] == PLAN_RESULT
-    assert "supermarket_estimate" not in body["result"]
+    assert body["result"] == (None if status == "failed" else PLAN_RESULT)
+    assert body["error_detail"] is None
+
+
+def test_failed_exclusion_job_exposes_detail_without_result(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    detail = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
+    job = _seed_grocery_job(
+        session,
+        key="excluded-onion",
+        status="failed",
+        result={"error_detail": detail},
+    )
+    job.error_code = "exclusion_reject"
+    session.flush()
+    response = client.get(f"/grocery/jobs/{job.id}")
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": job.id,
+        "status": "failed",
+        "result": None,
+        "error_code": "exclusion_reject",
+        "error_detail": detail,
+    }
+
+
+@pytest.mark.parametrize(
+    "detail", [None, "onion", ["onion"], {"ingredient_id": 1}, {1: "onion"}]
+)
+def test_failed_job_ignores_invalid_error_detail(
+    session: Session, seed_user: UserSeeder, detail: object
+) -> None:
+    seed_user()
+    job = _seed_grocery_job(session, key="invalid-detail", status="failed", result=None)
+    job.result = {"error_detail": detail}
+    view = grocery_api.read_grocery_job(UUID(job.id), session, None)
+    assert isinstance(view, PlanJobView)
+    assert view.result is None
+    assert view.error_detail is None
+
+
+@pytest.mark.parametrize("status", ["queued", "running", "succeeded"])
+def test_other_job_statuses_do_not_expose_error_detail(
+    client: TestClient, session: Session, seed_user: UserSeeder, status: str
+) -> None:
+    seed_user()
+    result: dict[str, object] = {"error_detail": {"ingredient_id": "onion"}}
+    job = _seed_grocery_job(
+        session, key=f"detail-{status}", status=status, result=result
+    )
+    response = client.get(f"/grocery/jobs/{job.id}")
+    assert response.status_code == 200
+    assert response.json()["error_detail"] is None
+    assert response.json()["result"] == result
