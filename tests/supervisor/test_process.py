@@ -53,13 +53,33 @@ def test_confirmed_stall(tmp_path: Path) -> None:
 
 
 def test_active_tool_cannot_be_declared_stalled(tmp_path: Path) -> None:
-    (tmp_path / "confirm-stall").write_text("unique")
+    written: list[bool] = []
+
+    def confirm() -> None:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            status_path = tmp_path / "status.json"
+            if status_path.exists():
+                status = json.loads(status_path.read_text())
+                if status.get("state") == "needs_inspection" and status.get(
+                    "active_tools"
+                ):
+                    (tmp_path / "confirm-stall").write_text("unique")
+                    written.append(True)
+                    return
+            time.sleep(0.01)
+
     script = (
         "import time; print("
         '\'{"type":"item.started","item":{"type":"command_execution","id":"x"}}\', '
-        "flush=True); time.sleep(2)"
+        "flush=True); time.sleep(5)"
     )
-    assert run(tmp_path, script, idle=0.02, limit=0.15) == "time_limit"
+    thread = threading.Thread(target=confirm)
+    thread.start()
+    assert run(tmp_path, script, idle=0.02, limit=1.5) == "time_limit"
+    thread.join()
+    assert written == [True]
+    assert not (tmp_path / "confirm-stall").exists()
     assert json.loads((tmp_path / "status.json").read_text())["active_tools"]
 
 
