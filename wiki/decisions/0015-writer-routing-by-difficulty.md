@@ -33,6 +33,15 @@ This decision replaces the writer order in
 [0011](0011-dynamic-delegated-effort.md). It keeps the tiers from
 [0014](0014-tiered-delegation.md).
 
+## Tier L review
+
+Tier L no longer spawns a reviewer agent. The coordinator runs the probes
+and mutation checks in [docs/delegation/reviewer.md](../../docs/delegation/reviewer.md).
+The review command reads the gates and probe record and gives the verdict
+at `high` effort. This changes the tier L flow in
+[0014](0014-tiered-delegation.md). The `code-reviewer` role file stays,
+because the review command reads its instructions.
+
 ## Options considered
 
 - One fixed writer order for every item. Sol then Luna spent a high-effort

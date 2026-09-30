@@ -2382,3 +2382,6 @@ Decision 0015 routes each work item to one rung of a writer ladder: Luna
 Artificial Analysis Intelligence Index v4.3.2 scores set the order. `docs/DELEGATION.md`,
 `docs/DEV_SUPERVISOR.md`, `.codex/TEAM.md`, and both coordinator skills
 now name this rule. The supervisor code did not change.
+
+Tier L no longer spawns a reviewer agent. The coordinator runs the probes,
+and the review model gives the verdict.

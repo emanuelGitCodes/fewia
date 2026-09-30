@@ -29,8 +29,8 @@ ladder is Luna `xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol
 `--only --model MODEL --effort LEVEL` on every writer run. Record the model
 and the effort in the ledger. Do not spawn the Sonnet juniors in
 `.claude/agents/` unless the user asks. At tier M and tier L, drive the
-writer yourself with the tier S steps in place of the junior. Tier L still
-spawns `code-reviewer`, and the review command still runs at every tier.
+writer yourself with the tier S steps in place of the junior. The review
+command runs at every tier. Do not spawn `code-reviewer`.
 
 ## Tier mechanics in Claude Code
 
@@ -53,9 +53,9 @@ and the review command. When the user asks for a junior, spawn one from
 `.claude/agents/` with `isolation: "worktree"` and
 `run_in_background: true`, and give it the brief as the prompt.
 
-**Tier L.** Do tier M. After the gates pass, also spawn `code-reviewer`
-without isolation. Give it the worktree path, the base, the head SHA, the
-brief, and the probes to run.
+**Tier L.** Do tier M. After the gates pass, run the probes in
+[docs/delegation/reviewer.md](../../../docs/delegation/reviewer.md). Pass
+the gates and probe record to the review command with `--gates-file`.
 
 At most three subagents run at a time. Background Bash commands do not
 count toward that limit.
@@ -63,7 +63,7 @@ count toward that limit.
 ## Repairs
 
 Write a repair brief with the findings from the review command, the
-`code-reviewer` agent, and your own diff read. Run the same writer with
+tier L probes, and your own diff read. Run the same writer with
 `--phase repair`. Commit the repair, run the gates, and run the review
 command again on the new head. When a junior owns the item, send the
 findings to that junior with `SendMessage` instead. Stop after three

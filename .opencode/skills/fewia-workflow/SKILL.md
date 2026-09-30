@@ -27,8 +27,9 @@ You MUST NOT resume health-model training.
 - **Tier M.** `tech-lead` calls one specialist, such as `@backend-dev`, with
   a brief from `docs/delegation/brief.md`. `tech-lead` runs the review
   command.
-- **Tier L.** `tech-lead` also calls `@code-reviewer`, which follows
-  `docs/delegation/reviewer.md`.
+- **Tier L.** `tech-lead` also runs the probes in
+  `docs/delegation/reviewer.md` and passes the record to the review command.
+  It does not call `@code-reviewer`.
 
 Specialists MUST NOT spawn further agents. Native OpenCode `task` is for
 bounded exploration only. It is not supervisor fallback.

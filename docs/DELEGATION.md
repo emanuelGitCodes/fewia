@@ -27,8 +27,9 @@ exist.
   starts read-only. It is the independent reviewer. When Codex is
   unavailable, a separate read-only Grok session reviews the diff instead,
   and the coordinator records the deviation.
-- **Reviewer agent.** Tier L only. It runs probes and mutation checks and
-  follows [delegation/reviewer.md](delegation/reviewer.md).
+- **Tier L probes.** The coordinator runs probes and mutation checks and
+  gives the results to the review model. It follows
+  [delegation/reviewer.md](delegation/reviewer.md). No reviewer agent runs.
 
 ## Tiers
 
@@ -38,7 +39,7 @@ The coordinator picks one tier per work item from its complexity class.
 |---|---|---|
 | S | `simple`: configuration or a narrow change, no new contract, no security surface | The coordinator runs the writer, the gates, and the review command. No subagents. |
 | M | `standard` | One junior drives the writer and the gates. The coordinator runs the review command. |
-| L | `complex` or harder, a security boundary, or tests that guard other code | One junior, one reviewer agent, and the review command. |
+| L | `complex` or harder, a security boundary, or tests that guard other code | One junior, the coordinator's probes, and the review command at `high`. |
 
 A security boundary or a test-gate deliverable is tier L at any size.
 When the tier is unclear, the coordinator SHOULD pick the higher tier.
@@ -98,7 +99,8 @@ change of writer.
    at a time. Review commands and gates do not count toward that limit.
 6. **Review.** Commit, run the gates on the committed head, then run the
    review command on that head. The review prompt then includes the gates
-   record. Tier L also gets a reviewer agent.
+   record. For tier L, the coordinator runs the probes first and passes the
+   gates and probe record with `--gates-file`.
 7. **Verify.** Read the diff. Run `dev_supervisor.gates --reuse` on the
    reviewed SHA; it reruns the gates when the record is missing or the tree
    changed. Confirm the reviewed SHA equals the head SHA.
@@ -145,7 +147,7 @@ uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
 | Report | 40 lines in the fixed format. Name the SHA. Do not paste diffs or files. Send it once. |
 | Review model effort | `low` for S, `medium` for M, `high` for L |
 | Review model time | 900 seconds |
-| Gate runs per SHA | The junior runs them once. The coordinator runs them once. The reviewer agent does not rerun them. |
+| Gate runs per SHA | The junior runs them once. The coordinator runs them once. |
 | Review rounds per item | Three, then escalate |
 
 Reading per role:
@@ -154,7 +156,7 @@ Reading per role:
 - A junior reads its role file, `delegation/junior.md`, the brief, and the
   files that the brief names.
 - A writer reads the supervisor prompt only.
-- A reviewer agent reads `delegation/reviewer.md`, the brief, and the diff.
+- For tier L, the coordinator reads `delegation/reviewer.md`.
 
 ## Rules that prevent known waste
 
