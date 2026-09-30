@@ -23,7 +23,7 @@ def _observe(inputs: dict[str, object]) -> dict[str, object]:
         if isinstance(exc, ExclusionConflict):
             return {"accepted": False, "outcome": "exclusion_reject"}
         return {"accepted": False, "outcome": "diet_conflict"}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"outcome": "unexpected_error"}
     return {
         "accepted": result.accepted,

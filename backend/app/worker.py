@@ -186,7 +186,7 @@ def main(
         )
     except KeyboardInterrupt:
         status = "stopped"
-    except Exception:
+    except Exception:  # noqa: BLE001
         status = "worker_failed"
         exit_code = 1
     finally:

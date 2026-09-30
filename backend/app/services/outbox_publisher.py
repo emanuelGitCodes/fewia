@@ -46,7 +46,7 @@ def publish_pending(
             outbox, kind = row
             try:
                 sender.send(kind, outbox.job_id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 failed_ids.add(outbox.id)
                 continue
             outbox.published_at = datetime.now(UTC)

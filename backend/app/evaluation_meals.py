@@ -24,7 +24,7 @@ def _observe(inputs: dict[str, object]) -> dict[str, object]:
         result = fixture_plan(inputs)
     except PlanningError:
         return {"accepted": False, "outcome": "diet_conflict"}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"outcome": "unexpected_error"}
     return {
         "accepted": result.accepted,

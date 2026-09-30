@@ -75,7 +75,7 @@ def seed_demo_user(factory: SessionFactory) -> None:
         if session.get(models.User, 1) is None:
             session.add(models.User(id=1, display_name="FEWIA demo"))
             session.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001
         session.rollback()
         raise
     finally:
@@ -122,7 +122,7 @@ def main(
         return 1
     try:
         seed_demo_user(selected_factory)
-    except Exception:
+    except Exception:  # noqa: BLE001
         emit("failed", "seed")
         return 1
     script = infra_path or resolve_infra_script(BACKEND_BASE)

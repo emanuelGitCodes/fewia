@@ -207,7 +207,7 @@ def test_owner_must_be_a_positive_int(
 
 
 def test_naive_clock_is_rejected(factory: sessionmaker[Session], owners: None) -> None:
-    naive = datetime(2026, 9, 6, 15, 0)
+    naive = datetime(2026, 9, 6, 15, 0)  # noqa: DTZ001
     with pytest.raises(ValueError, match="now MUST be a timezone-aware datetime"):
         prepare_handoff(factory, 1, shopping_payload(), now=naive)
     with pytest.raises(ValueError, match="now MUST be a timezone-aware datetime"):

@@ -77,7 +77,7 @@ def _observe(inputs: dict[str, object]) -> dict[str, object]:
         if str(exc) == PERIOD_ERROR:
             return {"outcome": "period_mismatch"}
         return {"outcome": "unexpected_error"}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"outcome": "unexpected_error"}
     outcome = "stale_cap_accept" if result.stale else "accept_budget"
     return {

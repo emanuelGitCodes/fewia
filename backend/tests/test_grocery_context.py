@@ -124,7 +124,7 @@ def test_manual_returns_zero_cost_and_rejects_naive_time(
 
     monkeypatch.setattr("app.services.grocery_context.load_spending", boom)
     result = spending_input(session, 1, "manual", FIXED_NY)
-    naive = datetime(2026, 9, 6, 12, 0)
+    naive = datetime(2026, 9, 6, 12, 0)  # noqa: DTZ001
 
     assert result.period == date(2026, 9, 1)
     assert result.posted_cents == 0
@@ -135,7 +135,7 @@ def test_manual_returns_zero_cost_and_rejects_naive_time(
 
 
 def test_rejects_naive_current_time(session: Session) -> None:
-    naive = datetime(2026, 9, 6, 12, 0)
+    naive = datetime(2026, 9, 6, 12, 0)  # noqa: DTZ001
     with pytest.raises(ValueError, match="timezone-aware"):
         spending_input(session, 1, "fixture", naive)
 

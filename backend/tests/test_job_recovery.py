@@ -277,7 +277,7 @@ def test_now_must_be_timezone_aware(
     recovery_factory: sessionmaker[Session],
 ) -> None:
     for invalid_now in (
-        datetime(2026, 1, 1),
+        datetime(2026, 1, 1),  # noqa: DTZ001
         cast(datetime, "not a datetime"),
     ):
         with pytest.raises(ValueError, match="timezone-aware"):

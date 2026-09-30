@@ -101,7 +101,7 @@ def process_one(
     ) -> str:
         try:
             renew()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return "lease_lost"
         if not finalize(error_code=error_code, result=result):
             return "lease_lost"
@@ -131,7 +131,7 @@ def process_one(
         return "lease_lost"
     except JobFailure as exc:
         return fail(exc, exc.error_code, {"error_detail": exc.detail})
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return fail(exc, "handler_failed")
 
     if not finalize(result=result):

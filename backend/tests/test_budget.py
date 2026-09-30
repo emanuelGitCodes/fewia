@@ -201,8 +201,8 @@ def test_spending_cents_reject_non_integer_values(field: str, value: object) -> 
     "spending, now",
     [
         (snapshot(refreshed_at=NOW + timedelta(seconds=1)), NOW),
-        (snapshot(refreshed_at=datetime(2026, 9, 2, 11, 0)), NOW),
-        (snapshot(), datetime(2026, 9, 2, 12, 0)),
+        (snapshot(refreshed_at=datetime(2026, 9, 2, 11, 0)), NOW),  # noqa: DTZ001
+        (snapshot(), datetime(2026, 9, 2, 12, 0)),  # noqa: DTZ001
     ],
 )
 def test_timestamps_reject_future_or_naive_values(
@@ -214,7 +214,7 @@ def test_timestamps_reject_future_or_naive_values(
 
 @pytest.mark.parametrize(
     "period",
-    [date(2026, 9, 2), date(2026, 8, 1), datetime(2026, 9, 1, 0, 0)],
+    [date(2026, 9, 2), date(2026, 8, 1), datetime(2026, 9, 1, 0, 0, tzinfo=UTC)],
 )
 def test_period_rejects_non_month_start_wrong_month_and_datetime(
     period: date,
