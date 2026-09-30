@@ -69,9 +69,9 @@ Authentication remains with the CLI.
 The supervisor does not edit global configuration.
 
 An explicit model request MUST become `--model MODEL_ID`. “Use GPT 5.6 Sol”
-becomes `--model gpt-6-sol`. It runs first. Eligible failures use the remaining
+becomes `--model gpt-6.1-sol`. It runs first. Eligible failures use the remaining
 default sequence without duplicates. Each selected model and outcome is printed.
-“Only use Sol” MUST include `--only --model gpt-6-sol`. No substitute runs.
+“Only use Sol” MUST include `--only --model gpt-6.1-sol`. No substitute runs.
 An explicit effort request MUST become `--effort LEVEL` when the model supports
 effort.
 Unknown models stop before execution. Extend the map with `--registry FILE`:
