@@ -2374,3 +2374,14 @@ as `tech-lead`, chose tier S. It ran the Grok writer through
 ran the review command. The review command failed inside the Codex
 sandbox, so Codex used the documented read-only Grok review, which
 returned APPROVE. No subagents ran.
+
+## 2026-09-30 — Route writers by difficulty
+
+Decision 0015 routes each work item to one rung of a writer ladder: Luna
+`xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol `high`. The
+Artificial Analysis Intelligence Index v4.3.2 scores set the order. `docs/DELEGATION.md`,
+`docs/DEV_SUPERVISOR.md`, `.codex/TEAM.md`, and both coordinator skills
+now name this rule. The supervisor code did not change.
+
+Tier L no longer spawns a reviewer agent. The coordinator runs the probes,
+and the review model gives the verdict.

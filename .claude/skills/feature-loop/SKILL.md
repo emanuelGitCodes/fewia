@@ -20,6 +20,18 @@ step by step. This skill adds only the Claude Code mechanics.
 
 Update the ledger after each state change.
 
+## Writer model
+
+Pick the writer and the effort for each item from
+[Writer selection](../../../docs/DELEGATION.md#writer-selection). The
+ladder is Luna `xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol
+`high`. Pick the lowest rung that fits the item. Pass
+`--only --model MODEL --effort LEVEL` on every writer run. Record the model
+and the effort in the ledger. Do not spawn the Sonnet juniors in
+`.claude/agents/` unless the user asks. At tier M and tier L, drive the
+writer yourself with the tier S steps in place of the junior. The review
+command runs at every tier. Do not spawn `code-reviewer`.
+
 ## Tier mechanics in Claude Code
 
 **Tier S.** Use no subagent.
@@ -36,27 +48,30 @@ Update the ledger after each state change.
    `run_in_background: true` and `--work-item <slug>-NN`. Read only its
    final lines.
 
-**Tier M.** Spawn one junior from `.claude/agents/` with
-`isolation: "worktree"` and `run_in_background: true`. The brief is the
-prompt. When the junior reports `done`, run `dev_supervisor.review` yourself
-in the background.
+**Tier M.** Do the tier S steps. Pass the item's complexity to the writer
+and the review command. When the user asks for a junior, spawn one from
+`.claude/agents/` with `isolation: "worktree"` and
+`run_in_background: true`, and give it the brief as the prompt.
 
-**Tier L.** Do tier M. Also spawn `code-reviewer` without isolation. Give it
-the worktree path, the base, the head SHA, the brief, and the probes to run.
+**Tier L.** Do tier M. After the gates pass, run the probes in
+[docs/delegation/reviewer.md](../../../docs/delegation/reviewer.md). Pass
+the gates and probe record to the review command with `--gates-file`.
 
 At most three subagents run at a time. Background Bash commands do not
 count toward that limit.
 
 ## Repairs
 
-Send findings to the same junior with `SendMessage`. The junior keeps its
-context. For tier S, write a repair brief and run the writer with
+Write a repair brief with the findings from the review command, the
+tier L probes, and your own diff read. Run the same writer with
 `--phase repair`. Commit the repair, run the gates, and run the review
-command again on the new head. Stop after three review rounds.
+command again on the new head. When a junior owns the item, send the
+findings to that junior with `SendMessage` instead. Stop after three
+review rounds.
 
 ## Verify
 
-Read the diff. Run `dev_supervisor.gates --reuse` when the junior's record
+Read the diff. Run `dev_supervisor.gates --reuse` when the gates record
 matches the head SHA and the tree is clean. Otherwise run the gates. Confirm
 that the review verdict names the head SHA.
 
