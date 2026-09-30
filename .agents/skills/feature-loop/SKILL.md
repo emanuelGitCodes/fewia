@@ -41,8 +41,9 @@ Update the ledger after each state change.
 prompt. When the junior reports `done`, run `dev_supervisor.review` yourself
 in the background.
 
-**Tier L.** Do tier M. Also spawn `code-reviewer` without isolation. Give it
-the worktree path, the base, the head SHA, the brief, and the probes to run.
+**Tier L.** Do tier M. Also run the probes in `docs/delegation/reviewer.md`
+yourself, and pass the gates and probe record to the review command with
+`--gates-file`. Do not spawn `code-reviewer`.
 
 At most three subagents run at a time. Background Bash commands do not
 count toward that limit.

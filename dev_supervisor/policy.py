@@ -52,7 +52,7 @@ MODELS = {
     "grok-4.6": Model("grok", "medium"),
     "gpt-5.3-codex-spark": Model("codex"),
     "gpt-6-luna": Model("codex", "max"),
-    "gpt-6-sol": Model("codex", "max"),
+    "gpt-6.1-sol": Model("codex", "max"),
 }
 DEFAULTS = tuple(MODELS)[:3]
 RETRYABLE = {"unavailable", "quota", "rate_limit", "stalled"}

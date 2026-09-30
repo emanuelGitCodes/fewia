@@ -17,8 +17,8 @@ from dev_supervisor.process import stop
 from dev_supervisor.usage import add_counts, ledger_path, parse_codex_usage, write_usage
 
 REVIEW_DEFAULT = {"grok-4.6": "gpt-6-luna", "gpt-5.3-codex-spark": "gpt-6-luna"}
-REVIEW_DEFAULT["gpt-6-luna"] = "gpt-6-sol"
-REVIEW_DEFAULT["gpt-6-sol"] = "gpt-6-luna"
+REVIEW_DEFAULT["gpt-6-luna"] = "gpt-6.1-sol"
+REVIEW_DEFAULT["gpt-6.1-sol"] = "gpt-6-luna"
 GROK_MODEL = "grok-4.6"
 DIFF_LIMIT = 3000
 EFFORT = {"simple": "low", "standard": "medium", "complex": "high"}

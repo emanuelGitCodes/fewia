@@ -1,7 +1,7 @@
 # 0013 — Claude Code as senior coordinator
 
 - Date: 2026-09-25
-- Status: accepted
+- Status: accepted; amended by [0015](0015-writer-routing-by-difficulty.md), which retires the Claude Code and OpenCode `code-reviewer` subagents
 
 ## Decision
 

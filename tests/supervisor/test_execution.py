@@ -152,7 +152,7 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
                     "backend-dev",
                     tmp_path,
                     MODELS,
-                    order("gpt-6-sol", False, MODELS),
+                    order("gpt-6.1-sol", False, MODELS),
                     1,
                     2,
                     "complex",
@@ -160,7 +160,7 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
                 == outcome
             )
             assert runner.call_count == 1
-            assert "gpt-6-sol" in runner.call_args.args[0]
+            assert "gpt-6.1-sol" in runner.call_args.args[0]
     with patch("dev_supervisor.__main__.attempt", return_value="quota") as runner:
         assert (
             execute(
@@ -169,7 +169,7 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
                 "backend-dev",
                 tmp_path,
                 MODELS,
-                order("gpt-6-sol", True, MODELS),
+                order("gpt-6.1-sol", True, MODELS),
                 1,
                 2,
                 "maximum",
@@ -178,7 +178,9 @@ def test_only_override_and_nonprovider_errors_stop(tmp_path: Path) -> None:
             == "all_providers_exhausted"
         )
         assert runner.call_count == 1
-    assert json.loads((tmp_path / "result.json").read_text())[0]["model"] == "gpt-6-sol"
+    assert (
+        json.loads((tmp_path / "result.json").read_text())[0]["model"] == "gpt-6.1-sol"
+    )
     checkpoint = json.loads((tmp_path / "checkpoint.json").read_text())
     assert checkpoint["complexity"] == "maximum"
     assert checkpoint["effort"] == "max"
@@ -542,7 +544,7 @@ def test_ledger_write_failure_keeps_outcome(
                 "backend-dev",
                 tmp_path,
                 MODELS,
-                order("gpt-6-sol", True, MODELS),
+                order("gpt-6.1-sol", True, MODELS),
                 1,
                 2,
                 "standard",

@@ -52,8 +52,8 @@ def test_registered_model_explicit_effort_keeps_fallbacks() -> None:
 
 def test_order_and_explicit_only() -> None:
     assert order(None, False, MODELS) == list(MODELS)[:3]
-    assert order("gpt-6-sol", False, MODELS)[0] == "gpt-6-sol"
-    assert order("gpt-6-sol", True, MODELS) == ["gpt-6-sol"]
+    assert order("gpt-6.1-sol", False, MODELS)[0] == "gpt-6.1-sol"
+    assert order("gpt-6.1-sol", True, MODELS) == ["gpt-6.1-sol"]
     with pytest.raises(ValueError):
         order("unknown", False, MODELS)
     with pytest.raises(ValueError):
@@ -116,7 +116,7 @@ def test_complexity_maps_ceilings_and_rejects_explicit_over_ceiling() -> None:
     grok = MODELS["grok-4.6"]
     spark = MODELS["gpt-5.3-codex-spark"]
     luna = MODELS["gpt-6-luna"]
-    sol = MODELS["gpt-6-sol"]
+    sol = MODELS["gpt-6.1-sol"]
     for complexity, effort in COMPLEXITY.items():
         assert resolve_effort(complexity, luna) == effort
         assert resolve_effort(complexity, sol) == effort
