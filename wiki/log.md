@@ -2411,3 +2411,17 @@ change) needed four; the user asked for the fourth to fix a non-blocking
 count in `.opencode/README.md`. All findings were documentation conflicts.
 The gates had no checks for these paths. No writer or tier L probe run has
 used the new rules yet.
+
+## 2026-09-30 — Verify the exclusion fix on Compose
+
+Pull requests #206, #207, and #208 merged as `4e5412d`, `9445d84`, and
+`1cc891c`. A Compose stack from a clean `1cc891c` checkout confirmed the fix
+end to end. A job for `vegetable_pasta` with the `onion` exclusion returned
+202 and then failed with `exclusion_reject`. Its `result` was null, and its
+`error_detail` named the recipe and the ingredient. The worker wrote one
+`job_failed` JSON line with no request text. A request with
+`pantry_ingredients` `["white_rice"]` returned 422 for an unknown ingredient
+ID, because the catalog ID for white rice is `rice`. The web UI showed the
+same job failure in the Estimate panel. Its message starts with "The grocery
+request failed." and then names the meal, the excluded ingredient, and the
+fix.
