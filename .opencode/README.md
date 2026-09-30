@@ -50,7 +50,7 @@ opencode --agent tech-lead
 
 `tech-lead` is the only project-defined primary.
 Built-in Build and Plan remain available.
-The other 14 roles are subagents.
+The other 13 roles are subagents.
 
 ## Invoke a specialist
 
