@@ -3,9 +3,10 @@ from datetime import UTC, date, datetime
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 
-from app.agent.planning_tool import execute_plan
+from app.agent.planning_tool import PlanningToolError, execute_plan
 from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.domain.grocery import GroceryRequest
+from app.services.job_delivery import JobFailure
 
 
 class SpendingInput(BaseModel):
@@ -64,13 +65,18 @@ def plan_job(
         now=clock,
         plan_cap_cents=parsed.request.plan_cap_cents,
     )
-    result = execute_plan(
-        parsed.request.model_dump(mode="json"),
-        budget,
-        parsed.spending.period,
-        user_id=1,
-        spending_source=parsed.spending_source,
-    )
+    try:
+        result = execute_plan(
+            parsed.request.model_dump(mode="json"),
+            budget,
+            parsed.spending.period,
+            user_id=1,
+            spending_source=parsed.spending_source,
+        )
+    except PlanningToolError as exc:
+        if exc.error_code is not None:
+            raise JobFailure(exc.error_code, dict(exc.detail))
+        raise
     if record_evidence is not None:
         revision = record_evidence(result, parsed, clock)
         if not _is_revision_id(revision):

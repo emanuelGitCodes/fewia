@@ -9,7 +9,12 @@ from pydantic import ValidationError
 
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.grocery import GroceryRequest
-from app.services.grocery_planner import PlanEstimate, PlanningError, plan_groceries
+from app.services.grocery_planner import (
+    ExclusionConflict,
+    PlanEstimate,
+    PlanningError,
+    plan_groceries,
+)
 from app.services.meal_nutrition import meal_nutrition
 from app.tools.base import build_evidence_id
 
@@ -18,6 +23,17 @@ TOOL_NAME = "plan_groceries"
 
 class PlanningToolError(ValueError):
     """A planning-tool failure with a static message and no raw input."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str | None = None,
+        detail: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.detail = {} if detail is None else detail
 
 
 def planner_tool_spec() -> dict[str, object]:
@@ -74,10 +90,23 @@ def execute_plan(
         budget.warnings,
     )
     plan: PlanEstimate | None
+    exclusion_detail: dict[str, str] | None = None
     try:
         plan = plan_groceries(request, planning_budget)
+    except ExclusionConflict as exc:
+        plan = None
+        exclusion_detail = {
+            "recipe_id": exc.recipe_id,
+            "ingredient_id": exc.ingredient_id,
+        }
     except PlanningError:
         plan = None
+    if exclusion_detail is not None:
+        raise PlanningToolError(
+            "ingredient is excluded",
+            error_code="exclusion_reject",
+            detail=exclusion_detail,
+        )
     if plan is None:
         raise PlanningToolError("catalog constraint is invalid")
     request_payload: object = request.model_dump(mode="json")

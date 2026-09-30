@@ -155,6 +155,27 @@ def test_catalog_constraint_raises_without_raw_input() -> None:
         execute_plan(arguments(pantry_ingredients=["not_in_catalog"]), budget(), PERIOD)
     _assert_static(caught.value, "not_in_catalog")
     assert str(caught.value) == "catalog constraint is invalid"
+    assert caught.value.error_code is None
+    assert caught.value.detail == {}
+
+
+def test_exclusion_conflict_raises_static_typed_error() -> None:
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(
+            arguments(
+                meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+                ingredient_exclusions=["onion"],
+            ),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(caught.value, "onion")
+    assert caught.value.args == ("ingredient is excluded",)
+    assert caught.value.error_code == "exclusion_reject"
+    assert caught.value.detail == {
+        "recipe_id": "vegetable_pasta",
+        "ingredient_id": "onion",
+    }
 
 
 def test_notice_and_source_are_retained() -> None:

@@ -78,3 +78,4 @@ class GroceryJobView(BaseModel):
     status: str
     result: dict[str, object] | None
     error_code: str | None
+    error_detail: dict[str, str] | None = None

@@ -158,6 +158,25 @@ def test_config_keeps_sample_price_notice() -> None:
 def test_job_view_exposes_public_fields_only() -> None:
     view = GroceryJobView(id="job-1", status="queued", result=None, error_code=None)
 
-    assert set(view.model_dump()) == {"id", "status", "result", "error_code"}
+    assert set(view.model_dump()) == {
+        "id",
+        "status",
+        "result",
+        "error_code",
+        "error_detail",
+    }
+    assert view.error_detail is None
     accepted = GroceryJobAccepted(job_id="job-1", status="queued")
     assert set(accepted.model_dump()) == {"job_id", "status"}
+
+
+def test_job_view_accepts_typed_exclusion_detail() -> None:
+    detail = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
+    view = GroceryJobView(
+        id="job-1",
+        status="failed",
+        result=None,
+        error_code="exclusion_reject",
+        error_detail=detail,
+    )
+    assert view.model_dump()["error_detail"] == detail

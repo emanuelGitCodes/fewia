@@ -168,6 +168,15 @@ def read_grocery_job(
     if job is None or job.user_id != DEMO_USER_ID or job.kind != "agent":
         raise HTTPException(status_code=404, detail="Job not found")
     result = job.result
+    error_detail: dict[str, str] | None = None
+    if job.status == "failed":
+        detail = result.get("error_detail") if isinstance(result, dict) else None
+        if isinstance(detail, dict) and all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in detail.items()
+        ):
+            error_detail = cast(dict[str, str], detail)
+        result = None
     if job.status == "succeeded" and isinstance(result, dict) and estimator is not None:
         result = attach_supermarket_estimate(result, estimator)
     return GroceryJobView(
@@ -175,4 +184,5 @@ def read_grocery_job(
         status=job.status,
         result=result,
         error_code=job.error_code,
+        error_detail=error_detail,
     )
