@@ -2411,3 +2411,41 @@ change) needed four; the user asked for the fourth to fix a non-blocking
 count in `.opencode/README.md`. All findings were documentation conflicts.
 The gates had no checks for these paths. No writer or tier L probe run has
 used the new rules yet.
+
+## 2026-09-30 — Verify the exclusion fix on Compose
+
+Pull requests #206, #207, and #208 merged as `4e5412d`, `9445d84`, and
+`1cc891c`. A Compose stack from a clean `1cc891c` checkout confirmed the fix
+end to end. A job for `vegetable_pasta` with the `onion` exclusion returned
+202 and then failed with `exclusion_reject`. Its `result` was null, and its
+`error_detail` named the recipe and the ingredient. The worker wrote one
+`job_failed` JSON line with no request text. A request with
+`pantry_ingredients` `["white_rice"]` returned 422 for an unknown ingredient
+ID, because the catalog ID for white rice is `rice`. The web UI showed the
+same job failure in the Estimate panel. Its message starts with "The grocery
+request failed." and then names the meal, the excluded ingredient, and the
+fix.
+
+## 2026-09-30 — Surface the exclusion conflict in chat and conversation
+
+Pull requests #210 and #211 merged as `3195db8` and `96275ff`. For an
+`exclusion_reject` error, `chat_dispatch.dispatch` now sends Bedrock a
+static tool error with the catalog `recipe_id` and `ingredient_id`. All
+other `PlanningToolError` cases still send "arguments are invalid". The
+conversation panel now shows the same exclusion text as the Estimate
+panel. The shared text is in `frontend/src/exclusionMessage.ts`.
+
+Item 01 was tier L with `grok-4.6` at `low`. Item 02 was tier M with
+`grok-4.6` at `medium`. In each item, a coordinator mutation passed every
+test. In item 01, the mutation removed the `error_code` check. In item 02,
+it removed the catalog props from `App.tsx`. One test-only repair closed
+each gap. The first review of item 02 returned `REQUEST_CHANGES`, because
+the brief did not list `App.test.tsx`. The coordinator had assigned that
+file in the repair. The coordinator corrected the brief, and the second
+review approved the same SHA. `gpt-6-luna` reviewed both items. Item 01
+used `high` effort and item 02 used `medium`.
+
+Loop total: 4 writer runs in 327 seconds, with no writer token counts.
+Review tokens were 214k in and 2.9k out over 3 runs. No subagents ran. Not
+verified: a live Bedrock turn with the new tool error, and the
+conversation panel in a browser.
