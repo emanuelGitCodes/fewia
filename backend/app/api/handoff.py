@@ -13,6 +13,7 @@ from app.api.handoff_models import (
 )
 from app.api.handoff_types import CreateHandoffBody, RetryHandoffBody
 from app.db import SessionLocal
+from app.demo import DEMO_USER_ID
 from app.provider_runtime import build_instacart
 from app.provider_settings import ProviderConfigurationError, load_provider_settings
 from app.services.handoff_dispatch import dispatch_handoff
@@ -24,7 +25,6 @@ from app.services.handoff_intents import (
 )
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
-DEMO_USER_ID = 1
 _HANDOFF_MISSING = "Handoff not found"
 _REBUILD = "Plan requires a rebuild."
 _UNAVAILABLE = "Instacart is unavailable."
