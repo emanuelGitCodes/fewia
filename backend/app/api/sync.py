@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
 from app.api.sync_models import CreateSyncJobBody
+from app.demo import DEMO_USER_ID
 from app.deps import get_session
 from app.job_models import Job
 from app.plaid_models import PlaidItem
@@ -23,7 +24,6 @@ from app.services.job_submission import IdempotencyConflict, create_job
 from app.services.sync_job import SyncJobInput
 
 router = APIRouter(prefix="/grocery/sync", tags=["grocery"])
-DEMO_USER_ID = 1
 REQUEST_KEY_PREFIX = "sync:"
 CONFLICT_MESSAGE = "request_key already identifies different content"
 ITEM_NOT_FOUND_MESSAGE = "Plaid Item is missing or not owned"

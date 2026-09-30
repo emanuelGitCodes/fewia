@@ -7,10 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
+from app.demo import DEMO_USER_ID
 from app.services.evidence_store import load_evidence
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
-DEMO_USER_ID = 1
 NOT_FOUND_MESSAGE = "Evidence not found"
 
 

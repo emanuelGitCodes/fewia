@@ -16,6 +16,7 @@ from app.api.grocery_models import (
     GroceryJobAccepted,
     GroceryJobView,
 )
+from app.demo import DEMO_USER_ID
 from app.deps import get_provider_settings, get_session, get_supermarket_estimator
 from app.domain.budget import NEW_YORK
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
@@ -42,7 +43,6 @@ from app.services.supermarket_overlay import (
 )
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
-DEMO_USER_ID = 1
 PERIOD_MISMATCH_MESSAGE = "budget_period must match the current New York month"
 DEMO_NOT_READY_MESSAGE = "Demo workspace is not ready."
 CONFLICT_MESSAGE = "request_key already identifies different content"
