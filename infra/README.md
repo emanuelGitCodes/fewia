@@ -1,33 +1,40 @@
 # Local Floci foundation
 
 Floci provides the grocery bot's local SQS and S3 resources. PostgreSQL remains
-the application database. This foundation does not yet implement the worker,
-Plaid adapter, Instacart adapter, Bedrock loop, or web chat.
+the application database. The worker, the sync worker, and the API use these
+resources in the default Compose stack.
 
 ## Start and provision
 
-Run these commands from the repository root:
+Run this command from the repository root:
 
 ```bash
-uv sync --project backend --locked
-docker compose up -d --no-deps floci
-uv run --project backend python -m infra.floci_bootstrap --endpoint http://127.0.0.1:4566
+docker compose up -d
 ```
 
-The bootstrap prints the two queue URLs and the artifact bucket name.
-Repeat the bootstrap safely to reconcile the resource settings.
+The one-shot `bootstrap` service waits for a healthy Floci and PostgreSQL.
+It provisions the queues and the artifact bucket through
+`http://floci:4566`. Repeat the bootstrap safely to reconcile the resource
+settings:
+
+```bash
+docker compose run --rm bootstrap
+```
+
+The host port for Floci defaults to 4567 (`FLOCI_HOST_PORT`). The bootstrap
+accepts only 4566 endpoints, so run it inside Compose, not from the host.
 
 | Resource | Purpose |
 |---|---|
-| `fewia-sync` | Background Plaid synchronization jobs |
+| `fewia-sync` | Background Plaid synchronization jobs (Plaid work is paused) |
 | `fewia-sync-dlq` | Exhausted synchronization jobs |
 | `fewia-agent` | Background grocery agent jobs |
 | `fewia-agent-dlq` | Exhausted grocery agent jobs |
 | `fewia-eval` | Sanitized evaluation exports |
 
 Both source queues use a 120-second visibility timeout and a three-receive
-dead-letter policy. The future worker will extend visibility for active jobs.
-Queue provisioning alone does not implement leases, retries, or durable jobs.
+dead-letter policy. The worker extends visibility for active jobs. See
+[runbooks/durable-jobs.md](../runbooks/durable-jobs.md) for leases and retries.
 
 ## Client boundary
 
@@ -37,17 +44,17 @@ client creation. It supplies explicit local dummy credentials and region.
 It does not read real AWS credentials for its default clients.
 
 The Compose service advertises `floci` in returned queue URLs so other
-containers can resolve them. Host callers still configure the SQS client's
-endpoint as `http://127.0.0.1:4566`. Queue URLs identify resources; do not use
+containers can resolve them. Host callers configure the SQS client's
+endpoint as `http://127.0.0.1:4567`, or the `FLOCI_HOST_PORT` value. Queue URLs identify resources; do not use
 the container hostname as a host-machine service endpoint.
 
-Do not set a global `AWS_ENDPOINT_URL`. The future Bedrock provider requires
-its own real endpoint and credentials. Floci does not prove Bedrock behavior.
+Do not set a global `AWS_ENDPOINT_URL`. The Bedrock provider requires its
+own real endpoint and credentials. Floci does not prove Bedrock behavior.
 
 ## Persistence and lifecycle
 
 Compose pins Floci 2.0.1 to a verified image digest. The `floci-data` named
-volume holds persistent emulator state. Port 4566 binds to loopback.
+volume holds persistent emulator state. The host port binds to loopback.
 
 ```bash
 docker compose stop floci

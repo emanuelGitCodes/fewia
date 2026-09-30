@@ -1,8 +1,11 @@
 # Grocery bot project context
 
-The user approved Plaid Sandbox, Instacart development shopping-list links,
-real Bedrock, local web chat, a small meal catalog, and labeled sample prices.
-Floci runs in the default local stack with SQS jobs and S3 evaluation exports.
+The user approved real Bedrock, local web chat, a small meal catalog, and
+labeled sample prices. Floci runs in the default local stack with SQS jobs
+and S3 evaluation exports. Plaid Sandbox work is paused; the budget starts
+from a user-entered amount. Decision 0010 parks the Instacart handoff and
+adds USDA nutrition and an optional Spoonacular cost overlay. Newer
+decisions in `wiki/decisions/` override this file.
 
 Read root `AGENTS.md` and `.codex/TEAM.md` before task actions. Read the root
 plan, wiki index, and course sources as required. Their health-prediction

@@ -5,8 +5,9 @@ local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and
 local Floci in Docker Compose. FEWIA uses real Amazon Bedrock through the
 `LLMProvider` protocol in `backend/app/agent/` when you start the stack
 with the Bedrock overlay. Plain `docker compose up -d` leaves chat
-unconfigured. The demo uses fixture spending. Plaid Sandbox adapters exist
-in the code. Live Plaid Sandbox evidence remains pending. It uses a
+unconfigured. The demo uses fixture spending. Plaid work is paused. The
+Plaid Sandbox adapters stay in the code, and live Plaid Sandbox evidence
+remains pending. It uses a
 versioned sample price catalog. It supports ten meals, one to three
 (1-3) meals per request, and one to eight (1-8) servings per meal.
 FEWIA parks the Instacart development handoff. The adapter stays in the
@@ -18,9 +19,11 @@ not a medical claim. FEWIA shows a labeled Spoonacular
 average-supermarket-cost overlay. That overlay is optional and off by
 default. It appears only when `FEWIA_SPOONACULAR_KEY_FILE` is set.
 Budget acceptance still uses the FEWIA sample-catalog cents, not the
-Spoonacular cost. Every price estimate MUST carry this exact notice:
-"Estimated from the demo price catalog. Instacart prices, availability,
-taxes, delivery fees, and tips are not verified."
+Spoonacular cost. Every sample-catalog estimate MUST carry this exact
+notice: "Estimated from the demo price catalog. Instacart prices,
+availability, taxes, delivery fees, and tips are not verified." The
+Spoonacular overlay carries its own notice, `SPOONACULAR_COST_NOTICE` in
+`backend/app/domain/supermarket_estimate.py`.
 
 FEWIA does not check out or place orders. It does not submit payments. It
 does not use live retailer prices. It does not train a health model. That
