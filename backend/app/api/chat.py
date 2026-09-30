@@ -20,7 +20,7 @@ from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
-from app.services.job_submission import IdempotencyConflict, create_job
+from app.services.job_submission import IdempotencyConflict, create_job, find_job
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
     attach_supermarket_estimate,
@@ -39,7 +39,7 @@ def _ny_now() -> datetime:
 
 
 def _existing_chat_job(session: Session, request_key: str) -> Job | None:
-    return grocery_api._existing_agent_job(session, request_key)
+    return find_job(session, DEMO_USER_ID, "agent", request_key)
 
 
 @router.get("/providers")

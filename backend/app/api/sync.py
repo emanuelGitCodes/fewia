@@ -20,7 +20,7 @@ from app.provider_settings import (
     ProviderConfigurationError,
     load_provider_settings,
 )
-from app.services.job_submission import IdempotencyConflict, create_job
+from app.services.job_submission import IdempotencyConflict, create_job, find_job
 from app.services.sync_job import SyncJobInput
 
 router = APIRouter(prefix="/grocery/sync", tags=["grocery"])
@@ -38,13 +38,7 @@ def get_provider_settings() -> GroceryProviderSettings:
 
 
 def _existing_sync_job(session: Session, request_key: str) -> Job | None:
-    return session.scalar(
-        select(Job).where(
-            Job.user_id == DEMO_USER_ID,
-            Job.kind == "sync",
-            Job.request_key == request_key,
-        )
-    )
+    return find_job(session, DEMO_USER_ID, "sync", request_key)
 
 
 def _owned_item(session: Session, item_id: str) -> PlaidItem | None:

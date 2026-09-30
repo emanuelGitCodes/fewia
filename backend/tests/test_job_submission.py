@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.db import Base
 from app.job_models import Job, JobOutbox
-from app.services.job_submission import IdempotencyConflict, create_job
+from app.services.job_submission import IdempotencyConflict, create_job, find_job
 
 JobKind = Literal["sync", "agent"]
 
@@ -166,6 +166,19 @@ def test_nested_dictionary_reordering_is_the_same_replay(
     assert created is False
     assert replay.id == first.id
     job_session.commit()
+
+
+def test_find_job_matches_user_kind_and_request_key(job_session: Session) -> None:
+    seed_user(job_session)
+    job, created = create_job(job_session, 1, "sync", "lookup-key", {"page": 1})
+    assert created is True
+    job_session.commit()
+
+    found = find_job(job_session, 1, "sync", "lookup-key")
+
+    assert found is not None
+    assert found.id == job.id
+    assert find_job(job_session, 1, "agent", "lookup-key") is None
 
 
 def test_request_key_scope_includes_user_and_kind(job_session: Session) -> None:

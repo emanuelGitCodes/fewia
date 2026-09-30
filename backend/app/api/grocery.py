@@ -5,7 +5,6 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -35,7 +34,7 @@ from app.services.grocery_context import (
     SpendingUnavailable,
     spending_input,
 )
-from app.services.job_submission import IdempotencyConflict, create_job
+from app.services.job_submission import IdempotencyConflict, create_job, find_job
 from app.services.plan_job import PlanJobInput, SpendingInput
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
@@ -56,13 +55,7 @@ def _ny_now() -> datetime:
 
 
 def _existing_agent_job(session: Session, request_key: str) -> Job | None:
-    return session.scalar(
-        select(Job).where(
-            Job.user_id == DEMO_USER_ID,
-            Job.kind == "agent",
-            Job.request_key == request_key,
-        )
-    )
+    return find_job(session, DEMO_USER_ID, "agent", request_key)
 
 
 def require_spending(
