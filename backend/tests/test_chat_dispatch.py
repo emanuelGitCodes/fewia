@@ -554,13 +554,19 @@ def test_exclusion_reject_with_invalid_detail_returns_invalid_args(
 def test_other_planning_tool_error_returns_invalid_args(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    exclusion_shaped = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
+
     def fake_execute(
         _arguments: object,
         _budget: BudgetResult,
         _period: date,
         **_kwargs: object,
     ) -> dict[str, object]:
-        raise PlanningToolError("budget is invalid", error_code="budget_invalid")
+        raise PlanningToolError(
+            "budget is invalid",
+            error_code="budget_invalid",
+            detail=exclusion_shaped,
+        )
 
     monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
     call = ToolCall("call-other", TOOL_NAME, arguments())
@@ -572,26 +578,58 @@ def test_other_planning_tool_error_returns_invalid_args(
     ]
     assert trace == [_error_trace(TOOL_NAME, "call-other")]
 
-    def fake_execute_plain(
+    def fake_execute_none(
         _arguments: object,
         _budget: BudgetResult,
         _period: date,
         **_kwargs: object,
     ) -> dict[str, object]:
-        raise PlanningToolError("arguments are invalid")
+        raise PlanningToolError(
+            "budget is invalid",
+            error_code=None,
+            detail=exclusion_shaped,
+        )
 
-    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute_plain)
-    plain_trace: list[dict[str, object]] = []
-    plain_candidate, plain_block = dispatch(
-        ToolCall("call-plain", TOOL_NAME, arguments()),
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute_none)
+    none_trace: list[dict[str, object]] = []
+    none_candidate, none_block = dispatch(
+        ToolCall("call-none", TOOL_NAME, arguments()),
         budget(),
         PERIOD,
         1,
         "fixture",
-        plain_trace,
+        none_trace,
     )
-    assert plain_candidate is None
-    assert plain_block["toolResult"]["content"] == [
+    assert none_candidate is None
+    assert none_block["toolResult"]["content"] == [
         {"json": {"error": "arguments are invalid"}}
     ]
-    assert plain_trace == [_error_trace(TOOL_NAME, "call-plain")]
+    assert none_trace == [_error_trace(TOOL_NAME, "call-none")]
+
+    def fake_execute_partial(
+        _arguments: object,
+        _budget: BudgetResult,
+        _period: date,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        raise PlanningToolError(
+            "ingredient is excluded",
+            error_code="exclusion_reject",
+            detail={"recipe_id": "vegetable_pasta"},
+        )
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute_partial)
+    partial_trace: list[dict[str, object]] = []
+    partial_candidate, partial_block = dispatch(
+        ToolCall("call-partial", TOOL_NAME, arguments()),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        partial_trace,
+    )
+    assert partial_candidate is None
+    assert partial_block["toolResult"]["content"] == [
+        {"json": {"error": "arguments are invalid"}}
+    ]
+    assert partial_trace == [_error_trace(TOOL_NAME, "call-partial")]
