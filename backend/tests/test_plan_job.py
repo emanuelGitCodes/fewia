@@ -197,6 +197,7 @@ def test_plan_job_exclusion_raises_job_failure(
             lambda: None,
         )
     assert str(caught.value) == caught.value.error_code == "exclusion_reject"
+    assert caught.value.__cause__ is None and caught.value.__suppress_context__ is True
     assert caught.value.detail == {
         "recipe_id": "vegetable_pasta",
         "ingredient_id": "onion",

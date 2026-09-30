@@ -75,7 +75,7 @@ def plan_job(
         )
     except PlanningToolError as exc:
         if exc.error_code is not None:
-            raise JobFailure(exc.error_code, dict(exc.detail))
+            raise JobFailure(exc.error_code, dict(exc.detail)) from None
         raise
     if record_evidence is not None:
         revision = record_evidence(result, parsed, clock)
