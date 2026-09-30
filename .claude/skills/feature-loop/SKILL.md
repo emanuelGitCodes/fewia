@@ -48,27 +48,30 @@ spawns `code-reviewer`, and the review command still runs at every tier.
    `run_in_background: true` and `--work-item <slug>-NN`. Read only its
    final lines.
 
-**Tier M.** Spawn one junior from `.claude/agents/` with
-`isolation: "worktree"` and `run_in_background: true`. The brief is the
-prompt. When the junior reports `done`, run `dev_supervisor.review` yourself
-in the background.
+**Tier M.** Do the tier S steps. Pass the item's complexity to the writer
+and the review command. When the user asks for a junior, spawn one from
+`.claude/agents/` with `isolation: "worktree"` and
+`run_in_background: true`, and give it the brief as the prompt.
 
-**Tier L.** Do tier M. Also spawn `code-reviewer` without isolation. Give it
-the worktree path, the base, the head SHA, the brief, and the probes to run.
+**Tier L.** Do tier M. After the gates pass, also spawn `code-reviewer`
+without isolation. Give it the worktree path, the base, the head SHA, the
+brief, and the probes to run.
 
 At most three subagents run at a time. Background Bash commands do not
 count toward that limit.
 
 ## Repairs
 
-Send findings to the same junior with `SendMessage`. The junior keeps its
-context. For tier S, write a repair brief and run the writer with
+Write a repair brief with the findings from the review command, the
+`code-reviewer` agent, and your own diff read. Run the same writer with
 `--phase repair`. Commit the repair, run the gates, and run the review
-command again on the new head. Stop after three review rounds.
+command again on the new head. When a junior owns the item, send the
+findings to that junior with `SendMessage` instead. Stop after three
+review rounds.
 
 ## Verify
 
-Read the diff. Run `dev_supervisor.gates --reuse` when the junior's record
+Read the diff. Run `dev_supervisor.gates --reuse` when the gates record
 matches the head SHA and the tree is clean. Otherwise run the gates. Confirm
 that the review verdict names the head SHA.
 
