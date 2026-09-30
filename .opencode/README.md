@@ -25,7 +25,6 @@ supervisor fallback.
     aws-infra.md
     backend-dev.md
     catalog-dev.md
-    code-reviewer.md
     database-dev.md
     docs-dev.md
     eval-engineer.md
