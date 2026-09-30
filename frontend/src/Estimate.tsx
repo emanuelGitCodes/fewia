@@ -1,4 +1,5 @@
 import {
+  HTTP_ERROR,
   sourceLabel,
   type CatalogItem,
   type GroceryJob,
@@ -15,6 +16,7 @@ export type EstimateProps = {
   dirty: boolean;
   pantry: string[];
   recipes: CatalogItem[];
+  ingredients?: CatalogItem[];
   onPantryToggle: (id: string) => void;
   onRebuild?: () => void | Promise<void>;
   rebuildDisabled?: boolean;
@@ -34,7 +36,24 @@ function planWording(result: GroceryJobResult): string {
   return "This plan is over budget.";
 }
 
-function statusText(job: GroceryJob | null, pending: boolean): string {
+function catalogName(items: CatalogItem[], id: string): string {
+  return items.find((item) => item.id === id)?.name ?? id;
+}
+
+function recipeTitle(items: CatalogItem[], id: string): string {
+  const match = items.find((item) => item.id === id)?.name;
+  if (match === undefined) {
+    return id;
+  }
+  return `${match.slice(0, 1).toUpperCase()}${match.slice(1)}`;
+}
+
+function statusText(
+  job: GroceryJob | null,
+  pending: boolean,
+  recipes: CatalogItem[],
+  ingredients: CatalogItem[],
+): string {
   if (job?.status === "queued") {
     return "The grocery request is queued.";
   }
@@ -45,7 +64,13 @@ function statusText(job: GroceryJob | null, pending: boolean): string {
     return "The grocery request is in progress.";
   }
   if (job?.status === "failed") {
-    return "The grocery request failed.";
+    const detail = job.error_detail;
+    if (job.error_code === "exclusion_reject" && detail != null) {
+      const recipeName = recipeTitle(recipes, detail.recipe_id);
+      const ingredientName = catalogName(ingredients, detail.ingredient_id);
+      return `The grocery request failed. ${recipeName} needs ${ingredientName}, which is excluded. Clear the ${ingredientName} exclusion or choose another meal, then rebuild.`;
+    }
+    return HTTP_ERROR;
   }
   return "No grocery budget or meal plan is set yet.";
 }
@@ -95,6 +120,7 @@ export function Estimate({
   dirty,
   pantry,
   recipes,
+  ingredients = [],
   onPantryToggle,
   onRebuild,
   rebuildDisabled = false,
@@ -105,7 +131,7 @@ export function Estimate({
       <section className="estimate-panel" aria-labelledby="estimate-heading">
         <h2 id="estimate-heading">Grocery estimate</h2>
         <p className="estimate-status" role="status" aria-live="polite">
-          {statusText(job, pending)}
+          {statusText(job, pending, recipes, ingredients)}
         </p>
       </section>
     );
