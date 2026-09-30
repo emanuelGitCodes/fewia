@@ -101,7 +101,7 @@ class BedrockConverseProvider:
                     ),
                 ),
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             raise LLMUnavailable from None
         self._model_id = model_id
 
@@ -149,7 +149,7 @@ class BedrockConverseProvider:
             request["toolConfig"] = {"tools": tools}
         try:
             response = self._client.converse(**request)
-        except Exception:
+        except Exception:  # noqa: BLE001
             raise LLMUnavailable from None
         if not isinstance(response, dict):
             raise LLMUnavailable

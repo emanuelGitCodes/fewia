@@ -34,7 +34,7 @@ def _observe(
         result = fixture_plan(inputs, ingredients=ingredients)
     except PlanningError:
         return {"accepted": False, "outcome": "diet_conflict"}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"outcome": "unexpected_error"}
     outcome = "incomplete_estimate" if result.total_cents is None else "accept_plan"
     return {

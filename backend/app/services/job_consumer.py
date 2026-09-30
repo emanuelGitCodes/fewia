@@ -102,10 +102,10 @@ def process_one(
         return "retry"
     except LeaseLost:
         return "lease_lost"
-    except Exception:
+    except Exception:  # noqa: BLE001
         try:
             renew()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return "lease_lost"
         if not finalize(error_code="handler_failed"):
             return "lease_lost"

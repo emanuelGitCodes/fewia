@@ -99,7 +99,7 @@ class SpoonacularEstimateProvider:
             raise SpoonacularUnavailable()
         try:
             payload: object = json.loads(response.content)
-        except Exception:
+        except Exception:  # noqa: BLE001
             raise SpoonacularUnavailable() from None
         cents = _parse_estimated_cents(payload)
         self._cache[key] = (self._clock(), cents)

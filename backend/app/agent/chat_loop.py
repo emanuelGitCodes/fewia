@@ -103,7 +103,7 @@ def run_chat(
             raw = provider.converse(
                 SYSTEM_PROMPT, list(messages), [planner_tool_spec()]
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             raw = None
         if raw is None:
             raise ChatUnavailable(_UNAVAILABLE)

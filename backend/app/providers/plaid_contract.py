@@ -145,6 +145,6 @@ def parse_sync_page(payload: object) -> SyncPage:
         next_cursor = _string(response["next_cursor"])
         has_more = _boolean(response["has_more"])
         return SyncPage(added, modified, removed_ids, next_cursor, has_more)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     _invalid()

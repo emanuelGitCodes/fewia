@@ -285,7 +285,7 @@ def test_caller_rollback_discards_claim(job_engine: Engine) -> None:
 def test_invalid_now_and_integer_controls_are_rejected(
     queued_job: Job, job_session: Session
 ) -> None:
-    naive = datetime(2026, 1, 1)
+    naive = datetime(2026, 1, 1)  # noqa: DTZ001
     with pytest.raises(ValueError, match="timezone-aware"):
         claim_job(job_session, queued_job.id, now=naive)
     with pytest.raises(ValueError, match="timezone-aware"):

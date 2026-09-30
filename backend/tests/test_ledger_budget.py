@@ -414,7 +414,7 @@ def test_naive_sync_time_is_stored_utc(ledger_session: Session) -> None:
         item_id="item-naive",
         user_id=1,
         cursor="cursor-naive",
-        last_synced_at=datetime(2026, 9, 1, 9, 0),
+        last_synced_at=datetime(2026, 9, 1, 9, 0),  # noqa: DTZ001
     )
     snapshot = load_spending(ledger_session, 1, PERIOD)
     assert snapshot.refreshed_at == datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
@@ -441,7 +441,7 @@ def test_sqlite_reload_treats_naive_sync_time_as_utc(ledger_session: Session) ->
         (True, PERIOD),
         (1.5, PERIOD),
         (1, date(2026, 9, 2)),
-        (1, datetime(2026, 9, 1)),
+        (1, datetime(2026, 9, 1, tzinfo=UTC)),
         (1, "2026-09-01"),
     ],
 )

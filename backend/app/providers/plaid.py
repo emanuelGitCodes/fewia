@@ -50,7 +50,7 @@ def _parse_success(response: httpx.Response) -> SyncPage:
     payload: object | None = None
     try:
         payload = json.loads(response.content, parse_float=Decimal)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     _reject_incomplete_update(payload)
     return parse_sync_page(payload)
@@ -59,7 +59,7 @@ def _parse_success(response: httpx.Response) -> SyncPage:
 def _mutation_error(response: httpx.Response) -> bool:
     try:
         payload = json.loads(response.content)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
     if not isinstance(payload, dict):
         return False
@@ -107,7 +107,7 @@ class PlaidSandboxProvider:
             access_token = _require_nonblank(
                 self._token_resolver(credential_ref), "access_token"
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
         if access_token is None:
             raise ValueError("access_token MUST be a nonblank string")

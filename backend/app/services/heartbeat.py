@@ -61,7 +61,7 @@ class Heartbeat:
                 return
             try:
                 self._renew()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 self._lost = True
                 self._stop.set()
 

@@ -140,7 +140,7 @@ def dispatch_handoff(
         url = validate_link_url(provider.create_link(payload))
     except InstacartRejected:
         rejected = True
-    except Exception:
+    except Exception:  # noqa: BLE001
         url = None
     with factory.begin() as session:
         _finish(session, user_id, handoff_id, token, url, rejected, clock)

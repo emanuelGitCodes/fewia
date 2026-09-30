@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import cast
 
 import pytest
@@ -274,7 +274,7 @@ def test_build_messages_does_not_mutate_inputs_or_chain_errors() -> None:
         ({"user_id": True}, "True"),
         ({"spending_source": "live"}, "live"),
         ({"period": date(2026, 9, 2)}, "2026-09-02"),
-        ({"period": datetime(2026, 9, 1)}, "2026-09-01"),
+        ({"period": datetime(2026, 9, 1, tzinfo=UTC)}, "2026-09-01"),
         ({"budget": budget(available_cents=-1)}, "-1"),
         (
             {

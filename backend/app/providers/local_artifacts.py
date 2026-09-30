@@ -139,7 +139,7 @@ class LocalArtifactStore:
                 Body=payload,
                 ContentType="application/json",
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             error = LocalArtifactError()
         if error is not None:
             raise error

@@ -462,7 +462,7 @@ def test_invalid_now_rolls_back_ledger_and_cursor(
     provider = ScriptedProvider([page(added=(txn("txn-1"),), next_cursor="c-now")])
 
     def bad_now() -> datetime:
-        return datetime(2026, 9, 6, 15, 0)
+        return datetime(2026, 9, 6, 15, 0)  # noqa: DTZ001
 
     with pytest.raises(ValueError) as raised:
         sync_item(factory, owned_item, provider, now=bad_now)

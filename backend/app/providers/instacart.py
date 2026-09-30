@@ -96,7 +96,7 @@ def _parse_create_link_response(response: httpx.Response) -> str:
     body: object | None = None
     try:
         body = json.loads(response.content)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     url: str | None = None
     if isinstance(body, dict):
@@ -150,5 +150,5 @@ class InstacartDevelopmentProvider:
             return _parse_create_link_response(response)
         except (InstacartRejected, InstacartUncertain):
             raise
-        except Exception:
+        except Exception:  # noqa: BLE001
             raise InstacartUncertain() from None

@@ -34,7 +34,7 @@ def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:
             region=settings.bedrock_region,
             profile_name=settings.aws_profile,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     if provider is None:
         raise ProviderConfigurationError()
@@ -57,7 +57,7 @@ def build_plaid(settings: GroceryProviderSettings) -> PlaidSandboxProvider | Non
             secret.get_secret_value(),
             TokenFileResolver(tokens_file),
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     if provider is None:
         raise ProviderConfigurationError()
@@ -74,7 +74,7 @@ def build_instacart(
     provider: InstacartDevelopmentProvider | None = None
     try:
         provider = InstacartDevelopmentProvider(secret.get_secret_value())
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     if provider is None:
         raise ProviderConfigurationError()
@@ -91,7 +91,7 @@ def build_spoonacular(
     provider: SpoonacularEstimateProvider | None = None
     try:
         provider = SpoonacularEstimateProvider(secret.get_secret_value())
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     if provider is None:
         raise ProviderConfigurationError()
