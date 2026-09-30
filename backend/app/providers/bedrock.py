@@ -2,9 +2,9 @@ from collections.abc import Mapping
 from typing import NotRequired, Protocol, TypedDict, Unpack, cast
 
 import boto3  # type: ignore[import-untyped]
-from botocore.config import Config  # type: ignore[import-untyped]
 
 from app.agent.provider import LLMUnavailable
+from app.providers.aws_config import aws_client_config
 
 _ALLOWED_REGIONS = frozenset({"us-east-1", "us-west-2"})
 _SUPPORTED_STOP_REASONS = frozenset(
@@ -94,11 +94,7 @@ class BedrockConverseProvider:
                     "bedrock-runtime",
                     region_name=region,
                     endpoint_url=f"https://bedrock-runtime.{region}.amazonaws.com",
-                    config=Config(
-                        connect_timeout=3,
-                        read_timeout=40,
-                        retries={"total_max_attempts": 1},
-                    ),
+                    config=aws_client_config(40, local=False),
                 ),
             )
         except Exception:  # noqa: BLE001

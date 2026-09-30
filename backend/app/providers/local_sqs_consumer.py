@@ -6,8 +6,8 @@ from typing import Protocol, cast
 from urllib.parse import urlsplit
 
 import boto3  # type: ignore[import-untyped]
-from botocore.config import Config  # type: ignore[import-untyped]
 
+from app.providers.aws_config import aws_client_config
 from app.providers.local_sqs import ALLOWED_ENDPOINTS, QUEUE_NAMES
 
 _WAIT_TIME_SECONDS = 10
@@ -70,12 +70,7 @@ class LocalSqsConsumer:
             session.client(
                 "sqs",
                 endpoint_url=endpoint_url,
-                config=Config(
-                    connect_timeout=3,
-                    read_timeout=20,
-                    retries={"total_max_attempts": 1},
-                    proxies={},
-                ),
+                config=aws_client_config(20, local=True),
             ),
         )
 

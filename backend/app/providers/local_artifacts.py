@@ -10,8 +10,8 @@ from collections.abc import Callable
 from typing import NamedTuple, Protocol, cast
 
 import boto3  # type: ignore[import-untyped]
-from botocore.config import Config  # type: ignore[import-untyped]
 
+from app.providers.aws_config import aws_client_config
 from app.providers.local_sqs import ALLOWED_ENDPOINTS
 
 _BUCKET = "fewia-eval"
@@ -112,12 +112,7 @@ class LocalArtifactStore:
         self._client = session.client(
             "s3",
             endpoint_url=endpoint_url,
-            config=Config(
-                connect_timeout=3,
-                read_timeout=5,
-                retries={"total_max_attempts": 1},
-                proxies={},
-            ),
+            config=aws_client_config(5, local=True),
         )
 
     def close(self) -> None:
