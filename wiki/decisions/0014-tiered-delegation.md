@@ -1,7 +1,7 @@
 # 0014 — Tiered delegation and token budgets
 
 - Date: 2026-09-25
-- Status: accepted
+- Status: accepted; amended by [0015](0015-writer-routing-by-difficulty.md), which replaces the tier L reviewer agent
 
 ## Decision
 
