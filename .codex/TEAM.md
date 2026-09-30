@@ -2,8 +2,8 @@
 
 Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md).
 The coordinator picks the writer by difficulty from
-[Writer selection](../docs/DELEGATION.md#writer-selection): Luna for simple
-work, and Grok or Sol for harder work. Every writer run passes
+[Writer selection](../docs/DELEGATION.md#writer-selection): Luna `xhigh` for
+simple work, and Grok `low` or `medium` or Sol `medium` or `high` for harder work. Every writer run passes
 `--only --model MODEL --effort LEVEL`. Spark MUST NOT write code.
 The coordinator classifies each task before delegation.
 Valid complexity values are `simple`, `standard`, `complex`, `exceptional`,

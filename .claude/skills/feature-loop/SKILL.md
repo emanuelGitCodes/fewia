@@ -23,9 +23,9 @@ Update the ledger after each state change.
 ## Writer model
 
 Pick the writer and the effort for each item from
-[Writer selection](../../../docs/DELEGATION.md#writer-selection): Luna
-`low` for simple work, Grok `low` or `medium` for fully specified harder
-work, and Sol `medium` or `high` for ambiguous or high-risk work. Pass
+[Writer selection](../../../docs/DELEGATION.md#writer-selection). The
+ladder is Luna `xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol
+`high`. Pick the lowest rung that fits the item. Pass
 `--only --model MODEL --effort LEVEL` on every writer run. Record the model
 and the effort in the ledger. Do not spawn the Sonnet juniors in
 `.claude/agents/` unless the user asks. Drive the writer yourself with the

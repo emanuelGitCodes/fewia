@@ -49,28 +49,32 @@ The coordinator picks one writer model and one effort per work item.
 Decision [0015](../wiki/decisions/0015-writer-routing-by-difficulty.md)
 records the rule.
 
-| Difficulty | Writer | Effort | `--complexity` |
-|---|---|---|---|
-| Simple: configuration, one narrow change, no new contract | `gpt-6-luna` | `low` | `simple` |
-| Harder, fully specified, follows a known pattern in the repository | `grok-4.6` | `low` or `medium` | `standard` |
-| Harder, ambiguous, cross-cutting, a new contract, debugging, security, or test-gate work | `gpt-6.1-sol` | `medium` or `high` | `standard` or `complex` |
+The writers form one ladder. The score is the Artificial Analysis
+Intelligence Index v4.3.2. Pick the lowest rung that fits the work item.
+
+| Rung | Writer | Effort | Score | Use it for | `--complexity` |
+|---|---|---|---|---|---|
+| 1 | `gpt-6-luna` | `xhigh` | 34 | Simple: configuration, one narrow change, no new contract | `simple` |
+| 2 | `grok-4.6` | `low` | 35 | A small mechanical change that follows a pattern in the repository | `standard` |
+| 3 | `grok-4.6` | `medium` | 43 | Standard work that the brief fully specifies | `standard` |
+| 4 | `gpt-6.1-sol` | `medium` | 48 | Ambiguous or cross-cutting work, a new contract, or debugging | `complex` |
+| 5 | `gpt-6.1-sol` | `high` | 50 | Security, test-gate work, or the hardest cross-system work | `complex` or harder |
 
 - Every writer run MUST pass `--only --model MODEL --effort LEVEL`.
-- Grok uses `low` for a small mechanical change and `medium` otherwise.
-- Sol uses `medium` for `standard` work and `high` for `complex` or harder
-  work. Sol MUST NOT receive `xhigh` or `max`.
-- Only these three models write code. `gpt-5.3-codex-spark` and Sonnet
-  MUST NOT write code.
-- When the difficulty is unclear, the coordinator SHOULD pick Sol.
+- Only the five rungs above write code. Grok MUST NOT receive `high` or
+  above. Sol MUST NOT receive `low`, `xhigh`, or `max`. Luna MUST use
+  `xhigh`. `gpt-5.3-codex-spark` and Sonnet MUST NOT write code.
+- When the rung is unclear, the coordinator SHOULD pick the higher rung.
 - `--complexity` still sets the tier and the review effort.
 
 Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
-`stalled`): Luna goes to Grok `low`, Grok goes to Sol `medium`, and Sol
+`stalled`): Luna goes to Grok `medium`, Grok goes to Sol `medium`, and Sol
 goes to Grok `medium`. A failed task does not trigger fallback.
 
 A repair keeps the same writer. After two repair rounds with no progress,
-the coordinator MAY move the item one step up: Luna to Grok or Sol, and
-Grok to Sol. The ledger records each change of writer.
+the coordinator MAY move the item up the ladder. Luna moves to rung 3,
+because rung 2 scores almost the same as Luna. The ledger records each
+change of writer.
 
 ## The loop
 

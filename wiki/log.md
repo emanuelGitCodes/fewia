@@ -2377,8 +2377,8 @@ returned APPROVE. No subagents ran.
 
 ## 2026-09-30 — Route writers by difficulty
 
-Decision 0015 routes each work item to one writer. Luna `low` takes simple
-work. Grok `low` or `medium` takes fully specified harder work. Sol
-`medium` or `high` takes ambiguous or high-risk work. `docs/DELEGATION.md`,
+Decision 0015 routes each work item to one rung of a writer ladder: Luna
+`xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol `high`. The
+Artificial Analysis Intelligence Index v4.3.2 scores set the order. `docs/DELEGATION.md`,
 `docs/DEV_SUPERVISOR.md`, `.codex/TEAM.md`, and both coordinator skills
 now name this rule. The supervisor code did not change.

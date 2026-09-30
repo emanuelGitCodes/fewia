@@ -9,15 +9,20 @@ The coordinator picks one writer model per work item from the difficulty of
 the item. Three models write code: `gpt-6-luna`, `grok-4.6`, and
 `gpt-6.1-sol`. No other model writes code.
 
-| Difficulty | Writer | Effort |
-|---|---|---|
-| Simple: configuration, one narrow change, no new contract | `gpt-6-luna` | `low` |
-| Harder, fully specified, follows a known pattern | `grok-4.6` | `low` or `medium` |
-| Harder, ambiguous, cross-cutting, security, or test-gate work | `gpt-6.1-sol` | `medium` or `high` |
+The writers form one ladder, ordered by the Artificial Analysis
+Intelligence Index v4.3.2 score:
 
-Every writer run uses `--only --model MODEL --effort LEVEL`. Grok never
-receives an effort above `medium`. Sol never receives an effort below
-`medium` or above `high`.
+| Rung | Writer | Effort | Score |
+|---|---|---|---|
+| 1 | `gpt-6-luna` | `xhigh` | 34 |
+| 2 | `grok-4.6` | `low` | 35 |
+| 3 | `grok-4.6` | `medium` | 43 |
+| 4 | `gpt-6.1-sol` | `medium` | 48 |
+| 5 | `gpt-6.1-sol` | `high` | 50 |
+
+The coordinator picks the lowest rung that fits the work item. Every writer
+run uses `--only --model MODEL --effort LEVEL`. `gpt-6.1-sol` at `xhigh`
+scores 51, one point above `high`, so the ladder stops at `high`.
 
 The loop does not change. The writer edits files. The coordinator commits,
 runs the gates and the review command, reads the diff, and decides. When the
@@ -38,7 +43,8 @@ This decision replaces the writer order in
 ## Reason
 
 The user asked for a cheap writer on simple items and a strong writer on hard
-items, with the coordinator free to choose between Grok and Sol.
+items, with Luna at `xhigh`. The index scores let the coordinator match the
+effort to the difficulty of the item.
 
 ## Consequences
 
