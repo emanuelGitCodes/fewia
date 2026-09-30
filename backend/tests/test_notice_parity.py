@@ -7,7 +7,6 @@ import pytest
 from app.domain.supermarket_estimate import SPOONACULAR_COST_NOTICE
 from app.services.meal_nutrition import NOTICE, PORTION_NOTICE
 
-
 FRONTEND_TYPES = (
     Path(__file__).resolve().parents[2] / "frontend" / "src" / "apiTypes.ts"
 )
