@@ -5,6 +5,7 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import {
+  HTTP_ERROR,
   SAMPLE_ESTIMATE_NOTICE,
   SPOONACULAR_COST_NOTICE,
   type CatalogItem,
@@ -85,6 +86,7 @@ function mount(
     dirty: boolean;
     pantry: string[];
     recipes: CatalogItem[];
+    ingredients: CatalogItem[];
     onPantryToggle: (id: string) => void;
     onRebuild: () => void | Promise<void>;
     rebuildDisabled: boolean;
@@ -99,6 +101,7 @@ function mount(
         dirty: props.dirty ?? false,
         pantry: props.pantry ?? [],
         recipes: props.recipes ?? [],
+        ingredients: props.ingredients,
         onPantryToggle: props.onPantryToggle ?? ((): void => {}),
         onRebuild: props.onRebuild,
         rebuildDisabled: props.rebuildDisabled,
@@ -138,6 +141,32 @@ describe("Estimate", () => {
     expect(childText(failed.root)).not.toContain("$4.78");
     expect(childText(failed.root)).not.toContain(NOTICE);
     failed.unmount();
+  });
+
+  it("names the excluded ingredient on exclusion_reject", () => {
+    const renderer = mount({
+      job: {
+        id: "job-1",
+        status: "failed",
+        result: null,
+        error_code: "exclusion_reject",
+        error_detail: { recipe_id: "vegetable_pasta", ingredient_id: "onion" },
+      },
+      recipes: [{ id: "vegetable_pasta", name: "vegetable pasta" }],
+      ingredients: [{ id: "onion", name: "onion" }],
+    });
+    expect(childText(renderer.root)).toContain(
+      "Vegetable pasta needs onion, which is excluded. Clear the onion exclusion or choose another meal, then rebuild.",
+    );
+    renderer.unmount();
+  });
+
+  it("asks to check and retry when the error is not exclusion_reject", () => {
+    const renderer = mount({
+      job: { id: "job-1", status: "failed", result: null, error_code: "handler_failed" },
+    });
+    expect(childText(renderer.root)).toContain(HTTP_ERROR);
+    renderer.unmount();
   });
 
   it("shows the server total, notice, every row, and budget labels", () => {
