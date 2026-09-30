@@ -22,7 +22,7 @@ exist.
 - **Junior.** One role subagent per work item. It drives the writer, runs
   the gates, and reports. It follows [delegation/junior.md](delegation/junior.md).
 - **Writer.** A Grok or Codex CLI that `dev_supervisor` starts. The writer
-  edits files only. It runs no commands.
+  edits files only. It runs no checks.
 - **Review model.** A separate Codex model that `dev_supervisor.review`
   starts read-only. It is the independent reviewer. When Codex is
   unavailable, a separate read-only Grok session reviews the diff instead,
@@ -119,8 +119,14 @@ Reading per role:
 
 ## Rules that prevent known waste
 
-- The writer MUST NOT run commands. Grok has file permissions only, and a
-  command ends its run as `task_failed`. Codex writers have no network.
+- A Grok writer MUST NOT run commands. Grok has file permissions only, and
+  a command ends its run as `task_failed`.
+- A Codex writer MAY run read-only shell commands to read and search
+  files, because Codex reads files only through a shell. It edits with
+  `apply_patch`. It MUST NOT run tests, package managers, git commands, or
+  commands that write files. Codex writers have no network.
+- A writer run that changes no owned file ends as `no_edits`, not
+  `completed`. The supervisor then tries the next model in the sequence.
 - The junior runs every install, lint, test, and build.
 - A `task_failed` outcome does not prove the edits are wrong. The junior
   MUST inspect the diff before deciding.

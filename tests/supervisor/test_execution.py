@@ -332,8 +332,9 @@ def test_existing_status_blocks_after_execute_failure(tmp_path: Path) -> None:
 def test_guard_forbids_writer_commands() -> None:
     assert (
         "You MUST NOT run shell commands, tests, package managers, or git commands"
-        in GUARD
+        not in GUARD
     )
+    assert "You MAY run read-only shell commands" not in GUARD
     assert "Never claim an unfinished check passed" not in GUARD
     assert "Record completed checks" not in GUARD
     assert "after each completed check" not in GUARD

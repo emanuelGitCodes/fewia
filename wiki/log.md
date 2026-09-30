@@ -2374,3 +2374,16 @@ as `tech-lead`, chose tier S. It ran the Grok writer through
 ran the review command. The review command failed inside the Codex
 sandbox, so Codex used the documented read-only Grok review, which
 returned APPROVE. No subagents ran.
+
+## 2026-09-29 — Codex writers read files with read-only shell
+
+The writer prompt forbade every shell command. Codex writers read files only
+through a shell tool. In the `tech-debt-2` loop, `gpt-6.1-sol` and
+`gpt-6-luna` read nothing, edited nothing, and still ended as `completed`.
+Sol did this on three items. Luna did it on two of five runs. A direct
+`codex exec` run without the rule wrote files.
+
+A Grok writer keeps the no-shell rule. A Codex writer now MAY run read-only
+shell commands. It still runs no tests, package managers, or git commands.
+A run that changes no owned file now ends as `no_edits`, and the supervisor
+tries the next model. The user chose this option on 2026-09-29.
