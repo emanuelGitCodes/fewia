@@ -531,6 +531,19 @@ def test_period_mismatch_uses_static_message(
     }
 
 
+def test_unknown_pantry_ingredient_returns_422_and_creates_no_job(
+    client: TestClient, session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user()
+    body = job_body()
+    request = cast(dict[str, object], body["request"])
+    request["pantry_ingredients"] = ["white_rice"]
+    response = post_job(client, body=body)
+
+    assert response.status_code == 422
+    assert session.scalars(select(Job)).all() == []
+
+
 @pytest.mark.parametrize("value", [-1, True, 1.5, "100"])
 def test_monthly_limit_rejects_invalid_types(
     client: TestClient, seed_user: UserSeeder, value: object

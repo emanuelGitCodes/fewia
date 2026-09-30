@@ -64,6 +64,36 @@ def test_caller_fields_match_stored_payload_not_spending() -> None:
     assert one.matches_stored_caller_fields(bool_limit) is False
 
 
+def test_create_body_rejects_unknown_pantry_ingredient() -> None:
+    payload = valid_body()
+    request = payload["request"]
+    assert isinstance(request, dict)
+    request["pantry_ingredients"] = ["white_rice"]
+    with pytest.raises(ValidationError):
+        CreateGroceryJobBody.model_validate(payload)
+
+
+def test_create_body_rejects_unknown_exclusion_ingredient() -> None:
+    payload = valid_body()
+    request = payload["request"]
+    assert isinstance(request, dict)
+    request["ingredient_exclusions"] = ["not_an_ingredient"]
+    with pytest.raises(ValidationError):
+        CreateGroceryJobBody.model_validate(payload)
+
+
+def test_create_body_accepts_known_pantry_and_exclusion_ids() -> None:
+    payload = valid_body()
+    request = payload["request"]
+    assert isinstance(request, dict)
+    request["pantry_ingredients"] = ["rice"]
+    request["ingredient_exclusions"] = ["onion"]
+    body = CreateGroceryJobBody.model_validate(payload)
+
+    assert body.request.pantry_ingredients == ["rice"]
+    assert body.request.ingredient_exclusions == ["onion"]
+
+
 def test_create_body_rejects_caller_user_and_spending() -> None:
     with pytest.raises(ValidationError):
         CreateGroceryJobBody.model_validate({**valid_body(), "user_id": 9})

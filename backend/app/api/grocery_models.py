@@ -3,9 +3,10 @@
 import json
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from app.domain.budget import SpendingSource
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import GroceryRequest
 
 
@@ -31,6 +32,18 @@ class CreateGroceryJobBody(BaseModel):
 
     request: GroceryRequest
     monthly_limit_cents: StrictInt = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_catalog_ingredient_ids(self) -> "CreateGroceryJobBody":
+        for ingredient_id in self.request.pantry_ingredients:
+            if ingredient_id not in INGREDIENTS:
+                raise ValueError("pantry_ingredients contains an unknown ingredient id")
+        for ingredient_id in self.request.ingredient_exclusions:
+            if ingredient_id not in INGREDIENTS:
+                raise ValueError(
+                    "ingredient_exclusions contains an unknown ingredient id"
+                )
+        return self
 
     def caller_fields(self) -> dict[str, object]:
         return {
