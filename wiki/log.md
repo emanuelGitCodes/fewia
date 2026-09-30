@@ -2392,10 +2392,9 @@ Pull requests #203 and #204 merged as `3fb78ea` and `efa0c7d`. Writers now
 follow the ladder in decision 0015. Tier L runs coordinator probes, and the
 review model gives the verdict. The Claude Code and OpenCode `code-reviewer`
 subagents are deleted. The Codex `code-reviewer` role stays, because
-`dev_supervisor.review` reads it.
-
-`gpt-6.1-sol` at `medium` reviewed both items. Item 01 (the ladder) needed
-three rounds. Item 02 (the tier L change) needed four; the user asked for
-the fourth to fix a non-blocking count in `.opencode/README.md`. All
-findings were documentation conflicts. The gates had no checks for these
-paths. No writer or tier L probe run has used the new rules yet.
+`dev_supervisor.review` reads it. `gpt-6.1-sol` at `medium` reviewed both
+items. Item 01 (the ladder) needed three rounds. Item 02 (the tier L
+change) needed four; the user asked for the fourth to fix a non-blocking
+count in `.opencode/README.md`. All findings were documentation conflicts.
+The gates had no checks for these paths. No writer or tier L probe run has
+used the new rules yet.
