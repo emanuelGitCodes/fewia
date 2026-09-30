@@ -69,7 +69,10 @@ Intelligence Index v4.3.2. Pick the lowest rung that fits the work item.
 
 Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
 `stalled`): Luna goes to Grok `medium`, Grok goes to Sol `medium`, and Sol
-goes to Grok `medium`. A failed task does not trigger fallback.
+goes to Grok `medium`. A failed task does not trigger fallback. Each
+writer run gets at most one fallback. When the fallback model also returns
+a provider outcome, the coordinator stops the item, marks it `blocked`, and
+escalates to the user.
 
 A repair keeps the same writer. After two repair rounds with no progress,
 the coordinator MAY move the item up the ladder. Luna moves to rung 3,
@@ -115,7 +118,7 @@ Run every command from the item worktree root.
 # Writer: edits files only. Pick the model and effort from "Writer selection".
 uv run --project backend python -m dev_supervisor \
   --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
-  --complexity standard --only --model gpt-6.1-sol --effort medium \
+  --complexity standard --only --model grok-4.6 --effort medium \
   --write-file backend/app/example.py \
   --work-item fewia-42 --phase implement
 
@@ -125,7 +128,7 @@ uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 # Review: independent, read-only, time-capped, short output.
 uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
   --base main --brief "$BRIEF_FILE" --complexity standard \
-  --writer-model gpt-6.1-sol --work-item fewia-42
+  --writer-model grok-4.6 --work-item fewia-42
 
 # Usage: token and time totals per work item.
 uv run --project backend python -m dev_supervisor.usage --work-item fewia-42

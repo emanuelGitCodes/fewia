@@ -5,7 +5,8 @@ Run from the repository root with Python 3.12:
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --complexity standard --write-file dev_supervisor/policy.py \
+  --complexity standard --only --model grok-4.6 --effort medium \
+  --write-file dev_supervisor/policy.py \
   --work-item fewia-42 --phase implement
 ```
 

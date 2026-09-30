@@ -28,8 +28,9 @@ ladder is Luna `xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol
 `high`. Pick the lowest rung that fits the item. Pass
 `--only --model MODEL --effort LEVEL` on every writer run. Record the model
 and the effort in the ledger. Do not spawn the Sonnet juniors in
-`.claude/agents/` unless the user asks. Drive the writer yourself with the
-tier S mechanics at every tier.
+`.claude/agents/` unless the user asks. At tier M and tier L, drive the
+writer yourself with the tier S steps in place of the junior. Tier L still
+spawns `code-reviewer`, and the review command still runs at every tier.
 
 ## Tier mechanics in Claude Code
 
