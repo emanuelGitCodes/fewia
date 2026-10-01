@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type { HandoffView } from "./handoffTypes";
 
 export type HandoffControlsProps = {

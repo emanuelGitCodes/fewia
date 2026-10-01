@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type Dispatch, type JSX, type SetStateAction } from "react";
 import type { GroceryJob } from "./apiTypes";
 import type { FormState } from "./BudgetForm";
 import { ChatPanel } from "./ChatPanel";

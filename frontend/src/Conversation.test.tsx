@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { createElement } from "react";
+import { createElement, type JSX } from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

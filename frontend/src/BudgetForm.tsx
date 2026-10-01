@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, JSX, SetStateAction } from "react";
 import type { CatalogItem, Diet, GroceryConfig, GroceryJobCreate } from "./apiTypes";
 import { parseDollars } from "./money";
 
