@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.job_models import Job, JobOutbox
 from app.models import User
-from app.services.job_submission import create_job
+from app.services.job_submission import create_job, submit_job
 
 
 @pytest.fixture()
@@ -87,6 +87,53 @@ def test_concurrent_requests_create_one_job_and_one_outbox(
             )
             == 1
         )
+
+
+def test_concurrent_submissions_commit_matching_winner(
+    postgres_user: tuple[Engine, int],
+) -> None:
+    engine, user_id = postgres_user
+    start = Barrier(2)
+
+    def synchronize_inserts(
+        mapper: object, connection: Connection, target: Job
+    ) -> None:
+        if target.user_id == user_id:
+            start.wait(timeout=10)
+
+    def matches(payload: dict[str, object]) -> bool:
+        return payload.get("meal") == "tacos"
+
+    def submit(snapshot: int) -> tuple[str, dict[str, object]]:
+        with Session(engine) as session:
+            job = submit_job(
+                session,
+                user_id,
+                "agent",
+                "service-race",
+                {"meal": "tacos", "snapshot": snapshot},
+                matches,
+            )
+            return job.id, job.payload
+
+    event.listen(Job, "before_insert", synchronize_inserts)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(submit, snapshot) for snapshot in range(2)]
+            results = [future.result(timeout=20) for future in futures]
+    finally:
+        event.remove(Job, "before_insert", synchronize_inserts)
+
+    assert results[0] == results[1]
+    with Session(engine) as observer:
+        jobs = observer.scalars(select(Job).where(Job.user_id == user_id)).all()
+        assert len(jobs) == 1
+        assert jobs[0].id == results[0][0]
+        assert jobs[0].payload == results[0][1]
+        outboxes = observer.scalars(
+            select(JobOutbox).where(JobOutbox.job_id == jobs[0].id)
+        ).all()
+        assert len(outboxes) == 1
 
 
 def test_caller_rollback_removes_job_and_outbox(

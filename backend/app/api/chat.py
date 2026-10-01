@@ -5,7 +5,6 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
@@ -20,7 +19,13 @@ from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
-from app.services.job_submission import IdempotencyConflict, create_job, find_job
+from app.services.job_submission import (
+    JobConflict,
+    JobInputInvalid,
+    JobUnavailable,
+    reuse_job,
+    submit_job,
+)
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
     attach_supermarket_estimate,
@@ -38,10 +43,6 @@ def _ny_now() -> datetime:
     return datetime.now(UTC).astimezone(NEW_YORK)
 
 
-def _existing_chat_job(session: Session, request_key: str) -> Job | None:
-    return find_job(session, DEMO_USER_ID, "agent", request_key)
-
-
 @router.get("/providers")
 def read_providers(
     settings: Annotated[GroceryProviderSettings, Depends(get_provider_settings)],
@@ -56,11 +57,16 @@ def create_chat_job(
     idempotency_key: IdempotencyKey,
 ) -> GroceryJobAccepted:
     request_key = f"{CHAT_KEY_PREFIX}{idempotency_key}"
-    existing = _existing_chat_job(session, request_key)
+    matches = body.matches_stored_caller_fields
+    existing: Job | None = None
+    conflict = False
+    try:
+        existing = reuse_job(session, DEMO_USER_ID, "agent", request_key, matches)
+    except JobConflict:
+        conflict = True
+    if conflict:
+        raise HTTPException(status_code=409, detail=grocery_api.CONFLICT_MESSAGE)
     if existing is not None:
-        if not body.matches_stored_caller_fields(existing.payload):
-            raise HTTPException(status_code=409, detail=grocery_api.CONFLICT_MESSAGE)
-        session.commit()
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
     settings = get_provider_settings()
     if not capabilities(settings)["chat_configured"]:
@@ -97,24 +103,19 @@ def create_chat_job(
     error_status: int | None = None
     error_detail: str | None = None
     try:
-        job, _created = create_job(session, DEMO_USER_ID, "agent", request_key, payload)
-    except (IdempotencyConflict, IntegrityError) as exc:
-        winner = _existing_chat_job(session, request_key)
-        if winner is not None and body.matches_stored_caller_fields(winner.payload):
-            job = winner
-        elif isinstance(exc, IntegrityError) and winner is None:
-            error_status = 503
-            error_detail = grocery_api.JOB_UNAVAILABLE_MESSAGE
-        else:
-            error_status = 409
-            error_detail = grocery_api.CONFLICT_MESSAGE
-    except ValueError:
+        job = submit_job(session, DEMO_USER_ID, "agent", request_key, payload, matches)
+    except JobConflict:
+        error_status = 409
+        error_detail = grocery_api.CONFLICT_MESSAGE
+    except JobUnavailable:
+        error_status = 503
+        error_detail = grocery_api.JOB_UNAVAILABLE_MESSAGE
+    except JobInputInvalid:
         error_status = 422
         error_detail = grocery_api.INPUT_INVALID_MESSAGE
     if error_status is not None:
         raise HTTPException(status_code=error_status, detail=error_detail)
     assert job is not None
-    session.commit()
     return GroceryJobAccepted(job_id=job.id, status=job.status)
 
 

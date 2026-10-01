@@ -5,7 +5,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
@@ -20,7 +19,13 @@ from app.provider_settings import (
     ProviderConfigurationError,
     load_provider_settings,
 )
-from app.services.job_submission import IdempotencyConflict, create_job, find_job
+from app.services.job_submission import (
+    JobConflict,
+    JobInputInvalid,
+    JobUnavailable,
+    reuse_job,
+    submit_job,
+)
 from app.services.sync_job import SyncJobInput
 
 router = APIRouter(prefix="/grocery/sync", tags=["grocery"])
@@ -35,10 +40,6 @@ INVALID_JOB_MESSAGE = "Job request is invalid"
 
 def get_provider_settings() -> GroceryProviderSettings:
     return load_provider_settings()
-
-
-def _existing_sync_job(session: Session, request_key: str) -> Job | None:
-    return find_job(session, DEMO_USER_ID, "sync", request_key)
 
 
 def _owned_item(session: Session, item_id: str) -> PlaidItem | None:
@@ -72,11 +73,16 @@ def create_sync_job(
     ],
 ) -> GroceryJobAccepted:
     request_key = f"{REQUEST_KEY_PREFIX}{idempotency_key}"
-    existing = _existing_sync_job(session, request_key)
+    matches = body.matches_stored_caller_fields
+    existing: Job | None = None
+    conflict = False
+    try:
+        existing = reuse_job(session, DEMO_USER_ID, "sync", request_key, matches)
+    except JobConflict:
+        conflict = True
+    if conflict:
+        raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE)
     if existing is not None:
-        if not body.matches_stored_caller_fields(existing.payload):
-            raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE)
-        session.commit()
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
     if _owned_item(session, body.item_id) is None:
         raise HTTPException(status_code=404, detail=ITEM_NOT_FOUND_MESSAGE)
@@ -89,21 +95,16 @@ def create_sync_job(
     job: Job | None = None
     failure: tuple[int, str] | None = None
     try:
-        job, _created = create_job(session, DEMO_USER_ID, "sync", request_key, payload)
-    except (IdempotencyConflict, IntegrityError) as exc:
-        winner = _existing_sync_job(session, request_key)
-        if winner is not None and body.matches_stored_caller_fields(winner.payload):
-            job = winner
-        elif isinstance(exc, IntegrityError) and winner is None:
-            failure = (503, JOB_UNAVAILABLE_MESSAGE)
-        else:
-            failure = (409, CONFLICT_MESSAGE)
-    except ValueError:
+        job = submit_job(session, DEMO_USER_ID, "sync", request_key, payload, matches)
+    except JobConflict:
+        failure = (409, CONFLICT_MESSAGE)
+    except JobUnavailable:
+        failure = (503, JOB_UNAVAILABLE_MESSAGE)
+    except JobInputInvalid:
         failure = (422, INVALID_JOB_MESSAGE)
     if failure is not None:
         raise HTTPException(status_code=failure[0], detail=failure[1])
     assert job is not None
-    session.commit()
     return GroceryJobAccepted(job_id=job.id, status=job.status)
 
 
