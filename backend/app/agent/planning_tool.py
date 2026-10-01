@@ -8,7 +8,7 @@ from typing import cast, get_args
 from pydantic import ValidationError
 
 from app.domain.budget import BudgetResult, SpendingSource
-from app.domain.grocery import GroceryRequest
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
 from app.services.grocery_planner import (
     ExclusionConflict,
     PlanEstimate,
@@ -52,6 +52,20 @@ def planner_tool_spec() -> dict[str, object]:
     }
 
 
+def _unsupported_recipe_only(exc: ValidationError) -> bool:
+    errors = exc.errors()
+    if not errors:
+        return False
+    for error in errors:
+        loc = error["loc"]
+        if not loc or loc[-1] != "recipe_id":
+            return False
+        value = error.get("input")
+        if type(value) is not str or value in SUPPORTED_RECIPE_IDS:
+            return False
+    return True
+
+
 def execute_plan(
     arguments: object,
     budget: BudgetResult,
@@ -72,11 +86,18 @@ def execute_plan(
     if type(budget.available_cents) is not int or budget.available_cents < 0:
         raise PlanningToolError("budget is invalid")
     request: GroceryRequest | None
+    unsupported_recipe = False
     try:
         request = GroceryRequest.model_validate(arguments)
-    except ValidationError:
+    except ValidationError as exc:
         request = None
+        unsupported_recipe = _unsupported_recipe_only(exc)
     if request is None:
+        if unsupported_recipe:
+            raise PlanningToolError(
+                "recipe is not supported",
+                error_code="unsupported_recipe",
+            )
         raise PlanningToolError("arguments are invalid")
     if request.budget_period != period:
         raise PlanningToolError("budget_period does not match the server period")

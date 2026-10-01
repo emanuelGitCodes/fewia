@@ -141,6 +141,40 @@ def test_invalid_arguments_raise_static_errors(
         execute_plan(args, budget(), PERIOD)
     _assert_static(caught.value, token)
     assert str(caught.value) == "arguments are invalid"
+    assert caught.value.error_code is None
+    assert caught.value.detail == {}
+
+
+def test_unsupported_recipe_raises_typed_error() -> None:
+    unknown = "sushi"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(
+            arguments(meals=[{"recipe_id": unknown, "servings": 1}]),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(caught.value, unknown)
+    assert str(caught.value) == "recipe is not supported"
+    assert caught.value.error_code == "unsupported_recipe"
+    assert caught.value.detail == {}
+    assert unknown not in str(caught.value)
+    assert unknown not in str(caught.value.detail)
+
+
+def test_unsupported_recipe_with_invalid_servings_stays_generic() -> None:
+    unknown = "sushi"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(
+            arguments(meals=[{"recipe_id": unknown, "servings": 9}]),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(caught.value, unknown)
+    assert str(caught.value) == "arguments are invalid"
+    assert caught.value.error_code is None
+    assert caught.value.detail == {}
+    assert unknown not in str(caught.value)
+    assert unknown not in str(caught.value.detail)
 
 
 def test_invalid_period_raises_without_raw_input() -> None:

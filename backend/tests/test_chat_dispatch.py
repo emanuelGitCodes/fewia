@@ -8,6 +8,7 @@ from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -196,7 +197,13 @@ def test_errors_omit_raw_input_and_exception_context() -> None:
     assert "PlanningToolError" not in dumped
     assert "Traceback" not in dumped
     assert block["toolResult"]["content"] == [
-        {"json": {"error": "arguments are invalid"}}
+        {
+            "json": {
+                "error": "recipe is not supported",
+                "error_code": "unsupported_recipe",
+                "supported_recipe_ids": list(SUPPORTED_RECIPE_IDS),
+            }
+        }
     ]
     unknown = ToolCall("call-5", "purchase_items", {"token": _SECRET})
     unknown_trace: list[dict[str, object]] = []
@@ -464,6 +471,60 @@ def test_missing_total_stays_unknown_and_does_not_become_zero(
     assert display["pending"] == "USD $2.50"
     assert display.get("total") != "USD $0.00"
     assert "available_cents" not in budget_payload
+
+
+def test_unsupported_recipe_returns_static_typed_tool_error() -> None:
+    args = arguments(meals=[{"recipe_id": "sushi", "servings": 1}])
+    call = ToolCall("call-unknown-recipe", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "call-unknown-recipe",
+            "content": [
+                {
+                    "json": {
+                        "error": "recipe is not supported",
+                        "error_code": "unsupported_recipe",
+                        "supported_recipe_ids": list(SUPPORTED_RECIPE_IDS),
+                    }
+                }
+            ],
+            "status": "error",
+        }
+    }
+    assert trace == [_error_trace(TOOL_NAME, "call-unknown-recipe")]
+    assert set(trace[0]) == {
+        "tool",
+        "outcome",
+        "tool_use_id",
+        "sequence",
+        "revision_index",
+    }
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "PlanningToolError" not in dumped
+    assert "sushi" not in dumped
+
+
+def test_unsupported_recipe_with_invalid_servings_returns_invalid_args() -> None:
+    args = arguments(meals=[{"recipe_id": "sushi", "servings": 9}])
+    call = ToolCall("call-mix", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "call-mix",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [_error_trace(TOOL_NAME, "call-mix")]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "PlanningToolError" not in dumped
+    assert "sushi" not in dumped
+    assert "unsupported_recipe" not in dumped
 
 
 def test_exclusion_conflict_returns_static_typed_tool_error() -> None:

@@ -4,6 +4,7 @@ from datetime import date
 from app.agent import chat_messages as msgs
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
 
@@ -122,6 +123,12 @@ def dispatch(
                 "error_code": "exclusion_reject",
                 "recipe_id": recipe_id,
                 "ingredient_id": ingredient_id,
+            }
+        elif exc.error_code == "unsupported_recipe":
+            error_body = {
+                "error": "recipe is not supported",
+                "error_code": "unsupported_recipe",
+                "supported_recipe_ids": list(SUPPORTED_RECIPE_IDS),
             }
     if payload is None:
         trace.append(
