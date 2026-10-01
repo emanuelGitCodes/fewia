@@ -8,14 +8,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import router as context_router
 from app.api.chat import router as chat_router
 from app.api.evidence import router as evidence_router
 from app.api.grocery import router as grocery_router
 from app.api.handoff import router as handoff_router
-from app.api.predict import router as predict_router
 from app.api.sync import router as sync_router
-from app.tools.base import ToolError
 
 app = FastAPI(title="FEWIA API")
 
@@ -26,15 +23,6 @@ def _http_error_code(status_code: int) -> str:
         return HTTPStatus(status_code).name.lower()
     except ValueError:
         return f"http_{status_code}"
-
-
-@app.exception_handler(ToolError)
-async def tool_error_handler(request: Request, exc: ToolError) -> JSONResponse:
-    """Return the tool error code and message with its HTTP status."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message}},
-    )
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -77,10 +65,8 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-app.include_router(context_router)
 app.include_router(grocery_router)
 app.include_router(chat_router)
-app.include_router(predict_router)
 app.include_router(evidence_router)
 app.include_router(handoff_router)
 app.include_router(sync_router)
