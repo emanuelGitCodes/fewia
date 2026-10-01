@@ -224,7 +224,7 @@ def test_existing_and_shopping_get_paths_are_registered() -> None:
     assert ("/healthz", "GET") in routes
     assert ("/grocery/jobs", "POST") in routes
     assert ("/grocery/chat/jobs", "POST") in routes
-    assert ("/predict/activity", "GET") in routes
+    assert not any(path.startswith(("/context", "/predict")) for path, _ in routes)
     assert ("/grocery/evidence/{revision_id}", "GET") in routes
     assert ("/grocery/handoffs/{handoff_id}", "GET") in routes
     assert ("/grocery/handoffs", "POST") in routes

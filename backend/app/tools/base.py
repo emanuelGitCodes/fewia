@@ -1,49 +1,7 @@
-"""Shared models, errors, and helpers for the deterministic context tools."""
+"""Evidence ID helpers for grocery planning tools."""
 
 from calendar import monthrange
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
-from typing import Literal
-
-from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.models import User
-
-MAX_RANGE_DAYS = 366
-
-WarningCode = Literal["no_records", "missing_days", "null_fields", "stub_result"]
-
-
-class ToolWarning(BaseModel):
-    """One data-quality warning that a tool attaches to its result."""
-
-    code: WarningCode
-    message: str
-    detail: dict[str, str]
-
-
-class ContextResponse(BaseModel):
-    """Fields that every deterministic context tool returns."""
-
-    user_id: int
-    start_date: date
-    end_date: date
-    record_count: int
-    source: str
-    evidence_id: str
-    warnings: list[ToolWarning]
-
-
-class ToolError(Exception):
-    """An error that a tool reports to the caller with an HTTP status."""
-
-    def __init__(self, code: str, message: str, status_code: int) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.status_code = status_code
 
 
 def build_evidence_id(
@@ -58,15 +16,6 @@ def build_evidence_id(
     return f"{domain}:user-{user_id}:{_build_evidence_span(start_date, end_date)}"
 
 
-def build_compare_evidence_id(
-    user_id: int, period_a: tuple[date, date], period_b: tuple[date, date]
-) -> str:
-    """Build an evidence ID with period A first and period B second."""
-    first_span = _build_evidence_span(*period_a)
-    second_span = _build_evidence_span(*period_b)
-    return f"compare:user-{user_id}:{first_span}_vs_{second_span}"
-
-
 def _build_evidence_span(start_date: date, end_date: date) -> str:
     """Build the month or day span of an evidence ID."""
     same_month = start_date.year == end_date.year and start_date.month == end_date.month
@@ -74,44 +23,3 @@ def _build_evidence_span(start_date: date, end_date: date) -> str:
     if same_month and start_date.day == 1 and end_date.day == last_day:
         return f"{start_date:%Y-%m}"
     return f"{start_date:%Y-%m-%d}..{end_date:%Y-%m-%d}"
-
-
-def validate_range(start_date: date, end_date: date) -> None:
-    """Reject a reversed range or a range longer than MAX_RANGE_DAYS days."""
-    if start_date > end_date:
-        message = "start_date MUST NOT come after end_date."
-    elif (end_date - start_date).days + 1 > MAX_RANGE_DAYS:
-        message = f"The range MUST NOT cover more than {MAX_RANGE_DAYS} days."
-    else:
-        return
-    raise ToolError(code="invalid_range", message=message, status_code=422)
-
-
-def require_user(session: Session, user_id: int) -> None:
-    """Reject a user ID that no users row holds."""
-    found = session.execute(select(User.id).where(User.id == user_id)).first()
-    if found is None:
-        message = f"No user has the id {user_id}."
-        raise ToolError(code="user_not_found", message=message, status_code=404)
-
-
-def missing_day_warnings(
-    record_count: int, start_date: date, end_date: date
-) -> list[ToolWarning]:
-    """Report an empty result or a result that misses days of the range."""
-    day_count = (end_date - start_date).days + 1
-    detail = {"record_count": str(record_count), "day_count": str(day_count)}
-    if record_count == 0:
-        code: WarningCode = "no_records"
-        message = "The range holds no records."
-    elif record_count < day_count:
-        code = "missing_days"
-        message = "The range misses one or more days."
-    else:
-        return []
-    return [ToolWarning(code=code, message=message, detail=detail)]
-
-
-def round_money(value: Decimal | float) -> float:
-    """Round a money value to 2 decimals."""
-    return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
