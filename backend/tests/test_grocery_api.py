@@ -3,7 +3,7 @@
 import json
 import os
 from datetime import UTC, date, datetime, timedelta
-from typing import cast
+from typing import Literal, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -33,6 +33,7 @@ from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
 )
+from app.services import job_submission
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
     FIXTURE_POSTED_CENTS,
@@ -129,15 +130,17 @@ def parse_refreshed_at(payload: dict[str, object]) -> datetime:
 
 def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     lookups = {"count": 0}
-    real = grocery_api._existing_agent_job
+    real = job_submission.find_job
 
-    def lookup(session: Session, request_key: str) -> Job | None:
+    def lookup(
+        session: Session, user_id: int, kind: Literal["sync", "agent"], request_key: str
+    ) -> Job | None:
         lookups["count"] += 1
         if lookups["count"] == 1:
             return None
-        return real(session, request_key)
+        return real(session, user_id, kind, request_key)
 
-    monkeypatch.setattr(grocery_api, "_existing_agent_job", lookup)
+    monkeypatch.setattr(job_submission, "find_job", lookup)
 
 
 def stored_plan_payload(
@@ -397,7 +400,7 @@ def test_insert_integrity_error_without_winner_is_static_unavailable(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise IntegrityError("INSERT", {"token": "secret"}, RuntimeError("constraint"))
 
-    monkeypatch.setattr(grocery_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     response = post_job(client, key="no-winner")
     body = response.json()
 
@@ -425,7 +428,7 @@ def test_create_job_value_error_is_static_unprocessable(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise ValueError("request_key secret token constraint")
 
-    monkeypatch.setattr(grocery_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     response = post_job(client, key="value-error")
     body = response.json()
 
@@ -450,7 +453,7 @@ def test_integrity_error_route_exception_has_no_context(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise IntegrityError("INSERT", {"token": "secret"}, RuntimeError("constraint"))
 
-    monkeypatch.setattr(grocery_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateGroceryJobBody.model_validate(job_body())
     with pytest.raises(HTTPException) as caught:
         grocery_api.create_grocery_job(body, session, "no-winner-direct")
@@ -474,7 +477,7 @@ def test_value_error_route_exception_has_no_context(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise ValueError("request_key secret token constraint")
 
-    monkeypatch.setattr(grocery_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateGroceryJobBody.model_validate(job_body())
     with pytest.raises(HTTPException) as caught:
         grocery_api.create_grocery_job(body, session, "value-error-direct")

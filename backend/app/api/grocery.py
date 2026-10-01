@@ -5,7 +5,6 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.grocery_models import (
@@ -34,7 +33,13 @@ from app.services.grocery_context import (
     SpendingUnavailable,
     spending_input,
 )
-from app.services.job_submission import IdempotencyConflict, create_job, find_job
+from app.services.job_submission import (
+    JobConflict,
+    JobInputInvalid,
+    JobUnavailable,
+    reuse_job,
+    submit_job,
+)
 from app.services.plan_job import PlanJobInput, SpendingInput
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
@@ -52,10 +57,6 @@ JOB_UNAVAILABLE_MESSAGE = "The job could not be stored."
 
 def _ny_now() -> datetime:
     return datetime.now(UTC).astimezone(NEW_YORK)
-
-
-def _existing_agent_job(session: Session, request_key: str) -> Job | None:
-    return find_job(session, DEMO_USER_ID, "agent", request_key)
 
 
 def require_spending(
@@ -103,11 +104,16 @@ def create_grocery_job(
 ) -> GroceryJobAccepted:
     if session.get(User, DEMO_USER_ID) is None:
         raise HTTPException(status_code=503, detail=DEMO_NOT_READY_MESSAGE)
-    existing = _existing_agent_job(session, idempotency_key)
+    matches = body.matches_stored_caller_fields
+    existing: Job | None = None
+    conflict = False
+    try:
+        existing = reuse_job(session, DEMO_USER_ID, "agent", idempotency_key, matches)
+    except JobConflict:
+        conflict = True
+    if conflict:
+        raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE)
     if existing is not None:
-        if not body.matches_stored_caller_fields(existing.payload):
-            raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE)
-        session.commit()
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
     settings = get_provider_settings()
     spending = require_spending(session, settings.spending_source, _ny_now())
@@ -126,26 +132,21 @@ def create_grocery_job(
     error_status: int | None = None
     error_detail: str | None = None
     try:
-        job, _created = create_job(
-            session, DEMO_USER_ID, "agent", idempotency_key, payload
+        job = submit_job(
+            session, DEMO_USER_ID, "agent", idempotency_key, payload, matches
         )
-    except (IdempotencyConflict, IntegrityError) as exc:
-        winner = _existing_agent_job(session, idempotency_key)
-        if winner is not None and body.matches_stored_caller_fields(winner.payload):
-            job = winner
-        elif isinstance(exc, IntegrityError) and winner is None:
-            error_status = 503
-            error_detail = JOB_UNAVAILABLE_MESSAGE
-        else:
-            error_status = 409
-            error_detail = CONFLICT_MESSAGE
-    except ValueError:
+    except JobConflict:
+        error_status = 409
+        error_detail = CONFLICT_MESSAGE
+    except JobUnavailable:
+        error_status = 503
+        error_detail = JOB_UNAVAILABLE_MESSAGE
+    except JobInputInvalid:
         error_status = 422
         error_detail = INPUT_INVALID_MESSAGE
     if error_status is not None:
         raise HTTPException(status_code=error_status, detail=error_detail)
     assert job is not None
-    session.commit()
     return GroceryJobAccepted(job_id=job.id, status=job.status)
 
 

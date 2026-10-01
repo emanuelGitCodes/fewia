@@ -36,6 +36,7 @@ from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
 from app.provider_settings import GroceryProviderSettings
+from app.services import job_submission
 from app.services.chat_job import ChatJobInput
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
@@ -159,15 +160,17 @@ def stored_chat_payload(**overrides: object) -> dict[str, object]:
 
 def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     lookups = {"count": 0}
-    real = chat_api._existing_chat_job
+    real = job_submission.find_job
 
-    def lookup(session: Session, request_key: str) -> Job | None:
+    def lookup(
+        session: Session, user_id: int, kind: Literal["sync", "agent"], request_key: str
+    ) -> Job | None:
         lookups["count"] += 1
         if lookups["count"] == 1:
             return None
-        return real(session, request_key)
+        return real(session, user_id, kind, request_key)
 
-    monkeypatch.setattr(chat_api, "_existing_chat_job", lookup)
+    monkeypatch.setattr(job_submission, "find_job", lookup)
 
 
 def add_parent(
@@ -452,7 +455,7 @@ def test_insert_integrity_error_without_winner_is_static_unavailable(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise IntegrityError("INSERT", {"token": "secret"}, RuntimeError("constraint"))
 
-    monkeypatch.setattr(chat_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     response = post_chat(client, key="no-winner")
     body = response.json()
 
@@ -481,7 +484,7 @@ def test_create_job_value_error_is_static_unprocessable(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise ValueError("request_key secret token constraint")
 
-    monkeypatch.setattr(chat_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     response = post_chat(client, key="value-error")
     body = response.json()
 
@@ -508,7 +511,7 @@ def test_integrity_error_route_exception_has_no_context(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise IntegrityError("INSERT", {"token": "secret"}, RuntimeError("constraint"))
 
-    monkeypatch.setattr(chat_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateChatJobBody.model_validate(chat_body())
     with pytest.raises(HTTPException) as caught:
         chat_api.create_chat_job(body, session, "no-winner-direct")
@@ -533,7 +536,7 @@ def test_value_error_route_exception_has_no_context(
     def boom(*_args: object, **_kwargs: object) -> tuple[Job, bool]:
         raise ValueError("request_key secret token constraint")
 
-    monkeypatch.setattr(chat_api, "create_job", boom)
+    monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateChatJobBody.model_validate(chat_body())
     with pytest.raises(HTTPException) as caught:
         chat_api.create_chat_job(body, session, "value-error-direct")

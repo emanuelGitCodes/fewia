@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import pytest
@@ -20,6 +21,7 @@ from app.job_models import Job, JobOutbox
 from app.main import app as main_app
 from app.plaid_models import PlaidItem
 from app.provider_settings import GroceryProviderSettings
+from app.services import job_submission
 from app.services.job_submission import create_job
 
 ITEM_ID = "item-1"
@@ -126,15 +128,17 @@ def seed_item(
 
 def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     lookups = {"count": 0}
-    real = sync_api._existing_sync_job
+    real = job_submission.find_job
 
-    def lookup(session: Session, request_key: str) -> Job | None:
+    def lookup(
+        session: Session, user_id: int, kind: Literal["sync", "agent"], request_key: str
+    ) -> Job | None:
         lookups["count"] += 1
         if lookups["count"] == 1:
             return None
-        return real(session, request_key)
+        return real(session, user_id, kind, request_key)
 
-    monkeypatch.setattr(sync_api, "_existing_sync_job", lookup)
+    monkeypatch.setattr(job_submission, "find_job", lookup)
 
 
 def secret_blob(value: object) -> str:
@@ -476,7 +480,7 @@ def test_integrity_error_without_winner_has_no_chain(
 ) -> None:
     seed_user()
     seed_item(session)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_integrity)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     with pytest.raises(HTTPException) as raised:
         sync_api.create_sync_job(CreateSyncJobBody(item_id=ITEM_ID), session, "bare")
     assert_static_http_error(raised.value, 503, sync_api.JOB_UNAVAILABLE_MESSAGE)
@@ -493,7 +497,7 @@ def test_integrity_error_same_body_replays_winner(
     winner, _created = create_job(session, 1, "sync", "sync:replay", payload)
     session.flush()
     miss_first_lookup(monkeypatch)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_integrity)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     accepted = sync_api.create_sync_job(
         CreateSyncJobBody(item_id=ITEM_ID), session, "replay"
     )
@@ -519,7 +523,7 @@ def test_integrity_error_changed_body_has_no_chain(
     winner, _created = create_job(session, 1, "sync", "sync:changed", payload)
     session.flush()
     miss_first_lookup(monkeypatch)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_integrity)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     with pytest.raises(HTTPException) as raised:
         sync_api.create_sync_job(CreateSyncJobBody(item_id=ITEM_ID), session, "changed")
     stored = session.get(Job, winner.id)
@@ -535,7 +539,7 @@ def test_create_job_value_error_has_no_chain(
 ) -> None:
     seed_user()
     seed_item(session)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_value)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_value)
     with pytest.raises(HTTPException) as raised:
         sync_api.create_sync_job(CreateSyncJobBody(item_id=ITEM_ID), session, "invalid")
     assert_static_http_error(raised.value, 422, sync_api.INVALID_JOB_MESSAGE)
@@ -553,7 +557,7 @@ def test_http_same_body_integrity_error_replays_winner(
     winner, _created = create_job(session, 1, "sync", "sync:http-replay", payload)
     session.flush()
     miss_first_lookup(monkeypatch)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_integrity)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     response = post_job(client, key="http-replay")
     stored = session.get(Job, winner.id)
 
@@ -572,7 +576,7 @@ def test_integrity_error_without_winner_is_unavailable(
 ) -> None:
     seed_user()
     seed_item(session)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_integrity)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     response = post_job(client, key="http-integrity")
 
     assert response.status_code == 503
@@ -594,7 +598,7 @@ def test_create_job_value_error_is_unprocessable(
 ) -> None:
     seed_user()
     seed_item(session)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_value)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_value)
     response = post_job(client, key="http-value")
 
     assert response.status_code == 422
@@ -623,7 +627,7 @@ def test_http_changed_body_integrity_error_conflicts(
     winner, _created = create_job(session, 1, "sync", "sync:http-changed", payload)
     session.flush()
     miss_first_lookup(monkeypatch)
-    monkeypatch.setattr(sync_api, "create_job", raise_secret_integrity)
+    monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     response = post_job(client, key="http-changed")
     stored = session.get(Job, winner.id)
 

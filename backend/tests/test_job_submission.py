@@ -4,6 +4,7 @@ import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal, cast
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,9 +15,130 @@ from sqlalchemy.orm import Session
 from app import models
 from app.db import Base
 from app.job_models import Job, JobOutbox
-from app.services.job_submission import IdempotencyConflict, create_job, find_job
+from app.services import job_submission
+from app.services.job_submission import (
+    IdempotencyConflict,
+    JobConflict,
+    JobInputInvalid,
+    JobUnavailable,
+    create_job,
+    find_job,
+    reuse_job,
+    submit_job,
+)
 
 JobKind = Literal["sync", "agent"]
+
+
+@pytest.mark.parametrize("outcome", ["none", "conflict", "match"])
+def test_reuse_job_commits_only_a_match(
+    monkeypatch: pytest.MonkeyPatch, outcome: str
+) -> None:
+    session = Mock(spec=Session)
+    job = Job(payload={"meal": "tacos"})
+    lookup = Mock(return_value=None if outcome == "none" else job)
+    monkeypatch.setattr(job_submission, "find_job", lookup)
+    matches = Mock(return_value=outcome == "match")
+
+    if outcome == "conflict":
+        with pytest.raises(JobConflict):
+            reuse_job(cast(Session, session), 1, "agent", "key", matches)
+    else:
+        result = reuse_job(cast(Session, session), 1, "agent", "key", matches)
+        assert result is (job if outcome == "match" else None)
+
+    lookup.assert_called_once_with(session, 1, "agent", "key")
+    if outcome == "none":
+        matches.assert_not_called()
+    else:
+        matches.assert_called_once_with(job.payload)
+    if outcome == "match":
+        session.commit.assert_called_once_with()
+    else:
+        session.commit.assert_not_called()
+
+
+def test_submit_job_commits_created_job_and_outbox(
+    job_engine: Engine, job_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_user(job_session)
+    commit = Mock(wraps=job_session.commit)
+    monkeypatch.setattr(job_session, "commit", commit)
+    payload: dict[str, object] = {"meal": "tacos"}
+
+    job = submit_job(job_session, 1, "agent", "created", payload, payload.__eq__)
+
+    commit.assert_called_once_with()
+    with Session(job_engine) as observer:
+        stored = observer.get(Job, job.id)
+        assert stored is not None
+        assert stored.payload == payload
+        assert count_rows(observer, Job) == 1
+        assert count_rows(observer, JobOutbox) == 1
+
+
+@pytest.mark.parametrize("error_type", [IdempotencyConflict, IntegrityError])
+def test_submit_job_commits_matching_race_winner(
+    monkeypatch: pytest.MonkeyPatch, error_type: type[Exception]
+) -> None:
+    session = Mock(spec=Session)
+    payload: dict[str, object] = {"meal": "tacos"}
+    winner = Job(payload=payload)
+    error = (
+        IntegrityError("INSERT", {}, RuntimeError())
+        if error_type is IntegrityError
+        else IdempotencyConflict()
+    )
+    create = Mock(side_effect=error)
+    lookup = Mock(return_value=winner)
+    monkeypatch.setattr(job_submission, "create_job", create)
+    monkeypatch.setattr(job_submission, "find_job", lookup)
+    matches = Mock(return_value=True)
+
+    job = submit_job(cast(Session, session), 1, "agent", "key", payload, matches)
+
+    assert job is winner
+    create.assert_called_once_with(session, 1, "agent", "key", payload)
+    lookup.assert_called_once_with(session, 1, "agent", "key")
+    matches.assert_called_once_with(winner.payload)
+    session.commit.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    ("error", "has_winner", "expected"),
+    [
+        (IntegrityError("INSERT", {}, RuntimeError()), False, JobUnavailable),
+        (IntegrityError("INSERT", {}, RuntimeError()), True, JobConflict),
+        (IdempotencyConflict(), False, JobConflict),
+        (IdempotencyConflict(), True, JobConflict),
+        (ValueError(), False, JobInputInvalid),
+    ],
+)
+def test_submit_job_errors_do_not_commit(
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    has_winner: bool,
+    expected: type[Exception],
+) -> None:
+    session = Mock(spec=Session)
+    winner = Job(payload={"meal": "beans"}) if has_winner else None
+    lookup = Mock(return_value=winner)
+    matches = Mock(return_value=False)
+    monkeypatch.setattr(job_submission, "create_job", Mock(side_effect=error))
+    monkeypatch.setattr(job_submission, "find_job", lookup)
+
+    with pytest.raises(expected):
+        submit_job(cast(Session, session), 1, "agent", "key", {}, matches)
+
+    session.commit.assert_not_called()
+    if isinstance(error, IdempotencyConflict | IntegrityError):
+        lookup.assert_called_once_with(session, 1, "agent", "key")
+    else:
+        lookup.assert_not_called()
+    if winner is None:
+        matches.assert_not_called()
+    else:
+        matches.assert_called_once_with(winner.payload)
 
 
 @pytest.fixture()
