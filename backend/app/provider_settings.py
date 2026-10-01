@@ -40,6 +40,7 @@ class GroceryProviderSettings(BaseSettings):
     plaid_tokens_file: Path | None = None
     instacart_key_file: Path | None = None
     spoonacular_key_file: Path | None = None
+    usda_fdc_key_file: Path | None = None
 
     @field_validator("bedrock_model_id", "aws_profile", mode="before")
     @classmethod
@@ -69,6 +70,7 @@ class GroceryProviderSettings(BaseSettings):
         "plaid_tokens_file",
         "instacart_key_file",
         "spoonacular_key_file",
+        "usda_fdc_key_file",
         mode="before",
     )
     @classmethod

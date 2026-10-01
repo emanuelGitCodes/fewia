@@ -1,16 +1,18 @@
 """Compare stored USDA nutrition facts to FoodData Central records."""
 
 import json
-import os
 from collections.abc import Mapping
-from pathlib import Path
 
 import httpx
 from pydantic import SecretStr
 
 from app.domain.nutrition import NutritionFacts
 from app.domain.nutrition_catalog import NUTRITION
-from app.provider_settings import ProviderConfigurationError, read_secret_file
+from app.provider_settings import (
+    ProviderConfigurationError,
+    load_provider_settings,
+    read_secret_file,
+)
 
 FOOD_URL = "https://api.nal.usda.gov/fdc/v1/food/{fdc_id}"
 KEY_FILE_ENV = "FEWIA_USDA_FDC_KEY_FILE"
@@ -22,11 +24,15 @@ _FIELDS = ("energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg", "sodium_mg"
 
 
 def _load_api_key() -> SecretStr | None:
-    raw_path = os.environ.get(KEY_FILE_ENV)
-    if raw_path is None or not raw_path.strip():
+    try:
+        settings = load_provider_settings()
+    except ProviderConfigurationError:
+        return None
+    key_file = settings.usda_fdc_key_file
+    if key_file is None:
         return None
     try:
-        return read_secret_file(Path(raw_path.strip()))
+        return read_secret_file(key_file)
     except ProviderConfigurationError:
         return None
 

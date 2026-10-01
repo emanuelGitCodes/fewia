@@ -50,6 +50,7 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.plaid_tokens_file is None
     assert settings.instacart_key_file is None
     assert settings.spoonacular_key_file is None
+    assert settings.usda_fdc_key_file is None
 
 
 def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -57,6 +58,7 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     tokens = tmp_path / "plaid.tokens.json"
     key = tmp_path / "instacart.key"
     spoonacular_key = tmp_path / "spoonacular.key"
+    usda_key = tmp_path / "usda.key"
     monkeypatch.setenv("FEWIA_SPENDING_SOURCE", "plaid_sandbox")
     monkeypatch.setenv("FEWIA_BEDROCK_MODEL_ID", "anthropic.model")
     monkeypatch.setenv("FEWIA_BEDROCK_REGION", "us-west-2")
@@ -66,6 +68,7 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("FEWIA_PLAID_TOKENS_FILE", str(tokens))
     monkeypatch.setenv("FEWIA_INSTACART_KEY_FILE", str(key))
     monkeypatch.setenv("FEWIA_SPOONACULAR_KEY_FILE", str(spoonacular_key))
+    monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(usda_key))
     settings = load_provider_settings()
     assert settings.spending_source == "plaid_sandbox"
     assert settings.bedrock_model_id == "anthropic.model"
@@ -77,6 +80,7 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.plaid_tokens_file == tokens
     assert settings.instacart_key_file == key
     assert settings.spoonacular_key_file == spoonacular_key
+    assert settings.usda_fdc_key_file == usda_key
     assert CLIENT_MARKER not in repr(settings)
     assert CLIENT_MARKER not in str(settings)
 
@@ -121,6 +125,13 @@ def test_load_rejects_blank_and_overlong_labels(
 
 def test_load_rejects_blank_secret_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FEWIA_PLAID_SECRET_FILE", "   ")
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value)
+
+
+def test_load_rejects_blank_usda_key_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", "   ")
     with pytest.raises(ProviderConfigurationError) as exc_info:
         load_provider_settings()
     _static(exc_info.value)
