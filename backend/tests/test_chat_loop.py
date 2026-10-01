@@ -767,6 +767,7 @@ def test_system_prompt_offers_catalog_alternatives() -> None:
     assert "up to three catalog meals" in SYSTEM_PROMPT
     assert "stated diet" in SYSTEM_PROMPT
     assert "which one to plan" in SYSTEM_PROMPT
+    assert "Name meals in plain words in replies, not as catalog IDs." in SYSTEM_PROMPT
 
 
 def test_invalid_request_uses_context_validation() -> None:
