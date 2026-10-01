@@ -2523,3 +2523,55 @@ Loop total: 4 writer runs in 327 seconds, with no writer token counts.
 Review tokens were 214k in and 2.9k out over 3 runs. No subagents ran. Not
 verified: a live Bedrock turn with the new tool error, and the
 conversation panel in a browser.
+
+## 2026-10-01 — Medium backlog: settings, commits, retirement, chat, React 19
+
+The `medium-backlog` loop shipped twelve pull requests. Each merged into
+`main` after green CI and an `APPROVE` review on the head SHA.
+
+| Item | Pull request | Change |
+|---|---|---|
+| 01 | #215 | `usda_refresh` reads `FEWIA_USDA_FDC_KEY_FILE` through `GroceryProviderSettings`. No `os.environ` read remains in `backend/app`. `config.Settings` drops the unused `env_file`. |
+| 02 | #218 | `job_submission.reuse_job` and `submit_job` own the job reuse, race, and commit flow. No route in `app/api` calls `commit()`. |
+| 03 | #216 | The `/context` and `/predict` routes, the health-era tools, and `app/synth` are removed. The health tables and `models.py` stay until a retention decision. |
+| 05 | #217 | An unknown recipe ID gives Bedrock a static `unsupported_recipe` tool error with the catalog IDs. The prompt asks for up to three catalog meals in plain words. |
+| 07 | #220 | The conversation panel shows the named exclusion text for a rejected build. |
+| 06a, 06b, 06c | #219, #222, #221 | Every frontend test uses Testing Library under `jsdom`. |
+| 06d | #223 | React 19.3. `react-test-renderer` is removed. Twelve files import the `JSX` type from `react`. |
+| 06e | #224 | ESLint 10 and `eslint-plugin-react-hooks` 7. Two static API errors carry `cause`. |
+| 08 | #225 | The web image sends `Cache-Control: no-cache` for `index.html` and a one-year `immutable` header for hashed assets. A missing asset returns 404 without that header. |
+
+The user chose the settings scope: database settings stay separate, so a bad
+provider setting cannot stop the database engine.
+
+Live checks on the Compose stack with Amazon Nova 2 Lite:
+
+- A chat request for vegetable pasta without onion got the
+  `exclusion_reject` tool error. The reply named the conflict.
+- A chat request for vegetarian sushi got three catalog meals in plain words
+  and a question. The model answered from the prompt rule and did not call
+  the tool, so the live tool-error path for `unsupported_recipe` is not
+  observed.
+- `/context/health` and `/predict/activity` return 404. A grocery job
+  replay returns 202, and a changed body with the same key returns 409.
+- In the browser, a manual vegetable pasta build with the onion exclusion
+  first showed the named text only in the Estimate panel. Item 07 fixed the
+  conversation panel, and a second browser check confirmed both panels.
+
+Test conversion evidence: each converted file kept its test count. For 20
+source mutations, the converted tests and the original
+`react-test-renderer` tests failed the same number of tests.
+
+Item 02 ran its gates against an isolated migrated PostgreSQL database with
+`FEWIA_REQUIRE_DB=1`. Six mutations of `job_submission.py` were all caught.
+
+Loop cost: Codex writers used 5.73M input tokens over 12 runs. Grok
+writers report no token counts. Review runs: 15, with 1.70M input tokens.
+No subagents ran.
+
+Item 08 started from a browser check: after a web image rebuild, the
+browser kept the old `index.html` and showed "The provider configuration
+is unavailable" until a forced reload.
+
+Writers cannot delete files. In item 03, the coordinator deleted the
+health-era files with `git rm` before the writer run.
