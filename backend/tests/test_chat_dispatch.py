@@ -475,13 +475,13 @@ def test_missing_total_stays_unknown_and_does_not_become_zero(
 
 def test_unsupported_recipe_returns_static_typed_tool_error() -> None:
     args = arguments(meals=[{"recipe_id": "sushi", "servings": 1}])
-    call = ToolCall("call-sushi", TOOL_NAME, args)
+    call = ToolCall("call-unknown-recipe", TOOL_NAME, args)
     trace: list[dict[str, object]] = []
     candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
     assert candidate is None
     assert block == {
         "toolResult": {
-            "toolUseId": "call-sushi",
+            "toolUseId": "call-unknown-recipe",
             "content": [
                 {
                     "json": {
@@ -494,7 +494,7 @@ def test_unsupported_recipe_returns_static_typed_tool_error() -> None:
             "status": "error",
         }
     }
-    assert trace == [_error_trace(TOOL_NAME, "call-sushi")]
+    assert trace == [_error_trace(TOOL_NAME, "call-unknown-recipe")]
     assert set(trace[0]) == {
         "tool",
         "outcome",
