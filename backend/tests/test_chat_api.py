@@ -36,13 +36,13 @@ from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
 from app.provider_settings import GroceryProviderSettings
+from app.services import job_submission
 from app.services.chat_job import ChatJobInput
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
     FIXTURE_POSTED_CENTS,
     SpendingUnavailable,
 )
-from app.services import job_submission
 from app.services.job_submission import create_job
 
 FIXED_NY = datetime(2026, 9, 6, 12, 0, tzinfo=NEW_YORK)

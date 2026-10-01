@@ -33,12 +33,12 @@ from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
 )
+from app.services import job_submission
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
     FIXTURE_POSTED_CENTS,
     SpendingUnavailable,
 )
-from app.services import job_submission
 from app.services.job_submission import create_job
 from app.services.plan_job import PlanJobInput
 
