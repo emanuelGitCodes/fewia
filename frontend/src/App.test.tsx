@@ -365,7 +365,9 @@ describe("App", () => {
     );
     expect(buttonNamed(renderer.container, "Build my estimate").disabled).toBe(true);
     expect(buttonNamed(renderer.container, "Bean tacos for two").disabled).toBe(true);
-    expect((screen.getByRole("group") as HTMLFieldSetElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("group", { name: "Budget and meals" }) as HTMLFieldSetElement).disabled,
+    ).toBe(true);
     expect(childText(renderer.container)).toContain("Previous estimate");
     expect(childText(renderer.container)).toContain("$17.03");
     const box = screen.getByLabelText(/black beans/i, { selector: 'input[id="pantry-black_beans"]' });
@@ -484,8 +486,8 @@ describe("App", () => {
         },
       }),
     );
-    const status = screen.getByText(
-      "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
+    const status = within(screen.getByRole("region", { name: "Your conversation" })).getByRole(
+      "status",
     );
     expect(childText(status)).toBe(
       "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
@@ -519,7 +521,9 @@ describe("App", () => {
     expect(buttonNamed(renderer.container, "Build my estimate").disabled).toBe(true);
     expect(buttonNamed(renderer.container, "Bean tacos for two").disabled).toBe(true);
     expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
-    expect((screen.getByRole("group") as HTMLFieldSetElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("group", { name: "Budget and meals" }) as HTMLFieldSetElement).disabled,
+    ).toBe(true);
     renderer.unmount();
   });
 
@@ -600,7 +604,11 @@ describe("App", () => {
     );
     expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
     expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
+    const chatForm = buttonNamed(renderer.container, "Send").closest("form");
+    if (chatForm === null) {
+      throw new Error("missing Send form");
+    }
+    expect((within(chatForm).getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     expect(childText(renderer.container)).not.toContain(REBUILD_CHAT_GUIDANCE);
     act(() => {
       fireEvent.click(buttonNamed(renderer.container, "Retry the same request"));
