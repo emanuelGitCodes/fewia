@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { BUDGET_ERROR, TEXT_ERROR } from "./chatConversationModel";
 
 export type ChatPanelRole = "user" | "assistant";

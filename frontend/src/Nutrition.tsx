@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type { CatalogItem, MacroTotals, MealPlanNutrition } from "./apiTypes";
 
 function formatGrams(mg: number): string {
