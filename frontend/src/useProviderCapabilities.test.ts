@@ -28,6 +28,12 @@ function jsonOk(payload: unknown): Response {
   return { ok: true, json: () => Promise.resolve(payload) } as Response;
 }
 
+async function flush(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
 function hungJson(init?: RequestInit): Promise<Response> {
   return Promise.resolve({
     ok: true,
