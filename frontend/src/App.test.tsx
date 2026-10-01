@@ -1,9 +1,9 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
 import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { REBUILD_CHAT_GUIDANCE } from "./ChatWorkspace";
 import {
@@ -158,24 +158,27 @@ const succeededJob: GroceryJob = {
   },
 };
 
-function childText(node: ReactTestInstance | string): string {
-  if (typeof node === "string") {
-    return node;
-  }
-  return node.children.map((child) => childText(child)).join("");
+function childText(node: HTMLElement): string {
+  return node.textContent ?? "";
 }
 
-function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
-  const match = root.findAllByType("button").find((node) => childText(node) === name);
-  if (match === undefined) {
-    throw new Error(`missing button ${name}`);
-  }
-  return match;
+function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
 
-function hasButton(root: ReactTestInstance, name: string): boolean {
-  return root.findAllByType("button").some((node) => childText(node) === name);
+function hasButton(root: HTMLElement, name: string): boolean {
+  return within(root).queryByRole("button", { name }) !== null;
 }
+
+function elementWithText(text: string): HTMLElement {
+  return screen.getByText(
+    (_content, node) =>
+      node?.textContent === text &&
+      Array.from(node.children).every((child) => child.textContent !== text),
+  );
+}
+
+afterEach(cleanup);
 
 function handoffState(overrides: Partial<HandoffHook> = {}): HandoffHook {
   return {
@@ -230,19 +233,12 @@ function mount(
     retry: vi.fn(),
   },
   handoff: HandoffHook = handoffState(),
-): ReactTestRenderer {
+): RenderResult {
   vi.mocked(useGroceryDemo).mockReturnValue(demo);
   vi.mocked(useChatConversation).mockReturnValue(chat);
   vi.mocked(useProviderCapabilities).mockReturnValue(provider);
   vi.mocked(useHandoff).mockReturnValue(handoff);
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(createElement(App));
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return renderer;
+  return render(createElement(App));
 }
 
 describe("App", () => {
@@ -255,7 +251,7 @@ describe("App", () => {
 
   it("keeps the shell wordmark, local demo label, title, and footer", () => {
     const renderer = mount(demoState());
-    const text = childText(renderer.root);
+    const text = childText(renderer.container);
     expect(text).toContain("FEWIA");
     expect(text).toContain("Local demo · Sample prices");
     expect(text).toContain("Meals that fit your budget");
@@ -268,15 +264,15 @@ describe("App", () => {
   it("shows accessible catalog loading and does not call it a job submission", () => {
     const example = vi.fn();
     const renderer = mount(demoState({ config: null, configPending: true, example }));
-    const status = renderer.root.findByProps({ className: "catalog-status" });
-    expect(status.props.role).toBe("status");
+    const status = screen.getByText("Loading the grocery catalog.");
+    expect(status.getAttribute("role")).toBe("status");
     expect(childText(status)).toBe("Loading the grocery catalog.");
-    expect(childText(renderer.root)).not.toContain("Submitting your grocery request.");
-    expect(renderer.root.findAllByType("form")).toHaveLength(1);
-    expect(childText(renderer.root)).toContain("Meal chat");
-    expect(childText(renderer.root)).toContain(NOTICE);
-    expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(true);
+    expect(childText(renderer.container)).not.toContain("Submitting your grocery request.");
+    expect(renderer.container.querySelectorAll("form")).toHaveLength(1);
+    expect(childText(renderer.container)).toContain("Meal chat");
+    expect(childText(renderer.container)).toContain(NOTICE);
+    expect(buttonNamed(renderer.container, "Bean tacos for two").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Three vegan dinners (2 servings each)").disabled).toBe(true);
     expect(example).not.toHaveBeenCalled();
     renderer.unmount();
   });
@@ -293,15 +289,15 @@ describe("App", () => {
         job: succeededJob,
       }),
     );
-    const status = renderer.root.findByProps({ className: "catalog-error" });
-    expect(status.props.role).toBe("status");
+    const status = screen.getByText(CATALOG_UNAVAILABLE);
+    expect(status.getAttribute("role")).toBe("status");
     expect(childText(status)).toBe(CATALOG_UNAVAILABLE);
-    expect(childText(renderer.root)).toContain("$17.03");
-    expect(buttonNamed(renderer.root, "Build my estimate").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(true);
+    expect(childText(renderer.container)).toContain("$17.03");
+    expect(buttonNamed(renderer.container, "Build my estimate").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Bean tacos for two").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Three vegan dinners (2 servings each)").disabled).toBe(true);
     act(() => {
-      (buttonNamed(renderer.root, "Retry catalog").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Retry catalog"));
     });
     expect(reloadConfig).toHaveBeenCalledTimes(1);
     expect(example).not.toHaveBeenCalled();
@@ -310,54 +306,49 @@ describe("App", () => {
 
   it("labels a manual spending source without pending amounts", () => {
     const manual = mount(demoState({ config: { ...demoConfig, source: "manual" } }));
-    const manualSource = manual.root.findByProps({ className: "budget-source" });
+    const manualSource = elementWithText("Source Your entered budget.");
     expect(childText(manualSource)).toBe("Source Your entered budget.");
     expect(childText(manualSource)).not.toContain("Pending");
     manual.unmount();
     const fixture = mount(demoState());
-    const fixtureSource = fixture.root.findByProps({ className: "budget-source" });
+    const fixtureSource = elementWithText("Source Demo spending. Pending -$0.50");
     expect(childText(fixtureSource)).toBe("Source Demo spending. Pending -$0.50");
     fixture.unmount();
   });
 
   it("submits the composer form and shows form errors", () => {
     const submitForm = vi.fn(async () => undefined);
-    const preventDefault = vi.fn();
     const renderer = mount(demoState({ submitForm, formError: "Choose 1 to 3 meals." }));
-    const alert = renderer.root.findByProps({ role: "alert" });
+    const alert = screen.getByRole("alert");
     expect(childText(alert)).toBe("Choose 1 to 3 meals.");
-    expect(childText(renderer.root)).toContain("Source Demo spending. Pending -$0.50");
-    const budgetForm = renderer.root.findAllByType("form").find((form) =>
-      form.findAllByType("button").some((node) => childText(node) === "Build my estimate"),
-    );
-    if (budgetForm === undefined) {
+    expect(childText(renderer.container)).toContain("Source Demo spending. Pending -$0.50");
+    const budgetForm = buttonNamed(renderer.container, "Build my estimate").closest("form");
+    if (budgetForm === null) {
       throw new Error("missing Build my estimate form");
     }
-    const onSubmit = budgetForm.props.onSubmit as (event: {
-      preventDefault: () => void;
-    }) => void;
+    const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
     act(() => {
-      onSubmit({ preventDefault });
+      fireEvent(budgetForm, submitEvent);
     });
-    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(submitEvent.defaultPrevented).toBe(true);
     expect(submitForm).toHaveBeenCalledTimes(1);
     renderer.unmount();
   });
 
   it("renders the estimate amount, notice, and provenance from the job", () => {
     const renderer = mount(demoState({ job: succeededJob }));
-    const text = childText(renderer.root);
+    const text = childText(renderer.container);
     expect(text).toContain("$17.03");
     expect(text).toContain("Source Demo spending");
     expect(text).toContain(NOTICE);
     expect(text).toContain("Plan warning");
     expect(text).toContain("black beans");
-    expect(renderer.root.findAllByType("h2").map(childText)).toEqual([
+    expect(screen.getAllByRole("heading", { level: 2 }).map(childText)).toEqual([
       "Your conversation",
       "Meal chat",
       "Grocery estimate",
     ]);
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
     renderer.unmount();
   });
 
@@ -372,18 +363,18 @@ describe("App", () => {
         togglePantry,
       }),
     );
-    expect(buttonNamed(renderer.root, "Build my estimate").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
-    expect(renderer.root.findByType("fieldset").props.disabled).toBe(true);
-    expect(childText(renderer.root)).toContain("Previous estimate");
-    expect(childText(renderer.root)).toContain("$17.03");
-    const box = renderer.root.findByProps({ id: "pantry-black_beans" });
+    expect(buttonNamed(renderer.container, "Build my estimate").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Bean tacos for two").disabled).toBe(true);
+    expect((screen.getByRole("group") as HTMLFieldSetElement).disabled).toBe(true);
+    expect(childText(renderer.container)).toContain("Previous estimate");
+    expect(childText(renderer.container)).toContain("$17.03");
+    const box = screen.getByLabelText(/black beans/i, { selector: 'input[id="pantry-black_beans"]' });
     act(() => {
-      (box.props.onChange as () => void)();
+      fireEvent.click(box);
     });
     expect(togglePantry).toHaveBeenCalledWith("black_beans");
-    expect(childText(renderer.root)).toContain("$17.03");
-    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(true);
+    expect(childText(renderer.container)).toContain("$17.03");
+    expect(buttonNamed(renderer.container, "Rebuild estimate").disabled).toBe(true);
     renderer.unmount();
   });
 
@@ -398,18 +389,20 @@ describe("App", () => {
         togglePantry,
       }),
     );
-    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(false);
-    expect(childText(renderer.root)).toContain("$17.03");
+    expect(buttonNamed(renderer.container, "Rebuild estimate").disabled).toBe(false);
+    expect(childText(renderer.container)).toContain("$17.03");
     act(() => {
-      (buttonNamed(renderer.root, "Rebuild estimate").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Rebuild estimate"));
     });
     expect(submitForm).toHaveBeenCalledTimes(1);
     act(() => {
-      (renderer.root.findByProps({ id: "pantry-black_beans" }).props.onChange as () => void)();
+      fireEvent.click(
+        screen.getByLabelText(/black beans/i, { selector: 'input[id="pantry-black_beans"]' }),
+      );
     });
     expect(togglePantry).toHaveBeenCalledWith("black_beans");
     expect(submitForm).toHaveBeenCalledTimes(1);
-    expect(childText(renderer.root)).toContain("$17.03");
+    expect(childText(renderer.container)).toContain("$17.03");
     renderer.unmount();
   });
 
@@ -423,9 +416,9 @@ describe("App", () => {
         submitForm,
       }),
     );
-    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Rebuild estimate").disabled).toBe(true);
     expect(submitForm).not.toHaveBeenCalled();
-    expect(childText(renderer.root)).toContain("$17.03");
+    expect(childText(renderer.container)).toContain("$17.03");
     renderer.unmount();
   });
 
@@ -435,7 +428,7 @@ describe("App", () => {
     const newRequest = vi.fn();
     const ready = mount(demoState({ example, retry, newRequest }));
     act(() => {
-      (buttonNamed(ready.root, "Bean tacos for two").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(ready.container, "Bean tacos for two"));
     });
     expect(example).toHaveBeenCalledWith("beans");
     ready.unmount();
@@ -443,7 +436,7 @@ describe("App", () => {
       demoState({ example, retry, newRequest, error: "The grocery request failed." }),
     );
     act(() => {
-      (buttonNamed(retryView.root, "Retry request").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(retryView.container, "Retry request"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     expect(newRequest).not.toHaveBeenCalled();
@@ -457,7 +450,7 @@ describe("App", () => {
       }),
     );
     act(() => {
-      (buttonNamed(failed.root, "Start a new request").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(failed.container, "Start a new request"));
     });
     expect(newRequest).toHaveBeenCalledTimes(1);
     failed.unmount();
@@ -473,7 +466,7 @@ describe("App", () => {
         newRequest,
       }),
     );
-    expect(buttonNamed(renderer.root, "Start a new request").props.disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Start a new request").disabled).toBe(true);
     expect(newRequest).not.toHaveBeenCalled();
     renderer.unmount();
   });
@@ -491,7 +484,9 @@ describe("App", () => {
         },
       }),
     );
-    const status = renderer.root.findByProps({ className: "conversation-status" });
+    const status = screen.getByText(
+      "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
+    );
     expect(childText(status)).toBe(
       "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
     );
@@ -508,10 +503,10 @@ describe("App", () => {
         retry,
       }),
     );
-    const retryButton = buttonNamed(renderer.root, "Retry request");
-    expect(retryButton.props.disabled).toBe(false);
+    const retryButton = buttonNamed(renderer.container, "Retry request");
+    expect(retryButton.disabled).toBe(false);
     act(() => {
-      (retryButton.props.onClick as () => void)();
+      fireEvent.click(retryButton);
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();
@@ -519,12 +514,12 @@ describe("App", () => {
 
   it("shows meal chat and disables the form while chat is pending", () => {
     const renderer = mount(demoState(), chatState({ pending: true, message: "Plan tacos" }));
-    expect(childText(renderer.root)).toContain("Meal chat");
-    expect(childText(renderer.root)).toContain("Your request is in progress.");
-    expect(buttonNamed(renderer.root, "Build my estimate").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(renderer.root.findByType("fieldset").props.disabled).toBe(true);
+    expect(childText(renderer.container)).toContain("Meal chat");
+    expect(childText(renderer.container)).toContain("Your request is in progress.");
+    expect(buttonNamed(renderer.container, "Build my estimate").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Bean tacos for two").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect((screen.getByRole("group") as HTMLFieldSetElement).disabled).toBe(true);
     renderer.unmount();
   });
 
@@ -539,9 +534,9 @@ describe("App", () => {
         hasRequest: true,
       }),
     );
-    expect(childText(renderer.root)).toContain("$17.03");
-    expect(childText(renderer.root)).toContain(NOTICE);
-    expect(childText(renderer.root)).toContain("Plan warning");
+    expect(childText(renderer.container)).toContain("$17.03");
+    expect(childText(renderer.container)).toContain(NOTICE);
+    expect(childText(renderer.container)).toContain("Plan warning");
     expect(setForm).toHaveBeenCalled();
     const next = setForm.mock.calls[0]?.[0] as FormState;
     expect(next.monthly).toBe("300");
@@ -558,11 +553,11 @@ describe("App", () => {
       error: PROVIDER_UNAVAILABLE,
       retry,
     });
-    expect(childText(renderer.root)).toContain(PROVIDER_UNAVAILABLE);
-    expect(childText(renderer.root)).toContain("Meal chat is unavailable.");
-    expect(childText(renderer.root).toLowerCase()).not.toContain("chat is connected");
+    expect(childText(renderer.container)).toContain(PROVIDER_UNAVAILABLE);
+    expect(childText(renderer.container)).toContain("Meal chat is unavailable.");
+    expect(childText(renderer.container).toLowerCase()).not.toContain("chat is connected");
     act(() => {
-      (buttonNamed(renderer.root, "Retry provider status").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Retry provider status"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();
@@ -579,12 +574,12 @@ describe("App", () => {
       }),
       chatState({ message: "Add soup to the plan." }),
     );
-    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Rebuild estimate").props.disabled).toBe(false);
-    expect(buttonNamed(renderer.root, "Build my estimate").props.disabled).toBe(false);
+    expect(childText(renderer.container)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Rebuild estimate").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Build my estimate").disabled).toBe(false);
     act(() => {
-      (buttonNamed(renderer.root, "Rebuild estimate").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Rebuild estimate"));
     });
     expect(submitForm).toHaveBeenCalledTimes(1);
     renderer.unmount();
@@ -603,12 +598,12 @@ describe("App", () => {
         retry,
       }),
     );
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
-    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
-    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
+    expect(childText(renderer.container)).not.toContain(REBUILD_CHAT_GUIDANCE);
     act(() => {
-      (buttonNamed(renderer.root, "Retry the same request").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Retry the same request"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();
@@ -619,23 +614,23 @@ describe("App", () => {
       demoState({ form: { ...initialForm(), pantry: ["black_beans"] } }),
       chatState({ message: "Plan bean tacos for two." }),
     );
-    expect(childText(renderer.root)).not.toContain(REBUILD_CHAT_GUIDANCE);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(false);
+    expect(childText(renderer.container)).not.toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(false);
     renderer.unmount();
   });
 
   it("shows Create shopping list for a succeeded accepted estimate when Instacart is configured", () => {
     const renderer = mount(demoState({ job: succeededJob }), chatState(), instacartProviders());
-    expect(hasButton(renderer.root, "Create shopping list")).toBe(true);
-    expect(childText(renderer.root)).toContain("No purchases are made here.");
+    expect(hasButton(renderer.container, "Create shopping list")).toBe(true);
+    expect(childText(renderer.container)).toContain("No purchases are made here.");
     renderer.unmount();
   });
 
   it("hides start and shopping links when Instacart is not configured", () => {
     const renderer = mount(demoState({ job: succeededJob }));
-    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
-    expect(childText(renderer.root)).not.toContain("Open shopping list");
+    expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(childText(renderer.container)).not.toContain("Open shopping list");
     renderer.unmount();
   });
 
@@ -645,7 +640,7 @@ describe("App", () => {
       chatState(),
       instacartProviders(),
     );
-    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
     renderer.unmount();
   });
 
@@ -664,7 +659,7 @@ describe("App", () => {
       chatState(),
       instacartProviders(),
     );
-    expect(hasButton(renderer.root, "Create shopping list")).toBe(false);
+    expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
     renderer.unmount();
   });
 
@@ -677,7 +672,7 @@ describe("App", () => {
       handoffState({ start }),
     );
     act(() => {
-      (buttonNamed(renderer.root, "Create shopping list").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Create shopping list"));
     });
     expect(start).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledWith("job-1");

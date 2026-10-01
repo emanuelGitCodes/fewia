@@ -1,9 +1,9 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
 import { createElement, useState } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { initialForm, type FormState } from "./BudgetForm";
@@ -94,20 +94,15 @@ function formJob(id = "form-1"): GroceryJob {
   };
 }
 
-function childText(node: ReactTestInstance | string): string {
-  if (typeof node === "string") {
-    return node;
-  }
-  return node.children.map((child) => childText(child)).join("");
+function childText(node: HTMLElement): string {
+  return node.textContent ?? "";
 }
 
-function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
-  const match = root.findAllByType("button").find((node) => childText(node) === name);
-  if (match === undefined) {
-    throw new Error(`missing button ${name}`);
-  }
-  return match;
+function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
+
+afterEach(cleanup);
 
 function submitted(mocks: JobMocks, index: number): ChatJobCreate {
   const body = mocks.submit.mock.calls[index]?.[0];
@@ -176,28 +171,21 @@ describe("chat continuity", () => {
 
   function mount(options: { formJob?: GroceryJob | null; formDirty?: boolean; start?: FormState } = {}): {
     bucket: { current: Bucket | null };
-    renderer: ReactTestRenderer;
+    renderer: RenderResult;
     refresh: (next?: { formJob?: GroceryJob | null; formDirty?: boolean }) => void;
   } {
     bindJob();
     const bucket: { current: Bucket | null } = { current: null };
     let liveJob = options.formJob ?? null;
     let liveDirty = options.formDirty ?? false;
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(
-        createElement(HookHost, {
-          bucket,
-          formJob: liveJob,
-          formDirty: liveDirty,
-          start: options.start,
-        }),
-      );
-    });
-    if (renderer === undefined) {
-      throw new Error("renderer failed to mount");
-    }
-    const live = renderer;
+    const live = render(
+      createElement(HookHost, {
+        bucket,
+        formJob: liveJob,
+        formDirty: liveDirty,
+        start: options.start,
+      }),
+    );
     return {
       bucket,
       renderer: live,
@@ -206,7 +194,7 @@ describe("chat continuity", () => {
         liveDirty = next.formDirty ?? liveDirty;
         bindJob();
         act(() => {
-          live.update(
+          live.rerender(
             createElement(HookHost, {
               bucket,
               formJob: liveJob,
@@ -226,9 +214,9 @@ describe("chat continuity", () => {
     return bucket.current;
   }
 
-  async function sendAndSettle(bucket: { current: Bucket | null }): Promise<void> {
+  async function sendAndSettle(): Promise<void> {
     await act(async () => {
-      hookOf(bucket).chat.conversation.send();
+      fireEvent.submit(screen.getByRole("textbox").closest("form")!);
     });
     await flushMicrotasks();
   }
@@ -254,19 +242,19 @@ describe("chat continuity", () => {
     });
     const { bucket, refresh } = mount({ formJob: formJob() });
     act(() => {
-      hookOf(bucket).chat.conversation.setMessage("Plan lentil soup.");
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Plan lentil soup." } });
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle();
     refresh();
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
     act(() => {
-      hookOf(bucket).chat.conversation.newConversation();
+      fireEvent.click(screen.getByRole("button", { name: "Start a new conversation" }));
     });
     refresh();
     act(() => {
-      hookOf(bucket).chat.conversation.setMessage("Use the same pantry.");
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Use the same pantry." } });
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle();
     expect(submitted(jobState, 1).previous_job_id).toBe("chat-1");
     expect(submitted(jobState, 1).previous_job_id).not.toBe("form-1");
   });
@@ -277,9 +265,9 @@ describe("chat continuity", () => {
     });
     const { bucket, refresh, renderer } = mount({ formJob: formJob() });
     act(() => {
-      hookOf(bucket).chat.conversation.setMessage("Use the saved plan.");
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Use the saved plan." } });
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle();
     refresh();
     act(() => {
       hookOf(bucket).setForm({ ...hookOf(bucket).form, pantry: [] });
@@ -290,15 +278,13 @@ describe("chat continuity", () => {
       formDirty: false,
     });
     expect(hookOf(bucket).chat.needsRebuild).toBe(true);
-    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
-    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
+    expect(childText(renderer.container)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     const sends = jobState.submit.mock.calls.length;
     act(() => {
-      (
-        renderer.root.findByType("form").props.onSubmit as (event: { preventDefault: () => void }) => void
-      )({ preventDefault: vi.fn() });
+      fireEvent.submit(screen.getByRole("textbox").closest("form")!);
     });
     expect(jobState.submit.mock.calls.length).toBe(sends);
     renderer.unmount();
@@ -308,9 +294,9 @@ describe("chat continuity", () => {
     const start = { ...initialForm(), monthly: "300", cap: "40" };
     const { bucket, refresh } = mount({ start });
     act(() => {
-      hookOf(bucket).chat.conversation.setMessage("Plan lentil soup.");
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Plan lentil soup." } });
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle();
     jobState.job = chatJob();
     refresh({ formJob: formJob() });
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "bean_tacos", servings: 2 }]);
@@ -324,21 +310,21 @@ describe("chat continuity", () => {
     });
     const { bucket, refresh, renderer } = mount({});
     act(() => {
-      hookOf(bucket).chat.conversation.setMessage("Plan lentil soup.");
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Plan lentil soup." } });
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle();
     refresh();
     act(() => {
       hookOf(bucket).setForm({ ...hookOf(bucket).form, pantry: [] });
     });
     expect(hookOf(bucket).chat.needsRebuild).toBe(true);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
-    expect(buttonNamed(renderer.root, "Start a new conversation").props.disabled).toBe(false);
-    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Start a new conversation").disabled).toBe(false);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     const retryCalls = jobState.submit.mock.calls.length;
     act(() => {
-      hookOf(bucket).chat.conversation.retry();
+      fireEvent.click(screen.getByRole("button", { name: "Retry the same request" }));
     });
     expect(jobState.submit.mock.calls.length).toBe(retryCalls + 1);
     expect(submitted(jobState, retryCalls)).toEqual(submitted(jobState, 0));

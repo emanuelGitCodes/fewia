@@ -1,9 +1,9 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
 import { createElement, useState } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryJob, type ProviderCapabilities } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { initialForm, type FormState } from "./BudgetForm";
@@ -116,20 +116,15 @@ function formJob(): GroceryJob {
   };
 }
 
-function childText(node: ReactTestInstance | string): string {
-  if (typeof node === "string") {
-    return node;
-  }
-  return node.children.map((child) => childText(child)).join("");
+function childText(node: HTMLElement): string {
+  return node.textContent ?? "";
 }
 
-function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
-  const match = root.findAllByType("button").find((node) => childText(node) === name);
-  if (match === undefined) {
-    throw new Error(`missing button ${name}`);
-  }
-  return match;
+function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
+
+afterEach(cleanup);
 
 function conversationState(overrides: Partial<ChatHook> = {}): ChatHook {
   return {
@@ -206,7 +201,7 @@ function mount(options: {
   start?: FormState;
 }): {
   bucket: { current: Bucket | null };
-  renderer: ReactTestRenderer;
+  renderer: RenderResult;
   refresh: (next?: {
     formJob?: GroceryJob | null;
     formPending?: boolean;
@@ -218,22 +213,15 @@ function mount(options: {
   let liveJob = options.formJob ?? null;
   let livePending = options.formPending ?? false;
   let liveDirty = options.formDirty ?? false;
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(
-      createElement(HookHost, {
-        bucket,
-        formJob: liveJob,
-        formPending: livePending,
-        formDirty: liveDirty,
-        start: options.start,
-      }),
-    );
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  const live = renderer;
+  const live = render(
+    createElement(HookHost, {
+      bucket,
+      formJob: liveJob,
+      formPending: livePending,
+      formDirty: liveDirty,
+      start: options.start,
+    }),
+  );
   return {
     bucket,
     renderer: live,
@@ -245,7 +233,7 @@ function mount(options: {
       liveDirty = next.formDirty ?? liveDirty;
       bind();
       act(() => {
-        live.update(
+        live.rerender(
           createElement(HookHost, {
             bucket,
             formJob: liveJob,
@@ -275,25 +263,25 @@ describe("ChatWorkspace", () => {
 
   it("shows configured meal chat beside an idle composer", () => {
     const { renderer } = mount({});
-    expect(childText(renderer.root)).toContain("Meal chat");
-    expect(childText(renderer.root)).toContain("No messages yet");
-    expect(childText(renderer.root)).not.toContain("Checking meal chat configuration.");
-    expect(childText(renderer.root)).not.toContain("Meal chat is unavailable.");
-    expect(childText(renderer.root).toLowerCase()).not.toContain("chat is connected");
-    expect(childText(renderer.root)).not.toContain("Bedrock");
+    expect(childText(renderer.container)).toContain("Meal chat");
+    expect(childText(renderer.container)).toContain("No messages yet");
+    expect(childText(renderer.container)).not.toContain("Checking meal chat configuration.");
+    expect(childText(renderer.container)).not.toContain("Meal chat is unavailable.");
+    expect(childText(renderer.container).toLowerCase()).not.toContain("chat is connected");
+    expect(childText(renderer.container)).not.toContain("Bedrock");
     renderer.unmount();
   });
 
   it("shows loading, unavailable, and retry provider states", () => {
     providers = providerState({ pending: true, capabilities: null });
     const waiting = mount({});
-    expect(childText(waiting.renderer.root)).toContain("Checking meal chat configuration.");
-    expect(buttonNamed(waiting.renderer.root, "Send").props.disabled).toBe(true);
+    expect(childText(waiting.renderer.container)).toContain("Checking meal chat configuration.");
+    expect(buttonNamed(waiting.renderer.container, "Send").disabled).toBe(true);
     waiting.renderer.unmount();
     providers = providerState({ capabilities: { ...loaded, chat_configured: false } });
     const off = mount({});
-    expect(childText(off.renderer.root)).toContain("Meal chat is unavailable.");
-    expect(buttonNamed(off.renderer.root, "Send").props.disabled).toBe(true);
+    expect(childText(off.renderer.container)).toContain("Meal chat is unavailable.");
+    expect(buttonNamed(off.renderer.container, "Send").disabled).toBe(true);
     off.renderer.unmount();
     const retry = vi.fn();
     providers = providerState({
@@ -302,9 +290,9 @@ describe("ChatWorkspace", () => {
       retry,
     });
     const failed = mount({});
-    expect(childText(failed.renderer.root)).toContain(PROVIDER_UNAVAILABLE);
+    expect(childText(failed.renderer.container)).toContain(PROVIDER_UNAVAILABLE);
     act(() => {
-      (buttonNamed(failed.renderer.root, "Retry provider status").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(failed.renderer.container, "Retry provider status"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     failed.renderer.unmount();
@@ -313,11 +301,11 @@ describe("ChatWorkspace", () => {
   it("disables chat send while a form request is pending", () => {
     chatState = conversationState({ message: "Plan bean tacos for two." });
     const { renderer, refresh } = mount({ formPending: true });
-    expect(renderer.root.findByType("textarea").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Start a new conversation").props.disabled).toBe(true);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect(buttonNamed(renderer.container, "Start a new conversation").disabled).toBe(true);
     refresh({ formPending: false });
-    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     renderer.unmount();
   });
 
@@ -408,8 +396,8 @@ describe("ChatWorkspace", () => {
     refresh();
     expect(hookOf(bucket).form).toEqual(start);
     expect(hookOf(bucket).chat.estimateJob).toBeNull();
-    expect(childText(renderer.root)).toContain("Which meals should I plan?");
-    expect(childText(renderer.root)).not.toContain("fake");
+    expect(childText(renderer.container)).toContain("Which meals should I plan?");
+    expect(childText(renderer.container)).not.toContain("fake");
     renderer.unmount();
   });
 
@@ -625,9 +613,9 @@ describe("ChatWorkspace", () => {
       retry,
     });
     const { renderer } = mount({ formJob: formJob(), formDirty: true });
-    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(childText(renderer.root)).not.toContain("Rebuild estimate");
+    expect(childText(renderer.container)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect(childText(renderer.container)).not.toContain("Rebuild estimate");
     renderer.unmount();
   });
 
@@ -641,19 +629,17 @@ describe("ChatWorkspace", () => {
       retry,
     });
     const { renderer } = mount({ formJob: formJob(), formDirty: true });
-    expect(childText(renderer.root)).toContain(REBUILD_CHAT_GUIDANCE);
-    expect(buttonNamed(renderer.root, "Send").props.disabled).toBe(true);
-    expect(renderer.root.findByType("textarea").props.disabled).toBe(false);
-    expect(buttonNamed(renderer.root, "Retry the same request").props.disabled).toBe(false);
-    expect(buttonNamed(renderer.root, "Start a new conversation").props.disabled).toBe(false);
+    expect(childText(renderer.container)).toContain(REBUILD_CHAT_GUIDANCE);
+    expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Start a new conversation").disabled).toBe(false);
     act(() => {
-      (
-        renderer.root.findByType("form").props.onSubmit as (event: { preventDefault: () => void }) => void
-      )({ preventDefault: vi.fn() });
+      fireEvent.submit(screen.getByRole("textbox").closest("form")!);
     });
     expect(send).not.toHaveBeenCalled();
     act(() => {
-      (buttonNamed(renderer.root, "Retry the same request").props.onClick as () => void)();
+      fireEvent.click(buttonNamed(renderer.container, "Retry the same request"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();
@@ -784,26 +770,19 @@ describe("ChatWorkspace panel", () => {
       { id: "u1", role: "user", content: "<script>alert(1)</script>" },
       { id: "a1", role: "assistant", content: "<script>alert(1)</script>" },
     ];
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(
-        createElement(ChatWorkspace, {
-          formPending: false,
-          configured: true,
-          configurationPending: false,
-          providerError: null,
-          retryProviders: vi.fn(),
-          conversation: conversationState({ messages, message: "Hi" }),
-        }),
-      );
-    });
-    if (renderer === undefined) {
-      throw new Error("renderer failed to mount");
-    }
-    expect(renderer.root.findAll((node) => node.props.dangerouslySetInnerHTML !== undefined)).toHaveLength(
-      0,
+    const renderer = render(
+      createElement(ChatWorkspace, {
+        formPending: false,
+        configured: true,
+        configurationPending: false,
+        providerError: null,
+        retryProviders: vi.fn(),
+        conversation: conversationState({ messages, message: "Hi" }),
+      }),
     );
-    expect(childText(renderer.root)).toContain("<script>alert(1)</script>");
+    expect(renderer.container.querySelectorAll("script")).toHaveLength(0);
+    expect(screen.getAllByText("<script>alert(1)</script>")).toHaveLength(2);
+    expect(childText(renderer.container)).toContain("<script>alert(1)</script>");
     renderer.unmount();
   });
 });
