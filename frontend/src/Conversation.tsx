@@ -73,6 +73,7 @@ export function Conversation({
   children,
 }: ConversationProps): JSX.Element {
   const status = liveStatus(job, pending, recipes, ingredients);
+  const namedExclusion = exclusionMessage(job, recipes, ingredients);
   const showAction = error !== null || job?.status === "failed";
   const failed = job?.status === "failed";
   const examplesDisabled = pending || freshRequestsDisabled;
@@ -119,7 +120,7 @@ export function Conversation({
       ) : null}
       {error !== null ? (
         <p className="conversation-error" role="status">
-          {error}
+          {namedExclusion ?? error}
         </p>
       ) : null}
       {showAction ? (
