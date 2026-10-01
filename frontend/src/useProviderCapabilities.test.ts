@@ -1,14 +1,9 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestRenderer } from "react-test-renderer";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HTTP_ERROR, type ProviderCapabilities } from "./apiTypes";
-import {
-  useProviderCapabilities,
-  type ProviderCapabilitiesState,
-} from "./useProviderCapabilities";
+import { useProviderCapabilities } from "./useProviderCapabilities";
 
 const PROVIDER_MS = 20_000;
 const PROVIDER_UNAVAILABLE =
@@ -54,46 +49,8 @@ function hungJson(init?: RequestInit): Promise<Response> {
   } as Response);
 }
 
-function HookHost(props: { bucket: { current: ProviderCapabilitiesState | null } }): null {
-  props.bucket.current = useProviderCapabilities();
-  return null;
-}
-
-function hookOf(bucket: { current: ProviderCapabilitiesState | null }): ProviderCapabilitiesState {
-  if (bucket.current === null) {
-    throw new Error("hook is not mounted");
-  }
-  return bucket.current;
-}
-
-function mount(): {
-  bucket: { current: ProviderCapabilitiesState | null };
-  renderer: ReactTestRenderer;
-} {
-  const bucket: { current: ProviderCapabilitiesState | null } = { current: null };
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(createElement(HookHost, { bucket }));
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return { bucket, renderer };
-}
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve();
-  });
-}
-
 describe("useProviderCapabilities", () => {
   beforeEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      writable: true,
-      value: globalThis,
-    });
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
@@ -104,6 +61,7 @@ describe("useProviderCapabilities", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -114,16 +72,16 @@ describe("useProviderCapabilities", () => {
       async (_input: RequestInfo | URL, _init?: RequestInit) => jsonOk(loaded),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
-    expect(hookOf(bucket).pending).toBe(true);
-    expect(hookOf(bucket).capabilities).toBeNull();
-    expect(hookOf(bucket).error).toBeNull();
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
+    expect(result.current.pending).toBe(true);
+    expect(result.current.capabilities).toBeNull();
+    expect(result.current.error).toBeNull();
     await flush();
-    expect(hookOf(bucket).capabilities).toEqual(loaded);
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBeNull();
+    expect(result.current.capabilities).toEqual(loaded);
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBeNull();
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/grocery/providers");
-    renderer.unmount();
+    unmount();
   });
 
   it("keeps capabilities null on failure and uses a static error", async () => {
@@ -133,14 +91,14 @@ describe("useProviderCapabilities", () => {
         async () => ({ ok: false, json: async () => ({ detail: RAW }) }) as Response,
       ),
     );
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
     await flush();
-    expect(hookOf(bucket).capabilities).toBeNull();
-    expect(hookOf(bucket).error).toBe(PROVIDER_UNAVAILABLE);
-    expect(hookOf(bucket).error).not.toBe(HTTP_ERROR);
-    expect(hookOf(bucket).error).not.toContain(RAW);
-    expect(hookOf(bucket).pending).toBe(false);
-    renderer.unmount();
+    expect(result.current.capabilities).toBeNull();
+    expect(result.current.error).toBe(PROVIDER_UNAVAILABLE);
+    expect(result.current.error).not.toBe(HTTP_ERROR);
+    expect(result.current.error).not.toContain(RAW);
+    expect(result.current.pending).toBe(false);
+    unmount();
   });
 
   it("retries a failed provider fetch", async () => {
@@ -149,19 +107,19 @@ describe("useProviderCapabilities", () => {
       .mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response)
       .mockResolvedValueOnce(jsonOk(loaded));
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
     await flush();
-    expect(hookOf(bucket).capabilities).toBeNull();
-    expect(hookOf(bucket).error).toBe(PROVIDER_UNAVAILABLE);
+    expect(result.current.capabilities).toBeNull();
+    expect(result.current.error).toBe(PROVIDER_UNAVAILABLE);
     await act(async () => {
-      hookOf(bucket).retry();
+      result.current.retry();
     });
     await flush();
-    expect(hookOf(bucket).capabilities).toEqual(loaded);
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).pending).toBe(false);
+    expect(result.current.capabilities).toEqual(loaded);
+    expect(result.current.error).toBeNull();
+    expect(result.current.pending).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    renderer.unmount();
+    unmount();
   });
 
   it("times out a hung JSON body after 20s with the static error", async () => {
@@ -171,15 +129,15 @@ describe("useProviderCapabilities", () => {
         (_input: RequestInfo | URL, init?: RequestInit) => hungJson(init),
       ),
     );
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PROVIDER_MS);
       await Promise.resolve();
     });
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).capabilities).toBeNull();
-    expect(hookOf(bucket).error).toBe(PROVIDER_UNAVAILABLE);
-    renderer.unmount();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.capabilities).toBeNull();
+    expect(result.current.error).toBe(PROVIDER_UNAVAILABLE);
+    unmount();
   });
 
   it("ignores a stale response after retry starts", async () => {
@@ -194,17 +152,17 @@ describe("useProviderCapabilities", () => {
       )
       .mockResolvedValue(jsonOk(loaded));
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
     await act(async () => {
-      hookOf(bucket).retry();
+      result.current.retry();
     });
     await flush();
-    expect(hookOf(bucket).capabilities).toEqual(loaded);
+    expect(result.current.capabilities).toEqual(loaded);
     await act(async () => {
       resolveFirst?.(jsonOk(stale));
     });
-    expect(hookOf(bucket).capabilities).toEqual(loaded);
-    renderer.unmount();
+    expect(result.current.capabilities).toEqual(loaded);
+    unmount();
   });
 
   it("aborts an in-flight fetch on unmount and ignores a late response", async () => {
@@ -221,10 +179,10 @@ describe("useProviderCapabilities", () => {
         },
       ),
     );
-    const { bucket, renderer } = mount();
-    expect(hookOf(bucket).pending).toBe(true);
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
+    expect(result.current.pending).toBe(true);
     act(() => {
-      renderer.unmount();
+      unmount();
     });
     expect(seenSignal?.aborted).toBe(true);
     await act(async () => {
@@ -238,19 +196,19 @@ describe("useProviderCapabilities", () => {
       .mockResolvedValueOnce(jsonOk(loaded))
       .mockResolvedValueOnce({ ok: false, json: async () => ({ detail: RAW }) } as Response);
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useProviderCapabilities());
     await flush();
-    expect(hookOf(bucket).capabilities).toEqual(loaded);
-    expect(hookOf(bucket).error).toBeNull();
+    expect(result.current.capabilities).toEqual(loaded);
+    expect(result.current.error).toBeNull();
     await act(async () => {
-      hookOf(bucket).retry();
+      result.current.retry();
     });
     await flush();
-    expect(hookOf(bucket).capabilities).toBeNull();
-    expect(hookOf(bucket).error).toBe(PROVIDER_UNAVAILABLE);
-    expect(hookOf(bucket).error).not.toContain(RAW);
-    expect(hookOf(bucket).pending).toBe(false);
+    expect(result.current.capabilities).toBeNull();
+    expect(result.current.error).toBe(PROVIDER_UNAVAILABLE);
+    expect(result.current.error).not.toContain(RAW);
+    expect(result.current.pending).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    renderer.unmount();
+    unmount();
   });
 });

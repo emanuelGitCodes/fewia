@@ -1,9 +1,7 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestRenderer } from "react-test-renderer";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
@@ -86,27 +84,6 @@ function openJob(id: string, status: "queued" | "running"): ChatJob {
   return { id, status, result: null, error_code: null };
 }
 
-function HookHost(props: {
-  bucket: { current: HookValue | null };
-  budget: ChatBudget | null;
-  manualJobId: string | null;
-}): null {
-  props.bucket.current = useChatConversation(props.budget, props.manualJobId);
-  return null;
-}
-
-function OneArgHost(props: { bucket: { current: HookValue | null }; budget: ChatBudget | null }): null {
-  props.bucket.current = useChatConversation(props.budget);
-  return null;
-}
-
-function hookOf(bucket: { current: HookValue | null }): HookValue {
-  if (bucket.current === null) {
-    throw new Error("hook is not mounted");
-  }
-  return bucket.current;
-}
-
 function submitted(mocks: JobMocks, index: number): ChatJobCreate {
   const body = mocks.submit.mock.calls[index]?.[0];
   if (body === undefined) {
@@ -123,16 +100,16 @@ async function flushMicrotasks(): Promise<void> {
   });
 }
 
-async function sendAndSettle(bucket: { current: HookValue | null }): Promise<void> {
+async function sendAndSettle(result: { current: HookValue }): Promise<void> {
   await act(async () => {
-    hookOf(bucket).send();
+    result.current.send();
   });
   await flushMicrotasks();
 }
 
-async function retryAndSettle(bucket: { current: HookValue | null }): Promise<void> {
+async function retryAndSettle(result: { current: HookValue }): Promise<void> {
   await act(async () => {
-    hookOf(bucket).retry();
+    result.current.retry();
   });
   await flushMicrotasks();
 }
@@ -154,26 +131,17 @@ describe("useChatConversation", () => {
     currentBudget: ChatBudget | null = budget,
     manualJobId: string | null = null,
   ): {
-    bucket: { current: HookValue | null };
-    renderer: ReactTestRenderer;
+    result: { current: HookValue };
     refresh: (next?: ChatBudget | null, nextManual?: string | null) => void;
   } {
-    const bucket: { current: HookValue | null } = { current: null };
     let liveBudget = currentBudget;
     let liveManual = manualJobId;
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(
-        createElement(HookHost, { bucket, budget: liveBudget, manualJobId: liveManual }),
-      );
-    });
-    if (renderer === undefined) {
-      throw new Error("renderer failed to mount");
-    }
-    const live = renderer;
+    const { result, rerender } = renderHook(
+      (props) => useChatConversation(props.budget, props.manualJobId),
+      { initialProps: { budget: liveBudget, manualJobId: liveManual } },
+    );
     return {
-      bucket,
-      renderer: live,
+      result,
       refresh: (
         next: ChatBudget | null | undefined = liveBudget,
         nextManual: string | null | undefined = liveManual,
@@ -181,14 +149,14 @@ describe("useChatConversation", () => {
         liveBudget = next;
         liveManual = nextManual;
         bindJob();
-        act(() => {
-          live.update(
-            createElement(HookHost, { bucket, budget: liveBudget, manualJobId: liveManual }),
-          );
-        });
+        rerender({ budget: liveBudget, manualJobId: liveManual });
       },
     };
   }
+
+  afterEach(() => {
+    cleanup();
+  });
 
   beforeEach(() => {
     jobState = {
@@ -210,11 +178,11 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("job-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount(caller);
+    const { result, refresh } = mount(caller);
     act(() => {
-      hookOf(bucket).setMessage("  Plan bean tacos for two.  ");
+      result.current.setMessage("  Plan bean tacos for two.  ");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     const body = submitted(jobState, 0);
     expect(body).toEqual({
@@ -229,8 +197,8 @@ describe("useChatConversation", () => {
       "plan_cap_cents",
       "previous_job_id",
     ]);
-    expect(hookOf(bucket).hasRequest).toBe(true);
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.hasRequest).toBe(true);
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan bean tacos for two." },
       { id: "job-1", role: "assistant", content: "Bean tacos fit the budget." },
     ]);
@@ -243,20 +211,20 @@ describe("useChatConversation", () => {
       count += 1;
       jobState.job = succeeded(`job-${count}`, `answer ${count}`);
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Add lentil soup.");
+      result.current.setMessage("Add lentil soup.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     expect(submitted(jobState, 1).previous_job_id).toBe("job-1");
     expect(submitted(jobState, 1).message).toBe("Add lentil soup.");
-    expect(hookOf(bucket).messages.map((item) => item.id)).toEqual(["user-1", "job-1", "user-2", "job-2"]);
+    expect(result.current.messages.map((item) => item.id)).toEqual(["user-1", "job-1", "user-2", "job-2"]);
   });
 
   it("tracks a clarification parent and appends a nullable clarification answer", async () => {
@@ -268,21 +236,21 @@ describe("useChatConversation", () => {
           ? succeeded("job-clarify", "Which meals should I plan?", "clarification")
           : succeeded("job-2", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan dinner.");
+      result.current.setMessage("Plan dinner.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
-    expect(hookOf(bucket).messages[1]).toEqual({
+    expect(result.current.messages[1]).toEqual({
       id: "job-clarify",
       role: "assistant",
       content: "Which meals should I plan?",
     });
     act(() => {
-      hookOf(bucket).setMessage("Bean tacos for two.");
+      result.current.setMessage("Bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     expect(submitted(jobState, 1).previous_job_id).toBe("job-clarify");
   });
@@ -292,33 +260,33 @@ describe("useChatConversation", () => {
       jobState.job = failed("job-1");
       jobState.error = CHAT_FAILURE;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan bean tacos for two." },
     ]);
     jobState.clear.mockClear();
-    await retryAndSettle(bucket);
+    await retryAndSettle(result);
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
-    expect(hookOf(bucket).messages).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(1);
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("job-1", "Bean tacos fit the budget.");
       jobState.error = null;
     });
-    await retryAndSettle(bucket);
+    await retryAndSettle(result);
     refresh();
     jobState.clear.mockClear();
-    await retryAndSettle(bucket);
+    await retryAndSettle(result);
     refresh();
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(submitted(jobState, 3)).toEqual(submitted(jobState, 0));
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan bean tacos for two." },
       { id: "job-1", role: "assistant", content: "Bean tacos fit the budget." },
     ]);
@@ -328,23 +296,23 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("job-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).newConversation();
+      result.current.newConversation();
     });
     refresh();
-    expect(hookOf(bucket).messages).toEqual([]);
-    expect(hookOf(bucket).message).toBe("");
-    expect(hookOf(bucket).hasRequest).toBe(false);
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.message).toBe("");
+    expect(result.current.hasRequest).toBe(false);
     act(() => {
-      hookOf(bucket).setMessage("Plan lentil soup.");
+      result.current.setMessage("Plan lentil soup.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe(null);
     expect(submitted(jobState, 1).message).toBe("Plan lentil soup.");
   });
@@ -361,16 +329,16 @@ describe("useChatConversation", () => {
       jobState.job = succeeded("job-2", "Bean tacos fit the budget.");
       jobState.error = null;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Plan lentil soup.");
+      result.current.setMessage("Plan lentil soup.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe(null);
   });
 
@@ -379,41 +347,41 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = first;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     jobState.job = succeeded("job-1", "Bean tacos fit the budget.");
     refresh();
-    expect(hookOf(bucket).messages.filter((item) => item.role === "assistant")).toHaveLength(1);
+    expect(result.current.messages.filter((item) => item.role === "assistant")).toHaveLength(1);
   });
 
   it("rejects invalid budget and text without submitting", async () => {
-    const { bucket, refresh } = mount(null);
+    const { result, refresh } = mount(null);
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
-    expect(hookOf(bucket).error).toBe(BUDGET_ERROR);
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(BUDGET_ERROR);
     expect(jobState.submit).not.toHaveBeenCalled();
     refresh({ monthly_limit_cents: 1.5, plan_cap_cents: null });
-    await sendAndSettle(bucket);
-    expect(hookOf(bucket).error).toBe(BUDGET_ERROR);
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(BUDGET_ERROR);
     refresh(budget);
     act(() => {
-      hookOf(bucket).setMessage("   ");
+      result.current.setMessage("   ");
     });
-    await sendAndSettle(bucket);
-    expect(hookOf(bucket).error).toBe(TEXT_ERROR);
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(TEXT_ERROR);
     act(() => {
-      hookOf(bucket).setMessage("a".repeat(4001));
+      result.current.setMessage("a".repeat(4001));
     });
-    await sendAndSettle(bucket);
-    expect(hookOf(bucket).error).toBe(TEXT_ERROR);
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(TEXT_ERROR);
     expect(jobState.submit).not.toHaveBeenCalled();
-    expect(hookOf(bucket).hasRequest).toBe(false);
+    expect(result.current.hasRequest).toBe(false);
   });
 
   it("does not mutate caller budget or job results and suppresses pending sends", async () => {
@@ -433,18 +401,18 @@ describe("useChatConversation", () => {
       body.previous_job_id = "tampered";
       jobState.job = { id: "job-1", status: "succeeded", result: planned, error_code: null };
     });
-    const { bucket, refresh } = mount(caller);
+    const { result, refresh } = mount(caller);
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
     jobState.pending = true;
     refresh();
-    await sendAndSettle(bucket);
-    await retryAndSettle(bucket);
+    await sendAndSettle(result);
+    await retryAndSettle(result);
     expect(jobState.submit).not.toHaveBeenCalled();
     jobState.pending = false;
     refresh();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     expect(caller).toEqual({ monthly_limit_cents: 20000, plan_cap_cents: 4000 });
     expect(planned).toEqual(snapshot);
@@ -456,7 +424,7 @@ describe("useChatConversation", () => {
       plan_cap_cents: 4000,
       previous_job_id: "tampered",
     });
-    await retryAndSettle(bucket);
+    await retryAndSettle(result);
     expect(received[1]).toEqual(originalBody);
     expect(submitted(jobState, 1)).toEqual({
       message: "mutated",
@@ -475,27 +443,27 @@ describe("useChatConversation", () => {
           ? succeeded("job-limit", "The chat reached a turn limit.", "limit")
           : succeeded(`job-${count}`, `answer ${count}`);
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan dinner.");
+      result.current.setMessage("Plan dinner.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Retry with tacos.");
+      result.current.setMessage("Retry with tacos.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe("job-limit");
     for (let index = 0; index < 7; index += 1) {
       act(() => {
-        hookOf(bucket).setMessage(`Turn ${index}`);
+        result.current.setMessage(`Turn ${index}`);
       });
-      await sendAndSettle(bucket);
+      await sendAndSettle(result);
       refresh();
     }
     refresh();
-    expect(hookOf(bucket).messages).toHaveLength(16);
-    expect(hookOf(bucket).messages[0]?.id).not.toBe("user-1");
+    expect(result.current.messages).toHaveLength(16);
+    expect(result.current.messages[0]?.id).not.toBe("user-1");
   });
 
   it("replays the saved body after a timeout without a new turn", async () => {
@@ -504,18 +472,18 @@ describe("useChatConversation", () => {
       jobState.error = TIMEOUT;
       jobState.pending = false;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     jobState.clear.mockClear();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan bean tacos for two." },
     ]);
   });
@@ -526,18 +494,18 @@ describe("useChatConversation", () => {
       jobState.error = HTTP_FALLBACK;
       jobState.pending = false;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     jobState.clear.mockClear();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
-    expect(hookOf(bucket).messages.map((item) => item.id)).toEqual(["user-1"]);
+    expect(result.current.messages.map((item) => item.id)).toEqual(["user-1"]);
   });
 
   it("replays the saved body for queued and running jobs", async () => {
@@ -545,20 +513,20 @@ describe("useChatConversation", () => {
       jobState.job = openJob("job-1", "queued");
       jobState.pending = false;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     jobState.clear.mockClear();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     jobState.job = openJob("job-1", "running");
     refresh();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(jobState.submit).toHaveBeenCalledTimes(3);
-    expect(hookOf(bucket).messages).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(1);
   });
 
   it("sends a fresh intent after a failed job", async () => {
@@ -566,35 +534,35 @@ describe("useChatConversation", () => {
       jobState.job = failed("job-fail");
       jobState.error = CHAT_FAILURE;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     jobState.clear.mockClear();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.clear).toHaveBeenCalled();
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
-    expect(hookOf(bucket).messages.map((item) => item.id)).toEqual(["user-1", "user-2"]);
+    expect(result.current.messages.map((item) => item.id)).toEqual(["user-1", "user-2"]);
   });
 
   it("sends a fresh followup after a succeeded job", async () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("job-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     jobState.clear.mockClear();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.clear).toHaveBeenCalled();
     expect(submitted(jobState, 1).previous_job_id).toBe("job-1");
-    expect(hookOf(bucket).messages.map((item) => item.id)).toEqual(["user-1", "job-1", "user-2"]);
+    expect(result.current.messages.map((item) => item.id)).toEqual(["user-1", "job-1", "user-2"]);
   });
 
   it("clears a local validation error on retry and submits the saved body", async () => {
@@ -602,44 +570,44 @@ describe("useChatConversation", () => {
       jobState.job = failed("job-1");
       jobState.error = CHAT_FAILURE;
     });
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("   ");
+      result.current.setMessage("   ");
     });
-    await sendAndSettle(bucket);
-    expect(hookOf(bucket).error).toBe(TEXT_ERROR);
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(TEXT_ERROR);
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("job-1", "Bean tacos fit the budget.");
       jobState.error = null;
     });
     jobState.clear.mockClear();
-    await retryAndSettle(bucket);
+    await retryAndSettle(result);
     refresh();
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
-    expect(hookOf(bucket).error).toBe(null);
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.error).toBe(null);
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan bean tacos for two." },
       { id: "job-1", role: "assistant", content: "Bean tacos fit the budget." },
     ]);
   });
 
   it("fences two send calls in one act", () => {
-    const { bucket } = mount();
+    const { result } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
     act(() => {
-      hookOf(bucket).send();
-      hookOf(bucket).send();
+      result.current.send();
+      result.current.send();
     });
     expect(jobState.submit).toHaveBeenCalledTimes(1);
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan bean tacos for two." },
     ]);
   });
@@ -652,22 +620,22 @@ describe("useChatConversation", () => {
           resolvers.push(resolve);
         }),
     );
-    const { bucket, refresh } = mount();
+    const { result, refresh } = mount();
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
     act(() => {
-      hookOf(bucket).send();
+      result.current.send();
     });
     act(() => {
-      hookOf(bucket).newConversation();
+      result.current.newConversation();
     });
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Plan lentil soup.");
+      result.current.setMessage("Plan lentil soup.");
     });
     act(() => {
-      hookOf(bucket).send();
+      result.current.send();
     });
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     await act(async () => {
@@ -675,10 +643,10 @@ describe("useChatConversation", () => {
     });
     await flushMicrotasks();
     act(() => {
-      hookOf(bucket).send();
+      result.current.send();
     });
     expect(jobState.submit).toHaveBeenCalledTimes(2);
-    expect(hookOf(bucket).messages).toEqual([
+    expect(result.current.messages).toEqual([
       { id: "user-1", role: "user", content: "Plan lentil soup." },
     ]);
     await act(async () => {
@@ -686,19 +654,16 @@ describe("useChatConversation", () => {
       await Promise.resolve();
     });
     await flushMicrotasks();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.submit).toHaveBeenCalledTimes(3);
   });
 
   it("uses a one-argument call with no parent", async () => {
-    const bucket: { current: HookValue | null } = { current: null };
+    const { result } = renderHook(() => useChatConversation(budget));
     act(() => {
-      create(createElement(OneArgHost, { bucket, budget }));
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
-    });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 0).previous_job_id).toBe(null);
   });
 
@@ -706,11 +671,11 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved pantry and four servings.");
+      result.current.setMessage("Use the saved pantry and four servings.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     expect(submitted(jobState, 0).previous_job_id).toBe("manual-1");
     expect(submitted(jobState, 0).message).toBe("Use the saved pantry and four servings.");
@@ -720,16 +685,16 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Add lentil soup.");
+      result.current.setMessage("Add lentil soup.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe("chat-1");
   });
 
@@ -737,17 +702,17 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     refresh(budget, "manual-2");
     act(() => {
-      hookOf(bucket).setMessage("Use the rebuilt plan.");
+      result.current.setMessage("Use the rebuilt plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe("manual-2");
   });
 
@@ -756,14 +721,14 @@ describe("useChatConversation", () => {
       jobState.job = failed("chat-fail");
       jobState.error = CHAT_FAILURE;
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     refresh(budget, "manual-2");
-    await retryAndSettle(bucket);
+    await retryAndSettle(result);
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
     expect(submitted(jobState, 1).previous_job_id).toBe("manual-1");
   });
@@ -773,15 +738,15 @@ describe("useChatConversation", () => {
       jobState.job = openJob("chat-1", "queued");
       jobState.pending = false;
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     refresh(budget, "manual-2");
     jobState.clear.mockClear();
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(jobState.clear).not.toHaveBeenCalled();
     expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
     expect(submitted(jobState, 1).previous_job_id).toBe("manual-1");
@@ -791,20 +756,20 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     act(() => {
-      hookOf(bucket).newConversation();
+      result.current.newConversation();
     });
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Start from the saved plan.");
+      result.current.setMessage("Start from the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe("manual-1");
   });
 
@@ -816,12 +781,12 @@ describe("useChatConversation", () => {
           resolvers.push(resolve);
         }),
     );
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
     act(() => {
-      hookOf(bucket).send();
+      result.current.send();
     });
     refresh(budget, "manual-2");
     jobState.job = succeeded("chat-late", "Bean tacos fit the budget.");
@@ -831,9 +796,9 @@ describe("useChatConversation", () => {
     await flushMicrotasks();
     refresh();
     act(() => {
-      hookOf(bucket).setMessage("Use the rebuilt plan.");
+      result.current.setMessage("Use the rebuilt plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe("manual-2");
   });
 
@@ -841,28 +806,27 @@ describe("useChatConversation", () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");
     });
-    const { bucket, refresh } = mount(budget, "manual-1");
+    const { result, refresh } = mount(budget, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Use the saved plan.");
+      result.current.setMessage("Use the saved plan.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     refresh();
     refresh(budget, null);
     act(() => {
-      hookOf(bucket).setMessage("Plan lentil soup.");
+      result.current.setMessage("Plan lentil soup.");
     });
-    await sendAndSettle(bucket);
+    await sendAndSettle(result);
     expect(submitted(jobState, 1).previous_job_id).toBe(null);
   });
 
   it("keeps budget validation when a manual parent is present", async () => {
-    const { bucket } = mount(null, "manual-1");
+    const { result } = mount(null, "manual-1");
     act(() => {
-      hookOf(bucket).setMessage("Plan bean tacos for two.");
+      result.current.setMessage("Plan bean tacos for two.");
     });
-    await sendAndSettle(bucket);
-    expect(hookOf(bucket).error).toBe(BUDGET_ERROR);
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(BUDGET_ERROR);
     expect(jobState.submit).not.toHaveBeenCalled();
   });
 });
-
