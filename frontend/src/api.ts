@@ -64,7 +64,7 @@ export async function readJson(path: string, init: RequestInit): Promise<unknown
     if (isAbortError(error)) {
       throw error;
     }
-    throw new Error(HTTP_ERROR);
+    throw new Error(HTTP_ERROR, { cause: error });
   }
   if (!response.ok) {
     throw new Error(HTTP_ERROR);
@@ -75,7 +75,7 @@ export async function readJson(path: string, init: RequestInit): Promise<unknown
     if (isAbortError(error)) {
       throw error;
     }
-    throw new Error(SHAPE_ERROR);
+    throw new Error(SHAPE_ERROR, { cause: error });
   }
 }
 
