@@ -1,28 +1,21 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
 import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type CatalogItem, type GroceryJob } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { Conversation } from "./Conversation";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 
-function childText(node: ReactTestInstance | string): string {
-  if (typeof node === "string") {
-    return node;
-  }
-  return node.children.map((child) => childText(child)).join("");
+function renderedText(node: HTMLElement): string {
+  return node.textContent ?? "";
 }
 
-function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
-  const match = root.findAllByType("button").find((node) => childText(node) === name);
-  if (match === undefined) {
-    throw new Error(`missing button ${name}`);
-  }
-  return match;
+function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
+  return within(root).getByRole("button", { name, exact: true }) as HTMLButtonElement;
 }
 
 function job(status: GroceryJob["status"], accepted = true, total: number | null = 478): GroceryJob {
@@ -70,7 +63,7 @@ function mount(
   }> = {},
   extras: { children?: JSX.Element } = {},
 ): {
-  renderer: ReactTestRenderer;
+  rendered: RenderResult;
   onExample: ReturnType<typeof vi.fn>;
   onRetry: ReturnType<typeof vi.fn>;
   onNewRequest: ReturnType<typeof vi.fn>;
@@ -78,80 +71,76 @@ function mount(
   const onExample = vi.fn();
   const onRetry = vi.fn();
   const onNewRequest = vi.fn();
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(
-      createElement(
-        Conversation,
-        {
-          job: props.job ?? null,
-          error: props.error ?? null,
-          pending: props.pending ?? false,
-          freshRequestsDisabled: props.freshRequestsDisabled,
-          recipes: props.recipes,
-          ingredients: props.ingredients,
-          onExample,
-          onRetry,
-          onNewRequest,
-        },
-        extras.children,
-      ),
-    );
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return { renderer, onExample, onRetry, onNewRequest };
+  const rendered = render(
+    createElement(
+      Conversation,
+      {
+        job: props.job ?? null,
+        error: props.error ?? null,
+        pending: props.pending ?? false,
+        freshRequestsDisabled: props.freshRequestsDisabled,
+        recipes: props.recipes,
+        ingredients: props.ingredients,
+        onExample,
+        onRetry,
+        onNewRequest,
+      },
+      extras.children,
+    ),
+  );
+  return { rendered, onExample, onRetry, onNewRequest };
 }
+
+afterEach(cleanup);
 
 describe("Conversation", () => {
   it("renders the welcome, example labels, and no fake send control", () => {
-    const { renderer, onExample } = mount();
-    expect(childText(renderer.root)).toContain("Your conversation");
-    expect(childText(renderer.root)).toContain("Use the meal controls to choose 1 to 3 meals and 1 to 8 servings.");
-    expect(childText(renderer.root)).toContain("Sample estimates use the demo price catalog.");
-    expect(buttonNamed(renderer.root, "Bean tacos for two").props.disabled).toBe(false);
-    expect(buttonNamed(renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(false);
-    act(() => {
-      (buttonNamed(renderer.root, "Bean tacos for two").props.onClick as () => void)();
-    });
-    act(() => {
-      (buttonNamed(renderer.root, "Three vegan dinners (2 servings each)").props.onClick as () => void)();
-    });
+    const { rendered, onExample } = mount();
+    expect(renderedText(rendered.container)).toContain("Your conversation");
+    expect(renderedText(rendered.container)).toContain("Use the meal controls to choose 1 to 3 meals and 1 to 8 servings.");
+    expect(renderedText(rendered.container)).toContain("Sample estimates use the demo price catalog.");
+    expect(buttonNamed(rendered.container, "Bean tacos for two").disabled).toBe(false);
+    expect(buttonNamed(rendered.container, "Three vegan dinners (2 servings each)").disabled).toBe(false);
+    fireEvent.click(buttonNamed(rendered.container, "Bean tacos for two"));
+    fireEvent.click(buttonNamed(rendered.container, "Three vegan dinners (2 servings each)"));
     expect(onExample).toHaveBeenCalledWith("beans");
     expect(onExample).toHaveBeenCalledWith("vegan");
-    expect(renderer.root.findAllByType("button").every((node) => node.props.type === "button")).toBe(true);
-    expect(renderer.root.findAllByType("button").some((node) => childText(node) === "Send")).toBe(false);
-    expect(renderer.root.findAllByType("a")).toHaveLength(0);
-    renderer.unmount();
+    expect(
+      within(rendered.container).queryAllByRole("button").every(
+        (node) => (node as HTMLButtonElement).type === "button",
+      ),
+    ).toBe(true);
+    expect(within(rendered.container).queryAllByRole("button", { name: "Send" })).toHaveLength(0);
+    expect(within(rendered.container).queryAllByRole("link")).toHaveLength(0);
+    rendered.unmount();
   });
 
   it("disables examples while pending and reports submitting, queued, and running", () => {
     const submitting = mount({ pending: true });
-    expect(buttonNamed(submitting.renderer.root, "Bean tacos for two").props.disabled).toBe(true);
-    expect(buttonNamed(submitting.renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(
+    expect(buttonNamed(submitting.rendered.container, "Bean tacos for two").disabled).toBe(true);
+    expect(buttonNamed(submitting.rendered.container, "Three vegan dinners (2 servings each)").disabled).toBe(
       true,
     );
-    expect(childText(submitting.renderer.root)).toContain("Submitting your grocery request.");
-    submitting.renderer.unmount();
+    expect(renderedText(submitting.rendered.container)).toContain("Submitting your grocery request.");
+    submitting.rendered.unmount();
     const queued = mount({ job: job("queued"), pending: true });
-    expect(childText(queued.renderer.root)).toContain("Your grocery request is queued.");
-    queued.renderer.unmount();
+    expect(renderedText(queued.rendered.container)).toContain("Your grocery request is queued.");
+    queued.rendered.unmount();
     const running = mount({ job: job("running") });
-    expect(childText(running.renderer.root)).toContain("Your grocery request is running.");
-    running.renderer.unmount();
+    expect(renderedText(running.rendered.container)).toContain("Your grocery request is running.");
+    running.rendered.unmount();
   });
 
   it("summarizes accepted, over-budget, and incomplete results", () => {
     const accepted = mount({ job: job("succeeded", true, 478) });
-    expect(childText(accepted.renderer.root)).toContain("The estimate is within the plan budget.");
-    accepted.renderer.unmount();
+    expect(renderedText(accepted.rendered.container)).toContain("The estimate is within the plan budget.");
+    accepted.rendered.unmount();
     const over = mount({ job: job("succeeded", false, 9000) });
-    expect(childText(over.renderer.root)).toContain("The plan is over budget.");
-    over.renderer.unmount();
+    expect(renderedText(over.rendered.container)).toContain("The plan is over budget.");
+    over.rendered.unmount();
     const incomplete = mount({ job: job("succeeded", false, null) });
-    expect(childText(incomplete.renderer.root)).toContain("The plan is incomplete.");
-    incomplete.renderer.unmount();
+    expect(renderedText(incomplete.rendered.container)).toContain("The plan is incomplete.");
+    incomplete.rendered.unmount();
     const base = job("succeeded", true, 478);
     const result = base.result;
     if (result === null) {
@@ -175,79 +164,90 @@ describe("Conversation", () => {
         },
       },
     });
-    expect(childText(missingLine.renderer.root)).toContain("The plan is incomplete.");
-    expect(childText(missingLine.renderer.root)).not.toContain("The estimate is within the plan budget.");
-    missingLine.renderer.unmount();
+    expect(renderedText(missingLine.rendered.container)).toContain("The plan is incomplete.");
+    expect(renderedText(missingLine.rendered.container)).not.toContain("The estimate is within the plan budget.");
+    missingLine.rendered.unmount();
   });
 
   it("uses Check progress, Start a new request, and Retry request by job state", () => {
     const progress = mount({ job: job("queued"), error: "still processing", pending: true });
-    expect(childText(progress.renderer.root)).toContain("still processing");
-    expect(progress.renderer.root.findAllByProps({ className: "conversation-status" })).toHaveLength(0);
-    expect(childText(progress.renderer.root)).not.toContain("Your grocery request is queued.");
-    expect(buttonNamed(progress.renderer.root, "Check progress").props.disabled).toBe(true);
-    act(() => {
-      (buttonNamed(progress.renderer.root, "Check progress").props.onClick as () => void)();
-    });
+    expect(renderedText(progress.rendered.container)).toContain("still processing");
+    expect(
+      within(progress.rendered.container).queryAllByText("Your grocery request is queued."),
+    ).toHaveLength(0);
+    expect(renderedText(progress.rendered.container)).not.toContain("Your grocery request is queued.");
+    expect(buttonNamed(progress.rendered.container, "Check progress").disabled).toBe(true);
+    fireEvent.click(buttonNamed(progress.rendered.container, "Check progress"));
+    expect(progress.onRetry).not.toHaveBeenCalled();
+    progress.rendered.rerender(
+      createElement(Conversation, {
+        job: job("queued"),
+        error: "still processing",
+        pending: false,
+        onExample: progress.onExample,
+        onRetry: progress.onRetry,
+        onNewRequest: progress.onNewRequest,
+      }),
+    );
+    expect(buttonNamed(progress.rendered.container, "Check progress").disabled).toBe(false);
+    fireEvent.click(buttonNamed(progress.rendered.container, "Check progress"));
     expect(progress.onRetry).toHaveBeenCalledTimes(1);
     expect(progress.onNewRequest).not.toHaveBeenCalled();
-    progress.renderer.unmount();
+    progress.rendered.unmount();
     const failed = mount({ job: job("failed") });
-    expect(childText(failed.renderer.root)).toContain("Check meals, servings, and budget, then retry.");
-    expect(buttonNamed(failed.renderer.root, "Start a new request").props.disabled).toBe(false);
-    act(() => {
-      (buttonNamed(failed.renderer.root, "Start a new request").props.onClick as () => void)();
-    });
+    expect(renderedText(failed.rendered.container)).toContain("Check meals, servings, and budget, then retry.");
+    expect(buttonNamed(failed.rendered.container, "Start a new request").disabled).toBe(false);
+    fireEvent.click(buttonNamed(failed.rendered.container, "Start a new request"));
     expect(failed.onNewRequest).toHaveBeenCalledTimes(1);
     expect(failed.onRetry).not.toHaveBeenCalled();
-    failed.renderer.unmount();
+    failed.rendered.unmount();
     const failedWithError = mount({ job: job("failed"), error: "The grocery request failed." });
-    expect(childText(failedWithError.renderer.root)).toContain("The grocery request failed.");
-    expect(failedWithError.renderer.root.findAllByProps({ className: "conversation-status" })).toHaveLength(0);
-    expect(childText(failedWithError.renderer.root)).not.toContain("Check meals, servings, and budget, then retry.");
-    act(() => {
-      (buttonNamed(failedWithError.renderer.root, "Start a new request").props.onClick as () => void)();
-    });
+    expect(renderedText(failedWithError.rendered.container)).toContain("The grocery request failed.");
+    expect(
+      within(failedWithError.rendered.container).queryAllByText(
+        "The grocery request failed. Check meals, servings, and budget, then retry.",
+      ),
+    ).toHaveLength(0);
+    expect(renderedText(failedWithError.rendered.container)).not.toContain("Check meals, servings, and budget, then retry.");
+    fireEvent.click(buttonNamed(failedWithError.rendered.container, "Start a new request"));
     expect(failedWithError.onNewRequest).toHaveBeenCalledTimes(1);
-    failedWithError.renderer.unmount();
+    failedWithError.rendered.unmount();
     const retry = mount({ error: "The grocery request failed." });
-    expect(buttonNamed(retry.renderer.root, "Retry request").props.disabled).toBe(false);
-    act(() => {
-      (buttonNamed(retry.renderer.root, "Retry request").props.onClick as () => void)();
-    });
+    expect(buttonNamed(retry.rendered.container, "Retry request").disabled).toBe(false);
+    fireEvent.click(buttonNamed(retry.rendered.container, "Retry request"));
     expect(retry.onRetry).toHaveBeenCalledTimes(1);
     expect(retry.onNewRequest).not.toHaveBeenCalled();
-    retry.renderer.unmount();
+    retry.rendered.unmount();
     const retryPending = mount({ error: "The grocery request failed.", pending: true });
-    expect(buttonNamed(retryPending.renderer.root, "Retry request").props.disabled).toBe(true);
-    retryPending.renderer.unmount();
+    expect(buttonNamed(retryPending.rendered.container, "Retry request").disabled).toBe(true);
+    retryPending.rendered.unmount();
   });
 
   it("disables examples and a failed new request when freshRequestsDisabled", () => {
     const blocked = mount({ freshRequestsDisabled: true });
-    expect(buttonNamed(blocked.renderer.root, "Bean tacos for two").props.disabled).toBe(true);
-    expect(buttonNamed(blocked.renderer.root, "Three vegan dinners (2 servings each)").props.disabled).toBe(
+    expect(buttonNamed(blocked.rendered.container, "Bean tacos for two").disabled).toBe(true);
+    expect(buttonNamed(blocked.rendered.container, "Three vegan dinners (2 servings each)").disabled).toBe(
       true,
     );
-    blocked.renderer.unmount();
+    blocked.rendered.unmount();
     const failed = mount({ job: job("failed"), freshRequestsDisabled: true });
-    expect(buttonNamed(failed.renderer.root, "Start a new request").props.disabled).toBe(true);
-    failed.renderer.unmount();
+    expect(buttonNamed(failed.rendered.container, "Start a new request").disabled).toBe(true);
+    failed.rendered.unmount();
     const retry = mount({ error: "The grocery request failed.", freshRequestsDisabled: true });
-    expect(buttonNamed(retry.renderer.root, "Retry request").props.disabled).toBe(false);
-    retry.renderer.unmount();
+    expect(buttonNamed(retry.rendered.container, "Retry request").disabled).toBe(false);
+    retry.rendered.unmount();
     const progress = mount({
       job: job("queued"),
       error: "still processing",
       pending: false,
       freshRequestsDisabled: true,
     });
-    expect(buttonNamed(progress.renderer.root, "Check progress").props.disabled).toBe(false);
-    progress.renderer.unmount();
+    expect(buttonNamed(progress.rendered.container, "Check progress").disabled).toBe(false);
+    progress.rendered.unmount();
   });
 
   it("names the excluded ingredient on exclusion_reject", () => {
-    const { renderer } = mount({
+    const { rendered } = mount({
       job: {
         id: "job-1",
         status: "failed",
@@ -258,14 +258,14 @@ describe("Conversation", () => {
       recipes: [{ id: "vegetable_pasta", name: "vegetable pasta" }],
       ingredients: [{ id: "onion", name: "onion" }],
     });
-    expect(childText(renderer.root)).toContain(
+    expect(renderedText(rendered.container)).toContain(
       "Vegetable pasta needs onion, which is excluded. Clear the onion exclusion or choose another meal, then rebuild.",
     );
-    renderer.unmount();
+    rendered.unmount();
   });
 
   it("keeps the generic failed text when exclusion_reject has no error_detail", () => {
-    const { renderer } = mount({
+    const { rendered } = mount({
       job: {
         id: "job-1",
         status: "failed",
@@ -273,16 +273,18 @@ describe("Conversation", () => {
         error_code: "exclusion_reject",
       },
     });
-    expect(childText(renderer.root)).toContain(
+    expect(renderedText(rendered.container)).toContain(
       "The grocery request failed. Check meals, servings, and budget, then retry.",
     );
-    renderer.unmount();
+    rendered.unmount();
   });
 
   it("places children in the composer slot", () => {
-    const { renderer } = mount({}, { children: createElement("textarea", { "aria-label": "Message" }) });
-    const composer = renderer.root.findByProps({ className: "conversation-composer" });
-    expect(composer.findByType("textarea").props["aria-label"]).toBe("Message");
-    renderer.unmount();
+    const { rendered } = mount({}, { children: createElement("textarea", { "aria-label": "Message" }) });
+    const message = screen.getByRole("textbox", { name: "Message" });
+    const composer = message.closest(".conversation-composer");
+    expect(composer?.contains(message)).toBe(true);
+    expect(message.getAttribute("aria-label")).toBe("Message");
+    rendered.unmount();
   });
 });
