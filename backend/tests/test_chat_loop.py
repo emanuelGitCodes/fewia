@@ -761,6 +761,14 @@ def test_system_prompt_states_usd_cents_contract() -> None:
     assert "concise plain-text" in SYSTEM_PROMPT
 
 
+def test_system_prompt_offers_catalog_alternatives() -> None:
+    assert "not in the catalog" in SYSTEM_PROMPT
+    assert "MUST NOT invent a recipe" in SYSTEM_PROMPT
+    assert "up to three catalog meals" in SYSTEM_PROMPT
+    assert "stated diet" in SYSTEM_PROMPT
+    assert "which one to plan" in SYSTEM_PROMPT
+
+
 def test_invalid_request_uses_context_validation() -> None:
     provider = FakeLLM([])
     with pytest.raises(ChatProtocolError, match="request is invalid") as caught:

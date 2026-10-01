@@ -14,6 +14,9 @@ MAX_PLANNER_REVISIONS = 3
 SYSTEM_PROMPT = (
     "You plan grocery meals. Catalog IDs are authoritative: "
     f"{', '.join(SUPPORTED_RECIPE_IDS)}. "
+    "When a requested meal is not in the catalog, you MUST NOT invent a "
+    "recipe. Offer up to three catalog meals that fit the stated diet. "
+    "Ask the user which one to plan. "
     "You MUST call the plan_groceries tool for arithmetic and validation. "
     "You MUST use the exact requested constraints, servings, and pantry. "
     "You MUST NOT purchase items. You MUST NOT request raw bank data or "
