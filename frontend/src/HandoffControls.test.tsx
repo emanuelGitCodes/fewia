@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { createElement } from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HandoffControls, type HandoffControlsProps } from "./HandoffControls";
@@ -181,7 +181,7 @@ describe("HandoffControls", () => {
   it("renders the error string unchanged", () => {
     const { rendered } = mount({ error: DUMMY_ERROR, canStart: true });
     expect(renderedText(rendered.container)).toContain(DUMMY_ERROR);
-    const errors = screen.queryAllByText(DUMMY_ERROR);
+    const errors = rendered.container.querySelectorAll<HTMLElement>(".form-error");
     expect(errors).toHaveLength(1);
     expect(errors[0]?.className).toBe("form-error");
     expect(renderedText(errors[0] as HTMLElement)).toBe(DUMMY_ERROR);

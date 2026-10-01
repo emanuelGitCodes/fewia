@@ -282,7 +282,7 @@ describe("Conversation", () => {
   it("places children in the composer slot", () => {
     const { rendered } = mount({}, { children: createElement("textarea", { "aria-label": "Message" }) });
     const message = screen.getByRole("textbox", { name: "Message" });
-    const composer = message.closest(".conversation-composer");
+    const composer = rendered.container.querySelector(".conversation-composer");
     expect(composer?.contains(message)).toBe(true);
     expect(message.getAttribute("aria-label")).toBe("Message");
     rendered.unmount();

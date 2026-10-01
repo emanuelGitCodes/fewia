@@ -394,8 +394,8 @@ describe("Estimate", () => {
     expect(text).toContain("$4.78");
     expect(text).toContain("$12.99");
     expect(text).toContain(SPOONACULAR_COST_NOTICE);
-    expect(within(rendered.container).queryAllByText(/^Spoonacular avg\b/)).toHaveLength(1);
-    expect(within(rendered.container).queryAllByText(/^Average supermarket estimate\b/)).toHaveLength(1);
+    expect(rendered.container.querySelectorAll(".estimate-line-spoonacular")).toHaveLength(1);
+    expect(rendered.container.querySelectorAll(".estimate-overlay-total")).toHaveLength(1);
     rendered.unmount();
   });
 
@@ -432,8 +432,8 @@ describe("Estimate", () => {
     expect(text).toContain("$1.29");
     expect(text).toContain("$12.99");
     expect(text).toContain(SPOONACULAR_COST_NOTICE);
-    expect(within(rendered.container).queryAllByText(/^Spoonacular avg\b/)).toHaveLength(0);
-    expect(within(rendered.container).queryAllByText(/^Average supermarket estimate\b/)).toHaveLength(1);
+    expect(rendered.container.querySelectorAll(".estimate-line-spoonacular")).toHaveLength(0);
+    expect(rendered.container.querySelectorAll(".estimate-overlay-total")).toHaveLength(1);
     rendered.unmount();
   });
 
@@ -444,8 +444,8 @@ describe("Estimate", () => {
     expect(text).toContain(NOTICE);
     expect(text).not.toContain("Spoonacular avg");
     expect(text).not.toContain("Average supermarket estimate");
-    expect(within(rendered.container).queryAllByText(/^Spoonacular avg\b/)).toHaveLength(0);
-    expect(within(rendered.container).queryAllByText(/^Average supermarket estimate\b/)).toHaveLength(0);
+    expect(rendered.container.querySelectorAll(".estimate-line-spoonacular")).toHaveLength(0);
+    expect(rendered.container.querySelectorAll(".estimate-overlay-total")).toHaveLength(0);
     rendered.unmount();
   });
 });
