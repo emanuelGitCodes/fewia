@@ -1,8 +1,6 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestRenderer } from "react-test-renderer";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   HTTP_ERROR,
@@ -104,11 +102,6 @@ type JobMocks = {
   clear: ReturnType<typeof vi.fn<() => void>>;
 };
 
-function HookHost(props: { bucket: { current: GroceryDemo | null } }): null {
-  props.bucket.current = useGroceryDemo();
-  return null;
-}
-
 function hookOf(bucket: { current: GroceryDemo | null }): GroceryDemo {
   if (bucket.current === null) {
     throw new Error("hook is not mounted");
@@ -130,26 +123,16 @@ describe("useGroceryDemo", () => {
   }
 
   function mount(): {
-    bucket: { current: GroceryDemo | null };
-    renderer: ReactTestRenderer;
+    bucket: { current: GroceryDemo };
+    renderer: { unmount: () => void };
     refresh: () => void;
   } {
-    const bucket: { current: GroceryDemo | null } = { current: null };
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(createElement(HookHost, { bucket }));
-    });
-    if (renderer === undefined) {
-      throw new Error("renderer failed to mount");
-    }
-    const live = renderer;
+    const { result, unmount, rerender } = renderHook(() => useGroceryDemo());
     return {
-      bucket,
-      renderer: live,
+      bucket: result,
+      renderer: { unmount },
       refresh: (): void => {
-        act(() => {
-          live.update(createElement(HookHost, { bucket }));
-        });
+        rerender();
       },
     };
   }
@@ -161,11 +144,6 @@ describe("useGroceryDemo", () => {
   }
 
   beforeEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      writable: true,
-      value: globalThis,
-    });
     vi.useFakeTimers();
     jobState = {
       job: null,
@@ -182,6 +160,7 @@ describe("useGroceryDemo", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
