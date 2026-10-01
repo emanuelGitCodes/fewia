@@ -1,9 +1,9 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
 import { createElement, useState } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestInstance, ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryConfig } from "./apiTypes";
 import { BudgetForm, buildRequest, initialForm, type FormState } from "./BudgetForm";
 
@@ -22,29 +22,20 @@ const config: GroceryConfig = {
   ingredients: [{ id: "black_beans", name: "black beans" }],
 };
 
-function childText(node: ReactTestInstance): string {
-  return node.children
-    .map((child) => (typeof child === "string" ? child : childText(child)))
-    .join("");
+function renderedText(node: HTMLElement): string {
+  return node.textContent ?? "";
 }
 
-function buttonNamed(root: ReactTestInstance, name: string): ReactTestInstance {
-  const match = root.findAllByType("button").find((node) => childText(node) === name);
-  if (match === undefined) {
-    throw new Error(`missing button ${name}`);
-  }
-  return match;
+function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
 
-function recipeCount(renderer: ReactTestRenderer): number {
-  return renderer.root.findAll(
-    (node) => typeof node.props.id === "string" && node.props.id.startsWith("recipe-"),
-  ).length;
+function recipeCount(rendered: RenderResult): number {
+  return within(rendered.container).getAllByLabelText(/^Recipe \d+$/).length;
 }
 
-function click(root: ReactTestInstance, name: string): void {
-  const handler = buttonNamed(root, name).props.onClick as (() => void) | undefined;
-  handler?.();
+function click(root: HTMLElement, name: string): void {
+  fireEvent.click(buttonNamed(root, name));
 }
 
 function Host(props: { disabled: boolean }): JSX.Element {
@@ -57,16 +48,11 @@ function Host(props: { disabled: boolean }): JSX.Element {
   });
 }
 
-function mount(disabled = false): ReactTestRenderer {
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(createElement(Host, { disabled }));
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return renderer;
+function mount(disabled = false): RenderResult {
+  return render(createElement(Host, { disabled }));
 }
+
+afterEach(cleanup);
 
 describe("initialForm", () => {
   it("returns a fresh default request", () => {
@@ -174,10 +160,13 @@ describe("buildRequest", () => {
 
 describe("BudgetForm", () => {
   it("renders unique labels, diet names, and type=button controls", () => {
-    const renderer = mount();
-    const labels = renderer.root.findAllByType("label");
-    const fors = labels.map((node) => node.props.htmlFor);
-    const texts = labels.map(childText);
+    const rendered = mount();
+    const controls = screen.getAllByLabelText(/.+/);
+    const labels = controls.flatMap((control) =>
+      Array.from((control as HTMLInputElement | HTMLSelectElement).labels ?? []),
+    );
+    const fors = labels.map((node) => node.htmlFor);
+    const texts = labels.map(renderedText);
     expect(new Set(fors).size).toBe(fors.length);
     expect(texts).toEqual(
       expect.arrayContaining([
@@ -190,48 +179,40 @@ describe("BudgetForm", () => {
         "Exclude black beans",
       ]),
     );
-    const diet = renderer.root.findByProps({ id: "diet" });
-    expect(diet.findAllByType("option").map(childText)).toEqual([
+    const diet = screen.getByRole("combobox", { name: "Diet" });
+    expect(within(diet).getAllByRole("option").map(renderedText)).toEqual([
       "No preference",
       "Vegetarian",
       "Vegan",
     ]);
-    for (const button of renderer.root.findAllByType("button")) {
-      expect(button.props.type).toBe("button");
+    for (const button of within(rendered.container).queryAllByRole("button")) {
+      expect((button as HTMLButtonElement).type).toBe("button");
     }
-    expect(renderer.root.findAllByType("details").every((node) => node.props.open !== true)).toBe(
-      true,
+    const details = screen.getAllByText(/.+/, { selector: "summary" }).map(
+      (summary) => summary.closest("details") as HTMLDetailsElement,
     );
-    renderer.unmount();
+    expect(details.every((node) => !node.open)).toBe(true);
+    rendered.unmount();
   });
 
   it("bounds add and remove and disables the fieldset while pending", () => {
-    const renderer = mount();
-    expect(buttonNamed(renderer.root, "Remove meal 1").props.disabled).toBe(true);
-    expect(buttonNamed(renderer.root, "Add meal").props.disabled).toBe(false);
-    act(() => {
-      click(renderer.root, "Add meal");
-    });
-    act(() => {
-      click(renderer.root, "Add meal");
-    });
-    expect(recipeCount(renderer)).toBe(3);
-    expect(buttonNamed(renderer.root, "Add meal").props.disabled).toBe(true);
-    act(() => {
-      click(renderer.root, "Add meal");
-    });
-    expect(recipeCount(renderer)).toBe(3);
-    act(() => {
-      click(renderer.root, "Remove meal 3");
-    });
-    act(() => {
-      click(renderer.root, "Remove meal 2");
-    });
-    expect(recipeCount(renderer)).toBe(1);
-    expect(buttonNamed(renderer.root, "Remove meal 1").props.disabled).toBe(true);
-    renderer.unmount();
+    const rendered = mount();
+    expect(buttonNamed(rendered.container, "Remove meal 1").disabled).toBe(true);
+    expect(buttonNamed(rendered.container, "Add meal").disabled).toBe(false);
+    click(rendered.container, "Add meal");
+    click(rendered.container, "Add meal");
+    expect(recipeCount(rendered)).toBe(3);
+    expect(buttonNamed(rendered.container, "Add meal").disabled).toBe(true);
+    click(rendered.container, "Add meal");
+    expect(recipeCount(rendered)).toBe(3);
+    click(rendered.container, "Remove meal 3");
+    click(rendered.container, "Remove meal 2");
+    expect(recipeCount(rendered)).toBe(1);
+    expect(buttonNamed(rendered.container, "Remove meal 1").disabled).toBe(true);
+    rendered.unmount();
     const pending = mount(true);
-    expect(pending.root.findByType("fieldset").props.disabled).toBe(true);
+    const fieldset = within(pending.container).getByLabelText("Monthly limit").closest("fieldset");
+    expect((fieldset as HTMLFieldSetElement).disabled).toBe(true);
     pending.unmount();
   });
 });
