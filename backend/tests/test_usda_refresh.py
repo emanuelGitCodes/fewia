@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from pydantic import SecretStr
 
 from app.domain.nutrition import NutritionFacts
 from app.domain.nutrition_catalog import NUTRITION
@@ -195,7 +196,24 @@ def test_main_exits_2_when_key_file_is_whitespace(
 
 
 def test_load_api_key_returns_none_for_invalid_provider_setting(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    key_file = tmp_path / "usda.key"
+    key_file.write_text(f" {FAKE_API_KEY} \n", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(key_file))
     monkeypatch.setenv("FEWIA_BEDROCK_REGION", "eu-west-9")
     assert _load_api_key() is None
+
+
+def test_load_api_key_reads_secret_from_key_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    key_file = tmp_path / "usda.key"
+    key_file.write_text(f" {FAKE_API_KEY} \n", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(key_file))
+    monkeypatch.delenv("FEWIA_BEDROCK_REGION", raising=False)
+
+    api_key = _load_api_key()
+
+    assert isinstance(api_key, SecretStr)
+    assert api_key.get_secret_value() == FAKE_API_KEY
