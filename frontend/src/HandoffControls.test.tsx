@@ -31,7 +31,7 @@ function view(overrides: Partial<HandoffView> = {}): HandoffView {
 }
 
 function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
-  return within(root).getByRole("button", { name, exact: true }) as HTMLButtonElement;
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
 
 function mount(

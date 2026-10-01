@@ -27,7 +27,7 @@ function renderedText(node: HTMLElement): string {
 }
 
 function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
-  return within(root).getByRole("button", { name, exact: true }) as HTMLButtonElement;
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
 
 function recipeCount(rendered: RenderResult): number {

@@ -6,7 +6,7 @@ import type { RenderResult } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type CatalogItem, type GroceryJob } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
-import { Conversation } from "./Conversation";
+import { Conversation, type ExampleKind } from "./Conversation";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 
@@ -15,7 +15,7 @@ function renderedText(node: HTMLElement): string {
 }
 
 function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
-  return within(root).getByRole("button", { name, exact: true }) as HTMLButtonElement;
+  return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
 
 function job(status: GroceryJob["status"], accepted = true, total: number | null = 478): GroceryJob {
@@ -64,13 +64,13 @@ function mount(
   extras: { children?: JSX.Element } = {},
 ): {
   rendered: RenderResult;
-  onExample: ReturnType<typeof vi.fn>;
-  onRetry: ReturnType<typeof vi.fn>;
-  onNewRequest: ReturnType<typeof vi.fn>;
+  onExample: ReturnType<typeof vi.fn<(kind: ExampleKind) => void>>;
+  onRetry: ReturnType<typeof vi.fn<() => void>>;
+  onNewRequest: ReturnType<typeof vi.fn<() => void>>;
 } {
-  const onExample = vi.fn();
-  const onRetry = vi.fn();
-  const onNewRequest = vi.fn();
+  const onExample = vi.fn<(kind: ExampleKind) => void>();
+  const onRetry = vi.fn<() => void>();
+  const onNewRequest = vi.fn<() => void>();
   const rendered = render(
     createElement(
       Conversation,
