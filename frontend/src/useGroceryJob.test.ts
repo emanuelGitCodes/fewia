@@ -1,8 +1,6 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestRenderer } from "react-test-renderer";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroceryJobCreate } from "./apiTypes";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
@@ -13,8 +11,6 @@ const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const TIMEOUT_ERROR =
   "The grocery request is still processing. Retry checks the same request.";
 const BUDGET_MS = 6 * 60 * 1000;
-
-type HookValue = ReturnType<typeof useGroceryJob>;
 
 const body: GroceryJobCreate = {
   request: {
@@ -74,30 +70,6 @@ function jsonOk(payload: unknown): Response {
   } as Response;
 }
 
-function HookHost(props: { bucket: { current: HookValue | null } }): null {
-  props.bucket.current = useGroceryJob();
-  return null;
-}
-
-function mount(): { bucket: { current: HookValue | null }; renderer: ReactTestRenderer } {
-  const bucket: { current: HookValue | null } = { current: null };
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(createElement(HookHost, { bucket }));
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return { bucket, renderer };
-}
-
-function hookOf(bucket: { current: HookValue | null }): HookValue {
-  if (bucket.current === null) {
-    throw new Error("hook is not mounted");
-  }
-  return bucket.current;
-}
-
 function postKey(call: unknown[]): string | null {
   const init = call[1] as RequestInit | undefined;
   if (init === undefined || init.method !== "POST") {
@@ -109,15 +81,11 @@ function postKey(call: unknown[]): string | null {
 
 describe("useGroceryJob", () => {
   beforeEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      writable: true,
-      value: globalThis,
-    });
     vi.useFakeTimers();
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -136,16 +104,16 @@ describe("useGroceryJob", () => {
       return jsonOk(succeededJob);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useGroceryJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
     await act(async () => {
-      await hookOf(bucket).submit(otherBody);
+      await result.current.submit(otherBody);
     });
 
     const keys = fetchMock.mock.calls.map(postKey).filter((key) => key !== null);
@@ -155,7 +123,7 @@ describe("useGroceryJob", () => {
       "00000000-0000-4000-8000-000000000002",
     ]);
     expect(uuid).toHaveBeenCalledTimes(2);
-    renderer.unmount();
+    unmount();
   });
 
   it("clears the prior job and error at submit start", async () => {
@@ -166,21 +134,21 @@ describe("useGroceryJob", () => {
       .mockImplementationOnce(async () => jsonOk(succeededJob))
       .mockImplementation(() => hung);
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useGroceryJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
-    expect(hookOf(bucket).job?.id).toBe("job-1");
+    expect(result.current.job?.id).toBe("job-1");
 
     let second: Promise<void> | undefined;
     await act(async () => {
-      second = hookOf(bucket).submit(otherBody);
+      second = result.current.submit(otherBody);
     });
-    expect(hookOf(bucket).job).toBeNull();
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).pending).toBe(true);
-    renderer.unmount();
+    expect(result.current.job).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.pending).toBe(true);
+    unmount();
     await act(async () => {
       await second;
     });
@@ -204,20 +172,20 @@ describe("useGroceryJob", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useGroceryJob());
 
     let finished: Promise<void> | undefined;
     await act(async () => {
-      finished = hookOf(bucket).submit(body);
+      finished = result.current.submit(body);
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(BUDGET_MS);
       await finished;
     });
 
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBe(TIMEOUT_ERROR);
-    renderer.unmount();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBe(TIMEOUT_ERROR);
+    unmount();
   });
 
   it("ignores a late response from an aborted earlier attempt", async () => {
@@ -233,22 +201,22 @@ describe("useGroceryJob", () => {
         jsonOk({ ...succeededJob, id: "job-2" }),
       );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useGroceryJob());
 
     let firstSubmit: Promise<void> | undefined;
     await act(async () => {
-      firstSubmit = hookOf(bucket).submit(body);
+      firstSubmit = result.current.submit(body);
     });
     await act(async () => {
-      await hookOf(bucket).submit(otherBody);
+      await result.current.submit(otherBody);
     });
     await act(async () => {
       resolveFirst?.(jsonOk({ job_id: "job-old", status: "queued" }));
       await firstSubmit;
     });
 
-    expect(hookOf(bucket).job?.id).toBe("job-2");
-    renderer.unmount();
+    expect(result.current.job?.id).toBe("job-2");
+    unmount();
   });
 
   it("aborts the in-flight attempt on unmount and ignores a late response", async () => {
@@ -261,16 +229,16 @@ describe("useGroceryJob", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useGroceryJob());
 
     let submitResult: Promise<void> | undefined;
     await act(async () => {
-      submitResult = hookOf(bucket).submit(body);
+      submitResult = result.current.submit(body);
     });
-    expect(hookOf(bucket).pending).toBe(true);
+    expect(result.current.pending).toBe(true);
 
     act(() => {
-      renderer.unmount();
+      unmount();
     });
     expect(seenSignal?.aborted).toBe(true);
 

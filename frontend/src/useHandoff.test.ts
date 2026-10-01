@@ -1,8 +1,6 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestRenderer } from "react-test-renderer";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SHAPE_ERROR } from "./apiTypes";
 import { parseHandoffView } from "./handoffTypes";
@@ -16,8 +14,6 @@ const STAMP = "2026-09-06T15:00:00+00:00";
 const RAW = "do-not-echo-this";
 const HTTP_FALLBACK =
   "The shopping link request failed. Check the plan, then retry.";
-
-type HookValue = ReturnType<typeof useHandoff>;
 
 function view(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -56,32 +52,9 @@ function jsonResponse(payload: unknown, ok = true): Response {
   } as Response;
 }
 
-function HookHost(props: { bucket: { current: HookValue | null } }): null {
-  props.bucket.current = useHandoff();
-  return null;
-}
-
-function mount(): { bucket: { current: HookValue | null }; renderer: ReactTestRenderer } {
-  const bucket: { current: HookValue | null } = { current: null };
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(createElement(HookHost, { bucket }));
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return { bucket, renderer };
-}
-
-function hookOf(bucket: { current: HookValue | null }): HookValue {
-  if (bucket.current === null) {
-    throw new Error("hook is not mounted");
-  }
-  return bucket.current;
-}
-
 describe("useHandoff", () => {
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -91,10 +64,10 @@ describe("useHandoff", () => {
       jsonResponse(succeeded),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -103,10 +76,10 @@ describe("useHandoff", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify({ job_id: JOB_ID }));
     expect(init.signal).toBeInstanceOf(AbortSignal);
-    expect(hookOf(bucket).view).toEqual(parseHandoffView(succeeded));
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).pending).toBe(false);
-    renderer.unmount();
+    expect(result.current.view).toEqual(parseHandoffView(succeeded));
+    expect(result.current.error).toBeNull();
+    expect(result.current.pending).toBe(false);
+    unmount();
   });
 
   it("does not call retry after an uncertain create", async () => {
@@ -114,16 +87,16 @@ describe("useHandoff", () => {
       jsonResponse(recovery),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
 
-    expect(hookOf(bucket).view).toEqual(parseHandoffView(recovery));
+    expect(result.current.view).toEqual(parseHandoffView(recovery));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("/api/grocery/handoffs");
-    renderer.unmount();
+    unmount();
   });
 
   it("retries with expected_attempt from the stored view", async () => {
@@ -132,17 +105,17 @@ describe("useHandoff", () => {
       .mockImplementationOnce(async () => jsonResponse(recovery))
       .mockImplementationOnce(async () => jsonResponse(succeeded));
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
-    const stored = hookOf(bucket).view;
+    const stored = result.current.view;
     if (stored === null) {
       throw new Error("expected a stored view");
     }
     await act(async () => {
-      await hookOf(bucket).retry();
+      await result.current.retry();
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -150,8 +123,8 @@ describe("useHandoff", () => {
     expect(path).toBe(`/api/grocery/handoffs/${ID}/retry`);
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify({ expected_attempt: stored.attempts }));
-    expect(hookOf(bucket).view).toEqual(parseHandoffView(succeeded));
-    renderer.unmount();
+    expect(result.current.view).toEqual(parseHandoffView(succeeded));
+    unmount();
   });
 
   it("does not fetch when retry_allowed is false", async () => {
@@ -159,18 +132,18 @@ describe("useHandoff", () => {
       jsonResponse(succeeded),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
     await act(async () => {
-      await hookOf(bucket).retry();
+      await result.current.retry();
     });
 
-    expect(hookOf(bucket).view?.retry_allowed).toBe(false);
+    expect(result.current.view?.retry_allowed).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    renderer.unmount();
+    unmount();
   });
 
   it("does not fetch when view is null", async () => {
@@ -178,15 +151,15 @@ describe("useHandoff", () => {
       jsonResponse(succeeded),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).retry();
+      await result.current.retry();
     });
 
-    expect(hookOf(bucket).view).toBeNull();
+    expect(result.current.view).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
-    renderer.unmount();
+    unmount();
   });
 
   it("aborts on unmount and ignores a late response", async () => {
@@ -199,16 +172,16 @@ describe("useHandoff", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     let startResult: Promise<void> | undefined;
     await act(async () => {
-      startResult = hookOf(bucket).start(JOB_ID);
+      startResult = result.current.start(JOB_ID);
     });
-    expect(hookOf(bucket).pending).toBe(true);
+    expect(result.current.pending).toBe(true);
 
     act(() => {
-      renderer.unmount();
+      unmount();
     });
     expect(seenSignal?.aborted).toBe(true);
 
@@ -230,17 +203,17 @@ describe("useHandoff", () => {
       jsonResponse(unsafe),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
 
-    expect(hookOf(bucket).view).toBeNull();
-    expect(hookOf(bucket).error).toBe(SHAPE_ERROR);
-    expect(hookOf(bucket).error).not.toContain(UNSAFE_URL);
-    expect(hookOf(bucket).pending).toBe(false);
-    renderer.unmount();
+    expect(result.current.view).toBeNull();
+    expect(result.current.error).toBe(SHAPE_ERROR);
+    expect(result.current.error).not.toContain(UNSAFE_URL);
+    expect(result.current.pending).toBe(false);
+    unmount();
   });
 
   it("stores the static fallback for HTTP failure and hides the body", async () => {
@@ -248,17 +221,17 @@ describe("useHandoff", () => {
       jsonResponse({ detail: RAW }, false),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
 
-    expect(hookOf(bucket).view).toBeNull();
-    expect(hookOf(bucket).error).toBe(HTTP_FALLBACK);
-    expect(hookOf(bucket).error).not.toContain(RAW);
-    expect(hookOf(bucket).pending).toBe(false);
-    renderer.unmount();
+    expect(result.current.view).toBeNull();
+    expect(result.current.error).toBe(HTTP_FALLBACK);
+    expect(result.current.error).not.toContain(RAW);
+    expect(result.current.pending).toBe(false);
+    unmount();
   });
 
   it("clear drops view, error, and pending", async () => {
@@ -269,33 +242,33 @@ describe("useHandoff", () => {
       .mockImplementationOnce(async () => jsonResponse({ detail: RAW }, false))
       .mockImplementation(() => hung);
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useHandoff());
 
     await act(async () => {
-      await hookOf(bucket).start(JOB_ID);
+      await result.current.start(JOB_ID);
     });
     await act(async () => {
-      await hookOf(bucket).retry();
+      await result.current.retry();
     });
-    expect(hookOf(bucket).view).toEqual(parseHandoffView(recovery));
-    expect(hookOf(bucket).error).toBe(HTTP_FALLBACK);
+    expect(result.current.view).toEqual(parseHandoffView(recovery));
+    expect(result.current.error).toBe(HTTP_FALLBACK);
 
     let pendingRetry: Promise<void> | undefined;
     await act(async () => {
-      pendingRetry = hookOf(bucket).retry();
+      pendingRetry = result.current.retry();
     });
-    expect(hookOf(bucket).pending).toBe(true);
+    expect(result.current.pending).toBe(true);
 
     act(() => {
-      hookOf(bucket).clear();
+      result.current.clear();
     });
-    expect(hookOf(bucket).view).toBeNull();
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).pending).toBe(false);
+    expect(result.current.view).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.pending).toBe(false);
 
     await act(async () => {
       await pendingRetry;
     });
-    renderer.unmount();
+    unmount();
   });
 });

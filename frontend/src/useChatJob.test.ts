@@ -1,8 +1,6 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
-import type { ReactTestRenderer } from "react-test-renderer";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
@@ -19,8 +17,6 @@ const HTTP_FALLBACK =
   "The chat request failed. Check the message and budget, then retry.";
 const RAW = "do-not-echo-this";
 const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-type HookValue = ReturnType<typeof useChatJob>;
 
 const body: ChatJobCreate = {
   message: "Plan bean tacos for two.",
@@ -156,30 +152,6 @@ function jsonOk(payload: unknown): Response {
   } as Response;
 }
 
-function HookHost(props: { bucket: { current: HookValue | null } }): null {
-  props.bucket.current = useChatJob();
-  return null;
-}
-
-function mount(): { bucket: { current: HookValue | null }; renderer: ReactTestRenderer } {
-  const bucket: { current: HookValue | null } = { current: null };
-  let renderer: ReactTestRenderer | undefined;
-  act(() => {
-    renderer = create(createElement(HookHost, { bucket }));
-  });
-  if (renderer === undefined) {
-    throw new Error("renderer failed to mount");
-  }
-  return { bucket, renderer };
-}
-
-function hookOf(bucket: { current: HookValue | null }): HookValue {
-  if (bucket.current === null) {
-    throw new Error("hook is not mounted");
-  }
-  return bucket.current;
-}
-
 function postKey(call: unknown[]): string | null {
   const init = call[1] as RequestInit | undefined;
   if (init === undefined || init.method !== "POST") {
@@ -199,15 +171,11 @@ async function flushMicrotasks(): Promise<void> {
 
 describe("useChatJob", () => {
   beforeEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      writable: true,
-      value: globalThis,
-    });
     vi.useFakeTimers();
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -223,18 +191,18 @@ describe("useChatJob", () => {
       return jsonOk(succeededJob);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(payload);
+      await result.current.submit(payload);
     });
 
     expect(payload).toEqual(body);
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).job).toEqual(succeededJob);
-    expect(hookOf(bucket).job?.result?.plan?.notice).toBe(NOTICE);
-    renderer.unmount();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(result.current.job).toEqual(succeededJob);
+    expect(result.current.job?.result?.plan?.notice).toBe(NOTICE);
+    unmount();
   });
 
   it("keeps nullable clarification and limit results as completed jobs", async () => {
@@ -245,25 +213,25 @@ describe("useChatJob", () => {
       .mockImplementationOnce(async () => jsonOk({ job_id: "job-limit", status: "queued" }))
       .mockImplementationOnce(async () => jsonOk(limitJob));
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).job?.result?.status).toBe("clarification");
-    expect(hookOf(bucket).job?.result?.plan).toBeNull();
-    expect(hookOf(bucket).job?.result?.budget).toBeNull();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(result.current.job?.result?.status).toBe("clarification");
+    expect(result.current.job?.result?.plan).toBeNull();
+    expect(result.current.job?.result?.budget).toBeNull();
 
     await act(async () => {
-      await hookOf(bucket).submit(otherBody);
+      await result.current.submit(otherBody);
     });
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).job?.result?.status).toBe("limit");
-    expect(hookOf(bucket).job?.result?.request).toBeNull();
-    renderer.unmount();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(result.current.job?.result?.status).toBe("limit");
+    expect(result.current.job?.result?.request).toBeNull();
+    unmount();
   });
 
   it("polls queued and running jobs every 750ms until the job completes", async () => {
@@ -274,31 +242,31 @@ describe("useChatJob", () => {
       .mockImplementationOnce(async () => jsonOk(runningJob))
       .mockImplementationOnce(async () => jsonOk(succeededJob));
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     let finished: Promise<void> | undefined;
     await act(async () => {
-      finished = hookOf(bucket).submit(body);
+      finished = result.current.submit(body);
     });
     await flushMicrotasks();
-    expect(hookOf(bucket).pending).toBe(true);
-    expect(hookOf(bucket).job?.status).toBe("queued");
+    expect(result.current.pending).toBe(true);
+    expect(result.current.job?.status).toBe("queued");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(POLL_MS);
     });
     await flushMicrotasks();
-    expect(hookOf(bucket).job?.status).toBe("running");
-    expect(hookOf(bucket).pending).toBe(true);
+    expect(result.current.job?.status).toBe("running");
+    expect(result.current.pending).toBe(true);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(POLL_MS);
       await finished;
     });
-    expect(hookOf(bucket).job).toEqual(succeededJob);
-    expect(hookOf(bucket).pending).toBe(false);
+    expect(result.current.job).toEqual(succeededJob);
+    expect(result.current.pending).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    renderer.unmount();
+    unmount();
   });
 
   it("reuses the idempotency key for the same body and issues a new key for a new body", async () => {
@@ -314,16 +282,16 @@ describe("useChatJob", () => {
       return jsonOk(succeededJob);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
     await act(async () => {
-      await hookOf(bucket).submit(otherBody);
+      await result.current.submit(otherBody);
     });
 
     const keys = fetchMock.mock.calls.map(postKey).filter((key) => key !== null);
@@ -333,7 +301,7 @@ describe("useChatJob", () => {
       "00000000-0000-4000-8000-000000000002",
     ]);
     expect(uuid).toHaveBeenCalledTimes(2);
-    renderer.unmount();
+    unmount();
   });
 
   it("clears job state and starts a new idempotency key after clear", async () => {
@@ -349,27 +317,27 @@ describe("useChatJob", () => {
       return jsonOk(succeededJob);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
     act(() => {
-      hookOf(bucket).clear();
+      result.current.clear();
     });
-    expect(hookOf(bucket).job).toBeNull();
-    expect(hookOf(bucket).error).toBeNull();
-    expect(hookOf(bucket).pending).toBe(false);
+    expect(result.current.job).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.pending).toBe(false);
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
     const keys = fetchMock.mock.calls.map(postKey).filter((key) => key !== null);
     expect(keys).toEqual([
       "00000000-0000-4000-8000-000000000001",
       "00000000-0000-4000-8000-000000000003",
     ]);
-    renderer.unmount();
+    unmount();
   });
 
   it("shows a static failure for a known failed job and hides the error code", async () => {
@@ -381,16 +349,16 @@ describe("useChatJob", () => {
       return jsonOk(failedJob);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
-    expect(hookOf(bucket).job?.status).toBe("failed");
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBe(CHAT_FAILURE);
-    expect(hookOf(bucket).error).not.toContain(RAW);
-    renderer.unmount();
+    expect(result.current.job?.status).toBe("failed");
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBe(CHAT_FAILURE);
+    expect(result.current.error).not.toContain(RAW);
+    unmount();
   });
 
   it("ignores a late response from an aborted earlier attempt", async () => {
@@ -404,22 +372,22 @@ describe("useChatJob", () => {
       .mockImplementationOnce(async () => jsonOk({ job_id: "job-2", status: "queued" }))
       .mockImplementationOnce(async () => jsonOk({ ...succeededJob, id: "job-2" }));
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     let firstSubmit: Promise<void> | undefined;
     await act(async () => {
-      firstSubmit = hookOf(bucket).submit(body);
+      firstSubmit = result.current.submit(body);
     });
     await act(async () => {
-      await hookOf(bucket).submit(otherBody);
+      await result.current.submit(otherBody);
     });
     await act(async () => {
       resolveFirst?.(jsonOk({ job_id: "job-old", status: "queued" }));
       await firstSubmit;
     });
 
-    expect(hookOf(bucket).job?.id).toBe("job-2");
-    renderer.unmount();
+    expect(result.current.job?.id).toBe("job-2");
+    unmount();
   });
 
   it("aborts the in-flight attempt on unmount and ignores a late response", async () => {
@@ -432,16 +400,16 @@ describe("useChatJob", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     let submitResult: Promise<void> | undefined;
     await act(async () => {
-      submitResult = hookOf(bucket).submit(body);
+      submitResult = result.current.submit(body);
     });
-    expect(hookOf(bucket).pending).toBe(true);
+    expect(result.current.pending).toBe(true);
 
     act(() => {
-      renderer.unmount();
+      unmount();
     });
     expect(seenSignal?.aborted).toBe(true);
 
@@ -458,16 +426,16 @@ describe("useChatJob", () => {
         throw new Error(RAW);
       }),
     );
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     await act(async () => {
-      await hookOf(bucket).submit(body);
+      await result.current.submit(body);
     });
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).job).toBeNull();
-    expect(hookOf(bucket).error).toBe(HTTP_FALLBACK);
-    expect(hookOf(bucket).error).not.toContain(RAW);
-    renderer.unmount();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.job).toBeNull();
+    expect(result.current.error).toBe(HTTP_FALLBACK);
+    expect(result.current.error).not.toContain(RAW);
+    unmount();
   });
 
   it("times out a hung POST, sets the timeout error, and sets pending false", async () => {
@@ -488,20 +456,20 @@ describe("useChatJob", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { bucket, renderer } = mount();
+    const { result, unmount } = renderHook(() => useChatJob());
 
     let finished: Promise<void> | undefined;
     await act(async () => {
-      finished = hookOf(bucket).submit(body);
+      finished = result.current.submit(body);
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(BUDGET_MS);
       await finished;
     });
 
-    expect(hookOf(bucket).pending).toBe(false);
-    expect(hookOf(bucket).error).toBe(TIMEOUT_ERROR);
-    expect(hookOf(bucket).error).not.toMatch(/cancel/i);
-    renderer.unmount();
+    expect(result.current.pending).toBe(false);
+    expect(result.current.error).toBe(TIMEOUT_ERROR);
+    expect(result.current.error).not.toMatch(/cancel/i);
+    unmount();
   });
 });
