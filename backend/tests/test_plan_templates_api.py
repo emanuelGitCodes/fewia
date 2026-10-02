@@ -48,6 +48,13 @@ SUGGESTION_FIELDS = {
     "catalog_version",
     "notice",
 }
+TEMPLATES_VALIDATION_ERROR = {
+    "error": {
+        "code": "validation_error",
+        "message": "The request has invalid parameters.",
+        "detail": [],
+    }
+}
 
 
 @pytest.fixture(autouse=True)
@@ -90,6 +97,12 @@ def post_templates(
     client: TestClient, body: dict[str, object] | None = None
 ) -> Response:
     return client.post("/grocery/templates", json=body or template_body())
+
+
+def assert_hidden_templates_validation(response: Response, sentinel: str) -> None:
+    assert response.status_code == 422
+    assert response.json() == TEMPLATES_VALIDATION_ERROR
+    assert sentinel not in response.text
 
 
 def use_settings(
@@ -339,9 +352,49 @@ def test_invalid_ids_servings_and_extra_fields_are_rejected(
     body = response.json()
 
     assert response.status_code == 422
+    assert body == TEMPLATES_VALIDATION_ERROR
+    assert "not_in_catalog" not in response.text
+    assert "keto" not in response.text
+
+
+@pytest.mark.parametrize("path", ["/grocery/templates", "/grocery/templates/"])
+def test_templates_validation_hides_caller_sentinels(
+    client: TestClient, seed_user: UserSeeder, path: str
+) -> None:
+    seed_user()
+    unknown = "sentinel-unknown-ingredient"
+    diet = "sentinel-invalid-diet"
+    secret = "sentinel-secret-value"
+    malformed = "sentinel-malformed-json"
+    unknown_response = client.post(
+        path, json=template_body(pantry_ingredients=[unknown])
+    )
+    diet_response = client.post(path, json=template_body(diet=diet))
+    secret_response = client.post(path, json=template_body(**{"api_key": secret}))
+    malformed_response = client.post(
+        path,
+        content='{"budget_period": "' + malformed,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert_hidden_templates_validation(unknown_response, unknown)
+    assert_hidden_templates_validation(diet_response, diet)
+    assert_hidden_templates_validation(secret_response, secret)
+    assert_hidden_templates_validation(malformed_response, malformed)
+
+
+def test_unrelated_route_keeps_validation_detail(client: TestClient) -> None:
+    sentinel = "sentinel-unrelated-job-id"
+    response = client.get(f"/grocery/jobs/{sentinel}")
+    body = response.json()
+    detail = body["error"]["detail"]
+
+    assert response.status_code == 422
     assert body["error"]["code"] == "validation_error"
-    assert "not_in_catalog" not in body["error"]["message"]
-    assert "keto" not in body["error"]["message"]
+    assert body["error"]["message"] == "The request has invalid parameters."
+    assert isinstance(detail, list)
+    assert len(detail) == 1
+    assert detail[0]["input"] == sentinel
 
 
 def test_missing_demo_user_returns_static_service_error(client: TestClient) -> None:

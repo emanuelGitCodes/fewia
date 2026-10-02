@@ -16,6 +16,7 @@ from app.api.plan_templates import router as plan_templates_router
 from app.api.sync import router as sync_router
 
 app = FastAPI(title="FEWIA API")
+_GROCERY_TEMPLATES_PATHS = frozenset({"/grocery/templates", "/grocery/templates/"})
 
 
 def _http_error_code(status_code: int) -> str:
@@ -48,13 +49,18 @@ async def validation_error_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Return request validation errors with the API error envelope."""
+    detail = (
+        []
+        if request.url.path in _GROCERY_TEMPLATES_PATHS
+        else jsonable_encoder(exc.errors())
+    )
     return JSONResponse(
         status_code=422,
         content={
             "error": {
                 "code": "validation_error",
                 "message": "The request has invalid parameters.",
-                "detail": jsonable_encoder(exc.errors()),
+                "detail": detail,
             }
         },
     )
