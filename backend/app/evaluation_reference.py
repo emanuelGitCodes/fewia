@@ -38,7 +38,7 @@ def _frame(case_id: str) -> dict[str, object]:
         "usage": None,
         "snapshots": [],
         "evidence_revision_id": None,
-        "evidence_path": "deterministic_domain",
+        "evidence_paths": ["deterministic_domain"],
     }
 
 
@@ -105,7 +105,7 @@ def observe_reference_case(case: dict[str, object]) -> dict[str, object]:
                 "provider_calls": 0,
                 "usage": None,
                 "snapshots": [],
-                "evidence_path": "deterministic_domain",
+                "evidence_paths": ["deterministic_domain"],
             }
         ],
         final=final,

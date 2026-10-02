@@ -13,6 +13,7 @@ from app import evaluation_reference as reference
 from app.agent.chat_answer import render_public_answer
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import BudgetResult
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_inputs import INVALID_INPUT_ERROR, prepare_case
 from app.evaluation_shapes import as_map, valid_public_result
 
@@ -58,7 +59,7 @@ def test_cohort_final_plan(
     assert final["status"] == ("planned" if accepted else "needs_revision")
     assert valid_public_result(final)
     assert final["answer"] == render_public_answer(final)
-    assert "Instacart prices" in str(final["answer"])
+    assert SAMPLE_ESTIMATE_NOTICE in str(final["answer"])
     assert case == before
 
 
@@ -181,7 +182,8 @@ def test_deterministic_scope_and_empty_execution_evidence(case_id: str) -> None:
     assert observation["scope"] == "structured_input_final_plan"
     assert "No durable evidence store ran" in str(observation["scope_note"])
     assert "does not measure language understanding" in str(observation["scope_note"])
-    assert observation["evidence_path"] == "deterministic_domain"
+    assert observation["evidence_paths"] == ["deterministic_domain"]
+    assert "evidence_path" not in observation
     for key in ("calls", "tool_results", "snapshots"):
         assert observation[key] == []
     assert observation["provider_calls"] == 0
@@ -194,7 +196,8 @@ def test_deterministic_scope_and_empty_execution_evidence(case_id: str) -> None:
         assert turn[key] == []
     assert turn["provider_calls"] == 0
     assert turn["usage"] is None
-    assert turn["evidence_path"] == "deterministic_domain"
+    assert turn["evidence_paths"] == ["deterministic_domain"]
+    assert "evidence_path" not in turn
     final = as_map(observation["final"])
     assert final["evidence_revision_id"] is None
     assert final["model_turns"] == 0
@@ -258,6 +261,8 @@ def test_unsupported_ids_are_not_applicable(
     assert observation["turns"] == []
     assert observation["final"] is None
     assert observation["final_only"] is False
+    assert observation["evidence_paths"] == ["deterministic_domain"]
+    assert "evidence_path" not in observation
 
 
 @pytest.mark.parametrize(
@@ -307,6 +312,8 @@ def test_invalid_case_fails_closed(case: dict[str, object]) -> None:
     observation = reference.observe_reference_case(case)
     assert observation["status"] == "failed"
     assert observation["final"] is None
+    assert observation["evidence_paths"] == ["deterministic_domain"]
+    assert "evidence_path" not in observation
 
 
 def test_missing_final_servings_does_not_run_initial_request() -> None:
