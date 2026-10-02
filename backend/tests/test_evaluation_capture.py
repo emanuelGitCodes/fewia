@@ -50,7 +50,9 @@ def response(
 
 
 def tool(tool_id: object, payload: object) -> dict[str, object]:
-    return {"toolUse": {"toolUseId": tool_id, "name": "plan_groceries", "input": payload}}
+    return {
+        "toolUse": {"toolUseId": tool_id, "name": "plan_groceries", "input": payload}
+    }
 
 
 def captured_tools(capture: CaptureProvider, index: int = 0) -> list[dict[str, object]]:
@@ -77,7 +79,10 @@ def test_records_actual_arguments_without_mutating_inputs_or_response() -> None:
     assert tools == tools_before
     assert original == before
     assert captured_tools(capture) == [
-        {"tool": "plan_groceries", "input": '{"request":{"budget_cents":700,"count":2}}'}
+        {
+            "tool": "plan_groceries",
+            "input": '{"request":{"budget_cents":700,"count":2}}',
+        }
     ]
     arguments["request"] = "changed"
     assert json.loads(str(captured_tools(capture)[0]["input"])) == {
@@ -281,7 +286,9 @@ def test_bounded_capture_keeps_attempt_count_and_protocol_state() -> None:
 
 def test_synthetic_marker_is_flagged_and_redacted_in_capture_only() -> None:
     marker = "SYNTHETIC_SENTINEL_42"
-    original = response([{"text": marker}, tool("one", {marker: f"prefix {marker} suffix"})])
+    original = response(
+        [{"text": marker}, tool("one", {marker: f"prefix {marker} suffix"})]
+    )
     messages: list[dict[str, object]] = [
         {"content": [tool_result_block(marker, {"value": marker}, success=True)]}
     ]

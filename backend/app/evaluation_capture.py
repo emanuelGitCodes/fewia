@@ -5,9 +5,7 @@ from app.agent.chat_context import read_usage
 from app.agent.chat_messages import ChatProtocolError, parse_provider_response
 from app.agent.provider import LLMProvider
 
-_LIMIT = 65536
-_INVALID = "[invalid]"
-_REDACTED = "[redacted]"
+_LIMIT, _INVALID, _REDACTED = 65536, "[invalid]", "[redacted]"
 _ENCODER = JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
@@ -133,7 +131,9 @@ class CaptureProvider:
             for key, value in usage.items():
                 self.usage[key] += value
         try:
-            record["leakage"] = self._leaks(response, set()) or record["leakage"] is True
+            record["leakage"] = (
+                self._leaks(response, set()) or record["leakage"] is True
+            )
             self.leakage |= record["leakage"] is True
         except (RecursionError, TypeError, ValueError):
             record["capture_invalid"] = True
