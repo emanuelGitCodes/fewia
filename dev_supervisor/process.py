@@ -56,7 +56,7 @@ def _write_usage(state_dir: Path, events: Events, started: float) -> None:
     payload: dict[str, Any] = {
         name: None if totals is None else totals[name] for name in COUNTS
     }
-    payload["provenance"] = "none" if totals is None else "codex.turn.completed"
+    payload["provenance"] = "none" if totals is None else events.provenance
     payload["elapsed_ms"] = elapsed
     (state_dir / "usage.json").write_text(json.dumps(payload))
 
