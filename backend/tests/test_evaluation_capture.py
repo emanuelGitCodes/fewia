@@ -1,6 +1,5 @@
 import json
 from copy import deepcopy
-from typing import cast
 
 import pytest
 
@@ -55,10 +54,6 @@ def tool(tool_id: object, payload: object) -> dict[str, object]:
     }
 
 
-def captured_tools(capture: CaptureProvider, index: int = 0) -> list[dict[str, object]]:
-    return cast(list[dict[str, object]], capture.calls[index]["tool_calls"])
-
-
 def test_records_actual_arguments_without_mutating_inputs_or_response() -> None:
     arguments: dict[str, object] = {"request": {"count": 2, "budget_cents": 700}}
     original = response([tool("one", arguments)])
@@ -78,19 +73,17 @@ def test_records_actual_arguments_without_mutating_inputs_or_response() -> None:
     assert messages == messages_before
     assert tools == tools_before
     assert original == before
-    assert captured_tools(capture) == [
+    assert capture.calls == [
         {
             "tool": "plan_groceries",
-            "input": '{"request":{"budget_cents":700,"count":2}}',
+            "input": {"request": {"budget_cents": 700, "count": 2}},
         }
     ]
     arguments["request"] = "changed"
-    assert json.loads(str(captured_tools(capture)[0]["input"])) == {
-        "request": {"budget_cents": 700, "count": 2}
-    }
+    assert capture.calls[0]["input"] == {"request": {"budget_cents": 700, "count": 2}}
 
 
-def test_strips_nested_reasoning_and_does_not_store_assistant_text() -> None:
+def test_nested_reasoning_invalidates_arguments_without_storing_text() -> None:
     original = response(
         [
             {"text": "PRIVATE_INTERMEDIATE"},
@@ -103,8 +96,8 @@ def test_strips_nested_reasoning_and_does_not_store_assistant_text() -> None:
     )
     before = deepcopy(original)
     capture = CaptureProvider(ScriptedProvider([original]))
-    capture.converse("system", [], [])
-    assert captured_tools(capture)[0]["input"] == '{"nested":[{"amount":5}]}'
+    assert capture.converse("system", [], []) is original
+    assert capture.calls == [{"tool": "plan_groceries", "input": "[invalid]"}]
     assert "PRIVATE" not in json.dumps(capture.calls)
     assert original == before
 
@@ -128,7 +121,7 @@ def test_observes_only_latest_message_results_and_copies_payload() -> None:
         {
             "toolUseId": "latest",
             "status": "error",
-            "content": '[{"json":{"nested":{"a":1},"z":2}}]',
+            "content": [{"json": {"nested": {"a": 1}, "z": 2}}],
         }
     ]
     payload["nested"] = "changed"
@@ -142,7 +135,7 @@ def test_invalid_tool_ids_remain_application_visible(tool_id: object) -> None:
     returned = capture.converse("system", [], [])
     assert returned is original
     assert capture.invalid_responses == 1
-    assert captured_tools(capture) == []
+    assert capture.calls == []
     with pytest.raises(ChatProtocolError):
         parse_provider_response(returned, set())
 
@@ -155,13 +148,13 @@ def test_duplicate_ids_are_visible_without_repair_or_cross_instance_state() -> N
     returned = capture.converse("system", [], [])
     assert returned is original
     assert capture.invalid_responses == 1
-    assert captured_tools(capture, 1) == []
+    assert capture.calls == [{"tool": "plan_groceries", "input": {}}]
     with pytest.raises(ChatProtocolError):
         parse_provider_response(returned, seen)
     separate = CaptureProvider(ScriptedProvider([original]))
     separate.converse("system", [], [])
     assert separate.invalid_responses == 0
-    assert len(captured_tools(separate)) == 1
+    assert len(separate.calls) == 1
 
 
 def test_failed_parse_does_not_consume_valid_ids() -> None:
@@ -171,7 +164,7 @@ def test_failed_parse_does_not_consume_valid_ids() -> None:
     assert capture.converse("system", [], []) is invalid
     assert capture.converse("system", [], []) is valid
     assert capture.invalid_responses == 1
-    assert len(captured_tools(capture, 1)) == 1
+    assert capture.calls == [{"tool": "plan_groceries", "input": {}}]
 
 
 def test_exception_preserves_identity_attempt_count_and_omits_text(
@@ -185,7 +178,7 @@ def test_exception_preserves_identity_attempt_count_and_omits_text(
         capture.converse("system", [], [])
     assert caught.value is error
     assert capture.provider_calls == 1
-    assert capture.calls == [{"tool_calls": [], "failed": True, "leakage": False}]
+    assert capture.calls == []
     assert capture.usage is None
     assert capture.elapsed_seconds == 2.5
     assert "SYNTHETIC_EXCEPTION_TEXT" not in json.dumps(capture.calls)
@@ -249,7 +242,7 @@ def test_invalid_or_oversized_payload_uses_static_marker(value: object) -> None:
     ]
     capture = CaptureProvider(ScriptedProvider([original]))
     assert capture.converse("system", messages, []) is original
-    assert captured_tools(capture)[0]["input"] == "[invalid]"
+    assert capture.calls[0]["input"] == "[invalid]"
     assert capture.tool_results[0]["content"] == "[invalid]"
 
 
@@ -259,7 +252,7 @@ def test_cyclic_payload_cannot_hide_protocol_observation() -> None:
     original = response([tool("one", cycle)])
     capture = CaptureProvider(ScriptedProvider([original]))
     assert capture.converse("system", [], []) is original
-    assert captured_tools(capture)[0]["input"] == "[invalid]"
+    assert capture.calls[0]["input"] == "[invalid]"
 
 
 def test_bounded_capture_keeps_attempt_count_and_protocol_state() -> None:
@@ -277,8 +270,8 @@ def test_bounded_capture_keeps_attempt_count_and_protocol_state() -> None:
     with pytest.raises(RuntimeError):
         capture.converse("system", [], [])
     assert capture.provider_calls == 11
-    assert len(capture.calls) == 8
-    assert sum(len(captured_tools(capture, index)) for index in range(8)) == 24
+    assert len(capture.calls) == 24
+    assert capture.calls == [{"tool": "plan_groceries", "input": {}}] * 24
     assert len(capture.tool_results) == 24
     assert capture.invalid_responses == 1
     assert "PRIVATE_ERROR" not in json.dumps(capture.calls)
@@ -296,9 +289,8 @@ def test_synthetic_marker_is_flagged_and_redacted_in_capture_only() -> None:
     capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
     assert capture.converse("system", messages, []) is original
     assert capture.leakage is True
-    assert capture.calls[0]["leakage"] is True
     assert marker not in json.dumps([capture.calls, capture.tool_results])
-    assert "[redacted]" in str(captured_tools(capture)[0]["input"])
+    assert capture.calls[0]["input"] == {"[redacted]": "prefix [redacted] suffix"}
     assert original == before
     assert messages == messages_before
 
@@ -309,7 +301,7 @@ def test_markers_default_empty_and_incoming_marker_is_flagged() -> None:
     default = CaptureProvider(ScriptedProvider([original]))
     default.converse("system", [], [])
     assert default.leakage is False
-    assert marker in str(captured_tools(default)[0]["input"])
+    assert default.calls[0]["input"] == {"value": marker}
     capture = CaptureProvider(ScriptedProvider([response()]), markers=(marker,))
     capture.converse(
         "system",
@@ -317,7 +309,6 @@ def test_markers_default_empty_and_incoming_marker_is_flagged() -> None:
         [],
     )
     assert capture.leakage is True
-    assert capture.calls[0]["leakage"] is True
     assert marker not in json.dumps(capture.tool_results)
 
 
@@ -334,7 +325,7 @@ def test_capture_failure_cannot_replace_provider_protocol_failure(
     returned = capture.converse("system", [], [])
     assert returned is original
     assert capture.invalid_responses == 1
-    assert capture.calls[0]["capture_invalid"] is True
+    assert capture.calls == []
     assert "PRIVATE_CAPTURE_ERROR" not in json.dumps(capture.calls)
     with pytest.raises(ChatProtocolError, match="provider output is invalid"):
         parse_provider_response(returned, set())
@@ -345,10 +336,11 @@ def test_valid_payload_near_limit_is_preserved() -> None:
     original = response([tool("one", {"value": value})])
     capture = CaptureProvider(ScriptedProvider([original]))
     assert capture.converse("system", [], []) is original
-    encoded = captured_tools(capture)[0]["input"]
-    assert isinstance(encoded, str)
+    decoded = capture.calls[0]["input"]
+    assert isinstance(decoded, dict)
+    encoded = json.dumps(decoded, sort_keys=True, separators=(",", ":"))
     assert len(encoded) == 65536
-    assert json.loads(encoded) == {"value": value}
+    assert decoded == {"value": value}
 
 
 def test_redaction_cannot_reintroduce_declared_marker() -> None:
@@ -357,4 +349,65 @@ def test_redaction_cannot_reintroduce_declared_marker() -> None:
     capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
     capture.converse("system", [], [])
     assert capture.leakage is True
-    assert marker not in str(captured_tools(capture)[0]["input"])
+    assert marker not in str(capture.calls[0]["input"])
+
+
+def test_calls_are_flat_and_retain_actual_arguments_across_turns() -> None:
+    outcomes: list[dict[str, object] | BaseException] = [
+        response([tool(str(index), {"index": index})]) for index in range(9)
+    ]
+    capture = CaptureProvider(ScriptedProvider(outcomes))
+    for _ in range(9):
+        capture.converse("system", [], [])
+    assert capture.provider_calls == 9
+    assert capture.calls == [
+        {"tool": "plan_groceries", "input": {"index": index}} for index in range(9)
+    ]
+
+
+@pytest.mark.parametrize("content", [{"amount": 2}, [{"json": {"amount": 2}}]])
+def test_result_payloads_are_bounded_decoded_copies(content: object) -> None:
+    messages: list[dict[str, object]] = [
+        {
+            "content": [
+                {
+                    "toolResult": {
+                        "status": "success",
+                        "toolUseId": "one",
+                        "content": content,
+                    }
+                }
+            ]
+        }
+    ]
+    before = deepcopy(messages)
+    capture = CaptureProvider(ScriptedProvider([response()]))
+    capture.converse("system", messages, [])
+    captured = capture.tool_results[0]["content"]
+    assert captured == content
+    assert captured is not content
+    assert isinstance(captured, (dict, list))
+    assert len(json.dumps(captured, sort_keys=True, separators=(",", ":"))) <= 65536
+    assert messages == before
+
+
+@pytest.mark.parametrize("content", [None, "raw text", 1, True])
+def test_scalar_result_payloads_use_invalid_marker(content: object) -> None:
+    messages: list[dict[str, object]] = [
+        {
+            "content": [
+                {
+                    "toolResult": {
+                        "status": "error",
+                        "toolUseId": "one",
+                        "content": content,
+                    }
+                }
+            ]
+        }
+    ]
+    capture = CaptureProvider(ScriptedProvider([response()]))
+    capture.converse("system", messages, [])
+    assert capture.tool_results == [
+        {"status": "error", "toolUseId": "one", "content": "[invalid]"}
+    ]

@@ -1,8 +1,8 @@
-from json import JSONEncoder
+from json import JSONEncoder, loads
 from time import perf_counter
 
 from app.agent.chat_context import read_usage
-from app.agent.chat_messages import ChatProtocolError, parse_provider_response
+from app.agent.chat_messages import parse_provider_response
 from app.agent.provider import LLMProvider
 
 _LIMIT, _INVALID, _REDACTED = 65536, "[invalid]", "[redacted]"
@@ -42,7 +42,7 @@ class CaptureProvider:
             value = value.replace(marker, _REDACTED)
         return "" if any(marker in value for marker in self.markers) else value
 
-    def _clean(self, value: object, budget: list[int]) -> object:
+    def _clean(self, value: object, budget: list[int], reject: bool) -> object:
         budget[0] -= 1 + (len(value) if type(value) is str else 0)
         if budget[0] < 0:
             raise ValueError(_INVALID)
@@ -54,26 +54,30 @@ class CaptureProvider:
                 if type(key) is not str:
                     raise ValueError(_INVALID)
                 if key == "reasoningContent":
+                    if reject:
+                        raise ValueError(_INVALID)
                     continue
-                clean_key = self._clean(key, budget)
+                clean_key = self._clean(key, budget, reject)
                 if not isinstance(clean_key, str) or clean_key in result:
                     raise ValueError(_INVALID)
-                result[clean_key] = self._clean(item, budget)
+                result[clean_key] = self._clean(item, budget, reject)
             return result
         if isinstance(value, list):
-            return [self._clean(item, budget) for item in value]
+            return [self._clean(item, budget, reject) for item in value]
         if type(value) not in {bool, float, int, type(None)}:
             raise ValueError(_INVALID)
         return value
 
-    def _payload(self, value: object) -> str:
+    def _payload(self, value: object, *, reject_reasoning: bool = False) -> object:
         try:
             encoded = ""
-            for chunk in _ENCODER.iterencode(self._clean(value, [_LIMIT])):
+            clean = self._clean(value, [_LIMIT], reject_reasoning)
+            for chunk in _ENCODER.iterencode(clean):
                 if len(encoded) + len(chunk) > _LIMIT:
                     return _INVALID
                 encoded += chunk
-            return encoded
+            decoded: object = loads(encoded)
+            return decoded if isinstance(decoded, (dict, list)) else _INVALID
         except (RecursionError, TypeError, ValueError):
             return _INVALID
 
@@ -87,7 +91,9 @@ class CaptureProvider:
             if not isinstance(block, dict) or "toolResult" not in block:
                 continue
             result = block["toolResult"]
-            captured: dict[str, object] = {"content": _INVALID}
+            captured: dict[str, object] = {
+                key: _INVALID for key in ("content", "status", "toolUseId")
+            }
             if isinstance(result, dict):
                 captured["content"] = self._payload(result.get("content"))
                 for key in ("status", "toolUseId"):
@@ -106,15 +112,11 @@ class CaptureProvider:
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
         self.provider_calls += 1
-        record: dict[str, object] = {"tool_calls": [], "failed": True, "leakage": False}
-        if len(self.calls) < 8:
-            self.calls.append(record)
         try:
             self._observe_results(messages)
-            record["leakage"] = self._leaks(messages[-1] if messages else None, set())
-            self.leakage |= record["leakage"] is True
+            self.leakage |= self._leaks(messages[-1] if messages else None, set())
         except (RecursionError, TypeError, ValueError):
-            record["capture_invalid"] = True
+            pass
         started = perf_counter()
         try:
             response = self.provider.converse(system_prompt, messages, tools)
@@ -123,7 +125,6 @@ class CaptureProvider:
             raise
         finally:
             self.elapsed_seconds += perf_counter() - started
-        record["failed"] = False
         usage = read_usage(response)
         if usage is None:
             self.usage = None
@@ -131,20 +132,18 @@ class CaptureProvider:
             for key, value in usage.items():
                 self.usage[key] += value
         try:
-            record["leakage"] = (
-                self._leaks(response, set()) or record["leakage"] is True
-            )
-            self.leakage |= record["leakage"] is True
+            self.leakage |= self._leaks(response, set())
         except (RecursionError, TypeError, ValueError):
-            record["capture_invalid"] = True
+            pass
         try:
             _, _, calls, _ = parse_provider_response(response, self._seen_ids)
-            record["tool_calls"] = [
-                {"tool": self._text(call.name), "input": self._payload(call.tool_input)}
-                for call in calls
-            ]
-        except ChatProtocolError:
-            self.invalid_responses += 1
+            for call in calls[: 24 - len(self.calls)]:
+                self.calls.append(
+                    {
+                        "tool": self._text(call.name),
+                        "input": self._payload(call.tool_input, reject_reasoning=True),
+                    }
+                )
         except (RecursionError, TypeError, ValueError):
-            record["capture_invalid"] = True
+            self.invalid_responses += 1
         return response
