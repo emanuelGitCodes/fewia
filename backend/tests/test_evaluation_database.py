@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
 import pytest
+from conftest import require_test_database_url
 from sqlalchemy import Engine, create_engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -18,7 +19,6 @@ from sqlalchemy.pool import StaticPool
 
 from app import evaluation_database, models
 from app.db import Base
-from app.db import engine as application_engine
 from app.evaluation_database import (
     EvaluationDatabaseError,
     FixtureDatabase,
@@ -99,6 +99,13 @@ def test_sqlite_enforces_foreign_keys() -> None:
             session.rollback()
 
 
+def test_fixture_sessions_accept_typed_options() -> None:
+    with fixture_database() as database:
+        with database.factory(autoflush=False, expire_on_commit=True) as session:
+            assert session.autoflush is False
+            assert session.expire_on_commit is True
+
+
 @pytest.mark.parametrize("abort", [False, True])
 def test_sqlite_closes_live_sessions_and_disposes_connections(abort: bool) -> None:
     outcome = (
@@ -166,7 +173,11 @@ def test_bad_urls_are_rejected_before_engine_creation(
 def test_allowed_urls_reach_connection_setup(
     monkeypatch: pytest.MonkeyPatch, host: str, name: str
 ) -> None:
-    create = Mock(side_effect=RuntimeError("private-driver-detail"))
+    create = Mock(
+        side_effect=OperationalError(
+            "private-driver-detail", {}, RuntimeError("private-driver-detail")
+        )
+    )
     monkeypatch.setattr(evaluation_database, "create_engine", create)
     with pytest.raises(EvaluationDatabaseError) as caught:
         with fixture_database(f"postgresql+psycopg://{host}/{name}"):
@@ -175,8 +186,18 @@ def test_allowed_urls_reach_connection_setup(
     _assert_safe(caught.value)
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        OperationalError(
+            "private-driver-detail", {}, RuntimeError("private-driver-detail")
+        ),
+        ValueError("private-driver-detail"),
+        ImportError("private-driver-detail"),
+    ],
+)
 def test_setup_failure_disposes_the_sqlite_engine(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
     engine = create_engine("sqlite://", poolclass=StaticPool)
     dispose = Mock(wraps=engine.dispose)
@@ -185,12 +206,28 @@ def test_setup_failure_disposes_the_sqlite_engine(
     monkeypatch.setattr(
         Base.metadata,
         "create_all",
-        Mock(side_effect=RuntimeError("private-driver-detail")),
+        Mock(side_effect=failure),
     )
     with pytest.raises(EvaluationDatabaseError) as caught:
         with fixture_database():
             pytest.fail("Failed setup entered the fixture context.")
     _assert_safe(caught.value)
+    dispose.assert_called_once_with()
+
+
+def test_unexpected_setup_failure_is_preserved_after_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine("sqlite://", poolclass=StaticPool)
+    dispose = Mock(wraps=engine.dispose)
+    failure = TypeError("setup programming error")
+    monkeypatch.setattr(engine, "dispose", dispose)
+    monkeypatch.setattr(evaluation_database, "create_engine", Mock(return_value=engine))
+    monkeypatch.setattr(Base.metadata, "create_all", Mock(side_effect=failure))
+    with pytest.raises(TypeError) as caught:
+        with fixture_database():
+            pytest.fail("Failed setup entered the fixture context.")
+    assert caught.value is failure
     dispose.assert_called_once_with()
 
 
@@ -266,7 +303,9 @@ def test_postgres_setup_failures_clean_up_only_the_created_schema(
     transaction = MagicMock()
     connection = transaction.__enter__.return_value
     admin.begin.return_value = transaction
-    failure = RuntimeError("private-driver-detail")
+    failure = OperationalError(
+        "private-driver-detail", {}, RuntimeError("private-driver-detail")
+    )
     if fail_create_schema:
         connection.execute.side_effect = failure
     create = Mock(side_effect=[admin, failure])
@@ -286,14 +325,7 @@ def test_postgres_setup_failures_clean_up_only_the_created_schema(
 
 @pytest.fixture
 def local_postgres() -> Iterator[Engine]:
-    url = application_engine.url
-    if (
-        url.drivername != "postgresql+psycopg"
-        or url.host not in {"localhost", "127.0.0.1", "postgres"}
-        or not (url.database or "").startswith(("eval", "fewia_eval"))
-        or url.query
-    ):
-        pytest.skip("The configured test database is not a local evaluation database.")
+    url = evaluation_database._validated_url(require_test_database_url())
     engine = create_engine(url, connect_args={"connect_timeout": 3})
     try:
         yield engine

@@ -5,10 +5,10 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any
+from typing import cast
 from uuid import uuid4
 
-from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy import Engine, Table, create_engine, event, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -17,19 +17,19 @@ from sqlalchemy.pool import StaticPool
 from app import evidence_models, handoff_models, job_models, models, plaid_models
 from app.db import Base
 
-_TABLES = [
-    models.User.__table__,
-    models.DailyFinance.__table__,
-    models.DailyEnvironment.__table__,
-    models.DailyHealth.__table__,
-    models.ModelRun.__table__,
-    models.Prediction.__table__,
-    job_models.Job.__table__,
-    job_models.JobOutbox.__table__,
-    evidence_models.GroceryEvidence.__table__,
-    handoff_models.ShoppingHandoff.__table__,
-    plaid_models.PlaidItem.__table__,
-    plaid_models.PlaidTransaction.__table__,
+_TABLES: list[Table] = [
+    cast(Table, models.User.__table__),
+    cast(Table, models.DailyFinance.__table__),
+    cast(Table, models.DailyEnvironment.__table__),
+    cast(Table, models.DailyHealth.__table__),
+    cast(Table, models.ModelRun.__table__),
+    cast(Table, models.Prediction.__table__),
+    cast(Table, job_models.Job.__table__),
+    cast(Table, job_models.JobOutbox.__table__),
+    cast(Table, evidence_models.GroceryEvidence.__table__),
+    cast(Table, handoff_models.ShoppingHandoff.__table__),
+    cast(Table, plaid_models.PlaidItem.__table__),
+    cast(Table, plaid_models.PlaidTransaction.__table__),
 ]
 
 
@@ -52,7 +52,7 @@ def _validated_url(database_url: str) -> URL:
         or not (url.database or "").startswith(("eval", "fewia_eval"))
         or url.query
     ):
-        raise EvaluationDatabaseError()
+        raise EvaluationDatabaseError() from None
     return url
 
 
@@ -98,8 +98,12 @@ def fixture_database(database_url: str | None = None) -> Iterator[FixtureDatabas
     sessions: set[Session] = set()
 
     class FixtureSession(Session):
-        def __init__(self, **kwargs: Any) -> None:
-            super().__init__(**kwargs)
+        def __init__(
+            self, bind: Engine, *, autoflush: bool = True, expire_on_commit: bool = True
+        ) -> None:
+            super().__init__(
+                bind=bind, autoflush=autoflush, expire_on_commit=expire_on_commit
+            )
             sessions.add(self)
 
     try:
@@ -132,7 +136,7 @@ def fixture_database(database_url: str | None = None) -> Iterator[FixtureDatabas
             factory: sessionmaker[Session] = sessionmaker(
                 bind=engine, class_=FixtureSession, expire_on_commit=False
             )
-        except Exception:
+        except (SQLAlchemyError, ValueError, ImportError):
             raise EvaluationDatabaseError() from None
         try:
             yield FixtureDatabase(factory=factory, backend=engine.dialect.name)
