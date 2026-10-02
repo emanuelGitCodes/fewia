@@ -1,6 +1,7 @@
 import { useEffect, type JSX } from "react";
 import { SAMPLE_ESTIMATE_NOTICE, sourceLabel } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
+import { TemplatePicker } from "./TemplatePicker";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
 import { Conversation } from "./Conversation";
 import { Estimate } from "./Estimate";
@@ -101,6 +102,12 @@ export default function App(): JSX.Element {
                 <BudgetForm
                   config={demo.config}
                   value={demo.form}
+                  onChange={demo.setForm}
+                  disabled={blocked || busy}
+                />
+                <TemplatePicker
+                  config={demo.config}
+                  form={demo.form}
                   onChange={demo.setForm}
                   disabled={blocked || busy}
                 />
