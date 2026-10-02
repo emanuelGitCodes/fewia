@@ -6,8 +6,7 @@ _CHANGE = "Change the recipe or the restriction."
 _MISSING_PRICE = "A purchase price is missing, so this estimate is incomplete."
 _OVER_BUDGET = "The estimate exceeds the available budget."
 _QUESTION = (
-    "Which meal should I plan, and what servings, restrictions, "
-    "and pantry items apply?"
+    "Which meal should I plan, and what servings, restrictions, and pantry items apply?"
 )
 
 

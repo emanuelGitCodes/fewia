@@ -9,9 +9,7 @@ from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 PERIOD = date(2026, 9, 1)
 
 
-def _budget(
-    available_cents: int = 10_000, *, stale: bool = False
-) -> BudgetResult:
+def _budget(available_cents: int = 10_000, *, stale: bool = False) -> BudgetResult:
     warnings = (STALE_SPENDING_WARNING,) if stale else ()
     return BudgetResult(available_cents, 250, stale, warnings)
 

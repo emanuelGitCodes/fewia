@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.agent.chat_answer import render_public_answer
 from app.agent.chat_loop import ChatUnavailable
 from app.agent.planning_tool import TOOL_NAME, execute_plan
 from app.domain.budget import (
@@ -167,7 +168,8 @@ def test_chat_job_plan_then_final_and_followup(
     )
 
     assert result["status"] == "planned"
-    assert result["answer"] == "Here is a labeled estimate."
+    assert result["answer"] == render_public_answer(expected)
+    assert "Here is a labeled estimate." not in result["answer"]
     assert result["plan"] == expected["plan"]
     assert result["request"] == expected["request"]
     assert result["evidence_id"] == expected["evidence_id"]
