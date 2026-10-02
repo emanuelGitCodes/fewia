@@ -1,7 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
-
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES
-from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.evaluation_plan_schema import parse_plan_observation
 
 _CHECKS = (
     "ingredient_coverage",
@@ -19,49 +18,10 @@ _CHECKS = (
 )
 
 
-class _Line(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    ingredient_id: str
-    name: str
-    unit: str
-    quantity: int = Field(gt=0)
-    packages: int = Field(ge=0)
-    cost_cents: int | None = Field(ge=0)
-    from_pantry: bool
-
-
-class _Plan(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    lines: list[_Line]
-    total_cents: int | None = Field(ge=0)
-    accepted: bool
-    catalog_version: str
-    notice: str
-
-
-class _Budget(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    available_cents: int = Field(ge=0)
-    pending_cents: int
-    stale: bool
-
-
-class _Observation(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    request: GroceryRequest
-    plan: _Plan
-    budget: _Budget
-
-
 def plan_integrity(result: dict[str, object]) -> dict[str, bool]:
     checks = dict.fromkeys(_CHECKS, False)
-    try:
-        observation = _Observation.model_validate(result)
-    except ValidationError:
+    observation = parse_plan_observation(result)
+    if observation is None:
         return checks
     request, plan, budget = (
         observation.request,

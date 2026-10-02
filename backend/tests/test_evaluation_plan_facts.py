@@ -1,11 +1,12 @@
 from copy import deepcopy
 from dataclasses import replace
+from datetime import date
 from typing import cast
 
 import pytest
 
 from app.domain.catalog import INGREDIENTS
-from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 from app.evaluation_plan_facts import plan_integrity
 
 
@@ -324,6 +325,45 @@ def test_missing_required_fields_fail_schema(
 ) -> None:
     _object(observed, section).pop(field)
     assert not plan_integrity(observed)["schema"]
+
+
+@pytest.mark.parametrize("field", list(GroceryRequest.model_fields))
+def test_missing_raw_request_fields_fail_schema(
+    observed: dict[str, object], field: str
+) -> None:
+    _object(observed, "request").pop(field)
+    checks = plan_integrity(observed)
+    assert not checks["schema"]
+    assert not any(checks.values())
+
+
+@pytest.mark.parametrize(
+    "period",
+    [
+        1788220800,
+        1788220800.0,
+        "2026-09-01T00:00:00",
+        "2026-09-01T00:00:00Z",
+        True,
+        False,
+        date(2026, 9, 1),
+        "20260901",
+        "2026-9-1",
+        "2026-9-01",
+        "2026-09-1",
+        " 2026-09-01",
+        "2026-09-01 ",
+        "2026/09/01",
+        "2026-09-01\n",
+    ],
+)
+def test_noncanonical_raw_budget_period_fails_schema(
+    observed: dict[str, object], period: object
+) -> None:
+    _object(observed, "request")["budget_period"] = period
+    checks = plan_integrity(observed)
+    assert not checks["schema"]
+    assert not any(checks.values())
 
 
 @pytest.mark.parametrize("section", ["request", "plan", "budget"])
