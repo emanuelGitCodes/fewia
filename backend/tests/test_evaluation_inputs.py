@@ -77,7 +77,11 @@ def test_valid_corpus_prepares(case: dict[str, object]) -> None:
 
 @pytest.mark.parametrize(
     "case_id,error_text",
-    [("B04", INVALID_INPUT_ERROR), ("B05", STALE_INPUT_ERROR), ("P01", STALE_INPUT_ERROR)],
+    [
+        ("B04", INVALID_INPUT_ERROR),
+        ("B05", STALE_INPUT_ERROR),
+        ("P01", STALE_INPUT_ERROR),
+    ],
 )
 def test_incomplete_or_stale_corpus_fails_closed(case_id: str, error_text: str) -> None:
     case = next(case for case in _corpus_cases() if case["id"] == case_id)
@@ -274,7 +278,7 @@ def test_preparation_preserves_source_and_copies_nested_inputs() -> None:
     _inputs(case)["user_id"] = 99
     assert context == saved
     with pytest.raises(FrozenInstanceError):
-        setattr(context, "user_id", 99)
+        context.user_id = 99
 
 
 @pytest.mark.parametrize(
@@ -290,7 +294,9 @@ def test_preparation_preserves_source_and_copies_nested_inputs() -> None:
         ("max_planner_revisions", -1),
     ],
 )
-def test_declared_optional_fields_reject_invalid_shapes(key: str, value: object) -> None:
+def test_declared_optional_fields_reject_invalid_shapes(
+    key: str, value: object
+) -> None:
     case = _case()
     _inputs(case)[key] = value
     with pytest.raises(EvaluationInputError, match=f"^{INVALID_INPUT_ERROR}$"):

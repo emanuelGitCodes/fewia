@@ -90,7 +90,10 @@ def prepare_case(case: dict[str, object]) -> CaseContext:
         raise EvaluationInputError(INVALID_INPUT_ERROR)
     case_id = _text(case.get("id"))
     raw_messages = case.get("messages")
-    if type(raw_messages) is not list or not 1 <= len(raw_messages) <= MAX_CASE_MESSAGES:
+    if (
+        type(raw_messages) is not list
+        or not 1 <= len(raw_messages) <= MAX_CASE_MESSAGES
+    ):
         raise EvaluationInputError(INVALID_INPUT_ERROR)
     messages: list[str] = []
     for item in raw_messages:
