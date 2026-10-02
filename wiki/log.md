@@ -2575,3 +2575,50 @@ is unavailable" until a forced reload.
 
 Writers cannot delete files. In item 03, the coordinator deleted the
 health-era files with `git rm` before the writer run.
+
+## 2026-10-02 — Easy backlog: styles, defaults, usage, live providers
+
+The `easy-backlog` loop shipped five pull requests. Each merged into `main`
+after green CI and an `APPROVE` review on the head SHA.
+
+| Item | Pull request | Merge commit | Change |
+|---|---|---|---|
+| 01 | #227 | `69968a9` | `estimate.css` styles every class in `Nutrition.tsx`. |
+| 02 | #228 | `0f010a0` | `initialForm()` starts at a $100 monthly limit. The $40 cap stays. |
+| 04 | #229 | `ae6bfc4` | `first_error()` reads `error.message` from a `turn.failed` event. |
+| 07 | #230 | `04c7f13` | The usage ledger records Grok writer tokens from the `end` event of `streaming-json` output. |
+| 10 | #231 | `a62c58b` | The Spoonacular parser accepts the live cost unit `cents`. |
+
+Item 03 changed local configuration only. The USDA key moved from `.env` to
+`~/.config/fewia/usda.key` with mode 600. `.env` no longer sets
+`FEWIA_SPOONACULAR_KEY` or `FEWIA_USDA_FDC_KEY`.
+
+Item 05 was dropped. Commit `85f4388` fixed the flaky
+`test_active_tool_cannot_be_declared_stalled` on 2026-09-30. All 26 Tooling
+runs since then passed. The test passed 25 of 25 runs under CPU load.
+
+Item 06 is a repository setting. The user enables secret scanning and push
+protection.
+
+Live checks on the Compose stack at `a62c58b`:
+
+- **Spoonacular.** Before #231, every overlay line was null. The live API
+  returns `{"value": 26.41, "unit": "cents"}`, and the parser accepted only
+  `US Cents`. After #231, bean tacos for two show a 168-cent Spoonacular
+  average over seven lines. The sample estimate stays 1,703 cents. No job
+  row stores the overlay.
+- **USDA.** `python -m app.usda_refresh` fetched all 22 FDC records.
+  Twenty match the stored facts. `oat_milk` differs: protein 800 mg stored
+  and 797 mg live, fat 2,750 mg stored and 2,749 mg live.
+- **Bedrock.** Four chat requests for meals outside the catalog got a
+  clarification with catalog meals. Nova 2 Lite did not call the tool, so
+  the `unsupported_recipe` tool error stays unobserved live. One reply used
+  `**` bold text. One reply listed catalog IDs in parentheses.
+- **Browser.** The form shows $100 and $40. The nutrition section and the
+  Spoonacular lines render.
+- **Web proxy.** After `api` was recreated, the web container returned 502
+  until it restarted. nginx resolves `api` once at start.
+
+Loop cost: Codex writers used 732k input tokens over 4 runs. Two Grok
+writer runs ran before #230 and have no token counts. Review runs: 6, with
+430k input tokens. No subagents ran.
