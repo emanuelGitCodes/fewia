@@ -43,6 +43,9 @@ def _arguments(call: object) -> dict[str, object] | None:
         normalized = GroceryRequest.model_validate(arguments).model_dump(mode="json")
     except ValidationError:
         return None
+    period = arguments.get("budget_period")
+    if type(period) is not str or period != normalized["budget_period"]:
+        return None
     return {**normalized, **_dict(arguments)}
 
 

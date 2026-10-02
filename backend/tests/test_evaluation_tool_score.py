@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from datetime import date
 from pathlib import Path
 from typing import cast
 
@@ -160,6 +161,26 @@ def test_wrong_arguments(changes: dict[str, object]) -> None:
 )
 def test_invalid_calls(call: object) -> None:
     score = score_tools(_case(), _observation([call]))
+    assert score["status"] == "failed"
+    assert _metric(score, "valid_calls") == {
+        "status": "failed",
+        "numerator": 0,
+        "denominator": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    "period",
+    [1788220800, 1788220800.0, True, date(2026, 9, 1), "20260901", "2026-9-1"],
+    ids=["timestamp", "float_timestamp", "bool", "date", "compact", "unpadded"],
+)
+def test_invalid_budget_period_calls(period: object) -> None:
+    score = score_tools(
+        _case(),
+        _observation(
+            [{"tool": "plan_groceries", "input": _arguments(budget_period=period)}]
+        ),
+    )
     assert score["status"] == "failed"
     assert _metric(score, "valid_calls") == {
         "status": "failed",
