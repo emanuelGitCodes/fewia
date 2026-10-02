@@ -2622,3 +2622,47 @@ Live checks on the Compose stack at `a62c58b`:
 Loop cost: Codex writers used 732k input tokens over 4 runs. Two Grok
 writer runs ran before #230 and have no token counts. Review runs: 6, with
 430k input tokens. No subagents ran.
+
+## 2026-10-02 — Moderate item 06 local complete
+
+nginx resolves the API address again after container recreation. Disposable Docker probe passed config syntax, prefix and query forwarding, and API IP replacement without restarting web. File: `frontend/nginx.conf`. Local only. No push, merge, or deployment.
+
+## 2026-10-02 — Moderate item 07 local complete
+
+Intermediate model turns replay validated tool calls only. Incidental prose and hidden reasoning stay out of replay. Existing user-visible conversation history remains. File: `backend/app/agent/chat_loop.py`.
+
+## 2026-10-02 — Moderate item 08 local complete
+
+Server context exposes the explicit plan cap. The prompt preserves a lower-only cap and latest pantry changes. The prompt derives every known ingredient ID and name pair from the catalog. Files: `backend/app/agent/chat_context.py`, `chat_loop.py`, `backend/app/services/chat_job.py`.
+
+## 2026-10-02 — Moderate item 09 local complete
+
+Public answers derive totals, acceptance, missing prices, and conflicts from validated tools. The UI keeps Previous estimates for unresolved requests. Valid missing-price plans replace old estimates. Manual rebuild start generations prevent old success from clearing a newer unresolved chat. Files: `backend/app/agent/chat_answer.py`, `frontend/src/ChatWorkspace.tsx`, `App.tsx`.
+
+## 2026-10-02 — Moderate item 10 local complete
+
+The refusal parser uses bounded JSON with duplicate, extra-key, and type guards. Fixed text covers secrets, purchases, and external URLs. A refusal shows no public plan or evidence. Files: `backend/app/agent/chat_refusal.py`, `chat_loop.py`.
+
+## 2026-10-02 — Moderate item 11 local complete
+
+Unsupported diet and ingredient errors are typed with bounded static clarification. Unknown values are not echoed or guessed. Files: `backend/app/agent/planning_tool.py`, `chat_dispatch.py`, `chat_answer.py`.
+
+## 2026-10-02 — Moderate item 12 local complete
+
+Read-only `get_budget_summary` accepts only an empty exact dict. Budget, period, and source stay server-owned. Display uses formatted USD. Pending cents and a canonical stale warning stay separate. A successful summary preserves an existing candidate. Files: `backend/app/agent/budget_tool.py`, `chat_dispatch.py`, `chat_loop.py`.
+
+## 2026-10-02 — Moderate item 13 partial pending retention
+
+API reads strip old price overlays from copied results before optional current overlay attachment. Stored data is preserved. Table deletion needs a separate retention decision under `.codex/project-context.md` and decision 0016. Local read-only aggregates: daily_environment 360, daily_finance 360, daily_health 341; total 1061. model_runs 0, predictions 0, jobs with stored root overlay 0, evidence snapshots with overlay at any depth 0. No row contents were read. No original records or schema changed.
+
+## 2026-10-02 — Moderate item 14 local complete
+
+The catalog supports 40 meals at `sample-prices-v2`. The original 10 recipes, quantities, and prices remain. Existing 22 mapped ingredients remain. Files: `backend/app/domain/catalog.py`, `catalog_recipes.json`, `grocery.py`.
+
+## 2026-10-02 — Moderate item 15 local complete
+
+Six deterministic preset combinations use a bounded immutable cache. `POST /grocery/templates` applies server budget filtering and static validation errors. The typed client rejects malformed, stale, and over-budget responses. Meal ideas UI uses current controls, explicit servings and selection, preserves other fields, and requires Build my estimate. Files: `backend/app/services/plan_templates.py`, `backend/app/api/plan_templates.py`, `frontend/src/templateApi.ts`, `useTemplateSuggestions.ts`, `TemplatePicker.tsx`.
+
+## 2026-10-02 — Moderate backlog loop verification and usage
+
+Nine Moderate items are complete locally at application head `ef586c142f4e9e7f93741ee7ab5fb1b0b9d98149`. Item 13 remains partial. Backend 1678 passed at core `c3f72fc` with isolated PostgreSQL. Final frontend lint, tests, and production build passed. Luna approved final core high, template hook medium, final picker medium, and current-scope docs low. Live Nova 2 Lite: bean tacos 2 with olive oil 1104 cents, without oil 1703 cents, cap 2500 preserved. Browser accepted a 2299-cent plan from three meals. No 90-run evaluation, live Plaid, Instacart checkout, or live store prices. Supervisor totals before this completion-record writer: 39 writer runs, 22137248 input tokens, 489546 output tokens, 7781.391 process seconds; 34 review runs, 4106580 input tokens, 55977 output tokens, 1725.473 process seconds. Details: [phases/moderate-backlog.md](phases/moderate-backlog.md).
