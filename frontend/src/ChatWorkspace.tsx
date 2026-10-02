@@ -36,16 +36,15 @@ function completeChatEstimate(job: ChatJob): GroceryJob | null {
   if (result === null) {
     return null;
   }
-  if (
-    result.status === "clarification" ||
-    result.status === "limit" ||
-    result.status === "incomplete"
-  ) {
+  if (result.status === "limit" || result.status === "incomplete") {
     return null;
   }
   const estimate = chatEstimateJob(job);
   if (estimate === null || estimate.result === null) {
     return null;
+  }
+  if (result.status === "clarification") {
+    return estimate;
   }
   if (estimate.result.plan.total_cents === null) {
     return null;

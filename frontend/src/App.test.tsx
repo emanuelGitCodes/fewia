@@ -757,4 +757,75 @@ describe("App", () => {
     expect(hasButton(live.container, "Create shopping list")).toBe(false);
     live.unmount();
   });
+
+  it("shows a missing-price clarification candidate as the current grocery estimate", () => {
+    const live = render(createElement(AppUnresolvedHost, { chat: chatState() }));
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+            ],
+            job: chatJob(plannedChat()),
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).toContain("$17.03");
+    const priced = plannedChat();
+    if (priced.plan === null) {
+      throw new Error("missing planned chat plan");
+    }
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "user-2", role: "user", content: "Add soup." },
+              { id: "chat-2", role: "assistant", content: "Which meals should I plan?" },
+            ],
+            job: {
+              id: "chat-2",
+              status: "succeeded",
+              result: {
+                ...priced,
+                status: "clarification",
+                answer: "Which meals should I plan?",
+                plan: {
+                  ...priced.plan,
+                  total_cents: null,
+                  accepted: false,
+                  lines: priced.plan.lines.map((line) => ({ ...line, cost_cents: null })),
+                },
+              },
+              error_code: null,
+            },
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).not.toContain("Previous estimate");
+    expect(childText(live.container)).toContain("This plan is incomplete.");
+    expect(childText(live.container)).toContain("Incomplete estimate");
+    expect(childText(live.container)).toContain("black beans");
+    expect(hasButton(live.container, "Create shopping list")).toBe(false);
+    live.unmount();
+  });
 });

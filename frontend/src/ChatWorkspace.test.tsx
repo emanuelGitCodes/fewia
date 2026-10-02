@@ -845,6 +845,115 @@ describe("ChatWorkspace", () => {
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
   });
 
+  it("keeps unusable follow-ups and applies a missing-price clarification candidate", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(
+        plannedResult({
+          status: "limit",
+          answer: "The request is too long.",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        "succeeded",
+        "chat-2",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(
+        plannedResult({
+          status: "incomplete",
+          answer: "The plan is incomplete.",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        "succeeded",
+        "chat-3",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-4", role: "assistant", content: "Which meals should I plan?" },
+      ],
+      job: chatJob(
+        plannedResult({
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        "succeeded",
+        "chat-4",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    const priced = plannedResult();
+    if (priced.plan === null) {
+      throw new Error("missing planned result plan");
+    }
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-5", role: "assistant", content: "Which meals should I plan?" },
+      ],
+      job: chatJob(
+        plannedResult({
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: {
+            ...priced.plan,
+            total_cents: null,
+            accepted: false,
+            lines: priced.plan.lines.map((line) => ({ ...line, cost_cents: null })),
+          },
+        }),
+        "succeeded",
+        "chat-5",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-5");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    expect(hookOf(bucket).chat.estimateJob?.result?.plan.total_cents).toBeNull();
+    expect(
+      hookOf(bucket).chat.estimateJob?.result?.plan.lines.every((line) => line.cost_cents === null),
+    ).toBe(true);
+  });
+
   it("clears unresolved state after a complete chat plan that passes stale guards", () => {
     const { bucket, refresh } = mount({});
     chatState = conversationState({
