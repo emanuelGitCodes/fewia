@@ -63,14 +63,14 @@ def _copy_inputs(source: dict[str, object]) -> dict[str, object]:
         if key not in source:
             continue
         value = source[key]
-        if type(value) is not list:
+        if type(value) is not list or len(value) > 3:
             raise EvaluationInputError(INVALID_INPUT_ERROR)
         meals: list[dict[str, object]] = []
         for item in value:
             if type(item) is not dict:
                 raise EvaluationInputError(INVALID_INPUT_ERROR)
             servings = item.get("servings")
-            if type(servings) is not int or servings < 1:
+            if type(servings) is not int or not 1 <= servings <= 8:
                 raise EvaluationInputError(INVALID_INPUT_ERROR)
             meals.append(
                 {"recipe_id": _text(item.get("recipe_id")), "servings": servings}

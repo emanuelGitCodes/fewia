@@ -281,6 +281,33 @@ def test_preparation_preserves_source_and_copies_nested_inputs() -> None:
         context.user_id = 99
 
 
+@pytest.mark.parametrize("key", ["meals", "followup_meals"])
+@pytest.mark.parametrize("count", [0, 1, 2, 3])
+@pytest.mark.parametrize("servings", [1, 8])
+def test_meal_bounds_are_inclusive(key: str, count: int, servings: int) -> None:
+    case = _case()
+    meals = [{"recipe_id": "bean_tacos", "servings": servings} for _ in range(count)]
+    _inputs(case)[key] = meals
+    assert prepare_case(case).inputs[key] == meals
+
+
+@pytest.mark.parametrize("key", ["meals", "followup_meals"])
+def test_meal_fields_reject_four_meals(key: str) -> None:
+    case = _case()
+    _inputs(case)[key] = [{"recipe_id": "bean_tacos", "servings": 1} for _ in range(4)]
+    with pytest.raises(EvaluationInputError, match=f"^{INVALID_INPUT_ERROR}$"):
+        prepare_case(case)
+
+
+@pytest.mark.parametrize("key", ["meals", "followup_meals"])
+@pytest.mark.parametrize("servings", [9, 0, -1, True, False, 1.0, "1", None])
+def test_meal_fields_reject_invalid_servings(key: str, servings: object) -> None:
+    case = _case()
+    _inputs(case)[key] = [{"recipe_id": "bean_tacos", "servings": servings}]
+    with pytest.raises(EvaluationInputError, match=f"^{INVALID_INPUT_ERROR}$"):
+        prepare_case(case)
+
+
 @pytest.mark.parametrize(
     "key,value",
     [
