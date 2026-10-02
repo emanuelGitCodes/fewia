@@ -10,6 +10,14 @@ from botocore.session import Session
 from botocore.validate import validate_parameters
 
 from app.agent import chat_loop as loop
+from app.agent.budget_tool import (
+    TOOL_NAME as BUDGET_TOOL_NAME,
+)
+from app.agent.budget_tool import (
+    budget_summary_answer,
+    budget_tool_spec,
+    execute_budget_summary,
+)
 from app.agent.chat_answer import CLARIFICATION, render_public_answer
 from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
@@ -22,6 +30,7 @@ from app.agent.chat_loop import (
 from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
@@ -193,6 +202,35 @@ def _reply(
     return body
 
 
+def _chat_tools() -> list[dict[str, object]]:
+    return [planner_tool_spec(), budget_tool_spec()]
+
+
+def _budget_block(
+    tool_id: str,
+    payload: dict[str, object] | None = None,
+    reasoning: object | None = None,
+) -> dict[str, object]:
+    return _tool_block(
+        tool_id,
+        name=BUDGET_TOOL_NAME,
+        payload={} if payload is None else payload,
+        reasoning=reasoning,
+    )
+
+
+def _budget_trace(
+    tool_use_id: str, *, sequence: int = 1, outcome: str = "success"
+) -> dict[str, object]:
+    return {
+        "tool": BUDGET_TOOL_NAME,
+        "outcome": outcome,
+        "tool_use_id": tool_use_id,
+        "sequence": sequence,
+        "revision_index": None,
+    }
+
+
 def _tool_block(
     tool_id: str,
     name: str = TOOL_NAME,
@@ -289,7 +327,7 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert "MUST NOT purchase" in SYSTEM_PROMPT
     assert "cross-contact" in SYSTEM_PROMPT
     assert "secrets" in SYSTEM_PROMPT
-    assert first["tools"] == [planner_tool_spec()]
+    assert first["tools"] == _chat_tools()
     second_messages = provider.requests[1]["messages"]
     assert isinstance(second_messages, list)
     tool_user = second_messages[-1]
@@ -854,6 +892,9 @@ def test_system_prompt_states_usd_cents_contract() -> None:
     assert "money_display" in SYSTEM_PROMPT
     assert "estimate panel" in SYSTEM_PROMPT
     assert "concise plain-text" in SYSTEM_PROMPT
+    assert "get_budget_summary" in SYSTEM_PROMPT
+    assert "budget questions" in SYSTEM_PROMPT
+    assert "server money strings" in SYSTEM_PROMPT
 
 
 def test_system_prompt_offers_catalog_alternatives() -> None:
@@ -883,6 +924,25 @@ def test_system_prompt_requires_restriction_clarification() -> None:
     )
     assert "MUST NOT guess a mapping for an unsupported restriction" in SYSTEM_PROMPT
     assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
+
+
+def test_system_prompt_exposes_catalog_ingredient_id_name_pairs() -> None:
+    assert "olive_oil:olive oil" in SYSTEM_PROMPT
+    for ingredient_id, ingredient in INGREDIENTS.items():
+        assert f"{ingredient_id}:{ingredient.name}" in SYSTEM_PROMPT
+    assert (
+        "You MUST use only those exact catalog IDs for pantry and exclusion "
+        "tool fields." in SYSTEM_PROMPT
+    )
+    assert "You MUST ask for clarification for unknown terms." in SYSTEM_PROMPT
+    assert "You MUST NOT invent aliases or mappings." in SYSTEM_PROMPT
+    result, provider = _run([_reply([_text_block("How many servings?")], "end_turn")])
+    assert result["status"] == "clarification"
+    first = provider.requests[0]
+    assert first["system"] == SYSTEM_PROMPT
+    assert "olive_oil:olive oil" in cast(str, first["system"])
+    for ingredient_id, ingredient in INGREDIENTS.items():
+        assert f"{ingredient_id}:{ingredient.name}" in cast(str, first["system"])
 
 
 def test_invalid_request_uses_context_validation() -> None:
@@ -1345,7 +1405,7 @@ def test_pantry_owned_ingredient_request_stays_planner_capable() -> None:
     assert result["answer"] == render_public_answer(
         execute_plan(plan_args(), budget(), PERIOD)
     )
-    assert provider.requests[0]["tools"] == [planner_tool_spec()]
+    assert provider.requests[0]["tools"] == _chat_tools()
     assert "ordinary planning" in SYSTEM_PROMPT
     assert "pantry-owned ingredient" in SYSTEM_PROMPT
 
@@ -1365,3 +1425,242 @@ def test_system_prompt_requests_structured_refusal() -> None:
     assert (
         "For ordinary replies, write a concise plain-text final reply." in SYSTEM_PROMPT
     )
+
+
+def test_summary_only_uses_budget_answer_without_plan() -> None:
+    expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    summary = execute_budget_summary({}, budget(), PERIOD, spending_source="fixture")
+    seen: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        seen.append(payload)
+        return _REV
+
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_text_block("You have plenty of money left.")], "end_turn"),
+    ]
+    result, provider = _run(replies, record_evidence=record)
+    assert result["status"] == "clarification"
+    assert result["answer"] == expected
+    assert "plenty of money" not in result["answer"]
+    assert result["plan"] is None
+    assert result["budget"] is None
+    assert result["request"] is None
+    assert result["meal_nutrition"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert result["planner_revisions"] == 0
+    assert result["model_turns"] == 2
+    assert result["tool_trace"] == [_budget_trace("s1")]
+    assert seen == []
+    second_messages = provider.requests[1]["messages"]
+    assert isinstance(second_messages, list)
+    tool_user = second_messages[-1]
+    content = tool_user["content"]
+    assert isinstance(content, list)
+    json_body = content[0]["toolResult"]["content"][0]["json"]
+    assert json_body == summary
+    _assert_public(result)
+
+
+def test_plan_then_summary_keeps_plan() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("p1")], "tool_use"),
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_text_block("Here is the budget and the plan.")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
+    assert "Here is the budget" not in result["answer"]
+    assert result["plan"] == expected["plan"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["planner_revisions"] == 1
+    assert result["tool_trace"] == [
+        _success_trace("p1", expected["evidence_id"]),
+        _budget_trace("s1", sequence=2),
+    ]
+
+
+def test_summary_then_plan_returns_plan() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_tool_block("p1")], "tool_use"),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
+    assert result["plan"] == expected["plan"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["planner_revisions"] == 1
+    assert result["tool_trace"] == [
+        _budget_trace("s1"),
+        _success_trace("p1", expected["evidence_id"], sequence=2),
+    ]
+
+
+def test_invalid_summary_after_plan_clears_candidate() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("p1")], "tool_use"),
+        _reply(
+            [_budget_block("s1", payload={"cap": 1, "identity": _SECRET})],
+            "tool_use",
+        ),
+        _reply([_text_block("The earlier plan is still valid.")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert "still valid" not in result["answer"]
+    assert result["plan"] is None
+    assert result["budget"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert result["planner_revisions"] == 1
+    assert result["tool_trace"][0] == _success_trace("p1", expected["evidence_id"])
+    assert result["tool_trace"][1] == _budget_trace("s1", sequence=2, outcome="error")
+    _assert_public(result)
+
+
+def test_summary_then_later_failure_uses_clarification() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply(
+            [_tool_block("buy", name="purchase_items", payload={"token": _SECRET})],
+            "tool_use",
+        ),
+        _reply([_text_block("I will not purchase items.")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["planner_revisions"] == 0
+    assert result["tool_trace"] == [
+        _budget_trace("s1"),
+        _error_trace("unsupported", "buy", sequence=2, revision_index=None),
+    ]
+    _assert_public(result)
+
+
+def test_typed_clarification_then_summary_keeps_typed_error() -> None:
+    excluded = plan_args(
+        meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+        ingredient_exclusions=["onion"],
+    )
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("ex", payload=excluded)], "tool_use"),
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_text_block("Here is your remaining budget.")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    answer = result["answer"]
+    assert result["status"] == "clarification"
+    assert "onion" in answer
+    assert "Change the recipe or the restriction." in answer
+    assert "Here is your remaining budget." not in answer
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["planner_revisions"] == 1
+    assert result["tool_trace"][0] == _error_trace(TOOL_NAME, "ex")
+    assert result["tool_trace"][1] == _budget_trace("s1", sequence=2)
+
+
+def test_refusal_after_summary_drops_summary_answer() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_text_block('{"refusal":"secrets"}')], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == (
+        "I cannot provide credentials or raw bank records. "
+        "I can help plan meals using the budget summary."
+    )
+    assert result["plan"] is None
+    assert result["budget"] is None
+    assert result["request"] is None
+    assert result["evidence_id"] is None
+    assert result["planner_revisions"] == 0
+    assert result["tool_trace"] == [_budget_trace("s1")]
+    assert '{"refusal"' not in json.dumps(result)
+    _assert_public(result)
+
+
+def test_invalid_summary_clears_prior_summary_fallback() -> None:
+    expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply(
+            [_budget_block("s2", payload={"transactions": [_SECRET]})],
+            "tool_use",
+        ),
+        _reply([_text_block("Available USD $99.00")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["answer"] != expected
+    assert "USD $99.00" not in result["answer"]
+    assert result["plan"] is None
+    assert result["planner_revisions"] == 0
+    _assert_public(result)
+
+
+def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
+        _reply([_tool_block("p2")], "tool_use"),
+        _reply([_budget_block("s2"), _tool_block("p3")], "tool_use"),
+        _reply([_text_block("ready")], "end_turn"),
+    ]
+    planned, _provider = _run(replies)
+    assert planned["status"] == "planned"
+    assert planned["planner_revisions"] == MAX_PLANNER_REVISIONS
+    assert planned["plan"] is not None
+    assert planned["evidence_id"] is not None
+    limit_replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
+        _reply([_tool_block("p2")], "tool_use"),
+        _reply([_budget_block("s2"), _tool_block("p3")], "tool_use"),
+        _reply([_tool_block("p4")], "tool_use"),
+    ]
+    limited, provider = _run(limit_replies)
+    assert len(provider.requests) == MAX_PLANNER_REVISIONS + 1
+    assert limited["status"] == "limit"
+    assert limited["answer"] == _LIMIT
+    assert limited["plan"] is None
+    assert limited["evidence_id"] is None
+    assert limited["planner_revisions"] == MAX_PLANNER_REVISIONS
+
+
+def test_eight_summary_rounds_hit_model_cap_with_zero_planner() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_budget_block(f"s-{turn}-{index}") for index in range(MAX_TOOL_CALLS)],
+            "tool_use",
+        )
+        for turn in range(MAX_MODEL_TURNS)
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == MAX_MODEL_TURNS
+    assert result["status"] == "limit"
+    assert result["answer"] == _LIMIT
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["planner_revisions"] == 0
+    assert len(result["tool_trace"]) == 24
+    assert result["tool_trace"] == [
+        _budget_trace(
+            f"s-{turn}-{index}",
+            sequence=turn * MAX_TOOL_CALLS + index + 1,
+        )
+        for turn in range(MAX_MODEL_TURNS)
+        for index in range(MAX_TOOL_CALLS)
+    ]

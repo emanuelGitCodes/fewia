@@ -3,6 +3,13 @@ from datetime import date
 from typing import get_args
 
 from app.agent import chat_messages as msgs
+from app.agent.budget_tool import (
+    TOOL_NAME as BUDGET_TOOL_NAME,
+)
+from app.agent.budget_tool import (
+    BudgetToolError,
+    execute_budget_summary,
+)
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -84,6 +91,36 @@ def _entry(
     return entry
 
 
+def _dispatch_budget(
+    call: msgs.ToolCall,
+    budget: BudgetResult,
+    period: date,
+    source: SpendingSource,
+    trace: list[dict[str, object]],
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    payload: dict[str, object] | None
+    try:
+        payload = execute_budget_summary(
+            call.tool_input, budget, period, spending_source=source
+        )
+    except BudgetToolError:
+        payload = None
+    trace.append(
+        _entry(
+            tool=BUDGET_TOOL_NAME,
+            outcome="error" if payload is None else "success",
+            tool_use_id=call.tool_use_id,
+            sequence=len(trace) + 1,
+            revision_index=None,
+        )
+    )
+    if payload is None:
+        return None, msgs.tool_result_block(
+            call.tool_use_id, {"error": "arguments are invalid"}, success=False
+        )
+    return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
+
+
 def dispatch(
     call: msgs.ToolCall,
     budget: BudgetResult,
@@ -93,6 +130,8 @@ def dispatch(
     trace: list[dict[str, object]],
     record_evidence: EvidenceRecorder | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
+    if call.name == BUDGET_TOOL_NAME:
+        return _dispatch_budget(call, budget, period, source, trace)
     if call.name != TOOL_NAME:
         trace.append(
             _entry(

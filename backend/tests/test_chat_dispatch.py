@@ -4,10 +4,16 @@ from typing import cast, get_args
 
 import pytest
 
+from app.agent.budget_tool import (
+    TOOL_NAME as BUDGET_TOOL_NAME,
+)
+from app.agent.budget_tool import (
+    execute_budget_summary,
+)
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
-from app.domain.budget import BudgetResult
+from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 
@@ -847,3 +853,125 @@ def test_other_planning_tool_error_returns_invalid_args(
         {"json": {"error": "arguments are invalid"}}
     ]
     assert partial_trace == [_error_trace(TOOL_NAME, "call-partial")]
+
+
+def test_budget_summary_success_skips_recorder_and_omits_evidence() -> None:
+    expected = execute_budget_summary({}, budget(), PERIOD, spending_source="fixture")
+    seen: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        seen.append(payload)
+        return _REV
+
+    call = ToolCall("sum-1", BUDGET_TOOL_NAME, {})
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        call, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    assert payload == expected
+    assert seen == []
+    assert block["toolResult"]["toolUseId"] == "sum-1"
+    assert block["toolResult"]["status"] == "success"
+    assert _tool_json(block) == expected
+    assert trace == [
+        {
+            "tool": BUDGET_TOOL_NAME,
+            "outcome": "success",
+            "tool_use_id": "sum-1",
+            "sequence": 1,
+            "revision_index": None,
+        }
+    ]
+    assert set(trace[0]) == {
+        "tool",
+        "outcome",
+        "tool_use_id",
+        "sequence",
+        "revision_index",
+    }
+
+
+def test_budget_summary_dispatch_passes_only_server_facts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded: list[tuple[object, BudgetResult, date, SpendingSource]] = []
+
+    def fake_execute(
+        arguments: object,
+        budget_value: BudgetResult,
+        period: date,
+        *,
+        spending_source: SpendingSource,
+    ) -> dict[str, object]:
+        recorded.append((arguments, budget_value, period, spending_source))
+        return execute_budget_summary(
+            arguments, budget_value, period, spending_source=spending_source
+        )
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_budget_summary", fake_execute)
+    funds = budget()
+    call = ToolCall("sum-1", BUDGET_TOOL_NAME, {})
+    trace: list[dict[str, object]] = []
+    payload, _block = dispatch(call, funds, PERIOD, 99, "manual", trace)
+    assert recorded == [({}, funds, PERIOD, "manual")]
+    assert payload is not None
+    assert payload["spending_source"] == "manual"
+
+
+def test_budget_summary_rejects_overrides_without_sentinel() -> None:
+    args: dict[str, object] = {
+        "identity": _SECRET,
+        "source": "manual",
+        "cap": 1,
+        "transactions": [_SECRET],
+        "user_id": 9,
+    }
+
+    def record(_payload: dict[str, object]) -> str:
+        return _REV
+
+    call = ToolCall("sum-bad", BUDGET_TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        call, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    assert payload is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "sum-bad",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [_error_trace(BUDGET_TOOL_NAME, "sum-bad", revision_index=None)]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "BudgetToolError" not in dumped
+    assert "identity" not in dumped
+
+
+def test_budget_summary_then_planner_revision_index_skips_summary() -> None:
+    summary = ToolCall("sum-1", BUDGET_TOOL_NAME, {})
+    planner = ToolCall("plan-1", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+
+    def record(_payload: dict[str, object]) -> str:
+        return _REV
+
+    summary_payload, _summary_block = dispatch(
+        summary, budget(), PERIOD, 1, "fixture", trace
+    )
+    plan_payload, _plan_block = dispatch(
+        planner, budget(), PERIOD, 1, "fixture", trace, record_evidence=record
+    )
+    expected_plan = execute_plan(arguments(), budget(), PERIOD)
+    assert summary_payload is not None
+    assert "evidence_id" not in summary_payload
+    assert plan_payload is not None
+    assert plan_payload["evidence_id"] == expected_plan["evidence_id"]
+    assert trace[0]["tool"] == BUDGET_TOOL_NAME
+    assert trace[0]["revision_index"] is None
+    assert trace[1]["tool"] == TOOL_NAME
+    assert trace[1]["revision_index"] == 1
+    assert trace[1]["sequence"] == 2
+    assert trace[1]["evidence_revision_id"] == _REV
