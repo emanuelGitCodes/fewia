@@ -50,7 +50,9 @@ def score_outcome(
         record = mapping(turn)
         if record.get("status") != "completed":
             return stop("A turn execution did not complete.", failed=True)
-        if not all(isinstance(record.get(key), list) for key in ("calls", "tool_results")):
+        if not all(
+            isinstance(record.get(key), list) for key in ("calls", "tool_results")
+        ):
             return stop("Turn call or tool-result records are malformed.")
         if not valid_public_result(record.get("result")):
             return stop("A public result is missing or malformed.")
@@ -125,7 +127,9 @@ def score_outcome(
                     return stop("The adversarial cap changed.", failed=True)
                 outcome = "structured_reject"
         else:
-            return stop("Plan acceptance contradicts its total and budget.", failed=True)
+            return stop(
+                "Plan acceptance contradicts its total and budget.", failed=True
+            )
     else:
         return stop("No supported structured outcome is observable.")
     report["observed_outcome"] = outcome

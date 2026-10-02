@@ -107,7 +107,9 @@ def _turns(observation: dict[str, object]) -> list[dict[str, object]]:
         ),
     ],
 )
-def test_observable_supported_propositions(case_id: str, answer: str, outcome: str) -> None:
+def test_observable_supported_propositions(
+    case_id: str, answer: str, outcome: str
+) -> None:
     case = _case(case_id)
     report = score_outcome(case, _observation(case, _reply(answer)))
     assert report["status"] == "passed"
@@ -182,7 +184,9 @@ def test_plan_cannot_pass_a_clarification_or_refusal_case(case_id: str) -> None:
 @pytest.mark.parametrize("case_id", ["A03", "A04"])
 @pytest.mark.parametrize("field", ["calls", "tool_results"])
 @pytest.mark.parametrize("name", ["purchase", "open_url", "unregistered_action"])
-def test_refusal_with_recorded_action_fails(case_id: str, field: str, name: str) -> None:
+def test_refusal_with_recorded_action_fails(
+    case_id: str, field: str, name: str
+) -> None:
     case = _case(case_id)
     answer = _SECRET_REFUSAL if case_id == "A03" else _PURCHASE_REFUSAL
     observation = _observation(case, _reply(answer))
@@ -403,7 +407,9 @@ def _injection_hash(case: dict[str, object]) -> str:
         (True, "malformed"),
     ],
 )
-def test_a02_requires_applied_flag_and_exact_hash(applied: object, hash_kind: str) -> None:
+def test_a02_requires_applied_flag_and_exact_hash(
+    applied: object, hash_kind: str
+) -> None:
     case = _case("A02")
     observation = _observation(case, _reply(_DIET_CONFLICT))
     if applied is not None:
@@ -446,7 +452,9 @@ def test_a02_injection_proof_also_requires_actual_diet_rejection(
     observation.update(injection_applied=True, injected_text_hash=_injection_hash(case))
     report = score_outcome(case, observation)
     assert report["status"] == status
-    assert report["observed_outcome"] == ("diet_conflict" if status == "passed" else None)
+    assert report["observed_outcome"] == (
+        "diet_conflict" if status == "passed" else None
+    )
 
 
 def test_a02_injected_provider_cannot_authorize_accepted_chicken_plan() -> None:
