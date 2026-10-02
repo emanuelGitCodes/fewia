@@ -6,7 +6,7 @@
 - **Application head**: `ef586c142f4e9e7f93741ee7ab5fb1b0b9d98149`
 - **Records branch**: `codex/moderate-completion-records` (also includes approved current-scope docs `4e4e824`)
 - **Status**: nine items complete locally; item 13 partial
-- **Publication**: no push, pull request, merge, or deployment to the existing stack
+- **Publication**: twelve branches pushed without force. Pull requests #233 through #244 are open and unmerged in numeric merge order. Current CI status is available on the pull requests. Main was not pushed or merged. No deployment.
 
 This page records local implementation and verification. It does not claim production health or an evaluation benchmark.
 
@@ -37,7 +37,7 @@ Backend at core `c3f72fce65864011bfa527a8ba461f1671031992`: 1678 tests passed. O
 
 Final frontend lint, full tests, and production build passed at `ef586c142f4e9e7f93741ee7ab5fb1b0b9d98149`. Focused picker tests passed 12 of 12. Strict TypeScript passed.
 
-Independent Luna review approved final core (high), template hook (medium), final picker (medium), and current-scope docs (low). The budget module coverage finding closed with an empty-dict-subclass regression test.
+Independent Luna review approved final core (high), template hook (medium), final picker (medium), and current-scope docs (low). The budget module coverage finding closed with an empty-dict-subclass regression test. That regression was copied into the owning budget-foundation pull request before publication. Published budget-foundation head `ab7b914962af0bde3d59d8515d71a6f35a2b6819` remains 141 application lines. That head passed 1603 DB-required tests, 44 focused tests, Ruff, format, strict mypy, and independent Luna high APPROVE. Other application heads are unchanged. Previous verification facts keep their original code heads.
 
 ### Evidence classes
 
@@ -58,22 +58,24 @@ This record does not claim a broad browser regression suite, a 90-run evaluation
 
 Initial gate failures were repaired: Ruff long strings; TypeScript test fixture narrowing; accumulated mock calls; shared App hook mock default (3 failed, 392 passed before repair); manual-start stale transition; reviewer boundary coverage. One incorrect temporary database URL produced 11 database errors. The corrected URL passed without application changes. Earlier reader-tool BLOCKED reports were brief ambiguity. No provider or model substitution occurred.
 
-## Local stack order
+## Published stack order
 
-These are local branches. They are not published pull requests. Every slice stays within 150 added application lines.
+These branches are published as an open pull-request stack. They are not merged. Every slice stays within 150 added application lines.
 
-1. `codex/moderate-foundation` `ea89dc9` — 114
-2. `codex/moderate-answers` `26ccb60` — 139
-3. `codex/moderate-clarifications` `ddc73ee` — 90
-4. `codex/moderate-refusals` `b08471b` — 64
-5. `codex/moderate-budget-foundation` `39a5659` — 141 (later test-only coverage repair in core)
-6. `codex/moderate-templates` `e42531a` — 137
-7. `codex/moderate-template-api` `3668c79` — 142
-8. `codex/moderate-template-client` `033db58` — 149
-9. `codex/moderate-app-integration` `c3f72fc` — 144
-10. `codex/moderate-template-state` `ba119a6` — 132
-11. `codex/moderate-template-picker` `ef586c1` — 126
-12. `codex/moderate-completion-records` — documentation only
+1. [#233](https://github.com/emanuelGitCodes/fewia/pull/233) `codex/moderate-foundation` `ea89dc9` — 114
+2. [#234](https://github.com/emanuelGitCodes/fewia/pull/234) `codex/moderate-answers` `26ccb60` — 139
+3. [#235](https://github.com/emanuelGitCodes/fewia/pull/235) `codex/moderate-clarifications` `ddc73ee` — 90
+4. [#236](https://github.com/emanuelGitCodes/fewia/pull/236) `codex/moderate-refusals` `b08471b` — 64
+5. [#237](https://github.com/emanuelGitCodes/fewia/pull/237) `codex/moderate-budget-foundation` `ab7b914` — 141. Original code head `39a5659` remains the earlier verification head. The empty-dict-subclass regression now lives in this owning pull request.
+6. [#238](https://github.com/emanuelGitCodes/fewia/pull/238) `codex/moderate-templates` `e42531a` — 137
+7. [#239](https://github.com/emanuelGitCodes/fewia/pull/239) `codex/moderate-template-api` `3668c79` — 142
+8. [#240](https://github.com/emanuelGitCodes/fewia/pull/240) `codex/moderate-template-client` `033db58` — 149
+9. [#241](https://github.com/emanuelGitCodes/fewia/pull/241) `codex/moderate-app-integration` `c3f72fc` — 144
+10. [#242](https://github.com/emanuelGitCodes/fewia/pull/242) `codex/moderate-template-state` `ba119a6` — 132
+11. [#243](https://github.com/emanuelGitCodes/fewia/pull/243) `codex/moderate-template-picker` `ef586c1` — 126
+12. [#244](https://github.com/emanuelGitCodes/fewia/pull/244) `codex/moderate-completion-records` — documentation only
+
+Merge in ascending part order. After a parent merges, rebase and retarget each child to `main`. Do not merge a child into an unmerged parent.
 
 Retained commits remain available. Completed managed worktrees were recoverably archived.
 
