@@ -488,6 +488,33 @@ def test_missing_report_includes_codex_error(
         assert line not in banned
 
 
+def test_missing_report_includes_nested_turn_failed_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    event = json.dumps(
+        {"type": "turn.failed", "error": {"message": "HTTP 429 quota exceeded"}}
+    )
+    refuse_grok(monkeypatch)
+    seen = install_run(monkeypatch, write=False, stdout=(event + "\n").encode())
+    assert run_main(monkeypatch, argv(root, ["--provider", "codex"])) == 2
+    dest = seen["dest"]
+    assert isinstance(dest, Path)
+    note = dest.read_text()
+    assert "HTTP 429 quota exceeded" in note
+    assert "HTTP 429 quota exceeded" in capsys.readouterr().out
+    banned = ("VERDICT: APPROVE", "VERDICT: REQUEST_CHANGES", "VERDICT: BLOCKED")
+    for line in note.splitlines():
+        assert line not in banned
+
+
+def test_first_error_nested_non_str_message_is_empty() -> None:
+    event = json.dumps({"type": "turn.failed", "error": {"message": 429}})
+    assert review.first_error((event + "\n").encode()) == ""
+
+
 def test_usage_row_written(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = make_repo(tmp_path)
     event = json.dumps(

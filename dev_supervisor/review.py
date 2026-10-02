@@ -77,6 +77,11 @@ def first_error(raw: bytes) -> str:
             msg = event.get("message")
             if isinstance(msg, str) and msg:
                 return msg[:200]
+            nested = event.get("error")
+            if isinstance(nested, dict):
+                nested_msg = nested.get("message")
+                if isinstance(nested_msg, str) and nested_msg:
+                    return nested_msg[:200]
     return plain
 
 
