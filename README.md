@@ -5,11 +5,22 @@ local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and
 local Floci in Docker Compose. FEWIA uses real Amazon Bedrock through the
 `LLMProvider` protocol in `backend/app/agent/` when you start the stack
 with the Bedrock overlay. Plain `docker compose up -d` leaves chat
-unconfigured. The demo uses fixture spending. Plaid work is paused. The
-Plaid Sandbox adapters stay in the code, and live Plaid Sandbox evidence
-remains pending. It uses a
-versioned sample price catalog. It supports ten meals, one to three
-(1-3) meals per request, and one to eight (1-8) servings per meal.
+unconfigured. The default spending source is `manual`. The monthly limit
+that the user enters is the whole budget. Fixture spending stays an
+optional setting. Plaid work is last. The Plaid Sandbox adapters stay in
+the code. Live Plaid Sandbox evidence remains pending. See
+[wiki/decisions/0016-spoonacular-read-time-overlay.md](wiki/decisions/0016-spoonacular-read-time-overlay.md).
+It uses a versioned sample price catalog. It supports 40 meals. The
+authoritative list is
+`backend/app/domain/catalog_recipes.json`. Each request supports one to
+three (1-3) meals and one to eight (1-8) servings per meal.
+`POST /grocery/templates` holds a library of six preset meal
+combinations. The service filters that library through the
+deterministic planner for budget, diet, pantry, and exclusions. The
+endpoint returns up to six eligible suggestions. An empty list is
+possible. Suggestions use labeled sample prices. They do not reserve
+money. `get_budget_summary` returns read-only budget facts. Pending
+cents and stale-spending warnings stay separate.
 FEWIA parks the Instacart development handoff. The adapter stays in the
 code. The shopping-link button stays hidden while `instacart_configured`
 is false. See

@@ -20,15 +20,23 @@ The user can declare pantry ingredients, exclusions, and a dietary preference.
 
 ## Operating context
 
-The application runs locally through Docker Compose. The budget starts from
-a user-entered amount and fixture spending. Plaid Sandbox work is paused; the
-adapters stay in the code. The Instacart handoff is parked, and the
-shopping-link button stays hidden
+The application runs locally through Docker Compose. The default spending
+source is `manual`. The monthly limit that the user enters is the whole
+budget. Fixture spending stays optional. Plaid Sandbox work is last; the
+adapters stay in the code
+([decision 0016](wiki/decisions/0016-spoonacular-read-time-overlay.md)).
+The Instacart handoff is parked, and the shopping-link button stays hidden
 ([decision 0010](wiki/decisions/0010-usda-spoonacular-overlay.md)).
 Nutrition facts come from USDA FoodData Central. An optional overlay shows
 the Spoonacular average supermarket cost. Budget acceptance still uses the
 sample catalog. Evidence labels distinguish fixtures, emulator behavior,
-Sandbox behavior, and real model calls.
+Sandbox behavior, and real model calls. `POST /grocery/templates` holds a library of six preset combinations.
+The service filters that library for budget, diet, pantry, and
+exclusions. The endpoint returns up to six eligible suggestions. An
+empty list is possible. Prices on those suggestions are labeled sample
+estimates. The presets do not reserve money. `get_budget_summary` returns
+read-only budget facts. Pending cents and stale-spending warnings stay
+separate.
 
 ## Constraints
 
@@ -44,4 +52,5 @@ Sandbox behavior, and real model calls.
 
 The wiki records completed implementation and verification. Local tests do not
 establish live-provider access or release readiness. The recipe catalog holds
-ten supported meals with explicit quantities and dietary facts.
+40 supported meals with explicit quantities and dietary facts. The
+authoritative list is `backend/app/domain/catalog_recipes.json`.
