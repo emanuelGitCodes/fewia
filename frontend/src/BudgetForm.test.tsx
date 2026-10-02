@@ -61,7 +61,7 @@ describe("initialForm", () => {
     expect(first).not.toBe(second);
     expect(first.meals).not.toBe(second.meals);
     expect(first).toEqual({
-      monthly: "300",
+      monthly: "100",
       cap: "40",
       diet: "omnivore",
       pantry: [],
@@ -74,7 +74,7 @@ describe("initialForm", () => {
 describe("buildRequest", () => {
   it("builds the exact job body from the default form", () => {
     expect(buildRequest(config, initialForm())).toEqual({
-      monthly_limit_cents: 30000,
+      monthly_limit_cents: 10000,
       request: {
         meals: [{ recipe_id: "bean_tacos", servings: 2 }],
         diet: "omnivore",

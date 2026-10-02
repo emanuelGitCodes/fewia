@@ -17,7 +17,7 @@ const RECIPE_ERROR = "Choose a recipe from the catalog.";
 const SERVINGS = [1, 2, 3, 4, 5, 6, 7, 8];
 export function initialForm(): FormState {
   return {
-    monthly: "300",
+    monthly: "100",
     cap: "40",
     diet: "omnivore",
     pantry: [],
