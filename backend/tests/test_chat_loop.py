@@ -240,6 +240,7 @@ def _run(
     user_id: int = 1,
     available_cents: int = 10_000,
     record_evidence: EvidenceRecorder | None = None,
+    plan_cap_cents: int | None = None,
 ) -> tuple[dict[str, object], FakeLLM]:
     provider = FakeLLM(replies)
     pulse = _noop if heartbeat is None else heartbeat
@@ -254,6 +255,7 @@ def _run(
         previous_request=previous_request,
         history=history,
         record_evidence=record_evidence,
+        plan_cap_cents=plan_cap_cents,
     )
     return result, provider
 
@@ -358,9 +360,13 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert last["role"] == "user"
     content = last["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "use two servings"}
-    context = json.loads(cast(str, content[1]["text"]))
+    assert content[-1] == {"text": "use two servings"}
+    context = json.loads(cast(str, content[0]["text"]))
     assert context["previous_request"]["pantry_ingredients"] == ["salt"]
+    assert context["plan_cap_cents"] is None
+    assert context["context_role"] == (
+        "previous_request is prior state; apply latest explicit additions and removals"
+    )
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
     _assert_public(result)
@@ -843,6 +849,14 @@ def test_system_prompt_offers_catalog_alternatives() -> None:
     assert "stated diet" in SYSTEM_PROMPT
     assert "which one to plan" in SYSTEM_PROMPT
     assert "Name meals in plain words in replies, not as catalog IDs." in SYSTEM_PROMPT
+    assert "Latest pantry additions and removals override prior pantry." in (
+        SYSTEM_PROMPT
+    )
+    assert "shopping list does not mean purchasing it." in SYSTEM_PROMPT
+    assert (
+        "When plan_cap_cents is null, you MUST NOT invent a cap from available spending."
+        in SYSTEM_PROMPT
+    )
 
 
 def test_invalid_request_uses_context_validation() -> None:
@@ -850,6 +864,10 @@ def test_invalid_request_uses_context_validation() -> None:
     with pytest.raises(ChatProtocolError, match="request is invalid") as caught:
         run_chat(provider, " ", budget(), PERIOD)
     _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 0
+    with pytest.raises(ChatProtocolError, match="request is invalid") as cap_caught:
+        run_chat(provider, "plan", budget(), PERIOD, plan_cap_cents=-1)
+    _assert_static(cap_caught.value, "-1")
     assert len(provider.requests) == 0
 
 
@@ -1021,3 +1039,35 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
     assert incomplete["plan"] is None
     assert incomplete["evidence_id"] is None
     assert incomplete["evidence_revision_id"] is None
+
+
+def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
+    prev = previous(pantry_ingredients=["salt", "oil"])
+    result, provider = _run(
+        _planner_then_final(),
+        message="remove oil and add rice",
+        history=[
+            {"role": "user", "text": "plan tacos"},
+            {"role": "assistant", "text": "I can plan chicken tacos."},
+        ],
+        previous_request=prev,
+        plan_cap_cents=2_000,
+        available_cents=10_000,
+    )
+    assert result["status"] == "planned"
+    assert len(provider.requests) == 2
+    for request in provider.requests:
+        messages = request["messages"]
+        assert isinstance(messages, list)
+        current = messages[2]
+        assert isinstance(current, dict)
+        content = current["content"]
+        assert isinstance(content, list)
+        assert content[-1] == {"text": "remove oil and add rice"}
+        context = json.loads(cast(str, content[0]["text"]))
+        assert context["plan_cap_cents"] == 2_000
+        assert context["budget"]["available_cents"] == 10_000
+        assert context["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
+        assert context["context_role"] == (
+            "previous_request is prior state; apply latest explicit additions and removals"
+        )

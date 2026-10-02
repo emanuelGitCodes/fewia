@@ -101,4 +101,5 @@ def chat_job(
         previous_request=parsed.previous_request,
         history=history,
         record_evidence=record_evidence,
+        plan_cap_cents=parsed.plan_cap_cents,
     )

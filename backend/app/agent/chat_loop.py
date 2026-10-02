@@ -28,7 +28,12 @@ SYSTEM_PROMPT = (
     "You MUST NOT treat raw cents as a whole-currency amount. "
     "Write a concise plain-text final reply. "
     "You MUST use the server money_display strings for money. "
-    "Leave itemized prices to the estimate panel."
+    "Leave itemized prices to the estimate panel. "
+    "Latest pantry additions and removals override prior pantry. "
+    "Listing an ingredient again in a shopping list does not mean "
+    "purchasing it. "
+    "When plan_cap_cents is null, you MUST NOT invent a cap from "
+    "available spending."
 )
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
@@ -88,6 +93,7 @@ def run_chat(
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
+    plan_cap_cents: int | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -97,6 +103,7 @@ def run_chat(
         spending_source=spending_source,
         previous_request=previous_request,
         history=history,
+        plan_cap_cents=plan_cap_cents,
     )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
