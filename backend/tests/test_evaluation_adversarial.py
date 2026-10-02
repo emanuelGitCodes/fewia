@@ -277,6 +277,65 @@ class NoRepresentation:
         raise AssertionError("representation was read")
 
 
+@pytest.mark.parametrize("container", ["list", "dict"])
+def test_sanitize_omits_private_cycles_without_mutation(container: str) -> None:
+    private: object
+    if container == "list":
+        items: list[object] = []
+        items.append(items)
+        private = items
+    else:
+        mapping: dict[str, object] = {}
+        mapping["self"] = mapping
+        private = mapping
+    child: dict[str, object] = {"reasoningContent": private, "visible": "ordinary"}
+    nested: list[object] = [child]
+    source: dict[str, object] = {"reasoningContent": private, "nested": nested}
+    assert sanitize_public(source, ()) == {"nested": [{"visible": "ordinary"}]}
+    assert source["reasoningContent"] is private
+    assert source["nested"] is nested
+    assert nested[0] is child
+    assert child == {"reasoningContent": private, "visible": "ordinary"}
+    if container == "list":
+        assert cast(list[object], private)[0] is private
+    else:
+        assert cast(dict[str, object], private)["self"] is private
+
+
+def test_sanitize_omits_private_cycle_to_public_ancestor() -> None:
+    source: dict[str, object] = {"visible": "ordinary"}
+    source["reasoningContent"] = source
+    assert sanitize_public(source, ()) == {"visible": "ordinary"}
+    assert source["reasoningContent"] is source
+    assert source["visible"] == "ordinary"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [NoRepresentation(), (1,), float("nan")],
+    ids=["no_representation", "tuple", "nonfinite"],
+)
+def test_sanitize_omits_private_non_json_without_mutation(value: object) -> None:
+    private: dict[str, object] = {"nested": [value]}
+    child: dict[str, object] = {"reasoningContent": private, "visible": "ordinary"}
+    source: dict[str, object] = {"nested": [child]}
+    assert sanitize_public(source, ()) == {"nested": [{"visible": "ordinary"}]}
+    assert cast(list[object], source["nested"])[0] is child
+    assert child == {"reasoningContent": private, "visible": "ordinary"}
+    assert cast(list[object], private["nested"])[0] is value
+
+
+@pytest.mark.parametrize("marker", ["red", "acted", "[redacted]"])
+def test_sanitize_omits_private_marker_collisions_without_mutation(marker: str) -> None:
+    source: dict[str, object] = {
+        "reasoningContent": f"before {marker} after",
+        "nested": [{"reasoningContent": {"text": marker}, "visible": "ordinary"}],
+    }
+    original = deepcopy(source)
+    assert sanitize_public(source, (marker,)) == {"nested": [{"visible": "ordinary"}]}
+    assert source == original
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -295,7 +354,7 @@ def test_sanitize_rejects_non_json_with_static_error(value: object) -> None:
         sanitize_public({"nested": [value]}, ())
 
 
-@pytest.mark.parametrize("container", ["list", "dict", "reasoning"])
+@pytest.mark.parametrize("container", ["list", "dict"])
 def test_sanitize_rejects_cycles(container: str) -> None:
     value: object
     if container == "list":
@@ -304,7 +363,7 @@ def test_sanitize_rejects_cycles(container: str) -> None:
         value = items
     else:
         mapping: dict[str, object] = {}
-        mapping["reasoningContent" if container == "reasoning" else "self"] = mapping
+        mapping["self"] = mapping
         value = mapping
     with pytest.raises(ValueError, match="^public observation is invalid$"):
         sanitize_public(value, ())

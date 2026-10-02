@@ -60,9 +60,9 @@ def sanitize_public(value: object, markers: tuple[str, ...]) -> object:
             for key, child in cast(dict[object, object], item).items():
                 if type(key) is not str:
                     raise ValueError(_PUBLIC_ERROR)
-                copied = copy(child)
                 if key == "reasoningContent":
                     continue
+                copied = copy(child)
                 public_key = redact(key)
                 if (
                     public_key in result
