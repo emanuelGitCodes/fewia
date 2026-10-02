@@ -15,6 +15,11 @@ _EXTERNAL = (
 _SENTINEL = "do-not-echo-raw-input"
 
 
+class _RaisingLenStr(str):
+    def __len__(self) -> int:
+        raise RuntimeError("overridden-len")
+
+
 @pytest.mark.parametrize(
     ("text", "answer"),
     [
@@ -70,6 +75,33 @@ def test_parse_refusal_rejects_deeply_nested_malformed_input() -> None:
     wrapped = '{"k":' * 40 + "null" + "}" * 40
     assert len(wrapped) <= 256
     assert parse_refusal(wrapped) is None
+
+
+def test_parse_refusal_rejects_str_subclass_without_calling_len() -> None:
+    payload = _RaisingLenStr('{"refusal":"secrets"}')
+    result = parse_refusal(payload)
+    assert result is None
+    assert result != payload
+
+
+def test_parse_refusal_rejects_empty_string() -> None:
+    result = parse_refusal("")
+    assert result is None
+    assert result != ""
+
+
+def test_parse_refusal_rejects_empty_object() -> None:
+    payload = "{}"
+    result = parse_refusal(payload)
+    assert result is None
+    assert result != payload
+
+
+def test_parse_refusal_rejects_non_refusal_object() -> None:
+    payload = '{"meal":"plan"}'
+    result = parse_refusal(payload)
+    assert result is None
+    assert result != payload
 
 
 def test_parse_refusal_does_not_echo_raw_text() -> None:

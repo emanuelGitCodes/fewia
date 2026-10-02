@@ -31,7 +31,9 @@ def _reject_constant(_value: str) -> object:
 
 
 def parse_refusal(text: object) -> str | None:
-    if not isinstance(text, str) or len(text) > _MAX_CHARS:
+    if type(text) is not str:
+        return None
+    if len(text) > _MAX_CHARS:
         return None
     try:
         payload = json.loads(
