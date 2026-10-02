@@ -15,9 +15,11 @@ The catalog version is `sample-prices-v2`. An evaluation MUST freeze this
 version with the model and the prompts.
 
 Every new meal uses only the 22 existing ingredients. Each ingredient has a
-sample price, a USDA FoodData Central record, and a Spoonacular ID. A meal
-is vegan or vegetarian only when every ingredient is. The planner derives
-the diet from the ingredients. No meal carries its own diet label.
+sample price, a USDA FoodData Central record, and a Spoonacular ID. The
+planner derives the diet of a meal from the `vegan` and `vegetarian` facts
+of each ingredient in `INGREDIENTS`. A meal is vegan only when every
+ingredient has `vegan=True`. A meal is vegetarian only when every
+ingredient has `vegetarian=True`. No meal carries its own diet label.
 
 The other planning rules do not change: one to three meals, one to eight
 servings for each meal, and supported alternatives for other requests.
