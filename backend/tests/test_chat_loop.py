@@ -873,6 +873,18 @@ def test_system_prompt_offers_catalog_alternatives() -> None:
     )
 
 
+def test_system_prompt_requires_restriction_clarification() -> None:
+    assert "A fixed recipe MUST NOT silently omit a conflicting ingredient." in (
+        SYSTEM_PROMPT
+    )
+    assert (
+        "Unknown pantry items and restriction or group values require "
+        "clarification before tool use." in SYSTEM_PROMPT
+    )
+    assert "MUST NOT guess a mapping for an unsupported restriction" in SYSTEM_PROMPT
+    assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
+
+
 def test_invalid_request_uses_context_validation() -> None:
     provider = FakeLLM([])
     with pytest.raises(ChatProtocolError, match="request is invalid") as caught:

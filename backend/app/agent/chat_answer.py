@@ -5,6 +5,12 @@ from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 _CHANGE = "Change the recipe or the restriction."
 _MISSING_PRICE = "A purchase price is missing, so this estimate is incomplete."
 _OVER_BUDGET = "The estimate exceeds the available budget."
+_DIET = (
+    "Choose no preference, vegetarian, or vegan. "
+    "You MAY name a catalog ingredient to exclude."
+)
+_PANTRY_INGREDIENT = "Name a listed pantry ingredient."
+_EXCLUDE_INGREDIENT = "Name a listed ingredient to exclude."
 _QUESTION = (
     "Which meal should I plan, and what servings, restrictions, and pantry items apply?"
 )
@@ -100,6 +106,20 @@ def _unsupported_answer(error: dict[str, object]) -> str | None:
     return f"That recipe is not in the catalog. {CLARIFICATION}"
 
 
+def _input_clarification(error: dict[str, object]) -> str | None:
+    code = error.get("error_code")
+    if code == "unsupported_diet":
+        return _DIET
+    if code != "unsupported_ingredient":
+        return None
+    field = error.get("field")
+    if field == "pantry_ingredients":
+        return _PANTRY_INGREDIENT
+    if field == "ingredient_exclusions":
+        return _EXCLUDE_INGREDIENT
+    return None
+
+
 def render_public_answer(
     candidate: dict[str, object] | None,
     tool_error: dict[str, object] | None = None,
@@ -115,4 +135,7 @@ def render_public_answer(
         unsupported = _unsupported_answer(tool_error)
         if unsupported is not None:
             return unsupported
+        typed = _input_clarification(tool_error)
+        if typed is not None:
+            return typed
     return CLARIFICATION

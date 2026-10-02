@@ -1,6 +1,6 @@
 import json
 from datetime import date
-from typing import cast
+from typing import cast, get_args
 
 import pytest
 
@@ -8,7 +8,8 @@ from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -525,6 +526,158 @@ def test_unsupported_recipe_with_invalid_servings_returns_invalid_args() -> None
     assert "PlanningToolError" not in dumped
     assert "sushi" not in dumped
     assert "unsupported_recipe" not in dumped
+
+
+def test_unsupported_diet_returns_static_typed_tool_error() -> None:
+    unknown = "<script>do-not-echo-raw-input</script>"
+    args = arguments(diet=unknown)
+    call = ToolCall("call-unknown-diet", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "call-unknown-diet",
+            "content": [
+                {
+                    "json": {
+                        "error": "diet is not supported",
+                        "error_code": "unsupported_diet",
+                        "supported_diets": list(get_args(Diet)),
+                    }
+                }
+            ],
+            "status": "error",
+        }
+    }
+    assert list(get_args(Diet)) == ["omnivore", "vegetarian", "vegan"]
+    assert trace == [_error_trace(TOOL_NAME, "call-unknown-diet")]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "PlanningToolError" not in dumped
+    assert unknown not in dumped
+    assert "ValidationError" not in dumped
+
+
+def test_unsupported_diet_with_invalid_servings_returns_invalid_args() -> None:
+    args = arguments(
+        diet="keto",
+        meals=[{"recipe_id": "chicken_tacos", "servings": 9}],
+    )
+    call = ToolCall("call-diet-mix", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "call-diet-mix",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "keto" not in dumped
+    assert "unsupported_diet" not in dumped
+
+
+def test_unknown_pantry_ingredient_returns_static_typed_tool_error() -> None:
+    unknown = "<script>do-not-echo-raw-input</script>"
+    args = arguments(pantry_ingredients=[unknown, "also_unknown"])
+    call = ToolCall("call-unknown-pantry", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    json_body = {
+        "error": "ingredient is not supported",
+        "error_code": "unsupported_ingredient",
+        "field": "pantry_ingredients",
+        "supported_ingredient_ids": list(INGREDIENTS),
+    }
+    assert block == {
+        "toolResult": {
+            "toolUseId": "call-unknown-pantry",
+            "content": [{"json": json_body}],
+            "status": "error",
+        }
+    }
+    assert set(json_body) == {
+        "error",
+        "error_code",
+        "field",
+        "supported_ingredient_ids",
+    }
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert unknown not in dumped
+    assert "also_unknown" not in dumped
+    assert "PlanningToolError" not in dumped
+    assert "unknown pantry" not in dumped
+
+
+def test_unknown_exclusion_ingredient_returns_static_typed_tool_error() -> None:
+    unknown = "<script>do-not-echo-raw-input</script>"
+    args = arguments(
+        pantry_ingredients=["salt"],
+        ingredient_exclusions=[unknown, "also_unknown"],
+    )
+    call = ToolCall("call-unknown-exclusion", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    json_body = _tool_json(block)
+    assert json_body == {
+        "error": "ingredient is not supported",
+        "error_code": "unsupported_ingredient",
+        "field": "ingredient_exclusions",
+        "supported_ingredient_ids": list(INGREDIENTS),
+    }
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert unknown not in dumped
+    assert "also_unknown" not in dumped
+
+
+def test_unknown_pantry_takes_priority_over_unknown_exclusion() -> None:
+    args = arguments(
+        pantry_ingredients=["not_in_catalog"],
+        ingredient_exclusions=["also_unknown"],
+    )
+    call = ToolCall("call-priority", TOOL_NAME, args)
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    json_body = _tool_json(block)
+    assert json_body["error_code"] == "unsupported_ingredient"
+    assert json_body["field"] == "pantry_ingredients"
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "not_in_catalog" not in dumped
+    assert "also_unknown" not in dumped
+
+
+def test_unsupported_ingredient_with_invalid_field_returns_invalid_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_execute(
+        _arguments: object,
+        _budget: BudgetResult,
+        _period: date,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        raise PlanningToolError(
+            "ingredient is not supported",
+            error_code="unsupported_ingredient",
+            detail={"field": "meals", "ingredient_id": "onion"},
+        )
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
+    call = ToolCall("call-bad-field", TOOL_NAME, arguments())
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert block["toolResult"]["content"] == [
+        {"json": {"error": "arguments are invalid"}}
+    ]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert "onion" not in dumped
+    assert "meals" not in dumped
+    assert "unsupported_ingredient" not in dumped
 
 
 def test_exclusion_conflict_returns_static_typed_tool_error() -> None:

@@ -37,7 +37,12 @@ SYSTEM_PROMPT = (
     "available spending. "
     "When plan_cap_cents is not null, you MUST preserve that cap or "
     "lower it. You MUST NOT clear or raise the cap. "
-    "A cap may change only when the user changes budget controls."
+    "A cap may change only when the user changes budget controls. "
+    "A fixed recipe MUST NOT silently omit a conflicting ingredient. "
+    "Unknown pantry items and restriction or group values require "
+    "clarification before tool use. "
+    "You MUST NOT guess a mapping for an unsupported restriction. "
+    "Ask the user before you choose an alternative."
 )
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
