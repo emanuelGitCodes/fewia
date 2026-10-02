@@ -31,7 +31,7 @@ export function TemplatePicker({ config, form, onChange, disabled }: Props): JSX
     servings,
   );
   const requestIdeas = (): void => {
-    if (disabled) {
+    if (disabled || pending) {
       return;
     }
     find();
@@ -65,7 +65,7 @@ export function TemplatePicker({ config, form, onChange, disabled }: Props): JSX
           </option>
         ))}
       </select>
-      <button type="button" onClick={requestIdeas}>
+      <button type="button" disabled={disabled || pending} onClick={requestIdeas}>
         Find meal ideas
       </button>
       <p>{GUIDANCE}</p>

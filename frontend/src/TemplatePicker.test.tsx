@@ -272,6 +272,30 @@ describe("TemplatePicker", () => {
     view.unmount();
   });
 
+  it("blocks a second find while pending and keeps servings editable", async () => {
+    const hung = deferred<TemplateSuggestions>();
+    vi.mocked(fetchTemplates).mockReturnValueOnce(hung.promise);
+    const { view } = mount();
+    act(() => {
+      clickFind(view.container);
+    });
+    expect(screen.getByRole("status").textContent).toBe("Finding meal ideas.");
+    expect(findButton(view.container).disabled).toBe(true);
+    act(() => {
+      clickFind(view.container);
+    });
+    expect(fetchTemplates).toHaveBeenCalledTimes(1);
+    const servings = screen.getByLabelText("Servings per meal") as HTMLSelectElement;
+    expect(servings.disabled).toBe(false);
+    expect(mealIdeas(view.container).disabled).toBe(false);
+    await act(async () => {
+      hung.resolve(payload());
+    });
+    expect(findButton(view.container).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Use these meals: Bean tacos, Lentil soup" })).toBeTruthy();
+    view.unmount();
+  });
+
   it("drops a completed list when servings or catalog context change", async () => {
     const form = formState();
     const config = groceryConfig();
