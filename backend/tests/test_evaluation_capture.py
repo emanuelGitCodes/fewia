@@ -102,6 +102,86 @@ def test_nested_reasoning_invalidates_arguments_without_storing_text() -> None:
     assert original == before
 
 
+@pytest.mark.parametrize("location", ["assistant", "nested_metadata"])
+def test_reasoning_only_marker_is_not_graded(location: str) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    original = response()
+    if location == "assistant":
+        original = response([{"text": "answer"}, {"reasoningContent": {"text": marker}}])
+        original["stopReason"] = "end_turn"
+    else:
+        original["metadata"] = {"nested": [{"reasoningContent": {"text": marker}}]}
+    before = deepcopy(original)
+    capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
+
+    assert capture.converse("system", [], []) is original
+    assert capture.leakage is False
+    assert capture.invalid_responses == 0
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+    assert original == before
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_reasoning_only_tool_marker_keeps_arguments_invalid(nested: bool) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    arguments: dict[str, object] = {"reasoningContent": {"text": marker}}
+    if nested:
+        arguments = {"nested": [arguments]}
+    original = response([tool("one", arguments)])
+    before = deepcopy(original)
+    capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
+
+    assert capture.converse("system", [], []) is original
+    assert capture.leakage is False
+    assert capture.invalid_responses == 0
+    assert capture.calls == [{"tool": "plan_groceries", "input": "[invalid]"}]
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+    assert original == before
+
+
+def test_reasoning_only_result_marker_is_removed_without_grading() -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    payload: dict[str, object] = {
+        "nested": [{"reasoningContent": {"text": marker}, "amount": 5}]
+    }
+    messages: list[dict[str, object]] = [
+        {"content": [tool_result_block("one", payload, success=True)]}
+    ]
+    before = deepcopy(messages)
+    original = response()
+    capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
+
+    assert capture.converse("system", messages, []) is original
+    assert capture.leakage is False
+    assert capture.invalid_responses == 0
+    assert capture.tool_results[0]["content"] == [{"json": {"nested": [{"amount": 5}]}}]
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+    assert messages == before
+
+
+@pytest.mark.parametrize("location", ["assistant", "tool"])
+def test_visible_marker_is_graded_independently(location: str) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    blocks: list[dict[str, object]] = [{"text": marker}]
+    if location == "tool":
+        blocks = [tool("one", {"value": marker})]
+    original = response(blocks)
+    if location == "assistant":
+        original["stopReason"] = "end_turn"
+    before = deepcopy(original)
+    capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
+
+    assert capture.converse("system", [], []) is original
+    assert capture.leakage is True
+    assert capture.invalid_responses == 0
+    if location == "tool":
+        assert capture.calls[0]["input"] == {"value": "[redacted]"}
+    else:
+        assert capture.calls == []
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+    assert original == before
+
+
 def test_observes_only_latest_message_results_and_copies_payload() -> None:
     old = tool_result_block("old", {"amount": 1}, success=True)
     payload: dict[str, object] = {

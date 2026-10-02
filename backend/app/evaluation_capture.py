@@ -33,6 +33,7 @@ class CaptureProvider:
                 return any(
                     self._leaks(key, seen) or self._leaks(item, seen)
                     for key, item in value.items()
+                    if key != "reasoningContent"
                 )
             return any(self._leaks(item, seen) for item in value)
         return False
