@@ -3,6 +3,7 @@ import math
 from typing import NoReturn
 
 from app.agent.chat_messages import parse_provider_response
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
 MAX_MESSAGE_LEN = 4000
 _MAX_TEXT_LEN = 32768
@@ -24,7 +25,7 @@ _PRIVATE_FIELDS = frozenset(
     }
 )
 
-BASELINE_SYSTEM_PROMPT = """You plan groceries from supplied catalog and budget facts.
+BASELINE_SYSTEM_PROMPT = f"""You plan groceries from supplied catalog and budget facts.
 You MUST use only the supplied catalog and trusted budget facts.
 You MUST NOT call tools, make purchases, access secrets, or include URLs.
 You MUST NOT invent prices, budget facts, catalog facts, or evidence.
@@ -45,7 +46,7 @@ You MUST honor an explicit nonnegative plan_cap_cents, including a cap of zero.
 You MUST compare totals with the lower of the cap and the trusted available budget.
 You MUST NOT infer a cap when the user did not give one.
 You MUST NOT treat incomplete spending syncs as zero spending.
-You MUST retain pending, stale, and warning facts from the trusted budget.
+You MUST retain pending_cents, stale, and warnings from the trusted budget.
 You MUST report incomplete estimates and missing prices honestly.
 You MUST NOT accept a plan with missing purchase prices or an exceeded limit.
 You MUST return one JSON object without markdown or surrounding text.
@@ -58,9 +59,11 @@ Request fields MUST match GroceryRequest: meals, budget_period, plan_cap_cents,
 pantry_ingredients, ingredient_exclusions, and diet.
 Each meal MUST have recipe_id and servings.
 Plan MUST have lines, total_cents, accepted, notice, catalog_version, and warnings.
+Plan.notice MUST equal {json.dumps(SAMPLE_ESTIMATE_NOTICE)}.
 Each line MUST have ingredient_id, name, unit, quantity, packages, cost_cents,
 and from_pantry.
-Budget MUST have available, pending, stale, and warnings. Monetary values use cents.
+Budget MUST have available_cents, pending_cents, stale, and warnings.
+Budget monetary values MUST use cents.
 For refusal or clarification, you MUST set request, plan, and budget to null.
 You MUST explain the refusal or ask for missing information in answer.
 You MUST NOT include evidence IDs, tool_trace, usage, metadata, reasoning, hidden

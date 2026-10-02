@@ -4,11 +4,39 @@ from typing import cast
 
 import pytest
 
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_baseline_response import (
+    BASELINE_SYSTEM_PROMPT,
     MAX_MESSAGE_LEN,
     BaselineResponseError,
     parse_baseline_response,
 )
+
+
+def test_prompt_budget_contract_uses_public_keys() -> None:
+    contract = next(
+        line
+        for line in BASELINE_SYSTEM_PROMPT.splitlines()
+        if line.startswith("Budget MUST have ")
+    )
+    fields = contract.removeprefix("Budget MUST have ").removesuffix(".")
+    assert fields.replace(", and ", ", ").split(", ") == [
+        "available_cents",
+        "pending_cents",
+        "stale",
+        "warnings",
+    ]
+    assert "Budget monetary values MUST use cents." in BASELINE_SYSTEM_PROMPT
+
+
+def test_prompt_notice_equals_current_public_notice() -> None:
+    contract = next(
+        line
+        for line in BASELINE_SYSTEM_PROMPT.splitlines()
+        if line.startswith("Plan.notice MUST equal ")
+    )
+    value = contract.removeprefix("Plan.notice MUST equal ").removesuffix(".")
+    assert json.loads(value) == SAMPLE_ESTIMATE_NOTICE
 
 
 def observed_result() -> dict[str, object]:
