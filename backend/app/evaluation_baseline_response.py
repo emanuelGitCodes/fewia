@@ -3,27 +3,31 @@ import math
 from typing import NoReturn
 
 from app.agent.chat_messages import parse_provider_response
-from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
 
 MAX_MESSAGE_LEN = 4000
 _MAX_TEXT_LEN = 32768
 _RESULT_FIELDS = frozenset({"status", "answer", "request", "plan", "budget"})
 _STATUSES = frozenset({"planned", "needs_revision", "clarification"})
-_PRIVATE_FIELDS = frozenset(
-    {
-        "evidence_id",
-        "evidence_revision_id",
-        "tool_trace",
-        "usage",
-        "metadata",
-        "provenance",
-        "reasoning",
-        "reasoningContent",
-        "spending_source",
-        "model_turns",
-        "planner_revisions",
-    }
-)
+_PUBLIC_FIELDS: dict[str, frozenset[str]] = {
+    "result": _RESULT_FIELDS,
+    "request": frozenset(GroceryRequest.model_fields),
+    "meal": frozenset(MealRequest.model_fields),
+    "plan": frozenset(
+        {"lines", "total_cents", "accepted", "notice", "catalog_version", "warnings"}
+    ),
+    "line": frozenset(
+        "ingredient_id name unit quantity packages cost_cents from_pantry".split()
+    ),
+    "budget": frozenset({"available_cents", "pending_cents", "stale", "warnings"}),
+}
+_CHILD_SCHEMAS: dict[str, str] = {
+    "request": "request",
+    "meals": "meal",
+    "plan": "plan",
+    "lines": "line",
+    "budget": "budget",
+}
 
 BASELINE_SYSTEM_PROMPT = f"""You plan groceries from supplied catalog and budget facts.
 You MUST use only the supplied catalog and trusted budget facts.
@@ -83,10 +87,21 @@ def _invalid() -> BaselineResponseError:
 def _json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
-        if key in result or key in _PRIVATE_FIELDS or key.startswith("_"):
+        if key in result:
             raise _invalid()
         result[key] = value
     return result
+
+
+def _check_public_fields(value: object, schema: str = "") -> None:
+    if isinstance(value, dict):
+        if value.keys() - _PUBLIC_FIELDS.get(schema, frozenset()):
+            raise _invalid()
+        for key, child in value.items():
+            _check_public_fields(child, _CHILD_SCHEMAS.get(key, ""))
+    elif isinstance(value, list):
+        for child in value:
+            _check_public_fields(child, schema)
 
 
 def _reject_constant(value: str) -> NoReturn:
@@ -126,6 +141,7 @@ def parse_baseline_response(response: dict[str, object]) -> dict[str, object]:
             for key in ("request", "plan", "budget")
         ):
             raise _invalid()
+        _check_public_fields(result, "result")
         return result
     except (ValueError, RecursionError, OverflowError):
         raise _invalid() from None

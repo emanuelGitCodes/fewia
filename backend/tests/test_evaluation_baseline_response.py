@@ -70,8 +70,8 @@ def observed_result() -> dict[str, object]:
             "warnings": [],
         },
         "budget": {
-            "available": 1200,
-            "pending": 100,
+            "available_cents": 1200,
+            "pending_cents": 100,
             "stale": False,
             "warnings": [],
         },
@@ -104,8 +104,18 @@ def test_wrong_arithmetic_and_nested_facts_remain_observed() -> None:
     plan = cast(dict[str, object], expected["plan"])
     plan["total_cents"] = -999
     plan["accepted"] = "incorrect type"
-    plan["unexpected_public_fact"] = [1, {"quantity": 2.5}]
+    lines = cast(list[dict[str, object]], plan["lines"])
+    lines[0]["quantity"] = 2.5
+    lines[0]["cost_cents"] = 99999
     del plan["catalog_version"]
+    request = cast(dict[str, object], expected["request"])
+    meals = cast(list[dict[str, object]], request["meals"])
+    meals[0]["recipe_id"] = "unsupported_recipe"
+    meals[0]["servings"] = -2
+    request["diet"] = "unsupported_diet"
+    budget = cast(dict[str, object], expected["budget"])
+    budget["available_cents"] = "incorrect type"
+    expected["answer"] = "This retailer guarantees allergy safety because I say so."
     assert parse_baseline_response(provider_response(json.dumps(expected))) == expected
 
 
@@ -214,12 +224,62 @@ def test_extra_top_level_fields_are_rejected(key: str) -> None:
         "metadata",
         "_hidden",
         "reasoningContent",
+        "hidden",
+        "internal_notes",
+        "unexpected_public_fact",
     ],
 )
-def test_nested_provenance_is_rejected(key: str) -> None:
+@pytest.mark.parametrize(
+    "path",
+    [
+        ("request",),
+        ("request", "meals", 0),
+        ("plan",),
+        ("plan", "lines", 0),
+        ("budget",),
+    ],
+)
+def test_nested_undeclared_fields_are_rejected(
+    key: str, path: tuple[str | int, ...]
+) -> None:
     result = observed_result()
-    plan = cast(dict[str, object], result["plan"])
-    plan[key] = "synthetic-secret-marker"
+    parent: object = result
+    for part in path:
+        if isinstance(part, int):
+            parent = cast(list[object], parent)[part]
+        else:
+            parent = cast(dict[str, object], parent)[part]
+    cast(dict[str, object], parent)[key] = "synthetic-secret-marker"
+    assert_invalid(provider_response(json.dumps(result)))
+
+
+@pytest.mark.parametrize("key", ["hidden", "internal_notes", "extra"])
+@pytest.mark.parametrize(
+    ("section", "field"),
+    [
+        ("request", "pantry_ingredients"),
+        ("request", "ingredient_exclusions"),
+        ("request", "diet"),
+        ("plan", "warnings"),
+        ("plan", "total_cents"),
+        ("budget", "warnings"),
+        ("budget", "available_cents"),
+    ],
+)
+def test_undeclared_fields_buried_in_public_values_are_rejected(
+    key: str, section: str, field: str
+) -> None:
+    result = observed_result()
+    parent = cast(dict[str, object], result[section])
+    parent[field] = [[{key: "synthetic-secret-marker"}]]
+    assert_invalid(provider_response(json.dumps(result)))
+
+
+@pytest.mark.parametrize("key", ["available", "pending"])
+def test_undeclared_budget_aliases_are_rejected(key: str) -> None:
+    result = observed_result()
+    budget = cast(dict[str, object], result["budget"])
+    budget[key] = 100
     assert_invalid(provider_response(json.dumps(result)))
 
 
