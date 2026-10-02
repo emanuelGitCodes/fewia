@@ -6,7 +6,7 @@
 - **Application head**: `ef586c142f4e9e7f93741ee7ab5fb1b0b9d98149`
 - **Records branch**: `codex/moderate-completion-records` (also includes approved current-scope docs `4e4e824`)
 - **Status**: nine items complete locally; item 13 partial
-- **Publication**: twelve branches pushed without force. Pull requests #233 through #244 are open and unmerged in numeric merge order. Current CI status is available on the pull requests. Main was not pushed or merged. No deployment.
+- **Publication**: twelve branches pushed without force as pull requests #233 through #244. #233 merged into `main`. #234 through #244 merged into their parent branches. Pull request #249 brought them to `main` at `8859d5e`. No deployment.
 
 This page records local implementation and verification. It does not claim production health or an evaluation benchmark.
 

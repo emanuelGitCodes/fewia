@@ -2670,3 +2670,54 @@ Nine Moderate items are complete locally at application head `ef586c142f4e9e7f93
 ## 2026-10-02 — Moderate backlog publication
 
 The user authorized publication. Twelve branches were pushed without force. Pull requests #233 through #244 were created in numeric merge order. They are open and unmerged. First: [https://github.com/emanuelGitCodes/fewia/pull/233](https://github.com/emanuelGitCodes/fewia/pull/233) Last: [https://github.com/emanuelGitCodes/fewia/pull/244](https://github.com/emanuelGitCodes/fewia/pull/244) Published budget-foundation head is `ab7b914962af0bde3d59d8515d71a6f35a2b6819`. Main was not pushed or merged. Current CI status is available on the pull requests. No deployment. Details: [phases/moderate-backlog.md](phases/moderate-backlog.md).
+
+## 2026-10-02 — Second easy backlog and the moderate stack on main
+
+The `easy-backlog-2` loop closed the easy items from the second open-feature
+list.
+
+| Item | Pull request | Merge commit | Change |
+|---|---|---|---|
+| 03 | #245 | `5747b3e` | Decision 0017 accepts the 40-meal catalog. |
+| 04 | #246 | `ad5a765` | `oat_milk` stores the full-precision USDA values: protein 797 mg, fat 2,749 mg. The fixture row changes with it. |
+| 07 | #247 | `61e689a` | Grok reviews run with `streaming-json`. `grok_report()` rebuilds the report text and reads tokens from the `end` event. |
+| 05 | #248 | via #249 | Two `chat_answer` tests: a non-integer plan total, and vegan-only examples. |
+
+Item 02 is a repository setting. The user enables secret scanning and push
+protection. Item 06 is confirmed: the Grok writer for item 05 recorded
+334,542 input tokens, and a live Grok review recorded 39,509 input tokens.
+Item 08 is closed: in six live chat requests for meals outside the catalog,
+Nova 2 Lite answered from the prompt rule and did not call the tool. Item 09
+is dropped, because #234 replaces the model reply with a server template.
+
+After the change in #246, `python -m app.usda_refresh` reports no
+differences for all 22 records. Before #248, removing the total guard or
+changing `vegan` to `vegetarian` in `chat_answer.py` left every test
+passing. After #248, each mutation fails one test.
+
+Pull requests #234 through #244 and #248 merged into their parent branches,
+not into `main`. Only #233 reached `main`. The coordinator built the
+branch `claude/stack-to-main` from `codex/moderate-completion-records`, the
+#244 head, and merged `main` and `codex/moderate-answers` into it. Pull
+request #249 merged that branch into `main` at `8859d5e`. Commit `ab7b914`
+is not in that history. Its test is already in
+`backend/tests/test_budget_tool.py`. The auto-mode classifier blocked the
+coordinator from merging the stack, because the coordinator had reviewed
+only #233 and #234. The user merged the stack and #249.
+
+Gates on the #249 head passed: backend 1,669 tests, and frontend lint,
+tests, and build. Live checks on the rebuilt Compose stack at `8859d5e`:
+
+- The config lists 40 recipes at `sample-prices-v2`.
+- "Plan chicken curry for 2." planned through the tool. The template reply
+  gave USD $24.12.
+- A request to buy groceries with a card got the fixed refusal, with no
+  tool call and no plan.
+- "How much budget do I have left?" called `get_budget_summary` and
+  reported USD $40.00 available.
+- `POST /grocery/templates` for a vegan diet returned five suggestions.
+- In the browser, "Find meal ideas" listed suggestions. The console had no
+  errors.
+
+Loop cost: writers used 1.43M input tokens over 5 runs (Luna 404k, Grok
+1.02M). Review runs: 6, with 613k input tokens. No subagents ran.
