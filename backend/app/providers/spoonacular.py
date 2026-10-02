@@ -36,7 +36,8 @@ def _parse_estimated_cents(payload: object) -> int | None:
     cost = payload.get("estimatedCost")
     if not isinstance(cost, dict):
         return None
-    if cost.get("unit") not in CENT_UNITS:
+    unit = cost.get("unit")
+    if not isinstance(unit, str) or unit not in CENT_UNITS:
         return None
     value = cost.get("value")
     if isinstance(value, bool) or not isinstance(value, int | float):

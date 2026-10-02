@@ -108,6 +108,8 @@ def test_cents_unit_rounds_to_int_on_200() -> None:
         {"value": 26.41, "unit": "Cents"},
         {"value": 26.41, "unit": ""},
         {"value": 26.41},
+        {"value": 26.41, "unit": []},
+        {"value": 26.41, "unit": {}},
     ],
 )
 def test_unrecognized_or_missing_unit_returns_none(
