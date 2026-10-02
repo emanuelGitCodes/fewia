@@ -1,6 +1,6 @@
 {
   "version": "grocery-eval-v1",
-  "catalog_version": "sample-prices-v1",
+  "catalog_version": "sample-prices-v2",
   "repeats": 3,
   "mode_note": "Fixtures do not prove LLM quality or live providers.",
   "evidence_target_note": "Target evidence_class and path_classes labels are not observed proof.",
@@ -17,7 +17,7 @@
     "plan_cap_cents": null,
     "seed": 42,
     "user_id": 1,
-    "catalog_version": "sample-prices-v1",
+    "catalog_version": "sample-prices-v2",
     "max_model_turns": 8,
     "max_planner_revisions": 3
   },
@@ -68,7 +68,37 @@
     "vegetable_stir_fry",
     "baked_potatoes_with_beans",
     "breakfast_burritos",
-    "overnight_oats"
+    "overnight_oats",
+    "chicken_pasta",
+    "chicken_stir_fry",
+    "chicken_curry",
+    "chicken_vegetable_soup",
+    "chicken_burrito_bowls",
+    "chicken_potato_bake",
+    "chicken_lentil_stew",
+    "chicken_chickpea_skillet",
+    "chicken_fried_rice",
+    "chicken_tortilla_soup",
+    "egg_fried_rice",
+    "egg_tacos",
+    "tomato_egg_pasta",
+    "potato_hash_with_eggs",
+    "chickpea_egg_scramble",
+    "vegetable_egg_stir_fry",
+    "egg_rice_bowls",
+    "lentil_egg_skillet",
+    "rice_and_beans",
+    "lentil_pasta",
+    "chickpea_tacos",
+    "potato_curry",
+    "tomato_rice",
+    "garlic_tomato_pasta",
+    "vegetable_soup",
+    "lentil_tacos",
+    "chickpea_pasta",
+    "coconut_lentil_curry",
+    "potato_tacos",
+    "salsa_rice_bowls"
   ],
   "scenarios": [
     {
@@ -127,7 +157,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -204,7 +234,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "local_postgresql",
@@ -294,7 +324,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -359,7 +389,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -443,7 +473,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "plaid_sandbox",
@@ -488,7 +518,7 @@
             "imply_snapshots_created": false,
             "when_plan_returned": {
               "immutable_revision": true,
-              "catalog_version": "sample-prices-v1"
+              "catalog_version": "sample-prices-v2"
             }
           }
         }
@@ -569,7 +599,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -665,7 +695,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -763,7 +793,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -845,7 +875,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -926,7 +956,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -1008,7 +1038,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -1125,6 +1155,41 @@
             "reject": "meal_count"
           },
           {
+            "meals": [
+              {"recipe_id": "chicken_pasta", "servings": 1},
+              {"recipe_id": "chicken_stir_fry", "servings": 1},
+              {"recipe_id": "chicken_curry", "servings": 1},
+              {"recipe_id": "chicken_vegetable_soup", "servings": 1},
+              {"recipe_id": "chicken_burrito_bowls", "servings": 1},
+              {"recipe_id": "chicken_potato_bake", "servings": 1},
+              {"recipe_id": "chicken_lentil_stew", "servings": 1},
+              {"recipe_id": "chicken_chickpea_skillet", "servings": 1},
+              {"recipe_id": "chicken_fried_rice", "servings": 1},
+              {"recipe_id": "chicken_tortilla_soup", "servings": 1},
+              {"recipe_id": "egg_fried_rice", "servings": 1},
+              {"recipe_id": "egg_tacos", "servings": 1},
+              {"recipe_id": "tomato_egg_pasta", "servings": 1},
+              {"recipe_id": "potato_hash_with_eggs", "servings": 1},
+              {"recipe_id": "chickpea_egg_scramble", "servings": 1},
+              {"recipe_id": "vegetable_egg_stir_fry", "servings": 1},
+              {"recipe_id": "egg_rice_bowls", "servings": 1},
+              {"recipe_id": "lentil_egg_skillet", "servings": 1},
+              {"recipe_id": "rice_and_beans", "servings": 1},
+              {"recipe_id": "lentil_pasta", "servings": 1},
+              {"recipe_id": "chickpea_tacos", "servings": 1},
+              {"recipe_id": "potato_curry", "servings": 1},
+              {"recipe_id": "tomato_rice", "servings": 1},
+              {"recipe_id": "garlic_tomato_pasta", "servings": 1},
+              {"recipe_id": "vegetable_soup", "servings": 1},
+              {"recipe_id": "lentil_tacos", "servings": 1},
+              {"recipe_id": "chickpea_pasta", "servings": 1},
+              {"recipe_id": "coconut_lentil_curry", "servings": 1},
+              {"recipe_id": "potato_tacos", "servings": 1},
+              {"recipe_id": "salsa_rice_bowls", "servings": 1}
+            ],
+            "reject": "meal_count"
+          },
+          {
             "meals": [{"recipe_id": "overnight_oats", "servings": 9}],
             "reject": "servings"
           }
@@ -1137,7 +1202,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -1226,7 +1291,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1317,7 +1382,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1390,7 +1455,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -1468,7 +1533,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1571,7 +1636,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1646,7 +1711,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -1723,7 +1788,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1786,7 +1851,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1880,7 +1945,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -1963,7 +2028,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "plaid_sandbox",
@@ -2067,7 +2132,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "live_instacart_development",
@@ -2131,7 +2196,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -2194,7 +2259,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -2299,7 +2364,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "local_postgresql",
@@ -2385,7 +2450,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -2458,7 +2523,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",
@@ -2523,7 +2588,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "deterministic_fake_provider",
@@ -2587,7 +2652,7 @@
           "imply_snapshots_created": false,
           "when_plan_returned": {
             "immutable_revision": true,
-            "catalog_version": "sample-prices-v1"
+            "catalog_version": "sample-prices-v2"
           }
         },
         "evidence_class": "real_bedrock",

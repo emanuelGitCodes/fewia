@@ -206,18 +206,21 @@ def test_pantry_list_does_not_subtract_nutrients() -> None:
     assert included.total == MacroTotals(208, 0, 0, 0)
 
 
-def test_all_ten_recipes_are_available() -> None:
-    assert len(SUPPORTED_RECIPE_IDS) == 10
+def test_all_supported_recipes_are_available() -> None:
+    assert len(SUPPORTED_RECIPE_IDS) == 40
     for recipe_id in SUPPORTED_RECIPE_IDS:
-        result = meal_nutrition(
-            grocery_request(meals=[{"recipe_id": recipe_id, "servings": 1}]),
-        )
-        assert result.total is not None
-        assert result.meals != ()
-        assert result.meals[0].recipe_id == recipe_id
-        assert result.meals[0].servings == 1
-        assert result.notice == NOTICE_TEXT
-        assert result.portion_notice == PORTION_TEXT
+        for servings in (1, 8):
+            result = meal_nutrition(
+                grocery_request(
+                    meals=[{"recipe_id": recipe_id, "servings": servings}],
+                ),
+            )
+            assert result.total is not None
+            assert result.meals != ()
+            assert result.meals[0].recipe_id == recipe_id
+            assert result.meals[0].servings == servings
+            assert result.notice == NOTICE_TEXT
+            assert result.portion_notice == PORTION_TEXT
 
 
 def test_missing_facts_are_unavailable() -> None:
