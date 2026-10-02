@@ -12,6 +12,7 @@ from app.providers.http_client import DEFAULT_TIMEOUT, build_http_client
 BASE_URL = "https://api.spoonacular.com"
 INFORMATION_PATH = "/food/ingredients/{id}/information"
 CACHE_SECONDS = 3600
+CENT_UNITS = frozenset({"US Cents", "cents"})
 
 
 class SpoonacularUnavailable(Exception):
@@ -35,7 +36,7 @@ def _parse_estimated_cents(payload: object) -> int | None:
     cost = payload.get("estimatedCost")
     if not isinstance(cost, dict):
         return None
-    if cost.get("unit") != "US Cents":
+    if cost.get("unit") not in CENT_UNITS:
         return None
     value = cost.get("value")
     if isinstance(value, bool) or not isinstance(value, int | float):
