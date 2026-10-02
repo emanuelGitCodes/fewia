@@ -283,11 +283,11 @@
       "data_url": "https://fdc.nal.usda.gov/portal-data/external/2257046",
       "energy_kcal": 48,
       "energy_nutrient_id": 2047,
-      "protein_g": 0.8,
-      "fat_g": 2.75,
+      "protein_g": 0.797,
+      "fat_g": 2.749,
       "carbohydrate_g": 5.1,
       "sodium_mg": 42,
-      "source_type": "Foundation website JSON (display precision)"
+      "source_type": "FoodData Central API format=full (full precision)"
     }
   }
 }
