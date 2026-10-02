@@ -26,6 +26,7 @@ section records the state on `main` on 2026-09-30.
 - **Supermarket prices.** The estimate shows a Spoonacular average for
   each purchased line and for the plan. The API computes it at read time
   and stores none. Budget acceptance still uses sample-catalog cents.
+  Live prices show on the Compose stack since 2026-10-02.
   Decision [0016](../decisions/0016-spoonacular-read-time-overlay.md)
   records the rules.
 - **Instacart.** The handoff is parked. Instacart Developer Platform does
