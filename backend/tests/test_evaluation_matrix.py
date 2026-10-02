@@ -154,7 +154,7 @@ def test_copies_are_isolated_from_caller_and_other_slots(
     fresh = prepare_matrix(original)
     assert next(slot.case for slot in fresh if slot.case_id == "F01") == frozen
     with pytest.raises(FrozenInstanceError):
-        setattr(copies[0], "condition", "changed")
+        copies[0].condition = "changed"
 
 
 @pytest.mark.parametrize(
