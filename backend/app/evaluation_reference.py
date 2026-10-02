@@ -88,7 +88,7 @@ def observe_reference_case(case: dict[str, object]) -> dict[str, object]:
         if str(exc) == STALE_INPUT_ERROR:
             observation["reason"] = STALE_INPUT_ERROR
         return observation
-    except Exception:
+    except Exception:  # noqa: BLE001
         observation["reason"] = "deterministic planning failed"
         return observation
     observation.update(
