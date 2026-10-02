@@ -39,11 +39,33 @@ def _case(tools: list[object] | None = None) -> dict[str, object]:
     }
 
 
-def _turn(calls: list[object]) -> dict[str, object]:
+def _result(**changes: object) -> dict[str, object]:
+    return {
+        "status": "planned",
+        "answer": "Estimated plan.",
+        "request": _arguments(
+            diet="omnivore",
+            plan_cap_cents=None,
+            pantry_ingredients=[],
+            ingredient_exclusions=[],
+        ),
+        "plan": {"accepted": True, "total_cents": 200},
+        "budget": {
+            "available_cents": 1000,
+            "pending_cents": 0,
+            "stale": False,
+            "warnings": [],
+        },
+        **changes,
+    }
+
+
+def _turn(calls: list[object], **changes: object) -> dict[str, object]:
     return {
         "status": "completed",
-        "result": {"reply": "Estimated plan.", "trace": []},
+        "result": _result(),
         "calls": calls,
+        **changes,
     }
 
 
@@ -243,10 +265,10 @@ def test_forbidden_call_is_unnecessary() -> None:
         {"turns": []},
         {"turns": {}},
         {"turns": [None]},
-        {"turns": [{"status": "completed", "result": {"reply": "OK"}}]},
+        {"turns": [{"status": "completed", "result": _result()}]},
         {"turns": [{"status": "completed", "calls": []}]},
         {"turns": [{"status": "completed", "calls": [], "result": {}}]},
-        {"turns": [{"status": "failed", "calls": [], "result": {"reply": "OK"}}]},
+        {"turns": [_turn([], status="failed")]},
         {"turns": [_turn([]), _turn([])]},
         {"status": "failed"},
         {"status": None},
@@ -268,6 +290,79 @@ def test_missing_final_follow_up_never_passes() -> None:
     case = _case([])
     case["messages"] = [{"role": "user"}, {"role": "user"}]
     assert score_tools(case, _observation([]))["status"] != "passed"
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        None,
+        [],
+        {},
+        {"made_up": True},
+        {"reply": "Estimated plan.", "trace": []},
+        _result(status="completed"),
+        _result(status=True),
+        _result(answer=None),
+        _result(answer=""),
+        _result(answer="x" * 4097),
+        _result(request=None),
+        _result(plan=[]),
+        _result(budget="1000"),
+        _result(plan={"accepted": False}),
+        _result(plan={"accepted": 1}),
+        _result(status="needs_revision"),
+        _result(status="clarification"),
+        _result(status="limit"),
+        _result(status="incomplete"),
+    ],
+)
+def test_malformed_completed_result_never_passes_empty_expectations(
+    result: object,
+) -> None:
+    observation = _observation([]) | {"turns": [_turn([], result=result)]}
+    score = score_tools(_case([]), observation)
+    assert score["status"] != "passed"
+    assert cast(dict[str, object], score["checks"])["turns_complete"] is False
+    for name in _METRICS:
+        assert _metric(score, name)["status"] != "passed"
+
+
+@pytest.mark.parametrize("field", ["status", "answer", "request", "plan", "budget"])
+def test_missing_public_result_field_never_passes(field: str) -> None:
+    result = _result()
+    del result[field]
+    observation = _observation([]) | {"turns": [_turn([], result=result)]}
+    score = score_tools(_case([]), observation)
+    assert score["status"] != "passed"
+    assert cast(dict[str, object], score["checks"])["turns_complete"] is False
+
+
+@pytest.mark.parametrize(
+    "status", ["planned", "needs_revision", "clarification", "limit", "incomplete"]
+)
+def test_valid_public_results_pass_empty_expectations(status: str) -> None:
+    result = _result(status=status)
+    if status == "needs_revision":
+        cast(dict[str, object], result["plan"])["accepted"] = False
+    elif status in ("clarification", "limit", "incomplete"):
+        result.update(request=None, plan=None, budget=None)
+    observation = _observation([]) | {"turns": [_turn([], result=result)]}
+    score = score_tools(_case([]), observation)
+    assert score["status"] == "passed"
+    assert cast(dict[str, object], score["checks"])["turns_complete"] is True
+
+
+def test_malformed_setup_result_never_passes_valid_final_turn() -> None:
+    case = _case([])
+    case["messages"] = [{"role": "user"}, {"role": "user"}]
+    observation = _observation([]) | {
+        "turns": [_turn([], result={"made_up": True}), _turn([])]
+    }
+    score = score_tools(case, observation)
+    assert score["status"] != "passed"
+    assert cast(dict[str, object], score["checks"])["turns_complete"] is False
+    for name in _METRICS:
+        assert _metric(score, name)["status"] != "passed"
 
 
 def test_invalid_setup_call_fails_even_with_correct_final_call() -> None:
@@ -299,9 +394,32 @@ def test_baselines_still_validate_observations(condition: str) -> None:
     assert score_tools(_case(), observation)["status"] == "failed"
 
 
+@pytest.mark.parametrize("condition", ["no_tool", "deterministic"])
+def test_baseline_malformed_result_keeps_metrics_not_applicable(condition: str) -> None:
+    observation = _observation([]) | {
+        "condition": condition,
+        "turns": [_turn([], result={"made_up": True})],
+    }
+    score = score_tools(_case([]), observation)
+    assert score["status"] != "passed"
+    assert cast(dict[str, object], score["checks"])["turns_complete"] is False
+    for name in _METRICS:
+        assert _metric(score, name) == {"status": "not_applicable"}
+
+
 def test_clarification_without_calls_passes() -> None:
     case = _corpus_case("X02")
-    observation = _observation([]) | {"case_id": case["id"]}
+    result = _result(
+        status="clarification",
+        answer="Which recipe and servings do you want?",
+        request=None,
+        plan=None,
+        budget=None,
+    )
+    observation = _observation([]) | {
+        "case_id": case["id"],
+        "turns": [_turn([], result=result)],
+    }
     score = score_tools(case, observation)
     assert score["status"] == "passed"
     assert _metric(score, "valid_calls")["denominator"] == 0
