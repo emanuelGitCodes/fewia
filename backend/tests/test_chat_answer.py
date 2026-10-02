@@ -1,7 +1,10 @@
 from datetime import date
 from typing import cast
 
-from app.agent.chat_answer import CLARIFICATION, render_public_answer
+import pytest
+
+from app.agent import chat_answer
+from app.agent.chat_answer import CLARIFICATION, _vegan_meal_names, render_public_answer
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -175,3 +178,20 @@ def test_no_tool_and_generic_error_use_static_clarification() -> None:
     assert "satisfy" not in lowered
     assert "without peanuts" not in lowered
     assert "fit your" not in lowered
+
+
+def test_non_int_plan_total_uses_clarification() -> None:
+    for total in (17.5, True, "1703"):
+        candidate = {"plan": {"accepted": False, "total_cents": total}}
+        assert render_public_answer(candidate) == CLARIFICATION
+
+
+def test_vegan_meal_names_omit_vegetarian_only_recipe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        chat_answer,
+        "SUPPORTED_RECIPE_IDS",
+        ("breakfast_burritos", "bean_tacos", "vegetable_pasta", "lentil_soup"),
+    )
+    assert _vegan_meal_names() == ["bean tacos", "vegetable pasta", "lentil soup"]
