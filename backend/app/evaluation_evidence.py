@@ -1,8 +1,9 @@
 import sqlite3
 from copy import deepcopy
 from types import TracebackType
+from typing import cast
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, Table, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -26,8 +27,7 @@ class EvaluationEvidence:
             {
                 "id": context.case_id,
                 "messages": [
-                    {"role": "user", "content": message}
-                    for message in context.messages
+                    {"role": "user", "content": message} for message in context.messages
                 ],
                 "inputs": context.inputs,
             }
@@ -75,7 +75,11 @@ class EvaluationEvidence:
                 connection.execute("PRAGMA foreign_keys=ON")
 
             User.metadata.create_all(
-                engine, tables=[User.__table__, GroceryEvidence.__table__]
+                engine,
+                tables=[
+                    cast(Table, User.__table__),
+                    cast(Table, GroceryEvidence.__table__),
+                ],
             )
             factory = sessionmaker(bind=engine, expire_on_commit=False)
             with factory.begin() as session:

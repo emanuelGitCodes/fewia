@@ -147,8 +147,9 @@ def test_snapshot_mutation_cannot_modify_store(
         changed.clear()
         planning.clear()
         assert recorder.snapshots() == expected
-        assert load_evidence(active_factory(recorder), context.user_id, revision) == (
-            expected[0]["snapshot"]
+        assert (
+            load_evidence(active_factory(recorder), context.user_id, revision)
+            == expected[0]["snapshot"]
         )
 
 
