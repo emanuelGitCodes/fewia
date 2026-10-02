@@ -855,8 +855,7 @@ def test_system_prompt_offers_catalog_alternatives() -> None:
     assert "shopping list does not mean purchasing it." in SYSTEM_PROMPT
     assert (
         "When plan_cap_cents is null, you MUST NOT invent a cap from "
-        "available spending."
-        in SYSTEM_PROMPT
+        "available spending." in SYSTEM_PROMPT
     )
 
 
@@ -1062,8 +1061,7 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
     assert "MUST preserve that cap or lower it" in SYSTEM_PROMPT
     assert "MUST NOT clear or raise the cap" in SYSTEM_PROMPT
     assert (
-        "A cap may change only when the user changes budget controls."
-        in SYSTEM_PROMPT
+        "A cap may change only when the user changes budget controls." in SYSTEM_PROMPT
     )
     for request in provider.requests:
         assert request["system"] == SYSTEM_PROMPT

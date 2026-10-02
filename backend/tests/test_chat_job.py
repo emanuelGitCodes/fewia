@@ -432,5 +432,6 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
         assert loaded["budget"]["available_cents"] == budget.available_cents
         assert loaded["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
         assert loaded["context_role"] == (
-            "previous_request is prior state; apply latest explicit additions and removals"
+            "previous_request is prior state; apply latest explicit "
+            "additions and removals"
         )
