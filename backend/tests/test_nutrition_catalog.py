@@ -130,7 +130,10 @@ def test_energy_nutrient_ids_match_source_dataset() -> None:
     for ingredient_id, row in rows.items():
         if ingredient_id == "oat_milk":
             assert row["energy_nutrient_id"] == 2047
-            assert row["source_type"] == ("Foundation website JSON (display precision)")
+            assert (
+                row["source_type"]
+                == "FoodData Central API format=full (full precision)"
+            )
             continue
         assert row["energy_nutrient_id"] == 1008
         assert row["source_type"] == "SR Legacy CSV download (full precision)"

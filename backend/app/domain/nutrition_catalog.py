@@ -29,7 +29,7 @@ NUTRITION: dict[str, NutritionFacts] = {
     "soy_sauce": NutritionFacts(174277, 53, 8140, 570, 4930, 5493),
     "potato": NutritionFacts(170027, 79, 2140, 80, 18070, 5),
     "oats": NutritionFacts(173904, 379, 13150, 6520, 67700, 6),
-    "oat_milk": NutritionFacts(2257046, 48, 800, 2750, 5100, 42),
+    "oat_milk": NutritionFacts(2257046, 48, 797, 2749, 5100, 42),
 }
 
 if set(NUTRITION) != set(INGREDIENTS):

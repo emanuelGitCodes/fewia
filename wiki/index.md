@@ -22,6 +22,7 @@ chronological record lives in [log.md](log.md).
 - [0014 — Tiered delegation and token budgets](decisions/0014-tiered-delegation.md)
 - [0015 — Writer routing by difficulty](decisions/0015-writer-routing-by-difficulty.md)
 - [0016 — Spoonacular prices at read time, user-entered budget](decisions/0016-spoonacular-read-time-overlay.md)
+- [0017 — Forty-meal sample catalog](decisions/0017-forty-meal-catalog.md)
 
 ## Phases
 
