@@ -291,6 +291,7 @@ describe("App", () => {
     vi.mocked(useProviderCapabilities).mockReset();
     vi.mocked(useHandoff).mockReset();
     vi.mocked(useTemplateSuggestions).mockReset();
+    vi.mocked(useTemplateSuggestions).mockReturnValue(templateState());
   });
 
   it("keeps the shell wordmark, local demo label, title, and footer", () => {
