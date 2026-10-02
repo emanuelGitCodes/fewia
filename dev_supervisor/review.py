@@ -14,7 +14,15 @@ from pathlib import Path
 from typing import IO, Any, cast
 
 from dev_supervisor.process import stop
-from dev_supervisor.usage import add_counts, ledger_path, parse_codex_usage, write_usage
+from dev_supervisor.usage import (
+    CODEX_PROVENANCE,
+    GROK_PROVENANCE,
+    add_counts,
+    ledger_path,
+    parse_codex_usage,
+    parse_grok_usage,
+    write_usage,
+)
 
 REVIEW_DEFAULT = {"grok-4.6": "gpt-6-luna", "gpt-5.3-codex-spark": "gpt-6-luna"}
 REVIEW_DEFAULT["gpt-6-luna"] = "gpt-6.1-sol"
@@ -124,10 +132,32 @@ def run_grok(args: list[str], cwd: Path, timeout: float) -> tuple[bytes, bool, i
         return run_codex(args, cwd, source, timeout)
 
 
+def grok_report(raw: bytes) -> tuple[str, dict[str, int | None] | None]:
+    chunks: list[str] = []
+    totals: dict[str, int | None] | None = None
+    for line in raw.decode(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        payload = cast(dict[str, Any], event)
+        if payload.get("type") == "text":
+            data = payload.get("data")
+            if isinstance(data, str):
+                chunks.append(data)
+            continue
+        usage = parse_grok_usage(payload)
+        if usage is not None:
+            totals = usage
+    return "".join(chunks), totals
+
+
 def grok_command(cwd: Path, prompt: Path, effort: str) -> list[str]:
     cmd = [str(Path.home() / ".grok/bin/grok"), "--model", GROK_MODEL]
     cmd += ["--reasoning-effort", effort, "--cwd", str(cwd)]
-    cmd += ["--prompt-file", str(prompt), "--output-format", "plain"]
+    cmd += ["--prompt-file", str(prompt), "--output-format", "streaming-json"]
     cmd += ["--max-turns", "20", "--no-subagents"]
     cmd += ["--permission-mode", "default"]
     cmd += ["--tools", "Read,Grep,Glob"]
@@ -193,8 +223,7 @@ def main() -> None:
             prompt_path.write_text("\n".join(parts))
             grok_cmd = grok_command(cwd, prompt_path, effort)
             raw, timed_out, elapsed_ms = run_grok(grok_cmd, cwd, args.timeout)
-        totals = None
-        text = raw.decode(errors="replace")
+        text, totals = grok_report(raw)
         if text.strip():
             dest.write_text(text)
     else:
@@ -232,7 +261,8 @@ def main() -> None:
     print(json.dumps(body))
     meta: dict[str, Any] = {"provenance": "none"}
     if totals is not None:
-        meta = {"provenance": "codex.turn.completed", **totals}
+        source = GROK_PROVENANCE if provider == "grok" else CODEX_PROVENANCE
+        meta = {"provenance": source, **totals}
     rec = [ledger_path(cwd), str(uuid.uuid4()), args.work_item, "review", provider]
     write_usage(*cast(Any, rec + [model, effort, outcome, meta, elapsed_ms]))
     raise SystemExit({"APPROVE": 0, "REQUEST_CHANGES": 1}.get(verdict, 2))

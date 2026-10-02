@@ -2,7 +2,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import IO
+from typing import IO, Any
 
 import pytest
 
@@ -120,9 +120,29 @@ def refuse_grok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(review, "run_grok", boom)
 
 
+def grok_stream(*events: dict[str, Any]) -> bytes:
+    return "".join(json.dumps(event) + "\n" for event in events).encode()
+
+
+GROK_END: dict[str, Any] = {
+    "type": "end",
+    "stopReason": "end_turn",
+    "usage": {
+        "input_tokens": 18411,
+        "cache_read_input_tokens": 128,
+        "cache_creation_input_tokens": 0,
+        "output_tokens": 22,
+        "reasoning_tokens": 21,
+        "total_tokens": 18561,
+    },
+    "num_turns": 1,
+}
+
+
 def install_grok(
     monkeypatch: pytest.MonkeyPatch,
     message: str = "notes\nVERDICT: APPROVE\n",
+    stdout: bytes | None = None,
     timed_out: bool = False,
     elapsed_ms: int = 4,
 ) -> dict[str, object]:
@@ -136,7 +156,10 @@ def install_grok(
         prompt = Path(args[args.index("--prompt-file") + 1])
         seen["prompt_path"] = prompt
         seen["prompt"] = prompt.read_text()
-        return message.encode(), timed_out, elapsed_ms
+        payload = stdout
+        if payload is None:
+            payload = grok_stream({"type": "text", "data": message})
+        return payload, timed_out, elapsed_ms
 
     monkeypatch.setattr(review, "run_grok", fake)
     return seen
@@ -565,6 +588,9 @@ def test_sandbox_uses_grok_without_codex(
     assert seen["calls"] == 1
     row = json.loads(ledger_path(root).read_text().splitlines()[0])
     assert row["provider"] == "grok"
+    assert row["provenance"] == "unsupported"
+    assert row["input_tokens"] is None
+    assert row["output_tokens"] is None
 
 
 def test_plain_text_codex_error_surfaces_in_note(
@@ -630,7 +656,7 @@ def test_grok_prompt_contains_diff_and_no_shell(
     assert isinstance(args, list)
     assert args[0] == str(Path.home() / ".grok/bin/grok")
     assert args[1:5] == ["--model", "grok-4.6", "--reasoning-effort", "medium"]
-    assert args[args.index("--output-format") + 1] == "plain"
+    assert args[args.index("--output-format") + 1] == "streaming-json"
     assert args[args.index("--max-turns") + 1] == "20"
     assert "--no-subagents" in args
     assert args[args.index("--permission-mode") + 1] == "default"
@@ -715,3 +741,82 @@ def test_grok_effort_ceiling(
     args = seen["args"]
     assert isinstance(args, list)
     assert args[args.index("--reasoning-effort") + 1] == effort
+
+
+def test_grok_report_real_lines() -> None:
+    raw = grok_stream(
+        {"type": "available_commands", "commands": []},
+        {"type": "text", "data": "OK"},
+        {"type": "usage", "usage": {"input_tokens": 1}},
+        GROK_END,
+    )
+    text, totals = review.grok_report(raw)
+    assert text == "OK"
+    assert totals == {
+        "input_tokens": 18539,
+        "cached_tokens": 128,
+        "output_tokens": 22,
+        "reasoning_tokens": 21,
+    }
+
+
+def test_grok_report_no_end_event() -> None:
+    raw = grok_stream(
+        {"type": "available_commands"},
+        {"type": "text", "data": "OK"},
+        {"type": "usage", "usage": {}},
+    )
+    text, totals = review.grok_report(raw)
+    assert text == "OK"
+    assert totals is None
+
+
+def test_grok_report_ignores_non_json_and_non_str_data() -> None:
+    lines = [
+        "not-json",
+        json.dumps({"type": "text", "data": "OK"}),
+        json.dumps({"type": "text", "data": 12}),
+        json.dumps({"type": "text", "data": None}),
+        json.dumps({"type": "text", "data": ["x"]}),
+        json.dumps(["not", "an", "object"]),
+        json.dumps({"type": "text", "data": " later"}),
+        json.dumps(GROK_END),
+    ]
+    text, totals = review.grok_report(("\n".join(lines) + "\n").encode())
+    assert text == "OK later"
+    assert totals is not None
+    assert totals["input_tokens"] == 18539
+
+
+def test_grok_streaming_json_saves_text_and_tokens(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    refuse_codex(monkeypatch)
+    stdout = grok_stream(
+        {"type": "available_commands", "commands": []},
+        {"type": "text", "data": "OK"},
+        {"type": "text", "data": "\nVERDICT: APPROVE\n"},
+        {"type": "usage", "usage": {}},
+        GROK_END,
+    )
+    install_grok(monkeypatch, stdout=stdout)
+    extra = ["--provider", "grok", "--work-item", "easy2-07"]
+    code = run_main(monkeypatch, argv(root, extra))
+    assert code == 0
+    data = summary(capsys.readouterr().out)
+    assert data["verdict"] == "APPROVE"
+    assert data["input_tokens"] == 18539
+    assert data["output_tokens"] == 22
+    dest = Path(str(data["saved"]))
+    assert dest.read_text() == "OK\nVERDICT: APPROVE\n"
+    row = json.loads(ledger_path(root).read_text().splitlines()[0])
+    assert row["provider"] == "grok"
+    assert row["work_item"] == "easy2-07"
+    assert row["provenance"] == "grok.end"
+    assert row["input_tokens"] == 18539
+    assert row["cached_tokens"] == 128
+    assert row["output_tokens"] == 22
+    assert row["reasoning_tokens"] == 21
