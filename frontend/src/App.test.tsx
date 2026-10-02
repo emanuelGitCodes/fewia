@@ -790,6 +790,7 @@ describe("App", () => {
     if (priced.plan === null) {
       throw new Error("missing planned chat plan");
     }
+    const pricedPlan = priced.plan;
     act(() => {
       live.rerender(
         createElement(AppUnresolvedHost, {
@@ -807,10 +808,10 @@ describe("App", () => {
                 status: "clarification",
                 answer: "Which meals should I plan?",
                 plan: {
-                  ...priced.plan,
+                  ...pricedPlan,
                   total_cents: null,
                   accepted: false,
-                  lines: priced.plan.lines.map((line) => ({ ...line, cost_cents: null })),
+                  lines: pricedPlan.lines.map((line) => ({ ...line, cost_cents: null })),
                 },
               },
               error_code: null,
