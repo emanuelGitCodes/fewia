@@ -379,7 +379,8 @@ def test_declared_invalid_marker_is_redacted_from_all_fallbacks(
     assert capture.invalid_responses == 0
     assert capture.calls == [{"tool": "plan_groceries", "input": "[redacted]"}]
     assert capture.tool_results[:4] == (
-        [{"content": "[redacted]", "status": "[redacted]", "toolUseId": "[redacted]"}] * 4
+        [{"content": "[redacted]", "status": "[redacted]", "toolUseId": "[redacted]"}]
+        * 4
     )
     assert capture.tool_results[4] == {
         "content": [{"json": {"value": "[redacted]"}}],
