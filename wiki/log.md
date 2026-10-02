@@ -2578,16 +2578,16 @@ health-era files with `git rm` before the writer run.
 
 ## 2026-10-02 — Easy backlog: styles, defaults, usage, live providers
 
-The `easy-backlog` loop shipped six pull requests. Each merged into `main`
+The `easy-backlog` loop shipped five pull requests. Each merged into `main`
 after green CI and an `APPROVE` review on the head SHA.
 
-| Item | Pull request | Change |
-|---|---|---|
-| 01 | #227 | `estimate.css` styles every class in `Nutrition.tsx`. |
-| 02 | #228 | `initialForm()` starts at a $100 monthly limit. The $40 cap stays. |
-| 04 | #229 | `first_error()` reads `error.message` from a `turn.failed` event. |
-| 07 | #230 | The usage ledger records Grok writer tokens from the `end` event of `streaming-json` output. |
-| 10 | #231 | The Spoonacular parser accepts the live cost unit `cents`. |
+| Item | Pull request | Merge commit | Change |
+|---|---|---|---|
+| 01 | #227 | `69968a9` | `estimate.css` styles every class in `Nutrition.tsx`. |
+| 02 | #228 | `0f010a0` | `initialForm()` starts at a $100 monthly limit. The $40 cap stays. |
+| 04 | #229 | `ae6bfc4` | `first_error()` reads `error.message` from a `turn.failed` event. |
+| 07 | #230 | `04c7f13` | The usage ledger records Grok writer tokens from the `end` event of `streaming-json` output. |
+| 10 | #231 | `a62c58b` | The Spoonacular parser accepts the live cost unit `cents`. |
 
 Item 03 changed local configuration only. The USDA key moved from `.env` to
 `~/.config/fewia/usda.key` with mode 600. `.env` no longer sets
