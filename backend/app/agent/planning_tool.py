@@ -8,7 +8,8 @@ from typing import cast, get_args
 from pydantic import ValidationError
 
 from app.domain.budget import BudgetResult, SpendingSource
-from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
+from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet, GroceryRequest
 from app.services.grocery_planner import (
     ExclusionConflict,
     PlanEstimate,
@@ -52,6 +53,9 @@ def planner_tool_spec() -> dict[str, object]:
     }
 
 
+_SUPPORTED_DIETS = get_args(Diet)
+
+
 def _unsupported_recipe_only(exc: ValidationError) -> bool:
     errors = exc.errors()
     if not errors:
@@ -64,6 +68,30 @@ def _unsupported_recipe_only(exc: ValidationError) -> bool:
         if type(value) is not str or value in SUPPORTED_RECIPE_IDS:
             return False
     return True
+
+
+def _unsupported_diet_only(exc: ValidationError) -> bool:
+    errors = exc.errors()
+    if not errors:
+        return False
+    for error in errors:
+        loc = error["loc"]
+        if not loc or loc[-1] != "diet":
+            return False
+        value = error.get("input")
+        if type(value) is not str or value in _SUPPORTED_DIETS:
+            return False
+    return True
+
+
+def _unsupported_ingredient_field(request: GroceryRequest) -> str | None:
+    for ingredient_id in request.pantry_ingredients:
+        if ingredient_id not in INGREDIENTS:
+            return "pantry_ingredients"
+    for ingredient_id in request.ingredient_exclusions:
+        if ingredient_id not in INGREDIENTS:
+            return "ingredient_exclusions"
+    return None
 
 
 def execute_plan(
@@ -87,16 +115,23 @@ def execute_plan(
         raise PlanningToolError("budget is invalid")
     request: GroceryRequest | None
     unsupported_recipe = False
+    unsupported_diet = False
     try:
         request = GroceryRequest.model_validate(arguments)
     except ValidationError as exc:
         request = None
         unsupported_recipe = _unsupported_recipe_only(exc)
+        unsupported_diet = _unsupported_diet_only(exc)
     if request is None:
         if unsupported_recipe:
             raise PlanningToolError(
                 "recipe is not supported",
                 error_code="unsupported_recipe",
+            )
+        if unsupported_diet:
+            raise PlanningToolError(
+                "diet is not supported",
+                error_code="unsupported_diet",
             )
         raise PlanningToolError("arguments are invalid")
     if request.budget_period != period:
@@ -110,6 +145,13 @@ def execute_plan(
         budget.stale,
         budget.warnings,
     )
+    ingredient_field = _unsupported_ingredient_field(request)
+    if ingredient_field is not None:
+        raise PlanningToolError(
+            "ingredient is not supported",
+            error_code="unsupported_ingredient",
+            detail={"field": ingredient_field},
+        )
     plan: PlanEstimate | None
     exclusion_detail: dict[str, str] | None = None
     try:
