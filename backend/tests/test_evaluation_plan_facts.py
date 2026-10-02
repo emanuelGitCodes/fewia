@@ -71,6 +71,57 @@ def observed() -> dict[str, object]:
     }
 
 
+@pytest.fixture
+def multi_package_observed(observed: dict[str, object]) -> dict[str, object]:
+    result = deepcopy(observed)
+    meals = cast(list[dict[str, object]], _object(result, "request")["meals"])
+    for meal in meals:
+        meal["servings"] = 8
+    records = (
+        ("chicken_breast", 1600, 4, 3196, False),
+        ("cumin", 8, 0, 0, True),
+        ("garlic", 40, 0, 0, True),
+        ("mixed_vegetables", 640, 0, 0, True),
+        ("olive_oil", 160, 0, 0, True),
+        ("onion", 480, 0, 0, True),
+        ("rice", 600, 0, 0, True),
+        ("salsa", 320, 0, 0, True),
+        ("salt", 16, 0, 0, True),
+        ("tortillas", 16, 0, 0, True),
+    )
+    _object(result, "request")["pantry_ingredients"] = [
+        ingredient_id for ingredient_id, _, _, _, from_pantry in records if from_pantry
+    ]
+    for ingredient_id, quantity, packages, cost_cents, from_pantry in records:
+        _line(result, ingredient_id).update(
+            quantity=quantity,
+            packages=packages,
+            cost_cents=cost_cents,
+            from_pantry=from_pantry,
+        )
+    _object(result, "plan")["total_cents"] = 3196
+    return result
+
+
+def test_complete_multi_package_plan_passes(
+    multi_package_observed: dict[str, object],
+) -> None:
+    assert all(plan_integrity(multi_package_observed).values())
+
+
+def test_single_package_price_and_reduced_total_fail(
+    multi_package_observed: dict[str, object],
+) -> None:
+    mutated = deepcopy(multi_package_observed)
+    _line(mutated, "chicken_breast")["cost_cents"] = 799
+    _object(mutated, "plan")["total_cents"] = 799
+    checks = plan_integrity(mutated)
+    assert checks["quantities"]
+    assert checks["package_rounding"]
+    assert not checks["sample_costs"]
+    assert not checks["total_cents"]
+
+
 def test_shared_chicken_rounds_after_aggregation(observed: dict[str, object]) -> None:
     assert all(plan_integrity(observed).values())
     _line(observed, "chicken_breast").update(packages=2, cost_cents=1598)
