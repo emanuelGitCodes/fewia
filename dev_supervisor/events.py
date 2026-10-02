@@ -4,7 +4,13 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from dev_supervisor.usage import add_counts, parse_codex_usage
+from dev_supervisor.usage import (
+    CODEX_PROVENANCE,
+    GROK_PROVENANCE,
+    add_counts,
+    parse_codex_usage,
+    parse_grok_usage,
+)
 
 CODES = {
     "rate_limit_exceeded": "rate_limit",
@@ -30,6 +36,7 @@ class Events:
     complete: bool = False
     saw_error: bool = False
     tokens: dict[str, int | None] | None = None
+    provenance: str = "none"
 
     def feed(self, line: str) -> None:
         try:
@@ -41,6 +48,11 @@ class Events:
         parsed = parse_codex_usage(cast(dict[str, Any], event))
         if parsed is not None:
             self.tokens = add_counts(self.tokens, parsed)
+            self.provenance = CODEX_PROVENANCE
+        grok = parse_grok_usage(cast(dict[str, Any], event))
+        if grok is not None:
+            self.tokens = add_counts(self.tokens, grok)
+            self.provenance = GROK_PROVENANCE
         kind = event.get("type")
         if kind in {"error", "turn.failed"}:
             self.saw_error = True

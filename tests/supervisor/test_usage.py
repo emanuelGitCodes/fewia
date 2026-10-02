@@ -7,10 +7,13 @@ from pathlib import Path
 import pytest
 
 from dev_supervisor.usage import (
+    CODEX_PROVENANCE,
     COUNTS,
+    GROK_PROVENANCE,
     LEDGER,
     ledger_path,
     main,
+    parse_grok_usage,
     phase_name,
     summarize,
     work_item_id,
@@ -20,7 +23,7 @@ from dev_supervisor.usage import (
 
 def _meta(input_tokens: int = 2) -> dict[str, object]:
     return {
-        "provenance": "codex.turn.completed",
+        "provenance": CODEX_PROVENANCE,
         "input_tokens": input_tokens,
         "cached_tokens": 1,
         "output_tokens": 3,
@@ -246,7 +249,7 @@ def test_summarize_mixed_grok_and_complete_codex() -> None:
         cached_tokens=1,
         output_tokens=3,
         reasoning_tokens=4,
-        provenance="codex.turn.completed",
+        provenance=CODEX_PROVENANCE,
         elapsed_ms=2000,
     )
     assert summarize([grok, codex]) == [
@@ -270,7 +273,7 @@ def test_summarize_all_complete_codex() -> None:
         cached_tokens=1,
         output_tokens=3,
         reasoning_tokens=4,
-        provenance="codex.turn.completed",
+        provenance=CODEX_PROVENANCE,
         elapsed_ms=2000,
     )
     second = _row(
@@ -279,7 +282,7 @@ def test_summarize_all_complete_codex() -> None:
         cached_tokens=1,
         output_tokens=7,
         reasoning_tokens=1,
-        provenance="codex.turn.completed",
+        provenance=CODEX_PROVENANCE,
         elapsed_ms=1000,
     )
     assert summarize([first, second]) == [
@@ -302,7 +305,7 @@ def test_summarize_ignores_stored_unsupported_when_counts_complete() -> None:
         cached_tokens=1,
         output_tokens=3,
         reasoning_tokens=4,
-        provenance="codex.turn.completed",
+        provenance=CODEX_PROVENANCE,
         elapsed_ms=1000,
     )
     assert summarize([row]) == [
@@ -341,6 +344,148 @@ def test_summarize_unreadable_shape_unknown() -> None:
         "cap-1 implement runs=1 elapsed_s=1 input=n/a output=n/a "
         "coverage=unknown no_tokens=1"
     ]
+
+
+GROK_END = {
+    "type": "end",
+    "stopReason": "end_turn",
+    "usage": {
+        "input_tokens": 18411,
+        "cache_read_input_tokens": 128,
+        "cache_creation_input_tokens": 0,
+        "output_tokens": 22,
+        "reasoning_tokens": 21,
+        "total_tokens": 18561,
+    },
+    "num_turns": 1,
+}
+
+
+def test_parse_grok_usage_real_end_event() -> None:
+    assert parse_grok_usage(GROK_END) == {
+        "input_tokens": 18539,
+        "cached_tokens": 128,
+        "output_tokens": 22,
+        "reasoning_tokens": 21,
+    }
+
+
+def test_parse_grok_usage_missing_usage() -> None:
+    empty = dict.fromkeys(COUNTS)
+    assert parse_grok_usage({"type": "end"}) == empty
+    assert parse_grok_usage({"type": "end", "usage": None}) == empty
+    assert parse_grok_usage({"type": "end", "usage": 1}) == empty
+    assert parse_grok_usage({"type": "usage"}) is None
+
+
+def test_parse_grok_usage_negative_or_bool_count() -> None:
+    raw = {
+        "input_tokens": 10,
+        "cache_read_input_tokens": 1,
+        "cache_creation_input_tokens": 0,
+        "output_tokens": 2,
+        "reasoning_tokens": 3,
+    }
+    assert parse_grok_usage({"type": "end", "usage": {**raw, "input_tokens": -1}}) == {
+        "input_tokens": None,
+        "cached_tokens": 1,
+        "output_tokens": 2,
+        "reasoning_tokens": 3,
+    }
+    assert parse_grok_usage(
+        {"type": "end", "usage": {**raw, "input_tokens": True}}
+    ) == {
+        "input_tokens": None,
+        "cached_tokens": 1,
+        "output_tokens": 2,
+        "reasoning_tokens": 3,
+    }
+    assert parse_grok_usage(
+        {"type": "end", "usage": {**raw, "output_tokens": False}}
+    ) == {
+        "input_tokens": 11,
+        "cached_tokens": 1,
+        "output_tokens": None,
+        "reasoning_tokens": 3,
+    }
+    assert parse_grok_usage(
+        {"type": "end", "usage": {**raw, "cache_read_input_tokens": -1}}
+    ) == {
+        "input_tokens": None,
+        "cached_tokens": None,
+        "output_tokens": 2,
+        "reasoning_tokens": 3,
+    }
+
+
+def test_parse_grok_usage_missing_cache_fields() -> None:
+    assert parse_grok_usage(
+        {
+            "type": "end",
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 2,
+                "reasoning_tokens": 3,
+            },
+        }
+    ) == {
+        "input_tokens": 10,
+        "cached_tokens": 0,
+        "output_tokens": 2,
+        "reasoning_tokens": 3,
+    }
+
+
+def test_write_usage_grok_end_records_counts(tmp_path: Path) -> None:
+    path = tmp_path / LEDGER
+    write_usage(
+        path,
+        "a1",
+        "cap-1",
+        "implement",
+        "grok",
+        "grok-4.6",
+        "medium",
+        "completed",
+        {
+            "provenance": GROK_PROVENANCE,
+            "input_tokens": 18539,
+            "cached_tokens": 128,
+            "output_tokens": 22,
+            "reasoning_tokens": 21,
+        },
+        9,
+    )
+    row = json.loads(path.read_text().splitlines()[0])
+    assert row["input_tokens"] == 18539
+    assert row["cached_tokens"] == 128
+    assert row["output_tokens"] == 22
+    assert row["reasoning_tokens"] == 21
+    assert row["provenance"] == GROK_PROVENANCE
+    assert row["coverage"] == "complete"
+
+
+def test_write_usage_grok_empty_meta_unsupported(tmp_path: Path) -> None:
+    path = tmp_path / LEDGER
+    write_usage(
+        path,
+        "a1",
+        "cap-1",
+        "implement",
+        "grok",
+        "grok-4.6",
+        "medium",
+        "completed",
+        {},
+        1,
+    )
+    row = json.loads(path.read_text().splitlines()[0])
+    assert row["input_tokens"] is None
+    assert row["cached_tokens"] is None
+    assert row["output_tokens"] is None
+    assert row["reasoning_tokens"] is None
+    assert row["provenance"] == "unsupported"
+    assert row["coverage"] == "unsupported"
 
 
 def test_usage_cli_no_rows(

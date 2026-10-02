@@ -1,6 +1,9 @@
+import json
+
 import pytest
 
 from dev_supervisor.events import Events
+from dev_supervisor.usage import CODEX_PROVENANCE, GROK_PROVENANCE
 
 
 def test_tool_failure_is_not_provider_failure() -> None:
@@ -93,8 +96,6 @@ def test_pending_question_waits_until_cleared() -> None:
 
 
 def test_embedded_grok_permission_code() -> None:
-    import json
-
     state = Events()
     state.feed(
         json.dumps(
@@ -121,3 +122,42 @@ def test_sums_two_turn_completed_usages() -> None:
         "output_tokens": 8,
         "reasoning_tokens": 4,
     }
+    assert state.provenance == CODEX_PROVENANCE
+
+
+def test_feed_grok_end_records_tokens() -> None:
+    state = Events()
+    state.feed(
+        json.dumps(
+            {
+                "type": "end",
+                "stopReason": "end_turn",
+                "usage": {
+                    "input_tokens": 18411,
+                    "cache_read_input_tokens": 128,
+                    "cache_creation_input_tokens": 0,
+                    "output_tokens": 22,
+                    "reasoning_tokens": 21,
+                    "total_tokens": 18561,
+                },
+                "num_turns": 1,
+            }
+        )
+    )
+    assert state.tokens == {
+        "input_tokens": 18539,
+        "cached_tokens": 128,
+        "output_tokens": 22,
+        "reasoning_tokens": 21,
+    }
+    assert state.provenance == GROK_PROVENANCE
+
+
+def test_feed_grok_usage_event_adds_nothing() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"usage","input_tokens":99,"cache_read_input_tokens":1,'
+        '"output_tokens":4,"reasoning_tokens":2}'
+    )
+    assert state.tokens is None
+    assert state.provenance == "none"

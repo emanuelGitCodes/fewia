@@ -11,7 +11,7 @@ from dev_supervisor.__main__ import GUARD, dispatch, execute, main
 from dev_supervisor.lease import lease
 from dev_supervisor.policy import MODELS, order
 from dev_supervisor.process import attempt
-from dev_supervisor.usage import ledger_path
+from dev_supervisor.usage import CODEX_PROVENANCE, GROK_PROVENANCE, ledger_path
 
 
 def setup(tmp_path: Path) -> Path:
@@ -430,7 +430,38 @@ def test_attempt_writes_usage_on_completed(tmp_path: Path) -> None:
     assert body["output_tokens"] == 3
     assert body["cached_tokens"] == 0
     assert body["reasoning_tokens"] == 1
-    assert body["provenance"] == "codex.turn.completed"
+    assert body["provenance"] == CODEX_PROVENANCE
+    assert isinstance(body["elapsed_ms"], int)
+    assert body["elapsed_ms"] >= 0
+
+
+def test_attempt_writes_grok_usage_on_end(tmp_path: Path) -> None:
+    prompt = tmp_path / "prompt"
+    prompt.write_text("task")
+    event = {
+        "type": "end",
+        "stopReason": "end_turn",
+        "usage": {
+            "input_tokens": 18411,
+            "cache_read_input_tokens": 128,
+            "cache_creation_input_tokens": 0,
+            "output_tokens": 22,
+            "reasoning_tokens": 21,
+            "total_tokens": 18561,
+        },
+        "num_turns": 1,
+    }
+    script = "print(" + json.dumps(json.dumps(event)) + ")"
+    result = attempt(
+        [sys.executable, "-c", script], tmp_path, prompt, tmp_path, "t", 1, 3
+    )
+    assert result == "completed"
+    body = json.loads((tmp_path / "usage.json").read_text())
+    assert body["input_tokens"] == 18539
+    assert body["cached_tokens"] == 128
+    assert body["output_tokens"] == 22
+    assert body["reasoning_tokens"] == 21
+    assert body["provenance"] == GROK_PROVENANCE
     assert isinstance(body["elapsed_ms"], int)
     assert body["elapsed_ms"] >= 0
 
@@ -483,7 +514,7 @@ def test_execute_writes_ledger_row_per_attempt(tmp_path: Path) -> None:
         (state / "usage.json").write_text(
             json.dumps(
                 {
-                    "provenance": "codex.turn.completed",
+                    "provenance": CODEX_PROVENANCE,
                     "input_tokens": 2,
                     "cached_tokens": 1,
                     "output_tokens": 3,

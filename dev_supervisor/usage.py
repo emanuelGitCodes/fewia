@@ -13,6 +13,8 @@ LEDGER = ".fewia-supervisor-usage.jsonl"
 PHASES = frozenset({"implement", "review", "repair"})
 WORK_ITEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
 COUNTS = ("input_tokens", "cached_tokens", "output_tokens", "reasoning_tokens")
+CODEX_PROVENANCE = "codex.turn.completed"
+GROK_PROVENANCE = "grok.end"
 CODEX_KEYS = {
     "input_tokens": "input_tokens",
     "cached_tokens": "cached_input_tokens",
@@ -56,6 +58,39 @@ def parse_codex_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
     return {
         name: token(raw[key]) if key in raw else None
         for name, key in CODEX_KEYS.items()
+    }
+
+
+def parse_grok_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
+    if event.get("type") != "end":
+        return None
+    raw = event.get("usage")
+    if not isinstance(raw, dict):
+        return dict.fromkeys(COUNTS)
+    cache_read = (
+        0
+        if "cache_read_input_tokens" not in raw
+        else token(raw["cache_read_input_tokens"])
+    )
+    cache_create = (
+        0
+        if "cache_creation_input_tokens" not in raw
+        else token(raw["cache_creation_input_tokens"])
+    )
+    base = token(raw["input_tokens"]) if "input_tokens" in raw else None
+    if base is None or cache_read is None or cache_create is None:
+        combined: int | None = None
+    else:
+        combined = base + cache_read + cache_create
+    return {
+        "input_tokens": combined,
+        "cached_tokens": cache_read,
+        "output_tokens": token(raw["output_tokens"])
+        if "output_tokens" in raw
+        else None,
+        "reasoning_tokens": (
+            token(raw["reasoning_tokens"]) if "reasoning_tokens" in raw else None
+        ),
     }
 
 
@@ -121,14 +156,17 @@ def write_usage(
     elapsed_ms: int,
 ) -> None:
     grok = provider == "grok"
-    parsed = meta.get("provenance") == "codex.turn.completed" and not grok
-    tokens = {name: token(meta.get(name)) if parsed else None for name in COUNTS}
+    source = meta.get("provenance")
     if grok:
-        provenance = "unsupported"
-    elif isinstance(meta.get("provenance"), str):
-        provenance = str(meta["provenance"])
+        parsed = source == GROK_PROVENANCE
+        provenance = GROK_PROVENANCE if parsed else "unsupported"
     else:
-        provenance = "none"
+        parsed = source == CODEX_PROVENANCE
+        if isinstance(source, str):
+            provenance = str(source)
+        else:
+            provenance = "none"
+    tokens = {name: token(meta.get(name)) if parsed else None for name in COUNTS}
     elapsed = token(elapsed_ms)
     if elapsed is None:
         elapsed = token(meta.get("elapsed_ms"))
