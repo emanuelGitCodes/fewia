@@ -1257,3 +1257,111 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
             "previous_request is prior state; apply latest explicit "
             "additions and removals"
         )
+
+
+@pytest.mark.parametrize(
+    ("reason", "answer"),
+    [
+        (
+            "secrets",
+            "I cannot provide credentials or raw bank records. "
+            "I can help plan meals using the budget summary.",
+        ),
+        (
+            "purchase",
+            "I cannot buy items or place orders. I can help prepare a grocery plan.",
+        ),
+        (
+            "external_url",
+            "I cannot open external links or place orders. "
+            "I can help prepare a grocery plan.",
+        ),
+    ],
+)
+def test_structured_refusal_without_tool_use(reason: str, answer: str) -> None:
+    body = '{"refusal":"' + reason + '"}'
+    result, provider = _run([_reply([_text_block(body)], "end_turn")])
+    assert len(provider.requests) == 1
+    assert result["status"] == "clarification"
+    assert result["answer"] == answer
+    assert body not in result["answer"]
+    assert result["plan"] is None
+    assert result["budget"] is None
+    assert result["request"] is None
+    assert result["meal_nutrition"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert result["tool_trace"] == []
+    assert result["model_turns"] == 1
+    assert result["planner_revisions"] == 0
+    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
+    _assert_public(result)
+
+
+def test_structured_refusal_after_plan_clears_public_fields() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("call-1")], "tool_use"),
+        _reply([_text_block('{"refusal":"purchase"}')], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == (
+        "I cannot buy items or place orders. I can help prepare a grocery plan."
+    )
+    assert result["plan"] is None
+    assert result["budget"] is None
+    assert result["request"] is None
+    assert result["meal_nutrition"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert result["tool_trace"] == [_success_trace("call-1", expected["evidence_id"])]
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    assert result["model_turns"] == 2
+    assert result["planner_revisions"] == 1
+    assert '{"refusal"' not in json.dumps(result)
+    _assert_public(result)
+
+
+def test_malformed_refusal_does_not_echo_sentinel() -> None:
+    raw = '{"refusal": "' + _SECRET + '" leftover'
+    result, _provider = _run([_reply([_text_block(raw)], "end_turn")])
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert _SECRET not in json.dumps(result)
+    assert "refusal" not in result["answer"]
+    _assert_public(result)
+
+
+def test_pantry_owned_ingredient_request_stays_planner_capable() -> None:
+    result, provider = _run(
+        _planner_then_final(),
+        message="add the pantry-owned salt back to the shopping list",
+    )
+    assert result["status"] == "planned"
+    assert result["planner_revisions"] == 1
+    assert result["plan"] is not None
+    assert result["evidence_id"] is not None
+    assert result["answer"] == render_public_answer(
+        execute_plan(plan_args(), budget(), PERIOD)
+    )
+    assert provider.requests[0]["tools"] == [planner_tool_spec()]
+    assert "ordinary planning" in SYSTEM_PROMPT
+    assert "pantry-owned ingredient" in SYSTEM_PROMPT
+
+
+def test_system_prompt_requests_structured_refusal() -> None:
+    assert '{"refusal":"secrets"}' in SYSTEM_PROMPT
+    assert '{"refusal":"purchase"}' in SYSTEM_PROMPT
+    assert '{"refusal":"external_url"}' in SYSTEM_PROMPT
+    assert "MUST NOT call the planning tool" in SYSTEM_PROMPT
+    assert "credentials or raw bank records" in SYSTEM_PROMPT
+    assert "actual purchases or orders" in SYSTEM_PROMPT
+    assert "opening external URLs" in SYSTEM_PROMPT
+    assert "pantry-owned ingredient" in SYSTEM_PROMPT
+    assert "ordinary planning" in SYSTEM_PROMPT
+    assert "MUST NOT purchase" in SYSTEM_PROMPT
+    assert "secrets" in SYSTEM_PROMPT
+    assert (
+        "For ordinary replies, write a concise plain-text final reply." in SYSTEM_PROMPT
+    )
