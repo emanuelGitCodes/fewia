@@ -12,6 +12,7 @@ from app.providers.spoonacular import (
     INFORMATION_PATH,
     SpoonacularEstimateProvider,
     SpoonacularUnavailable,
+    _parse_estimated_cents,
 )
 
 API_KEY = "TEST_SPOONACULAR_KEY_MARKER"
@@ -21,6 +22,7 @@ UNIT = "g"
 SUCCESS_BODY = json.dumps(
     {"estimatedCost": {"value": 299.4, "unit": "US Cents"}}
 ).encode()
+CENTS_BODY = json.dumps({"estimatedCost": {"value": 26.41, "unit": "cents"}}).encode()
 NEGATIVE_BODY = json.dumps(
     {"estimatedCost": {"value": -1, "unit": "US Cents"}}
 ).encode()
@@ -82,6 +84,38 @@ def test_us_cents_rounds_to_int() -> None:
     assert request.url.params["apiKey"] == API_KEY
     assert request.url.params["amount"] == str(AMOUNT)
     assert request.url.params["unit"] == UNIT
+
+
+def test_cents_unit_rounds_to_int_on_200() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, content=CENTS_BODY)
+
+    provider, client = make_provider(handler)
+    try:
+        cents = provider.estimate_ingredient_cents(INGREDIENT_ID, AMOUNT, UNIT)
+    finally:
+        provider.close()
+        client.close()
+
+    assert cents == 26
+
+
+@pytest.mark.parametrize(
+    "estimated_cost",
+    [
+        {"value": 26.41, "unit": "dollars"},
+        {"value": 26.41, "unit": "Cents"},
+        {"value": 26.41, "unit": ""},
+        {"value": 26.41},
+        {"value": 26.41, "unit": []},
+        {"value": 26.41, "unit": {}},
+    ],
+)
+def test_unrecognized_or_missing_unit_returns_none(
+    estimated_cost: dict[str, object],
+) -> None:
+    assert _parse_estimated_cents({"estimatedCost": estimated_cost}) is None
 
 
 def test_second_call_within_cache_window_does_not_get() -> None:
