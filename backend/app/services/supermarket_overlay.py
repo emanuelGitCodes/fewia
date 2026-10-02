@@ -117,9 +117,12 @@ def _plan_from_result(result: dict[str, object]) -> PlanEstimate | None:
 
 def attach_supermarket_estimate(
     result: dict[str, object],
-    estimator: IngredientCostEstimator,
+    estimator: IngredientCostEstimator | None = None,
 ) -> dict[str, object]:
     attached = dict(result)
+    attached.pop("supermarket_estimate", None)
+    if estimator is None:
+        return attached
     plan = _plan_from_result(result)
     if plan is None:
         return attached

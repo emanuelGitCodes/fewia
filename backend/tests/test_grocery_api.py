@@ -889,16 +889,29 @@ def test_succeeded_grocery_job_keeps_stored_result_without_estimator(
 ) -> None:
     seed_user()
     get_supermarket_estimator.cache_clear()
-    stored_result = dict(PLAN_RESULT)
+    stale = {
+        "total_cents": 9999,
+        "notice": "stale stored overlay",
+        "lines": [{"ingredient_id": "chicken_breast", "cents": 9999}],
+    }
+    stored_result: dict[str, object] = dict(PLAN_RESULT)
+    stored_result["supermarket_estimate"] = stale
     job = _seed_grocery_job(
         session, key="overlay-none", status="succeeded", result=stored_result
     )
-    response = client.get(f"/grocery/jobs/{job.id}")
+    override_estimator(None)
+    try:
+        response = client.get(f"/grocery/jobs/{job.id}")
+    finally:
+        clear_estimator_override()
     body = response.json()
+    stored = session.get(Job, job.id)
 
     assert response.status_code == 200
-    assert body["result"] == stored_result
     assert "supermarket_estimate" not in body["result"]
+    assert stored is not None
+    assert isinstance(stored.result, dict)
+    assert stored.result["supermarket_estimate"] == stale
 
 
 @pytest.mark.parametrize("status", ["queued", "failed"])

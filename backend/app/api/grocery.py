@@ -171,7 +171,7 @@ def read_grocery_job(
         ):
             error_detail = cast(dict[str, str], detail)
         result = None
-    if job.status == "succeeded" and isinstance(result, dict) and estimator is not None:
+    if job.status == "succeeded" and isinstance(result, dict):
         result = attach_supermarket_estimate(result, estimator)
     return PlanJobView(
         id=job.id,

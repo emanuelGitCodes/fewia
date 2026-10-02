@@ -14,10 +14,17 @@ MAX_HISTORY = 8
 _ROLES = ("user", "assistant")
 _REQUEST = "request is invalid"
 _PREVIOUS = "previous_request is invalid"
+_CONTEXT_ROLE = (
+    "previous_request is prior state; apply latest explicit additions and removals"
+)
 
 
 def _exact_int(value: object) -> TypeGuard[int]:
     return type(value) is int
+
+
+def _plan_cap_ok(value: object) -> TypeGuard[int | None]:
+    return value is None or (_exact_int(value) and value >= 0)
 
 
 def _public_text(value: object) -> TypeGuard[str]:
@@ -86,6 +93,7 @@ def build_messages(
     spending_source: SpendingSource = "fixture",
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
+    plan_cap_cents: int | None = None,
 ) -> list[dict[str, object]]:
     if (
         not _public_text(message)
@@ -95,6 +103,7 @@ def build_messages(
         or type(period) is not date
         or period.day != 1
         or not _budget_ok(budget)
+        or not _plan_cap_ok(plan_cap_cents)
     ):
         raise ChatProtocolError(_REQUEST)
     previous = _previous(previous_request)
@@ -102,13 +111,15 @@ def build_messages(
     context = dumps(
         {
             "budget": asdict(budget),
+            "context_role": _CONTEXT_ROLE,
             "period": period.isoformat(),
+            "plan_cap_cents": plan_cap_cents,
             "previous_request": previous,
         },
         sort_keys=True,
         separators=(",", ":"),
     )
-    messages.append({"role": "user", "content": [{"text": message}, {"text": context}]})
+    messages.append({"role": "user", "content": [{"text": context}, {"text": message}]})
     return messages
 
 

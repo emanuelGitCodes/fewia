@@ -28,7 +28,15 @@ SYSTEM_PROMPT = (
     "You MUST NOT treat raw cents as a whole-currency amount. "
     "Write a concise plain-text final reply. "
     "You MUST use the server money_display strings for money. "
-    "Leave itemized prices to the estimate panel."
+    "Leave itemized prices to the estimate panel. "
+    "Latest pantry additions and removals override prior pantry. "
+    "Listing an ingredient again in a shopping list does not mean "
+    "purchasing it. "
+    "When plan_cap_cents is null, you MUST NOT invent a cap from "
+    "available spending. "
+    "When plan_cap_cents is not null, you MUST preserve that cap or "
+    "lower it. You MUST NOT clear or raise the cap. "
+    "A cap may change only when the user changes budget controls."
 )
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
@@ -41,6 +49,20 @@ class ChatUnavailable(Exception):
 
 def _noop() -> None:
     return None
+
+
+def _tool_use_history(calls: list[msgs.ToolCall]) -> dict[str, object]:
+    content: list[dict[str, object]] = [
+        {
+            "toolUse": {
+                "toolUseId": call.tool_use_id,
+                "name": call.name,
+                "input": call.tool_input,
+            }
+        }
+        for call in calls
+    ]
+    return {"role": "assistant", "content": content}
 
 
 def _end_status(candidate: dict[str, object] | None) -> str:
@@ -74,6 +96,7 @@ def run_chat(
     previous_request: dict[str, object] | None = None,
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
+    plan_cap_cents: int | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -83,6 +106,7 @@ def run_chat(
         spending_source=spending_source,
         previous_request=previous_request,
         history=history,
+        plan_cap_cents=plan_cap_cents,
     )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
@@ -115,15 +139,16 @@ def run_chat(
         turns += 1
         usage = _sum_usage(usage, raw)
         stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)
-        kept = sanitized.get("content")
-        if isinstance(kept, list) and kept:
-            messages.append(sanitized)
         if stop != "tool_use":
+            kept = sanitized.get("content")
+            if isinstance(kept, list) and kept:
+                messages.append(sanitized)
             if stop == "end_turn" and text.strip():
                 return out(_end_status(candidate), text, candidate)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
+        messages.append(_tool_use_history(calls))
         blocks: list[dict[str, object]] = []
         for call in calls:
             heartbeat()

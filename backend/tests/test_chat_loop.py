@@ -240,6 +240,7 @@ def _run(
     user_id: int = 1,
     available_cents: int = 10_000,
     record_evidence: EvidenceRecorder | None = None,
+    plan_cap_cents: int | None = None,
 ) -> tuple[dict[str, object], FakeLLM]:
     provider = FakeLLM(replies)
     pulse = _noop if heartbeat is None else heartbeat
@@ -254,6 +255,7 @@ def _run(
         previous_request=previous_request,
         history=history,
         record_evidence=record_evidence,
+        plan_cap_cents=plan_cap_cents,
     )
     return result, provider
 
@@ -358,9 +360,13 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert last["role"] == "user"
     content = last["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "use two servings"}
-    context = json.loads(cast(str, content[1]["text"]))
+    assert content[-1] == {"text": "use two servings"}
+    context = json.loads(cast(str, content[0]["text"]))
     assert context["previous_request"]["pantry_ingredients"] == ["salt"]
+    assert context["plan_cap_cents"] is None
+    assert context["context_role"] == (
+        "previous_request is prior state; apply latest explicit additions and removals"
+    )
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
     _assert_public(result)
@@ -608,18 +614,93 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
     ]
     result, provider = _run(replies)
     assert result["status"] == "planned"
+    assert result["answer"] == "ready"
     dumped_result = json.dumps(result)
     assert "reasoningContent" not in dumped_result
     assert "hidden plan" not in dumped_result
     follow = json.dumps(provider.requests[1]["messages"])
     assert "reasoningContent" not in follow
     assert "hidden plan" not in follow
+    assert "public" not in follow
     assistant = provider.requests[1]["messages"]
     assert isinstance(assistant, list)
     content = assistant[1]["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "public"}
-    assert "reasoningContent" not in content[1]
+    assert content == [
+        {
+            "toolUse": {
+                "toolUseId": "call-1",
+                "name": TOOL_NAME,
+                "input": plan_args(),
+            }
+        }
+    ]
+    user_blocks = assistant[2]["content"]
+    assert isinstance(user_blocks, list)
+    assert user_blocks[0]["toolResult"]["toolUseId"] == "call-1"
+
+
+def test_tool_use_history_keeps_validated_calls_only() -> None:
+    hidden = {"text": "hidden plan"}
+    first = plan_args()
+    second = plan_args(meals=[{"recipe_id": "bean_tacos", "servings": 2}])
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                {"reasoningContent": hidden},
+                _text_block("I will call tools now.", reasoning=hidden),
+                _tool_block("call-a", payload=first, reasoning=hidden),
+                _text_block("and another", reasoning=hidden),
+                _tool_block("call-b", payload=second, reasoning=hidden),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("Here is a labeled estimate.")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert result["status"] == "planned"
+    assert result["answer"] == "Here is a labeled estimate."
+    assert len(provider.requests) == 2
+    second_messages = provider.requests[1]["messages"]
+    assert isinstance(second_messages, list)
+    assistant = second_messages[1]
+    assert assistant["role"] == "assistant"
+    content = assistant["content"]
+    assert isinstance(content, list)
+    assert content == [
+        {
+            "toolUse": {
+                "toolUseId": "call-a",
+                "name": TOOL_NAME,
+                "input": first,
+            }
+        },
+        {
+            "toolUse": {
+                "toolUseId": "call-b",
+                "name": TOOL_NAME,
+                "input": second,
+            }
+        },
+    ]
+    user_message = second_messages[2]
+    assert user_message["role"] == "user"
+    user_blocks = user_message["content"]
+    assert isinstance(user_blocks, list)
+    assert len(user_blocks) == 2
+    assert user_blocks[0]["toolResult"]["toolUseId"] == "call-a"
+    assert user_blocks[1]["toolResult"]["toolUseId"] == "call-b"
+    dumped = json.dumps(second_messages)
+    assert "reasoningContent" not in dumped
+    assert "hidden plan" not in dumped
+    assert "I will call tools now." not in dumped
+    assert "and another" not in dumped
+    _assert_public(result)
+    _validate_converse(
+        cast(str, provider.requests[1]["system"]),
+        cast(list[dict[str, object]], second_messages),
+        cast(list[dict[str, object]], provider.requests[1]["tools"]),
+    )
 
 
 def test_duplicate_ids_raise_protocol_error() -> None:
@@ -768,6 +849,14 @@ def test_system_prompt_offers_catalog_alternatives() -> None:
     assert "stated diet" in SYSTEM_PROMPT
     assert "which one to plan" in SYSTEM_PROMPT
     assert "Name meals in plain words in replies, not as catalog IDs." in SYSTEM_PROMPT
+    assert "Latest pantry additions and removals override prior pantry." in (
+        SYSTEM_PROMPT
+    )
+    assert "shopping list does not mean purchasing it." in SYSTEM_PROMPT
+    assert (
+        "When plan_cap_cents is null, you MUST NOT invent a cap from "
+        "available spending." in SYSTEM_PROMPT
+    )
 
 
 def test_invalid_request_uses_context_validation() -> None:
@@ -775,6 +864,10 @@ def test_invalid_request_uses_context_validation() -> None:
     with pytest.raises(ChatProtocolError, match="request is invalid") as caught:
         run_chat(provider, " ", budget(), PERIOD)
     _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 0
+    with pytest.raises(ChatProtocolError, match="request is invalid") as cap_caught:
+        run_chat(provider, "plan", budget(), PERIOD, plan_cap_cents=-1)
+    _assert_static(cap_caught.value, "-1")
     assert len(provider.requests) == 0
 
 
@@ -946,3 +1039,44 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
     assert incomplete["plan"] is None
     assert incomplete["evidence_id"] is None
     assert incomplete["evidence_revision_id"] is None
+
+
+def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
+    prev = previous(pantry_ingredients=["salt", "oil"])
+    result, provider = _run(
+        _planner_then_final(),
+        message="remove oil and add rice",
+        history=[
+            {"role": "user", "text": "plan tacos"},
+            {"role": "assistant", "text": "I can plan chicken tacos."},
+        ],
+        previous_request=prev,
+        plan_cap_cents=2_000,
+        available_cents=10_000,
+    )
+    assert result["status"] == "planned"
+    assert len(provider.requests) == 2
+    first_prompt = provider.requests[0]["system"]
+    assert first_prompt == SYSTEM_PROMPT
+    assert "MUST preserve that cap or lower it" in SYSTEM_PROMPT
+    assert "MUST NOT clear or raise the cap" in SYSTEM_PROMPT
+    assert (
+        "A cap may change only when the user changes budget controls." in SYSTEM_PROMPT
+    )
+    for request in provider.requests:
+        assert request["system"] == SYSTEM_PROMPT
+        messages = request["messages"]
+        assert isinstance(messages, list)
+        current = messages[2]
+        assert isinstance(current, dict)
+        content = current["content"]
+        assert isinstance(content, list)
+        assert content[-1] == {"text": "remove oil and add rice"}
+        context = json.loads(cast(str, content[0]["text"]))
+        assert context["plan_cap_cents"] == 2_000
+        assert context["budget"]["available_cents"] == 10_000
+        assert context["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
+        assert context["context_role"] == (
+            "previous_request is prior state; apply latest explicit "
+            "additions and removals"
+        )

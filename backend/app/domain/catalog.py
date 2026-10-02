@@ -7,7 +7,7 @@ from typing import Literal, cast
 
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
-CATALOG_VERSION = "sample-prices-v1"
+CATALOG_VERSION = "sample-prices-v2"
 ESTIMATE_NOTICE = SAMPLE_ESTIMATE_NOTICE
 Unit = Literal["g", "each"]
 

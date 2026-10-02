@@ -148,6 +148,7 @@ INVENTED_EVIDENCE_ID_TOKENS = (
     "job:user-",
     "handoff:user-",
     "catalog:sample-prices-v1",
+    "catalog:sample-prices-v2",
 )
 MEAL_TOTALS = {
     "M01": 1703,
@@ -249,7 +250,7 @@ def test_corpus_top_level_schema_is_versioned() -> None:
     corpus = load_corpus()
     assert corpus["version"] == VERSION
     assert corpus["catalog_version"] == CATALOG_VERSION
-    assert corpus["catalog_version"] == "sample-prices-v1"
+    assert corpus["catalog_version"] == "sample-prices-v2"
     assert corpus["repeats"] == REPEATS
     assert corpus["mode_note"] == MODE_NOTE
     assert corpus["evidence_target_note"] == EVIDENCE_TARGET_NOTE

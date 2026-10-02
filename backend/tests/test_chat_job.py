@@ -378,3 +378,60 @@ def test_chat_job_heartbeat_failure_is_before_provider() -> None:
         chat_job_module.chat_job(
             chat_payload(), heartbeat, provider=FailLLM(), factory=FACTORY
         )
+
+
+def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    _patch_save(monkeypatch, [])
+    cap = 20_000
+    budget = calculate_budget(
+        10_000,
+        SpendingSnapshot(PERIOD, 2_500, 400, NOW - timedelta(hours=1)),
+        now=NOW,
+        plan_cap_cents=cap,
+    )
+    assert budget.available_cents < cap
+    previous = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
+        "budget_period": PERIOD,
+        "pantry_ingredients": ["salt", "oil"],
+    }
+    provider = FakeLLM(_planner_then_final())
+    result = chat_job_module.chat_job(
+        chat_payload(
+            message="remove oil and add rice",
+            plan_cap_cents=cap,
+            previous_request=previous,
+            history=[
+                {"role": "user", "text": "plan chicken tacos"},
+                {"role": "assistant", "text": "Here is a labeled estimate."},
+            ],
+        ),
+        lambda: None,
+        provider=provider,
+        factory=FACTORY,
+    )
+    assert result["status"] == "planned"
+    assert len(provider.requests) == 2
+    for request in provider.requests:
+        messages = request["messages"]
+        assert isinstance(messages, list)
+        current = messages[2]
+        assert isinstance(current, dict)
+        content = current["content"]
+        assert isinstance(content, list)
+        assert content[-1] == {"text": "remove oil and add rice"}
+        block = content[0]
+        assert isinstance(block, dict)
+        text = block["text"]
+        assert isinstance(text, str)
+        loaded = json.loads(text)
+        assert loaded["plan_cap_cents"] == cap
+        assert loaded["budget"]["available_cents"] == budget.available_cents
+        assert loaded["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
+        assert loaded["context_role"] == (
+            "previous_request is prior state; apply latest explicit "
+            "additions and removals"
+        )

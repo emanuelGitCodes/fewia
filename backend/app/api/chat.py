@@ -138,7 +138,7 @@ def read_chat_job(
     ):
         raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_MESSAGE)
     result = job.result
-    if job.status == "succeeded" and isinstance(result, dict) and estimator is not None:
+    if job.status == "succeeded" and isinstance(result, dict):
         result = attach_supermarket_estimate(result, estimator)
     return GroceryJobView(
         id=job.id,

@@ -59,7 +59,7 @@ def _context(messages: list[dict[str, object]]) -> dict[str, object]:
     last = messages[-1]
     content = last["content"]
     assert isinstance(content, list)
-    block = content[1]
+    block = content[0]
     assert isinstance(block, dict)
     text = block["text"]
     assert isinstance(text, str)
@@ -94,9 +94,19 @@ def test_followup_history_appends_current_user_and_context() -> None:
     assert messages[2]["role"] == "user"
     content = messages[2]["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "use two servings"}
+    assert content[-1] == {"text": "use two servings"}
     payload = _context(messages)
-    assert set(payload) == {"budget", "period", "previous_request"}
+    assert set(payload) == {
+        "budget",
+        "context_role",
+        "period",
+        "plan_cap_cents",
+        "previous_request",
+    }
+    assert payload["plan_cap_cents"] is None
+    assert payload["context_role"] == (
+        "previous_request is prior state; apply latest explicit additions and removals"
+    )
     assert payload["period"] == "2026-09-01"
     assert payload["previous_request"] == GroceryRequest.model_validate(
         previous()
@@ -309,6 +319,9 @@ def test_build_messages_does_not_mutate_inputs_or_chain_errors() -> None:
             },
             "warn",
         ),
+        ({"plan_cap_cents": -1}, "-1"),
+        ({"plan_cap_cents": True}, "True"),
+        ({"plan_cap_cents": False}, "False"),
     ],
 )
 def test_request_constraints_raise_static_errors(
@@ -394,3 +407,58 @@ def test_read_usage_valid_and_unknown() -> None:
 )
 def test_read_usage_invalid_returns_none_without_zero(response: object) -> None:
     assert read_usage(response) is None
+
+
+def test_plan_cap_zero_none_and_positive_stay_explicit() -> None:
+    none_messages = build_messages("ok", budget(available_cents=10_000), PERIOD)
+    none_payload = _context(none_messages)
+    none_content = none_messages[0]["content"]
+    assert isinstance(none_content, list)
+    none_block = none_content[0]
+    assert isinstance(none_block, dict)
+    none_text = none_block["text"]
+    assert isinstance(none_text, str)
+    assert none_payload["plan_cap_cents"] is None
+    assert none_payload["budget"]["available_cents"] == 10_000
+    assert '"plan_cap_cents":null' in none_text
+    assert '"plan_cap_cents":10000' not in none_text
+    zero_payload = _context(
+        build_messages("ok", budget(available_cents=10_000), PERIOD, plan_cap_cents=0)
+    )
+    assert zero_payload["plan_cap_cents"] == 0
+    assert zero_payload["budget"]["available_cents"] == 10_000
+    positive = _context(
+        build_messages("ok", budget(available_cents=10_000), PERIOD, plan_cap_cents=500)
+    )
+    assert positive["plan_cap_cents"] == 500
+    assert positive["budget"]["available_cents"] == 10_000
+
+
+def test_previous_pantry_structure_and_context_before_user_message() -> None:
+    prev = previous(pantry_ingredients=["salt", "oil"])
+    messages = build_messages(
+        "add rice and remove oil",
+        budget(),
+        PERIOD,
+        previous_request=prev,
+        history=pair(0),
+        plan_cap_cents=2_000,
+    )
+    assert messages[0] == {"role": "user", "content": [{"text": "user-0"}]}
+    assert messages[1]["role"] == "assistant"
+    last = messages[-1]
+    assert last["role"] == "user"
+    content = last["content"]
+    assert isinstance(content, list)
+    assert content[-1] == {"text": "add rice and remove oil"}
+    payload = _context(messages)
+    assert payload["plan_cap_cents"] == 2_000
+    assert payload["context_role"] == (
+        "previous_request is prior state; apply latest explicit additions and removals"
+    )
+    assert payload["previous_request"] == GroceryRequest.model_validate(
+        prev
+    ).model_dump(mode="json")
+    previous_payload = payload["previous_request"]
+    assert isinstance(previous_payload, dict)
+    assert previous_payload["pantry_ingredients"] == ["salt", "oil"]
