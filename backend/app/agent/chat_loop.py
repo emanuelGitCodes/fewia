@@ -43,6 +43,20 @@ def _noop() -> None:
     return None
 
 
+def _tool_use_history(calls: list[msgs.ToolCall]) -> dict[str, object]:
+    content: list[dict[str, object]] = [
+        {
+            "toolUse": {
+                "toolUseId": call.tool_use_id,
+                "name": call.name,
+                "input": call.tool_input,
+            }
+        }
+        for call in calls
+    ]
+    return {"role": "assistant", "content": content}
+
+
 def _end_status(candidate: dict[str, object] | None) -> str:
     plan = None if candidate is None else candidate.get("plan")
     if isinstance(plan, dict) and plan.get("accepted") is True:
@@ -115,15 +129,16 @@ def run_chat(
         turns += 1
         usage = _sum_usage(usage, raw)
         stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)
-        kept = sanitized.get("content")
-        if isinstance(kept, list) and kept:
-            messages.append(sanitized)
         if stop != "tool_use":
+            kept = sanitized.get("content")
+            if isinstance(kept, list) and kept:
+                messages.append(sanitized)
             if stop == "end_turn" and text.strip():
                 return out(_end_status(candidate), text, candidate)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
+        messages.append(_tool_use_history(calls))
         blocks: list[dict[str, object]] = []
         for call in calls:
             heartbeat()

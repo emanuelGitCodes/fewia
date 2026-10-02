@@ -608,18 +608,93 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
     ]
     result, provider = _run(replies)
     assert result["status"] == "planned"
+    assert result["answer"] == "ready"
     dumped_result = json.dumps(result)
     assert "reasoningContent" not in dumped_result
     assert "hidden plan" not in dumped_result
     follow = json.dumps(provider.requests[1]["messages"])
     assert "reasoningContent" not in follow
     assert "hidden plan" not in follow
+    assert "public" not in follow
     assistant = provider.requests[1]["messages"]
     assert isinstance(assistant, list)
     content = assistant[1]["content"]
     assert isinstance(content, list)
-    assert content[0] == {"text": "public"}
-    assert "reasoningContent" not in content[1]
+    assert content == [
+        {
+            "toolUse": {
+                "toolUseId": "call-1",
+                "name": TOOL_NAME,
+                "input": plan_args(),
+            }
+        }
+    ]
+    user_blocks = assistant[2]["content"]
+    assert isinstance(user_blocks, list)
+    assert user_blocks[0]["toolResult"]["toolUseId"] == "call-1"
+
+
+def test_tool_use_history_keeps_validated_calls_only() -> None:
+    hidden = {"text": "hidden plan"}
+    first = plan_args()
+    second = plan_args(meals=[{"recipe_id": "bean_tacos", "servings": 2}])
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                {"reasoningContent": hidden},
+                _text_block("I will call tools now.", reasoning=hidden),
+                _tool_block("call-a", payload=first, reasoning=hidden),
+                _text_block("and another", reasoning=hidden),
+                _tool_block("call-b", payload=second, reasoning=hidden),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("Here is a labeled estimate.")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert result["status"] == "planned"
+    assert result["answer"] == "Here is a labeled estimate."
+    assert len(provider.requests) == 2
+    second_messages = provider.requests[1]["messages"]
+    assert isinstance(second_messages, list)
+    assistant = second_messages[1]
+    assert assistant["role"] == "assistant"
+    content = assistant["content"]
+    assert isinstance(content, list)
+    assert content == [
+        {
+            "toolUse": {
+                "toolUseId": "call-a",
+                "name": TOOL_NAME,
+                "input": first,
+            }
+        },
+        {
+            "toolUse": {
+                "toolUseId": "call-b",
+                "name": TOOL_NAME,
+                "input": second,
+            }
+        },
+    ]
+    user_message = second_messages[2]
+    assert user_message["role"] == "user"
+    user_blocks = user_message["content"]
+    assert isinstance(user_blocks, list)
+    assert len(user_blocks) == 2
+    assert user_blocks[0]["toolResult"]["toolUseId"] == "call-a"
+    assert user_blocks[1]["toolResult"]["toolUseId"] == "call-b"
+    dumped = json.dumps(second_messages)
+    assert "reasoningContent" not in dumped
+    assert "hidden plan" not in dumped
+    assert "I will call tools now." not in dumped
+    assert "and another" not in dumped
+    _assert_public(result)
+    _validate_converse(
+        cast(str, provider.requests[1]["system"]),
+        cast(list[dict[str, object]], second_messages),
+        cast(list[dict[str, object]], provider.requests[1]["tools"]),
+    )
 
 
 def test_duplicate_ids_raise_protocol_error() -> None:
