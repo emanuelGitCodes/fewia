@@ -1,10 +1,12 @@
 # Grocery bot project context
 
-The user approved real Bedrock, local web chat, a small meal catalog, and
+The user approved real Bedrock, local web chat, a 40-meal catalog, and
 labeled sample prices. Floci runs in the default local stack with SQS jobs
-and S3 evaluation exports. Plaid Sandbox work is paused; the budget starts
-from a user-entered amount. Decision 0010 parks the Instacart handoff and
-adds USDA nutrition and an optional Spoonacular cost overlay. Newer
+and S3 evaluation exports. The default spending source is `manual`. The
+monthly limit that the user enters is the whole budget. Fixture spending
+stays optional. Plaid work is last. Decision 0010 parks the Instacart
+handoff and adds USDA nutrition and an optional Spoonacular cost overlay.
+Decision 0016 keeps sample-catalog cents as the budget figure. Newer
 decisions in `wiki/decisions/` override this file.
 
 Read root `AGENTS.md` and `.codex/TEAM.md` before task actions. Read the root
@@ -26,14 +28,20 @@ This brief records accepted scope, not authority for unrelated changes.
 
 ## Planning rules
 
-Support chicken tacos, bean tacos, vegetable pasta, chicken-and-rice bowls,
-lentil soup, chickpea curry, vegetable stir-fry, baked potatoes with beans,
-breakfast burritos, and overnight oats. Support one to three meals and one to
-eight servings per meal. Offer supported alternatives for other requests.
+Support 40 meals. The authoritative list is
+`backend/app/domain/catalog_recipes.json`. Support one to three meals and
+one to eight servings per meal. Offer supported alternatives for other
+requests. `POST /grocery/templates` holds a library of six preset combinations.
+The planner keeps a preset only when it fits the available budget, diet,
+pantry, and exclusions. The endpoint returns up to six eligible
+suggestions. An empty list is possible. Suggestions use labeled sample
+prices. They do not reserve money.
 
 The user declares the monthly limit. Subtract net posted grocery spending,
 then clamp the remainder to zero. Apply the smaller explicit plan cap when
 provided. Show pending spending separately. Plans do not reserve money.
+`get_budget_summary` returns read-only facts for available cents, pending
+cents, source, and stale warnings.
 Use USD, integer cents, and America/New_York budget dates. Aggregate shared
 ingredients before package rounding. Remove pantry items only on user input.
 Never lower servings or omit ingredients to claim budget compliance.

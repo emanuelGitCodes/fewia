@@ -330,4 +330,41 @@ describe("chat continuity", () => {
     expect(submitted(jobState, retryCalls)).toEqual(submitted(jobState, 0));
     renderer.unmount();
   });
+
+  it("keeps an unresolved chat estimate after a pending follow-up and a new conversation", async () => {
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = chatJob();
+    });
+    const { bucket, refresh, renderer } = mount({});
+    act(() => {
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Plan lentil soup." } });
+    });
+    await sendAndSettle();
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
+      jobState.job = { id: "chat-2", status: "queued", result: null, error_code: null };
+      jobState.pending = true;
+    });
+    act(() => {
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "Add another meal." } });
+    });
+    await sendAndSettle();
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    jobState.pending = false;
+    jobState.job = { id: "chat-2", status: "failed", result: null, error_code: "tool" };
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Start a new conversation" }));
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    renderer.unmount();
+  });
 });

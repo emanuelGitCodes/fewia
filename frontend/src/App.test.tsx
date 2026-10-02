@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { createElement } from "react";
+import { createElement, useState, type JSX } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,7 @@ import { useChatConversation } from "./useChatConversation";
 import { useGroceryDemo, type GroceryDemo } from "./useGroceryDemo";
 import { useHandoff } from "./useHandoff";
 import { useProviderCapabilities } from "./useProviderCapabilities";
+import { useTemplateSuggestions } from "./useTemplateSuggestions";
 import { sampleNutrition } from "../tests/apiFixtures";
 
 vi.mock("./useGroceryDemo", () => ({
@@ -36,6 +37,10 @@ vi.mock("./useHandoff", () => ({
   useHandoff: vi.fn(),
 }));
 
+vi.mock("./useTemplateSuggestions", () => ({
+  useTemplateSuggestions: vi.fn(),
+}));
+
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const CATALOG_UNAVAILABLE = "The grocery catalog is unavailable. Retry the catalog request.";
 const PROVIDER_UNAVAILABLE =
@@ -51,6 +56,7 @@ const providersReady: ProviderCapabilities = {
 
 type ChatHook = ReturnType<typeof useChatConversation>;
 type HandoffHook = ReturnType<typeof useHandoff>;
+type TemplateHook = ReturnType<typeof useTemplateSuggestions>;
 
 function chatState(overrides: Partial<ChatHook> = {}): ChatHook {
   return {
@@ -166,6 +172,10 @@ function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement {
   return within(root).getByRole("button", { name }) as HTMLButtonElement;
 }
 
+function mealIdeas(root: HTMLElement): HTMLFieldSetElement {
+  return within(root).getByRole("group", { name: "Meal ideas" }) as HTMLFieldSetElement;
+}
+
 function hasButton(root: HTMLElement, name: string): boolean {
   return within(root).queryByRole("button", { name }) !== null;
 }
@@ -201,6 +211,16 @@ function instacartProviders(): ReturnType<typeof useProviderCapabilities> {
   };
 }
 
+function templateState(overrides: Partial<TemplateHook> = {}): TemplateHook {
+  return {
+    pending: false,
+    error: null,
+    suggestions: null,
+    find: vi.fn(),
+    ...overrides,
+  };
+}
+
 function demoState(overrides: Partial<GroceryDemo> = {}): GroceryDemo {
   return {
     config: demoConfig,
@@ -233,12 +253,35 @@ function mount(
     retry: vi.fn(),
   },
   handoff: HandoffHook = handoffState(),
+  templates: TemplateHook = templateState(),
 ): RenderResult {
   vi.mocked(useGroceryDemo).mockReturnValue(demo);
   vi.mocked(useChatConversation).mockReturnValue(chat);
   vi.mocked(useProviderCapabilities).mockReturnValue(provider);
   vi.mocked(useHandoff).mockReturnValue(handoff);
+  vi.mocked(useTemplateSuggestions).mockReturnValue(templates);
   return render(createElement(App));
+}
+
+function AppUnresolvedHost(props: {
+  chat: ChatHook;
+  pending?: boolean;
+  job?: GroceryJob | null;
+}): JSX.Element {
+  const [form, setForm] = useState(initialForm());
+  vi.mocked(useGroceryDemo).mockReturnValue(
+    demoState({
+      form,
+      setForm,
+      job: props.job ?? null,
+      dirty: false,
+      pending: props.pending === true,
+    }),
+  );
+  vi.mocked(useChatConversation).mockReturnValue(props.chat);
+  vi.mocked(useProviderCapabilities).mockReturnValue(instacartProviders());
+  vi.mocked(useHandoff).mockReturnValue(handoffState());
+  return createElement(App);
 }
 
 describe("App", () => {
@@ -247,6 +290,8 @@ describe("App", () => {
     vi.mocked(useChatConversation).mockReset();
     vi.mocked(useProviderCapabilities).mockReset();
     vi.mocked(useHandoff).mockReset();
+    vi.mocked(useTemplateSuggestions).mockReset();
+    vi.mocked(useTemplateSuggestions).mockReturnValue(templateState());
   });
 
   it("keeps the shell wordmark, local demo label, title, and footer", () => {
@@ -685,5 +730,290 @@ describe("App", () => {
     expect(start).toHaveBeenCalledTimes(1);
     expect(start).toHaveBeenCalledWith("job-1");
     renderer.unmount();
+  });
+
+  it("marks an unresolved chat estimate as previous and hides shopping start", () => {
+    const live = render(createElement(AppUnresolvedHost, { chat: chatState() }));
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+            ],
+            job: chatJob(plannedChat()),
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).toContain("$17.03");
+    expect(hasButton(live.container, "Create shopping list")).toBe(true);
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "user-2", role: "user", content: "Add soup." },
+            ],
+            job: {
+              id: "chat-2",
+              status: "succeeded",
+              result: {
+                ...plannedChat(),
+                status: "clarification",
+                answer: "Which meals should I plan?",
+                plan: null,
+                budget: null,
+                request: null,
+                evidence_revision_id: null,
+              },
+              error_code: null,
+            },
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Previous estimate");
+    expect(childText(live.container)).toContain("$17.03");
+    expect(hasButton(live.container, "Create shopping list")).toBe(false);
+    live.unmount();
+  });
+
+  it("shows a missing-price clarification candidate as the current grocery estimate", () => {
+    const live = render(createElement(AppUnresolvedHost, { chat: chatState() }));
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+            ],
+            job: chatJob(plannedChat()),
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).toContain("$17.03");
+    const priced = plannedChat();
+    if (priced.plan === null) {
+      throw new Error("missing planned chat plan");
+    }
+    const pricedPlan = priced.plan;
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "user-2", role: "user", content: "Add soup." },
+              { id: "chat-2", role: "assistant", content: "Which meals should I plan?" },
+            ],
+            job: {
+              id: "chat-2",
+              status: "succeeded",
+              result: {
+                ...priced,
+                status: "clarification",
+                answer: "Which meals should I plan?",
+                plan: {
+                  ...pricedPlan,
+                  total_cents: null,
+                  accepted: false,
+                  lines: pricedPlan.lines.map((line) => ({ ...line, cost_cents: null })),
+                },
+              },
+              error_code: null,
+            },
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).not.toContain("Previous estimate");
+    expect(childText(live.container)).toContain("This plan is incomplete.");
+    expect(childText(live.container)).toContain("Incomplete estimate");
+    expect(childText(live.container)).toContain("black beans");
+    expect(hasButton(live.container, "Create shopping list")).toBe(false);
+    live.unmount();
+  });
+
+  it("clears Previous after a newer manual rebuild started after a no-plan clarification", () => {
+    const clarification = chatState({
+      messages: [
+        { id: "user-1", role: "user", content: "Plan lentil soup." },
+        { id: "user-2", role: "user", content: "Add soup." },
+      ],
+      job: {
+        id: "chat-2",
+        status: "succeeded",
+        result: {
+          ...plannedChat(),
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        },
+        error_code: null,
+      },
+      hasRequest: true,
+    });
+    const live = render(createElement(AppUnresolvedHost, { chat: chatState() }));
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+            ],
+            job: chatJob(plannedChat()),
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(createElement(AppUnresolvedHost, { chat: clarification }));
+    });
+    expect(childText(live.container)).toContain("Previous estimate");
+    expect(hasButton(live.container, "Create shopping list")).toBe(false);
+    act(() => {
+      live.rerender(createElement(AppUnresolvedHost, { chat: clarification, pending: true }));
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: clarification,
+          pending: false,
+          job: succeededJob,
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).not.toContain("Previous estimate");
+    live.unmount();
+  });
+
+  it("mounts meal ideas on the budget form with the form setter and busy or blocked disable", () => {
+    const setForm = vi.fn();
+    const form: FormState = {
+      monthly: "300",
+      cap: "25.00",
+      diet: "vegan",
+      pantry: ["black_beans"],
+      exclusions: ["black_beans"],
+      meals: [{ recipe_id: "bean_tacos", servings: 2 }],
+    };
+    const ready = mount(
+      demoState({ setForm, form }),
+      chatState(),
+      {
+        capabilities: providersReady,
+        pending: false,
+        error: null,
+        retry: vi.fn(),
+      },
+      handoffState(),
+      templateState({
+        suggestions: [
+          {
+            template_id: "bean_lentil",
+            recipe_ids: ["bean_tacos", "lentil_soup"],
+            servings: 4,
+            total_cents: 1703,
+            catalog_version: "sample-prices-v1",
+            notice: NOTICE,
+          },
+        ],
+      }),
+    );
+    const budgetForm = buttonNamed(ready.container, "Build my estimate").closest("form");
+    if (budgetForm === null) {
+      throw new Error("missing Build my estimate form");
+    }
+    const find = buttonNamed(budgetForm, "Find meal ideas");
+    expect(mealIdeas(budgetForm).disabled).toBe(false);
+    expect(find.getAttribute("type")).toBe("button");
+    expect(find).toBe(buttonNamed(ready.container, "Find meal ideas"));
+    expect((within(budgetForm).getByLabelText("Servings per meal") as HTMLSelectElement).value).toBe("2");
+    act(() => {
+      fireEvent.click(buttonNamed(budgetForm, "Use these meals: Bean tacos, Lentil soup"));
+    });
+    expect(setForm).toHaveBeenCalledTimes(1);
+    const updater = setForm.mock.calls[0]?.[0];
+    if (typeof updater !== "function") {
+      throw new Error("expected demo.setForm updater");
+    }
+    const meals = [
+      { recipe_id: "bean_tacos", servings: 4 },
+      { recipe_id: "lentil_soup", servings: 4 },
+    ];
+    const next = updater(form) as FormState;
+    expect(next.monthly).toBe("300");
+    expect(next.cap).toBe("25.00");
+    expect(next.diet).toBe("vegan");
+    expect(next.pantry).toEqual(["black_beans"]);
+    expect(next.exclusions).toEqual(["black_beans"]);
+    expect(next.meals).toEqual(meals);
+    const current: FormState = {
+      monthly: "80",
+      cap: "10.00",
+      diet: "omnivore",
+      pantry: [],
+      exclusions: [],
+      meals: [{ recipe_id: "lentil_soup", servings: 8 }],
+    };
+    expect(updater(current)).toEqual({ ...current, meals });
+    ready.unmount();
+    const busy = mount(demoState({ setForm, pending: true }));
+    expect(mealIdeas(busy.container).disabled).toBe(true);
+    busy.unmount();
+    const chatBusy = mount(demoState({ setForm }), chatState({ pending: true }));
+    expect(mealIdeas(chatBusy.container).disabled).toBe(true);
+    chatBusy.unmount();
+    const blocked = mount(demoState({ setForm, configError: CATALOG_UNAVAILABLE }));
+    expect(mealIdeas(blocked.container).disabled).toBe(true);
+    blocked.unmount();
   });
 });

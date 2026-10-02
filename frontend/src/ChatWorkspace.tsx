@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type JSX, type SetStateAction } from "react";
 import type { GroceryJob } from "./apiTypes";
 import type { FormState } from "./BudgetForm";
+import type { ChatJob } from "./chatTypes";
 import { ChatPanel } from "./ChatPanel";
 import { chatBudgetFromForm, chatEstimateJob, formFromChat } from "./chatWorkspaceModel";
 import { useChatConversation, type ChatTurn } from "./useChatConversation";
@@ -30,11 +31,36 @@ function validManualId(job: GroceryJob | null): string | null {
   return job.id;
 }
 
+function completeChatEstimate(job: ChatJob): GroceryJob | null {
+  const result = job.result;
+  if (result === null) {
+    return null;
+  }
+  if (result.status === "limit" || result.status === "incomplete") {
+    return null;
+  }
+  const estimate = chatEstimateJob(job);
+  if (estimate === null || estimate.result === null) {
+    return null;
+  }
+  if (result.status === "clarification") {
+    return estimate;
+  }
+  if (estimate.result.plan.total_cents === null) {
+    return null;
+  }
+  if (estimate.result.plan.lines.some((line) => line.cost_cents === null)) {
+    return null;
+  }
+  return estimate;
+}
+
 export type ChatWorkspaceInput = {
   form: FormState;
   setForm: Dispatch<SetStateAction<FormState>>;
   formJob: GroceryJob | null;
   formDirty?: boolean;
+  formPending?: boolean;
 };
 
 type EstimateSource = { kind: "chat" | "form"; id: string };
@@ -44,10 +70,12 @@ export function useChatWorkspace({
   setForm,
   formJob,
   formDirty = false,
+  formPending = false,
 }: ChatWorkspaceInput): {
   pending: boolean;
   estimateJob: GroceryJob | null;
   estimateDirty: boolean;
+  unresolvedChatEstimate: boolean;
   configured: boolean;
   configurationPending: boolean;
   providerError: string | null;
@@ -60,6 +88,7 @@ export function useChatWorkspace({
   const [source, setSource] = useState<EstimateSource | null>(null);
   const [appliedKey, setAppliedKey] = useState<string | null>(null);
   const [chatEstimate, setChatEstimate] = useState<GroceryJob | null>(null);
+  const [unresolvedChatEstimate, setUnresolvedChatEstimate] = useState(false);
   const owned =
     source !== null && appliedKey !== null && formKey(form) === appliedKey;
   const contextId = owned ? source.id : null;
@@ -74,6 +103,15 @@ export function useChatWorkspace({
   const formReady = useRef(false);
   const seenChat = useRef(new Set<string>());
   const seenForm = useRef<string | null>(null);
+  const jobTurn = useRef(new Map<string, string | null>());
+  const wasFormPending = useRef(false);
+  const eventGen = useRef(0);
+  const manualStartGen = useRef(0);
+  const unresolvedChatGen = useRef(0);
+  const sourceRef = useRef(source);
+  const chatEstimateRef = useRef(chatEstimate);
+  sourceRef.current = source;
+  chatEstimateRef.current = chatEstimate;
 
   useEffect(() => {
     if (applying.current) {
@@ -88,6 +126,14 @@ export function useChatWorkspace({
   }, [form]);
 
   useEffect(() => {
+    if (formPending && !wasFormPending.current) {
+      eventGen.current += 1;
+      manualStartGen.current = eventGen.current;
+    }
+    wasFormPending.current = formPending;
+  }, [formPending]);
+
+  useEffect(() => {
     const userId = latestUserTurnId(conversation.messages);
     if (userId === null) {
       lastUserId.current = null;
@@ -99,17 +145,33 @@ export function useChatWorkspace({
     sendEpoch.current = formEpoch.current;
     sendManualGen.current = manualGen.current;
     lastUserId.current = userId;
+    const displayedChat = chatEstimateRef.current !== null && sourceRef.current?.kind === "chat";
+    const displayedForm = sourceRef.current?.kind === "form";
+    if (displayedChat || displayedForm) {
+      eventGen.current += 1;
+      unresolvedChatGen.current = eventGen.current;
+      setUnresolvedChatEstimate(true);
+    }
   }, [conversation.messages]);
 
   useEffect(() => {
     const job = conversation.job;
-    if (job === null || job.status !== "succeeded" || job.result === null) {
+    if (job === null) {
+      return;
+    }
+    if (!jobTurn.current.has(job.id)) {
+      jobTurn.current.set(job.id, lastUserId.current);
+    }
+    if (job.status !== "succeeded" || job.result === null) {
       return;
     }
     if (seenChat.current.has(job.id)) {
       return;
     }
     seenChat.current.add(job.id);
+    if (jobTurn.current.get(job.id) !== lastUserId.current) {
+      return;
+    }
     const incoming = validManualId(formJob);
     if (incoming !== null && incoming !== seenForm.current) {
       return;
@@ -117,7 +179,7 @@ export function useChatWorkspace({
     if (formEpoch.current !== sendEpoch.current || manualGen.current !== sendManualGen.current) {
       return;
     }
-    const estimate = chatEstimateJob(job);
+    const estimate = completeChatEstimate(job);
     if (estimate === null) {
       return;
     }
@@ -129,6 +191,7 @@ export function useChatWorkspace({
     setAppliedKey(formKey(next));
     setChatEstimate(estimate);
     setSource({ kind: "chat", id: job.id });
+    setUnresolvedChatEstimate(false);
   }, [conversation.job, form, formJob, setForm]);
 
   useEffect(() => {
@@ -142,6 +205,9 @@ export function useChatWorkspace({
     manualGen.current += 1;
     setChatEstimate(null);
     setSource({ kind: "form", id: formJob.id });
+    if (manualStartGen.current >= unresolvedChatGen.current) {
+      setUnresolvedChatEstimate(false);
+    }
     if (!formDirty) {
       setAppliedKey(formKey(form));
     }
@@ -152,6 +218,7 @@ export function useChatWorkspace({
     pending: conversation.pending,
     estimateJob: chatPlan,
     estimateDirty: chatPlan !== null && appliedKey !== null && formKey(form) !== appliedKey,
+    unresolvedChatEstimate,
     configured: providers.capabilities?.chat_configured === true,
     configurationPending: providers.pending,
     providerError: providers.error,

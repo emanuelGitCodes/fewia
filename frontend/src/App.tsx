@@ -1,6 +1,7 @@
 import { useEffect, type JSX } from "react";
 import { SAMPLE_ESTIMATE_NOTICE, sourceLabel } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
+import { TemplatePicker } from "./TemplatePicker";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
 import { Conversation } from "./Conversation";
 import { Estimate } from "./Estimate";
@@ -21,12 +22,14 @@ export default function App(): JSX.Element {
     setForm: demo.setForm,
     formJob: demo.job,
     formDirty: demo.dirty,
+    formPending: demo.pending,
   });
   const handoff = useHandoff();
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
   const busy = demo.pending || chat.pending;
   const estimateJob = chat.estimateJob ?? demo.job;
-  const estimateDirty = chat.estimateJob !== null ? chat.estimateDirty : demo.dirty;
+  const estimateDirty =
+    (chat.estimateJob !== null ? chat.estimateDirty : demo.dirty) || chat.unresolvedChatEstimate;
   const showNotice = estimateJob?.status !== "succeeded" || estimateJob.result === null;
   const jobId = estimateJob?.status === "succeeded" ? estimateJob.id : null;
   const result = estimateJob?.status === "succeeded" ? estimateJob.result : null;
@@ -99,6 +102,12 @@ export default function App(): JSX.Element {
                 <BudgetForm
                   config={demo.config}
                   value={demo.form}
+                  onChange={demo.setForm}
+                  disabled={blocked || busy}
+                />
+                <TemplatePicker
+                  config={demo.config}
+                  form={demo.form}
                   onChange={demo.setForm}
                   disabled={blocked || busy}
                 />
