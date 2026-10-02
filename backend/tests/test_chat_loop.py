@@ -854,7 +854,8 @@ def test_system_prompt_offers_catalog_alternatives() -> None:
     )
     assert "shopping list does not mean purchasing it." in SYSTEM_PROMPT
     assert (
-        "When plan_cap_cents is null, you MUST NOT invent a cap from available spending."
+        "When plan_cap_cents is null, you MUST NOT invent a cap from "
+        "available spending."
         in SYSTEM_PROMPT
     )
 
@@ -1056,7 +1057,16 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
     )
     assert result["status"] == "planned"
     assert len(provider.requests) == 2
+    first_prompt = provider.requests[0]["system"]
+    assert first_prompt == SYSTEM_PROMPT
+    assert "MUST preserve that cap or lower it" in SYSTEM_PROMPT
+    assert "MUST NOT clear or raise the cap" in SYSTEM_PROMPT
+    assert (
+        "A cap may change only when the user changes budget controls."
+        in SYSTEM_PROMPT
+    )
     for request in provider.requests:
+        assert request["system"] == SYSTEM_PROMPT
         messages = request["messages"]
         assert isinstance(messages, list)
         current = messages[2]
@@ -1069,5 +1079,6 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         assert context["budget"]["available_cents"] == 10_000
         assert context["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
         assert context["context_role"] == (
-            "previous_request is prior state; apply latest explicit additions and removals"
+            "previous_request is prior state; apply latest explicit "
+            "additions and removals"
         )

@@ -33,7 +33,10 @@ SYSTEM_PROMPT = (
     "Listing an ingredient again in a shopping list does not mean "
     "purchasing it. "
     "When plan_cap_cents is null, you MUST NOT invent a cap from "
-    "available spending."
+    "available spending. "
+    "When plan_cap_cents is not null, you MUST preserve that cap or "
+    "lower it. You MUST NOT clear or raise the cap. "
+    "A cap may change only when the user changes budget controls."
 )
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
