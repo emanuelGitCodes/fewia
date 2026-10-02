@@ -289,6 +289,70 @@ def test_attach_skips_zero_quantity_line() -> None:
     assert estimator.calls == []
 
 
+STALE_OVERLAY: dict[str, object] = {
+    "total_cents": 9999,
+    "notice": "stale stored overlay",
+    "lines": [{"ingredient_id": "chicken_breast", "cents": 9999}],
+}
+
+
+def test_attach_drops_stored_overlay_without_estimator() -> None:
+    result = _plan_result(_purchase("chicken_breast", "g", 100))
+    result["supermarket_estimate"] = dict(STALE_OVERLAY)
+    nested = {"id": "ev-1"}
+    result["evidence"] = nested
+
+    attached = attach_supermarket_estimate(result, None)
+
+    assert "supermarket_estimate" not in attached
+    assert attached["keep"] == 1
+    assert attached["evidence"] is nested
+    assert result["supermarket_estimate"] == STALE_OVERLAY
+    assert attached is not result
+
+
+def test_attach_drops_stored_overlay_for_malformed_plan() -> None:
+    result: dict[str, object] = {
+        "plan": [],
+        "keep": 1,
+        "supermarket_estimate": dict(STALE_OVERLAY),
+        "total_cents": 400,
+        "budget": {"available_cents": 10000},
+        "source": "manual",
+        "evidence_ids": ["ev-1"],
+        "nutrition": {"calories": 1},
+    }
+    estimator = FakeEstimator({EGG_ID: 50})
+
+    attached = attach_supermarket_estimate(result, estimator)
+
+    assert "supermarket_estimate" not in attached
+    assert attached["keep"] == 1
+    assert attached["total_cents"] == 400
+    assert attached["budget"] == {"available_cents": 10000}
+    assert attached["source"] == "manual"
+    assert attached["evidence_ids"] == ["ev-1"]
+    assert attached["nutrition"] == {"calories": 1}
+    assert result["supermarket_estimate"] == STALE_OVERLAY
+    assert estimator.calls == []
+
+
+def test_attach_overwrites_stored_overlay_with_fresh_estimate() -> None:
+    result = _plan_result(_purchase("chicken_breast", "g", 100))
+    result["supermarket_estimate"] = dict(STALE_OVERLAY)
+    estimator = FakeEstimator({CHICKEN_ID: 150})
+
+    attached = attach_supermarket_estimate(result, estimator)
+
+    assert attached["supermarket_estimate"] == {
+        "total_cents": 150,
+        "notice": SPOONACULAR_COST_NOTICE,
+        "lines": [{"ingredient_id": "chicken_breast", "cents": 150}],
+    }
+    assert result["supermarket_estimate"] == STALE_OVERLAY
+    assert estimator.calls == [(CHICKEN_ID, 100, "g")]
+
+
 def test_attach_skips_negative_quantity_line() -> None:
     result = _plan_result(
         _purchase("chicken_breast", "g", 100),
