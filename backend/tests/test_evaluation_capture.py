@@ -107,7 +107,9 @@ def test_reasoning_only_marker_is_not_graded(location: str) -> None:
     marker = "SYNTHETIC_SENTINEL_42"
     original = response()
     if location == "assistant":
-        original = response([{"text": "answer"}, {"reasoningContent": {"text": marker}}])
+        original = response(
+            [{"text": "answer"}, {"reasoningContent": {"text": marker}}]
+        )
         original["stopReason"] = "end_turn"
     else:
         original["metadata"] = {"nested": [{"reasoningContent": {"text": marker}}]}
