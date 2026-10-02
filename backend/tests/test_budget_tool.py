@@ -21,6 +21,14 @@ class _AllowedSourceStr(str):
     pass
 
 
+class _EmptyDictSubclass(dict):
+    def __repr__(self) -> str:
+        return SENTINEL
+
+    def __str__(self) -> str:
+        return SENTINEL
+
+
 def test_schema_forbids_caller_properties() -> None:
     spec = budget_tool_spec()
     tool = spec["toolSpec"]
@@ -50,6 +58,16 @@ def test_empty_exact_dict_succeeds() -> None:
         "available": "USD $75.00",
         "pending": "USD $4.00",
     }
+
+
+def test_empty_dict_subclass_is_rejected_without_echo() -> None:
+    arguments = _EmptyDictSubclass()
+    with pytest.raises(ValueError) as error:
+        execute_budget_summary(arguments, FRESH, PERIOD, spending_source="fixture")
+
+    message = str(error.value)
+    assert message == "arguments are invalid"
+    assert SENTINEL not in message
 
 
 @pytest.mark.parametrize(
