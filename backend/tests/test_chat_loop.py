@@ -9,6 +9,7 @@ import pytest
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
+from app.agent import chat_loop as loop
 from app.agent.chat_answer import CLARIFICATION, render_public_answer
 from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
@@ -18,9 +19,9 @@ from app.agent.chat_loop import (
     ChatUnavailable,
     run_chat,
 )
-from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError
+from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
-from app.domain.budget import BudgetResult
+from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
@@ -1093,6 +1094,92 @@ def test_exclusion_after_success_drops_prior_evidence() -> None:
     assert "USD $1.00" not in answer
     assert "safe" not in answer
     assert "valid" not in answer
+
+
+def test_exclusion_then_unsupported_tool_is_generic_clarification() -> None:
+    excluded = plan_args(
+        meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+        ingredient_exclusions=["onion"],
+    )
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                _tool_block("ex", payload=excluded),
+                _tool_block("buy", name="purchase_items", payload={"token": _SECRET}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("I will not purchase items.")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert "onion" not in result["answer"]
+    assert "Change the recipe or the restriction." not in result["answer"]
+    assert "I will not purchase items." not in result["answer"]
+    _assert_public(result)
+
+
+def test_malformed_later_error_clears_exclusion_conflict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_dispatch = loop.dispatch
+    excluded = plan_args(
+        meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+        ingredient_exclusions=["onion"],
+    )
+
+    def fake_dispatch(
+        call: ToolCall,
+        budget_value: BudgetResult,
+        period: date,
+        user_id: int,
+        source: SpendingSource,
+        trace: list[dict[str, object]],
+        record_evidence: EvidenceRecorder | None = None,
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        if call.name != TOOL_NAME:
+            return None, {
+                "toolResult": {
+                    "toolUseId": call.tool_use_id,
+                    "status": "error",
+                    "content": [{"text": "generic failure"}],
+                }
+            }
+        return real_dispatch(
+            call,
+            budget_value,
+            period,
+            user_id,
+            source,
+            trace,
+            record_evidence=record_evidence,
+        )
+
+    monkeypatch.setattr(loop, "dispatch", fake_dispatch)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                _tool_block("ex", payload=excluded),
+                _tool_block("later", name="lookup", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("Need a meal choice.")], "end_turn"),
+    ]
+    result, _provider = _run(replies)
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert "onion" not in result["answer"]
+    assert "Change the recipe or the restriction." not in result["answer"]
+    assert "Need a meal choice." not in result["answer"]
+    _assert_public(result)
 
 
 def test_limit_and_incomplete_drop_recorded_revision_id() -> None:

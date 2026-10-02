@@ -184,11 +184,7 @@ def run_chat(
                 trace,
                 record_evidence=record_evidence,
             )
-            error = _tool_error_payload(block)
-            if error is not None:
-                last_error = error
-            elif candidate is not None:
-                last_error = None
+            last_error = _tool_error_payload(block)
             blocks.append(block)
         messages.append({"role": "user", "content": blocks})
     return out("limit", _LIMIT, None)
