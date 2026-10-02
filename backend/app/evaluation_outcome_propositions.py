@@ -5,7 +5,9 @@ from typing import cast
 from app.domain.catalog import INGREDIENTS, RECIPES
 
 _PROPOSITIONS: dict[str, str] = {
-    "egg_conflict": r"eggs are not vegan|breakfast burritos contain eggs and are not vegan",
+    "egg_conflict": (
+        r"eggs are not vegan|breakfast burritos contain eggs and are not vegan"
+    ),
     "diet_conflict": r"chicken(?: tacos)? (?:is|are) not vegan",
     "unsupported": r"that recipe is not in the catalog|salmon tacos are not supported",
     "unknown": r"i cannot map mystery spice or nightshades to catalog ingredients",
