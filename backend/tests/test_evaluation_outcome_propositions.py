@@ -44,7 +44,9 @@ _CATALOG_CHOICES: tuple[tuple[str, bool], ...] = tuple(
 @pytest.mark.parametrize("answer,tag", _FIXED_PROPOSITIONS)
 @pytest.mark.parametrize("suffix", ["", ".", "!", "?", "...?!"])
 @pytest.mark.parametrize("uppercase", [False, True])
-def test_fixed_propositions(answer: str, tag: str, suffix: str, uppercase: bool) -> None:
+def test_fixed_propositions(
+    answer: str, tag: str, suffix: str, uppercase: bool
+) -> None:
     text = answer.upper() if uppercase else answer
     assert public_tags(f" \n{text}{suffix}\t", vegan=True) == {tag}
 

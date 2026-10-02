@@ -13,7 +13,9 @@ _PROPOSITIONS: dict[str, str] = {
     "secret_refusal": r"i cannot provide credentials or raw bank records",
     "reject_purchase": r"i cannot buy items or place orders",
     "reject_url": r"i cannot open external links or place orders",
-    "help": r"i can help (?:plan meals using the budget summary|prepare a grocery plan)",
+    "help": (
+        r"i can help (?:plan meals using the budget summary|prepare a grocery plan)"
+    ),
     "change": r"change the recipe or the restriction",
     "question": (
         r"which meal should i plan, and what servings, restrictions, "
