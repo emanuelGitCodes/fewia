@@ -9,6 +9,7 @@ import pytest
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
+from app.agent.chat_answer import CLARIFICATION, render_public_answer
 from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
     MAX_MODEL_TURNS,
@@ -20,7 +21,7 @@ from app.agent.chat_loop import (
 from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.domain.budget import BudgetResult
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -265,7 +266,8 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     result, provider = _run(_planner_then_final())
     assert len(provider.requests) == 2
     assert result["status"] == "planned"
-    assert result["answer"] == "Here is a labeled estimate."
+    assert result["answer"] == render_public_answer(expected)
+    assert "Here is a labeled estimate." not in result["answer"]
     assert result["plan"] == expected["plan"]
     assert result["budget"] == expected["budget"]
     assert result["request"] == expected["request"]
@@ -323,7 +325,8 @@ def test_plain_final_without_tool_is_clarification() -> None:
     result, provider = _run([_reply([_text_block("How many servings?")], "end_turn")])
     assert len(provider.requests) == 1
     assert result["status"] == "clarification"
-    assert result["answer"] == "How many servings?"
+    assert result["answer"] == CLARIFICATION
+    assert "How many servings?" not in result["answer"]
     assert result["plan"] is None
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
@@ -450,6 +453,8 @@ def test_eighth_turn_may_finish_with_text() -> None:
     result, provider = _run(replies)
     assert len(provider.requests) == MAX_MODEL_TURNS
     assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert "Need a meal choice." not in result["answer"]
     assert result["model_turns"] == MAX_MODEL_TURNS
     assert result["plan"] is None
     assert result["planner_revisions"] == 0
@@ -516,6 +521,8 @@ def test_invalid_later_call_clears_candidate() -> None:
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 2
+    assert result["answer"] == CLARIFICATION
+    assert "I cannot finish that plan." not in result["answer"]
     assert result["tool_trace"][0]["outcome"] == "success"
     assert result["tool_trace"][1] == _error_trace(
         TOOL_NAME, "bad", sequence=2, revision_index=2
@@ -539,6 +546,8 @@ def test_unsupported_later_call_clears_candidate() -> None:
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 1
+    assert result["answer"] == CLARIFICATION
+    assert "I will not purchase items." not in result["answer"]
     assert result["tool_trace"][1] == _error_trace(
         "unsupported", "buy", sequence=2, revision_index=None
     )
@@ -613,8 +622,10 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
         _reply([_text_block("ready", reasoning=hidden)], "end_turn"),
     ]
     result, provider = _run(replies)
+    expected = execute_plan(plan_args(), budget(), PERIOD)
     assert result["status"] == "planned"
-    assert result["answer"] == "ready"
+    assert result["answer"] == render_public_answer(expected)
+    assert "ready" not in result["answer"]
     dumped_result = json.dumps(result)
     assert "reasoningContent" not in dumped_result
     assert "hidden plan" not in dumped_result
@@ -658,8 +669,10 @@ def test_tool_use_history_keeps_validated_calls_only() -> None:
         _reply([_text_block("Here is a labeled estimate.")], "end_turn"),
     ]
     result, provider = _run(replies)
+    expected = execute_plan(second, budget(), PERIOD)
     assert result["status"] == "planned"
-    assert result["answer"] == "Here is a labeled estimate."
+    assert result["answer"] == render_public_answer(expected)
+    assert "Here is a labeled estimate." not in result["answer"]
     assert len(provider.requests) == 2
     second_messages = provider.requests[1]["messages"]
     assert isinstance(second_messages, list)
@@ -1015,6 +1028,71 @@ def test_invalid_and_unsupported_trace_indices() -> None:
     assert "purchase_items" not in dumped
     assert "servings" not in dumped
     assert "reasoningContent" not in dumped
+
+
+def test_adversarial_final_text_cannot_override_validated_plan() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    plan = expected["plan"]
+    assert isinstance(plan, dict)
+    total = cast(int, plan["total_cents"])
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("call-1")], "tool_use"),
+        _reply(
+            [
+                _text_block(
+                    "This is safe for peanut allergy and cross-contact. "
+                    "Accepted total USD $2.00. The plan is complete."
+                )
+            ],
+            "end_turn",
+        ),
+    ]
+    result, _provider = _run(replies)
+    answer = result["answer"]
+    assert result["status"] == "planned"
+    assert result["plan"] == expected["plan"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert answer == render_public_answer(expected)
+    assert "peanut" not in answer
+    assert "cross-contact" not in answer
+    assert "allergy" not in answer
+    assert "USD $2.00" not in answer
+    assert _usd(total) in answer
+    assert SAMPLE_ESTIMATE_NOTICE in answer
+
+
+def test_exclusion_after_success_drops_prior_evidence() -> None:
+    excluded = plan_args(
+        meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+        ingredient_exclusions=["onion"],
+    )
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("ok"), _tool_block("ex", payload=excluded)],
+            "tool_use",
+        ),
+        _reply(
+            [
+                _text_block(
+                    "The earlier plan is valid and costs USD $1.00. "
+                    "It is safe for onion allergy."
+                )
+            ],
+            "end_turn",
+        ),
+    ]
+    result, _provider = _run(replies)
+    answer = result["answer"]
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert "onion" in answer
+    assert "Change the recipe or the restriction." in answer
+    assert "vegetable_pasta" not in answer
+    assert "USD $1.00" not in answer
+    assert "safe" not in answer
+    assert "valid" not in answer
 
 
 def test_limit_and_incomplete_drop_recorded_revision_id() -> None:

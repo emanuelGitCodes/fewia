@@ -1,0 +1,179 @@
+from datetime import date
+from typing import cast
+
+from app.agent.chat_answer import CLARIFICATION, render_public_answer
+from app.agent.planning_tool import execute_plan
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
+
+PERIOD = date(2026, 9, 1)
+
+
+def _budget(
+    available_cents: int = 10_000, *, stale: bool = False
+) -> BudgetResult:
+    warnings = (STALE_SPENDING_WARNING,) if stale else ()
+    return BudgetResult(available_cents, 250, stale, warnings)
+
+
+def _args(**overrides: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
+        "budget_period": PERIOD.isoformat(),
+    }
+    values.update(overrides)
+    return values
+
+
+def _usd(cents: int) -> str:
+    sign = "-" if cents < 0 else ""
+    magnitude = -cents if cents < 0 else cents
+    return f"USD {sign}${magnitude // 100}.{magnitude % 100:02d}"
+
+
+def _exclusion(
+    recipe_id: object = "vegetable_pasta",
+    ingredient_id: object = "onion",
+    error_code: object = "exclusion_reject",
+) -> dict[str, object]:
+    return {
+        "error": "ingredient is excluded",
+        "error_code": error_code,
+        "recipe_id": recipe_id,
+        "ingredient_id": ingredient_id,
+    }
+
+
+def test_accepted_candidate_uses_plan_total_and_notice() -> None:
+    payload = execute_plan(_args(), _budget(), PERIOD)
+    plan = payload["plan"]
+    assert isinstance(plan, dict)
+    total = cast(int, plan["total_cents"])
+    answer = render_public_answer(payload)
+    assert answer.startswith("The plan is accepted.")
+    assert _usd(total) in answer
+    assert SAMPLE_ESTIMATE_NOTICE in answer
+    assert "The plan is over budget." not in answer
+    assert STALE_SPENDING_WARNING not in answer
+
+
+def test_over_budget_candidate_uses_plan_total() -> None:
+    payload = execute_plan(_args(plan_cap_cents=100), _budget(), PERIOD)
+    plan = payload["plan"]
+    budget = payload["budget"]
+    assert isinstance(plan, dict)
+    assert isinstance(budget, dict)
+    assert plan["accepted"] is False
+    total = cast(int, plan["total_cents"])
+    available = cast(int, budget["available_cents"])
+    answer = render_public_answer(payload)
+    assert "The plan is over budget." in answer
+    assert _usd(total) in answer
+    assert _usd(available) in answer
+    assert f"The estimate exceeds the available budget of {_usd(available)}." in answer
+    assert SAMPLE_ESTIMATE_NOTICE in answer
+    assert "The plan is accepted." not in answer
+
+
+def test_missing_price_candidate_omits_invented_total() -> None:
+    candidate = {
+        "plan": {"total_cents": None, "accepted": False},
+        "budget": {"stale": False},
+    }
+    answer = render_public_answer(candidate)
+    assert "A purchase price is missing, so this estimate is incomplete." in answer
+    assert SAMPLE_ESTIMATE_NOTICE in answer
+    assert "USD $" not in answer
+    assert "The plan is accepted." not in answer
+
+
+def test_stale_candidate_keeps_stale_warning() -> None:
+    payload = execute_plan(_args(), _budget(stale=True), PERIOD)
+    answer = render_public_answer(payload)
+    assert STALE_SPENDING_WARNING in answer
+    assert SAMPLE_ESTIMATE_NOTICE in answer
+    assert "The plan is accepted." in answer
+
+
+def test_validated_exclusion_names_ingredient_without_ids() -> None:
+    answer = render_public_answer(None, _exclusion())
+    assert "onion" in answer
+    assert "Change the recipe or the restriction." in answer
+    assert "vegetable_pasta" not in answer
+    assert "ingredient_id" not in answer
+    assert CLARIFICATION not in answer
+    named = render_public_answer(
+        None, _exclusion(recipe_id="chicken_tacos", ingredient_id="chicken_breast")
+    )
+    assert "chicken breast" in named
+    assert "chicken_breast" not in named
+    assert "chicken_tacos" not in named
+
+
+def test_spoofed_exclusion_does_not_echo_identifiers() -> None:
+    cases = (
+        _exclusion(recipe_id="not_a_recipe", ingredient_id="onion"),
+        _exclusion(recipe_id="vegetable_pasta", ingredient_id="peanuts"),
+        _exclusion(recipe_id="chicken_tacos", ingredient_id="oats"),
+        _exclusion(error_code="not_exclusion"),
+        _exclusion(recipe_id=1, ingredient_id="onion"),
+        {
+            "error": "arguments are invalid",
+            "recipe_id": "sushi",
+            "ingredient_id": "peanuts",
+        },
+    )
+    for error in cases:
+        answer = render_public_answer(None, error)
+        assert answer == CLARIFICATION
+        dumped = str(error)
+        if "not_a_recipe" in dumped:
+            assert "not_a_recipe" not in answer
+        assert "peanuts" not in answer
+        assert "sushi" not in answer
+        assert "oats" not in answer
+
+
+def test_unsupported_recipe_offers_three_vegan_names() -> None:
+    error = {
+        "error": "recipe is not supported",
+        "error_code": "unsupported_recipe",
+        "supported_recipe_ids": ["sushi", *SUPPORTED_RECIPE_IDS],
+    }
+    answer = render_public_answer(None, error)
+    assert "bean tacos" in answer
+    assert "vegetable pasta" in answer
+    assert "lentil soup" in answer
+    assert CLARIFICATION in answer
+    assert "Which meal should I plan" in answer
+    assert "servings" in answer
+    assert "restrictions" in answer
+    assert "pantry" in answer
+    assert "chickpea curry" not in answer
+    assert "chicken tacos" not in answer
+    assert "sushi" not in answer
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        assert recipe_id not in answer
+    lowered = answer.lower()
+    assert "exclusion" not in lowered
+    assert "satisfy" not in lowered
+    assert "without peanuts" not in lowered
+    assert "fit your" not in lowered
+
+
+def test_no_tool_and_generic_error_use_static_clarification() -> None:
+    assert render_public_answer(None) == CLARIFICATION
+    assert render_public_answer(None, {"error": "unsupported tool"}) == CLARIFICATION
+    assert "USD" not in CLARIFICATION
+    assert "bean tacos" in CLARIFICATION
+    assert "vegetable pasta" in CLARIFICATION
+    assert "lentil soup" in CLARIFICATION
+    assert "Which meal should I plan" in CLARIFICATION
+    assert "servings" in CLARIFICATION
+    assert "pantry" in CLARIFICATION
+    assert "restrictions" in CLARIFICATION
+    lowered = CLARIFICATION.lower()
+    assert "exclusion" not in lowered
+    assert "satisfy" not in lowered
+    assert "without peanuts" not in lowered
+    assert "fit your" not in lowered

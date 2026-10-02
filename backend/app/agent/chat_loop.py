@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import date
 
 from app.agent import chat_messages as msgs
+from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import build_messages, read_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
@@ -74,6 +75,22 @@ def _end_status(candidate: dict[str, object] | None) -> str:
     return "clarification"
 
 
+def _tool_error_payload(block: dict[str, object]) -> dict[str, object] | None:
+    result = block.get("toolResult")
+    if not isinstance(result, dict) or result.get("status") != "error":
+        return None
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return None
+    first = content[0]
+    if not isinstance(first, dict):
+        return None
+    payload = first.get("json")
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
 def _sum_usage(total: dict[str, int] | None, response: object) -> dict[str, int] | None:
     part = read_usage(response)
     if total is None or part is None:
@@ -111,6 +128,7 @@ def run_chat(
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
     candidate: dict[str, object] | None = None
+    last_error: dict[str, object] | None = None
     revisions = 0
     turns = 0
     usage: dict[str, int] | None = {"inputTokens": 0, "outputTokens": 0}
@@ -144,7 +162,8 @@ def run_chat(
             if isinstance(kept, list) and kept:
                 messages.append(sanitized)
             if stop == "end_turn" and text.strip():
-                return out(_end_status(candidate), text, candidate)
+                answer = render_public_answer(candidate, last_error)
+                return out(_end_status(candidate), answer, candidate)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
@@ -165,6 +184,11 @@ def run_chat(
                 trace,
                 record_evidence=record_evidence,
             )
+            error = _tool_error_payload(block)
+            if error is not None:
+                last_error = error
+            elif candidate is not None:
+                last_error = None
             blocks.append(block)
         messages.append({"role": "user", "content": blocks})
     return out("limit", _LIMIT, None)
