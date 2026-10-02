@@ -328,6 +328,65 @@ def test_invalid_or_oversized_payload_uses_static_marker(value: object) -> None:
     assert capture.tool_results[0]["content"] == "[invalid]"
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        [{"json": {"value": "x" * 65536}}],
+        [{"json": {"value": "\x00" * 12000}}],
+        "malformed",
+        [{1: "malformed"}],
+        [{"json": {"value": float("nan")}}],
+    ],
+)
+def test_declared_invalid_marker_is_redacted_from_all_fallbacks(content: object) -> None:
+    marker = "[invalid]"
+    original = response([tool("one", {"value": "x" * 65536})])
+    messages: list[dict[str, object]] = [
+        {
+            "content": [
+                {"toolResult": {"content": content, "status": True, "toolUseId": 12}},
+                {"toolResult": None},
+                {"toolResult": {}},
+                {
+                    "toolResult": {
+                        "content": None,
+                        "status": "x" * 65,
+                        "toolUseId": "x" * 65,
+                    }
+                },
+                {
+                    "toolResult": {
+                        "content": [{"json": {"value": marker}}],
+                        "status": marker,
+                        "toolUseId": marker,
+                    }
+                },
+            ]
+        }
+    ]
+    before, messages_before = deepcopy(original), deepcopy(messages)
+    provider = ScriptedProvider([original])
+    capture = CaptureProvider(provider, markers=(marker,))
+
+    assert capture.converse("system", messages, []) is original
+    assert capture.leakage is True
+    assert capture.invalid_responses == 0
+    assert capture.calls == [{"tool": "plan_groceries", "input": "[redacted]"}]
+    assert capture.tool_results[:4] == [
+        {"content": "[redacted]", "status": "[redacted]", "toolUseId": "[redacted]"}
+    ] * 4
+    assert capture.tool_results[4] == {
+        "content": [{"json": {"value": "[redacted]"}}],
+        "status": "[redacted]",
+        "toolUseId": "[redacted]",
+    }
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+    assert provider.received is not None
+    assert provider.received[1] is messages
+    assert messages == messages_before
+    assert original == before
+
+
 def test_cyclic_payload_cannot_hide_protocol_observation() -> None:
     cycle: dict[str, object] = {}
     cycle["cycle"] = cycle

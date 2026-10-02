@@ -75,12 +75,12 @@ class CaptureProvider:
             clean = self._clean(value, [_LIMIT], reject_reasoning)
             for chunk in _ENCODER.iterencode(clean):
                 if len(encoded) + len(chunk) > _LIMIT:
-                    return _INVALID
+                    return self._text(_INVALID)
                 encoded += chunk
             decoded: object = loads(encoded)
-            return decoded if isinstance(decoded, (dict, list)) else _INVALID
+            return decoded if isinstance(decoded, (dict, list)) else self._text(_INVALID)
         except (RecursionError, TypeError, ValueError):
-            return _INVALID
+            return self._text(_INVALID)
 
     def _observe_results(self, messages: list[dict[str, object]]) -> None:
         content = messages[-1].get("content") if messages else None
@@ -93,7 +93,7 @@ class CaptureProvider:
                 continue
             result = block["toolResult"]
             captured: dict[str, object] = {
-                key: _INVALID for key in ("content", "status", "toolUseId")
+                key: self._text(_INVALID) for key in ("content", "status", "toolUseId")
             }
             if isinstance(result, dict):
                 captured["content"] = self._payload(result.get("content"))
@@ -102,7 +102,7 @@ class CaptureProvider:
                     captured[key] = (
                         self._text(value)
                         if type(value) is str and len(value) <= 64
-                        else _INVALID
+                        else self._text(_INVALID)
                     )
             self.tool_results.append(captured)
 
