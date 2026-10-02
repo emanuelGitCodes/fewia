@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -94,7 +94,7 @@ def test_missing_request_field_is_rejected(
         True,
         False,
         date(2026, 10, 1),
-        datetime(2026, 10, 1),
+        datetime(2026, 10, 1, tzinfo=UTC),
         "20261001",
         "2026-1-01",
         "2026-10-1",
