@@ -726,6 +726,7 @@ describe("ChatWorkspace", () => {
     expect(hookOf(bucket).form.cap).toBe("40");
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
     expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
   });
 
   it("does not reapply an old chat success after the conversation resets", () => {
@@ -761,6 +762,222 @@ describe("ChatWorkspace", () => {
     });
     refresh();
     expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "bean_tacos", servings: 2 }]);
+  });
+
+  it("marks a displayed chat estimate unresolved on a pending follow-up", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+  });
+
+  it("keeps an unresolved estimate through failed, limit, and incomplete results", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: { id: "chat-2", status: "failed", result: null, error_code: "tool" },
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(
+        plannedResult({
+          status: "limit",
+          answer: "The request is too long.",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        "succeeded",
+        "chat-3",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(
+        plannedResult({ status: "incomplete", answer: "The plan is incomplete." }),
+        "succeeded",
+        "chat-4",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
+  });
+
+  it("clears unresolved state after a complete chat plan that passes stale guards", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(plannedResult({ answer: "Lentil soup still fits." }), "succeeded", "chat-2"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-2");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+    expect(hookOf(bucket).chat.estimateDirty).toBe(false);
+  });
+
+  it("clears unresolved state on a newer successful manual rebuild", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    refresh({ formJob: formJob() });
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+  });
+
+  it("does not let a stale late chat answer clear a newer unresolved request", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2", "user-3"]),
+      job: chatJob(null, "queued", "chat-3"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2", "user-3"]),
+      job: chatJob(plannedResult({ answer: "Late soup plan." }), "succeeded", "chat-2"),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2", "user-3"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+  });
+
+  it("does not make an unresolved estimate current after a new conversation", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    chatState = conversationState({
+      messages: [],
+      job: null,
+      hasRequest: false,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    expect(hookOf(bucket).form.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
   });
 });
 
