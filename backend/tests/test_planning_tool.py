@@ -186,11 +186,115 @@ def test_invalid_period_raises_without_raw_input() -> None:
 
 def test_catalog_constraint_raises_without_raw_input() -> None:
     with pytest.raises(PlanningToolError) as caught:
-        execute_plan(arguments(pantry_ingredients=["not_in_catalog"]), budget(), PERIOD)
-    _assert_static(caught.value, "not_in_catalog")
+        execute_plan(arguments(diet="vegan"), budget(), PERIOD)
+    _assert_static(caught.value, "chicken_breast")
     assert str(caught.value) == "catalog constraint is invalid"
     assert caught.value.error_code is None
     assert caught.value.detail == {}
+
+
+def test_unsupported_diet_raises_typed_error() -> None:
+    unknown = "<script>do-not-echo-raw-input</script>"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(diet=unknown), budget(), PERIOD)
+    _assert_static(caught.value, unknown)
+    assert str(caught.value) == "diet is not supported"
+    assert caught.value.error_code == "unsupported_diet"
+    assert caught.value.detail == {}
+    assert unknown not in str(caught.value)
+    assert unknown not in str(caught.value.detail)
+    assert "ValidationError" not in str(caught.value)
+
+
+def test_unsupported_diet_with_invalid_servings_stays_generic() -> None:
+    unknown = "keto"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(
+            arguments(
+                diet=unknown,
+                meals=[{"recipe_id": "chicken_tacos", "servings": 9}],
+            ),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(caught.value, unknown)
+    assert str(caught.value) == "arguments are invalid"
+    assert caught.value.error_code is None
+    assert caught.value.detail == {}
+    assert unknown not in str(caught.value)
+    assert "unsupported_diet" not in str(caught.value)
+
+
+def test_unsupported_diet_wrong_type_stays_generic() -> None:
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(diet=1), budget(), PERIOD)
+    _assert_static(caught.value, "1")
+    assert str(caught.value) == "arguments are invalid"
+    assert caught.value.error_code is None
+    assert caught.value.detail == {}
+
+
+def test_unknown_pantry_ingredient_raises_typed_error() -> None:
+    unknown = "not_in_catalog"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(pantry_ingredients=[unknown]), budget(), PERIOD)
+    _assert_static(caught.value, unknown)
+    assert str(caught.value) == "ingredient is not supported"
+    assert caught.value.error_code == "unsupported_ingredient"
+    assert caught.value.detail == {"field": "pantry_ingredients"}
+    assert unknown not in str(caught.value)
+    assert unknown not in str(caught.value.detail)
+
+
+def test_unknown_exclusion_ingredient_raises_typed_error() -> None:
+    unknown = "not_in_catalog"
+    with pytest.raises(PlanningToolError) as caught:
+        execute_plan(arguments(ingredient_exclusions=[unknown]), budget(), PERIOD)
+    _assert_static(caught.value, unknown)
+    assert str(caught.value) == "ingredient is not supported"
+    assert caught.value.error_code == "unsupported_ingredient"
+    assert caught.value.detail == {"field": "ingredient_exclusions"}
+    assert unknown not in str(caught.value)
+    assert unknown not in str(caught.value.detail)
+
+
+def test_unknown_ingredient_ids_never_leak() -> None:
+    malicious = "<script>do-not-echo-raw-input</script>"
+    pantry_unknowns = [malicious, "also_unknown"]
+    with pytest.raises(PlanningToolError) as pantry_caught:
+        execute_plan(
+            arguments(pantry_ingredients=pantry_unknowns),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(pantry_caught.value, malicious)
+    _assert_static(pantry_caught.value, "also_unknown")
+    assert pantry_caught.value.error_code == "unsupported_ingredient"
+    assert pantry_caught.value.detail == {"field": "pantry_ingredients"}
+    with pytest.raises(PlanningToolError) as mixed_caught:
+        execute_plan(
+            arguments(
+                pantry_ingredients=[malicious],
+                ingredient_exclusions=["also_unknown"],
+            ),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(mixed_caught.value, malicious)
+    _assert_static(mixed_caught.value, "also_unknown")
+    assert mixed_caught.value.detail == {"field": "pantry_ingredients"}
+    with pytest.raises(PlanningToolError) as exclusion_caught:
+        execute_plan(
+            arguments(
+                pantry_ingredients=["salt"],
+                ingredient_exclusions=[malicious, "also_unknown"],
+            ),
+            budget(),
+            PERIOD,
+        )
+    _assert_static(exclusion_caught.value, malicious)
+    _assert_static(exclusion_caught.value, "also_unknown")
+    assert exclusion_caught.value.detail == {"field": "ingredient_exclusions"}
 
 
 def test_exclusion_conflict_raises_static_typed_error() -> None:

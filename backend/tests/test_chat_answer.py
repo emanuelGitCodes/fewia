@@ -195,3 +195,78 @@ def test_vegan_meal_names_omit_vegetarian_only_recipe(
         ("breakfast_burritos", "bean_tacos", "vegetable_pasta", "lentil_soup"),
     )
     assert _vegan_meal_names() == ["bean tacos", "vegetable pasta", "lentil soup"]
+
+
+def test_unsupported_diet_offers_catalog_choices() -> None:
+    error = {
+        "error": "diet is not supported",
+        "error_code": "unsupported_diet",
+        "supported_diets": ["keto", "paleo"],
+    }
+    answer = render_public_answer(None, error)
+    assert "no preference" in answer
+    assert "vegetarian" in answer
+    assert "vegan" in answer
+    assert "catalog ingredient" in answer
+    assert "keto" not in answer
+    assert "paleo" not in answer
+    assert "diet is not supported" not in answer
+    assert CLARIFICATION not in answer
+
+
+def test_unsupported_ingredient_fields_ask_listed_items() -> None:
+    pantry = render_public_answer(
+        None,
+        {
+            "error": "ingredient is not supported",
+            "error_code": "unsupported_ingredient",
+            "field": "pantry_ingredients",
+            "supported_ingredient_ids": ["uranium", "onion"],
+        },
+    )
+    assert pantry == "Name a listed pantry ingredient."
+    assert "uranium" not in pantry
+    assert "onion" not in pantry
+    exclude = render_public_answer(
+        None,
+        {
+            "error": "ingredient is not supported",
+            "error_code": "unsupported_ingredient",
+            "field": "ingredient_exclusions",
+            "supported_ingredient_ids": ["peanuts"],
+        },
+    )
+    assert exclude == "Name a listed ingredient to exclude."
+    assert "peanuts" not in exclude
+
+
+def test_malformed_typed_errors_use_bounded_clarification() -> None:
+    sentinels = (
+        "DROP TABLE",
+        "<script>",
+        "mystery_field",
+        "hostile_code",
+        "not_a_diet",
+        "xyzzy",
+    )
+    cases: tuple[dict[str, object], ...] = (
+        {"error_code": "unsupported_ingredient"},
+        {"error_code": "unsupported_ingredient", "field": None},
+        {"error_code": "unsupported_ingredient", "field": 1},
+        {"error_code": "unsupported_ingredient", "field": "mystery_field"},
+        {"error_code": "unsupported_ingredient", "field": "<script>"},
+        {"error_code": "hostile_code", "field": "pantry_ingredients"},
+        {"error_code": ["unsupported_diet"], "field": "ingredient_exclusions"},
+        {
+            "error": "DROP TABLE",
+            "error_code": "not_a_diet",
+            "field": "xyzzy",
+            "supported_ingredient_ids": ["DROP TABLE"],
+        },
+        {},
+    )
+    for error in cases:
+        answer = render_public_answer(None, error)
+        assert answer == CLARIFICATION
+        for sentinel in sentinels:
+            assert sentinel not in answer

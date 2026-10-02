@@ -1,10 +1,12 @@
 from collections.abc import Callable
 from datetime import date
+from typing import get_args
 
 from app.agent import chat_messages as msgs
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult, SpendingSource
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
 
@@ -130,6 +132,21 @@ def dispatch(
                 "error_code": "unsupported_recipe",
                 "supported_recipe_ids": list(SUPPORTED_RECIPE_IDS),
             }
+        elif exc.error_code == "unsupported_diet":
+            error_body = {
+                "error": "diet is not supported",
+                "error_code": "unsupported_diet",
+                "supported_diets": list(get_args(Diet)),
+            }
+        elif exc.error_code == "unsupported_ingredient":
+            field = exc.detail.get("field")
+            if field in {"pantry_ingredients", "ingredient_exclusions"}:
+                error_body = {
+                    "error": "ingredient is not supported",
+                    "error_code": "unsupported_ingredient",
+                    "field": field,
+                    "supported_ingredient_ids": list(INGREDIENTS),
+                }
     if payload is None:
         trace.append(
             _entry(
