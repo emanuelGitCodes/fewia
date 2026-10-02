@@ -261,8 +261,8 @@ def main() -> None:
     print(json.dumps(body))
     meta: dict[str, Any] = {"provenance": "none"}
     if totals is not None:
-        source = GROK_PROVENANCE if provider == "grok" else CODEX_PROVENANCE
-        meta = {"provenance": source, **totals}
+        provenance = GROK_PROVENANCE if provider == "grok" else CODEX_PROVENANCE
+        meta = {"provenance": provenance, **totals}
     rec = [ledger_path(cwd), str(uuid.uuid4()), args.work_item, "review", provider]
     write_usage(*cast(Any, rec + [model, effort, outcome, meta, elapsed_ms]))
     raise SystemExit({"APPROVE": 0, "REQUEST_CHANGES": 1}.get(verdict, 2))
