@@ -79,7 +79,9 @@ def test_records_actual_arguments_without_mutating_inputs_or_response() -> None:
             "input": {"request": {"budget_cents": 700, "count": 2}},
         }
     ]
-    arguments["request"] = "changed"
+    nested = arguments["request"]
+    assert isinstance(nested, dict)
+    nested["count"] = 999
     assert capture.calls[0]["input"] == {"request": {"budget_cents": 700, "count": 2}}
 
 
@@ -206,7 +208,9 @@ def test_observes_only_latest_message_results_and_copies_payload() -> None:
             "content": [{"json": {"nested": {"a": 1}, "z": 2}}],
         }
     ]
-    payload["nested"] = "changed"
+    nested = payload["nested"]
+    assert isinstance(nested, dict)
+    nested["a"] = "changed"
     assert "changed" not in json.dumps(capture.tool_results)
 
 
@@ -338,7 +342,9 @@ def test_invalid_or_oversized_payload_uses_static_marker(value: object) -> None:
         [{"json": {"value": float("nan")}}],
     ],
 )
-def test_declared_invalid_marker_is_redacted_from_all_fallbacks(content: object) -> None:
+def test_declared_invalid_marker_is_redacted_from_all_fallbacks(
+    content: object,
+) -> None:
     marker = "[invalid]"
     original = response([tool("one", {"value": "x" * 65536})])
     messages: list[dict[str, object]] = [
@@ -372,9 +378,9 @@ def test_declared_invalid_marker_is_redacted_from_all_fallbacks(content: object)
     assert capture.leakage is True
     assert capture.invalid_responses == 0
     assert capture.calls == [{"tool": "plan_groceries", "input": "[redacted]"}]
-    assert capture.tool_results[:4] == [
-        {"content": "[redacted]", "status": "[redacted]", "toolUseId": "[redacted]"}
-    ] * 4
+    assert capture.tool_results[:4] == (
+        [{"content": "[redacted]", "status": "[redacted]", "toolUseId": "[redacted]"}] * 4
+    )
     assert capture.tool_results[4] == {
         "content": [{"json": {"value": "[redacted]"}}],
         "status": "[redacted]",

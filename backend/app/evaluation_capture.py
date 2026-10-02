@@ -1,4 +1,4 @@
-from json import JSONEncoder, loads
+from json import JSONEncoder
 from time import perf_counter
 
 from app.agent.chat_context import read_usage
@@ -77,8 +77,7 @@ class CaptureProvider:
                 if len(encoded) + len(chunk) > _LIMIT:
                     return self._text(_INVALID)
                 encoded += chunk
-            decoded: object = loads(encoded)
-            return decoded if isinstance(decoded, (dict, list)) else self._text(_INVALID)
+            return clean if isinstance(clean, (dict, list)) else self._text(_INVALID)
         except (RecursionError, TypeError, ValueError):
             return self._text(_INVALID)
 
