@@ -181,6 +181,7 @@ function HookHost(props: {
     setForm,
     formJob: props.formJob,
     formDirty: props.formDirty,
+    formPending: props.formPending,
   });
   props.bucket.current = { form, setForm, chat };
   return createElement(ChatWorkspace, {
@@ -1007,7 +1008,76 @@ describe("ChatWorkspace", () => {
     });
     refresh();
     expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
-    refresh({ formJob: formJob() });
+    refresh({ formPending: true });
+    refresh({ formPending: false, formJob: formJob() });
+    expect(hookOf(bucket).chat.estimateJob).toBeNull();
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
+  });
+
+  it("keeps unresolved state when an older manual start succeeds after a newer chat request", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    refresh({ formPending: true });
+    chatState = conversationState({
+      messages: userTurnList(["user-1", "user-2"]),
+      job: chatJob(null, "queued", "chat-2"),
+      pending: true,
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    refresh({ formPending: false, formJob: formJob() });
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+  });
+
+  it("clears unresolved state when a manual rebuild starts after a no-plan clarification", () => {
+    const { bucket, refresh } = mount({});
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: userTurnList(["user-1"]),
+      job: chatJob(plannedResult()),
+      hasRequest: true,
+    });
+    refresh();
+    chatState = conversationState({
+      messages: [
+        ...userTurnList(["user-1", "user-2"]),
+        { id: "chat-2", role: "assistant", content: "Which meals should I plan?" },
+      ],
+      job: chatJob(
+        plannedResult({
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        }),
+        "succeeded",
+        "chat-2",
+      ),
+      hasRequest: true,
+    });
+    refresh();
+    expect(hookOf(bucket).chat.estimateJob?.id).toBe("chat-1");
+    expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(true);
+    refresh({ formPending: true });
+    refresh({ formPending: false, formJob: formJob() });
     expect(hookOf(bucket).chat.estimateJob).toBeNull();
     expect(hookOf(bucket).chat.unresolvedChatEstimate).toBe(false);
   });

@@ -241,9 +241,21 @@ function mount(
   return render(createElement(App));
 }
 
-function AppUnresolvedHost(props: { chat: ChatHook }): JSX.Element {
+function AppUnresolvedHost(props: {
+  chat: ChatHook;
+  pending?: boolean;
+  job?: GroceryJob | null;
+}): JSX.Element {
   const [form, setForm] = useState(initialForm());
-  vi.mocked(useGroceryDemo).mockReturnValue(demoState({ form, setForm, job: null, dirty: false }));
+  vi.mocked(useGroceryDemo).mockReturnValue(
+    demoState({
+      form,
+      setForm,
+      job: props.job ?? null,
+      dirty: false,
+      pending: props.pending === true,
+    }),
+  );
   vi.mocked(useChatConversation).mockReturnValue(props.chat);
   vi.mocked(useProviderCapabilities).mockReturnValue(instacartProviders());
   vi.mocked(useHandoff).mockReturnValue(handoffState());
@@ -827,6 +839,75 @@ describe("App", () => {
     expect(childText(live.container)).toContain("Incomplete estimate");
     expect(childText(live.container)).toContain("black beans");
     expect(hasButton(live.container, "Create shopping list")).toBe(false);
+    live.unmount();
+  });
+
+  it("clears Previous after a newer manual rebuild started after a no-plan clarification", () => {
+    const clarification = chatState({
+      messages: [
+        { id: "user-1", role: "user", content: "Plan lentil soup." },
+        { id: "user-2", role: "user", content: "Add soup." },
+      ],
+      job: {
+        id: "chat-2",
+        status: "succeeded",
+        result: {
+          ...plannedChat(),
+          status: "clarification",
+          answer: "Which meals should I plan?",
+          plan: null,
+          budget: null,
+          request: null,
+          evidence_revision_id: null,
+        },
+        error_code: null,
+      },
+      hasRequest: true,
+    });
+    const live = render(createElement(AppUnresolvedHost, { chat: chatState() }));
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [{ id: "user-1", role: "user", content: "Plan lentil soup." }],
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: chatState({
+            messages: [
+              { id: "user-1", role: "user", content: "Plan lentil soup." },
+              { id: "chat-1", role: "assistant", content: "Bean tacos fit the budget." },
+            ],
+            job: chatJob(plannedChat()),
+            hasRequest: true,
+          }),
+        }),
+      );
+    });
+    act(() => {
+      live.rerender(createElement(AppUnresolvedHost, { chat: clarification }));
+    });
+    expect(childText(live.container)).toContain("Previous estimate");
+    expect(hasButton(live.container, "Create shopping list")).toBe(false);
+    act(() => {
+      live.rerender(createElement(AppUnresolvedHost, { chat: clarification, pending: true }));
+    });
+    act(() => {
+      live.rerender(
+        createElement(AppUnresolvedHost, {
+          chat: clarification,
+          pending: false,
+          job: succeededJob,
+        }),
+      );
+    });
+    expect(childText(live.container)).toContain("Grocery estimate");
+    expect(childText(live.container)).not.toContain("Previous estimate");
     live.unmount();
   });
 });

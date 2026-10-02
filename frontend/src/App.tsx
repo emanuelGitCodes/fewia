@@ -21,6 +21,7 @@ export default function App(): JSX.Element {
     setForm: demo.setForm,
     formJob: demo.job,
     formDirty: demo.dirty,
+    formPending: demo.pending,
   });
   const handoff = useHandoff();
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;

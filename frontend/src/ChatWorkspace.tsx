@@ -60,6 +60,7 @@ export type ChatWorkspaceInput = {
   setForm: Dispatch<SetStateAction<FormState>>;
   formJob: GroceryJob | null;
   formDirty?: boolean;
+  formPending?: boolean;
 };
 
 type EstimateSource = { kind: "chat" | "form"; id: string };
@@ -69,6 +70,7 @@ export function useChatWorkspace({
   setForm,
   formJob,
   formDirty = false,
+  formPending = false,
 }: ChatWorkspaceInput): {
   pending: boolean;
   estimateJob: GroceryJob | null;
@@ -102,6 +104,10 @@ export function useChatWorkspace({
   const seenChat = useRef(new Set<string>());
   const seenForm = useRef<string | null>(null);
   const jobTurn = useRef(new Map<string, string | null>());
+  const wasFormPending = useRef(false);
+  const eventGen = useRef(0);
+  const manualStartGen = useRef(0);
+  const unresolvedChatGen = useRef(0);
   const sourceRef = useRef(source);
   const chatEstimateRef = useRef(chatEstimate);
   sourceRef.current = source;
@@ -120,6 +126,14 @@ export function useChatWorkspace({
   }, [form]);
 
   useEffect(() => {
+    if (formPending && !wasFormPending.current) {
+      eventGen.current += 1;
+      manualStartGen.current = eventGen.current;
+    }
+    wasFormPending.current = formPending;
+  }, [formPending]);
+
+  useEffect(() => {
     const userId = latestUserTurnId(conversation.messages);
     if (userId === null) {
       lastUserId.current = null;
@@ -134,6 +148,8 @@ export function useChatWorkspace({
     const displayedChat = chatEstimateRef.current !== null && sourceRef.current?.kind === "chat";
     const displayedForm = sourceRef.current?.kind === "form";
     if (displayedChat || displayedForm) {
+      eventGen.current += 1;
+      unresolvedChatGen.current = eventGen.current;
       setUnresolvedChatEstimate(true);
     }
   }, [conversation.messages]);
@@ -189,7 +205,9 @@ export function useChatWorkspace({
     manualGen.current += 1;
     setChatEstimate(null);
     setSource({ kind: "form", id: formJob.id });
-    setUnresolvedChatEstimate(false);
+    if (manualStartGen.current >= unresolvedChatGen.current) {
+      setUnresolvedChatEstimate(false);
+    }
     if (!formDirty) {
       setAppliedKey(formKey(form));
     }
