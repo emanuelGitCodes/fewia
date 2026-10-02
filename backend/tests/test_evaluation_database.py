@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import pytest
 from conftest import require_test_database_url
+from psycopg import Error as PsycopgError
 from sqlalchemy import Engine, create_engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -259,6 +260,47 @@ def test_cleanup_continues_after_an_error(monkeypatch: pytest.MonkeyPatch) -> No
     engine.dispose.assert_called_once_with()
     drop.assert_called_once_with(admin, "eval_owned")
     admin.dispose.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        OperationalError(
+            "private-driver-detail", {}, RuntimeError("private-driver-detail")
+        ),
+        sqlite3.OperationalError("private-driver-detail"),
+        PsycopgError("private-driver-detail"),
+        RuntimeError("private-driver-detail"),
+        OSError("private-driver-detail"),
+    ],
+)
+def test_cleanup_continues_after_database_and_disposal_failures(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    session = Mock(spec=Session)
+    engine = Mock(spec=Engine)
+    admin = Mock(spec=Engine)
+    session.close.side_effect = failure
+    engine.dispose.side_effect = failure
+    admin.dispose.side_effect = failure
+    drop = Mock(side_effect=failure)
+    monkeypatch.setattr(evaluation_database, "_drop_schema", drop)
+    with pytest.raises(EvaluationDatabaseError) as caught:
+        evaluation_database._cleanup(engine, admin, "eval_owned", {session})
+    _assert_safe(caught.value)
+    session.close.assert_called_once_with()
+    engine.dispose.assert_called_once_with()
+    drop.assert_called_once_with(admin, "eval_owned")
+    admin.dispose.assert_called_once_with()
+
+
+def test_cleanup_preserves_unexpected_errors() -> None:
+    engine = Mock(spec=Engine)
+    failure = TypeError("cleanup programming error")
+    engine.dispose.side_effect = failure
+    with pytest.raises(TypeError) as caught:
+        evaluation_database._cleanup(engine, None, None, set())
+    assert caught.value is failure
 
 
 def test_postgres_uses_separate_engines_and_a_private_search_path(

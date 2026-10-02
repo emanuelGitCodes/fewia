@@ -8,6 +8,7 @@ from functools import partial
 from typing import cast
 from uuid import uuid4
 
+from psycopg import Error as PsycopgError
 from sqlalchemy import Engine, Table, create_engine, event, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import SQLAlchemyError
@@ -84,7 +85,7 @@ def _cleanup(
     for action in actions:
         try:
             action()
-        except Exception:
+        except (SQLAlchemyError, sqlite3.Error, PsycopgError, RuntimeError, OSError):
             failed = True
     if failed:
         raise EvaluationDatabaseError() from None
