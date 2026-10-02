@@ -2696,9 +2696,10 @@ changing `vegan` to `vegetarian` in `chat_answer.py` left every test
 passing. After #248, each mutation fails one test.
 
 Pull requests #234 through #244 and #248 merged into their parent branches,
-not into `main`. Only #233 reached `main`. Pull request #249 merged
-`codex/moderate-completion-records`, `main`, and `codex/moderate-answers`
-into one branch, and it merged into `main` at `8859d5e`. Commit `ab7b914`
+not into `main`. Only #233 reached `main`. The coordinator built the
+branch `claude/stack-to-main` from `codex/moderate-completion-records`, the
+#244 head, and merged `main` and `codex/moderate-answers` into it. Pull
+request #249 merged that branch into `main` at `8859d5e`. Commit `ab7b914`
 is not in that history. Its test is already in
 `backend/tests/test_budget_tool.py`. The auto-mode classifier blocked the
 coordinator from merging the stack, because the coordinator had reviewed
