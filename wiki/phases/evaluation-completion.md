@@ -78,15 +78,17 @@ The record includes 36 approved component IDs and their source SHAs. These are l
 
 The component smoke at revision `64bf3b87efa48b73b7782194f5a898abbc46db92` recorded five deterministic reference outputs and four controlled provider cases. All nine observations passed. It recorded 42 scored legacy-runner slots and 48 unassessed slots. It made zero live model benchmark calls. Its completion marker checked the report hashes.
 
-The [component smoke report](../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/report.md) and [completion marker](../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/completion.json) are ignored local artifacts. The marker records 9 slots, `report.json` SHA-256 `7084ae1faf9651be45fe8a4662448f549f9e59fbae5a464c1ce5ad141ae4ee80`, and `report.md` SHA-256 `57bd9b0a466f384983a99b022ec08e4fb8550bdc88afee54d44c33c599a18242`.
+The recorded component smoke paths are `../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/report.md` and `../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/completion.json`. These historical local files are not included in this PR. The marker records 9 slots, `report.json` SHA-256 `7084ae1faf9651be45fe8a4662448f549f9e59fbae5a464c1ce5ad141ae4ee80`, and `report.md` SHA-256 `57bd9b0a466f384983a99b022ec08e4fb8550bdc88afee54d44c33c599a18242`.
 
-At source revision `b710c398074f14feb4744367d59d4978aee42b73`, the summary smoke recorded five current structured-reference outputs and four controlled-provider cases: nine observations across two separate quality scopes. It made zero live model calls, and its completion record verified the output hashes. The [summary report](../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.md), [summary JSON](../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.json), and [completion record](../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/completion.json) are ignored local artifacts. The verification archive [manifest](../../backend/artifacts/evaluation-checkpoint-20261003T034302Z/manifest.json) preserves 36 approved gate/review pairs and 72 checked hashes.
+At source revision `b710c398074f14feb4744367d59d4978aee42b73`, the summary smoke recorded five current structured-reference outputs and four controlled-provider cases: nine observations across two separate quality scopes. It made zero live model calls, and its completion record verified the output hashes. The recorded summary paths are `../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.md`, `../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.json`, and `../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/completion.json`. The recorded verification archive path is `../../backend/artifacts/evaluation-checkpoint-20261003T034302Z/manifest.json`. Its historical record contains 36 approved gate/review pairs and 72 checked hashes. These historical local files are not included in this PR.
 
 The duplicate-delivery smoke used isolated PostgreSQL, the production worker, and the Floci SQS/S3 path. Eighteen checks passed. Two deliveries produced one execution, evidence revision, handoff, and artifact write. S3 readback matched its hash, and the private schema was removed. The link provider was a deterministic fake. No live model or Instacart call ran.
 
-The [duplicate-delivery report](../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/report.md) and [completion marker](../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/completion.json) are ignored local artifacts. The marker records 1 slot, `report.json` SHA-256 `3a6300a1bf278656a6952e836057a77bead28c3fbf563653ec3ee84b02709c94`, and `report.md` SHA-256 `c1b886378c418a5b235437936f53f1ebd90ca1f5f42a451cde672381166830f4`.
+The recorded duplicate-delivery paths are `../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/report.md` and `../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/completion.json`. These historical local files are not included in this PR. The marker records 1 slot, `report.json` SHA-256 `3a6300a1bf278656a6952e836057a77bead28c3fbf563653ec3ee84b02709c94`, and `report.md` SHA-256 `c1b886378c418a5b235437936f53f1ebd90ca1f5f42a451cde672381166830f4`.
 
-These ignored outputs are local records present in the recorded primary worktree. Clean checkouts do not include them. They are not published files.
+The earlier checkpoint recorded these ignored outputs in its primary worktree.
+These historical local files are not included in this PR.
+This page makes no claim about their present availability.
 
 ## Historical evidence limits and open work
 
@@ -117,11 +119,24 @@ The fixture batch also completed 138 executions. Fixture completion does not est
 The model is `us.amazon.nova-2-lite-v1:0` in `us-east-1`, with settings 4096/0/`low`.
 The record covers one live batch with three repeats per case.
 
+The current product supports 40 meals under [decision 0017](../decisions/0017-forty-meal-catalog.md)
+and the [project scope](../../.codex/project-context.md).
+It supports one to three (1-3) meals per request and one to eight (1-8) servings per meal.
+This benchmark does not provide exhaustive catalog coverage.
+
 All 33 live tool-enabled executions completed. Task quality passed 17/33, or 51.5%; the 90% target FAILS.
 The bounded factual-claim target PASSES at 98/(98 assessed + two unknown), or 98%, against 95%.
 The assessed-only rate is 98/98. Ten supported refusals stay outside the factual denominator.
 No-tool quality passed zero/33. Its executions include 31 failed, one partial, and one completed.
 The readout records `invalid_output` for 32 no-tool observations.
+
+These are the original quality results.
+Coordinator triage found setup-turn expectations in F04/F05 despite final-turn tool-selection and argument scoring.
+This gold mismatch may understate task success.
+A failed task assessment alone does not establish a model or application defect.
+The [gold correction record](benchmark-20261003.md#known-gold-contract-mismatch) names the separate branch and SHA.
+A separately labeled post-hoc rescore is pending.
+No corrected counts or additional live batch are reported here.
 
 Six accepted live final plans have zero tested constraint violations.
 Synthetic-sentinel checks cover 48 completely captured turns across 33 slots, all with explicit false leak flags.

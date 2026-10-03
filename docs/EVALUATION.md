@@ -4,7 +4,7 @@
 
 FEWIA runs a local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and Floci SQS and S3. Real Bedrock calls use `LLMProvider`. The first-release provider boundary includes Plaid Sandbox and Instacart development shopping links. This benchmark supplies Bedrock evidence only; Plaid Sandbox and live Instacart evidence remain open. The product uses a manual budget and sample catalog prices. A development shopping link proves handoff only. It does not verify retailer products or prices. The product does not place orders or check out.
 
-This record documents the first-release boundary of ten supported meals. A request supports one to three (1-3) meals. Each meal supports one to eight (1-8) servings. [Decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) separately records the approved forty-meal catalog. This benchmark does not certify every meal in that catalog.
+The product supports 40 meals under [decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) and the [current project scope](../.codex/project-context.md). A request supports one to three (1-3) meals. Each meal supports one to eight (1-8) servings. This benchmark does not provide exhaustive catalog coverage.
 
 The current evidence is [the benchmark record](../wiki/phases/benchmark-20261003.md). The [completion checkpoint](../wiki/phases/evaluation-completion.md) also preserves earlier component history. Older health and activity planning sources remain historical. [Decision 0018](../wiki/decisions/0018-retain-legacy-data.md) retains existing legacy data without reviving retired routes or treating stored totals as current prices.
 
@@ -56,6 +56,8 @@ The [benchmark phase](../wiki/phases/benchmark-20261003.md) records the exact ma
 | No-tool language task | Zero / 33 | All 33 failed quality |
 
 Ten supported refusals do not enter the factual denominator. The no-tool executions include 31 failed, one partial, and one completed. Observations record `invalid_output` for 32 slots. Fixture success does not establish live quality.
+
+These are the original quality results. Coordinator triage found a gold-contract mismatch in F04/F05. The scorer checks final-turn tool selection and arguments, but those cases included setup-turn expectations. This issue may understate task success. A failed task assessment alone does not establish a model or application defect. The [gold correction record](../wiki/phases/benchmark-20261003.md#known-gold-contract-mismatch) names the separate correction branch and SHA. A separately labeled post-hoc rescore is pending. No corrected counts or additional live batch are reported here.
 
 Six accepted live final plans have zero tested violations. The synthetic-sentinel check captures 48 turns across 33 tool-enabled slots with explicit false leak flags and no incomplete capture. Purchase attempts are UNMEASURED. Separate A04 refusal/action checks do not prove zero purchase attempts.
 

@@ -38,10 +38,11 @@ Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 
 These entries preserve the earlier snapshot. Their test counts and CI
 statements are historical, not new verification of the current branch.
-The documentation boundary for this release covers ten supported meals,
-1-3 meals per request, and 1-8 servings per meal. Decision 0017 remains the
-approved forty-meal catalog record. The benchmark does not certify the
-whole catalog. Retired health and activity planning remains historical.
+The current product supports 40 meals under
+[decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) and the
+[project scope](../.codex/project-context.md). It supports 1-3 meals per
+request and 1-8 servings per meal. The benchmark does not provide exhaustive
+catalog coverage. Retired health and activity planning remains historical.
 
 | Area | What exists | Evidence |
 |---|---|---|
@@ -108,6 +109,15 @@ make that check pass.
 | D3 | Course deliverables: 8-page paper, demo script, failure log with one example per failure class, limitations. | Evidence pack pending; citations and provenance support the student's own paper | 4 | `docs/` | Each section cites an artifact in the repository. |
 | D4 | Plaid Sandbox live evidence: run `/transactions/sync` against Sandbox, serialize item syncs, apply changes and cursor atomically, and record posted and pending grocery spend. Last feature by decision. | paused | 5 | `backend/app/services/plaid_sync.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
 | D5 | Public hosting: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. Every mutating AWS step confirmed by the owner first. | Source adapters in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340) and [#342](https://github.com/emanuelGitCodes/fewia/pull/342); no deployment evidence | 5 | `infra/` | The deployed stack answers one chat turn with live Bedrock and the deployed label. |
+
+D1 retains the original 17/33 task result and 98/100 bounded-claim result.
+Coordinator triage found setup-turn tool expectations in F04/F05, although
+the scorer checks final-turn selection and arguments. This gold mismatch
+may understate task success. A failed assessment alone does not establish
+a model or application defect. The separate
+[gold correction record](../wiki/phases/benchmark-20261003.md#known-gold-contract-mismatch)
+names the branch and SHA. A separately labeled post-hoc rescore is pending.
+No corrected counts or additional live batch are reported here.
 
 ## Part 3. Items that need no writer
 

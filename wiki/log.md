@@ -3145,3 +3145,29 @@ D3's evidence pack remains pending. D4 remains paused.
 D5 source adapters remain in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340)
 and [#342](https://github.com/emanuelGitCodes/fewia/pull/342), without deployment evidence.
 The writer ran no checks. Coordinator verification and independent review remain pending.
+
+## 2026-10-03 — Correct catalog scope and benchmark evidence limits
+
+The maintained evaluation pages now follow
+[decision 0017](decisions/0017-forty-meal-catalog.md) and the
+[current project scope](../.codex/project-context.md): 40 supported meals,
+1-3 meals per request, and 1-8 servings per meal.
+The benchmark does not provide exhaustive catalog coverage.
+The original 17/33 task result and 98/100 bounded-claim result remain unchanged.
+
+Coordinator triage found a gold-contract mismatch in F04/F05.
+The scorer checks final-turn tool selection and arguments; those cases
+included setup-turn expectations. This issue may understate task success.
+A failed task assessment alone does not establish a model or application defect.
+The coordinator reports a separate correction on `codex/backlog-resume-tool-gold`
+at `e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`.
+It changes only the F04/F05 `expected.model_tools` arrays and regression tests.
+It makes no scoring-code changes.
+The [benchmark record](phases/benchmark-20261003.md#known-gold-contract-mismatch)
+keeps the original results and labels the post-hoc rescore as pending.
+No corrected counts or additional live batch are reported.
+
+The [completion checkpoint](phases/evaluation-completion.md) retains eight
+historical local artifact paths as inline code, with their recorded facts.
+Those files are not included in this PR. Their present availability is not asserted.
+The writer ran no checks. Coordinator verification and independent review remain pending.

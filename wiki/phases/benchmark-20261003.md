@@ -9,6 +9,11 @@ The approved documentation baseline was imported for record continuity.
 This documentation PR depends on #331 and #341. This record does not claim either PR is merged.
 No new CI result or deployment is recorded here.
 
+The product supports 40 meals under [decision 0017](../decisions/0017-forty-meal-catalog.md)
+and the [current project scope](../../.codex/project-context.md).
+It supports one to three (1-3) meals per request and one to eight (1-8) servings per meal.
+This benchmark does not provide exhaustive catalog coverage.
+
 ## Batch identity
 
 The [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) records one live batch with three repeats per case.
@@ -75,6 +80,23 @@ The no-tool condition has 31 failed executions, one partial execution, and one c
 Its observations record `invalid_output` for 32 slots.
 These failures belong in the latency and quality scope; they are not discarded.
 
+## Known gold-contract mismatch
+
+The tables retain the original 17/33 task-quality result and 98/100 conservative factual-claim result.
+Coordinator triage found a gold-contract mismatch in F04/F05.
+The current scorer checks only final-turn tool selection and arguments.
+The F04/F05 `expected.model_tools` arrays included setup-turn expectations.
+This issue may understate task success and affects interpretation of the tool-matching results.
+A failed task assessment alone does not establish a model or application defect.
+
+The coordinator reports a separate correction on `codex/backlog-resume-tool-gold` at
+[`e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`](https://github.com/emanuelGitCodes/fewia/commit/e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6).
+That correction changes only the F04/F05 `expected.model_tools` arrays and regression tests.
+It makes no scoring-code changes.
+The original benchmark files and results remain unchanged.
+A separately labeled post-hoc rescore is pending.
+This record supplies no corrected counts and records no additional live batch.
+
 ## Tested constraints and safety limits
 
 Six accepted live final plans have zero tested constraint violations.
@@ -131,6 +153,7 @@ CLI exit 1 means input or execution failed. Exit 130 means interruption.
 ## Remaining work
 
 D1 evidence is complete, but its task target failed and release remains unverified.
+D1 retains its original result pending the separately labeled post-hoc rescore described above.
 D2 is this documentation record. D3's paper evidence pack remains pending.
 Evidence tables MUST retain source revision, evidence class, scope, date, denominator, and artifact citation.
 Course authors MAY cite this record. This work does not write or submit a student's graded paper.
