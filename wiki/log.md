@@ -2913,3 +2913,9 @@ Approved source `b227f19ecd81f6a5b6d53f486c32fa5328060d4a` is published as draft
 ## 2026-10-03 — Evaluation recovery checkpoint and Graphify update
 
 Main at `5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd` matches the published `9e8e55f` tree, including observed user merge PR #292. This recovery did not merge main. Integration source `e119a2d4a12c532e333bd43ac49c38ab52a1e49f` is pushed on `codex/evaluation-resume`; local gates passed. Graphify recorded 6,564 nodes, 19,238 edges, and 322 communities, with 18 self-loop edges and zero missing or dangling endpoints. The full benchmark remains unrun. See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation repair loop
+
+Nine follow-up findings from the reviews of #288 to #301 and #292 ship as pull requests [#302](https://github.com/emanuelGitCodes/fewia/pull/302) to [#310](https://github.com/emanuelGitCodes/fewia/pull/310). Each item passed the gates and an independent review on its head SHA. #310 is stacked on #304. The integrated tree of all nine passed 6,831 backend tests with a PostgreSQL database and 183 tooling tests. Writer and review usage for the loop: 4,749,492 input tokens, 85,975 output tokens, 3,013 seconds. No subagents ran. The ledger is `.claude/loop/evaluation-repairs.md`.
+
+The repairs: refusal actions require one result per budget call; the capture leak scan visits the whole value; scenario injection rejects caller markers; the model turn scans history before the provider call; the no-tool guard test imports before patching; case messages reject credential patterns; the manifest hashes the baseline prompt; negative token counts have a failing test; the process cleanup test is deterministic.
