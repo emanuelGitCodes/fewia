@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from app.evaluation_cost import estimate_cost
+from app.evaluation_cost import _count, estimate_cost
 from app.evaluation_telemetry import summarize_telemetry
 
 MODEL = "us.amazon.nova-2-lite-v1:0"
@@ -170,6 +170,47 @@ def test_zero_usage_differs_from_unknown_usage() -> None:
 def test_invalid_usage_remains_unknown(usage: object) -> None:
     result = estimate([slot(usage, 0)], rates())
     assert result["estimated_usd"] is None
+
+
+def test_count_rejects_negative_integer_and_accepts_zero() -> None:
+    assert _count(-1) is None
+    assert _count(0) == 0
+
+
+def test_negative_group_total_slots_has_no_cost() -> None:
+    telemetry = summarize_telemetry([slot(1000, 2000)])
+    groups = cast(list[dict[str, object]], telemetry["groups"])
+    groups[0]["total_slots"] = -1
+    result = estimate_cost(telemetry, rates(), model_id=MODEL, region=REGION)
+    assert result["status"] == "unknown"
+    assert result["estimated_usd"] is None
+    assert result["known_usage_lower_bound"] is None
+    result_groups = cast(list[dict[str, object]], result["groups"])
+    assert result_groups[0]["status"] == "unknown"
+    assert result_groups[0]["known_usage_lower_bound"] is None
+
+
+def test_negative_known_input_tokens_cannot_estimate_matching_totals() -> None:
+    telemetry = summarize_telemetry([slot(1000, 2000)])
+    groups = cast(list[dict[str, object]], telemetry["groups"])
+    groups[0]["known_input_tokens"] = -1
+    groups[0]["input_tokens"] = -1
+    result = estimate_cost(telemetry, rates(), model_id=MODEL, region=REGION)
+    assert result["status"] == "unknown"
+    assert result["estimated_usd"] is None
+    assert Decimal(str(result["known_usage_lower_bound"])) == Decimal("0.0055")
+
+
+def test_negative_known_usage_slots_cannot_complete_group() -> None:
+    telemetry = summarize_telemetry([slot(1000, 2000)])
+    groups = cast(list[dict[str, object]], telemetry["groups"])
+    groups[0]["known_usage_slots"] = -1
+    result = estimate_cost(telemetry, rates(), model_id=MODEL, region=REGION)
+    assert result["status"] == "unknown"
+    assert result["estimated_usd"] is None
+    assert Decimal(str(result["known_usage_lower_bound"])) == Decimal("0.00583")
+    result_groups = cast(list[dict[str, object]], result["groups"])
+    assert result_groups[0]["status"] == "unknown"
 
 
 @pytest.mark.parametrize(
