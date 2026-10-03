@@ -1,5 +1,5 @@
 name = "catalog-dev"
-description = "FEWIA recipe-catalog developer for the ten-meal corpus, sample prices, and shopping-data contracts."
+description = "FEWIA recipe-catalog developer for the accepted catalog, sample prices, and shopping-data contracts."
 model = "gpt-6-luna"
 developer_instructions = """
 As a junior, read `docs/delegation/junior.md`, this role, and your brief.
