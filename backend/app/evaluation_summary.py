@@ -23,6 +23,16 @@ def summarize_evaluation(slots: list[dict[str, object]]) -> dict[str, object]:
         if fullmatch(r"[A-Z][0-9]{2}", facts.case_id) is None:
             raise ValueError(_ERROR)
         observation = cast(dict[str, object], slot["observation"])
+        if facts.condition in ("deterministic_fixture", "controlled_fixture"):
+            turns = observation.get("turns")
+            if (
+                type(turns) is not list
+                or turns
+                or "model_id" not in observation
+                or observation["model_id"] is not None
+                or observation.get("model_quality_applicable") is not False
+            ):
+                raise ValueError(_ERROR)
         for name, expected in (
             ("case_id", facts.case_id),
             ("condition", facts.condition),

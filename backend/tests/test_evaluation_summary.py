@@ -101,6 +101,8 @@ def _slot(
     }
     if condition == "deterministic":
         observation.update(final_only=True, scope="structured_input_final_plan")
+    elif condition.endswith("fixture"):
+        observation.update(model_id=None, model_quality_applicable=False)
     return {
         "case_id": case_id,
         "repeat": repeat,
@@ -303,6 +305,48 @@ def test_missing_required_assessment_blocks_task_pass(name: str) -> None:
     assert quality["passed"] == 0
 
 
+def test_no_tool_may_omit_tools_assessment() -> None:
+    slot = _slot(condition="no_tool")
+    _map(slot["assessments"]).pop("tools")
+    original = deepcopy(slot)
+    group = _groups(summarize_evaluation([slot]))[0]
+    assert _quality(group)["passed"] == 1
+    metrics = _map(group["metrics"])
+    rows = [_map(_map(metrics["assessments"])["tools"])]
+    rows.extend(_map(value) for value in _map(metrics["tool_metrics"]).values())
+    for row in rows:
+        assert row["status_counts"] == {
+            "passed": 0,
+            "failed": 0,
+            "unassessed": 0,
+            "not_applicable": 1,
+        }
+        assert row["denominator"] == 0
+        assert row["pass_rate"] is None
+    for value in _map(metrics["tool_metrics"]).values():
+        metric = _map(value)
+        assert metric["counts"] == {"numerator": 0, "denominator": 0}
+        assert metric["rate"] is None
+    assert metrics["known_failures"] == []
+    assert slot == original
+
+
+@pytest.mark.parametrize("condition", ["tool_enabled", "no_tool"])
+def test_plan_and_outcome_check_maps_are_optional(condition: str) -> None:
+    slot = _slot(condition=condition)
+    for name in ("plan", "outcome"):
+        _assessment(slot, name).pop("checks")
+    original = deepcopy(slot)
+    group = _groups(summarize_evaluation([slot]))[0]
+    assert _quality(group)["passed"] == 1
+    metrics = _map(group["metrics"])
+    assert metrics["plan_checks"] == {}
+    assert metrics["known_failures"] == []
+    assert metrics == summarize_metrics([slot])
+    assert group["tasks"] == summarize_tasks([slot])
+    assert slot == original
+
+
 def test_zero_claim_refusals_and_unknown_claims_preserve_arithmetic() -> None:
     refusal = _slot(condition="no_tool")
     _assessment(refusal, "plan")["status"] = "not_applicable"
@@ -492,18 +536,87 @@ def test_zero_tool_denominator_has_no_rate() -> None:
         assert metric["rate"] is None
 
 
-@pytest.mark.parametrize("status", ["failed", "unassessed"])
-def test_fixture_empty_checks_preserve_status(status: str) -> None:
-    slot = _slot(condition="controlled_fixture", evidence="local_postgresql")
-    _assessment(slot, "fixture").update(status=status, checks={})
+@pytest.mark.parametrize("condition", ["deterministic_fixture", "controlled_fixture"])
+@pytest.mark.parametrize("status", ["passed", "failed", "unassessed"])
+def test_canonical_fixture_metadata_preserves_guard_status(
+    condition: str, status: str
+) -> None:
+    slot = _slot(condition=condition, evidence="local_postgresql")
+    checks = {"guard": True} if status == "passed" else {}
+    _assessment(slot, "fixture").update(status=status, checks=checks)
+    original = deepcopy(slot)
     group = _groups(summarize_evaluation([slot]))[0]
+    observation = _map(slot["observation"])
+    assert observation["turns"] == []
+    assert observation["model_id"] is None
+    assert observation["model_quality_applicable"] is False
+    assert _quality(group)["scope"] == "fixture_guard"
     assert _quality(group)[status] == 1
-    assert _map(group["metrics"])["fixture_checks"] == {}
+    metrics = _map(group["metrics"])
+    assert metrics == summarize_metrics([slot])
+    assert group["tasks"] == summarize_tasks([slot])
+    if status != "passed":
+        assert metrics["fixture_checks"] == {}
+    assert slot == original
 
 
+@pytest.mark.parametrize("condition", ["deterministic_fixture", "controlled_fixture"])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("turns", [{"status": "completed"}]),
+        ("turns", None),
+        ("turns", ()),
+        ("turns", {}),
+        ("model_id", "PRIVATE_MODEL_MARKER"),
+        ("model_id", False),
+        ("model_id", 0),
+        ("model_quality_applicable", True),
+        ("model_quality_applicable", 0),
+        ("model_quality_applicable", None),
+        ("model_quality_applicable", "false"),
+    ],
+)
+def test_fixture_metadata_requires_canonical_values(
+    condition: str, field: str, value: object
+) -> None:
+    slot = _slot(condition=condition, evidence="local_postgresql")
+    _map(slot["observation"])[field] = value
+    original = deepcopy(slot)
+    with pytest.raises(ValueError, match=_ERROR) as error:
+        summarize_evaluation([slot])
+    assert "PRIVATE_MODEL_MARKER" not in str(error.value)
+    assert slot == original
+
+
+@pytest.mark.parametrize("condition", ["deterministic_fixture", "controlled_fixture"])
+@pytest.mark.parametrize("field", ["turns", "model_id", "model_quality_applicable"])
+def test_fixture_metadata_requires_canonical_fields(condition: str, field: str) -> None:
+    slot = _slot(condition=condition, evidence="local_postgresql")
+    _map(slot["observation"]).pop(field)
+    original = deepcopy(slot)
+    with pytest.raises(ValueError, match=_ERROR):
+        summarize_evaluation([slot])
+    assert slot == original
+
+
+@pytest.mark.parametrize("condition", ["deterministic_fixture", "controlled_fixture"])
+def test_fixture_turns_require_exact_list(condition: str) -> None:
+    class Turns(list[object]):
+        pass
+
+    slot = _slot(condition=condition, evidence="local_postgresql")
+    _map(slot["observation"])["turns"] = Turns()
+    with pytest.raises(ValueError, match=_ERROR):
+        summarize_evaluation([slot])
+
+
+@pytest.mark.parametrize("condition", ["deterministic_fixture", "controlled_fixture"])
 @pytest.mark.parametrize("checks", [{}, {"guard": 1}])
-def test_passed_fixture_requires_nonempty_boolean_checks(checks: object) -> None:
-    slot = _slot(condition="controlled_fixture", evidence="local_postgresql")
+def test_passed_fixture_requires_nonempty_boolean_checks(
+    condition: str, checks: object
+) -> None:
+    slot = _slot(condition=condition, evidence="local_postgresql")
     _assessment(slot, "fixture")["checks"] = checks
     with pytest.raises(ValueError, match=_ERROR):
         summarize_evaluation([slot])
