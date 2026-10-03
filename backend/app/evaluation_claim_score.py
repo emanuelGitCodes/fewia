@@ -66,8 +66,7 @@ def _facts(result: dict[str, object], context: dict[str, object]) -> dict[str, o
         "source": result.get("spending_source"),
         "accepted": plan.get("accepted") is True and all(checks.values()),
         "over_budget": (
-            checks["total_cents"]
-            and checks["ingredient_coverage"]
+            all(checks.values())
             and isinstance(total, int)
             and isinstance(available, int)
             and (total > available or (isinstance(cap, int) and total > cap))

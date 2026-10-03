@@ -10,6 +10,7 @@ from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_claim_score import score_claims
+from app.evaluation_plan_facts import plan_integrity
 from app.evaluation_reference import observe_reference_case
 
 
@@ -160,6 +161,35 @@ def test_over_budget_checks_available_and_request_cap(
 ) -> None:
     result = _plan("The plan is over budget.", available=available, cap=cap)
     assert score_claims(_case(), _observation(result))["status"] == "passed"
+
+
+def test_over_budget_requires_correct_recipe_quantities() -> None:
+    result = _plan("The plan is over budget.", available=0)
+    plan = _map(result["plan"])
+    assert cast(int, plan["total_cents"]) > 0
+    assert all(plan_integrity(result).values())
+    case, observation = _case(), _observation(result)
+    score = score_claims(case, observation)
+    assert score["status"] == "passed"
+    assert score["supported_count"] == score["assessed_count"] == 1
+    assert score["unsupported_count"] == score["unknown_count"] == 0
+    before_plan = deepcopy(plan)
+    lines = cast(list[dict[str, object]], plan["lines"])
+    lines[0]["quantity"] = cast(int, lines[0]["quantity"]) + 1
+    checks = plan_integrity(result)
+    assert checks["quantities"] is False
+    assert checks["total_cents"] and checks["ingredient_coverage"]
+    assert plan["total_cents"] == before_plan["total_cents"]
+    original_lines = cast(list[dict[str, object]], before_plan["lines"])
+    for line, original in zip(lines, original_lines, strict=True):
+        assert line["packages"] == original["packages"]
+        assert line["cost_cents"] == original["cost_cents"]
+    before = deepcopy((case, observation))
+    score = score_claims(case, observation)
+    assert score["status"] == "failed"
+    assert score["unsupported_count"] == score["assessed_count"] == 1
+    assert score["supported_count"] == score["unknown_count"] == 0
+    assert (case, observation) == before
 
 
 def test_false_affordability_and_forged_acceptance_fail() -> None:
