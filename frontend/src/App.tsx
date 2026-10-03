@@ -144,7 +144,7 @@ export default function App(): JSX.Element {
               onRebuild={demo.submitForm}
               rebuildDisabled={blocked || busy}
             />
-            {chat.instacartConfigured || handoff.view !== null ? (
+            {chat.instacartConfigured ? (
               <HandoffControls
                 view={handoff.view}
                 error={handoff.error}
