@@ -25,6 +25,14 @@ The GitHub CI snapshots for PRs #322 to #325 and #327 report all 7 checks
 successful. No PR was merged by this run. No CI result is recorded for #328.
 The documentation merge order is #321, #325, #326, then this evidence PR.
 
+## B3 token pilot
+
+Status: measured; publication pending (limited documentation pilot). The tier S pilot covers two completed documentation items: A4 retention and Writer protocol. It used no native junior or reviewer subagents. The CLI work totals 1,079,282 input tokens and 17,390 output tokens across 8 attempts, or 1,096,672 combined tokens. Coordinator tokens are excluded.
+
+The Phase 1 baseline is about 1,820,000 native subagent tokens for about 270 code lines plus tests and docs. Its CLI writer and review totals are unknown. The pilot cohort differs from the baseline workload. This result supports tier S routing and measurement. It does not support a percentage reduction in total cost, a causal efficiency gain, or a like-for-like speed comparison.
+
+See the [pilot evidence](../artifacts/backlog-resume-20261003/tier-s-pilot.json) and the [detailed ledger](../../.claude/loop/delegation-efficiency.md#tier-s-documentation-pilot).
+
 ## Remaining evaluation work
 
 | Work | Branch | PR | Source SHA | State and verification limit |

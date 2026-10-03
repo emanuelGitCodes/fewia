@@ -3064,3 +3064,17 @@ PR [#328](https://github.com/emanuelGitCodes/fewia/pull/328) publishes
 tests passed. The 18-fixture smoke passed with no model calls. An empty-check
 mutation caused 3 failures. Independent Luna high review approved the change.
 No GitHub CI result is recorded.
+
+## 2026-10-03 — B3 tier S documentation pilot measured
+
+Status: measured; publication pending (limited documentation pilot). The pilot covers two completed tier S documentation items: A4 retention and Writer protocol. Both used no native junior or reviewer subagent. Coordinator tokens are excluded. See the [pilot evidence](artifacts/backlog-resume-20261003/tier-s-pilot.json) and the [detailed ledger](../.claude/loop/delegation-efficiency.md#tier-s-documentation-pilot).
+
+| Item | Attempts | Input tokens | Output tokens | Input + output | Reasoning tokens | Cached tokens | Process seconds | Native subagent tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A4 retention | 3 | 490204 | 7281 | 497485 | 3329 | 403328 | 184.185 | 0 |
+| Writer protocol | 5 | 589078 | 10109 | 599187 | 5752 | 475520 | 264.479 | 0 |
+| Total | 8 | 1079282 | 17390 | 1096672 | 9081 | 878848 | 448.664 | 0 |
+
+A4 has two completed reviews. Writer protocol has three completed reviews and one completed repair. All selected attempts have known token and elapsed counts. Input includes cached tokens. Cached and reasoning counts are subtotals; do not add them to input or output again. Process elapsed times overlap, so the total is not wall time.
+
+The Phase 1 baseline is about 1,820,000 native subagent tokens for about 270 code lines plus tests and docs. Baseline CLI writer and review counts are unknown. This pilot has zero native subagent tokens and 1,079,282 measured CLI input tokens. The cohorts differ. This result measures tier S routing and usage. It does not support a percentage reduction in total cost, a causal efficiency gain, or a like-for-like speed comparison.

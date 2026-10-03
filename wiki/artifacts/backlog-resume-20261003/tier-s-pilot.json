@@ -1,0 +1,121 @@
+{
+  "captured_at": "2026-10-03T21:31:00.269008+00:00",
+  "scope": "Two completed tier S documentation items; coordinator tokens excluded. Input includes cached tokens; cached subtotals are not added again. Process elapsed overlaps, not wall time. Scope is not equivalent to the Phase1 code workload.",
+  "baseline": {
+    "source": ".claude/loop/delegation-efficiency.md",
+    "native_junior_tokens_approx": 870000,
+    "native_reviewer_tokens_approx": 670000,
+    "native_audit_tokens_approx": 280000,
+    "native_total_tokens_approx": 1820000,
+    "code_lines_approx": 270,
+    "cli_writer_review_tokens": null
+  },
+  "items": [
+    {
+      "item": "A4 retention",
+      "work_items": [
+        "resume-a4"
+      ],
+      "native_subagent_tokens": 0,
+      "attempt_count": 3,
+      "attempts": [
+        {
+          "id": "74769522-1864-4a43-b710-4ed19140fc2f",
+          "phase": "implement",
+          "model": "gpt-6-luna",
+          "effort": "xhigh",
+          "outcome": "completed"
+        },
+        {
+          "id": "ee94a153-0bcb-4ff1-a60e-c8833856d81b",
+          "phase": "review",
+          "model": "gpt-6.1-sol",
+          "effort": "low",
+          "outcome": "completed"
+        },
+        {
+          "id": "822551c8-6e03-4798-b2ea-2d491ad639a4",
+          "phase": "review",
+          "model": "gpt-6.1-sol",
+          "effort": "low",
+          "outcome": "completed"
+        }
+      ],
+      "input_tokens": 490204,
+      "input_tokens_unknown_attempts": 0,
+      "output_tokens": 7281,
+      "output_tokens_unknown_attempts": 0,
+      "reasoning_tokens": 3329,
+      "reasoning_tokens_unknown_attempts": 0,
+      "cached_tokens": 403328,
+      "cached_tokens_unknown_attempts": 0,
+      "elapsed_ms": 184185,
+      "elapsed_ms_unknown_attempts": 0
+    },
+    {
+      "item": "Writer protocol",
+      "work_items": [
+        "resume-protocol",
+        "resume-writer-protocol"
+      ],
+      "native_subagent_tokens": 0,
+      "attempt_count": 5,
+      "attempts": [
+        {
+          "id": "4a7a484f-28f6-4990-a38d-686fdd3a9bb5",
+          "phase": "implement",
+          "model": "gpt-6-luna",
+          "effort": "xhigh",
+          "outcome": "completed"
+        },
+        {
+          "id": "771df32c-1558-4f3e-b8ec-6b1b61bdfb23",
+          "phase": "review",
+          "model": "gpt-6.1-sol",
+          "effort": "low",
+          "outcome": "completed"
+        },
+        {
+          "id": "707c121d-f8e5-4ee4-8c99-beb35b85f87e",
+          "phase": "review",
+          "model": "gpt-6.1-sol",
+          "effort": "low",
+          "outcome": "completed"
+        },
+        {
+          "id": "401f9e24-17be-4bfe-ae3c-cbad2ed79121",
+          "phase": "repair",
+          "model": "gpt-6-luna",
+          "effort": "xhigh",
+          "outcome": "completed"
+        },
+        {
+          "id": "22ab9c2b-b81f-45cf-9329-c388d57c9aa8",
+          "phase": "review",
+          "model": "gpt-6.1-sol",
+          "effort": "low",
+          "outcome": "completed"
+        }
+      ],
+      "input_tokens": 589078,
+      "input_tokens_unknown_attempts": 0,
+      "output_tokens": 10109,
+      "output_tokens_unknown_attempts": 0,
+      "reasoning_tokens": 5752,
+      "reasoning_tokens_unknown_attempts": 0,
+      "cached_tokens": 475520,
+      "cached_tokens_unknown_attempts": 0,
+      "elapsed_ms": 264479,
+      "elapsed_ms_unknown_attempts": 0
+    }
+  ],
+  "total": {
+    "native_subagent_tokens": 0,
+    "attempt_count": 8,
+    "input_tokens": 1079282,
+    "output_tokens": 17390,
+    "reasoning_tokens": 9081,
+    "cached_tokens": 878848,
+    "elapsed_ms": 448664
+  }
+}
