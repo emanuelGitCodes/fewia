@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import cast
 
 from app.evaluation_cost import estimate_cost
-from app.evaluation_manifest import _CONFIG_KEYS, _MODEL_ID, _validate_config
+from app.evaluation_manifest import _MODEL_ID
+from app.evaluation_markdown_manifest import prepare_manifest
 from app.evaluation_markdown_values import as_map as _map
 from app.evaluation_markdown_values import pick as _pick
 from app.evaluation_markdown_values import require as _require
@@ -13,40 +14,10 @@ from app.evaluation_summary_task_validation import classify_slot
 from app.evaluation_telemetry import summarize_telemetry
 
 _ERROR = "Invalid evaluation report input"
-_CONDITIONS = (
-    "tool_enabled no_tool deterministic deterministic_fixture controlled_fixture"
-)
-_HASHES = (
-    "manifest_hash corpus_hash catalog_hash system_prompt_hash "
-    "baseline_system_prompt_hash model_config_hash"
-).split()
 _UTC = (
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
     r"(?:\.[0-9]+)?(?:Z|\+00:00)"
 )
-
-
-def _manifest(value: object) -> dict[str, object]:
-    source = _map(value)
-    result: dict[str, object] = _pick(source, "model_id region")
-    _text(result.get("model_id"), _MODEL_ID.pattern)
-    _text(result.get("region"), "us-east-1|us-west-2")
-    config = _pick(_map(source.get("model_config")), " ".join(_CONFIG_KEYS))
-    _validate_config(config)
-    result["model_config"] = config
-    for name in ("version", "catalog_version", *_HASHES):
-        if name in source:
-            pattern = r"[0-9a-f]{64}" if name in _HASHES else r"[A-Za-z0-9._-]{1,128}"
-            result[name] = _text(source[name], pattern)
-    if "conditions" in source:
-        conditions = source["conditions"]
-        _require(type(conditions) is list)
-        items = cast(list[object], conditions)
-        _require(
-            all(type(item) is str and item in _CONDITIONS.split() for item in items)
-        )
-        result["conditions"] = list(items)
-    return result
 
 
 def prepare_report(
@@ -84,7 +55,7 @@ def prepare_report(
                 "primary_slot_count": len(primary),
                 "total_slot_count": len(slots),
             }
-            manifest = _manifest(report.get("manifest"))
+            manifest = prepare_manifest(report.get("manifest"))
             metadata = {"manifest": manifest, "mode": mode}
             metadata["revision"] = _text(report.get("revision"), r"[0-9a-f]{40}")
             timestamps: list[datetime] = []

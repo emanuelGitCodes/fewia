@@ -1,3 +1,4 @@
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -6,7 +7,9 @@ from typing import cast
 import pytest
 
 from app.evaluation_cost import estimate_cost
+from app.evaluation_manifest import build_manifest
 from app.evaluation_markdown_data import prepare_report
+from app.evaluation_markdown_manifest import prepare_manifest
 from app.evaluation_runner import run_evaluation
 from app.evaluation_summary import summarize_evaluation
 from app.evaluation_telemetry import summarize_telemetry
@@ -100,29 +103,16 @@ def _batch(
         "revision": "a" * 40,
         "started_at": "2026-10-03T12:00:00Z",
         "finished_at": "2026-10-03T12:00:10+00:00",
-        "manifest": {
-            "version": "evaluation-manifest-v1",
-            "catalog_version": "catalog-v1",
-            "model_id": _MODEL,
-            "region": "us-east-1",
-            "model_config": {
+        "manifest": build_manifest(
+            {},
+            model_id=_MODEL,
+            region="us-east-1",
+            model_config={
                 "max_tokens": 1024,
                 "temperature": 0,
                 "reasoning_effort": "low",
             },
-            "conditions": ["tool_enabled", "no_tool", "deterministic"],
-            **{
-                key: "b" * 64
-                for key in (
-                    "manifest_hash",
-                    "corpus_hash",
-                    "catalog_hash",
-                    "system_prompt_hash",
-                    "baseline_system_prompt_hash",
-                    "model_config_hash",
-                )
-            },
-        },
+        ),
     }
 
 
@@ -167,7 +157,11 @@ def test_canonical_results_come_from_actual_primary_and_baseline_helpers() -> No
         "failed_slots": 0,
     }
     assert result["mode"] == "complete_evaluation"
-    assert _map(result["metadata"])["manifest"] == report["manifest"]
+    public_manifest = _map(_map(result["metadata"])["manifest"])
+    assert public_manifest == {
+        key: value for key, value in _map(report["manifest"]).items() if key != "catalog"
+    }
+    assert public_manifest == prepare_manifest(report["manifest"])
     assert result["failures"] == []
 
 
@@ -434,9 +428,10 @@ def test_raw_text_secrets_and_unknown_fields_are_omitted() -> None:
     report = _batch([slot])
     report.update(profile="PRIVATE_PROFILE", database_url="PRIVATE_DATABASE")
     manifest = _map(report["manifest"])
-    manifest.update(catalog={"body": "PRIVATE_CATALOG"}, credentials="PRIVATE_KEY")
-    _map(manifest["model_config"]).update(
-        secret="PRIVATE_CONFIG", profile={"value": "PRIVATE_NESTED"}
+    manifest.update(
+        private_catalog={"body": "PRIVATE_CATALOG"},
+        credentials="PRIVATE_KEY",
+        private_config={"secret": "PRIVATE_CONFIG", "profile": "PRIVATE_NESTED"},
     )
     result = prepare_report(report)
     assert "PRIVATE_" not in repr(result)
@@ -448,6 +443,7 @@ def test_raw_text_secrets_and_unknown_fields_are_omitted() -> None:
     }
     assert "catalog" not in public
     assert "credentials" not in public
+    assert public == prepare_manifest(manifest)
     assert set(result) == {
         "mode",
         "coverage",
@@ -490,3 +486,68 @@ def test_empty_batch_returns_zero_coverage_without_claiming_target_success() -> 
     assert _map(result["cost"])["status"] == "unknown"
     assert result["failures"] == []
     assert "target_achieved" not in repr(result)
+
+
+def _digest(value: object) -> str:
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _assert_invalid_provenance(report: dict[str, object]) -> None:
+    original = deepcopy(report)
+    with pytest.raises(ValueError, match=_ERROR) as caught:
+        prepare_report(report)
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__
+    assert report == original
+
+
+@pytest.mark.parametrize("field", ["model_config_hash", "manifest_hash"])
+def test_model_settings_change_rejects_each_stale_hash(field: str) -> None:
+    report = _batch()
+    manifest = _map(report["manifest"])
+    config = _map(manifest["model_config"])
+    stale_hash = manifest[field]
+    config["max_tokens"] = 2048
+    manifest["model_config_hash"] = _digest(config)
+    manifest["manifest_hash"] = _digest(
+        {key: value for key, value in manifest.items() if key != "manifest_hash"}
+    )
+    manifest[field] = stale_hash
+    if field == "model_config_hash":
+        manifest["manifest_hash"] = _digest(
+            {key: value for key, value in manifest.items() if key != "manifest_hash"}
+        )
+    _assert_invalid_provenance(report)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "catalog",
+        "manifest_hash",
+        "corpus_hash",
+        "catalog_hash",
+        "system_prompt_hash",
+        "baseline_system_prompt_hash",
+        "model_config_hash",
+    ],
+)
+def test_missing_manifest_provenance_is_rejected(field: str) -> None:
+    report = _batch()
+    del _map(report["manifest"])[field]
+    _assert_invalid_provenance(report)
+
+
+def test_unknown_inference_config_is_rejected_with_matching_hashes() -> None:
+    report = _batch()
+    manifest = _map(report["manifest"])
+    config = _map(manifest["model_config"])
+    config["unsupported_setting"] = "PRIVATE_CONFIG"
+    manifest["model_config_hash"] = _digest(config)
+    manifest["manifest_hash"] = _digest(
+        {key: value for key, value in manifest.items() if key != "manifest_hash"}
+    )
+    _assert_invalid_provenance(report)
