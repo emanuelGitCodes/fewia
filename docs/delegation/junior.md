@@ -26,8 +26,15 @@ apply.
 2. **Branch.** Work in your own worktree. Create the work branch from the
    base branch that the brief names.
 3. **Assignment.** Write the brief to a file outside the repository. Add
-   these lines: "Do not run commands. Edit files only. The junior runs
-   every command." and "Commit nothing."
+   provider-specific command rules:
+   - Grok writers MUST NOT run shell commands.
+   - Codex writers MAY run read-only shell commands to read and search files.
+   - All writers MUST NOT run tests, package managers, git commands, or
+     file-writing shell commands.
+   - The junior runs checks. Writers MUST edit only owned files and MUST
+     commit nothing. Codex uses `apply_patch`; Grok uses its file-edit tools.
+   Before launch, the junior MUST check the final brief for any command
+   prohibition that contradicts these rules.
 4. **Write.** Start the writer in the background with a timeout. `--task`
    takes a file path.
 
