@@ -15,6 +15,10 @@ from app import bootstrap_database, bootstrap_demo, models
 from app.db import Base
 
 SECRET = "bootstrap-secret-marker"
+DRIVER_MARKER = "SYNTHETIC_PRIVATE_DRIVER"
+MALFORMED_DATABASE_URL = (
+    f"postgresql+{DRIVER_MARKER}://fewia:dummy@localhost/fewia_eval_probe"
+)
 
 
 class Recorder:
@@ -167,7 +171,7 @@ def test_default_runner_captures_output_without_shell_or_environment_override(
 
     monkeypatch.setenv("DATABASE_URL", SECRET)
     monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setattr(bootstrap_database, "SessionLocal", factory)
+    monkeypatch.setattr("app.db.SessionLocal", factory)
     assert bootstrap_database.main(["--run"]) == 0
     assert_status(capsys, "ok", "complete")
     assert calls == [
@@ -331,3 +335,71 @@ def test_import_does_not_migrate_or_open_session(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+@pytest.mark.parametrize("argv", [None, [], ["--help"], ["-h"], ["--run", "--help"]])
+def test_fresh_process_skips_database_imports_and_effects(
+    argv: list[str] | None,
+) -> None:
+    script = f"""
+import subprocess
+import sys
+
+def forbidden(*args: object, **kwargs: object) -> None:
+    raise AssertionError("{DRIVER_MARKER}")
+
+subprocess.run = forbidden
+subprocess.Popen = forbidden
+from app import bootstrap_database
+argv = {argv!r}
+code = 0 if argv is None else bootstrap_database.main(argv)
+assert "app.bootstrap_demo" not in sys.modules
+assert "app.db" not in sys.modules
+assert "app.config" not in sys.modules
+raise SystemExit(code)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=bootstrap_demo.BACKEND_BASE,
+        env={"DATABASE_URL": MALFORMED_DATABASE_URL},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=bootstrap_demo.COMMAND_TIMEOUT_SECONDS,
+    )
+    assert result.returncode == (1 if argv == [] else 0)
+    assert DRIVER_MARKER not in result.stdout + result.stderr
+    assert result.stderr == ""
+    if argv is None:
+        assert result.stdout == ""
+    elif argv == []:
+        assert json.loads(result.stdout) == {"status": "failed", "stage": "arguments"}
+    else:
+        assert "--run" in result.stdout
+
+
+@pytest.mark.parametrize(
+    "argv,code,stage",
+    [([], 1, "arguments"), (["--help"], 0, None), (["--run"], 1, "migrate")],
+)
+def test_fresh_cli_bounds_malformed_database_failure(
+    argv: list[str], code: int, stage: str | None
+) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "app.bootstrap_database", *argv],
+        cwd=bootstrap_demo.BACKEND_BASE,
+        env={"DATABASE_URL": MALFORMED_DATABASE_URL},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=bootstrap_demo.COMMAND_TIMEOUT_SECONDS,
+    )
+    assert result.returncode == code
+    assert DRIVER_MARKER not in result.stdout + result.stderr
+    assert "Traceback" not in result.stdout + result.stderr
+    assert result.stderr == ""
+    if stage is None:
+        assert "--run" in result.stdout
+    else:
+        assert json.loads(result.stdout) == {"status": "failed", "stage": stage}
+        assert result.stdout.count("\n") == 1

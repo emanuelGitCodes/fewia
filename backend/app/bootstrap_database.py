@@ -1,19 +1,17 @@
+from __future__ import annotations
+
 import argparse
+import json
 import sys
 from collections.abc import Sequence
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
-from app.bootstrap_demo import (
-    BACKEND_BASE,
-    COMMAND_TIMEOUT_SECONDS,
-    CommandRunner,
-    SessionFactory,
-    emit,
-    invoke_command,
-    run_command,
-    seed_demo_user,
-)
-from app.db import SessionLocal
+if TYPE_CHECKING:
+    from app.bootstrap_demo import CommandRunner, SessionFactory
+
+
+def emit(status: str, stage: str) -> None:
+    print(json.dumps({"status": status, "stage": stage}, sort_keys=True))
 
 
 class StaticArgumentParser(argparse.ArgumentParser):
@@ -46,9 +44,18 @@ def main(
         if not args.run:
             emit("failed", stage)
             return 1
+        stage = "migrate"
+        from app.bootstrap_demo import (
+            BACKEND_BASE,
+            COMMAND_TIMEOUT_SECONDS,
+            invoke_command,
+            run_command,
+            seed_demo_user,
+        )
+        from app.db import SessionLocal
+
         selected_runner: CommandRunner = run_command if runner is None else runner
         selected_factory: SessionFactory = SessionLocal if factory is None else factory
-        stage = "migrate"
         if invoke_command(
             selected_runner,
             [sys.executable, "-m", "alembic", "upgrade", "head"],
