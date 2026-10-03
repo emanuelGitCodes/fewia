@@ -99,3 +99,12 @@ before it merges the child. Phase 2 met this case again; see
 - `backend/tests/test_database.py` skips, and does not fail, when the
   database is unreachable. In CI, `alembic upgrade head` is the only
   hard gate on database reachability.
+
+## Follow-up status — 2026-10-03
+
+- Resolved: CI now lints and format-checks `backend/alembic` alongside
+  `app` and `tests`.
+- Resolved: CI sets `FEWIA_REQUIRE_DB=1` to enforce database reachability.
+- Resolved: CI, tooling, and audit now use `actions/checkout@v7` and
+  `astral-sh/setup-uv@v10`. Both actions declare Node.js 24. These upgrades
+  close the historical Node.js 20 runtime item.

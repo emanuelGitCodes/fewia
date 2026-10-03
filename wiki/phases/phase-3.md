@@ -103,3 +103,12 @@ Mutation testing found these defects.
   the `--cd` flag that `codex exec` accepts.
 - A verifier MUST stage the work before it mutates a file. `git checkout --`
   on unstaged work destroyed one Codex change during item 5.
+
+## Follow-up status — 2026-10-03
+
+- Resolved: `backend/Dockerfile` already copies `backend/alembic` and
+  `backend/alembic.ini` into the API image. This closes the historical
+  migration-file item.
+- Closed as not adopted: expansion of strict type checking to test modules.
+  The current project rule keeps `mypy --strict` scoped to `app`. Test modules
+  remain outside that scope. The test typing findings above remain as history.

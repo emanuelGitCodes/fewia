@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Create overlay secret files
         run: |
@@ -63,10 +63,10 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -75,10 +75,10 @@ jobs:
         run: uv sync --frozen
 
       - name: Lint
-        run: uv run ruff check app tests
+        run: uv run ruff check app tests alembic
 
       - name: Check the format
-        run: uv run ruff format --check app tests
+        run: uv run ruff format --check app tests alembic
 
       - name: Type check
         run: uv run mypy --strict app
@@ -102,7 +102,7 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v7
