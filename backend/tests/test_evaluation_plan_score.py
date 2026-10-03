@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from app.evaluation_budget_inputs import fixture_budget
 from app.evaluation_plan_facts import plan_integrity
 from app.evaluation_plan_score import score_plan
 
@@ -77,9 +78,9 @@ def _result(inputs: dict[str, object]) -> dict[str, object]:
     limit = cast(int, inputs["monthly_limit_cents"])
     posted = cast(int, inputs["posted_cents"])
     pending = cast(int, inputs["pending_cents"])
-    remaining = max(0, limit - posted - pending)
-    cap = inputs["plan_cap_cents"]
-    available = remaining if cap is None else min(remaining, cast(int, cap))
+    remaining = max(0, limit - posted)
+    budget = fixture_budget(inputs)
+    available = budget.available_cents
     accepted = total <= available
     request = {
         key: deepcopy(inputs[key])
@@ -112,13 +113,13 @@ def _result(inputs: dict[str, object]) -> dict[str, object]:
             "pending_cents": pending,
             "remaining_cents": remaining,
             "available_cents": available,
-            "stale": False,
+            "stale": budget.stale,
         },
     }
 
 
 def _observation(
-    case: dict[str, object], condition: str = "model"
+    case: dict[str, object], condition: str = "tool_enabled"
 ) -> dict[str, object]:
     result = _result(_map(case["inputs"]))
     return {
@@ -141,7 +142,7 @@ def _checks(score: dict[str, object]) -> dict[str, object]:
 
 
 @pytest.mark.parametrize("case_id", _IDS)
-@pytest.mark.parametrize("condition", ("deterministic", "model", "no_tool"))
+@pytest.mark.parametrize("condition", ("deterministic", "tool_enabled", "no_tool"))
 def test_complete_final_plan(case_id: str, condition: str) -> None:
     case = _case(case_id)
     observation = _observation(case, condition)
@@ -157,18 +158,20 @@ def test_complete_final_plan(case_id: str, condition: str) -> None:
 def test_deterministic_explicit_final_only(case_id: str) -> None:
     case = _case(case_id)
     observation = _observation(case, "deterministic")
-    observation["user_turn_count"] = len(_list(case["messages"]))
+    observation["user_turn_count_original"] = len(_list(case["messages"]))
     observation["final_only"] = True
     observation["turns"] = [_list(observation["turns"])[-1]]
     assert score_plan(case, observation)["status"] == "passed"
 
 
-@pytest.mark.parametrize("condition", ("model", "no_tool"))
+@pytest.mark.parametrize("condition", ("tool_enabled", "no_tool"))
 @pytest.mark.parametrize("case_id", _IDS)
 def test_other_conditions_cannot_use_final_only(case_id: str, condition: str) -> None:
     case = _case(case_id)
     observation = _observation(case, condition)
-    observation.update(final_only=True, user_turn_count=len(_list(case["messages"])))
+    observation.update(
+        final_only=True, user_turn_count_original=len(_list(case["messages"]))
+    )
     observation["turns"] = [_list(observation["turns"])[-1]]
     score = score_plan(case, observation)
     assert score["status"] == "failed"
@@ -179,7 +182,7 @@ def test_other_conditions_cannot_use_final_only(case_id: str, condition: str) ->
 def test_final_only_requires_original_count(count: object) -> None:
     case = _case("F01")
     observation = _observation(case, "deterministic")
-    observation.update(final_only=True, user_turn_count=count)
+    observation.update(final_only=True, user_turn_count_original=count)
     observation["turns"] = [_list(observation["turns"])[-1]]
     assert score_plan(case, observation)["status"] == "failed"
 
@@ -188,9 +191,19 @@ def test_final_only_is_limited_to_named_cases() -> None:
     case = _case("F01")
     case["id"] = "OTHER"
     observation = _observation(case, "deterministic")
-    observation.update(final_only=True, user_turn_count=2)
+    observation.update(final_only=True, user_turn_count_original=2)
     observation["turns"] = [_list(observation["turns"])[-1]]
     assert _checks(score_plan(case, observation))["final_scope"] is False
+
+
+def test_old_turn_count_alias_cannot_satisfy_final_scope() -> None:
+    case = _case("F01")
+    observation = _observation(case, "deterministic")
+    observation.update(final_only=True, user_turn_count=len(_list(case["messages"])))
+    observation["turns"] = [_list(observation["turns"])[-1]]
+    score = score_plan(case, observation)
+    assert score["status"] == "failed"
+    assert _checks(score)["final_scope"] is False
 
 
 @pytest.mark.parametrize("key", ("case_id", "condition", "status", "turns"))
@@ -209,7 +222,7 @@ def test_incomplete_observation_cannot_pass(status: object) -> None:
     assert _checks(score_plan(case, observation))["observation_complete"] is False
 
 
-@pytest.mark.parametrize("condition", ("unknown", None, [], True, "MODEL"))
+@pytest.mark.parametrize("condition", ("model", "unknown", None, [], True, "MODEL"))
 def test_invalid_condition(condition: object) -> None:
     case = _case("F01")
     observation = _observation(case)
@@ -293,6 +306,8 @@ def test_wrong_intent_despite_correct_arithmetic(
     case = _case(case_id)
     observation = _observation(case)
     altered = deepcopy(_map(case["inputs"]))
+    if field == "budget_period":
+        altered["spending_period"] = altered.get("spending_period", altered[field])
     altered[field] = value
     _map(_list(observation["turns"])[-1])["result"] = _result(altered)
     assert all(plan_integrity(_final(observation)).values())
@@ -414,6 +429,73 @@ def test_available_budget_uses_scenario_when_gold_omits_it() -> None:
     assert _checks(score)["integrity_acceptance"] is True
 
 
+def test_fresh_spending_keeps_pending_separate() -> None:
+    case = _case("F01")
+    _map(case["inputs"]).update(
+        monthly_limit_cents=10000,
+        posted_cents=2000,
+        pending_cents=3000,
+        plan_cap_cents=None,
+        budget_period="2026-07-01",
+        spending_period="2026-07-01",
+        now="2026-07-10T12:00:00Z",
+        spending_refreshed_at="2026-07-10T11:00:00Z",
+    )
+    _map(case["expected"]).update(
+        monthly_limit_cents=10000,
+        posted_cents=2000,
+        pending_cents=3000,
+        remaining_cents=8000,
+        available_cents=8000,
+        stale=False,
+    )
+    observation = _observation(case)
+    budget = _map(_final(observation)["budget"])
+    assert budget["available_cents"] == 8000
+    assert budget["pending_cents"] == 3000
+    assert budget["stale"] is False
+    score = score_plan(case, observation)
+    assert score["status"] == "passed", score
+    budget["available_cents"] = 5000
+    score = score_plan(case, observation)
+    assert _checks(score)["budget_arithmetic"] is False
+    assert all(plan_integrity(_final(observation)).values())
+
+
+def test_stale_snapshot_uses_explicit_cap_with_pending_spending() -> None:
+    case = _case("F01")
+    _map(case["inputs"]).update(
+        monthly_limit_cents=10000,
+        posted_cents=2000,
+        pending_cents=3000,
+        plan_cap_cents=10000,
+        budget_period="2026-07-01",
+        spending_period="2026-07-01",
+        now="2026-07-10T12:00:00Z",
+        spending_refreshed_at="2026-07-08T11:00:00Z",
+    )
+    _map(case["expected"]).update(
+        monthly_limit_cents=10000,
+        posted_cents=2000,
+        pending_cents=3000,
+        remaining_cents=8000,
+        available_cents=10000,
+        stale=True,
+    )
+    observation = _observation(case)
+    budget = _map(_final(observation)["budget"])
+    assert budget["available_cents"] == 10000
+    assert budget["pending_cents"] == 3000
+    assert budget["stale"] is True
+    score = score_plan(case, observation)
+    assert score["status"] == "passed", score
+    budget["available_cents"] = 8000
+    assert _checks(score_plan(case, observation))["budget_arithmetic"] is False
+    budget["available_cents"] = 10000
+    budget["stale"] = False
+    assert _checks(score_plan(case, observation))["budget_stale"] is False
+
+
 @pytest.mark.parametrize("field", ("available_cents", "pending_cents", "stale"))
 def test_budget_values_compare_to_frozen_expectations(field: str) -> None:
     case = _case("F01")
@@ -457,7 +539,7 @@ def test_no_plan_outcomes_are_not_applicable(case_id: str) -> None:
     case = _case(case_id)
     observation: dict[str, object] = {
         "case_id": case_id,
-        "condition": "model",
+        "condition": "tool_enabled",
         "status": "completed",
         "turns": [
             {
@@ -518,6 +600,27 @@ def test_unknown_spending_is_not_zero(key: str) -> None:
     case = _case("F01")
     observation = _observation(case)
     _map(case["inputs"])[key] = None
+    score = score_plan(case, observation)
+    assert score["status"] == "failed"
+    assert _checks(score)["budget_inputs"] is False
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    (
+        ("monthly_limit_cents", True),
+        ("monthly_limit_cents", -1),
+        ("plan_cap_cents", True),
+        ("plan_cap_cents", -1),
+        ("now", "invalid"),
+        ("spending_refreshed_at", "invalid"),
+        ("spending_period", "invalid"),
+    ),
+)
+def test_invalid_budget_facts_fail_without_raising(key: str, value: object) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    _map(case["inputs"])[key] = value
     score = score_plan(case, observation)
     assert score["status"] == "failed"
     assert _checks(score)["budget_inputs"] is False

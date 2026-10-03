@@ -1,12 +1,13 @@
 from typing import cast
 
+from app.evaluation_budget_inputs import fixture_budget
 from app.evaluation_plan_facts import plan_integrity
 from app.evaluation_shapes import as_map as mp
 from app.evaluation_shapes import typed_equal as eq
 from app.evaluation_shapes import valid_public_result
 
 _FINAL_ONLY = ("F01", "F02", "F05", "X04", "A01")
-_CONDITIONS = ("deterministic", "model", "no_tool")
+_CONDITIONS = ("deterministic", "tool_enabled", "no_tool")
 _PAYLOADS = ("plan", "request", "budget")
 _REQUEST = (
     "meals diet budget_period plan_cap_cents pantry_ingredients ingredient_exclusions"
@@ -68,6 +69,7 @@ def score_plan(
     if not inputs or not expected or type(messages) is not list or not messages:
         return report("unassessed", "Scenario context is missing.")
     count = len(cast(list[object], messages))
+    original_count = observation.get("user_turn_count_original", count)
     condition = observation.get("condition")
     checks["condition"] = type(condition) is str and condition in _CONDITIONS
     checks["case_identity"] = type(case.get("id")) is str and eq(
@@ -80,12 +82,10 @@ def score_plan(
         or (
             condition == "deterministic"
             and case.get("id") in _FINAL_ONLY
-            and eq(observation.get("user_turn_count"), count)
+            and eq(observation.get("user_turn_count_original"), count)
         )
     )
-    checks["user_turn_count"] = "user_turn_count" not in observation or eq(
-        observation["user_turn_count"], count
-    )
+    checks["user_turn_count_original"] = eq(original_count, count)
     raw_turns = observation.get("turns")
     turns = cast(list[object], raw_turns) if type(raw_turns) is list else []
     required_count = 1 if final_only is True else count
@@ -128,17 +128,16 @@ def score_plan(
     for key in _BUDGET:
         if key in expected:
             checks[f"expected_budget_{key}"] = _has(budget, key, expected[key])
-    money = [inputs.get(key) for key in _BUDGET[:3]]
-    cap = inputs.get("plan_cap_cents")
-    checks["budget_inputs"] = all(type(value) is int for value in money) and (
-        cap is None or type(cap) is int
-    )
-    if checks["budget_inputs"]:
-        limit, posted, pending = cast(list[int], money)
-        available = max(0, limit - posted - pending)
-        if type(cap) is int:
-            available = min(available, cap)
-        checks["budget_arithmetic"] = _has(budget, "available_cents", available)
+    try:
+        scenario_budget = fixture_budget(inputs)
+    except (TypeError, ValueError):
+        checks["budget_inputs"] = False
+    else:
+        checks["budget_inputs"] = True
+        checks["budget_arithmetic"] = _has(
+            budget, "available_cents", scenario_budget.available_cents
+        )
+        checks["budget_stale"] = _has(budget, "stale", scenario_budget.stale)
     if "lines" in expected:
         actual, golden = _lines(plan.get("lines")), _lines(expected["lines"])
         checks["golden_lines"] = (
