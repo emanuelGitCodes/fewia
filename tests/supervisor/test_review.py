@@ -900,6 +900,131 @@ def test_auto_falls_back_once(
     assert row["provenance"] == "grok.end" and row["input_tokens"] == 18539
 
 
+@pytest.mark.parametrize("event_type", ["error", "turn.failed"])
+@pytest.mark.parametrize(
+    ("message", "reason"),
+    [
+        ("HTTP 503 service unavailable", "codex_unavailable"),
+        ("HTTP 401 unauthorized", "codex_authentication"),
+        ("HTTP 429 quota exceeded", "codex_quota"),
+        ("HTTP 429 rate limit exceeded", "codex_rate_limit"),
+    ],
+)
+def test_auto_falls_back_for_generic_code_with_recognized_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    event_type: str,
+    message: str,
+    reason: str,
+) -> None:
+    root = make_repo(tmp_path)
+    error = {"code": "api_error", "message": message}
+    event: dict[str, Any] = {"type": event_type}
+    if event_type == "turn.failed":
+        event["error"] = error
+    else:
+        event.update(error)
+    codex = install_run(monkeypatch, stdout=grok_stream(event), write=False)
+    grok = install_grok(monkeypatch)
+
+    assert run_main(monkeypatch, argv(root, writer="gpt-6-luna")) == 0
+    output = capsys.readouterr().out
+    data = summary(output)
+    assert codex["calls"] == grok["calls"] == 1
+    assert data["provider"] == "grok"
+    assert data["attempted_providers"] == ["codex", "grok"]
+    assert data["fallback_reason"] == reason
+    attempt = data["codex_attempt"]
+    assert isinstance(attempt, dict)
+    assert attempt["fallback_reason"] == reason
+    assert "api_error" not in output
+    assert message not in output
+    assert "api_error" not in str(grok["prompt"])
+    assert message not in str(grok["prompt"])
+
+
+@pytest.mark.parametrize("event_type", ["error", "turn.failed"])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    ("code", "message", "expected"),
+    [
+        ("model_not_found", "HTTP 503 service unavailable", "codex_unavailable"),
+        ("unauthorized", "HTTP 401 unauthorized", "codex_authentication"),
+        ("usage_limit_reached", "HTTP 429 quota exceeded", "codex_quota"),
+        ("rate_limit_error", "HTTP 429 rate limit exceeded", "codex_rate_limit"),
+        ("provider_unavailable", "HTTP 401 unauthorized", None),
+        ("provider_unavailable", "HTTP 429 quota exceeded", None),
+        ("provider_unavailable", "HTTP 429 rate limit exceeded", None),
+        ("authentication_error", "HTTP 429 quota exceeded", None),
+        ("authentication_error", "HTTP 429 rate limit exceeded", None),
+        ("insufficient_quota", "HTTP 429 rate limit exceeded", None),
+    ],
+)
+def test_fallback_reason_matching_and_conflicting_fields(
+    event_type: str,
+    reverse: bool,
+    code: str,
+    message: str,
+    expected: str | None,
+) -> None:
+    if reverse:
+        code, message = message, code
+    error = {"code": code, "message": message}
+    event: dict[str, Any] = {"type": event_type}
+    if event_type == "turn.failed":
+        event["error"] = error
+    else:
+        event.update(error)
+    assert review.fallback_reason(grok_stream(event)) == expected
+
+
+@pytest.mark.parametrize("field", ["code", "message"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        False,
+        503,
+        [],
+        {},
+        ["provider_unavailable"],
+        {"message": "provider_unavailable"},
+    ],
+)
+def test_fallback_reason_ignores_wrong_field_types(field: str, value: object) -> None:
+    error = {field: value}
+    event = {"type": "turn.failed", "error": error}
+    assert review.fallback_reason(grok_stream(event)) is None
+    other_field = "message" if field == "code" else "code"
+    error[other_field] = "provider_unavailable"
+    assert review.fallback_reason(grok_stream(event)) == "codex_unavailable"
+
+
+@pytest.mark.parametrize("field", ["code", "message"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "api_error",
+        "task_failed",
+        "The provider_unavailable error occurred",
+        "HTTP 503 service unavailable: retry later",
+        "HTTP 503 service unavailable ",
+        " HTTP 503 service unavailable",
+        "http 503 service unavailable",
+        "service_unavailable_suffix",
+    ],
+)
+def test_fallback_reason_requires_exact_allowlist_match(field: str, value: str) -> None:
+    error = {field: value}
+    event = {"type": "turn.failed", "error": error}
+    assert review.fallback_reason(grok_stream(event)) is None
+    other_field = "message" if field == "code" else "code"
+    error[other_field] = "provider_unavailable"
+    assert review.fallback_reason(grok_stream(event)) == "codex_unavailable"
+
+
 def test_auto_falls_back_for_usage_limit_without_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -967,6 +1092,7 @@ def test_auto_falls_back_after_agent_message_start_without_report(
         "malformed_stream",
         "ambiguous",
         "conflicting",
+        "conflicting_fields",
         "completed_stream",
         "malformed_report",
         "APPROVE",
@@ -996,6 +1122,16 @@ def test_auto_fallback_exclusions(
         raw = grok_stream({"type": "error", "message": "maybe rate limited"})
     elif case == "conflicting":
         raw += grok_stream({"type": "error", "code": "authentication_error"})
+    elif case == "conflicting_fields":
+        raw = grok_stream(
+            {
+                "type": "turn.failed",
+                "error": {
+                    "code": "provider_unavailable",
+                    "message": "HTTP 401 unauthorized",
+                },
+            }
+        )
     elif case == "completed_stream":
         raw += grok_stream(
             {
