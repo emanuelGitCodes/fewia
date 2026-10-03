@@ -203,15 +203,20 @@ def test_invalid_envelope_rejects_before_effects(
     def forbidden(*args: object, **kwargs: object) -> object:
         raise AssertionError("unexpected stage")
 
-    for name in ("execute_plan", "save_plan_evidence", "prepare_handoff"):
-        monkeypatch.setattr(f"app.evaluation_duplicate_handler.{name}", forbidden)
-    with pytest.raises(ValueError):
-        handler(payload, lambda: forbidden())
+    with monkeypatch.context() as patch:
+        for name in ("execute_plan", "save_plan_evidence", "prepare_handoff"):
+            patch.setattr(f"app.evaluation_duplicate_handler.{name}", forbidden)
+        with pytest.raises(ValueError):
+            handler(payload, lambda: forbidden())
+    assert handler.handler_calls == 0
     assert handler.planning is None
     assert handler.evidence_revision_id is None
     assert handler.handoff is None
     assert handler.provider.calls == 0
     assert handler.artifact_attempts == store.attempts == 0
+    result = handler({"case_id": "P05", "user_id": 7}, lambda: None)
+    assert handler.handler_calls == result["handler_calls"] == 1
+    assert handler.artifact_attempts == store.attempts == 1
 
 
 def test_heartbeat_brackets_meaningful_stages(

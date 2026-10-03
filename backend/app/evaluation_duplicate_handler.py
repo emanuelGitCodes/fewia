@@ -105,10 +105,10 @@ class DuplicateHandler(JobHandler):
     def __call__(
         self, payload: dict[str, object], heartbeat: Callable[[], None]
     ) -> dict[str, object]:
-        self.handler_calls += 1
         envelope = _Envelope.model_validate(payload)
         if envelope.user_id != self.context.user_id:
             raise ValueError("duplicate handler owner does not match")
+        self.handler_calls += 1
         heartbeat()
         planning = execute_plan(
             self._request.model_dump(mode="json"),
