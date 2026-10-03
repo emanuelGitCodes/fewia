@@ -2919,3 +2919,24 @@ Main at `5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd` matches the published `9e8e55
 Nine follow-up findings from the reviews of #288 to #301 and #292 ship as pull requests [#302](https://github.com/emanuelGitCodes/fewia/pull/302) to [#310](https://github.com/emanuelGitCodes/fewia/pull/310). Each item passed the gates and an independent review on its head SHA. #310 is stacked on #304. The integrated tree of all nine passed 6,831 backend tests with a PostgreSQL database and 183 tooling tests. Writer and review usage for the loop: 4,749,492 input tokens, 85,975 output tokens, 3,013 seconds. No subagents ran. The ledger is `.claude/loop/evaluation-repairs.md`.
 
 The repairs: refusal actions require one result per budget call; the capture leak scan visits the whole value; scenario injection rejects caller markers; the model turn scans history before the provider call; the no-tool guard test imports before patching; case messages reject credential patterns; the manifest hashes the baseline prompt; negative token counts have a failing test; the process cleanup test is deterministic.
+
+## 2026-10-03 — Backlog build intake and ledger reconciliation
+
+The user authorized branches, commits, and pull requests for the feature backlog.
+The user set a stop at 8 percent total weekly Codex usage. Intake reported 1 percent.
+The build starts from `be7470aac8212dc297ac8c651e643e272cf1aec2`.
+
+Luna xhigh reconciled the two historical loop ledgers against their event logs.
+The coordinator preserved the dropped state of tech-debt item 07.
+This branch tracks copies of the primary checkout's ignored ledgers.
+It does not change the primary checkout's private files.
+The backlog now assigns gates to the coordinator or junior and permits fixture-only handoff work.
+
+Focused nutrition and Spoonacular checks reported 24 passed with one warning.
+Supervisor lease, pre-launch recovery, and database-skip checks reported 36 passed with one warning.
+Import and line-length lint passed. Alembic lint passed.
+An initial combined pytest command failed collection because `PYTHONPATH` lacked the repository root.
+The corrected command passed. No live-provider or deployed result is claimed.
+
+The [build checkpoint](phases/backlog-build-20261003.md) records scope and open work.
+Independent review and publication remain pending for this checkpoint.
