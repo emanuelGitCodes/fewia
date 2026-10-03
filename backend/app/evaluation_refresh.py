@@ -113,7 +113,7 @@ def evaluate_refresh_case(case: dict[str, object]) -> dict[str, object]:
                 checks["valid_case"] = True
             except (TypeError, ValueError):
                 observed = {"outcome": "invalid_input"}
-            except Exception:
+            except Exception:  # noqa: BLE001
                 observed = {"outcome": "unexpected_error"}
         expected = case.get("expected")
         if type(expected) is dict:
