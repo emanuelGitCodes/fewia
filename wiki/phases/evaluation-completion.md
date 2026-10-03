@@ -1,5 +1,7 @@
 # Evaluation completion checkpoint
 
+> **Later publication:** See the [draft publication and Graphify update](evaluation-publication.md). This checkpoint remains scoped to its recorded snapshot.
+
 ## Snapshot
 
 This page records the local-only integration at snapshot `a9a9a4f51b34b05b10a00aa6e9399e2f15a3d8bb`, captured at `2026-10-03T03:43:02.320249+00:00`. It records 36 approved components. The complete batch/CLI, full benchmark, and four feature groups remain incomplete.
