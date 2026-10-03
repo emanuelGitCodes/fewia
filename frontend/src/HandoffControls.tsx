@@ -1,4 +1,5 @@
-import type { JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
+import { HandoffConsent } from "./HandoffConsent";
 import { isSafeHandoffUrl, type HandoffView } from "./handoffTypes";
 
 export type HandoffControlsProps = {
@@ -39,6 +40,13 @@ export function HandoffControls({
   onStart,
   onRetry,
 }: HandoffControlsProps): JSX.Element {
+  const [consentOpen, setConsentOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!canStart || pending || view !== null) {
+      setConsentOpen(false);
+    }
+  }, [canStart, pending, view]);
   const linkHref =
     view !== null &&
     view.state === "succeeded" &&
@@ -52,15 +60,28 @@ export function HandoffControls({
       <h2 id="handoff-heading">Shopping list</h2>
       {view === null && canStart ? (
         <button
+          ref={triggerRef}
           type="button"
           className="rebuild-estimate"
+          aria-haspopup="dialog"
           disabled={pending}
           onClick={() => {
-            onStart();
+            triggerRef.current?.focus();
+            setConsentOpen(true);
           }}
         >
           Create shopping list
         </button>
+      ) : null}
+      {consentOpen && canStart && !pending && view === null ? (
+        <HandoffConsent
+          onCancel={() => setConsentOpen(false)}
+          onConfirm={() => {
+            if (canStart && !pending && view === null) {
+              onStart();
+            }
+          }}
+        />
       ) : null}
       {view !== null && view.retry_allowed ? (
         <button
