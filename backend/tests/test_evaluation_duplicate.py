@@ -120,6 +120,11 @@ def default_adapters(monkeypatch: pytest.MonkeyPatch) -> driver._Services:
 def database_url() -> str:
     url = os.environ.get("FEWIA_EVALUATION_DATABASE_URL")
     if not url:
+        if os.environ.get("FEWIA_REQUIRE_DB") == "1":
+            pytest.fail(
+                "FEWIA_REQUIRE_DB requires FEWIA_EVALUATION_DATABASE_URL. "
+                "Set FEWIA_EVALUATION_DATABASE_URL to a migrated PostgreSQL database."
+            )
         pytest.skip("PostgreSQL integration requires FEWIA_EVALUATION_DATABASE_URL.")
     return url
 

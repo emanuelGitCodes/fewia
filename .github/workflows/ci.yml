@@ -43,6 +43,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://fewia:fewia@localhost:5432/fewia
       FEWIA_JOB_TEST_DATABASE_URL: postgresql+psycopg://fewia:fewia@localhost:5432/fewia
+      FEWIA_EVALUATION_DATABASE_URL: postgresql+psycopg://fewia:fewia@localhost:5432/fewia
       FEWIA_REQUIRE_DB: "1"
 
     services:
