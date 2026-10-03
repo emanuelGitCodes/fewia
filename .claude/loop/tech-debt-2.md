@@ -27,11 +27,11 @@ Writer model constraint: --only --model gpt-6.1-sol, then gpt-6-luna (user, 2026
 | 03 | CI permissions, compose config job, image pins | aws-infra | simple | main | claude/tech-debt-2-03 | .github/workflows/ci.yml, compose.yaml | — | verified | 0 | — | — |
 | 04 | Enable BLE and DTZ in backend ruff | backend-dev | simple | 02 | claude/tech-debt-2-04 | backend/pyproject.toml, 19 app files (noqa only), 8 test files (DTZ) | 02 | verified | 0 | — | — |
 | 05 | Notice parity contract test | test-engineer | standard | main | claude/tech-debt-2-05 | backend/tests/test_notice_parity.py | — | verified | 0 | — | — |
-| 06 | Shared httpx and boto config | backend-dev | standard | 04 | claude/tech-debt-2-06 | app/providers/http_client.py, aws_config.py, instacart.py, spoonacular.py, bedrock.py, local_sqs.py, local_sqs_consumer.py, local_artifacts.py | 04 | verified | 0 | — | — |
+| 06 | Shared httpx and boto config | backend-dev | standard | 04 | claude/tech-debt-2-06 | app/providers/http_client.py, aws_config.py, instacart.py, spoonacular.py, bedrock.py, local_sqs.py, local_sqs_consumer.py, local_artifacts.py | 04 | merged | 0 | — | — |
 | 07 | DROPPED: provider_runtime swallows on purpose so secrets stay out of the exception chain | — | — | — | — | — | — | dropped | 0 | — | — |
 | 08 | One DEMO_USER_ID | backend-dev | simple | main | claude/tech-debt-2-08 | app/demo.py + 8 importers | — | verified | 0 | — | — |
 | 09 | One job lookup | backend-dev | standard | 08 | claude/tech-debt-2-09 | services/job_submission.py, api/chat.py, api/grocery.py, api/sync.py | 08 | verified | 0 | — | — |
-| 10 | Shared usePolledJob hook | frontend-dev | standard | main | claude/tech-debt-2-10 | frontend/src/usePolledJob.ts, useChatJob.ts, useGroceryJob.ts | — | verified | 0 | — | — |
+| 10 | Shared usePolledJob hook | frontend-dev | standard | main | claude/tech-debt-2-10 | frontend/src/usePolledJob.ts, useChatJob.ts, useGroceryJob.ts | — | superseded | 0 | — | — |
 
 Waves: S items 01 02 03 08 run in the senior session; juniors 05 10 → 04 → 06 09 → 07.
 
@@ -84,4 +84,4 @@ Item 10 (claude/tech-debt-2-10) is superseded by 10a + 10b (identical final tree
 - 2026-09-30 #196: merged main in; job_consumer.py conflict took main's fail() helper; ruff BLE001 on two intentional blind excepts; grok-4.6 low added two noqa lines f9b3acf; gates PASS 29/150; review APPROVE gpt-6-luna f9b3acf; same CI flake passed on rerun; merged 869225f.
 - 2026-09-30 #198 retargeted to main; gates on main+06: only failure test_synth_loader, which also fails on plain main against the non-empty fewia-l1 DB (environment); merged b9f9f05.
 - 2026-09-30 #212 (nutrition "1 serving") merged 6919fda. #213 (decision 0016 + checkpoint; main merged in, log conflict resolved) merged b4a374f. Loop complete.
-- 2026-10-03 State reconciliation: 00-01 merged; 02-06 and 08-09 verified from their recorded review heads; 07 stays dropped; 10 verified through successors 10a and 10b.
+- 2026-10-03 State reconciliation: 00-01 merged; 02-05 and 08-09 verified from their recorded review heads; 06 merged at b9f9f05; 07 stays dropped; 10 superseded by 10a and 10b.
