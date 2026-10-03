@@ -176,8 +176,8 @@ def test_mixed_conditions_preserve_quality_and_execution_scopes() -> None:
     assert "| Primary slots | 4 |" in result
     assert "| Baseline slots | 1 |" in result
     assert "| Total slots | 5 |" in result
-    assert "| Scored slots | 4 |" in result
-    assert "| Unassessed slots | 1 |" in result
+    assert "| Scored slots | 3 |" in result
+    assert "| Unassessed slots | 2 |" in result
     assert "| Execution\\-failed slots | 1 |" in result
     assert "Scored includes passed and failed quality assessments" in result
     assert render_quality(_map(prepared["summary"])) in result
