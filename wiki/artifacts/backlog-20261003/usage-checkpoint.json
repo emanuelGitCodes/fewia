@@ -1,0 +1,208 @@
+{
+  "scope": "CLI writer and review-model calls only; coordinator and junior tokens unavailable",
+  "known_input_tokens": 3874702,
+  "known_output_tokens": 60194,
+  "unknown_runs": 1,
+  "runs": [
+    {
+      "work_item": "backlog-A7",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "no_edits",
+      "input_tokens": 75471,
+      "output_tokens": 585,
+      "elapsed_ms": 36280,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-A7",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "no_edits",
+      "input_tokens": 124568,
+      "output_tokens": 652,
+      "elapsed_ms": 44525,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-a1",
+      "phase": "implement",
+      "model": "gpt-6-luna",
+      "outcome": "completed",
+      "input_tokens": 419132,
+      "output_tokens": 16046,
+      "elapsed_ms": 310530,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "evaluation-completion-27",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "no_edits",
+      "input_tokens": 314982,
+      "output_tokens": 2967,
+      "elapsed_ms": 157378,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-A7",
+      "phase": "repair",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 206458,
+      "output_tokens": 5989,
+      "elapsed_ms": 198035,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-a1",
+      "phase": "review",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 220798,
+      "output_tokens": 1703,
+      "elapsed_ms": 87917,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "B1-review-fallback",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 492677,
+      "output_tokens": 8970,
+      "elapsed_ms": 366412,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-a1",
+      "phase": "repair",
+      "model": "gpt-6-luna",
+      "outcome": "completed",
+      "input_tokens": 82271,
+      "output_tokens": 2690,
+      "elapsed_ms": 55985,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-a7",
+      "phase": "review",
+      "model": "gpt-6-luna",
+      "outcome": "completed",
+      "input_tokens": 114385,
+      "output_tokens": 2583,
+      "elapsed_ms": 55709,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "B1-review-fallback",
+      "phase": "repair",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 232012,
+      "output_tokens": 2105,
+      "elapsed_ms": 92728,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-a1",
+      "phase": "review",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 198250,
+      "output_tokens": 990,
+      "elapsed_ms": 51961,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-A2",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 291693,
+      "output_tokens": 2422,
+      "elapsed_ms": 104105,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-b2",
+      "phase": "review",
+      "model": "gpt-6-luna",
+      "outcome": "completed",
+      "input_tokens": 129551,
+      "output_tokens": 2345,
+      "elapsed_ms": 55461,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-A2",
+      "phase": "repair",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 106508,
+      "output_tokens": 733,
+      "elapsed_ms": 38108,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-b1",
+      "phase": "review",
+      "model": "gpt-6-luna",
+      "outcome": "completed",
+      "input_tokens": 119398,
+      "output_tokens": 3291,
+      "elapsed_ms": 109209,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "evaluation-completion-27a",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "time_limit",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": 600146,
+      "provenance": "none"
+    },
+    {
+      "work_item": "C4",
+      "phase": "implement",
+      "model": "gpt-6.1-sol",
+      "outcome": "no_edits",
+      "input_tokens": 73158,
+      "output_tokens": 398,
+      "elapsed_ms": 33569,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "C4",
+      "phase": "repair",
+      "model": "gpt-6.1-sol",
+      "outcome": "no_edits",
+      "input_tokens": 162569,
+      "output_tokens": 588,
+      "elapsed_ms": 35607,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "evaluation-completion-27a",
+      "phase": "repair",
+      "model": "gpt-6.1-sol",
+      "outcome": "completed",
+      "input_tokens": 195131,
+      "output_tokens": 1130,
+      "elapsed_ms": 61987,
+      "provenance": "codex.turn.completed"
+    },
+    {
+      "work_item": "backlog-20261003-a2",
+      "phase": "review",
+      "model": "gpt-6-luna",
+      "outcome": "completed",
+      "input_tokens": 315690,
+      "output_tokens": 4007,
+      "elapsed_ms": 199190,
+      "provenance": "codex.turn.completed"
+    }
+  ]
+}
