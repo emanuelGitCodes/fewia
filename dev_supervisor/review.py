@@ -119,7 +119,12 @@ def fallback_reason(raw: bytes) -> str | None:
             "unauthorized",
             "HTTP 401 unauthorized",
         ),
-        "quota": ("insufficient_quota", "quota_exceeded", "HTTP 429 quota exceeded"),
+        "quota": (
+            "insufficient_quota",
+            "quota_exceeded",
+            "usage_limit_reached",
+            "HTTP 429 quota exceeded",
+        ),
         "rate_limit": (
             "rate_limit_exceeded",
             "rate_limit_error",

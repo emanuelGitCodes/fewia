@@ -900,6 +900,31 @@ def test_auto_falls_back_once(
     assert row["provenance"] == "grok.end" and row["input_tokens"] == 18539
 
 
+def test_auto_falls_back_for_usage_limit_without_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    raw = grok_stream(
+        {
+            "type": "turn.failed",
+            "error": {"code": "usage_limit_reached", "message": "quota reached"},
+        }
+    )
+    codex = install_run(monkeypatch, stdout=raw, write=False)
+    grok = install_grok(
+        monkeypatch,
+        stdout=grok_stream({"type": "text", "data": "VERDICT: APPROVE\n"}, GROK_END),
+    )
+
+    assert run_main(monkeypatch, argv(root, writer="gpt-6-luna")) == 0
+    data = summary(capsys.readouterr().out)
+    assert codex["calls"] == grok["calls"] == 1
+    assert data["attempted_providers"] == ["codex", "grok"]
+    assert data["fallback_reason"] == "codex_quota"
+
+
 @pytest.mark.parametrize(
     "case",
     [
