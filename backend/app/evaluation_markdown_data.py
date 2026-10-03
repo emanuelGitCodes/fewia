@@ -3,13 +3,11 @@ from typing import cast
 
 from app.evaluation_cost import estimate_cost
 from app.evaluation_manifest import _CONFIG_KEYS, _MODEL_ID, _validate_config
-from app.evaluation_markdown_values import (
-    as_map as _map,
-    pick as _pick,
-    require as _require,
-    slots as _slots,
-    text as _text,
-)
+from app.evaluation_markdown_values import as_map as _map
+from app.evaluation_markdown_values import pick as _pick
+from app.evaluation_markdown_values import require as _require
+from app.evaluation_markdown_values import slots as _slots
+from app.evaluation_markdown_values import text as _text
 from app.evaluation_summary import summarize_evaluation
 from app.evaluation_summary_task_validation import classify_slot
 from app.evaluation_telemetry import summarize_telemetry
