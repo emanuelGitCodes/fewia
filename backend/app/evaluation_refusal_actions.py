@@ -46,7 +46,7 @@ def refusal_actions_valid(turns: list[object]) -> bool:
             return False
         if not all(_budget_read_valid(call) for call in calls):
             return False
-        if results and not calls:
+        if len(results) != len(calls):
             return False
         if not all(_result_valid(result) for result in results):
             return False
