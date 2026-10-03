@@ -925,6 +925,36 @@ def test_auto_falls_back_for_usage_limit_without_report(
     assert data["fallback_reason"] == "codex_quota"
 
 
+def test_auto_falls_back_after_agent_message_start_without_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    raw = grok_stream(
+        {
+            "type": "item.started",
+            "item": {"type": "agent_message", "id": "msg_1"},
+        },
+        {
+            "type": "turn.failed",
+            "error": {"code": "rate_limit_exceeded", "message": "rate limited"},
+        },
+    )
+    codex = install_run(monkeypatch, stdout=raw, write=False)
+    grok = install_grok(
+        monkeypatch,
+        stdout=grok_stream({"type": "text", "data": "VERDICT: APPROVE\n"}, GROK_END),
+    )
+
+    assert run_main(monkeypatch, argv(root, writer="gpt-6-luna")) == 0
+    data = summary(capsys.readouterr().out)
+    assert codex["calls"] == grok["calls"] == 1
+    assert data["provider"] == "grok"
+    assert data["attempted_providers"] == ["codex", "grok"]
+    assert data["fallback_reason"] == "codex_rate_limit"
+
+
 @pytest.mark.parametrize(
     "case",
     [

@@ -140,7 +140,11 @@ def fallback_reason(raw: bytes) -> str | None:
         if not isinstance(event, dict):
             return None
         item = event.get("item")
-        if isinstance(item, dict) and item.get("type") == "agent_message":
+        if (
+            event.get("type") == "item.completed"
+            and isinstance(item, dict)
+            and item.get("type") == "agent_message"
+        ):
             return None
         if event.get("type") not in ("error", "turn.failed"):
             continue
