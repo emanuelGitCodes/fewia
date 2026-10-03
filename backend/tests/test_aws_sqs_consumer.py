@@ -59,9 +59,7 @@ class FakeSqsClient:
         )
         return cast(dict[str, object], self.response)
 
-    def delete_message(
-        self, *, QueueUrl: str, ReceiptHandle: str
-    ) -> dict[str, object]:
+    def delete_message(self, *, QueueUrl: str, ReceiptHandle: str) -> dict[str, object]:
         self._request(
             "acknowledge", {"QueueUrl": QueueUrl, "ReceiptHandle": ReceiptHandle}
         )
