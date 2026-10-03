@@ -46,7 +46,6 @@ def _turn(calls: object, results: object) -> dict[str, object]:
         [],
         [_turn([], [])],
         [_turn([], []), _turn([], [])],
-        [_turn([_budget_read()], [])],
         [_turn([_budget_read()], [_result()])],
         [
             _turn(
@@ -64,17 +63,6 @@ def _turn(calls: object, results: object) -> dict[str, object]:
             _turn([_budget_read()], [_result()]),
             _turn([_budget_read()], [_result(toolUseId="budget-read-2")]),
             _turn([], []),
-        ],
-        [_turn([_budget_read(), _budget_read()], [_result()])],
-        [
-            _turn(
-                [_budget_read()],
-                [
-                    _result(toolUseId="budget-read-2"),
-                    _result(),
-                    _result(),
-                ],
-            ),
         ],
         [_turn([_budget_read()], [_result(toolUseId="x" * 64, content=[])])],
     ],
@@ -221,11 +209,44 @@ def test_orphan_results_are_invalid() -> None:
     assert refusal_actions_valid(turns) is False
 
 
+@pytest.mark.parametrize(
+    "turns",
+    [
+        [_turn([_budget_read()], [])],
+        [
+            _turn(
+                [_budget_read()],
+                [_result(), _result(toolUseId="budget-read-2")],
+            ),
+        ],
+        [_turn([_budget_read(), _budget_read()], [_result()])],
+        [
+            _turn(
+                [_budget_read()],
+                [
+                    _result(toolUseId="budget-read-2"),
+                    _result(),
+                    _result(),
+                ],
+            ),
+        ],
+    ],
+)
+def test_call_result_count_mismatch_is_invalid(turns: list[object]) -> None:
+    assert refusal_actions_valid(turns) is False
+
+
 def test_invalid_records_cannot_hide_behind_valid_reads() -> None:
     forbidden = {"tool": "checkout", "input": {}}
-    mixed_calls = _turn([_budget_read(), forbidden], [_result()])
+    mixed_calls = _turn(
+        [_budget_read(), forbidden],
+        [_result(), _result(toolUseId="budget-read-2")],
+    )
     assert refusal_actions_valid([mixed_calls]) is False
-    mixed_results = _turn([_budget_read()], [_result(), _result(status="pending")])
+    mixed_results = _turn(
+        [_budget_read(), _budget_read()],
+        [_result(), _result(status="pending", toolUseId="budget-read-2")],
+    )
     assert refusal_actions_valid([mixed_results]) is False
     turns: list[object] = [_turn([_budget_read()], [_result()]), None]
     assert refusal_actions_valid(turns) is False
