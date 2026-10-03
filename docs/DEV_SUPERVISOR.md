@@ -11,10 +11,12 @@ uv run --project backend python -m dev_supervisor \
 ```
 
 `--task` takes a file path. The supervisor rejects inline text and a missing
-role file before it takes the lease. The writer edits files only. The writer
-prompt forbids shell commands, tests, package managers, and git commands; the
-coordinator or the junior runs every check. The loop, the tiers, and the
-budgets live in [DELEGATION.md](DELEGATION.md).
+role file before it takes the lease. Writers MUST edit only assigned files.
+Grok writers MUST NOT run shell commands. Codex writers MAY run read-only shell
+commands to read and search files. All writers MUST NOT run tests, package
+managers, git commands, or shell commands that write files. The coordinator
+or junior runs every check. The loop, the tiers, and the budgets live in
+[DELEGATION.md](DELEGATION.md).
 
 Replace the example file with each path named by the assignment.
 The assignment MUST name owned files, interfaces, acceptance checks, and scope.

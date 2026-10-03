@@ -3011,3 +3011,7 @@ read-only shell access for reads and searches, forbid Grok shell commands, and
 keep checks with the junior. The junior MUST check its final brief for
 contradictory command prohibitions before launch. See the [C4 recovery
 record](artifacts/backlog-20261003/c4-resume.md).
+
+## 2026-10-03 — Align supervisor writer command rules
+
+Updated the supervisor opening to match the provider-specific junior protocol.
