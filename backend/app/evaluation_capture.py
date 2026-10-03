@@ -27,16 +27,21 @@ class CaptureProvider:
         if len(seen) >= _LIMIT:
             raise ValueError(_INVALID)
         if type(value) is str:
-            return any(marker in value for marker in self.markers)
+            found = any(marker in value for marker in self.markers)
+            self.leakage |= found
+            return found
         if isinstance(value, (dict, list)) and id(value) not in seen:
             seen.add(id(value))
+            found = False
             if isinstance(value, dict):
-                return any(
-                    self._leaks(key, seen) or self._leaks(item, seen)
-                    for key, item in value.items()
-                    if key != "reasoningContent"
-                )
-            return any(self._leaks(item, seen) for item in value)
+                for key, item in value.items():
+                    if key != "reasoningContent":
+                        found |= self._leaks(key, seen)
+                        found |= self._leaks(item, seen)
+            else:
+                for item in value:
+                    found |= self._leaks(item, seen)
+            return found
         return False
 
     def _text(self, value: str) -> str:

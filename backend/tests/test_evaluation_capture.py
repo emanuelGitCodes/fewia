@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from sys import getrecursionlimit
 
 import pytest
 
@@ -559,6 +560,100 @@ def test_scalar_result_payloads_use_invalid_marker(content: object) -> None:
     assert capture.tool_results == [
         {"status": "error", "toolUseId": "one", "content": "[invalid]"}
     ]
+
+
+@pytest.mark.parametrize("location", ["list", "dict_key", "dict_value"])
+@pytest.mark.parametrize("include_marker", [False, True])
+def test_leak_scan_visits_every_sibling(
+    monkeypatch: pytest.MonkeyPatch, location: str, include_marker: bool
+) -> None:
+    monkeypatch.setattr("app.evaluation_capture._LIMIT", 6)
+    marker = "SYNTHETIC_SENTINEL_42"
+    text = marker if include_marker else "safe"
+    first: dict[str, object] = {"value": []}
+    second: dict[str, object] = {"value": []}
+    value: object = [text, first, second]
+    if location == "dict_key":
+        value = {text: first, "second": second}
+    elif location == "dict_value":
+        value = {"first": text, "second": first, "third": second}
+    capture = CaptureProvider(ScriptedProvider([]), markers=(marker,))
+    seen: set[int] = set()
+
+    assert capture._leaks(value, seen) is include_marker
+    assert seen == {
+        id(value),
+        id(first),
+        id(first["value"]),
+        id(second),
+        id(second["value"]),
+    }
+    assert capture.capture_incomplete is False
+
+
+@pytest.mark.parametrize("marker_first", [False, True])
+def test_marker_position_does_not_bypass_scan_limit(
+    monkeypatch: pytest.MonkeyPatch, marker_first: bool
+) -> None:
+    monkeypatch.setattr("app.evaluation_capture._LIMIT", 8)
+    marker = "SYNTHETIC_SENTINEL_42"
+    oversized: list[object] = [{} for _ in range(9)]
+    value = [marker, oversized] if marker_first else [oversized, marker]
+    capture = CaptureProvider(ScriptedProvider([]), markers=(marker,))
+
+    with pytest.raises(ValueError, match=r"\[invalid\]"):
+        capture._leaks(value, set())
+    assert capture.leakage is marker_first
+
+
+def test_marker_before_deep_data_does_not_bypass_recursion_limit() -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    nested: object = "safe"
+    for _ in range(getrecursionlimit() + 5):
+        nested = [nested]
+    capture = CaptureProvider(ScriptedProvider([]), markers=(marker,))
+
+    with pytest.raises(RecursionError):
+        capture._leaks([marker, nested], set())
+    assert capture.leakage is True
+
+
+@pytest.mark.parametrize("incoming", [False, True])
+@pytest.mark.parametrize("failure", ["containers", "depth"])
+def test_marker_before_scan_failure_sets_both_capture_flags(
+    monkeypatch: pytest.MonkeyPatch, incoming: bool, failure: str
+) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    nested: object = "safe"
+    if failure == "containers":
+        monkeypatch.setattr("app.evaluation_capture._LIMIT", 8)
+        nested = [{} for _ in range(9)]
+    else:
+        for _ in range(getrecursionlimit() + 5):
+            nested = [nested]
+    value: list[object] = [marker, nested]
+    original = response()
+    messages: list[dict[str, object]] = []
+    if incoming:
+        messages = [{"content": value}]
+    else:
+        original["metadata"] = value
+    provider = ScriptedProvider([original, response()])
+    capture = CaptureProvider(provider, markers=(marker,))
+
+    assert capture.converse("system", messages, []) is original
+    assert capture.leakage is True
+    assert capture.capture_incomplete is True
+    assert capture.invalid_responses == 0
+    assert provider.received is not None
+    assert provider.received[1] is messages
+    assert value[0] == marker
+    assert value[1] is nested
+
+    capture.converse("system", [], [])
+    assert capture.leakage is True
+    assert capture.capture_incomplete is True
+    assert capture.provider_calls == 2
 
 
 @pytest.mark.parametrize("incoming", [False, True])
