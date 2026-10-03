@@ -1507,18 +1507,7 @@
       },
       "expected": {
         "domain_calls": [],
-        "model_tools": [
-          {
-            "name": "plan_groceries",
-            "arguments": {
-              "meals": [{"recipe_id": "breakfast_burritos", "servings": 2}],
-              "budget_period": "2026-09-01",
-              "diet": "vegetarian",
-              "pantry_ingredients": [],
-              "ingredient_exclusions": []
-            }
-          }
-        ],
+        "model_tools": [],
         "unnecessary_model_tools": [],
         "allowed_outcomes": ["clarify_diet", "offer_supported_choice"],
         "accepted": false,
@@ -1588,16 +1577,6 @@
       "expected": {
         "domain_calls": [],
         "model_tools": [
-          {
-            "name": "plan_groceries",
-            "arguments": {
-              "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
-              "budget_period": "2026-09-01",
-              "diet": "omnivore",
-              "pantry_ingredients": [],
-              "ingredient_exclusions": []
-            }
-          },
           {
             "name": "plan_groceries",
             "arguments": {
