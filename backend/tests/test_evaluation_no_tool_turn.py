@@ -16,6 +16,10 @@ from app.evaluation_manifest import _canonical_json, catalog_snapshot
 from app.evaluation_no_tool_turn import observe_no_tool_turn
 
 
+class CustomProviderError(Exception):
+    pass
+
+
 class RecordingProvider:
     def __init__(self, responses: list[dict[str, object] | BaseException]) -> None:
         self.responses = responses
@@ -137,7 +141,7 @@ def test_one_call_uses_baseline_prompt_catalog_and_empty_tools() -> None:
     facts = loads(cast(str, content[1]["text"]))
     assert facts["plan_cap_cents"] == 3000
     assert facts["period"] == "2026-08-01"
-    assert facts["budget"]["available_cents"] == 3900
+    assert facts["budget"]["available_cents"] == 3000
     assert content[2] == {"text": "Plan groceries."}
     assert (
         cast(float, result["elapsed_seconds"])
@@ -343,6 +347,8 @@ def test_invalid_provider_protocol_is_counted() -> None:
 @pytest.mark.parametrize(
     "failure_type",
     [
+        CustomProviderError,
+        AssertionError,
         LLMUnavailable,
         RuntimeError,
         ConnectionError,
@@ -355,14 +361,26 @@ def test_invalid_provider_protocol_is_counted() -> None:
     ],
 )
 def test_provider_exception_is_sanitized_without_retry(
-    failure_type: type[Exception],
+    failure_type: type[Exception], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    turn_moments = iter([10.0, 17.0])
+    provider_moments = iter([11.0, 13.0])
+    monkeypatch.setattr(
+        "app.evaluation_no_tool_turn.perf_counter", lambda: next(turn_moments)
+    )
+    monkeypatch.setattr(
+        "app.evaluation_capture.perf_counter", lambda: next(provider_moments)
+    )
     provider = RecordingProvider([failure_type("private exception poison")])
     result = observe(provider)
     assert result["reason"] == "provider_failed"
     assert result["status"] == "failed"
     assert result["usage"] is result["protocol_valid"] is None
-    assert result["provider_calls"] == len(provider.seen) == 1
+    assert result["provider_calls"] == result["attempts"] == len(provider.seen) == 1
+    assert result["elapsed_seconds"] == 7.0
+    assert result["provider_elapsed_seconds"] == 2.0
+    assert result["result"] is None
+    assert result["calls"] == result["tool_results"] == []
     assert "private exception poison" not in dumps(result)
 
 

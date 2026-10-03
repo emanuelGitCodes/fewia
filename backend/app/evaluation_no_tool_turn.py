@@ -3,7 +3,7 @@ from time import perf_counter
 from typing import cast
 
 from app.agent.chat_context import build_messages
-from app.agent.provider import LLMProvider, LLMUnavailable
+from app.agent.provider import LLMProvider
 from app.evaluation_adversarial import sanitize_public
 from app.evaluation_baseline_response import (
     BASELINE_SYSTEM_PROMPT,
@@ -12,6 +12,26 @@ from app.evaluation_baseline_response import (
 from app.evaluation_capture import CaptureProvider
 from app.evaluation_inputs import CaseContext
 from app.evaluation_manifest import _canonical_json
+
+
+class _ProviderFailure(Exception):
+    pass
+
+
+class _SanitizedProvider:
+    def __init__(self, provider: LLMProvider) -> None:
+        self._provider = provider
+
+    def converse(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        try:
+            return self._provider.converse(system_prompt, messages, tools)
+        except Exception:
+            raise _ProviderFailure("provider_failed") from None
 
 
 def observe_no_tool_turn(
@@ -25,7 +45,7 @@ def observe_no_tool_turn(
     previous_request: dict[str, object] | None,
 ) -> dict[str, object]:
     started = perf_counter()
-    capture = CaptureProvider(provider, markers)
+    capture = CaptureProvider(_SanitizedProvider(provider), markers)
     result: dict[str, object] | None = None
     reason: str | None = None
     protocol_valid: bool | None = None
@@ -56,8 +76,9 @@ def observe_no_tool_turn(
         if sanitize_public(outgoing, markers) != outgoing:
             raise ValueError("invalid inputs")
         response = capture.converse(BASELINE_SYSTEM_PROMPT, messages, [])
+    except _ProviderFailure:
+        reason = "provider_failed"
     except (
-        LLMUnavailable,
         RuntimeError,
         OSError,
         ValueError,
