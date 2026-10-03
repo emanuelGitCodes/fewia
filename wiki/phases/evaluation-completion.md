@@ -1,8 +1,8 @@
 # Evaluation completion checkpoint
 
-> **Later publication:** See the [draft publication and Graphify update](evaluation-publication.md). This checkpoint remains scoped to its recorded snapshot.
+> **Current benchmark:** See the [2026-10-03 benchmark evidence and limits](benchmark-20261003.md). The earlier sections below are historical snapshot records. The [draft publication and Graphify update](evaluation-publication.md) preserves the intermediate publication record.
 
-## Snapshot
+## Historical snapshot
 
 This page records the local-only integration at snapshot `a9a9a4f51b34b05b10a00aa6e9399e2f15a3d8bb`, captured at `2026-10-03T03:43:02.320249+00:00`. It records 36 approved components. The complete batch/CLI, full benchmark, and four feature groups remain incomplete.
 
@@ -88,7 +88,7 @@ The [duplicate-delivery report](../../backend/artifacts/evaluation-duplicate-smo
 
 These ignored outputs are local records present in the recorded primary worktree. Clean checkouts do not include them. They are not published files.
 
-## Evidence limits and open work
+## Historical evidence limits and open work
 
 This checkpoint has no live Plaid or Instacart evidence and no checkout evidence. The product uses a manual budget and sample prices. Keep deterministic, sandbox, live-provider, and deployed evidence separate. Do not pool fake and live success. Do not treat the planned matrix as execution. No full 30-scenario, three-repeat run or 138-slot benchmark ran. The 90% task-success and 95% supported-claim targets are not certified. These components do not establish general hallucination guarantees.
 
@@ -101,3 +101,35 @@ Items 02, 04, and 08 each completed three independent review rounds and await hu
 Observers 07 and 11, dispatch 21, batch 22, renderer 27, and CLI 28 remain unbuilt or dependent. Core item 23 is approved and integrated. Approved metrics and task helpers are integrated. The complete batch/CLI, full benchmark, and four feature groups remain incomplete.
 
 Read the [evaluation guide](../../docs/EVALUATION.md) for the current API boundary, validation command, and evidence-table rules.
+
+## 2026-10-03 — Completed fixture and live benchmark
+
+This entry supersedes the earlier “unbuilt” and “not run” status for the batch, renderer, CLI, and benchmark.
+It preserves the earlier snapshot's component history and evidence limits.
+The source revision is `4b877d470258561cedd3375e38efc02362ce5f22`, published in [#341](https://github.com/emanuelGitCodes/fewia/pull/341).
+The approved documentation baseline [#331](https://github.com/emanuelGitCodes/fewia/pull/331) was imported for record continuity.
+This documentation PR depends on #331 and #341. This entry does not claim either is merged.
+
+The [benchmark record](benchmark-20261003.md) links reports, journals, completion markers, and integrity records.
+The [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) records 138 live-batch records:
+90 primary, 33 `no_tool`, and 15 structured references. Only 66 observations are real Bedrock evidence.
+The fixture batch also completed 138 executions. Fixture completion does not establish live quality.
+The model is `us.amazon.nova-2-lite-v1:0` in `us-east-1`, with settings 4096/0/`low`.
+The record covers one live batch with three repeats per case.
+
+All 33 live tool-enabled executions completed. Task quality passed 17/33, or 51.5%; the 90% target FAILS.
+The bounded factual-claim target PASSES at 98/(98 assessed + two unknown), or 98%, against 95%.
+The assessed-only rate is 98/98. Ten supported refusals stay outside the factual denominator.
+No-tool quality passed zero/33. Its executions include 31 failed, one partial, and one completed.
+The readout records `invalid_output` for 32 no-tool observations.
+
+Six accepted live final plans have zero tested constraint violations.
+Synthetic-sentinel checks cover 48 completely captured turns across 33 slots, all with explicit false leak flags.
+Purchase attempts remain UNMEASURED. Separate A04 refusal/action checks do not prove zero attempts.
+Release is NOT certified. The archive supplies no Plaid Sandbox, live Instacart, or deployed hosting proof.
+
+Fixture and live integrity records report verified hashes and journals matching their reports.
+The [SIGINT record](../../eval/results/artifacts/benchmark-20261003/sigint-summary.json) records exit 130 with 49 preserved journal records and no completion marker.
+CLI exit 0 means artifact completion only. It does not certify targets or release.
+The [evaluation guide](../../docs/EVALUATION.md) now documents the runnable CLI and exclusive output directory.
+No new gate, review, CI, or deployment result is asserted by this documentation entry.
