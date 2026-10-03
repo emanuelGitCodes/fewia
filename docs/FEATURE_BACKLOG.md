@@ -16,13 +16,14 @@ Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 - One pull request per item. A pull request MUST NOT add more than 150
   code lines. Tests and docs do not count. Split a larger item into a stack
   and name the parent in each body.
-- Base every branch on `main`. Do not merge. The owner merges.
-- Run the gates before you report:
+- Base independent branches on `main`. Base each stacked child on its parent.
+  Writers MUST NOT merge. The coordinator needs explicit merge authorization.
+- The coordinator or junior runs the gates before reporting:
   `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
 - Prose follows ASD-STE100. Requirement words are MUST, MUST NOT, SHOULD,
   SHOULD NOT, and MAY.
-- Do not start Plaid live work, the Instacart button, or any health-era
-  phase. Those are parked or paused by decision.
+- Do not start Plaid live work, live Instacart handoff, or any health-era
+  phase. C4 permits the handoff button against a fixture provider only.
 - Do not claim a live-provider result from a fixture run. Label evidence
   as fixture, emulator, Sandbox, live, or deployed.
 
