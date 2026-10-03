@@ -2966,3 +2966,30 @@ The historical review checkout needed the current reviewer role file because tha
 Completed reviews, gates, mutation evidence, and a partial CLI usage snapshot are preserved
 under `wiki/artifacts/backlog-20261003/`. No PR was merged by this build.
 At this checkpoint, weekly Codex usage reports 6 percent. The stop remains 8 percent.
+
+## 2026-10-03 — Stop at the weekly usage limit
+
+The account reached the user's 8 percent weekly limit. All model work stopped.
+Shutdown preserved current work without further implementation or model review.
+Eight work branches were committed and pushed. Seven pull requests preserve the work.
+
+PR #317 remains a draft at `6c6d189ced6d390fdd119b812c0700eb7d29562b`.
+Independent review approved it, but GitHub CI failed during action resolution:
+`Unable to resolve action astral-sh/setup-uv@v10, unable to find version v10`.
+The action-reference repair remains open.
+
+The B5 helper remains at `db4226f5faffe118eb6081c18df6a20d12d9c72d` on its pushed branch.
+Its gates report `RESULT FAIL`: strict mypy found redundant casts at lines 36 and 86;
+the source counter reports 158/150. Ruff and formatting passed.
+The PostgreSQL test run passed 6914 tests with one warning. The helper needs a clean split.
+No code PR was opened for this oversized change. The report renderer remains unbuilt.
+
+PR #320 preserves nutrition repairs at `24ba3d6` as a draft.
+The focused suite passed 51 tests. Frontend lint, tests, and build passed.
+Independent review of the repair remains pending.
+PR #319 contains only the unfinished C4 recovery record; no handoff code changed.
+PR #318 preserves this wiki evidence, stacked on PR #315.
+
+The run's PostgreSQL container stopped. Disposable mutation and historical review
+checkouts were removed. The existing FEWIA stack was not changed.
+No Grafana or Graphify update occurred. No PR was merged and no AWS deployment ran.
