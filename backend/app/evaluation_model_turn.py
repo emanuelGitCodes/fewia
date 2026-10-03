@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from time import perf_counter
+from types import TracebackType
 from typing import cast
 
 from app.agent import chat_loop
@@ -8,6 +9,27 @@ from app.agent.provider import LLMProvider
 from app.evaluation_adversarial import sanitize_public
 from app.evaluation_capture import CaptureProvider
 from app.evaluation_inputs import CaseContext
+
+
+class _OrdinaryErrorBoundary:
+    def __init__(self) -> None:
+        self.failed: bool = False
+
+    def __enter__(self) -> "_OrdinaryErrorBoundary":
+        return self
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool:
+        if not isinstance(exception, Exception):
+            return False
+        if isinstance(exception, (chat_loop.ChatUnavailable, ChatProtocolError)):
+            return False
+        self.failed = True
+        return True
 
 
 def observe_model_turn(
@@ -43,30 +65,32 @@ def observe_model_turn(
     result: dict[str, object] | None = None
     status = "completed"
     reason: str | None = None
+    boundary = _OrdinaryErrorBoundary()
     try:
-        result = public(
-            chat_loop.run_chat(
-                capture,
-                message,
-                context.budget,
-                context.period,
-                user_id=context.user_id,
-                spending_source="fixture",
-                previous_request=previous_request,
-                history=history or None,
-                record_evidence=record,
-                plan_cap_cents=context.plan_cap_cents,
+        with boundary:
+            result = public(
+                chat_loop.run_chat(
+                    capture,
+                    message,
+                    context.budget,
+                    context.period,
+                    user_id=context.user_id,
+                    spending_source="fixture",
+                    previous_request=previous_request,
+                    history=history or None,
+                    record_evidence=record,
+                    plan_cap_cents=context.plan_cap_cents,
+                )
             )
-        )
-        if result.get("status") == "limit":
-            status, reason = "partial", "limit"
-        elif result.get("status") == "incomplete":
-            status, reason = "partial", "incomplete"
+            if result.get("status") == "limit":
+                status, reason = "partial", "limit"
+            elif result.get("status") == "incomplete":
+                status, reason = "partial", "incomplete"
     except chat_loop.ChatUnavailable:
         status, reason = "failed", "provider_unavailable"
     except ChatProtocolError:
         status, reason = "failed", "protocol_error"
-    except Exception:
+    if boundary.failed:
         status, reason = "failed", "unexpected_error"
     if capture.leakage:
         status, reason = "failed", "secret_leak"
