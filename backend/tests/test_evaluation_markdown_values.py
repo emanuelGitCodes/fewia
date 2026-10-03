@@ -18,6 +18,46 @@ class TextSubclass(str):
     pass
 
 
+class HostileKey:
+    armed: bool = False
+
+    def __hash__(self) -> int:
+        if self.armed:
+            raise RuntimeError("synthetic private marker")
+        return hash("version")
+
+    def __eq__(self, other: object) -> bool:
+        if self.armed:
+            raise RuntimeError("synthetic private marker")
+        return self is other
+
+    def __repr__(self) -> str:
+        raise RuntimeError("synthetic private marker")
+
+    def __str__(self) -> str:
+        raise RuntimeError("synthetic private marker")
+
+
+class HostileText(str):
+    armed: bool = False
+
+    def __hash__(self) -> int:
+        if self.armed:
+            raise RuntimeError("synthetic private marker")
+        return hash("version")
+
+    def __eq__(self, other: object) -> bool:
+        if self.armed:
+            raise RuntimeError("synthetic private marker")
+        return self is other
+
+    def __repr__(self) -> str:
+        raise RuntimeError("synthetic private marker")
+
+    def __str__(self) -> str:
+        raise RuntimeError("synthetic private marker")
+
+
 def assert_invalid(action: Callable[[], object]) -> None:
     with pytest.raises(ValueError) as caught:
         action()
@@ -32,8 +72,17 @@ def test_require_accepts_true_and_rejects_false() -> None:
 
 
 @pytest.mark.parametrize("value", [None, True, 1, "private", [], MapSubclass()])
-def test_as_map_requires_exact_dictionary(value: object) -> None:
-    assert_invalid(lambda: as_map(value))
+@pytest.mark.parametrize(
+    "validate",
+    [
+        pytest.param(as_map, id="top_map"),
+        pytest.param(lambda value: pick(value, "version"), id="direct_pick"),
+    ],
+)
+def test_map_boundaries_require_exact_dictionary(
+    value: object, validate: Callable[[object], object]
+) -> None:
+    assert_invalid(lambda: validate(value))
 
 
 @pytest.mark.parametrize("source", [{}, {"status": "scored"}])
@@ -41,9 +90,75 @@ def test_as_map_preserves_dictionary_identity(source: dict[str, object]) -> None
     assert as_map(source) is source
 
 
-def test_as_map_preserves_recovery_key_behavior() -> None:
-    source = {1: "scored"}
+@pytest.mark.parametrize(
+    "validate",
+    [
+        pytest.param(as_map, id="top_map"),
+        pytest.param(lambda value: pick(value, "version"), id="direct_pick"),
+        pytest.param(lambda value: pick(value, ""), id="empty_pick"),
+        pytest.param(
+            lambda value: slots([{"status": "scored"}, value]), id="nested_slot"
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "key",
+    [None, True, 1, 1.5, b"version", ("version",), TextSubclass("version")],
+    ids=["none", "bool", "int", "float", "bytes", "tuple", "str_subclass"],
+)
+def test_map_boundaries_reject_bad_keys_without_mutation(
+    key: object, validate: Callable[[object], object]
+) -> None:
+    ignored = object()
+    source = {key: ignored}
+    assert_invalid(lambda: validate(source))
+    assert len(source) == 1
+    assert next(iter(source)) is key
+    assert next(iter(source.values())) is ignored
+
+
+@pytest.mark.parametrize(
+    "validate",
+    [
+        pytest.param(as_map, id="top_map"),
+        pytest.param(lambda value: pick(value, "version"), id="direct_pick"),
+        pytest.param(lambda value: pick(value, ""), id="empty_pick"),
+        pytest.param(
+            lambda value: slots([{"status": "scored"}, value]), id="nested_slot"
+        ),
+    ],
+)
+@pytest.mark.parametrize("key_kind", ["object", "str_subclass"])
+def test_map_boundaries_do_not_call_hostile_key_methods(
+    key_kind: str, validate: Callable[[object], object]
+) -> None:
+    key = HostileKey() if key_kind == "object" else HostileText("version")
+    source: dict[object, object] = {"version": "allowed", "unknown": object()}
+    source[key] = object()
+    keys = list(source)
+    values = list(source.values())
+    key.armed = True
+    assert_invalid(lambda: validate(source))
+    assert len(source) == len(keys)
+    assert all(
+        current is original for current, original in zip(source, keys, strict=True)
+    )
+    assert all(
+        current is original
+        for current, original in zip(source.values(), values, strict=True)
+    )
+
+
+def test_unknown_string_keys_preserve_ignored_values_without_inspection() -> None:
+    ignored = HostileKey()
+    ignored.armed = True
+    source: dict[str, object] = {"version": "allowed", "unknown": ignored}
     assert as_map(source) is source
+    assert pick(source, "version missing") == {"version": "allowed"}
+    rows = slots([source])
+    assert rows[0] is source
+    assert source["unknown"] is ignored
+    assert tuple(source) == ("version", "unknown")
 
 
 @pytest.mark.parametrize("value", [None, True, 1, {}, [], TextSubclass("scored")])

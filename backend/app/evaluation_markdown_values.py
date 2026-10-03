@@ -11,7 +11,9 @@ def require(valid: bool) -> None:
 
 def as_map(value: object) -> dict[str, object]:
     require(type(value) is dict)
-    return cast(dict[str, object], value)
+    source = cast(dict[object, object], value)
+    require(all(type(key) is str for key in source))
+    return cast(dict[str, object], source)
 
 
 def text(value: object, pattern: str) -> str:
@@ -24,5 +26,6 @@ def slots(value: object) -> list[dict[str, object]]:
     return [as_map(item) for item in cast(list[object], value)]
 
 
-def pick(source: dict[str, object], fields: str) -> dict[str, object]:
+def pick(source: object, fields: str) -> dict[str, object]:
+    source = as_map(source)
     return {key: source[key] for key in fields.split() if key in source}
