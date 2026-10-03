@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from app.agent.provider import LLMProvider
+from app.agent.provider import LLMProvider, LLMUnavailable
 from app.evaluation_adversarial import ScenarioProvider
 from app.evaluation_baseline_response import BASELINE_SYSTEM_PROMPT
 from app.evaluation_capture import CaptureProvider
@@ -144,6 +144,24 @@ def test_one_call_uses_baseline_prompt_catalog_and_empty_tools() -> None:
         >= cast(float, result["provider_elapsed_seconds"])
         >= 0
     )
+
+
+def test_budget_warning_tuple_is_scanned_as_json_without_mutation() -> None:
+    context = prepare_case(case_with("Plan groceries."))
+    context = replace(
+        context,
+        budget=replace(context.budget, stale=True, warnings=("Spending is stale.",)),
+    )
+    before = deepcopy(context)
+    provider = RecordingProvider([response_for(public_result())])
+    result = observe(provider, context=context, markers=("fixture-marker-poison",))
+    assert result["status"] == "completed"
+    assert result["provider_calls"] == len(provider.seen) == 1
+    facts = loads(cast(str, content_of(provider.seen[0])[1]["text"]))
+    assert facts["budget"]["warnings"] == ["Spending is stale."]
+    assert facts["budget"]["stale"] is True
+    assert context == before
+    assert context.budget.warnings == ("Spending is stale.",)
 
 
 def test_only_current_facts_and_public_history_reach_model() -> None:
@@ -322,8 +340,24 @@ def test_invalid_provider_protocol_is_counted() -> None:
     assert result["protocol_valid"] is False
 
 
-def test_provider_exception_is_sanitized_without_retry() -> None:
-    provider = RecordingProvider([RuntimeError("private exception poison")])
+@pytest.mark.parametrize(
+    "failure_type",
+    [
+        LLMUnavailable,
+        RuntimeError,
+        ConnectionError,
+        TimeoutError,
+        ValueError,
+        TypeError,
+        KeyError,
+        OverflowError,
+        AttributeError,
+    ],
+)
+def test_provider_exception_is_sanitized_without_retry(
+    failure_type: type[Exception],
+) -> None:
+    provider = RecordingProvider([failure_type("private exception poison")])
     result = observe(provider)
     assert result["reason"] == "provider_failed"
     assert result["status"] == "failed"

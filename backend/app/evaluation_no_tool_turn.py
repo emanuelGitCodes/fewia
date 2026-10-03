@@ -3,7 +3,7 @@ from time import perf_counter
 from typing import cast
 
 from app.agent.chat_context import build_messages
-from app.agent.provider import LLMProvider
+from app.agent.provider import LLMProvider, LLMUnavailable
 from app.evaluation_adversarial import sanitize_public
 from app.evaluation_baseline_response import (
     BASELINE_SYSTEM_PROMPT,
@@ -30,9 +30,11 @@ def observe_no_tool_turn(
     reason: str | None = None
     protocol_valid: bool | None = None
     try:
+        budget = asdict(context.budget)
+        budget["warnings"] = list(context.budget.warnings)
         facts: dict[str, object] = {
             "message": message,
-            "budget": asdict(context.budget),
+            "budget": budget,
             "catalog": catalog,
             "history": history,
             "previous_request": previous_request,
@@ -54,7 +56,16 @@ def observe_no_tool_turn(
         if sanitize_public(outgoing, markers) != outgoing:
             raise ValueError("invalid inputs")
         response = capture.converse(BASELINE_SYSTEM_PROMPT, messages, [])
-    except Exception:
+    except (
+        LLMUnavailable,
+        RuntimeError,
+        OSError,
+        ValueError,
+        TypeError,
+        LookupError,
+        ArithmeticError,
+        AttributeError,
+    ):
         reason = "provider_failed" if capture.provider_calls else "invalid_inputs"
     else:
         protocol_valid = False
@@ -66,7 +77,7 @@ def observe_no_tool_turn(
             )
             capture.leakage |= result != parsed
             protocol_valid = True
-        except Exception:
+        except (TypeError, ValueError, RecursionError, OverflowError):
             stop = response.get("stopReason") if isinstance(response, dict) else None
             reason = (
                 "tool_use_rejected"
