@@ -71,8 +71,10 @@ def score_plan(
     original_count = observation.get("user_turn_count_original", count)
     condition = observation.get("condition")
     checks["condition"] = type(condition) is str and condition in _CONDITIONS
-    checks["case_identity"] = type(case.get("id")) is str and eq(
-        observation.get("case_id"), case["id"]
+    checks["case_identity"] = (
+        type(case.get("id")) is str
+        and bool(cast(str, case["id"]).strip())
+        and eq(observation.get("case_id"), case["id"])
     )
     checks["observation_complete"] = observation.get("status") == "completed"
     final_only = observation.get("final_only", False)
@@ -128,18 +130,16 @@ def score_plan(
         if key in expected:
             checks[f"expected_budget_{key}"] = _has(budget, key, expected[key])
     try:
-        scenario_budget = fixture_budget(inputs)
+        snapshot = fixture_budget(inputs)
     except (TypeError, ValueError):
         checks["budget_inputs"] = False
     else:
         checks["budget_inputs"] = True
         checks["budget_arithmetic"] = _has(
-            budget, "available_cents", scenario_budget.available_cents
+            budget, "available_cents", snapshot.available_cents
         )
-        checks["budget_pending"] = _has(
-            budget, "pending_cents", scenario_budget.pending_cents
-        )
-        checks["budget_stale"] = _has(budget, "stale", scenario_budget.stale)
+        checks["budget_pending"] = _has(budget, "pending_cents", snapshot.pending_cents)
+        checks["budget_stale"] = _has(budget, "stale", snapshot.stale)
     if "lines" in expected:
         actual, golden = _lines(plan.get("lines")), _lines(expected["lines"])
         checks["golden_lines"] = (

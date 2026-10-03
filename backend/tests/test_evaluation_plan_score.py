@@ -237,6 +237,26 @@ def test_case_mismatch_fails() -> None:
     assert _checks(score_plan(case, observation))["case_identity"] is False
 
 
+@pytest.mark.parametrize("case_id", ("", " ", "\t\n", "\u2003"))
+def test_matching_blank_case_ids_fail(case_id: str) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    case["id"] = observation["case_id"] = case_id
+    score = score_plan(case, observation)
+    assert score["status"] == "failed"
+    assert _checks(score)["case_identity"] is False
+    assert "case_identity" in _list(score["constraint_violations"])
+
+
+def test_matching_normal_case_id_passes() -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    score = score_plan(case, observation)
+    assert score["status"] == "passed"
+    assert _checks(score)["case_identity"] is True
+    assert score["constraint_violations"] == []
+
+
 @pytest.mark.parametrize("turns", (None, {}, [], [{"status": "completed"}]))
 def test_missing_or_malformed_turns(turns: object) -> None:
     case = _case("F01")
