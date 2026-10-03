@@ -12,13 +12,13 @@ _QUESTIONS = {"question", "restriction_question", "help", "change", "choice_ques
 
 def _turns(case: dict[str, object], observation: dict[str, object]) -> list[object]:
     messages, turns = case.get("messages"), observation.get("turns")
-    condition = observation.get("condition")
+    case_id, condition = case.get("id"), observation.get("condition")
     if not isinstance(messages, list) or not messages or not isinstance(turns, list):
         return []
-    if not isinstance(case.get("id"), str) or type(case.get("inputs")) is not dict:
+    if not isinstance(case_id, str) or type(case.get("inputs")) is not dict:
         return []
     identity = (observation.get("case_id"), observation.get("status"))
-    if identity != (case["id"], "completed"):
+    if identity != (case_id, "completed") or not case_id.strip():
         return []
     if condition not in ("tool_enabled", "no_tool", "deterministic"):
         return []
@@ -107,7 +107,8 @@ def score_claims(
         context = {**as_map(case.get("inputs")), **as_map(result.get("request"))}
         parsed = parse_public_claims(result.get("answer"), vegan=False)
         if parsed is None:
-            return {**score, **dict.fromkeys((*counts, "assessed_count"), 0)}
+            counts["unknown_count"] += 1
+            continue
         vegan = "vegan" in (context.get("diet"), as_map(case["inputs"]).get("diet"))
         restricted = parse_public_claims(result.get("answer"), vegan=vegan)
         facts = _facts(result, context)

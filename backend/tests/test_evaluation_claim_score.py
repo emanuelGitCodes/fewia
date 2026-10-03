@@ -344,7 +344,7 @@ def test_original_vegan_input_applies_to_observed_request() -> None:
         ("This meal is safe for every allergy.", 0, 1),
         ("There is no cross-contact at the retailer.", 0, 1),
         ("Unrecognized output.", 0, 1),
-        ("...", 0, 0),
+        ("...", 0, 1),
     ],
 )
 def test_unknown_text_never_passes_or_survives_in_score(
@@ -387,6 +387,37 @@ def test_invalid_observations_do_not_pass(field: str, value: object) -> None:
     assert score["status"] == "unassessed"
     assert score["reason"] == "invalid_observation"
     assert score["assessed_count"] == 0
+
+
+@pytest.mark.parametrize(
+    "case_id,status,assessed",
+    [
+        ("F01", "passed", 1),
+        (" F01 ", "passed", 1),
+        ("", "unassessed", 0),
+        (" ", "unassessed", 0),
+        ("\t\n", "unassessed", 0),
+        ("\u00a0", "unassessed", 0),
+    ],
+)
+def test_matched_case_identity_requires_non_whitespace_content(
+    case_id: str, status: str, assessed: int
+) -> None:
+    case = _case()
+    case["id"] = case_id
+    observation = _observation(_plan("The plan is accepted."))
+    observation["case_id"] = case_id
+    before = deepcopy((case, observation))
+    score = score_claims(case, observation)
+    assert score["status"] == status
+    assert score["assessed_count"] == score["supported_count"] == assessed
+    assert score["unsupported_count"] == score["unknown_count"] == 0
+    assert score["supported_refusal_count"] == 0
+    if assessed:
+        assert "reason" not in score
+    else:
+        assert score["reason"] == "invalid_observation"
+    assert (case, observation) == before
 
 
 @pytest.mark.parametrize("field", ["case_id", "condition", "status", "turns"])
@@ -463,6 +494,39 @@ def test_partial_later_turn_invalidates_the_whole_observation() -> None:
     score = score_claims(case, observation)
     assert score["status"] == "unassessed"
     assert score["assessed_count"] == score["supported_count"] == 0
+
+
+@pytest.mark.parametrize(
+    "accepted,reverse,status",
+    [(False, False, "failed"), (True, False, "unassessed"), (False, True, "failed")],
+)
+def test_unparseable_turn_preserves_claim_counts(
+    accepted: bool, reverse: bool, status: str
+) -> None:
+    case = _case()
+    case["messages"] = ["First", "Second"]
+    claim = _plan("The plan is accepted.")
+    if not accepted:
+        total = cast(int, _map(claim["plan"])["total_cents"])
+        claim["answer"] = f"The estimate total is {_usd(total + 1)}."
+    results = [claim, _plan("...")]
+    if reverse:
+        results.reverse()
+    observation = _observation(*results)
+    before = deepcopy((case, observation))
+    expected: dict[str, object] = {
+        "status": status,
+        "scope": "public_output_only",
+        "supported_count": int(accepted),
+        "unsupported_count": int(not accepted),
+        "unknown_count": 1,
+        "supported_refusal_count": 0,
+        "assessed_count": 1,
+    }
+    if accepted:
+        expected["reason"] = "unknown_public_claims"
+    assert score_claims(case, observation) == expected
+    assert (case, observation) == before
 
 
 @pytest.mark.parametrize("case_id", ["F01", "F02", "F05", "X04", "A01"])
