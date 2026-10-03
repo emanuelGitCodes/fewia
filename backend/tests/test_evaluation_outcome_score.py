@@ -215,6 +215,17 @@ def test_structured_fields_determine_plan_outcome(
     assert report["clarification_correct"] is None
 
 
+@pytest.mark.parametrize("status", ["needs_revision", "planned"])
+def test_incomplete_estimate_requires_clarification_status(status: str) -> None:
+    case = _case("X01")
+    result = _plan(False, None)
+    result["status"] = status
+    report = score_outcome(case, _observation(case, result))
+    assert report["status"] != "passed"
+    assert report["observed_outcome"] is None
+    assert report["unassessed_reasons"]
+
+
 def test_outcome_must_be_allowed_by_case() -> None:
     case = _case("M01")
     report = score_outcome(case, _observation(case, _plan(False, 10001)))

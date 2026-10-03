@@ -113,6 +113,8 @@ def score_outcome(
         if type(available) is not int or available < 0:
             return stop("Budget availability is malformed.")
         if total is None and accepted is False:
+            if result.get("status") != "clarification":
+                return stop("Incomplete estimate requires clarification.", failed=True)
             outcome = "incomplete_estimate"
         elif type(total) is not int or total < 0:
             return stop("Plan total is malformed.")
