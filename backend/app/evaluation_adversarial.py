@@ -82,7 +82,12 @@ def sanitize_public(value: object, markers: tuple[str, ...]) -> object:
 
 
 class ScenarioProvider:
-    def __init__(self, provider: LLMProvider, case: dict[str, object]) -> None:
+    def __init__(
+        self,
+        provider: LLMProvider,
+        case: dict[str, object],
+        markers: tuple[str, ...] = (),
+    ) -> None:
         self._provider = provider
         self._injected_text: str | None = None
         self.injected_text_hash: str | None = None
@@ -101,8 +106,7 @@ class ScenarioProvider:
         ):
             raise ValueError(_INJECTION_ERROR)
         try:
-            markers = scenario_markers(case)
-            if any(marker in text for marker in markers):
+            if any(marker in text for marker in (*markers, *scenario_markers(case))):
                 raise ValueError(_INJECTION_ERROR)
             self.injected_text_hash = sha256(text.encode("utf-8")).hexdigest()
         except (UnicodeEncodeError, ValueError):

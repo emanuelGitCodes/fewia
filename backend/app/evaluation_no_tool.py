@@ -47,7 +47,7 @@ def observe_no_tool_case(
     try:
         markers = scenario_markers(case) if type(case) is dict else ()
         context = prepare_case(case)
-        scenario = ScenarioProvider(provider, case)
+        scenario = ScenarioProvider(provider, case, markers)
     except (TypeError, ValueError, RecursionError, OverflowError):
         observation["reason"] = "invalid_inputs"
         return cast(dict[str, object], sanitize_public(observation, markers))

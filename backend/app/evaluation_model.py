@@ -73,7 +73,7 @@ def observe_model_case(
         }
         if sanitize_public(facts, markers) != facts:
             return observation
-        scenario = ScenarioProvider(provider, case)
+        scenario = ScenarioProvider(provider, case, markers)
     except (TypeError, ValueError, OverflowError, RecursionError):
         return observation
     observation.update(

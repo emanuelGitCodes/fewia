@@ -57,9 +57,12 @@ def injection_case(text: object = TEXT) -> dict[str, object]:
     }
 
 
-def test_exact_injection_hash_response_and_no_repeated_mutation() -> None:
+@pytest.mark.parametrize("markers", [(), ("CALLER_ONLY_MARKER",)])
+def test_exact_injection_hash_response_and_no_repeated_mutation(
+    markers: tuple[str, ...],
+) -> None:
     provider = RecordingProvider(mutate=True)
-    adapter: LLMProvider = ScenarioProvider(provider, injection_case())
+    adapter: LLMProvider = ScenarioProvider(provider, injection_case(), markers)
     assert isinstance(adapter, ScenarioProvider)
     messages: list[dict[str, object]] = [
         {"role": "user", "content": [{"text": "earlier"}]},
@@ -149,13 +152,31 @@ def test_bad_injection_fails_closed_without_gold(behavior: object) -> None:
 
 
 @pytest.mark.parametrize("text", [MARKER, f"before {MARKER} after"])
-def test_injection_rejects_fixture_marker_before_provider_call(text: str) -> None:
+@pytest.mark.parametrize("markers", [(), ("CALLER_ONLY_MARKER",)])
+def test_injection_rejects_fixture_marker_before_provider_call(
+    text: str, markers: tuple[str, ...]
+) -> None:
     provider = RecordingProvider()
     case = injection_case(text)
     case["expected"] = {"provider_text": TEXT}
     with pytest.raises(ValueError, match="^scenario injection is invalid$"):
-        ScenarioProvider(provider, case)
+        ScenarioProvider(provider, case, markers)
     assert provider.calls == []
+
+
+@pytest.mark.parametrize(
+    "text", ["CALLER_ONLY_MARKER", "before CALLER_ONLY_MARKER after"]
+)
+def test_injection_rejects_caller_marker_before_provider_call(text: str) -> None:
+    provider = RecordingProvider()
+    case = injection_case(text)
+    before = deepcopy(case)
+    markers = ("UNRELATED_CALLER_MARKER", "CALLER_ONLY_MARKER")
+    assert "CALLER_ONLY_MARKER" not in scenario_markers(case)
+    with pytest.raises(ValueError, match="^scenario injection is invalid$"):
+        ScenarioProvider(provider, case, markers)
+    assert provider.calls == []
+    assert case == before
 
 
 @pytest.mark.parametrize("marker", [None, "", "x" * 201])
