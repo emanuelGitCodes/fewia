@@ -268,16 +268,19 @@ def test_marker_in_previous_request_blocks_provider() -> None:
 
 def test_clean_history_preserves_completed_observation() -> None:
     provider = ScriptedProvider([reply()])
-    history = [{"role": "user", "text": "Earlier request."}]
+    history = [
+        {"role": "user", "text": "Earlier request."},
+        {"role": "assistant", "text": "Earlier answer."},
+    ]
     turn = observe(provider, markers=(MARKER,), history=history)
     baseline = observe(ScriptedProvider([reply()]), markers=(MARKER,))
     assert turn["status"] == "completed"
     assert turn["provider_calls"] == 1
     assert len(provider.messages) == 1
-    assert provider.messages[0][0] == {
-        "role": "user",
-        "content": [{"text": "Earlier request."}],
-    }
+    assert provider.messages[0][:2] == [
+        {"role": "user", "content": [{"text": "Earlier request."}]},
+        {"role": "assistant", "content": [{"text": "Earlier answer."}]},
+    ]
     timing = {"elapsed_seconds", "provider_elapsed_seconds"}
     assert {key: value for key, value in turn.items() if key not in timing} == {
         key: value for key, value in baseline.items() if key not in timing

@@ -73,7 +73,7 @@ def observe_model_turn(
     }
     try:
         leaked_inputs = capture._leaks(inputs, set())
-        capture.leakage = sanitize_public(inputs, markers) != inputs or leaked_inputs
+        capture.leakage |= sanitize_public(inputs, markers) != inputs or leaked_inputs
     except (RecursionError, TypeError, ValueError):
         capture.capture_incomplete = True
     try:

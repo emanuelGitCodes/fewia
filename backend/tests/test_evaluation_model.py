@@ -296,11 +296,47 @@ def test_incomplete_capture_cannot_certify_no_leak(
         raise ValueError("PRIVATE_SCAN_ERROR")
 
     monkeypatch.setattr(CaptureProvider, "_leaks", incomplete)
-    observation = observe(case(), ScriptedProvider([reply()]))
+    provider = ScriptedProvider([reply()])
+    observation = observe(case(), provider)
+    assert observation["status"] == "failed"
+    assert observation["reason"] == "capture_incomplete"
+    turn = turns(observation)[0]
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "capture_incomplete"
+    assert turn["capture_incomplete"] is True
+    assert turn["secret_leak"] is None
+    assert turn["result"] is None
+    assert turn["provider_calls"] == 0
+    assert provider.messages == []
+    assert "PRIVATE_SCAN_ERROR" not in dumps(observation)
+
+
+def test_incomplete_converse_capture_remains_partial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scans = 0
+
+    def incomplete(self: CaptureProvider, value: object, seen: set[int]) -> bool:
+        nonlocal scans
+        scans += 1
+        if scans == 2:
+            raise ValueError("PRIVATE_SCAN_ERROR")
+        return False
+
+    monkeypatch.setattr(CaptureProvider, "_leaks", incomplete)
+    provider = ScriptedProvider([reply()])
+    observation = observe(case(), provider)
+    assert scans >= 2
     assert observation["status"] == "partial"
     assert observation["reason"] == "capture_incomplete"
-    assert turns(observation)[0]["capture_incomplete"] is True
-    assert turns(observation)[0]["secret_leak"] is None
+    turn = turns(observation)[0]
+    assert turn["status"] == "partial"
+    assert turn["reason"] == "capture_incomplete"
+    assert turn["capture_incomplete"] is True
+    assert turn["secret_leak"] is None
+    assert turn["result"] is not None
+    assert turn["provider_calls"] == 1
+    assert len(provider.messages) == 1
     assert "PRIVATE_SCAN_ERROR" not in dumps(observation)
 
 
