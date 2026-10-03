@@ -1,0 +1,26 @@
+ITEM: evaluation-completion-28 — Run the complete benchmark through an explicit CLI
+ROLE: backend-dev   TIER: L   COMPLEXITY: complex
+WRITER: --only --model gpt-6.1-sol --effort high
+OWNED FILES:
+- backend/app/evaluate.py
+- backend/tests/test_evaluate.py
+READ:
+- /private/tmp/fewia-evaluation-6813/design.md
+- backend/app/evaluation_batch.py
+- backend/app/evaluation_dispatch.py
+- backend/app/evaluation_io.py
+- backend/app/evaluation_markdown.py
+- backend/app/evaluation_manifest.py
+- backend/app/providers/bedrock.py
+- backend/app/provider_settings.py
+CONTRACT:
+- python -m app.evaluate --corpus PATH --output-dir NEWDIR --revision 40HEX --model-id us.amazon.nova-2-lite-v1:0 --region us-east-1 --live-bedrock [--rates PATH] [--local-services]. main(argv: list[str]|None=None)->int.
+- An explicit --live-bedrock flag is required for network model execution. No silent fixture fallback. Scope this live command to the currently verified Nova2US profile ID and known inference config max_tokens4096,temperature0,reasoning_effort low from provider adapter. Reject unrecognized models/config before network; future models require verified config support.
+- Read only AWS_PROFILE for Bedrock credential resolution, never read or print credential file contents. All LLM requests through BedrockConverseProvider implementing LLMProvider. Do not import boto3.
+- Local services only when --local-services: read FEWIA_EVALUATION_DATABASE_URL and FEWIA_EVALUATION_FLOCI_ENDPOINT, pass through validated runtime; absent values report static configuration error. No raw env dump/URLs in output.
+- Load corpus/rates safely. Create exclusive EvaluationOutput before executing. Journal each slot; render then finish. Preserve partial journal on interruption. Print only bounded progress case_id/repeat/condition/status and final artifact paths; no raw result/response/error.
+- Use actual pinned model/config manifest and revision. No provider initialization during module import. Optional dependency injection of provider factory for unit tests MUST label deterministic_fake_provider and MUST NOT masquerade as live proof. Keep public CLI live opt-in.
+- Exit0 means artifacts completed, not that every benchmark metric passed; report failed/unassessed tasks explicitly. Exit1 for configuration/runtime/write failure,130 for interrupt. Avoid fake success or overwriting prior results.
+TESTS: rejects implicitlive/nooutputoverwrite/invalidrevisionmodel; lazyprovider construction; configmodel binding; fullfake orchestration with truthful labels; output progress sanitized; unknownprovidererror static; journal retained oninterrupt; no secret file read.
+CAP: <=150 added application lines. Tests excluded. Split if needed.
+HARD RULES: Released implementation. You are not alone. Codex MAY read/search named files with read-only shell. No tests, packages, git, or writing shell commands. Edit only owned files with apply_patch. Commit nothing.

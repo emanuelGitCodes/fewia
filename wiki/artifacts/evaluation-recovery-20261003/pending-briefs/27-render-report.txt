@@ -1,0 +1,24 @@
+ITEM: evaluation-completion-27 — Render a reviewable benchmark report
+ROLE: docs-dev   TIER: L   COMPLEXITY: complex
+WRITER: --only --model gpt-6.1-sol --effort high
+OWNED FILES:
+- backend/app/evaluation_markdown.py
+- backend/tests/test_evaluation_markdown.py
+READ:
+- /private/tmp/fewia-evaluation-6813/design.md
+- backend/app/evaluation_summary.py
+- backend/app/evaluation_telemetry.py
+- backend/app/evaluation_cost.py
+- backend/app/evaluation_batch.py
+CONTRACT:
+- render_report(report:dict[str,object], *, rates:dict[str,object]|None=None) -> str consumes final batch output and uses summary/telemetry/cost helpers.
+- Lead with actual execution coverage: primary90, baseline48, incomplete/failed/unassessed counts. Never say all passed because the batch loop completed. Report revision, model/region/settings, corpus/catalog/config/condition prompt hashes, timestamps and exact scope.
+- Show percondition assessed metrics with numerators/denominators and unknowns; no pooled fake/live quality rate. Compare tool-enabled/no-tool matched cases and deterministic final-plan cohort with explicit limits. For zero denominator show unassessed/not applicable, not0% or100%.
+- Show failed case/repeat/check rows and unassessed reasons. Include actual provider-call/token/p50/p95 timing/cost by condition. Explain nearest-rank sample count, unknown usage, dated rate source, cost estimate rather than bill. Link official rate source only when supplied and valid.
+- Describe P04 scripted guard faults, P05 actual observed local PostgreSQL/worker/Floci path, fake Plaid/Instacart, model-visible A02 injection evidence, and public-only bounded claim grading. Do not assert unexecuted paths or provider readiness.
+- Do not print raw model answers/messages, exceptions, secrets, hidden reasoning or database/profile configuration. Escape Markdown metacharacters in externally supplied safe labels; use allowlisted fields and bounded labels. Static invalid input errors.
+- This is a pure renderer with no file/env/network/provider access and no changes to input.
+TESTS: synthetic mixed pass/fail/unknown report; denominators visible; no universal allpassed claim; baseline/model grouping; zero/unknownusage; omittedrates; officialdatedcost source; malicious label escaping; secret fields not copied; immutability.
+- Targets are90% task success and95% supported public claims. Do not certify a target from assessed-only percentages when applicable outcomes/claims remain unknown; report coverage and conservative all-applicable denominator separately. Zero observed violations means only the tested accepted plans, not a global guarantee.
+CAP: <=150 added application lines; tests excluded. Propose a renderer helper split if needed.
+HARD RULES: Released implementation. You are not alone. Codex MAY read/search named files with read-only shell. No tests, packages, git, or writing shell commands. Edit only owned files with apply_patch. Commit nothing.

@@ -2881,3 +2881,35 @@ The correction source `811e41022fe4b7ec6738aa58db47f9124c20a29f` sets `fewia_eva
 ## 2026-10-03 — Evaluation draft publication and Graphify update
 
 The [publication record](phases/evaluation-publication.md) lists all 41 draft pull requests and the exact 38-entry merge order. Graphify processed source `8dfdb50f324310f18ba2870b8807a5511af40096`: 75 files (70 code and five documents), 6,185 nodes, 17,813 edges, and 315 communities. Its HTML has 315 community nodes and 710 cross-community edges. The health report warns about 15 self-loop call edges; zero dangling or missing endpoints and zero collapsed endpoint pairs were observed. Some self-loops are recursive, and the remaining cases need source inspection. The graph outputs are ignored local files, not committed or published. The graph excludes this publication page. Native semantic-agent usage is unavailable, deterministic AST extraction uses no model calls, and the full benchmark remains incomplete.
+
+## 2026-10-03 — Evaluation item 02 recovery publication
+
+Approved source `05abadb17e8de4e5cb089d82bb524924de28e52a` is published as draft PR [#288](https://github.com/emanuelGitCodes/fewia/pull/288). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation item 04 recovery publication
+
+Approved source `3b4c47fedb2c81ec0c4620db410307b0cc46eb8c` is published as draft PR [#289](https://github.com/emanuelGitCodes/fewia/pull/289). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation item 08b recovery publication
+
+Approved source `62e77e243b9a67f685c7c89ef15754034fb6a4a4` is published as draft PR [#293](https://github.com/emanuelGitCodes/fewia/pull/293). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation item 11a recovery publication
+
+Approved source `36556715fc0c0a37930c998097c965faf902b03e` is published as draft PR [#294](https://github.com/emanuelGitCodes/fewia/pull/294). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation item 07a recovery publication
+
+Approved source `de7267be983fc122bb78b3461c4818254dd289d8` is published as draft PR [#295](https://github.com/emanuelGitCodes/fewia/pull/295). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation item 11 recovery publication
+
+Approved source `2e8a6fdf58968536965071595cb707c0dd8caf6a` is published as draft PR [#296](https://github.com/emanuelGitCodes/fewia/pull/296). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation item 07 recovery publication
+
+Approved source `b227f19ecd81f6a5b6d53f486c32fa5328060d4a` is published as draft PR [#297](https://github.com/emanuelGitCodes/fewia/pull/297). See the [recovery checkpoint](phases/evaluation-recovery.md).
+
+## 2026-10-03 — Evaluation recovery checkpoint and Graphify update
+
+Main at `5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd` matches the published `9e8e55f` tree, including observed user merge PR #292. This recovery did not merge main. Integration source `e119a2d4a12c532e333bd43ac49c38ab52a1e49f` is pushed on `codex/evaluation-resume`; local gates passed. Graphify recorded 6,564 nodes, 19,238 edges, and 322 communities, with 18 self-loop edges and zero missing or dangling endpoints. The full benchmark remains unrun. See the [recovery checkpoint](phases/evaluation-recovery.md).

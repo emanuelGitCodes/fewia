@@ -1,0 +1,2270 @@
+{
+  "captured_utc": "2026-10-03T13:55:52.234401+00:00",
+  "root_sha": "e119a2d4a12c532e333bd43ac49c38ab52a1e49f",
+  "main_verified": {
+    "sha": "5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd",
+    "tree_matches_published_9e8e55f": true,
+    "additional_integration_pr": 292
+  },
+  "items": [
+    {
+      "id": "02",
+      "sha": "05abadb17e8de4e5cb089d82bb524924de28e52a",
+      "state": "approved_published",
+      "base": "5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd",
+      "gate": {
+        "sha": "05abadb17e8de4e5cb089d82bb524924de28e52a",
+        "clean": true,
+        "lines": 148,
+        "finished": "2026-10-03T12:17:48.477455+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "264 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 131 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6214 passed, 1 warning in 12.32s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "main",
+        "headRefName": "codex/eval-tool-score-shapes",
+        "headRefOid": "05abadb17e8de4e5cb089d82bb524924de28e52a",
+        "isDraft": true,
+        "number": 288,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:54Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996338/job/111202643008",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T12:28:41Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:48Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996363/job/111202643038",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:29:01Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996343/job/111202643070",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T12:28:43Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:54Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996338/job/111202643152",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:29:34Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996363/job/111202642936",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:30:14Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996343/job/111202642960",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:29:18Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122996363/job/111202643068",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/288"
+      },
+      "integrated_locally": true
+    },
+    {
+      "id": "04",
+      "sha": "3b4c47fedb2c81ec0c4620db410307b0cc46eb8c",
+      "state": "approved_published",
+      "base": "5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd",
+      "gate": {
+        "sha": "3b4c47fedb2c81ec0c4620db410307b0cc46eb8c",
+        "clean": true,
+        "lines": 150,
+        "finished": "2026-10-03T12:13:47.186136+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "264 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 131 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6116 passed, 1 warning in 12.45s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "main",
+        "headRefName": "codex/eval-capture",
+        "headRefOid": "3b4c47fedb2c81ec0c4620db410307b0cc46eb8c",
+        "isDraft": true,
+        "number": 289,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:53Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995264/job/111202640184",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:47Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995325/job/111202640598",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:58Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995249/job/111202640327",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T12:28:39Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:28:55Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995264/job/111202640342",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:29:45Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995325/job/111202640509",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T12:28:39Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:30:35Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995249/job/111202640413",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:29:42Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37122995325/job/111202640591",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T12:28:40Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/289"
+      },
+      "integrated_locally": true
+    },
+    {
+      "id": "08b",
+      "sha": "62e77e243b9a67f685c7c89ef15754034fb6a4a4",
+      "state": "approved_published",
+      "base": "5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd",
+      "gate": {
+        "sha": "62e77e243b9a67f685c7c89ef15754034fb6a4a4",
+        "clean": true,
+        "lines": 53,
+        "finished": "2026-10-03T12:22:01.854696+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "264 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 131 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6153 passed, 1 warning in 14.42s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "main",
+        "headRefName": "codex/eval-refusal-actions",
+        "headRefOid": "62e77e243b9a67f685c7c89ef15754034fb6a4a4",
+        "isDraft": true,
+        "number": 293,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:31:15Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127664/job/111203006300",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T12:31:03Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:31:10Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127640/job/111203006222",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T12:31:02Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:31:58Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127707/job/111203006442",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T12:31:03Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:31:18Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127664/job/111203006211",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T12:31:02Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:32:10Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127640/job/111203006337",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T12:31:02Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:32:58Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127707/job/111203006623",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T12:31:03Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:32:04Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37123127640/job/111203006330",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T12:31:03Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/293"
+      },
+      "integrated_locally": true
+    },
+    {
+      "id": "08",
+      "sha": "87b82eed4365cb79c83c510efbd3764e2a898a23",
+      "state": "held_published_round4",
+      "base": "62e77e243b9a67f685c7c89ef15754034fb6a4a4",
+      "gate": {
+        "sha": "87b82eed4365cb79c83c510efbd3764e2a898a23",
+        "clean": true,
+        "lines": 148,
+        "finished": "2026-10-03T12:38:01.894875+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "266 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 132 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6383 passed, 1 warning in 12.79s"
+          }
+        ]
+      },
+      "review_verdict": "REQUEST_CHANGES",
+      "pull_request": {
+        "baseRefName": "codex/eval-refusal-actions",
+        "headRefName": "codex/eval-outcome-core",
+        "headRefOid": "87b82eed4365cb79c83c510efbd3764e2a898a23",
+        "isDraft": true,
+        "number": 290,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:55:41Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450826/job/111206821307",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T12:55:27Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:55:34Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450767/job/111206821422",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T12:55:27Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:55:42Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450823/job/111206821433",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T12:55:27Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:55:43Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450826/job/111206821473",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T12:55:27Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:56:29Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450767/job/111206821454",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T12:55:27Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:57:05Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450823/job/111206821540",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T12:55:28Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T12:56:26Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37124450767/job/111206821385",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T12:55:27Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/290"
+      },
+      "integrated_locally": false
+    },
+    {
+      "id": "07a",
+      "sha": "de7267be983fc122bb78b3461c4818254dd289d8",
+      "state": "approved_published",
+      "base": "d002428578e352792aecb806bc43358111b7b00f",
+      "gate": {
+        "sha": "de7267be983fc122bb78b3461c4818254dd289d8",
+        "clean": true,
+        "lines": 118,
+        "finished": "2026-10-03T13:20:42.648085+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "266 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 132 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6144 passed, 1 warning in 12.17s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "codex/eval-capture",
+        "headRefName": "codex/eval-model-turn",
+        "headRefOid": "de7267be983fc122bb78b3461c4818254dd289d8",
+        "isDraft": true,
+        "number": 295,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:26:11Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153117/job/111211726661",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:26:07Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153087/job/111211726569",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:26:18Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153119/job/111211726745",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:26:20Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153117/job/111211726848",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:27:14Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153087/job/111211726627",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:27:08Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153119/job/111211726947",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:26:50Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126153087/job/111211726423",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T13:26:02Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/295"
+      },
+      "integrated_locally": true
+    },
+    {
+      "id": "11a",
+      "sha": "36556715fc0c0a37930c998097c965faf902b03e",
+      "state": "approved_published",
+      "base": "d002428578e352792aecb806bc43358111b7b00f",
+      "gate": {
+        "sha": "36556715fc0c0a37930c998097c965faf902b03e",
+        "clean": true,
+        "lines": 141,
+        "finished": "2026-10-03T13:13:02.288852+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "266 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 132 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6170 passed, 1 warning in 11.98s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "codex/eval-capture",
+        "headRefName": "codex/eval-no-tool-turn",
+        "headRefOid": "36556715fc0c0a37930c998097c965faf902b03e",
+        "isDraft": true,
+        "number": 294,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:20:32Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125833996/job/111210816734",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:20:31Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125833976/job/111210816835",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:20:40Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125834018/job/111210816777",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:20:46Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125833996/job/111210816822",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:21:27Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125833976/job/111210816692",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:22:23Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125834018/job/111210816887",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:21:23Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37125833976/job/111210816839",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T13:20:24Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/294"
+      },
+      "integrated_locally": true
+    },
+    {
+      "id": "07",
+      "sha": "b227f19ecd81f6a5b6d53f486c32fa5328060d4a",
+      "state": "approved_published",
+      "base": "de7267be983fc122bb78b3461c4818254dd289d8",
+      "gate": {
+        "sha": "b227f19ecd81f6a5b6d53f486c32fa5328060d4a",
+        "clean": true,
+        "lines": 150,
+        "finished": "2026-10-03T13:39:53.264973+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "268 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 133 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6195 passed, 1 warning in 14.88s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "codex/eval-model-turn",
+        "headRefName": "codex/eval-model-observer",
+        "headRefOid": "b227f19ecd81f6a5b6d53f486c32fa5328060d4a",
+        "isDraft": true,
+        "number": 297,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:45:54Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277733/job/111215031651",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:45:54Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277728/job/111215031893",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:46:03Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277722/job/111215031472",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:46:07Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277733/job/111215031852",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:46:58Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277728/job/111215031676",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:47:36Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277722/job/111215031661",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:46:40Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37127277728/job/111215031707",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T13:45:44Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/297"
+      },
+      "integrated_locally": true
+    },
+    {
+      "id": "11",
+      "sha": "2e8a6fdf58968536965071595cb707c0dd8caf6a",
+      "state": "approved_published",
+      "base": "36556715fc0c0a37930c998097c965faf902b03e",
+      "gate": {
+        "sha": "2e8a6fdf58968536965071595cb707c0dd8caf6a",
+        "clean": true,
+        "lines": 109,
+        "finished": "2026-10-03T13:25:24.489663+00:00",
+        "gates": [
+          {
+            "area": "backend",
+            "gate": "ruff-check",
+            "status": "PASS",
+            "last_line": "All checks passed!"
+          },
+          {
+            "area": "backend",
+            "gate": "ruff-format",
+            "status": "PASS",
+            "last_line": "268 files already formatted"
+          },
+          {
+            "area": "backend",
+            "gate": "mypy",
+            "status": "PASS",
+            "last_line": "Success: no issues found in 133 source files"
+          },
+          {
+            "area": "backend",
+            "gate": "pytest",
+            "status": "PASS",
+            "last_line": "6201 passed, 1 warning in 15.32s"
+          }
+        ]
+      },
+      "review_verdict": "APPROVE",
+      "pull_request": {
+        "baseRefName": "codex/eval-no-tool-turn",
+        "headRefName": "codex/eval-no-tool-observer",
+        "headRefOid": "2e8a6fdf58968536965071595cb707c0dd8caf6a",
+        "isDraft": true,
+        "number": 296,
+        "state": "OPEN",
+        "statusCheckRollup": [
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:32:11Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499270/job/111212724208",
+            "name": "Python dependency audit",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:32:02Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499260/job/111212724219",
+            "name": "Compose config",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:32:15Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499287/job/111212724156",
+            "name": "Tooling checks",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:32:13Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499270/job/111212724359",
+            "name": "npm dependency audit",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "Audit"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:32:57Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499260/job/111212723980",
+            "name": "Backend checks",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:33:47Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499287/job/111212724271",
+            "name": "Bedrock CDK checks",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "Tooling"
+          },
+          {
+            "__typename": "CheckRun",
+            "completedAt": "2026-10-03T13:32:57Z",
+            "conclusion": "SUCCESS",
+            "detailsUrl": "https://github.com/emanuelGitCodes/fewia/actions/runs/37126499260/job/111212724140",
+            "name": "Frontend checks",
+            "startedAt": "2026-10-03T13:31:56Z",
+            "status": "COMPLETED",
+            "workflowName": "CI"
+          }
+        ],
+        "url": "https://github.com/emanuelGitCodes/fewia/pull/296"
+      },
+      "integrated_locally": true
+    }
+  ],
+  "pending": {
+    "08": {
+      "state": "held_published_round4",
+      "wt": "outcome-core",
+      "parent": "62e77e243b9a67f685c7c89ef15754034fb6a4a4",
+      "sha": "87b82eed4365cb79c83c510efbd3764e2a898a23",
+      "reviews": 4,
+      "finding": "Completed refusal passes a budget read without a captured result. Approved helper permits it; fourth core review requests rejection. User asked for one more contract repair/review round.",
+      "authorized_review_rounds": 4,
+      "base": "62e77e243b9a67f685c7c89ef15754034fb6a4a4",
+      "tests": 6383,
+      "pr": 290
+    },
+    "21": {
+      "state": "queued",
+      "brief": "21-dispatch.txt"
+    },
+    "22": {
+      "state": "queued",
+      "brief": "22-batch.txt"
+    },
+    "27": {
+      "state": "queued",
+      "brief": "27-render-report.txt"
+    },
+    "28": {
+      "state": "queued",
+      "brief": "28-cli.txt"
+    },
+    "29": {
+      "state": "deferred_until_final_evidence",
+      "brief": "29-records.txt"
+    }
+  },
+  "full_benchmark_executed": false,
+  "matrix": {
+    "primary": 90,
+    "deterministic_fixture": 42,
+    "controlled_fixture": 15,
+    "real_model": 33,
+    "no_tool": 33,
+    "structured_reference": 15,
+    "total": 138
+  },
+  "budget_guard": {
+    "weekly_stop_remaining_percent": 8,
+    "weekly_stop_used_percent": 92,
+    "last_used_percent": 92,
+    "last_remaining_percent": 8,
+    "checked_utc": "2026-10-03T13:53:14.872961+00:00",
+    "on_threshold": "Stop new development; settle/save running work; commit all scoped in-progress files; push and create draft PR checkpoint(s). Update Graphify and wiki after push if allowance remains.",
+    "authorization": "User message2026-10-02; does not approve held review-cap overrides.",
+    "triggered": true,
+    "development_stopped": true
+  },
+  "usage": {
+    "attempts": 223,
+    "scope": "CLI supervisor only. Coordinator and native junior usage unavailable. Input includes cached tokens. Times overlap.",
+    "phases": {
+      "implement": {
+        "attempts": 55,
+        "elapsed_ms": 24141312,
+        "outcomes": {
+          "no_edits": 5,
+          "completed": 45,
+          "task_failed": 4,
+          "time_limit": 1
+        },
+        "input_tokens": {
+          "known_sum": 26361436,
+          "unknown_attempts": 5
+        },
+        "cached_tokens": {
+          "known_sum": 23806336,
+          "unknown_attempts": 5
+        },
+        "output_tokens": {
+          "known_sum": 626427,
+          "unknown_attempts": 5
+        },
+        "reasoning_tokens": {
+          "known_sum": 241591,
+          "unknown_attempts": 5
+        }
+      },
+      "repair": {
+        "attempts": 95,
+        "elapsed_ms": 14932462,
+        "outcomes": {
+          "completed": 92,
+          "task_failed": 2,
+          "no_edits": 1
+        },
+        "input_tokens": {
+          "known_sum": 25107913,
+          "unknown_attempts": 2
+        },
+        "cached_tokens": {
+          "known_sum": 21961088,
+          "unknown_attempts": 2
+        },
+        "output_tokens": {
+          "known_sum": 400583,
+          "unknown_attempts": 2
+        },
+        "reasoning_tokens": {
+          "known_sum": 146934,
+          "unknown_attempts": 2
+        }
+      },
+      "review": {
+        "attempts": 73,
+        "elapsed_ms": 6535299,
+        "outcomes": {
+          "completed": 73
+        },
+        "input_tokens": {
+          "known_sum": 10821148,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 8561920,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 249765,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 179945,
+          "unknown_attempts": 0
+        }
+      }
+    },
+    "items": {
+      "evaluation-completion-01": {
+        "attempts": 5,
+        "elapsed_ms": 801260,
+        "outcomes": {
+          "completed": 5
+        },
+        "input_tokens": {
+          "known_sum": 1227750,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1029376,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 22013,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 9087,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-02": {
+        "attempts": 12,
+        "elapsed_ms": 2128765,
+        "outcomes": {
+          "completed": 12
+        },
+        "input_tokens": {
+          "known_sum": 3357602,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 2894080,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 61447,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 29258,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-02a": {
+        "attempts": 2,
+        "elapsed_ms": 307542,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 313190,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 262272,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 9731,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 3637,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-03": {
+        "attempts": 3,
+        "elapsed_ms": 469749,
+        "outcomes": {
+          "no_edits": 1,
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 622664,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 519296,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 14351,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 5086,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-04": {
+        "attempts": 12,
+        "elapsed_ms": 1978513,
+        "outcomes": {
+          "completed": 12
+        },
+        "input_tokens": {
+          "known_sum": 2543377,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 2166784,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 58216,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 28961,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-05": {
+        "attempts": 3,
+        "elapsed_ms": 465360,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 691826,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 614912,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 14534,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 5945,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-06": {
+        "attempts": 7,
+        "elapsed_ms": 1261468,
+        "outcomes": {
+          "completed": 7
+        },
+        "input_tokens": {
+          "known_sum": 2049771,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1783296,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 35184,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 16853,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-06a": {
+        "attempts": 3,
+        "elapsed_ms": 348135,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 417246,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 358656,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 9831,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 3794,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-07": {
+        "attempts": 5,
+        "elapsed_ms": 2167453,
+        "outcomes": {
+          "completed": 4,
+          "task_failed": 1
+        },
+        "input_tokens": {
+          "known_sum": 2150112,
+          "unknown_attempts": 1
+        },
+        "cached_tokens": {
+          "known_sum": 1928448,
+          "unknown_attempts": 1
+        },
+        "output_tokens": {
+          "known_sum": 49201,
+          "unknown_attempts": 1
+        },
+        "reasoning_tokens": {
+          "known_sum": 23820,
+          "unknown_attempts": 1
+        }
+      },
+      "evaluation-completion-07a": {
+        "attempts": 5,
+        "elapsed_ms": 1188907,
+        "outcomes": {
+          "completed": 5
+        },
+        "input_tokens": {
+          "known_sum": 1610626,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1410688,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 30228,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 12648,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-08": {
+        "attempts": 12,
+        "elapsed_ms": 2297914,
+        "outcomes": {
+          "task_failed": 3,
+          "completed": 9
+        },
+        "input_tokens": {
+          "known_sum": 2031717,
+          "unknown_attempts": 3
+        },
+        "cached_tokens": {
+          "known_sum": 1687296,
+          "unknown_attempts": 3
+        },
+        "output_tokens": {
+          "known_sum": 41402,
+          "unknown_attempts": 3
+        },
+        "reasoning_tokens": {
+          "known_sum": 18513,
+          "unknown_attempts": 3
+        }
+      },
+      "evaluation-completion-08a": {
+        "attempts": 4,
+        "elapsed_ms": 395470,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 607116,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 531968,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 10761,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 4478,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-08b": {
+        "attempts": 2,
+        "elapsed_ms": 577253,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 408406,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 347392,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 10135,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 3898,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-09": {
+        "attempts": 5,
+        "elapsed_ms": 780388,
+        "outcomes": {
+          "completed": 5
+        },
+        "input_tokens": {
+          "known_sum": 1034201,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 865920,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 23974,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 10978,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-10": {
+        "attempts": 9,
+        "elapsed_ms": 1867591,
+        "outcomes": {
+          "completed": 9
+        },
+        "input_tokens": {
+          "known_sum": 3060182,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 2692864,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 59416,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 28759,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-11": {
+        "attempts": 3,
+        "elapsed_ms": 1005862,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 1106578,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 964992,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 26464,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 8944,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-11a": {
+        "attempts": 6,
+        "elapsed_ms": 1121110,
+        "outcomes": {
+          "completed": 6
+        },
+        "input_tokens": {
+          "known_sum": 1903999,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1657216,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 29470,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 11297,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-12": {
+        "attempts": 5,
+        "elapsed_ms": 1572764,
+        "outcomes": {
+          "completed": 5
+        },
+        "input_tokens": {
+          "known_sum": 1956349,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1742464,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 43408,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 21409,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-12a": {
+        "attempts": 2,
+        "elapsed_ms": 336859,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 386523,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 339584,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 10262,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 4326,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-12core": {
+        "attempts": 1,
+        "elapsed_ms": 476875,
+        "outcomes": {
+          "completed": 1
+        },
+        "input_tokens": {
+          "known_sum": 511590,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 449536,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 14135,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 4041,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-13": {
+        "attempts": 4,
+        "elapsed_ms": 886746,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 1251449,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1116800,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 26148,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 11857,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-14": {
+        "attempts": 3,
+        "elapsed_ms": 434081,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 910323,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 801152,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 13588,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 4764,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-14a": {
+        "attempts": 2,
+        "elapsed_ms": 412856,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 651827,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 574080,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 12565,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 4079,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-15": {
+        "attempts": 4,
+        "elapsed_ms": 731508,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 1473030,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1330944,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 21828,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 9415,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-16": {
+        "attempts": 3,
+        "elapsed_ms": 1220808,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 2107646,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1927808,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 35972,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 16049,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-16a": {
+        "attempts": 5,
+        "elapsed_ms": 829840,
+        "outcomes": {
+          "no_edits": 1,
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 1419063,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1243008,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 23255,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 10954,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-17": {
+        "attempts": 4,
+        "elapsed_ms": 661984,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 960645,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 836864,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 18722,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 6570,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-18": {
+        "attempts": 10,
+        "elapsed_ms": 2189285,
+        "outcomes": {
+          "completed": 10
+        },
+        "input_tokens": {
+          "known_sum": 3396710,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 2934016,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 63633,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 29069,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-18a": {
+        "attempts": 3,
+        "elapsed_ms": 389220,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 413673,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 328320,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 13230,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 6206,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-19": {
+        "attempts": 7,
+        "elapsed_ms": 801302,
+        "outcomes": {
+          "completed": 7
+        },
+        "input_tokens": {
+          "known_sum": 1960284,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1747968,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 24465,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 9098,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-20": {
+        "attempts": 4,
+        "elapsed_ms": 665423,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 982182,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 850176,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 21368,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 9275,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-23": {
+        "attempts": 5,
+        "elapsed_ms": 1010501,
+        "outcomes": {
+          "no_edits": 1,
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 1521263,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1292416,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 32007,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 15076,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-23a": {
+        "attempts": 9,
+        "elapsed_ms": 2821065,
+        "outcomes": {
+          "completed": 9
+        },
+        "input_tokens": {
+          "known_sum": 4097206,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 3660800,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 81914,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 42193,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-23a-check-records": {
+        "attempts": 2,
+        "elapsed_ms": 224643,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 300424,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 253824,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 6804,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 1981,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-23a-counts": {
+        "attempts": 3,
+        "elapsed_ms": 366560,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 569566,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 494208,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 10414,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 3082,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-23b": {
+        "attempts": 7,
+        "elapsed_ms": 1662218,
+        "outcomes": {
+          "task_failed": 1,
+          "completed": 6
+        },
+        "input_tokens": {
+          "known_sum": 1525475,
+          "unknown_attempts": 1
+        },
+        "cached_tokens": {
+          "known_sum": 1300480,
+          "unknown_attempts": 1
+        },
+        "output_tokens": {
+          "known_sum": 33819,
+          "unknown_attempts": 1
+        },
+        "reasoning_tokens": {
+          "known_sum": 10788,
+          "unknown_attempts": 1
+        }
+      },
+      "evaluation-completion-23b-assessments": {
+        "attempts": 4,
+        "elapsed_ms": 898588,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 1201840,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1050368,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 25462,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 8800,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-23b-validation": {
+        "attempts": 5,
+        "elapsed_ms": 1054365,
+        "outcomes": {
+          "task_failed": 1,
+          "completed": 3,
+          "no_edits": 1
+        },
+        "input_tokens": {
+          "known_sum": 897897,
+          "unknown_attempts": 1
+        },
+        "cached_tokens": {
+          "known_sum": 775680,
+          "unknown_attempts": 1
+        },
+        "output_tokens": {
+          "known_sum": 25654,
+          "unknown_attempts": 1
+        },
+        "reasoning_tokens": {
+          "known_sum": 13500,
+          "unknown_attempts": 1
+        }
+      },
+      "evaluation-completion-24": {
+        "attempts": 3,
+        "elapsed_ms": 666882,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 958815,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 848768,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 22795,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 10830,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-25": {
+        "attempts": 3,
+        "elapsed_ms": 1114589,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 1369789,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1242240,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 32568,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 13921,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-25a": {
+        "attempts": 2,
+        "elapsed_ms": 499040,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 473111,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 394752,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 15620,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 7737,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-26": {
+        "attempts": 4,
+        "elapsed_ms": 1143069,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 1056303,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 925312,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 34791,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 14354,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-26a": {
+        "attempts": 2,
+        "elapsed_ms": 354740,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 409717,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 348160,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 10466,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 3906,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-27a": {
+        "attempts": 6,
+        "elapsed_ms": 661236,
+        "outcomes": {
+          "no_edits": 2,
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 714399,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 561024,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 18262,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 10119,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-29a": {
+        "attempts": 4,
+        "elapsed_ms": 1416795,
+        "outcomes": {
+          "time_limit": 1,
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 1500272,
+          "unknown_attempts": 1
+        },
+        "cached_tokens": {
+          "known_sum": 1302656,
+          "unknown_attempts": 1
+        },
+        "output_tokens": {
+          "known_sum": 40293,
+          "unknown_attempts": 1
+        },
+        "reasoning_tokens": {
+          "known_sum": 19251,
+          "unknown_attempts": 1
+        }
+      },
+      "evaluation-completion-30": {
+        "attempts": 4,
+        "elapsed_ms": 283521,
+        "outcomes": {
+          "completed": 4
+        },
+        "input_tokens": {
+          "known_sum": 669294,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 579840,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 7843,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 3200,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-31": {
+        "attempts": 2,
+        "elapsed_ms": 84215,
+        "outcomes": {
+          "completed": 2
+        },
+        "input_tokens": {
+          "known_sum": 252453,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 222336,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 2302,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 353,
+          "unknown_attempts": 0
+        }
+      },
+      "evaluation-completion-32": {
+        "attempts": 3,
+        "elapsed_ms": 574755,
+        "outcomes": {
+          "completed": 3
+        },
+        "input_tokens": {
+          "known_sum": 1255016,
+          "unknown_attempts": 0
+        },
+        "cached_tokens": {
+          "known_sum": 1138304,
+          "unknown_attempts": 0
+        },
+        "output_tokens": {
+          "known_sum": 26824,
+          "unknown_attempts": 0
+        },
+        "reasoning_tokens": {
+          "known_sum": 16311,
+          "unknown_attempts": 0
+        }
+      }
+    }
+  },
+  "verification_hashes": {
+    "gates/02.json": "6a1898fdc92520a70ee0cf89a8ac9fb797c580b78bfa8d7506b41f4554d036ec",
+    "reviews/02.md": "152976c8a5305fa7c8de266e45beb7d1d16167b1762c2261a55cd469feda224c",
+    "probes/02.txt": "e56e8038efe3d8f852eaf12bbfc78e3f3fa809db690f0bb5eb6659803fb255ab",
+    "gates/04.json": "3bbac7af401e2a584e2aa9e061c59218d283cb78a552e19b7ae2acc6091b4ed6",
+    "reviews/04.md": "c1c959f6396337e7f7e90b6aa8fdbce2c43ccca17690243d1054c69bbc4002d9",
+    "probes/04.txt": "0a07c94b1d36eb55e00ba80f559cdc5fbb465a6033239aedcd0abd05ce9980ad",
+    "gates/08b.json": "f33b9d226fec9d4a2d64275d7bc6635d92f0a22f2a7016b90f51c3d60943ff33",
+    "reviews/08b.md": "9a4f68cbaeccf09f1879773b5420e19bec6350aba50cfacea137940c37e991a4",
+    "probes/08b.txt": "c4515cae85de0f8893ebe895b8b4cc68bb2cac6721eb9012c06d62c3a42b6c65",
+    "gates/08.json": "3f32b9341d30606d89ff5a7d35536fad65c901a9eef289d978a22bda3f3400ac",
+    "reviews/08.md": "03fadf5e6529638f53eb42fe583bba811dc5a4a55ac8c96203350ad7e3c8c7f2",
+    "probes/08.txt": "5bcb48bfe82d17d89ead0d826da5bc87ade95c92e824759ecc404af5e6bfc6da",
+    "gates/07a.json": "91442f1d4b5630d24e4dea9de17936b697508129f180694df9abd18fa438625c",
+    "reviews/07a.md": "c24ef1a8b847ad8d3ca195a1ac90952326c835850ffee5114a737f32676f678d",
+    "probes/07a.txt": "3fdfabb4aa63318d614bf48c0304788954c3e27cdf5fc851089f4f33104e8466",
+    "gates/11a.json": "ee9a29a4e4246c168bd1e4702f4ad98a60031320456a8bb563f60df589040869",
+    "reviews/11a.md": "6cbabb37ab7c99c6f1d4e52a20e76676932fd4d9de32eae906ef03c9968fa2d8",
+    "probes/11a.txt": "280476eaecf41db21c83ba707305dee19b170064930f2cbb874af72bf9dd16ff",
+    "gates/07.json": "aecdc9aa838bd077675036ebdc6ac7bfb04cd03ffc53b259a724c83ff4e38e66",
+    "reviews/07.md": "9e8f2f0134b8104eb5813d6f12cbac19ba9dea556e1551d74b5340eca8901203",
+    "probes/07.txt": "063b8f642dc2996065f31a1d2b44fc0021e3467fc54f9c518cb1b6b419cade33",
+    "gates/11.json": "45813f772608e1c8e3cde0e5bd958157011400acb625c052345b9d1647e5eaae",
+    "reviews/11.md": "9fe5d10c0f5e7bf5e34fe7ac2743163a9936caa04699664130afa574629dae3a",
+    "probes/11.txt": "945cbec991a30ba7411a6a25fc293271071135f5f8ab357670382ee7a9259b64",
+    "pending-briefs/21-dispatch.txt": "7c133ab6748be9297ffab857ec726248fd714c93780e65cb5e42c25dea57efb9",
+    "pending-briefs/22-batch.txt": "1e5061f7cdb3241b43dadddd3850029cb673ec6c2a9a3e07eb0c69eee6f0a738",
+    "pending-briefs/27-render-report.txt": "86afc19766df284880f744d29c0fdfe5f742514397d97e7cf13faaf2d173e1ca",
+    "pending-briefs/28-cli.txt": "90e8b932408b596cce59aabc22053ebb40adac316abf46304f8a3f5ad8ce133f",
+    "pending-briefs/29-records.txt": "a563b059be3b5c79e5bf7899a0cf6935e23f970871364dc9a0fcce050dcf6404",
+    "design.md": "97656fa783c4918f28889984c4ed8ffb6161b7d948c52964949776134df39e01",
+    "failed-gates/11a-849bfff7b2ad2a9945da82f7c453e30f5fc1635f.json": "a3341cce2e2248a82caf1590a1d13db7da405a82d987db353e32b375d9ea3326",
+    "failed-gates/11a-34d8d7293edc6e61ba80fc846304b17b8f4815f1.json": "f7c1a198ab0df02512f082c6b428c6e0eb0a4c679ff06ef0f48911fcecffcccb",
+    "failed-gates/11a-e72982e6f2b49cb7d2bfe6527f8f6c1a6ea62fd2.json": "b00c379c64571877e945d2c20654131a83f7c30ccf2c7e8f1d7ff4570fba6ee2",
+    "failed-gates/07a-02d9ef463ce8bcd22b970bf87567d9a4ddf180a5.json": "3e2aa9dbf5e2a488a93571b710d844f6a7b1ab7b69b26552bf2dd55c07e092a3",
+    "integrated-gates.json": "aee4140b65a827bc3b4d4496b8852e8429def1d8de76743ee9dbd4a2d9d58ec6",
+    "graph-update.json": "a52335c66fe6ceb885caf61a3d26f205be3c316ea10867169e7fcd2032b40940",
+    "graph-health.json": "6fd5784ffedd4b15fd290d2645900e2e9a63ee195b1dbb8ee7124298e14b391a",
+    "GRAPH_REPORT.md": "61e296a6632ee6d7cec4f8c27a438b7922532f479268d07ed6f6d5fa04326e4b"
+  }
+}

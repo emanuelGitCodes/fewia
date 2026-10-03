@@ -1,0 +1,39 @@
+ITEM: evaluation-completion-21 — Dispatch one matrix slot and attach assessments
+ROLE: backend-dev   TIER: L   COMPLEXITY: complex
+WRITER: --only --model gpt-6.1-sol --effort high
+OWNED FILES:
+- backend/app/evaluation_dispatch.py
+- backend/tests/test_evaluation_dispatch.py
+READ:
+- /private/tmp/fewia-evaluation-6813/design.md
+- backend/app/evaluation_matrix.py
+- backend/app/evaluation_model.py
+- backend/app/evaluation_no_tool.py
+- backend/app/evaluation_reference.py
+- backend/app/evaluation_tool_score.py
+- backend/app/evaluation_plan_score.py
+- backend/app/evaluation_outcome_score.py
+- backend/app/evaluation_claim_score.py
+- backend/app/evaluation_protocol.py
+- backend/app/evaluation_refresh.py
+- backend/app/evaluation_handoff.py
+- backend/app/evaluation_duplicate.py
+- backend/app/evaluation_budget.py
+- backend/app/evaluation_meals.py
+- backend/app/evaluation_followup.py
+- backend/app/evaluation_missing.py
+CONTRACT:
+- EvaluationRuntime frozen dataclass: provider_factory Callable[[], LLMProvider], model_id str, evidence_class Literal deterministic_fake_provider/real_bedrock, database_url str|None, endpoint str|None. Never serialize this object or credentials.
+- run_slot(slot: EvaluationSlot, runtime: EvaluationRuntime) -> dict[str, object]. Report case_id/repeat/condition/driver, elapsed_seconds, status, and actual report or observation/assessments.
+- Each model/no_tool slot gets a fresh provider from factory. Use the matching observer. Attach tool/plan/outcome/claim assessments to model/no_tool; reference gets plan assessment with its explicit final-only structured scope. Do not grade reference as language comprehension.
+- Existing four fixture evaluators remain unchanged. Call them for fixture slots and attach their actual evidence class. New provider drivers handle P01/P02/P03/P04/P05; duplicate requires explicit database_url and endpoint. Without local services report unassessed/missing_local_services, not a fake success.
+- Status of observed model execution is separate from task score: completed execution with failed assessments is observed, not passed. A fixture report with no checks or malformed checks MUST NOT pass. Use exact True values and any explicit failed status. Controlled failures that satisfy their guard checks count as fixture success only.
+- No dispatch decision reads expected. Scorers may read expected after execution. Include no raw exceptions, credentials, traceback, reasoning, fabricated IDs, target path labels or false deployed/live evidence. Boundary errors use static reason codes and remain failed slots.
+- KeyboardInterrupt/SystemExit propagate so the batch journal can preserve progress. Timing records actual complete slot elapsed duration, finite nonnegative, not synthetic 0 for work that ran.
+TESTS: each routed evaluator; fresh provider per repeated slot; failure isolation; no expected influence on dispatch; controls excluded from model quality; empty checks fail; missing local services explicit; actual observer status preserved; exceptions redacted; reference distinct.
+CAP: <=150 added application lines; tests excluded. Propose helper split before compression.
+HARD RULES: Released implementation. You are not alone. Codex MAY read/search named files with read-only shell. No tests, packages, git, or writing shell commands. Edit only owned files with apply_patch. Commit nothing.
+
+Exact slot/assessment schema is frozen in design.md under Slot and assessment fields. Use it; do not infer schema from historical reference files.
+
+Failed/unassessed fixture assessments MAY have empty checks when no guard evidence was obtained (for example missing local services). Preserve those slots in summaries; do not fabricate successful or failed observed guard checks. Only passed fixtures require nonempty exact-boolean checks. Malformed supplied checks still reject.

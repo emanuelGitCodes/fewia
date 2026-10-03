@@ -1,0 +1,6 @@
+{"sha": "3b4c47fedb2c81ec0c4620db410307b0cc46eb8c", "clean": true, "lines": 150, "finished": "2026-10-03T12:13:47.186136+00:00", "gates": [{"area": "backend", "gate": "ruff-check", "status": "PASS", "last_line": "All checks passed!"}, {"area": "backend", "gate": "ruff-format", "status": "PASS", "last_line": "264 files already formatted"}, {"area": "backend", "gate": "mypy", "status": "PASS", "last_line": "Success: no issues found in 131 source files"}, {"area": "backend", "gate": "pytest", "status": "PASS", "last_line": "6116 passed, 1 warning in 12.45s"}]}
+PROBE: prior implementation had no completeness flag and returned leakage=False after bound exhaustion.
+PROBE: 04-r4-baseline: 12 passed, 49 deselected, 1 warning in 0.26s
+MUTATION KILLED: 04-r4-missing-unknown: 6 failed, 55 deselected, 1 warning in 0.34s
+MUTATION KILLED: 04-r4-false-incomplete: 6 failed, 55 deselected, 1 warning in 0.17s
+The failing runs above are deliberate disposable mutants, not failures of the reviewed implementation.

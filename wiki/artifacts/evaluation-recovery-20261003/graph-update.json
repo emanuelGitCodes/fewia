@@ -1,0 +1,58 @@
+{
+  "source_sha": "e119a2d4a12c532e333bd43ac49c38ab52a1e49f",
+  "changed_files": 18,
+  "code_files": 14,
+  "semantic_files": 4,
+  "semantic_files_cached": 4,
+  "nodes": 6564,
+  "edges": 19238,
+  "communities": 322,
+  "health": {
+    "dangling_endpoint_edges": 0,
+    "missing_endpoint_edges": 0,
+    "self_loop_edges": 18,
+    "directed_same_endpoint_collapsed_edges": 0,
+    "undirected_same_endpoint_collapsed_edges": 0
+  },
+  "native_semantic_tokens": "unavailable",
+  "output_dir": "/Users/emanuelcortes/.codex/worktrees/6813/fewia/graphify-out",
+  "new_labels": [
+    {
+      "id": 3,
+      "label": "Evaluation Model Turn",
+      "size": 112
+    },
+    {
+      "id": 8,
+      "label": "Evaluation No Tool Turn",
+      "size": 99
+    },
+    {
+      "id": 17,
+      "label": "Evaluation Model",
+      "size": 71
+    },
+    {
+      "id": 170,
+      "label": "Evaluation-Publication Components",
+      "size": 9
+    }
+  ],
+  "html": {
+    "aggregated": true,
+    "community_nodes": 322,
+    "cross_community_edges": 741
+  },
+  "semantic_retention": {
+    "proof_source": "8dfdb50f324310f18ba2870b8807a5511af40096",
+    "unchanged_prior_lines_verified": [
+      "wiki/index.md",
+      "wiki/log.md",
+      "wiki/phases/evaluation-completion.md"
+    ],
+    "retained_nodes": 81,
+    "retained_edges": 156,
+    "fresh_nodes": 23,
+    "reason": "These source changes only insert lines. Prior semantic records remain supported by unchanged text. Locations are cleared after line shifts."
+  }
+}

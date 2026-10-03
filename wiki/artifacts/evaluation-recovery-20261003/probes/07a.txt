@@ -1,0 +1,7 @@
+{"sha": "de7267be983fc122bb78b3461c4818254dd289d8", "clean": true, "lines": 118, "finished": "2026-10-03T13:20:42.648085+00:00", "gates": [{"area": "backend", "gate": "ruff-check", "status": "PASS", "last_line": "All checks passed!"}, {"area": "backend", "gate": "ruff-format", "status": "PASS", "last_line": "266 files already formatted"}, {"area": "backend", "gate": "mypy", "status": "PASS", "last_line": "Success: no issues found in 132 source files"}, {"area": "backend", "gate": "pytest", "status": "PASS", "last_line": "6144 passed, 1 warning in 12.17s"}]}
+PROBE: baseline: 28 passed, 1 warning in 0.16s
+MUTATION KILLED: raw-evidence: 2 failed, 26 deselected, 1 warning in 0.12s
+MUTATION KILLED: unknown-scan-clean: 2 failed, 26 deselected, 1 warning in 0.11s
+MUTATION KILLED: private-error-escapes: 3 failed, 2 passed, 23 deselected, 1 warning in 0.15s
+MUTATION KILLED: interrupt-swallowed: 4 failed, 24 deselected, 1 warning in 0.13s
+Deliberate mutant failures above are not failures of the reviewed head.
