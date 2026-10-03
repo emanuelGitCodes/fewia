@@ -138,7 +138,7 @@ def evaluate_handoff_case(case: dict[str, object]) -> dict[str, object]:
         except (TypeError, ValueError):
             return {**report, "reason_code": "invalid_inputs"}
         observed = _execute(inputs, payload)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {**report, "reason_code": "execution_failed"}
     observed.update(accepted=plan.accepted, total_cents=plan.total_cents)
     report["observed"] = observed
