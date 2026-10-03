@@ -2993,3 +2993,14 @@ PR #318 preserves this wiki evidence, stacked on PR #315.
 The run's PostgreSQL container stopped. Disposable mutation and historical review
 checkouts were removed. The existing FEWIA stack was not changed.
 No Grafana or Graphify update occurred. No PR was merged and no AWS deployment ran.
+
+## 2026-10-03 — Agent catalog scope correction
+
+Decision 0017 and `.codex/project-context.md` set the supported catalog at 40 meals. During benchmark documentation work, stale role wording led the docs writer to invent a separate ten-meal release boundary. The writable Claude and OpenCode adapters now point to the accepted catalog. Canonical `.codex/agents/` corrections remain outstanding because that directory is read-only in this writer workspace.
+
+## 2026-10-03 — Complete the canonical catalog role correction
+
+The coordinator applied the catalog wording correction to five protected
+canonical role files after the writer sandbox blocked those edits. The roles
+now follow the accepted catalog in `.codex/project-context.md` and decision
+0017. This changes no model, tool permission, or ownership rule.
