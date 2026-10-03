@@ -129,6 +129,57 @@ def database_url() -> str:
     return url
 
 
+@pytest.mark.parametrize("url", [None, ""])
+def test_database_url_fails_when_missing_and_required(
+    monkeypatch: pytest.MonkeyPatch, url: str | None
+) -> None:
+    if url is None:
+        monkeypatch.delenv("FEWIA_EVALUATION_DATABASE_URL", raising=False)
+    else:
+        monkeypatch.setenv("FEWIA_EVALUATION_DATABASE_URL", url)
+    monkeypatch.setenv("FEWIA_REQUIRE_DB", "1")
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
+        database_url.__wrapped__()
+    assert caught.type is pytest.fail.Exception
+    assert str(caught.value) == (
+        "FEWIA_REQUIRE_DB requires FEWIA_EVALUATION_DATABASE_URL. "
+        "Set FEWIA_EVALUATION_DATABASE_URL to a migrated PostgreSQL database."
+    )
+
+
+@pytest.mark.parametrize("url", [None, ""])
+@pytest.mark.parametrize("require_db", [None, "", "0", "true", "yes", " 1", "1 "])
+def test_database_url_skips_when_missing_and_optional(
+    monkeypatch: pytest.MonkeyPatch, url: str | None, require_db: str | None
+) -> None:
+    if url is None:
+        monkeypatch.delenv("FEWIA_EVALUATION_DATABASE_URL", raising=False)
+    else:
+        monkeypatch.setenv("FEWIA_EVALUATION_DATABASE_URL", url)
+    if require_db is None:
+        monkeypatch.delenv("FEWIA_REQUIRE_DB", raising=False)
+    else:
+        monkeypatch.setenv("FEWIA_REQUIRE_DB", require_db)
+    with pytest.raises((pytest.fail.Exception, pytest.skip.Exception)) as caught:
+        database_url.__wrapped__()
+    assert caught.type is pytest.skip.Exception
+    assert str(caught.value) == (
+        "PostgreSQL integration requires FEWIA_EVALUATION_DATABASE_URL."
+    )
+
+
+@pytest.mark.parametrize("require_db", [None, "1", "0", "true"])
+def test_database_url_returns_supplied_value(
+    monkeypatch: pytest.MonkeyPatch, require_db: str | None
+) -> None:
+    monkeypatch.setenv("FEWIA_EVALUATION_DATABASE_URL", LOCAL_DATABASE)
+    if require_db is None:
+        monkeypatch.delenv("FEWIA_REQUIRE_DB", raising=False)
+    else:
+        monkeypatch.setenv("FEWIA_REQUIRE_DB", require_db)
+    assert database_url.__wrapped__() == LOCAL_DATABASE
+
+
 @pytest.fixture
 def schemas(monkeypatch: pytest.MonkeyPatch, database_url: str) -> Iterator[list[str]]:
     names: list[str] = []
