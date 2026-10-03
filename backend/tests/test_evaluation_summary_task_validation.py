@@ -340,11 +340,12 @@ def test_known_failure_survives_incomplete_capture_and_malformed_turn() -> None:
     assert classify_slot(slot).quality_status == "failed"
 
 
-def test_raw_public_content_and_wrong_level_flags_are_ignored() -> None:
+@pytest.mark.parametrize("value", [True, None, 1, "true", []])
+def test_raw_public_content_and_wrong_level_flags_are_ignored(value: object) -> None:
     slot = _slot()
-    public = {"secret_leak": True, "capture_incomplete": True, "answer": object()}
+    public = {"secret_leak": value, "capture_incomplete": value, "answer": object()}
     slot.update(
-        secret_leak=True, capture_incomplete=True, result=public, messages=object()
+        secret_leak=value, capture_incomplete=value, result=public, messages=object()
     )
     slot["report"] = public
     observation = _map(slot["observation"])
@@ -519,12 +520,13 @@ def test_fixture_checks(checks: object) -> None:
         ("controlled_fixture", "refresh", "tools"),
     ],
 )
+@pytest.mark.parametrize("status", ["invalid", "failed", "not_applicable"])
 def test_only_condition_assessments_are_used(
-    condition: str, driver: str, ignored: str
+    condition: str, driver: str, ignored: str, status: str
 ) -> None:
     slot = _slot()
     slot.update(condition=condition, driver=driver)
-    _assessment(slot, ignored)["status"] = "invalid"
+    _assessment(slot, ignored)["status"] = status
     assert classify_slot(slot).quality_status == "passed"
 
 
@@ -653,15 +655,58 @@ def test_turn_flags_for_every_condition(
 
 @pytest.mark.parametrize("level", ["observation", "turn"])
 @pytest.mark.parametrize("flag", ["secret_leak", "capture_incomplete"])
-@pytest.mark.parametrize("value", [False, None, 1, "true", []])
-def test_flags_require_exact_true(level: str, flag: str, value: object) -> None:
+@pytest.mark.parametrize(
+    ("value", "quality"),
+    [
+        (False, "passed"),
+        (None, "unassessed"),
+        (0, "unassessed"),
+        (1, "unassessed"),
+        (0.0, "unassessed"),
+        ("true", "unassessed"),
+        ([], "unassessed"),
+        ({}, "unassessed"),
+    ],
+)
+def test_flags_require_exact_booleans(
+    level: str, flag: str, value: object, quality: str
+) -> None:
     slot = _slot()
     observation = _map(slot["observation"])
     if level == "observation":
         observation[flag] = value
     else:
         observation["turns"] = [{"status": "completed", flag: value}]
-    assert classify_slot(slot).quality_status == "passed"
+    assert classify_slot(slot).quality_status == quality
+
+
+@pytest.mark.parametrize(("condition", "driver"), _CONDITIONS)
+@pytest.mark.parametrize("level", ["observation", "turn"])
+@pytest.mark.parametrize("flag", ["secret_leak", "capture_incomplete"])
+@pytest.mark.parametrize("value", [None, 1, "true", []])
+@pytest.mark.parametrize("failure", ["execution", "assessment", "secret_leak"])
+def test_known_failure_precedes_malformed_flags(
+    condition: str, driver: str, level: str, flag: str, value: object, failure: str
+) -> None:
+    slot = _slot()
+    slot.update(condition=condition, driver=driver)
+    observation = _map(slot["observation"])
+    turn: dict[str, object] = {"status": "completed"}
+    observation["turns"] = [turn]
+    target = observation if level == "observation" else turn
+    target[flag] = value
+    if failure == "execution":
+        slot["status"] = "partial"
+    elif failure == "assessment":
+        kind = "fixture" if condition.endswith("_fixture") else "plan"
+        _assessment(slot, kind)["status"] = "failed"
+    else:
+        other = turn if level == "observation" else observation
+        other["secret_leak"] = True
+    observation["capture_incomplete"] = (
+        value if level == "observation" and flag == "capture_incomplete" else True
+    )
+    assert classify_slot(slot).quality_status == "failed"
 
 
 @pytest.mark.parametrize(("condition", "driver"), _CONDITIONS)
@@ -706,27 +751,84 @@ def test_malformed_turn_keys_preserve_known_failure(
         ("claims", {"status": "not_applicable", "scope": "public_output_only"}),
     ],
 )
+@pytest.mark.parametrize(
+    ("condition", "driver"), [("tool_enabled", "model"), ("no_tool", "no_tool")]
+)
 def test_minimal_abstentions_use_approved_helper(
-    kind: str, record: dict[str, object]
+    kind: str, record: dict[str, object], condition: str, driver: str
 ) -> None:
     slot = _slot()
+    slot.update(condition=condition, driver=driver)
     _map(slot["assessments"])[kind] = record
     assert assessment_status(record, kind) == "not_applicable"
-    assert classify_slot(slot).quality_status == "passed"
+    facts = classify_slot(slot)
+    assert facts.quality_scope == "language_task"
+    assert facts.quality_status == "passed"
 
 
-@pytest.mark.parametrize("status", ["unassessed", "not_applicable"])
+@pytest.mark.parametrize("status", ["passed", "unassessed", "not_applicable"])
 @pytest.mark.parametrize("counts", [False, True])
-def test_tool_abstention_uses_approved_helper(status: str, counts: bool) -> None:
+@pytest.mark.parametrize(
+    ("condition", "driver", "quality"),
+    [("tool_enabled", "model", "unassessed"), ("no_tool", "no_tool", "passed")],
+)
+def test_tool_not_applicable_metrics_cannot_pass_required_assessment(
+    status: str, counts: bool, condition: str, driver: str, quality: str
+) -> None:
     slot = _slot()
+    slot.update(condition=condition, driver=driver)
     tools = _assessment(slot, "tools")
     tools["status"] = status
     for name in tools.keys() - {"status"}:
         tools[name] = {"status": "not_applicable"}
         if counts:
             _map(tools[name]).update(numerator=0, denominator=0)
-    assert assessment_status(tools, "tools") == "not_applicable"
-    assert classify_slot(slot).quality_status == "passed"
+    facts = classify_slot(slot)
+    assert facts.quality_scope == "language_task"
+    assert facts.quality_status == quality
+    _assessment(slot, "claims")["status"] = "failed"
+    _map(slot["observation"])["capture_incomplete"] = True
+    assert classify_slot(slot).quality_status == "failed"
+
+
+def test_tool_enabled_passed_zero_counts_are_successful_abstention() -> None:
+    slot = _slot()
+    tools = _assessment(slot, "tools")
+    for name in tools.keys() - {"status"}:
+        tools[name] = {"status": "passed", "numerator": 0, "denominator": 0}
+    assert assessment_status(tools, "tools") == "passed"
+    facts = classify_slot(slot)
+    assert facts.condition == "tool_enabled"
+    assert facts.quality_scope == "language_task"
+    assert facts.quality_status == "passed"
+
+
+@pytest.mark.parametrize("minimal", [False, True])
+@pytest.mark.parametrize("failure_level", ["slot", "observation", "turn"])
+def test_reference_plan_abstention_cannot_pass(
+    minimal: bool, failure_level: str
+) -> None:
+    slot = _slot()
+    slot.update(condition="deterministic", driver="reference")
+    if minimal:
+        _map(slot["assessments"])["plan"] = {
+            "status": "not_applicable",
+            "scope": "final_plan",
+        }
+    else:
+        _assessment(slot, "plan")["status"] = "not_applicable"
+    assert assessment_status(_assessment(slot, "plan"), "plan") == "not_applicable"
+    facts = classify_slot(slot)
+    assert facts.quality_scope == "structured_reference"
+    assert facts.quality_status == "unassessed"
+    observation = _map(slot["observation"])
+    observation["capture_incomplete"] = True
+    if failure_level == "turn":
+        observation["turns"] = [{"status": "failed"}]
+    else:
+        target = slot if failure_level == "slot" else observation
+        target["status"] = "failed"
+    assert classify_slot(slot).quality_status == "failed"
 
 
 @pytest.mark.parametrize(

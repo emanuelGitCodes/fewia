@@ -66,7 +66,13 @@ def classify_slot(slot: dict[str, object]) -> TaskFacts:
     elif condition in ("deterministic_fixture", "controlled_fixture"):
         scope, names = "fixture_guard", ("fixture",)
     results = [_execution_quality(execution), _execution_quality(observed)]
-    results.extend(assessment_status(assessments.get(name), name) for name in names)
+    for name in names:
+        result = assessment_status(assessments.get(name), name)
+        if result == "not_applicable" and not (
+            scope == "language_task" and name in ("plan", "claims")
+        ):
+            result = "unassessed"
+        results.append(result)
     turns = capture.get("turns")
     records = [capture]
     if type(turns) is not list:
@@ -95,6 +101,8 @@ def classify_slot(slot: dict[str, object]) -> TaskFacts:
     for key, state in (("secret_leak", "failed"), ("capture_incomplete", "unassessed")):
         if any(record.get(key) is True for record in records):
             results.append(state)
+        if any(key in record and type(record[key]) is not bool for record in records):
+            results.append("unassessed")
     label = capture.get("evidence_class")
     labels = ("real_bedrock", "deterministic_fake_provider", "local_postgresql")
     evidence_class = label if type(label) is str and label in labels else "unknown"
