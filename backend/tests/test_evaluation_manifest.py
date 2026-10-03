@@ -6,10 +6,12 @@ from typing import cast
 
 import pytest
 
+from app import evaluation_baseline_response
 from app import evaluation_manifest as manifests
 from app.agent import chat_loop
 from app.domain import catalog
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.evaluation_baseline_response import BASELINE_SYSTEM_PROMPT
 
 
 @pytest.fixture
@@ -73,6 +75,8 @@ def test_manifest_hashes_match_canonical_json(corpus: dict[str, object]) -> None
     assert manifest["corpus_hash"] == _hash(corpus)
     assert manifest["catalog_hash"] == _hash(manifest["catalog"])
     assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
+    assert manifest["baseline_system_prompt_hash"] == _hash(BASELINE_SYSTEM_PROMPT)
+    assert len(cast(str, manifest["baseline_system_prompt_hash"])) == 64
     assert manifest["model_config_hash"] == _hash(manifest["model_config"])
     identity = manifest.pop("manifest_hash")
     assert identity == _hash(manifest)
@@ -87,6 +91,7 @@ def test_manifest_hashes_match_canonical_json(corpus: dict[str, object]) -> None
         "catalog_hash",
         "catalog_version",
         "system_prompt_hash",
+        "baseline_system_prompt_hash",
         "model_id",
         "region",
         "model_config",
@@ -159,6 +164,21 @@ def test_prompt_change_alters_prompt_hash(
     after = _manifest(corpus)
     assert after["system_prompt_hash"] != before["system_prompt_hash"]
     assert after["manifest_hash"] != before["manifest_hash"]
+    assert after["catalog_hash"] == before["catalog_hash"]
+    assert after["baseline_system_prompt_hash"] == before["baseline_system_prompt_hash"]
+
+
+def test_baseline_prompt_change_alters_baseline_hash(
+    corpus: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before = _manifest(corpus)
+    updated = evaluation_baseline_response.BASELINE_SYSTEM_PROMPT + " Test."
+    monkeypatch.setattr(evaluation_baseline_response, "BASELINE_SYSTEM_PROMPT", updated)
+    monkeypatch.setattr(manifests, "BASELINE_SYSTEM_PROMPT", updated)
+    after = _manifest(corpus)
+    assert after["baseline_system_prompt_hash"] != before["baseline_system_prompt_hash"]
+    assert after["manifest_hash"] != before["manifest_hash"]
+    assert after["system_prompt_hash"] == before["system_prompt_hash"]
     assert after["catalog_hash"] == before["catalog_hash"]
 
 

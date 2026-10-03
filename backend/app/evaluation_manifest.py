@@ -7,6 +7,7 @@ from typing import cast
 
 from app.agent import chat_loop
 from app.domain import catalog
+from app.evaluation_baseline_response import BASELINE_SYSTEM_PROMPT
 
 _CONFIG_KEYS = frozenset({"max_tokens", "temperature", "reasoning_effort"})
 _REGIONS = frozenset({"us-east-1", "us-west-2"})
@@ -125,6 +126,7 @@ def build_manifest(
         "catalog_hash": _hash(snapshot),
         "catalog_version": snapshot["version"],
         "system_prompt_hash": _hash(chat_loop.SYSTEM_PROMPT),
+        "baseline_system_prompt_hash": _hash(BASELINE_SYSTEM_PROMPT),
         "model_id": model_id,
         "region": region,
         "model_config": config,
