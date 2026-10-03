@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import cast
@@ -8,6 +9,11 @@ from app.evaluation_budget_inputs import fixture_budget
 
 INVALID_INPUT_ERROR = "evaluation inputs are invalid"
 STALE_INPUT_ERROR = "evaluation spending is stale without a cap"
+CREDENTIAL_INPUT_ERROR = "evaluation inputs contain credential-like text"
+CREDENTIAL_PATTERN: re.Pattern[str] = re.compile(
+    r"\d{9,}|\b(?:password|passcode|routing|account number|ssn|pin|login)\b",
+    re.IGNORECASE,
+)
 MAX_CASE_MESSAGES = MAX_HISTORY // 2 + 1
 _BUDGET_KEYS = (
     "now",
@@ -99,7 +105,10 @@ def prepare_case(case: dict[str, object]) -> CaseContext:
     for item in raw_messages:
         if type(item) is not dict or item.get("role") != "user":
             raise EvaluationInputError(INVALID_INPUT_ERROR)
-        messages.append(_text(item.get("content")))
+        content = _text(item.get("content"))
+        if CREDENTIAL_PATTERN.search(content):
+            raise EvaluationInputError(CREDENTIAL_INPUT_ERROR)
+        messages.append(content)
     source = case.get("inputs")
     if type(source) is not dict:
         raise EvaluationInputError(INVALID_INPUT_ERROR)
