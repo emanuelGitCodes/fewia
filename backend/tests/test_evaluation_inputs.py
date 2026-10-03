@@ -10,6 +10,7 @@ import pytest
 from app.agent.chat_context import MAX_MESSAGE_LEN
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.evaluation_inputs import (
+    CREDENTIAL_INPUT_ERROR,
     INVALID_INPUT_ERROR,
     MAX_CASE_MESSAGES,
     STALE_INPUT_ERROR,
@@ -184,6 +185,59 @@ def test_invalid_messages_fail_closed(messages: object) -> None:
     case["messages"] = messages
     with pytest.raises(EvaluationInputError, match=f"^{INVALID_INPUT_ERROR}$"):
         prepare_case(case)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "my password is hunter2",
+        "account number 123456789",
+        "routing 021000021",
+        "Use this PASSCODE.",
+        "My SSN is private.",
+        "Here is my PIN.",
+        "Use my bank LOGIN.",
+        "123456789",
+        "reference1234567890suffix",
+    ],
+)
+@pytest.mark.parametrize("message_index", [0, 1])
+def test_credential_messages_fail_closed(content: str, message_index: int) -> None:
+    case = _case()
+    messages = [{"role": "user", "content": "Plan bean tacos."} for _ in range(2)]
+    messages[message_index]["content"] = content
+    case["messages"] = messages
+    with pytest.raises(EvaluationInputError) as error:
+        prepare_case(case)
+    assert str(error.value) == CREDENTIAL_INPUT_ERROR
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Plan groceries for 2 people under $100",
+        "spin the wheel",
+        "Plan spinach with beans.",
+        "Reference 12345678.",
+        "passwordless logins",
+    ],
+)
+def test_messages_without_credential_patterns_prepare(content: str) -> None:
+    case = _case()
+    case["messages"] = [{"role": "user", "content": content}]
+    assert prepare_case(case).messages == (content,)
+
+
+def test_all_corpus_messages_prepare_with_valid_budget() -> None:
+    cases = _corpus_cases()
+    assert len(cases) == 30
+    for corpus_case in cases:
+        case = _case()
+        case["id"] = corpus_case["id"]
+        case["messages"] = deepcopy(corpus_case["messages"])
+        messages = cast(list[dict[str, str]], corpus_case["messages"])
+        expected_messages = tuple(item["content"] for item in messages)
+        assert prepare_case(case).messages == expected_messages
 
 
 def test_message_bounds_are_inclusive() -> None:
