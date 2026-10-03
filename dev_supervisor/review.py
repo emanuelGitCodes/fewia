@@ -106,6 +106,50 @@ def parse_stdout(raw: bytes) -> dict[str, int | None] | None:
     return totals
 
 
+def fallback_reason(raw: bytes) -> str | None:
+    reasons = {
+        "unavailable": (
+            "provider_unavailable",
+            "service_unavailable",
+            "model_not_found",
+            "HTTP 503 service unavailable",
+        ),
+        "authentication": (
+            "authentication_error",
+            "unauthorized",
+            "HTTP 401 unauthorized",
+        ),
+        "quota": ("insufficient_quota", "quota_exceeded", "HTTP 429 quota exceeded"),
+        "rate_limit": (
+            "rate_limit_exceeded",
+            "rate_limit_error",
+            "HTTP 429 rate limit exceeded",
+        ),
+    }
+    reason = None
+    for line in raw.decode(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(event, dict):
+            return None
+        item = event.get("item")
+        if isinstance(item, dict) and item.get("type") == "agent_message":
+            return None
+        if event.get("type") not in ("error", "turn.failed"):
+            continue
+        error = event.get("error", event)
+        if not isinstance(error, dict):
+            return None
+        value = error.get("code", error.get("message"))
+        matches = [key for key, values in reasons.items() if value in values]
+        if not matches or (reason is not None and reason != "codex_" + matches[0]):
+            return None
+        reason = "codex_" + matches[0]
+    return reason
+
+
 def run_codex(
     args: list[str], cwd: Path, stdin: IO[bytes], timeout: float
 ) -> tuple[bytes, bool, int]:
@@ -217,16 +261,15 @@ def main() -> None:
     dest = root / ".fewia-supervisor-reviews" / f"{sha}-{model}.md"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.unlink(missing_ok=True)
-    if provider == "grok":
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            prompt_path = Path(tmp_dir) / "prompt.txt"
-            prompt_path.write_text("\n".join(parts))
-            grok_cmd = grok_command(cwd, prompt_path, effort)
-            raw, timed_out, elapsed_ms = run_grok(grok_cmd, cwd, args.timeout)
-        text, totals = grok_report(raw)
-        if text.strip():
-            dest.write_text(text)
-    else:
+    attempted_providers = [provider]
+    fallback: str | None = None
+    codex_attempt: dict[str, object] | None = None
+    allow_fallback = (
+        args.provider == "auto"
+        and args.model is None
+        and args.writer_model != GROK_MODEL
+    )
+    if provider == "codex":
         cmd = ["codex", "exec", "--model", model, "--cd", str(cwd)]
         cmd += [
             "--sandbox",
@@ -240,8 +283,48 @@ def main() -> None:
             prompt_path = Path(tmp_dir) / "prompt.txt"
             prompt_path.write_text("\n".join(parts))
             with prompt_path.open("rb") as source:
-                raw, timed_out, elapsed_ms = run_codex(cmd, cwd, source, args.timeout)
+                try:
+                    raw, timed_out, elapsed_ms = run_codex(
+                        cmd, cwd, source, args.timeout
+                    )
+                except FileNotFoundError as exc:
+                    if not allow_fallback or exc.filename not in (None, cmd[0]):
+                        raise
+                    raw, timed_out, elapsed_ms = b"", False, 0
+                    fallback = "codex_executable_missing"
         totals = parse_stdout(raw)
+        if (
+            allow_fallback
+            and not timed_out
+            and (not dest.exists() or not dest.read_text().strip())
+        ):
+            fallback = fallback or fallback_reason(raw)
+        else:
+            fallback = None
+        if fallback is not None:
+            codex_attempt = dict(
+                provider=provider,
+                model=model,
+                effort=effort,
+                elapsed_ms=elapsed_ms,
+                outcome="task_failed",
+                usage=totals,
+                fallback_reason=fallback,
+            )
+            provider, model, effort = "grok", GROK_MODEL, grok_effort(args.complexity)
+            attempted_providers.append(provider)
+            parts += [NO_SHELL, truncate_diff(git("diff", f"{args.base}...{sha}"))]
+            dest = dest.with_name(f"{sha}-{model}.md")
+            dest.unlink(missing_ok=True)
+    if provider == "grok":
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompt_path = Path(tmp_dir) / "prompt.txt"
+            prompt_path.write_text("\n".join(parts))
+            grok_cmd = grok_command(cwd, prompt_path, effort)
+            raw, timed_out, elapsed_ms = run_grok(grok_cmd, cwd, args.timeout)
+        text, totals = grok_report(raw)
+        if text.strip():
+            dest.write_text(text)
     if not dest.exists() or dest.stat().st_size == 0:
         reason = "timed out" if timed_out else "produced no output"
         err = first_error(raw)
@@ -258,6 +341,9 @@ def main() -> None:
     body.update(elapsed_ms=elapsed_ms, saved=str(dest), input_tokens=inn)
     body["output_tokens"] = None if totals is None else totals["output_tokens"]
     body["provider"] = provider
+    body.update(attempted_providers=attempted_providers, fallback_reason=fallback)
+    if codex_attempt is not None:
+        body["codex_attempt"] = codex_attempt
     print(json.dumps(body))
     meta: dict[str, Any] = {"provenance": "none"}
     if totals is not None:

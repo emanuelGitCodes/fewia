@@ -77,11 +77,12 @@ def install_run(
     elapsed_ms: int = 4,
     write: bool = True,
 ) -> dict[str, object]:
-    seen: dict[str, object] = {}
+    seen: dict[str, object] = {"calls": 0}
 
     def fake(
         args: list[str], cwd: Path, stdin: IO[bytes], timeout: float
     ) -> tuple[bytes, bool, int]:
+        seen["calls"] = int(seen["calls"]) + 1
         seen["args"] = args
         seen["cwd"] = cwd
         seen["timeout"] = timeout
@@ -820,3 +821,174 @@ def test_grok_streaming_json_saves_text_and_tokens(
     assert row["cached_tokens"] == 128
     assert row["output_tokens"] == 22
     assert row["reasoning_tokens"] == 21
+
+
+@pytest.mark.parametrize(
+    ("error_code", "reason"),
+    [
+        ("missing", "codex_executable_missing"),
+        ("provider_unavailable", "codex_unavailable"),
+        ("service_unavailable", "codex_unavailable"),
+        ("model_not_found", "codex_unavailable"),
+        ("authentication_error", "codex_authentication"),
+        ("unauthorized", "codex_authentication"),
+        ("insufficient_quota", "codex_quota"),
+        ("quota_exceeded", "codex_quota"),
+        ("rate_limit_exceeded", "codex_rate_limit"),
+        ("rate_limit_error", "codex_rate_limit"),
+        ("HTTP 503 service unavailable", "codex_unavailable"),
+        ("HTTP 401 unauthorized", "codex_authentication"),
+        ("HTTP 429 quota exceeded", "codex_quota"),
+        ("HTTP 429 rate limit exceeded", "codex_rate_limit"),
+    ],
+)
+@pytest.mark.parametrize("report_message", [None, "", " \t\r\n "])
+def test_auto_falls_back_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error_code: str,
+    reason: str,
+    report_message: str | None,
+) -> None:
+    root = make_repo(tmp_path)
+    error = {"code": error_code, "message": "private provider detail"}
+    event: dict[str, Any] = {"type": "turn.failed", "error": error}
+    if error_code.startswith("HTTP"):
+        event = {"type": "error", "message": error_code}
+    raw = grok_stream(
+        {"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}},
+        event,
+    )
+    codex = install_run(
+        monkeypatch,
+        message=report_message or "",
+        write=report_message is not None,
+        stdout=raw,
+    )
+    if error_code == "missing":
+
+        def missing(*args: object, **kwargs: object) -> tuple[bytes, bool, int]:
+            codex["calls"] = int(codex["calls"]) + 1
+            raise FileNotFoundError(2, "missing executable", "codex")
+
+        monkeypatch.setattr(review, "run_codex", missing)
+    grok = install_grok(
+        monkeypatch,
+        stdout=grok_stream({"type": "text", "data": "VERDICT: APPROVE\n"}, GROK_END),
+    )
+    assert run_main(monkeypatch, argv(root, writer="gpt-6-luna")) == 0
+    data = summary(capsys.readouterr().out)
+    assert codex["calls"] == grok["calls"] == 1
+    assert data["provider"] == "grok" and data["model"] == "grok-4.6"
+    assert data["attempted_providers"] == ["codex", "grok"]
+    assert data["fallback_reason"] == reason
+    attempt = data["codex_attempt"]
+    assert isinstance(attempt, dict)
+    assert attempt["provider"] == "codex" and attempt["model"] == "gpt-6.1-sol"
+    assert attempt["fallback_reason"] == reason
+    assert "private provider detail" not in json.dumps(data)
+    if error_code == "missing":
+        assert attempt["usage"] is None
+    else:
+        assert attempt["usage"]["input_tokens"] == 10
+    dest = Path(str(data["saved"]))
+    assert dest.name == f"{sha_of(root)}-grok-4.6.md"
+    assert dest.read_text() == "VERDICT: APPROVE\n"
+    row = json.loads(ledger_path(root).read_text().splitlines()[-1])
+    assert row["provider"] == "grok" and row["model"] == "grok-4.6"
+    assert row["provenance"] == "grok.end" and row["input_tokens"] == 18539
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "explicit_codex",
+        "explicit_model",
+        "grok_writer",
+        "timeout",
+        "task_failure",
+        "empty",
+        "malformed_stream",
+        "ambiguous",
+        "conflicting",
+        "completed_stream",
+        "malformed_report",
+        "APPROVE",
+        "REQUEST_CHANGES",
+        "BLOCKED",
+    ],
+)
+def test_auto_fallback_exclusions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+) -> None:
+    root = make_repo(tmp_path)
+    raw = grok_stream({"type": "error", "code": "provider_unavailable"})
+    extra = {
+        "explicit_codex": ["--provider", "codex"],
+        "explicit_model": ["--model", "gpt-6.1-sol"],
+    }.get(case, [])
+    if case == "task_failure":
+        raw = grok_stream({"type": "turn.failed", "error": {"code": "task_failed"}})
+    elif case == "empty":
+        raw = b""
+    elif case == "malformed_stream":
+        raw += b"not-json\n"
+    elif case == "ambiguous":
+        raw = grok_stream({"type": "error", "message": "maybe rate limited"})
+    elif case == "conflicting":
+        raw += grok_stream({"type": "error", "code": "authentication_error"})
+    elif case == "completed_stream":
+        raw += grok_stream(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "VERDICT: APPROVE"},
+            }
+        )
+    message = (
+        f"VERDICT: {case}\n"
+        if case in ("APPROVE", "REQUEST_CHANGES", "BLOCKED")
+        else ""
+    )
+    if case == "malformed_report":
+        message = "no verdict line\n"
+    refuse_grok(monkeypatch)
+    install_run(monkeypatch, message=message, stdout=raw, timed_out=case == "timeout")
+    writer = "grok-4.6" if case == "grok_writer" else "gpt-6-luna"
+    expected = 0 if case == "APPROVE" else 1 if case == "REQUEST_CHANGES" else 2
+    assert run_main(monkeypatch, argv(root, extra, writer=writer)) == expected
+    data = summary(capsys.readouterr().out)
+    assert data["provider"] == "codex"
+    assert data["attempted_providers"] == ["codex"]
+    assert data["fallback_reason"] is None and "codex_attempt" not in data
+
+
+@pytest.mark.parametrize(
+    ("extra", "writer", "filename"),
+    [
+        (["--provider", "codex"], "gpt-6-luna", "codex"),
+        (["--model", "gpt-6.1-sol"], "gpt-6-luna", "codex"),
+        ([], "grok-4.6", "codex"),
+        ([], "gpt-6-luna", "another-file"),
+    ],
+)
+def test_missing_executable_fallback_exclusions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra: list[str],
+    writer: str,
+    filename: str,
+) -> None:
+    root = make_repo(tmp_path)
+
+    def missing(*args: object, **kwargs: object) -> tuple[bytes, bool, int]:
+        raise FileNotFoundError(2, "missing file", filename)
+
+    monkeypatch.setattr(review, "run_codex", missing)
+    refuse_grok(monkeypatch)
+    monkeypatch.setattr(sys, "argv", argv(root, extra, writer=writer))
+    with pytest.raises(FileNotFoundError):
+        review.main()
