@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import cast
 
 from pydantic import ValidationError
@@ -39,6 +40,27 @@ def _matches(expected: dict[str, object], arguments: object) -> bool:
         key in actual and typed_equal(value, actual[key])
         for key, value in required.items()
     )
+
+
+def _argument_matches(expected: list[dict[str, object]], calls: list[object]) -> int:
+    arguments = [_arguments(call) for call in calls]
+    paired: dict[int, int] = {}
+
+    def pair(index: int, seen: set[int]) -> bool:
+        for number, call in enumerate(calls):
+            if (
+                number in seen
+                or expected[index]["name"] != as_map(call).get("tool")
+                or not _matches(expected[index], arguments[number])
+            ):
+                continue
+            seen.add(number)
+            if number not in paired or pair(paired[number], seen):
+                paired[number] = index
+                return True
+        return False
+
+    return sum(pair(index, set()) for index in range(len(expected)))
 
 
 def _metric(status: str, numerator: int, denominator: int) -> dict[str, object]:
@@ -103,21 +125,15 @@ def score_tools(
     )
     if condition == "tool_enabled" and complete and identity and gold:
         final = cast(list[object], as_map(cast(list[object], turns)[-1])["calls"])
-        remaining = [as_map(tool) for tool in cast(list[object], tools)]
-        selected, matched, count = 0, 0, len(cast(list[object], tools))
-        for call in final:
-            choices = [
-                tool
-                for tool in remaining
-                if tool["name"] == as_map(call).get("tool")
-                and tool["name"] not in cast(list[object], forbidden)
-            ]
-            if choices:
-                arguments = _arguments(call)
-                tool = next((t for t in choices if _matches(t, arguments)), choices[0])
-                remaining.remove(tool)
-                selected += 1
-                matched += _matches(tool, arguments)
+        expected_calls = [as_map(tool) for tool in cast(list[object], tools)]
+        blocked = cast(list[object], forbidden)
+        allowed = [tool for tool in expected_calls if tool["name"] not in blocked]
+        selected = sum(
+            min(total, sum(as_map(call).get("tool") == name for call in final))
+            for name, total in Counter(tool["name"] for tool in allowed).items()
+        )
+        matched = _argument_matches(allowed, final)
+        count = len(expected_calls)
         counts = (
             (valid, len(calls)),
             (selected, count),
