@@ -358,7 +358,10 @@ def test_unknown_text_never_passes_or_survives_in_score(
 
 
 def test_questions_have_no_vacuous_factual_pass() -> None:
-    answer = "Which meal should I plan, and what servings, restrictions, and pantry items apply?"
+    answer = (
+        "Which meal should I plan, and what servings, restrictions, "
+        "and pantry items apply?"
+    )
     score = score_claims(_case(), _observation(_reply(answer)))
     assert score["status"] == "not_applicable"
     assert score["assessed_count"] == score["supported_count"] == 0
