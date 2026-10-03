@@ -177,7 +177,11 @@ def test_failures_reuse_summary_metrics_and_keep_execution_separate() -> None:
     result = prepare_report(_batch([failed_execution], [failed_quality]))
     groups = _rows(_map(result["summary"])["groups"])
     expected = [
-        item
+        {
+            **_map(item),
+            "condition": group["condition"],
+            "evidence_class": group["evidence_class"],
+        }
         for group in groups
         for item in cast(list[object], _map(group["metrics"])["known_failures"])
     ]
@@ -185,6 +189,114 @@ def test_failures_reuse_summary_metrics_and_keep_execution_separate() -> None:
     assert len(expected) == 1
     assert _map(result["coverage"])["failed_slots"] == 1
     assert _map(result["coverage"])["scored_slots"] == 2
+
+
+def test_identical_case_repeats_keep_failure_condition_and_evidence() -> None:
+    primary = _slot()
+    baseline = _slot(condition="no_tool", evidence="deterministic_fake_provider")
+    for slot in (primary, baseline):
+        _assess(slot)
+        _map(_map(slot["assessments"])["outcome"]).update(
+            status="failed", checks={"completed_request": False}
+        )
+    report = _batch([primary], [baseline])
+    original = deepcopy(report)
+    result = prepare_report(report)
+    failures = _rows(result["failures"])
+    assert failures == [
+        {
+            "case_id": "A02",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": ["completed_request"],
+            "condition": condition,
+            "evidence_class": evidence,
+        }
+        for condition, evidence in (
+            ("no_tool", "deterministic_fake_provider"),
+            ("tool_enabled", "real_bedrock"),
+        )
+    ]
+    assert report == original
+    cast(list[object], failures[0]["checks"]).clear()
+    assert report == original
+
+
+def test_issues_use_validated_facts_and_exclude_passed_quality() -> None:
+    unassessed = _slot(evidence="PRIVATE_EVIDENCE")
+    failed = _slot(condition="no_tool")
+    _assess(failed)
+    _map(_map(failed["assessments"])["outcome"]).update(
+        status="failed", checks={"completed_request": False}
+    )
+    passed = _slot(condition="no_tool", repeat=2)
+    _assess(passed)
+    result = prepare_report(_batch([unassessed], [failed, passed]))
+    assert result["issues"] == [
+        {
+            "case_id": "A02",
+            "repeat": 1,
+            "condition": "tool_enabled",
+            "evidence_class": "unknown",
+            "quality_status": "unassessed",
+            "execution_status": "completed",
+            "reason_code": "required_evidence_unavailable",
+        },
+        {
+            "case_id": "A02",
+            "repeat": 1,
+            "condition": "no_tool",
+            "evidence_class": "real_bedrock",
+            "quality_status": "failed",
+            "execution_status": "completed",
+            "reason_code": "assessment_failed",
+        },
+    ]
+
+
+@pytest.mark.parametrize("field", ["reason", "reason_code"])
+@pytest.mark.parametrize("status", ["failed", "unassessed"])
+def test_issues_preserve_only_known_missing_service_reason(
+    field: str, status: str
+) -> None:
+    slot = _slot(status=status)
+    _map(slot["observation"]).update(
+        reason="PRIVATE_REASON", reason_code="PRIVATE_REASON_CODE"
+    )
+    _map(slot["observation"])[field] = "missing_local_services"
+    issue = _rows(prepare_report(_batch([slot]))["issues"])[0]
+    assert issue["reason_code"] == "missing_local_services"
+    assert issue["quality_status"] == status
+    assert issue["execution_status"] == status
+
+
+@pytest.mark.parametrize("field", ["reason", "reason_code"])
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "PRIVATE_REASON",
+        "missing_local_services PRIVATE_REASON",
+        {"reason": "missing_local_services", "secret": "PRIVATE_REASON"},
+        ["missing_local_services", "PRIVATE_REASON"],
+        True,
+        None,
+    ],
+)
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("failed", "assessment_failed"),
+        ("unassessed", "required_evidence_unavailable"),
+    ],
+)
+def test_issues_replace_arbitrary_reasons_with_static_fallbacks(
+    field: str, reason: object, status: str, expected: str
+) -> None:
+    slot = _slot(status=status)
+    _map(slot["observation"])[field] = reason
+    result = prepare_report(_batch([slot]))
+    assert _rows(result["issues"])[0]["reason_code"] == expected
+    assert "PRIVATE_" not in repr(result)
 
 
 def test_legacy_fixture_has_42_scored_and_48_unassessed_without_metrics() -> None:
@@ -207,6 +319,7 @@ def test_legacy_fixture_has_42_scored_and_48_unassessed_without_metrics() -> Non
     }
     assert all(result[key] is None for key in ("summary", "telemetry", "cost"))
     assert result["failures"] == []
+    assert result["issues"] == []
 
 
 def test_legacy_nested_reports_are_never_read_or_copied() -> None:
@@ -230,6 +343,7 @@ def test_legacy_nested_reports_are_never_read_or_copied() -> None:
     }
     result = prepare_report(report)
     assert _map(result["coverage"])["failed_slots"] == 1
+    assert result["issues"] == []
     assert "PRIVATE_" not in repr(result)
 
 
@@ -411,9 +525,17 @@ def test_missing_evidence_is_unknown_in_summary_telemetry_and_cost() -> None:
 
 def test_raw_text_secrets_and_unknown_fields_are_omitted() -> None:
     slot = _slot()
-    slot.update(report={"answer": "PRIVATE_ANSWER"}, exception="PRIVATE_EXCEPTION")
+    slot.update(
+        report={"answer": "PRIVATE_ANSWER", "reason": "missing_local_services"},
+        exception="PRIVATE_EXCEPTION",
+    )
     observation = _map(slot["observation"])
-    observation.update(reason="PRIVATE_REASON", hidden_reasoning="PRIVATE_REASONING")
+    observation.update(
+        reason="PRIVATE_REASON",
+        reason_code="PRIVATE_REASON_CODE",
+        hidden_reasoning="PRIVATE_REASONING",
+        response={"answer": "PRIVATE_RESPONSE"},
+    )
     _rows(observation["turns"])[0].update(
         result={"answer": "PRIVATE_TURN"},
         message="PRIVATE_MESSAGE",
@@ -428,7 +550,11 @@ def test_raw_text_secrets_and_unknown_fields_are_omitted() -> None:
         }
     }
     report = _batch([slot])
-    report.update(profile="PRIVATE_PROFILE", database_url="PRIVATE_DATABASE")
+    report.update(
+        profile="PRIVATE_PROFILE",
+        database_url="PRIVATE_DATABASE",
+        issues=[{"reason_code": "missing_local_services"}],
+    )
     manifest = _map(report["manifest"])
     manifest.update(
         private_catalog={"body": "PRIVATE_CATALOG"},
@@ -437,6 +563,8 @@ def test_raw_text_secrets_and_unknown_fields_are_omitted() -> None:
     )
     result = prepare_report(report)
     assert "PRIVATE_" not in repr(result)
+    issue = _rows(result["issues"])[0]
+    assert issue["reason_code"] == "required_evidence_unavailable"
     public = _map(_map(result["metadata"])["manifest"])
     assert set(_map(public["model_config"])) == {
         "max_tokens",
@@ -454,6 +582,7 @@ def test_raw_text_secrets_and_unknown_fields_are_omitted() -> None:
         "telemetry",
         "cost",
         "failures",
+        "issues",
     }
 
 
@@ -467,6 +596,7 @@ def test_inputs_and_rates_are_immutable_on_success_and_failure() -> None:
     _map(public["model_config"]).clear()
     cast(list[object], public["conditions"]).clear()
     _rows(_map(result["telemetry"])["groups"]).clear()
+    _rows(result["issues"])[0].clear()
     assert report == original_report
     rates["source_url"] = "https://user:PRIVATE_RATE_SECRET@pricing.example.org"
     original_rates = deepcopy(rates)
@@ -487,6 +617,7 @@ def test_empty_batch_returns_zero_coverage_without_claiming_target_success() -> 
     assert all(value == 0 for value in _map(result["coverage"]).values())
     assert _map(result["cost"])["status"] == "unknown"
     assert result["failures"] == []
+    assert result["issues"] == []
     assert "target_achieved" not in repr(result)
 
 

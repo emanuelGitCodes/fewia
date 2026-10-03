@@ -27,6 +27,7 @@ def prepare_report(
         report = _map(report)
         primary = _slots(report.get("slots"))
         failures: list[object] = []
+        issues: list[dict[str, object]] = []
         summary: dict[str, object] | None = None
         telemetry: dict[str, object] | None = None
         cost: dict[str, object] | None = None
@@ -71,6 +72,29 @@ def prepare_report(
                 observation = _map(slot["observation"])
                 if observation.get("model_id") is not None:
                     _text(observation["model_id"], _MODEL_ID.pattern)
+                if fact.quality_status in ("failed", "unassessed"):
+                    reason_code = (
+                        "assessment_failed"
+                        if fact.quality_status == "failed"
+                        else "required_evidence_unavailable"
+                    )
+                    if any(
+                        type(observation.get(key)) is str
+                        and observation[key] == "missing_local_services"
+                        for key in ("reason", "reason_code")
+                    ):
+                        reason_code = "missing_local_services"
+                    issues.append(
+                        {
+                            "case_id": fact.case_id,
+                            "repeat": fact.repeat,
+                            "condition": fact.condition,
+                            "evidence_class": fact.evidence_class,
+                            "quality_status": fact.quality_status,
+                            "execution_status": fact.execution_status,
+                            "reason_code": reason_code,
+                        }
+                    )
                 safe = _pick(slot, "case_id repeat condition elapsed_seconds")
                 public = _pick(observation, "model_id status turns")
                 public["evidence_class"] = fact.evidence_class
@@ -86,7 +110,16 @@ def prepare_report(
             unassessed = len(slots) - scored
             failed = sum(fact.execution_status == "failed" for fact in facts)
             for group in cast(list[dict[str, object]], summary["groups"]):
-                failures += cast(list[object], _map(group["metrics"])["known_failures"])
+                for failure in cast(
+                    list[object], _map(group["metrics"])["known_failures"]
+                ):
+                    failures.append(
+                        {
+                            **_map(failure),
+                            "condition": group["condition"],
+                            "evidence_class": group["evidence_class"],
+                        }
+                    )
         for key, expected in counts.items():
             _require(type(report.get(key)) is int and report[key] == expected)
         return {
@@ -96,6 +129,7 @@ def prepare_report(
             "telemetry": telemetry,
             "cost": cost,
             "failures": failures,
+            "issues": issues,
             "coverage": {
                 "primary_slots": len(primary),
                 "baseline_slots": len(baseline),
