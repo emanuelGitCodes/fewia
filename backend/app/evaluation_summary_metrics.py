@@ -15,6 +15,7 @@ _TOOLS = (
     "unnecessary_calls",
 )
 _CLAIMS = tuple(key for key in sum_claim_counts([]) if key.endswith("_count"))
+_SCOPES = dict(plan="final_plan", outcome="final_turn", claims="public_output_only")
 AssessmentRows = list[dict[str, object]]
 
 
@@ -84,6 +85,9 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
             )
             data = _map(raw.get(name, {}) if relevant else {"status": "not_applicable"})
             rows[name].append(data)
+            if name in _SCOPES and relevant and data:
+                scope = data.get("scope")
+                _require(type(scope) is str and scope == _SCOPES[name])
             relevant &= _status(data) != "not_applicable"
             try:
                 named = validate_checks(data.get("checks", {})) if relevant else {}
@@ -116,8 +120,6 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
                 except ValueError:
                     raise ValueError("invalid evaluation metrics") from None
                 failures.append(failure)
-            if name == "claims" and relevant and data:
-                _require(data.get("scope") == "public_output_only")
             if name == "outcome":
                 required = data.get("clarification_required")
                 correct = data.get("clarification_correct")
@@ -139,9 +141,7 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
     return {
         "assessments": result,
         "tool_metrics": tool_metrics,
-        "plan_checks": {
-            key: _aggregate(items) for key, items in checks["plan"].items()
-        },
+        "plan_checks": {key: _aggregate(runs) for key, runs in checks["plan"].items()},
         "fixture_checks": {
             key: _aggregate(items) for key, items in checks["fixture"].items()
         },

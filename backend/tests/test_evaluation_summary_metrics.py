@@ -485,6 +485,74 @@ def test_hidden_reasoning_claim_scope_is_rejected() -> None:
         summarize_metrics([slot({"claims": payload})])
 
 
+@pytest.mark.parametrize(
+    ("name", "driver"),
+    [
+        ("plan", "model"),
+        ("plan", "no_tool"),
+        ("plan", "reference"),
+        ("outcome", "model"),
+        ("outcome", "no_tool"),
+    ],
+)
+@pytest.mark.parametrize("status", ["passed", "failed", "unassessed", "not_applicable"])
+def test_present_plan_and_outcome_require_scope(
+    name: str, driver: str, status: str
+) -> None:
+    item = slot({name: {"status": status}}, driver=driver)
+    original = deepcopy(item)
+    with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
+        summarize_metrics([item])
+    assert item == original
+
+
+@pytest.mark.parametrize("name", ["plan", "outcome"])
+@pytest.mark.parametrize("status", ["passed", "failed", "unassessed", "not_applicable"])
+@pytest.mark.parametrize(
+    "invalid", [None, "wrong", "hidden_reasoning", [], {}, True, 1]
+)
+def test_plan_and_outcome_reject_invalid_scope(
+    name: str, status: str, invalid: object
+) -> None:
+    item = slot({name: {"status": status, "scope": invalid}})
+    original = deepcopy(item)
+    with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
+        summarize_metrics([item])
+    assert item == original
+
+
+@pytest.mark.parametrize(
+    ("name", "wrong_scope"), [("plan", "final_turn"), ("outcome", "final_plan")]
+)
+def test_plan_and_outcome_reject_swapped_scope(name: str, wrong_scope: str) -> None:
+    with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
+        summarize_metrics([slot({name: {"status": "passed", "scope": wrong_scope}})])
+
+
+@pytest.mark.parametrize(
+    ("name", "scope"), [("plan", "final_plan"), ("outcome", "final_turn")]
+)
+def test_plan_and_outcome_reject_spoofed_scope(name: str, scope: str) -> None:
+    class SpoofedScope(str):
+        def __eq__(self, other: object) -> bool:
+            raise AssertionError("scope equality invoked")
+
+    with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
+        summarize_metrics(
+            [slot({name: {"status": "passed", "scope": SpoofedScope(scope)}})]
+        )
+
+
+@pytest.mark.parametrize("name", ["plan", "outcome"])
+def test_empty_plan_and_outcome_remain_unassessed(name: str) -> None:
+    summary = summarize_metrics([slot({name: {}})])
+    measured = assessment(summary, name)
+    assert mapping(measured["status_counts"])["unassessed"] == 1
+    assert measured["denominator"] == 0
+    assert measured["pass_rate"] is None
+    assert summary["known_failures"] == []
+
+
 def test_invalid_status_does_not_pass() -> None:
     with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
         summarize_metrics(
@@ -553,7 +621,7 @@ def test_nested_tool_failure_has_case_and_metric_name() -> None:
 def test_failure_identifiers_are_safe_and_errors_are_static(
     key: str, invalid: object
 ) -> None:
-    item = slot({"plan": {"status": "failed"}})
+    item = slot({"plan": {"status": "failed", "scope": "final_plan"}})
     item[key] = invalid
     original = deepcopy(item)
     with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
@@ -564,8 +632,11 @@ def test_failure_identifiers_are_safe_and_errors_are_static(
 @pytest.mark.parametrize("scope", ["plan", "fixture", "tools"])
 @pytest.mark.parametrize("status", ["failed", "unassessed"])
 def test_observed_failure_requires_positive_repeat(scope: str, status: str) -> None:
+    payload: dict[str, object] = {"status": status, "checks": {"budget": False}}
+    if scope == "plan":
+        payload["scope"] = "final_plan"
     item = slot(
-        {scope: {"status": status, "checks": {"budget": False}}},
+        {scope: payload},
         condition="deterministic_fixture" if scope == "fixture" else "tool_enabled",
         driver="budget" if scope == "fixture" else "model",
         repeat=0,
@@ -613,8 +684,12 @@ def test_no_tool_assessments_ignore_tool_failures_and_counts() -> None:
                         "valid_calls": tool(1, 2, "failed"),
                         "unnecessary_calls": tool(1, 1, "failed"),
                     },
-                    "plan": {"status": "passed", "checks": {"budget": True}},
-                    "outcome": {"status": "passed"},
+                    "plan": {
+                        "status": "passed",
+                        "scope": "final_plan",
+                        "checks": {"budget": True},
+                    },
+                    "outcome": {"status": "passed", "scope": "final_turn"},
                     "claims": claims(1),
                 },
                 condition="no_tool",
@@ -651,15 +726,23 @@ def test_safe_case_prefixed_checks_and_only_observed_names(scope: str) -> None:
     ]
     condition = "deterministic_fixture" if scope == "fixture" else "tool_enabled"
     driver = "budget" if scope == "fixture" else "model"
+    failed: dict[str, object] = {
+        "status": "failed",
+        "checks": dict.fromkeys(names, False),
+    }
+    passed: dict[str, object] = {"status": "passed", "checks": {"budget": True}}
+    if scope == "plan":
+        failed["scope"] = "final_plan"
+        passed["scope"] = "final_plan"
     summary = summarize_metrics(
         [
             slot(
-                {scope: {"status": "failed", "checks": dict.fromkeys(names, False)}},
+                {scope: failed},
                 condition=condition,
                 driver=driver,
             ),
             slot(
-                {scope: {"status": "passed", "checks": {"budget": True}}},
+                {scope: passed},
                 condition=condition,
                 driver=driver,
                 repeat=2,
@@ -697,8 +780,11 @@ def test_safe_case_prefixed_checks_and_only_observed_names(scope: str) -> None:
     ],
 )
 def test_arbitrary_or_overlong_check_names_are_rejected(scope: str, name: str) -> None:
+    payload: dict[str, object] = {"status": "failed", "checks": {name: False}}
+    if scope == "plan":
+        payload["scope"] = "final_plan"
     item = slot(
-        {scope: {"status": "failed", "checks": {name: False}}},
+        {scope: payload},
         condition="deterministic_fixture" if scope == "fixture" else "tool_enabled",
         driver="budget" if scope == "fixture" else "model",
     )
@@ -713,8 +799,14 @@ def test_arbitrary_or_overlong_check_names_are_rejected(scope: str, name: str) -
 def test_malformed_assessment_statuses_raise_static_errors(
     scope: str, status: object
 ) -> None:
+    payload: dict[str, object] = {"status": status}
+    expected = dict(
+        plan="final_plan", outcome="final_turn", claims="public_output_only"
+    )
+    if scope in expected:
+        payload["scope"] = expected[scope]
     item = slot(
-        {scope: {"status": status}},
+        {scope: payload},
         condition="controlled_fixture" if scope == "fixture" else "tool_enabled",
         driver="refresh" if scope == "fixture" else "model",
     )
@@ -741,7 +833,7 @@ def test_malformed_assessment_structures_raise_static_errors(
     elif location == "plan":
         item["assessments"] = {"plan": value}
     elif location == "checks":
-        item["assessments"] = {"plan": {"checks": value}}
+        item["assessments"] = {"plan": {"scope": "final_plan", "checks": value}}
     else:
         item["assessments"] = {"tools": {"valid_calls": value}}
     with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
@@ -802,7 +894,11 @@ def test_string_subclasses_are_rejected_before_status_or_check_operations(
     class Text(str):
         pass
 
-    payload: dict[str, object] = {"status": "failed", "checks": {"budget": False}}
+    payload: dict[str, object] = {
+        "status": "failed",
+        "scope": "final_plan",
+        "checks": {"budget": False},
+    }
     if location == "status":
         payload["status"] = Text("failed")
     else:
