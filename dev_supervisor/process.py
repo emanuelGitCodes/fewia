@@ -31,22 +31,25 @@ def publish(state_dir: Path, status: dict[str, Any]) -> None:
 
 def stop(process: subprocess.Popen[bytes]) -> bool:
     for sig in (signal.SIGTERM, signal.SIGKILL):
+        deadline = time.monotonic() + 2
         try:
             os.killpg(process.pid, sig)
         except ProcessLookupError:
-            process.wait()
-            return True
-        try:
-            process.wait(timeout=2)
-        except subprocess.TimeoutExpired:
             pass
-        deadline = time.monotonic() + 2
-        while time.monotonic() < deadline:
+        while True:
+            process.poll()
             try:
                 os.killpg(process.pid, 0)
             except ProcessLookupError:
+                try:
+                    process.wait(timeout=max(0, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    return False
                 return True
-            time.sleep(0.05)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.05, remaining))
     return False
 
 

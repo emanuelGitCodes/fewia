@@ -7,10 +7,10 @@ import sys
 import threading
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from dev_supervisor.lease import lease
-from dev_supervisor.process import attempt
+from dev_supervisor.process import attempt, stop
 
 
 def run(tmp_path: Path, script: str, **kwargs: float) -> str:
@@ -88,17 +88,96 @@ def test_permission_does_not_fall_back(tmp_path: Path) -> None:
 
 
 def test_child_is_stopped_before_return(tmp_path: Path) -> None:
-    script = (
-        "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', "
-        '"import time; from pathlib import Path; time.sleep(1); '
-        "Path('late').touch()\"]); time.sleep(3)"
+    grandchild = (
+        "import signal; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "print('.', end='', flush=True); signal.pause()"
     )
-    result = run(tmp_path, script, idle=0.02, limit=0.15)
-    assert result in {"time_limit", "cleanup_failed"}
-    time.sleep(1)
-    assert not (tmp_path / "late").exists()
-    status = json.loads((tmp_path / "status.json").read_text())["state"]
-    assert status == ("stopped" if result == "time_limit" else status)
+    script = (
+        "import signal, subprocess, sys; subprocess.Popen([sys.executable, '-c', "
+        f"{grandchild!r}]); signal.pause()"
+    )
+    children: list[subprocess.Popen[bytes]] = []
+    output: int | None = None
+    real = subprocess.Popen
+
+    def capture(*args: object, **kwargs: object) -> subprocess.Popen[bytes]:
+        nonlocal output
+        child = real(*args, **kwargs)
+        children.append(child)
+        assert child.stdout is not None
+        output = os.dup(child.stdout.fileno())
+        with selectors.DefaultSelector() as ready:
+            ready.register(output, selectors.EVENT_READ)
+            assert ready.select(timeout=30)
+        assert os.read(output, 1) == b"."
+        return child
+
+    try:
+        with patch("dev_supervisor.process.subprocess.Popen", side_effect=capture):
+            result = run(tmp_path, script, idle=0.02, limit=0.15)
+        assert result in {"time_limit", "cleanup_failed"}
+        assert output is not None
+        with selectors.DefaultSelector() as ready:
+            ready.register(output, selectors.EVENT_READ)
+            assert ready.select(timeout=0)
+        assert os.read(output, 1) == b""
+        status = json.loads((tmp_path / "status.json").read_text())["state"]
+        assert status == ("stopped" if result == "time_limit" else status)
+    finally:
+        for child in children:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.wait(timeout=5)
+            if child.stdout is not None:
+                child.stdout.close()
+        if output is not None:
+            os.close(output)
+
+
+def test_stop_escalates_for_group_ignoring_sigterm() -> None:
+    process = Mock(spec=subprocess.Popen)
+    process.pid = 123
+    elapsed = 0.0
+    alive = True
+    sent: list[tuple[int, float]] = []
+
+    def monotonic() -> float:
+        return elapsed
+
+    def sleep(seconds: float) -> None:
+        nonlocal elapsed
+        elapsed += seconds
+
+    def killpg(pid: int, sig: int) -> None:
+        nonlocal alive
+        assert pid == process.pid
+        if not alive:
+            raise ProcessLookupError
+        if sig:
+            sent.append((sig, elapsed))
+        if sig == signal.SIGKILL:
+            alive = False
+
+    def wait(timeout: float | None = None) -> int:
+        nonlocal elapsed
+        assert timeout is not None
+        if alive:
+            elapsed += timeout
+            raise subprocess.TimeoutExpired("child", timeout)
+        return -signal.SIGKILL
+
+    process.wait.side_effect = wait
+    with (
+        patch("dev_supervisor.process.os.killpg", side_effect=killpg),
+        patch("dev_supervisor.process.time.monotonic", side_effect=monotonic),
+        patch("dev_supervisor.process.time.sleep", side_effect=sleep),
+    ):
+        assert stop(process)
+    assert sent == [(signal.SIGTERM, 0.0), (signal.SIGKILL, 2.0)]
+    assert elapsed <= 4
+    process.wait.assert_called_once_with(timeout=2.0)
 
 
 def test_launching_marker_before_popen(tmp_path: Path) -> None:
