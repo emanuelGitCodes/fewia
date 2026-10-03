@@ -2993,3 +2993,88 @@ PR #318 preserves this wiki evidence, stacked on PR #315.
 The run's PostgreSQL container stopped. Disposable mutation and historical review
 checkouts were removed. The existing FEWIA stack was not changed.
 No Grafana or Graphify update occurred. No PR was merged and no AWS deployment ran.
+
+## 2026-10-03 — Backlog PRs merged and the fallback follow-up
+
+The coordinator evaluated #314 to #320 against `main`. All seven branches merged together passed 6,831 backend tests, 243 tooling tests, 423 frontend tests, lint, strict mypy, and the frontend build. #314, #320, #319, #315, and #318 merged in that order with merge commits. #317 merged after a repair pinned `astral-sh/setup-uv@v10.2.0`. #316 merged on `8eddcc7` after two repairs; its third review round found that a structured Codex error with both `code` and `message` is matched on `code` only. The owner merged as is. The follow-up is backlog item B6 in `docs/FEATURE_BACKLOG.md`. The coordinator ran an independent review on #320 (APPROVE) and mutation probes on #314, #316, and #320; every mutation was caught. Branch `codex/backlog-20261003-b5` holds an unpublished start on B5 at `db4226f`. Main is at `8bfd4b8`.
+
+## 2026-10-03 — Decision 0018: retain legacy data for now
+
+The user chose to retain existing stored Spoonacular totals and retired
+health tables for now. Deletion needs a separate decision. Decision:
+[0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md).
+
+## 2026-10-03 — Correct provider-specific writer read permissions
+
+Updated the [junior protocol](../docs/delegation/junior.md) to allow Codex
+read-only shell access for reads and searches, forbid Grok shell commands, and
+keep checks with the junior. The junior MUST check its final brief for
+contradictory command prohibitions before launch. See the [C4 recovery
+record](artifacts/backlog-20261003/c4-resume.md).
+
+## 2026-10-03 — Align supervisor writer command rules
+
+Updated the supervisor opening to match the provider-specific junior protocol.
+
+## 2026-10-03 — B5 strict-value helper publication
+
+PR [#322](https://github.com/emanuelGitCodes/fewia/pull/322) publishes
+`98fde259ebc2281cf652d045eb26add13f07172e` with 28 code lines on
+`codex/backlog-resume-b5-values`. The supplied backend record reports Ruff,
+format, strict mypy, and 6,874 tests passed with one warning. Independent Luna
+high review approved the helper. GitHub CI reported all 7 checks successful
+at this snapshot. This result covers the helper only; B5 remains partial.
+
+## 2026-10-03 — C4 fixture handoff guards
+
+PR [#323](https://github.com/emanuelGitCodes/fewia/pull/323) publishes
+`0246c9b1c249f719b1f10b4a9bf99db499a1f26b` with 10 code lines on
+`codex/backlog-resume-c4`. The supplied frontend install, lint, test, and build
+gates passed. Independent Luna high review approved the change. GitHub CI
+reported all 7 checks successful at this snapshot. This is fixture-flow code
+evidence, not live Instacart evidence.
+
+## 2026-10-03 — B6 structured error matching
+
+PR [#324](https://github.com/emanuelGitCodes/fewia/pull/324) publishes
+`578df44aa0fa5107167dadec1e8f7773ce9e041f` with 12 code lines on
+`codex/backlog-resume-b6`. The supplied tooling record reports 326 tests,
+Ruff, formatting, and strict mypy passed. Independent Luna high review
+approved the change. GitHub CI reported all 7 checks successful at this
+snapshot.
+
+## 2026-10-03 — B4 consent browser evidence
+
+PR [#327](https://github.com/emanuelGitCodes/fewia/pull/327) publishes
+`85493df8ace8ff246df0c15dfccb40e22aef1a62` with 119 code lines, stacked on
+#323. The supplied frontend gates passed and independent Luna high review
+approved the change. The first browser record failed consent-before-POST; the
+repaired browser record passed 14 checks, including consent, keyboard focus,
+mobile fit, and one explicit retry. These checks used an isolated local
+PostgreSQL/Floci stack with fixture handoff responses. They do not establish
+live provider, purchase, deployed, or model-quality results. See the
+[verification plan](../docs/GROCERY_VERIFICATION_PLAN.md) and the
+[backlog resume record](phases/backlog-resume-20261003.md).
+
+## 2026-10-03 — C1 runtime publication
+
+PR [#328](https://github.com/emanuelGitCodes/fewia/pull/328) publishes
+`26fe9148da0c12bd5c55218b063fcc15d54ee7c4` with 92 source lines on
+`codex/backlog-resume-runtime`. Backend Ruff, format, strict mypy, and 6,889
+tests passed. The 18-fixture smoke passed with no model calls. An empty-check
+mutation caused 3 failures. Independent Luna high review approved the change.
+No GitHub CI result is recorded.
+
+## 2026-10-03 — B3 tier S documentation pilot measured
+
+Status: measured; publication pending (limited documentation pilot). The pilot covers two completed tier S documentation items: A4 retention and Writer protocol. Both used no native junior or reviewer subagent. Coordinator tokens are excluded. See the [pilot evidence](artifacts/backlog-resume-20261003/tier-s-pilot.json) and the [detailed ledger](../.claude/loop/delegation-efficiency.md#tier-s-documentation-pilot).
+
+| Item | Attempts | Input tokens | Output tokens | Input + output | Reasoning tokens | Cached tokens | Process seconds | Native subagent tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A4 retention | 3 | 490204 | 7281 | 497485 | 3329 | 403328 | 184.185 | 0 |
+| Writer protocol | 5 | 589078 | 10109 | 599187 | 5752 | 475520 | 264.479 | 0 |
+| Total | 8 | 1079282 | 17390 | 1096672 | 9081 | 878848 | 448.664 | 0 |
+
+A4 has two completed reviews. Writer protocol has three completed reviews and one completed repair. All selected attempts have known token and elapsed counts. Input includes cached tokens. Cached and reasoning counts are subtotals; do not add them to input or output again. Process elapsed times overlap, so the total is not wall time.
+
+The Phase 1 baseline is about 1,820,000 native subagent tokens for about 270 code lines plus tests and docs. Baseline CLI writer and review counts are unknown. This pilot has zero native subagent tokens and 1,079,282 measured CLI input tokens. The cohorts differ. This result measures tier S routing and usage. It does not support a percentage reduction in total cost, a causal efficiency gain, or a like-for-like speed comparison.

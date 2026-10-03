@@ -11,6 +11,35 @@ ordered tool revisions, public answer, latency, and token usage. Missing usage
 stays unknown. Estimated cost needs a dated price source and model identifier.
 No run stores hidden reasoning, credentials, or raw bank records.
 
+## Browser evidence record
+
+This record separates evidence by source. Browser checks used the actual
+application with an isolated local PostgreSQL and Floci stack. Only provider
+configuration and handoff HTTP responses were mocked. Plan creation, jobs, and
+polling used the local application services. These results do not establish
+provider or release quality.
+
+| Evidence class | Result in this record |
+| --- | --- |
+| Deterministic local | Browser, plan creation, jobs, and polling used the isolated local PostgreSQL/Floci application. Provider configuration and handoff HTTP responses were mocked. |
+| Plaid Sandbox | No Sandbox request is included. |
+| Live provider | No live Instacart call, purchase, or model-quality observation is included. Chat was unavailable in this local stack. |
+| Deployed | No deployed environment was tested. |
+
+| Check | Viewport or observation | Result | Screenshot |
+| --- | --- | --- | --- |
+| Desktop estimate view | 1440 x 1000 | Captured and visually reviewed by the coordinator; layout check passed. The local application showed a sample estimate with this notice: "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified." This screenshot covers the view, not a full release check. | [desktop estimate](../wiki/artifacts/backlog-resume-20261003/browser/desktop-estimate.png) |
+| Mobile estimate view | 390 x 844 | Captured and visually reviewed by the coordinator; layout and horizontal-overflow checks passed. | [mobile estimate](../wiki/artifacts/backlog-resume-20261003/browser/mobile-estimate.png) |
+| Initial page focus sequence | Bean tacos for two (button), Three vegan dinners (2 servings each) (button), Monthly limit (`#monthly-limit`), Plan cap (`#plan-cap`), Recipe 1 (`#recipe-0`), Servings 1 (`#servings-0`), Add meal (button), Diet (`#diet`). | PASS for these listed controls in this order. This does not cover broader keyboard access. | [desktop estimate](../wiki/artifacts/backlog-resume-20261003/browser/desktop-estimate.png), [flow result JSON](../wiki/artifacts/backlog-resume-20261003/browser/flow-result.json) |
+| Polling stop | Flow run stopped after 10 polls; consent run stopped after 13 polls. | PASS in both runs against the local application. | [handoff retry success](../wiki/artifacts/backlog-resume-20261003/browser/handoff-retry-success.png), [flow result JSON](../wiki/artifacts/backlog-resume-20261003/browser/flow-result.json), [consent result JSON](../wiki/artifacts/backlog-resume-20261003/browser/consent-result.json) |
+| Consent before POST, original flow | The dialog did not open; one POST occurred. | FAIL. This is the recorded pre-fix result. | [before consent fix](../wiki/artifacts/backlog-resume-20261003/browser/handoff-before-consent-fix.png), [flow result JSON](../wiki/artifacts/backlog-resume-20261003/browser/flow-result.json) |
+| Repaired consent flow | 14 checks passed, including initial focus on Cancel, Escape and Cancel without POST, blocked background focus, one create on confirmation, mobile modal fit, and no mobile overflow. The coordinator visually reviewed the desktop and mobile consent screenshots; layout checks passed. | PASS against the local application with fixture handoff responses. Native Tab may enter browser chrome; it did not focus page controls outside the modal. | [desktop consent](../wiki/artifacts/backlog-resume-20261003/browser/consent-desktop.png), [mobile consent](../wiki/artifacts/backlog-resume-20261003/browser/consent-mobile.png), [consent result JSON](../wiki/artifacts/backlog-resume-20261003/browser/consent-result.json) |
+| Fixture retry and link | Link rendered after validation; explicit retry ran once with `expected_attempt: 1`; retry stayed disabled while pending. | PASS against fixture handoff responses. No purchase occurred. | [retry success](../wiki/artifacts/backlog-resume-20261003/browser/handoff-retry-success.png), [consent result JSON](../wiki/artifacts/backlog-resume-20261003/browser/consent-result.json) |
+
+The flow result and consent result are separate records. The first preserves
+the missing-consent failure; the second records the repaired 14-check pass.
+Neither record covers all release or browser scenarios.
+
 ## Scenario matrix
 
 Run each scenario three times with a fixed clock and catalog. The matrix has

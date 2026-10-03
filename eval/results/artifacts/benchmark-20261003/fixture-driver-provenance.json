@@ -1,0 +1,6 @@
+{
+  "source": "backend/tests/test_evaluation_dispatch.py:RecordingProvider",
+  "revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "source_sha256": "8ed0fc994981c2218a9b8c61ac2a908204125334a0bc24e73778d7398d93aaa1",
+  "method": "Exact class body copied with ast line bounds; fixture-only provider returns a canned clarification and5/7 tokens."
+}

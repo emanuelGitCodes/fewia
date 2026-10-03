@@ -1,0 +1,59 @@
+{
+  "status": "estimated",
+  "estimated_usd": "0.3347876400",
+  "known_usage_lower_bound": "0.3347876400",
+  "currency": "USD",
+  "model_id": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-east-1",
+  "pricing": {
+    "model_id": "us.amazon.nova-2-lite-v1:0",
+    "region": "us-east-1",
+    "currency": "USD",
+    "input_usd_per_1000": "0.0003300000",
+    "output_usd_per_1000": "0.0027500000",
+    "source_url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/20261003001138/us-east-1/index.json",
+    "source_version": "20261003001138",
+    "published_at": "2026-10-03T00:11:38Z",
+    "effective_date": "2026-10-01",
+    "retrieved_at": "2026-10-03"
+  },
+  "scope": "Token-cost estimate in USD. Excludes taxes, other AWS resources, caching discounts, and actual billing reconciliation. Not an AWS bill.",
+  "groups": [
+    {
+      "condition": "controlled_fixture",
+      "evidence_class": "deterministic_fake_provider",
+      "status": "not_applicable",
+      "known_usage_lower_bound": null
+    },
+    {
+      "condition": "controlled_fixture",
+      "evidence_class": "local_postgresql",
+      "status": "not_applicable",
+      "known_usage_lower_bound": null
+    },
+    {
+      "condition": "deterministic",
+      "evidence_class": "deterministic_fake_provider",
+      "status": "not_applicable",
+      "known_usage_lower_bound": null
+    },
+    {
+      "condition": "deterministic_fixture",
+      "evidence_class": "deterministic_fake_provider",
+      "status": "not_applicable",
+      "known_usage_lower_bound": null
+    },
+    {
+      "condition": "no_tool",
+      "evidence_class": "real_bedrock",
+      "status": "estimated",
+      "known_usage_lower_bound": "0.1717395900"
+    },
+    {
+      "condition": "tool_enabled",
+      "evidence_class": "real_bedrock",
+      "status": "estimated",
+      "known_usage_lower_bound": "0.1630480500"
+    }
+  ]
+}
