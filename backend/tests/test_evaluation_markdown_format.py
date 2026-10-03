@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from decimal import Decimal
 
 import pytest
@@ -29,6 +30,36 @@ from app.evaluation_markdown_format import cell, source_link, table
 )
 def test_scalar_cells(value: object, expected: str) -> None:
     assert cell(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(10**255, "1" + "0" * 255), (-(10**254), "-1" + "0" * 254)],
+)
+def test_integer_cells_preserve_256_character_values(value: int, expected: str) -> None:
+    assert len(expected) == 256
+    assert cell(value) == expected
+
+
+@pytest.mark.parametrize("value", [10**256, -(10**255)])
+def test_integer_cells_reject_257_character_values(value: int) -> None:
+    with pytest.raises(ValueError) as error:
+        cell(value)
+    assert str(error.value) == "Invalid Markdown cell."
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
+
+
+def test_integer_conversion_failure_has_a_static_error() -> None:
+    digit_limit = sys.get_int_max_str_digits()
+    if digit_limit == 0:
+        pytest.skip("Python integer-string digit limit is disabled.")
+    value = 10**digit_limit
+    with pytest.raises(ValueError) as error:
+        cell(value)
+    assert str(error.value) == "Invalid Markdown cell."
+    assert error.value.__cause__ is None
+    assert error.value.__suppress_context__
 
 
 class Untrusted:

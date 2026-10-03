@@ -27,9 +27,12 @@ def cell(value: object) -> str:
         return "true" if value else "false"
     if type(value) is int:
         try:
-            return str(value)
+            rendered = str(value)
         except ValueError:
             raise ValueError(_CELL_ERROR) from None
+        if len(rendered) > _LIMIT:
+            raise ValueError(_CELL_ERROR)
+        return rendered
     if type(value) is float and math.isfinite(value):
         return str(value)
     if type(value) is not str:
