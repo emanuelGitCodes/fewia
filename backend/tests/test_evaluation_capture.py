@@ -559,3 +559,113 @@ def test_scalar_result_payloads_use_invalid_marker(content: object) -> None:
     assert capture.tool_results == [
         {"status": "error", "toolUseId": "one", "content": "[invalid]"}
     ]
+
+
+@pytest.mark.parametrize("incoming", [False, True])
+@pytest.mark.parametrize("include_marker", [False, True])
+def test_exhausted_scan_stays_unknown_across_normal_calls(
+    incoming: bool, include_marker: bool
+) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    containers: list[object] = [{} for _ in range(65537)]
+    if include_marker:
+        containers.append(marker)
+    payload: dict[str, object] = {"values": containers}
+    usage = {"inputTokens": 3, "outputTokens": 4}
+    original = response(usage=usage) if incoming else response([tool("one", payload)])
+    messages: list[dict[str, object]] = (
+        [{"content": [tool_result_block("one", payload, success=True)]}]
+        if incoming
+        else []
+    )
+    normal = response([tool("two", {"amount": 5})], usage=usage)
+    provider = ScriptedProvider([original, normal])
+    capture = CaptureProvider(provider, markers=(marker,))
+    assert capture.capture_incomplete is False
+
+    assert capture.converse("system", messages, []) is original
+    assert capture.capture_incomplete is True
+    assert capture.leakage is False
+    assert capture.invalid_responses == 0
+    assert provider.received is not None
+    assert provider.received[1] is messages
+    assert len(containers) == 65537 + int(include_marker)
+    if include_marker:
+        assert containers[-1] == marker
+    if incoming:
+        assert capture.tool_results == [
+            {"toolUseId": "one", "status": "success", "content": "[invalid]"}
+        ]
+        assert capture.usage == usage
+    else:
+        assert capture.calls == [{"tool": "plan_groceries", "input": "[invalid]"}]
+        assert capture.usage is None
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+
+    assert capture.converse("system", [], []) is normal
+    assert capture.capture_incomplete is True
+    assert capture.leakage is False
+    assert capture.provider_calls == 2
+    assert capture.invalid_responses == 0
+    assert capture.calls[-1] == {"tool": "plan_groceries", "input": {"amount": 5}}
+
+
+@pytest.mark.parametrize("incoming", [False, True])
+def test_deep_scan_is_incomplete_without_a_proven_leak(incoming: bool) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    nested: object = marker
+    for _ in range(2000):
+        nested = [nested]
+    payload: dict[str, object] = {"value": nested}
+    original = response() if incoming else response([tool("one", payload)])
+    messages: list[dict[str, object]] = (
+        [{"content": [tool_result_block("one", payload, success=True)]}]
+        if incoming
+        else []
+    )
+    capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
+
+    assert capture.converse("system", messages, []) is original
+    assert capture.capture_incomplete is True
+    assert capture.leakage is False
+    assert capture.invalid_responses == 0
+    if incoming:
+        assert capture.tool_results[0]["content"] == "[invalid]"
+    else:
+        assert capture.calls[0]["input"] == "[invalid]"
+    assert marker not in json.dumps([capture.calls, capture.tool_results])
+
+
+@pytest.mark.parametrize("incoming", [False, True])
+@pytest.mark.parametrize("hidden", ["none", "oversized", "deep"])
+def test_bounded_public_scan_is_complete_without_inspecting_reasoning(
+    incoming: bool, hidden: str
+) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    payload: dict[str, object] = {"amount": 5}
+    reasoning: object = marker
+    if hidden == "oversized":
+        reasoning = [{} for _ in range(65537)] + [marker]
+    elif hidden == "deep":
+        for _ in range(2000):
+            reasoning = [reasoning]
+    if hidden != "none":
+        payload["reasoningContent"] = reasoning
+    original = response() if incoming else response([tool("one", payload)])
+    messages: list[dict[str, object]] = (
+        [{"content": [tool_result_block("one", payload, success=True)]}]
+        if incoming
+        else []
+    )
+    capture = CaptureProvider(ScriptedProvider([original]), markers=(marker,))
+
+    assert capture.converse("system", messages, []) is original
+    assert capture.capture_incomplete is False
+    assert capture.leakage is False
+    assert capture.invalid_responses == 0
+    if incoming:
+        assert capture.tool_results[0]["content"] == [{"json": {"amount": 5}}]
+    else:
+        expected: object = {"amount": 5} if hidden == "none" else "[invalid]"
+        assert capture.calls[0]["input"] == expected
+    assert marker not in json.dumps([capture.calls, capture.tool_results])

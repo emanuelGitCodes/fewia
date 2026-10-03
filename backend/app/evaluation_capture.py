@@ -20,6 +20,7 @@ class CaptureProvider:
         self.elapsed_seconds = 0.0
         self.invalid_responses = 0
         self.leakage = False
+        self.capture_incomplete: bool = False
         self._seen_ids: set[str] = set()
 
     def _leaks(self, value: object, seen: set[int]) -> bool:
@@ -116,7 +117,7 @@ class CaptureProvider:
             self._observe_results(messages)
             self.leakage |= self._leaks(messages[-1] if messages else None, set())
         except (RecursionError, TypeError, ValueError):
-            pass
+            self.capture_incomplete = True
         started = perf_counter()
         try:
             response = self.provider.converse(system_prompt, messages, tools)
@@ -134,7 +135,7 @@ class CaptureProvider:
         try:
             self.leakage |= self._leaks(response, set())
         except (RecursionError, TypeError, ValueError):
-            pass
+            self.capture_incomplete = True
         try:
             _, _, calls, _ = parse_provider_response(response, self._seen_ids)
             for call in calls[: 24 - len(self.calls)]:
