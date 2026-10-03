@@ -159,7 +159,9 @@ def test_canonical_results_come_from_actual_primary_and_baseline_helpers() -> No
     assert result["mode"] == "complete_evaluation"
     public_manifest = _map(_map(result["metadata"])["manifest"])
     assert public_manifest == {
-        key: value for key, value in _map(report["manifest"]).items() if key != "catalog"
+        key: value
+        for key, value in _map(report["manifest"]).items()
+        if key != "catalog"
     }
     assert public_manifest == prepare_manifest(report["manifest"])
     assert result["failures"] == []
