@@ -57,7 +57,8 @@ def classify_slot(slot: dict[str, object]) -> TaskFacts:
     capture, assessments = as_map(slot["observation"]), as_map(slot["assessments"])
     execution = _status(slot.get("status"), _EXECUTION)
     observed = _status(capture.get("status"), _EXECUTION)
-    scope, names = "language_task", ("plan", "outcome", "claims")
+    scope = "language_task"
+    names: tuple[str, ...] = ("plan", "outcome", "claims")
     if condition == "tool_enabled":
         names += ("tools",)
     elif condition == "deterministic":
