@@ -9,7 +9,7 @@ import {
   SPOONACULAR_COST_NOTICE,
 } from "./apiTypes";
 import { copyMealPlanNutrition, copySupermarketEstimate, parseConfig, parseJob } from "./apiValidation";
-import { budget, config, job, jobResult, line, mealPlanNutrition, plan } from "../tests/apiFixtures";
+import { budget, config, job, jobResult, line, mealPlanNutrition, plan, sampleNutrition } from "../tests/apiFixtures";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const CATALOG = "sample-prices-v1";
@@ -182,6 +182,39 @@ describe("parseJob", () => {
     expect(parsed.result?.meal_nutrition).toBeUndefined();
     expect(parsed.result?.plan.accepted).toBe(true);
     expect(parsed.result?.plan.total_cents).toBe(129);
+  });
+
+  it.each([false, true])("deep-copies job nutrition with overlay=%s", (withOverlay) => {
+    const nutrition = sampleNutrition();
+    const original = structuredClone(nutrition);
+    const result = jobResult({
+      meal_nutrition: nutrition,
+      ...(withOverlay ? {
+        supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
+      } : {}),
+    });
+    const input = job({ result });
+    const parsed = parseJob(input);
+    const copied = parsed.result?.meal_nutrition;
+    if (copied === undefined || copied.total === null) {
+      throw new Error("expected cloned nutrition");
+    }
+    copied.total.energy_kcal = 1;
+    copied.meals[0].recipe_id = "mutated";
+    copied.meals[0].servings = 3;
+    copied.meals[0].per_serving.protein_mg = 1;
+    copied.meals[0].total.fat_mg = 1;
+    copied.meals.push(copied.meals[0]);
+    expect(input.result).toBe(result);
+    expect(result.meal_nutrition).toEqual(original);
+  });
+
+  it.each([false, true])("preserves omitted nutrition with overlay=%s", (withOverlay) => {
+    const result = jobResult(withOverlay ? {
+      supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
+    } : {});
+    delete result.meal_nutrition;
+    expect(parseJob(job({ result })).result).not.toHaveProperty("meal_nutrition");
   });
 
   it("rejects malformed nutrition fields and wrong notices", () => {

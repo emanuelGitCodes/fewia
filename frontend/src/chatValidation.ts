@@ -7,6 +7,7 @@ import {
   isStatus,
   isString,
   type GroceryRequest,
+  type MealPlanNutrition,
 } from "./apiTypes";
 import { copyMealPlanNutrition, copySupermarketEstimate, isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage } from "./chatTypes";
@@ -83,6 +84,22 @@ function copyTraces(value: unknown): ChatToolTrace[] | null {
   }
   return traces;
 }
+function matchesRequestedMeals(nutrition: MealPlanNutrition, request: GroceryRequest): boolean {
+  if (nutrition.total === null) {
+    return true;
+  }
+  const remaining = [...request.meals];
+  for (const meal of nutrition.meals) {
+    const index = remaining.findIndex(
+      (requested) => requested.recipe_id === meal.recipe_id && requested.servings === meal.servings,
+    );
+    if (index === -1) {
+      return false;
+    }
+    remaining.splice(index, 1);
+  }
+  return remaining.length === 0;
+}
 export function parseChatResult(value: unknown): ChatResult {
   if (!isRecord(value)) {
     throw new Error(SHAPE_ERROR);
@@ -108,7 +125,7 @@ export function parseChatResult(value: unknown): ChatResult {
   const nutrition = nutritionMissing ? null : copyMealPlanNutrition(value.meal_nutrition);
   const planOk =
     isPlan(plan) && isBudget(value.budget) && isRequest(value.request) &&
-    (nutritionMissing || nutrition !== null) &&
+    (nutritionMissing || (nutrition !== null && matchesRequestedMeals(nutrition, value.request))) &&
     isString(value.evidence_revision_id) && HEX64.test(value.evidence_revision_id) &&
     (value.evidence_id === null || isNonemptyString(value.evidence_id)) &&
     plan.accepted === planned;

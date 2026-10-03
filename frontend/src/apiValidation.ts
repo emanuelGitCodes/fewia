@@ -264,16 +264,20 @@ export function parseJob(value: unknown): GroceryJob {
     throw new Error(SHAPE_ERROR);
   }
   const error_detail = copyErrorDetail(value.error_detail);
-  if (isRecord(value.result) && "supermarket_estimate" in value.result) {
-    const supermarket_estimate = copySupermarketEstimate(value.result.supermarket_estimate);
+  let result = value.result;
+  if (result !== null && result.meal_nutrition !== undefined) {
+    const meal_nutrition = copyMealPlanNutrition(result.meal_nutrition);
+    if (meal_nutrition === null) {
+      throw new Error(SHAPE_ERROR);
+    }
+    result = { ...result, meal_nutrition };
+  }
+  if (result !== null && "supermarket_estimate" in result) {
+    const supermarket_estimate = copySupermarketEstimate(result.supermarket_estimate);
     if (supermarket_estimate === null) {
       throw new Error(SHAPE_ERROR);
     }
-    return {
-      ...value,
-      error_detail,
-      result: { ...value.result, supermarket_estimate },
-    } as GroceryJob;
+    result = { ...result, supermarket_estimate };
   }
-  return { ...value, error_detail } as GroceryJob;
+  return { ...value, error_detail, result } as GroceryJob;
 }
