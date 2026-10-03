@@ -4,7 +4,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import BinaryIO, NamedTuple, Self
 
-from app.evaluation_io_json import canonical_json_bytes, load_json as load_json
+from app.evaluation_io_json import canonical_json_bytes
+from app.evaluation_io_json import load_json as load_json
 
 FILE_UNAVAILABLE = "evaluation files are unavailable"
 OUTPUT_EXISTS = "evaluation output already exists"
