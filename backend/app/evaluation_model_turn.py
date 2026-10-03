@@ -66,26 +66,37 @@ def observe_model_turn(
     status = "completed"
     reason: str | None = None
     boundary = _OrdinaryErrorBoundary()
+    inputs: dict[str, object] = {
+        "message": message,
+        "history": history,
+        "previous_request": previous_request,
+    }
+    try:
+        leaked_inputs = capture._leaks(inputs, set())
+        capture.leakage = sanitize_public(inputs, markers) != inputs or leaked_inputs
+    except (RecursionError, TypeError, ValueError):
+        capture.capture_incomplete = True
     try:
         with boundary:
-            result = public(
-                chat_loop.run_chat(
-                    capture,
-                    message,
-                    context.budget,
-                    context.period,
-                    user_id=context.user_id,
-                    spending_source="fixture",
-                    previous_request=previous_request,
-                    history=history or None,
-                    record_evidence=record,
-                    plan_cap_cents=context.plan_cap_cents,
+            if not capture.leakage and not capture.capture_incomplete:
+                result = public(
+                    chat_loop.run_chat(
+                        capture,
+                        message,
+                        context.budget,
+                        context.period,
+                        user_id=context.user_id,
+                        spending_source="fixture",
+                        previous_request=previous_request,
+                        history=history or None,
+                        record_evidence=record,
+                        plan_cap_cents=context.plan_cap_cents,
+                    )
                 )
-            )
-            if result.get("status") == "limit":
-                status, reason = "partial", "limit"
-            elif result.get("status") == "incomplete":
-                status, reason = "partial", "incomplete"
+                if result.get("status") == "limit":
+                    status, reason = "partial", "limit"
+                elif result.get("status") == "incomplete":
+                    status, reason = "partial", "incomplete"
     except chat_loop.ChatUnavailable:
         status, reason = "failed", "provider_unavailable"
     except ChatProtocolError:

@@ -229,6 +229,111 @@ def test_context_history_previous_request_and_caller_inputs_stay_unchanged() -> 
     assert "inputs" not in outgoing
 
 
+@pytest.mark.parametrize("role", ["user", "assistant"])
+def test_marker_in_history_blocks_provider(role: str) -> None:
+    provider = ScriptedProvider([reply()])
+    history = [
+        {"role": role, "text": f"Earlier {MARKER} text."},
+        {"role": "assistant", "text": "Clean latest history entry."},
+    ]
+    before = deepcopy(history)
+    turn = observe(provider, markers=(MARKER,), history=history)
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "secret_leak"
+    assert turn["secret_leak"] is True
+    assert turn["capture_incomplete"] is False
+    assert turn["provider_calls"] == 0
+    assert turn["result"] is None
+    assert provider.messages == []
+    assert history == before
+    assert MARKER not in dumps(turn)
+
+
+def test_marker_in_previous_request_blocks_provider() -> None:
+    provider = ScriptedProvider([reply()])
+    previous = request()
+    previous["pantry_ingredients"] = [MARKER]
+    before = deepcopy(previous)
+    turn = observe(provider, markers=(MARKER,), previous_request=previous)
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "secret_leak"
+    assert turn["secret_leak"] is True
+    assert turn["capture_incomplete"] is False
+    assert turn["provider_calls"] == 0
+    assert turn["result"] is None
+    assert provider.messages == []
+    assert previous == before
+    assert MARKER not in dumps(turn)
+
+
+def test_clean_history_preserves_completed_observation() -> None:
+    provider = ScriptedProvider([reply()])
+    history = [{"role": "user", "text": "Earlier request."}]
+    turn = observe(provider, markers=(MARKER,), history=history)
+    baseline = observe(ScriptedProvider([reply()]), markers=(MARKER,))
+    assert turn["status"] == "completed"
+    assert turn["provider_calls"] == 1
+    assert len(provider.messages) == 1
+    assert provider.messages[0][0] == {
+        "role": "user",
+        "content": [{"text": "Earlier request."}],
+    }
+    timing = {"elapsed_seconds", "provider_elapsed_seconds"}
+    assert {key: value for key, value in turn.items() if key not in timing} == {
+        key: value for key, value in baseline.items() if key not in timing
+    }
+
+
+def test_oversized_history_blocks_provider_with_incomplete_capture() -> None:
+    provider = ScriptedProvider([reply()])
+    history = [{"role": "user", "text": "Earlier request."} for _ in range(65536)]
+    turn = observe(provider, markers=(MARKER,), history=history)
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "capture_incomplete"
+    assert turn["capture_incomplete"] is True
+    assert turn["secret_leak"] is None
+    assert turn["provider_calls"] == 0
+    assert turn["result"] is None
+    assert provider.messages == []
+    assert MARKER not in dumps(turn)
+
+
+@pytest.mark.parametrize("failure_type", [RecursionError, TypeError, ValueError])
+def test_input_scan_error_blocks_provider(
+    monkeypatch: pytest.MonkeyPatch, failure_type: type[Exception]
+) -> None:
+    def broken_scan(self: CaptureProvider, value: object, seen: set[int]) -> bool:
+        raise failure_type(PRIVATE)
+
+    monkeypatch.setattr(CaptureProvider, "_leaks", broken_scan)
+    provider = ScriptedProvider([reply()])
+    turn = observe(provider, markers=(MARKER,))
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "capture_incomplete"
+    assert turn["capture_incomplete"] is True
+    assert turn["secret_leak"] is None
+    assert turn["provider_calls"] == 0
+    assert turn["result"] is None
+    assert provider.messages == []
+    assert PRIVATE not in dumps(turn)
+    assert MARKER not in dumps(turn)
+
+
+def test_input_sanitization_error_blocks_provider() -> None:
+    provider = ScriptedProvider([reply()])
+    turn = observe(
+        provider, markers=(MARKER,), previous_request={"invalid": float("nan")}
+    )
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "capture_incomplete"
+    assert turn["capture_incomplete"] is True
+    assert turn["secret_leak"] is None
+    assert turn["provider_calls"] == 0
+    assert turn["result"] is None
+    assert provider.messages == []
+    assert MARKER not in dumps(turn)
+
+
 def test_supplied_scenario_wrapper_applies_injection() -> None:
     source = case()
     source["id"] = "A02"
@@ -424,6 +529,12 @@ def test_incomplete_capture_is_unknown(
     monkeypatch: pytest.MonkeyPatch, failed: bool
 ) -> None:
     def broken_scan(self: CaptureProvider, value: object, seen: set[int]) -> bool:
+        if isinstance(value, dict) and set(value) == {
+            "message",
+            "history",
+            "previous_request",
+        }:
+            return False
         raise ValueError(PRIVATE)
 
     monkeypatch.setattr(CaptureProvider, "_leaks", broken_scan)
@@ -471,6 +582,12 @@ def test_returned_result_leak_is_detected_when_capture_scan_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def broken_scan(self: CaptureProvider, value: object, seen: set[int]) -> bool:
+        if isinstance(value, dict) and set(value) == {
+            "message",
+            "history",
+            "previous_request",
+        }:
+            return False
         raise ValueError(PRIVATE)
 
     def leaking_answer(
@@ -532,6 +649,12 @@ def test_callback_payload_is_sanitized_before_storage(
         return REVISION
 
     def broken_scan(self: CaptureProvider, value: object, seen: set[int]) -> bool:
+        if isinstance(value, dict) and set(value) == {
+            "message",
+            "history",
+            "previous_request",
+        }:
+            return False
         raise ValueError(PRIVATE)
 
     if scan_incomplete:
