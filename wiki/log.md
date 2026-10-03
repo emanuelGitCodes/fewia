@@ -2721,3 +2721,163 @@ tests, and build. Live checks on the rebuilt Compose stack at `8859d5e`:
 
 Loop cost: writers used 1.43M input tokens over 5 runs (Luna 404k, Grok
 1.02M). Review runs: 6, with 613k input tokens. No subagents ran.
+
+## 2026-10-02 — Evaluation component 01 local integration
+
+Bound evaluation meal inputs (`72c7c15d12c6f7660e78e4255a33d5d691d95c70`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 02a local integration
+
+Validate evaluation result shapes (`922d2fd20cd5ce3f25fcf8e7e11303461c4a0d3b`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 03 local integration
+
+Add reproducible evaluation manifest (`0e84ea50e3196fffc8c574f95460f2196827d124`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 05 local integration
+
+Fix evaluation evidence table typing (`b7f14d0ebe9836b93f68ad7f365d1aa4b648309e`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 06a local integration
+
+Use aware datetime in schema test (`0ca7d4768c6547e6334e83a770ffbdbd60798fb0`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 06 local integration
+
+Use strict plan observation parser (`77e4e740a3e264f7e7d996c568b8f18137ad5f3e`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 08a local integration
+
+Wrap outcome proposition pattern (`c784f23a9e97a57e207379cef88644da8159a982`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 09 local integration
+
+Reject undeclared nested result fields (`ff6af2c89921e2274a46367fb9e47491dee7e1be`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 10 local integration
+
+Reject blank evaluation case identities (`b14218bb169e6d139705d1e4b788a273fa3d5ba5`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 12a local integration
+
+Add controlled evaluation fault provider (`aad209c98eac753b4a0446b40d4f3752aab4098e`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 12 local integration
+
+Use approved provider for protocol evaluation (`24eb4f4d1e2d1bcf913773f36ba7432cb406d682`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 13 local integration
+
+Handle fixture database cleanup errors (`6ad9a159a9e25a12c31539687771fb9a366cae40`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 14 local integration
+
+Mark refresh evaluation redaction boundary (`0499568f23bb6ebaee041b03d33a9565061321ed`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 15 local integration
+
+Mark handoff evaluation redaction boundary (`9c66687508735bc9172246bf7fbcf117ade18f33`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 16 local integration
+
+Evaluate duplicate worker delivery (`31a0bed32c8f2e1f2231c96e604007401bd4d156`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 17 local integration
+
+Skip reasoning values during sanitization (`051b8860b93f067195f4434aa76fce9c1175b10e`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 18 local integration
+
+Require plan integrity for over-budget claims (`e1863b0253e2c7a4098037577412d0d9eed50b79`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 19 local integration
+
+Fix deterministic reference evidence paths (`96d56255eb275928c03e2db423f728ef1e58cf94`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 20 local integration
+
+Make frozen matrix mutation test lint clean (`33c8bb707364fd627662fdda7267bc3d1a718d55`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 24 local integration
+
+Add evaluation telemetry aggregation (`ab6997dc53893a5e81fa466fe377f94bbfdae0e2`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 25 local integration
+
+Add evidence-aware evaluation cost (`e544b9a642c37a06e559c3d157b83f0afb1040ee`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 26 local integration
+
+Fix evaluation IO import order (`d7698872e32928e112b7b363931c1540f473200b`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 14a local integration
+
+Add isolated Plaid refresh evaluation fixture (`2460154c34546d5482cf84f477c0ffd02472ff4b`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 16a local integration
+
+Count only validated duplicate handler calls (`1dcde961dfc98d465f5b722b86e21698aaf0844a`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 26a local integration
+
+Add evaluation JSON helpers (`61ffa0cb27cae2c03aa9cc10d133e2ab2bc277ae`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 18a local integration
+
+Use direct frozen claim test assignments (`88d5a6203211469be53e7ecf79184e56a2d590ad`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 25a local integration
+
+Add immutable evaluation rates (`7bbf47e3330c1ebceeec4a34b7f3ff0e51274266`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 23a local integration
+
+Validate evaluation assessment scopes (`8bcb36a6af7ebbaad0869515e3e2ec1f603e77ae`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 23b local integration
+
+Summarize classified evaluation tasks (`29acb00ce9a59b01efd3f025f93d8c5e7dff795c`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 23a_counts local integration
+
+Add strict evaluation metric count helpers (`fb188743bdd6deb099daafc6c14ff87905994255`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 23b_validation local integration
+
+Require applicable task assessments (`8d81ae45f4ea398f624691b3e140929ec5ab3bad`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 27a local integration
+
+Bound Markdown integer cells (`d37f69e86fd1a03194f08277df2a19c69184b739`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 23a_checks local integration
+
+Validate safe summary check records (`a89ad21401d3fb852824235f3357d3c1e7def2f9`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 23b_assessments local integration
+
+Add evaluation assessment classification (`f250d25e5093cfbaa113e18effaf7b76483907d9`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation component 30 local integration
+
+Test the required evaluation database guard (`8d6beab5b9039fd2e6d3bacff45e6b88629aa208`) is included as a locally reviewed integration component in snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf`.
+
+## 2026-10-02 — Evaluation loop checkpoint
+
+Snapshot `aa7fac9d9e79b3e81bf2ad36c044b3fab8f88eaf` was captured at `2026-10-03T03:11:58.118465+00:00`. Recorded gates passed: Ruff check (`All checks passed!`), Ruff format (`260 files already formatted`), mypy (`Success: no issues found in 129 source files`), and pytest (`5,942 passed, 1 warning in 12.19s`). Evidence is component-only: nine smoke observations passed (five deterministic references and four controlled provider cases), with 42 scored and 48 unassessed legacy slots and zero live model calls; duplicate-delivery smoke passed 18 checks with a deterministic fake and no live providers. The full 90-primary/138-total benchmark, live Plaid or Instacart evidence, checkout, deployed evidence, and target certification remain incomplete. Recorded CLI supervisor usage as of `2026-10-03T03:11:58.118465+00:00`: implement had 44 attempts, 20,609,897 input tokens, 490,165 output tokens, 187,375 reasoning tokens, and 18,457,096 ms process elapsed; repair had 79 attempts, 19,849,703 input tokens, 303,534 output tokens, 104,249 reasoning tokens, and 11,631,778 ms process elapsed; review had 59 attempts, 8,586,961 input tokens, 204,748 output tokens, 150,615 reasoning tokens, and 5,227,346 ms process elapsed. Input counts include cached tokens; cached tokens are not added again. Token sums are lower bounds where attempts have unknown counts: implement has four unknown attempts for input, output, and reasoning; repair has one for each; review has none. Process elapsed times overlap and are not wall-clock duration. Usage excludes coordinator and native junior tokens.
+
+## 2026-10-02 — Evaluation component 23 local integration
+
+Enforce fixture observation metadata (`b710c398074f14feb4744367d59d4978aee42b73`) is included as a locally reviewed integration component in snapshot `a9a9a4f51b34b05b10a00aa6e9399e2f15a3d8bb`.
+
+## 2026-10-02 — Evaluation completion checkpoint
+
+Snapshot `a9a9a4f51b34b05b10a00aa6e9399e2f15a3d8bb` was captured at `2026-10-03T03:43:02.320249+00:00`. Recorded gates passed: Ruff check (`All checks passed!`), Ruff format (`262 files already formatted`), mypy (`Success: no issues found in 130 source files`), and pytest (`6055 passed, 1 warning in 12.11s`). At source revision `b710c398074f14feb4744367d59d4978aee42b73`, the summary integration smoke recorded five current structured-reference outputs and four controlled-provider cases: nine observations across two separate quality scopes, zero live model calls, and verified completion hashes. The verification archive manifest records 36 approved gate/review pairs with 72 checked hashes. The complete batch/CLI and full benchmark remain incomplete; items 02, 04, and 08 await approval for an extra review round. Recorded evaluation-completion CLI supervisor usage as of `2026-10-03T03:43:02.320249+00:00` (188 attempts): implement had 46 attempts (5 no edits, 36 completed, 4 task_failed, 1 time_limit), 21,280,292 known input tokens, 503,841 known output tokens, 190,770 known reasoning tokens, and 19,528,838 ms process elapsed; repair had 81 attempts (79 completed, 1 task_failed, 1 no edits), 20,834,996 known input tokens, 330,497 known output tokens, 114,444 known reasoning tokens, and 12,243,308 ms process elapsed; review had 61 completed attempts, 8,931,014 known input tokens, 216,238 known output tokens, 159,546 known reasoning tokens, and 5,514,880 ms process elapsed. These usage totals are a snapshot before this documentation repair and final review. Input totals include cached tokens; cached-token subtotals are not added again. Known token sums are lower bounds where attempts have unknown counts: implement has five unknown attempts for input, cached, output, and reasoning; repair has one for each; review has none. Process elapsed times overlap and are not wall-clock duration. Usage excludes coordinator and native junior tokens.
+
+## 2026-10-03 — Evaluation item 31 CI database-name correction
+
+The correction source `811e41022fe4b7ec6738aa58db47f9124c20a29f` sets `fewia_eval` in all three URLs, the service database, and the health check after the guard rejected `/fewia`. Sol wrote at high effort. Luna independently approved at high effort. The integrated corrected source `8dfdb50f324310f18ba2870b8807a5511af40096` passed local Ruff check, Ruff format, mypy, and pytest (`6055 passed, 1 warning`). The [publication record](phases/evaluation-publication.md) keeps these local results separate from the timestamped remote CI snapshot.
+
+## 2026-10-03 — Evaluation draft publication and Graphify update
+
+The [publication record](phases/evaluation-publication.md) lists all 41 draft pull requests and the exact 38-entry merge order. Graphify processed source `8dfdb50f324310f18ba2870b8807a5511af40096`: 75 files (70 code and five documents), 6,185 nodes, 17,813 edges, and 315 communities. Its HTML has 315 community nodes and 710 cross-community edges. The health report warns about 15 self-loop call edges; zero dangling or missing endpoints and zero collapsed endpoint pairs were observed. Some self-loops are recursive, and the remaining cases need source inspection. The graph outputs are ignored local files, not committed or published. The graph excludes this publication page. Native semantic-agent usage is unavailable, deterministic AST extraction uses no model calls, and the full benchmark remains incomplete.

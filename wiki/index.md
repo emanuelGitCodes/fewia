@@ -32,6 +32,8 @@ chronological record lives in [log.md](log.md).
 - [Phase 3 — Deterministic tools and FastAPI endpoints](phases/phase-3.md)
 - [Grocery MVP checkpoint — professor feedback](phases/grocery-mvp-checkpoint.md)
 - [Moderate backlog — local completion record](phases/moderate-backlog.md)
+- [Evaluation completion checkpoint — local evidence](phases/evaluation-completion.md)
+- [Evaluation draft publication and Graphify update](phases/evaluation-publication.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
