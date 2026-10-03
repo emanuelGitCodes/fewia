@@ -85,7 +85,7 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
                 "deterministic_fixture",
                 "controlled_fixture",
             )
-            data = _map(raw.get(name, {})) if relevant else {"status": "not_applicable"}
+            data = _map(raw.get(name, {}) if relevant else {"status": "not_applicable"})
             rows[name].append(data)
             relevant &= _status(data) != "not_applicable"
             named = _map(data.get("checks", {})) if relevant else {}
@@ -112,7 +112,7 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
                 case_id, repeat = slot.get("case_id"), slot.get("repeat")
                 _require(type(case_id) is str)
                 _require(re.fullmatch(r"[A-Z][0-9]{2}", cast(str, case_id)) is not None)
-                _require(type(repeat) is int and cast(int, repeat) >= 0)
+                _require(type(repeat) is int and repeat >= 0)
                 failure = {"case_id": case_id, "repeat": repeat}
                 failure.update(assessment=name, checks=failed_checks)
                 failures.append(failure)
