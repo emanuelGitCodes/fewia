@@ -1,4 +1,3 @@
-import re
 from typing import cast
 
 from app.evaluation_metric_counts import (
@@ -6,9 +5,9 @@ from app.evaluation_metric_counts import (
     sum_claim_counts,
     summarize_assessment_statuses,
 )
+from app.evaluation_summary_check_records import failure_record, validate_checks
 
 _STATUSES = ("passed", "failed", "unassessed", "not_applicable")
-_CHECK_NAME = r"(?:[A-Z][0-9]{2}[a-z]?\.)?[a-z][a-z0-9_]{0,63}"
 _TOOLS = (
     "valid_calls",
     "expected_tool_selection",
@@ -25,10 +24,8 @@ def _require(condition: bool) -> None:
 
 
 def _map(value: object) -> dict[str, object]:
-    _require(type(value) is dict)
-    result = cast(dict[str, object], value)
-    _require(all(type(key) is str for key in result))
-    return result
+    _require(type(value) is dict and all(type(key) is str for key in value))
+    return cast(dict[str, object], value)
 
 
 def _status(row: dict[str, object]) -> str:
@@ -60,7 +57,7 @@ def _aggregate(rows: AssessmentRows, fields: tuple[str, ...] = ()) -> dict[str, 
         "denominator": statuses["denominator"],
         "pass_rate": statuses["pass_rate"],
         "counts": {key: totals[key] for key in fields},
-        **{key: value for key, value in totals.items() if key.endswith("rate")},
+        **{key: value for key, value in totals.items() if key not in fields},
     }
 
 
@@ -88,16 +85,16 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
             data = _map(raw.get(name, {}) if relevant else {"status": "not_applicable"})
             rows[name].append(data)
             relevant &= _status(data) != "not_applicable"
-            named = _map(data.get("checks", {})) if relevant else {}
-            _require(name != "fixture" or not relevant or not data or bool(named))
-            failed_checks: list[str] = []
-            for key, value in named.items():
-                _require(re.fullmatch(_CHECK_NAME, key) is not None)
-                _require(type(value) is bool)
-                check_status = "passed" if value else "failed"
+            try:
+                named = validate_checks(data.get("checks", {})) if relevant else {}
+            except ValueError:
+                raise ValueError("invalid evaluation metrics") from None
+            if name == "fixture" and relevant and data.get("status") == "passed":
+                _require(bool(named))
+            failed_checks = [key for key, passed in named.items() if not passed]
+            for key, passed in named.items():
+                check_status = "passed" if passed else "failed"
                 checks[name].setdefault(key, []).append({"status": check_status})
-                if value is False:
-                    failed_checks.append(key)
             if name == "tools":
                 for key in tools:
                     metric = _map(data.get(key, {}))
@@ -109,12 +106,15 @@ def summarize_metrics(slots: list[dict[str, object]]) -> dict[str, object]:
                         failed_checks.append(key)
             _require(data.get("status") != "passed" or not failed_checks)
             if data.get("status") == "failed" or failed_checks:
-                case_id, repeat = slot.get("case_id"), slot.get("repeat")
-                _require(type(case_id) is str)
-                _require(re.fullmatch(r"[A-Z][0-9]{2}", cast(str, case_id)) is not None)
-                _require(type(repeat) is int and repeat >= 0)
-                failure = {"case_id": case_id, "repeat": repeat}
-                failure.update(assessment=name, checks=failed_checks)
+                try:
+                    failure = failure_record(
+                        cast(str, slot.get("case_id")),
+                        cast(int, slot.get("repeat")),
+                        name,
+                        failed_checks,
+                    )
+                except ValueError:
+                    raise ValueError("invalid evaluation metrics") from None
                 failures.append(failure)
             if name == "claims" and relevant and data:
                 _require(data.get("scope") == "public_output_only")

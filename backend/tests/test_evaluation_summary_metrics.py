@@ -226,6 +226,7 @@ def test_zero_factual_claims_keep_refusals_separate(status: str) -> None:
     payload["status"] = status
     summary = summarize_metrics([slot({"claims": payload})])
     factual = assessment(summary, "claims")
+    assert factual["scope"] == "public_output_only"
     assert factual["support_rate"] is None
     assert factual["conservative_support_rate"] is None
     assert factual["counts"] == {
@@ -386,9 +387,9 @@ def test_fixture_checks_are_separate_from_model_quality() -> None:
     assert mapping(assessment(summary, "tools")["status_counts"])["not_applicable"] == 2
 
 
-@pytest.mark.parametrize("checks", [{}, {"guard": 1}, {"guard": "true"}])
+@pytest.mark.parametrize("checks", [{}, {"guard": 1}, {"guard": "true"}, [], None])
 def test_fixture_requires_nonempty_exact_boolean_checks(
-    checks: dict[str, object],
+    checks: object,
 ) -> None:
     with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
         summarize_metrics(
@@ -400,6 +401,45 @@ def test_fixture_requires_nonempty_exact_boolean_checks(
                 ),
             ]
         )
+
+
+@pytest.mark.parametrize("status", ["failed", "unassessed"])
+def test_fixture_empty_checks_preserve_failed_or_unassessed_status(status: str) -> None:
+    item = slot(
+        {"fixture": {"status": status, "checks": {}}},
+        condition="controlled_fixture",
+        driver="refresh",
+    )
+    original = deepcopy(item)
+    summary = summarize_metrics([item])
+    fixture = assessment(summary, "fixture")
+    assert mapping(fixture["status_counts"])[status] == 1
+    assert fixture["denominator"] == int(status == "failed")
+    assert fixture["pass_rate"] == (0.0 if status == "failed" else None)
+    assert summary["fixture_checks"] == {}
+    failures: list[dict[str, object]] = []
+    if status == "failed":
+        failures.append(
+            {"case_id": "F01", "repeat": 1, "assessment": "fixture", "checks": []}
+        )
+    assert summary["known_failures"] == failures
+    assert item == original
+
+
+@pytest.mark.parametrize("status", ["failed", "unassessed"])
+@pytest.mark.parametrize("checks", [{"guard": 1}, {"guard": "true"}, [], None])
+def test_failed_or_unassessed_fixture_rejects_invalid_checks(
+    status: str, checks: object
+) -> None:
+    item = slot(
+        {"fixture": {"status": status, "checks": checks}},
+        condition="controlled_fixture",
+        driver="refresh",
+    )
+    original = deepcopy(item)
+    with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
+        summarize_metrics([item])
+    assert item == original
 
 
 def test_reference_scores_only_final_structured_plan() -> None:
@@ -515,6 +555,21 @@ def test_failure_identifiers_are_safe_and_errors_are_static(
 ) -> None:
     item = slot({"plan": {"status": "failed"}})
     item[key] = invalid
+    original = deepcopy(item)
+    with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
+        summarize_metrics([item])
+    assert item == original
+
+
+@pytest.mark.parametrize("scope", ["plan", "fixture", "tools"])
+@pytest.mark.parametrize("status", ["failed", "unassessed"])
+def test_observed_failure_requires_positive_repeat(scope: str, status: str) -> None:
+    item = slot(
+        {scope: {"status": status, "checks": {"budget": False}}},
+        condition="deterministic_fixture" if scope == "fixture" else "tool_enabled",
+        driver="budget" if scope == "fixture" else "model",
+        repeat=0,
+    )
     original = deepcopy(item)
     with pytest.raises(ValueError, match="^invalid evaluation metrics$"):
         summarize_metrics([item])
