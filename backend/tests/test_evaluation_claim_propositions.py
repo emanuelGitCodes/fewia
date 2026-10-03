@@ -304,9 +304,9 @@ def test_contracts_have_only_observable_fields() -> None:
     assert not hasattr(proposition, "__dict__")
     assert not hasattr(result, "__dict__")
     with pytest.raises(FrozenInstanceError):
-        setattr(proposition, "kind", "changed")
+        proposition.kind = "changed"
     with pytest.raises(FrozenInstanceError):
-        setattr(result, "unknown_count", 7)
+        result.unknown_count = 7
 
 
 def test_unknown_text_is_not_returned() -> None:
