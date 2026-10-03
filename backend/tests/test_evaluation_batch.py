@@ -1,6 +1,9 @@
+import json
 from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock
@@ -334,6 +337,99 @@ def test_invalid_prepared_matrix_cannot_silently_run(
         _run(corpus, runtime, on_slot=callback)
     runner.assert_not_called()
     callback.assert_not_called()
+
+
+def _source_corpus(actual: bool) -> dict[str, object]:
+    if not actual:
+        return _corpus()
+    path = Path(__file__).parent / "evaluation" / "scenarios.json"
+    return cast(dict[str, object], json.loads(path.read_text()))
+
+
+@pytest.mark.parametrize("actual", [False, True], ids=["synthetic", "actual"])
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "missing_case",
+        "substituted_case",
+        "repeat_four",
+        "primary_condition",
+        "primary_order",
+        "no_tool_order",
+        "reference_order",
+    ],
+)
+def test_unique_wrong_matrix_fails_before_execution_or_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+    actual: bool,
+    corruption: str,
+) -> None:
+    corpus, runtime = _source_corpus(actual), _runtime()
+    slots = batch.prepare_matrix(corpus)
+    if corruption == "missing_case":
+        slots[:3] = [replace(slots[3], repeat=repeat) for repeat in range(4, 7)]
+    elif corruption == "substituted_case":
+        slots[0] = replace(slots[0], case_id="P04")
+    elif corruption == "repeat_four":
+        slots[2] = replace(slots[2], repeat=4)
+    elif corruption == "primary_condition":
+        slots[0] = replace(slots[0], condition="controlled_fixture")
+    else:
+        index = {"primary_order": 0, "no_tool_order": 90, "reference_order": 123}[
+            corruption
+        ]
+        slots[index], slots[index + 3] = slots[index + 3], slots[index]
+    assert len(slots) == 138
+    assert len({(slot.case_id, slot.repeat, slot.condition) for slot in slots}) == 138
+    monkeypatch.setattr(batch, "prepare_matrix", Mock(return_value=slots))
+    runner, callback = Mock(), Mock()
+    monkeypatch.setattr(batch, "run_slot", runner)
+    with pytest.raises(ValueError) as raised:
+        _run(corpus, runtime, on_slot=callback)
+    assert str(raised.value) == "invalid evaluation matrix"
+    runner.assert_not_called()
+    cast(Mock, runtime.provider_factory).assert_not_called()
+    callback.assert_not_called()
+
+
+@pytest.mark.parametrize("actual", [False, True], ids=["synthetic", "actual"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_valid_matrix_uses_corpus_order_and_fixed_cohorts(
+    monkeypatch: pytest.MonkeyPatch, actual: bool, reverse: bool
+) -> None:
+    corpus, runtime = _source_corpus(actual), _runtime()
+    cases = cast(list[dict[str, object]], corpus["scenarios"])
+    if reverse:
+        cases.reverse()
+    manifest = build_manifest(
+        corpus, model_id=runtime.model_id, region="us-east-1", model_config=CONFIG
+    )
+
+    def execute(
+        slot: EvaluationSlot, current: dispatch.EvaluationRuntime
+    ) -> dict[str, object]:
+        assert current is runtime
+        return _result(slot, manifest)
+
+    runner = Mock(side_effect=execute)
+    monkeypatch.setattr(batch, "run_slot", runner)
+    slots = _slots(_run(corpus, runtime))
+    for section, cohort in (
+        (slots[:90], {cast(str, case["id"]) for case in cases}),
+        (slots[90:123], matrix.MODEL_CASE_IDS),
+        (slots[123:], matrix.REFERENCE_CASE_IDS),
+    ):
+        assert [(slot["case_id"], slot["repeat"]) for slot in section] == [
+            (case["id"], repeat)
+            for case in cases
+            if case["id"] in cohort
+            for repeat in (1, 2, 3)
+        ]
+    assert runner.call_count == 138
+    assert {s["condition"] for s in slots[90:123]} == {"no_tool"}
+    assert {s["condition"] for s in slots[123:]} == {"deterministic"}
+    provider_slots = [s for s in slots[:90] if s["case_id"] == "P04"]
+    assert {s["condition"] for s in provider_slots} == {"controlled_fixture"}
 
 
 @pytest.mark.parametrize("interrupted", [False, True])

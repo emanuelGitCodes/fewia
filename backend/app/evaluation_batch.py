@@ -6,7 +6,7 @@ from typing import cast
 
 from app.evaluation_dispatch import EvaluationRuntime, run_slot
 from app.evaluation_manifest import _copy_object, build_manifest
-from app.evaluation_matrix import prepare_matrix
+from app.evaluation_matrix import MODEL_CASE_IDS, REFERENCE_CASE_IDS, prepare_matrix
 from app.evaluation_summary_task_validation import classify_slot
 
 
@@ -52,15 +52,32 @@ def run_evaluation_batch(
         raise ValueError("invalid evaluation callback")
     frozen = _copy_object(corpus)
     matrix = prepare_matrix(frozen)
-    keys = {(slot.case_id, slot.repeat, slot.condition) for slot in matrix}
-    conditions = [slot.condition for slot in matrix]
-    if (
-        len(matrix) != 138
-        or len(keys) != 138
-        or any(value in ("no_tool", "deterministic") for value in conditions[:90])
-        or conditions[90:123] != ["no_tool"] * 33
-        or conditions[123:] != ["deterministic"] * 15
+    cases = cast(list[dict[str, object]], frozen["scenarios"])
+    expected = [
+        (
+            case["id"],
+            repeat,
+            "tool_enabled"
+            if case["id"] in MODEL_CASE_IDS
+            else "controlled_fixture"
+            if case["group"] == "provider"
+            else "deterministic_fixture",
+        )
+        for case in cases
+        for repeat in range(1, 4)
+    ]
+    for condition, cohort in (
+        ("no_tool", MODEL_CASE_IDS),
+        ("deterministic", REFERENCE_CASE_IDS),
     ):
+        expected.extend(
+            (case["id"], repeat, condition)
+            for case in cases
+            if case["id"] in cohort
+            for repeat in range(1, 4)
+        )
+    actual = [(slot.case_id, slot.repeat, slot.condition) for slot in matrix]
+    if actual != expected or any(type(slot.repeat) is not int for slot in matrix):
         raise ValueError("invalid evaluation matrix")
     manifest = build_manifest(
         frozen,
