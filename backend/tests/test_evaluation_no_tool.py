@@ -1,6 +1,7 @@
 import sys
 from copy import deepcopy
 from hashlib import sha256
+from importlib import import_module
 from json import dumps, loads
 from types import ModuleType
 from typing import Literal, cast
@@ -419,6 +420,20 @@ def test_incomplete_capture_cannot_certify_no_leak(
 def test_no_application_planner_or_evidence_function_is_called(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    guarded_modules: tuple[tuple[str, str], ...] = (
+        ("app.agent.chat_loop", "chat_loop"),
+        ("app.agent.planning_tool", "planning"),
+        ("app.api.evidence", "evidence"),
+        ("app.evaluation_evidence", "evidence"),
+        ("app.evidence_models", "evidence"),
+        ("app.services.evidence_contract", "evidence"),
+        ("app.services.evidence_store", "evidence"),
+        ("app.services.grocery_planner", "planner"),
+    )
+    name_fragments = {fragment for _, fragment in guarded_modules}
+    for module_name, _ in guarded_modules:
+        import_module(module_name)
+
     def forbidden(*args: object, **kwargs: object) -> object:
         pytest.fail("Application execution is forbidden in the no-tool condition")
 
@@ -436,9 +451,16 @@ def test_no_application_planner_or_evidence_function_is_called(
                 attribute in ("run_chat", "execute_plan") or forbidden_owner
             ):
                 monkeypatch.setattr(module, attribute, forbidden)
+    modules_before = set(sys.modules)
     observed = observe(
         case_with("Plan groceries."), RecordingProvider([response_for(public_result())])
     )
+    assert not {
+        name
+        for name in set(sys.modules) - modules_before
+        if name.startswith("app.")
+        and any(fragment in name for fragment in name_fragments)
+    }
     assert observed["status"] == "completed"
     assert observed["snapshots"] == []
     assert "evidence_id" not in dumps(observed)
