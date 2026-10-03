@@ -462,6 +462,44 @@ def test_fresh_spending_keeps_pending_separate() -> None:
     assert all(plan_integrity(_final(observation)).values())
 
 
+def test_pending_budget_uses_scenario_when_expected_omits_it() -> None:
+    case = _case("F01")
+    _map(case["inputs"]).update(
+        monthly_limit_cents=10000,
+        posted_cents=2000,
+        pending_cents=3000,
+        plan_cap_cents=None,
+        budget_period="2026-07-01",
+        spending_period="2026-07-01",
+        now="2026-07-10T12:00:00Z",
+        spending_refreshed_at="2026-07-10T11:00:00Z",
+    )
+    expected = _map(case["expected"])
+    expected.update(
+        monthly_limit_cents=10000,
+        posted_cents=2000,
+        remaining_cents=8000,
+        available_cents=8000,
+        stale=False,
+    )
+    expected.pop("pending_cents", None)
+    observation = _observation(case)
+    budget = _map(_final(observation)["budget"])
+    assert _map(case["inputs"])["pending_cents"] == 3000
+    assert "pending_cents" not in expected
+    assert budget["pending_cents"] == 3000
+    score = score_plan(case, observation)
+    assert score["status"] == "passed", score
+    assert _checks(score)["budget_pending"] is True
+    budget["pending_cents"] = 0
+    score = score_plan(case, observation)
+    assert score["status"] == "failed"
+    assert _checks(score)["budget_pending"] is False
+    assert "budget_pending" in _list(score["constraint_violations"])
+    assert _checks(score)["budget_arithmetic"] is True
+    assert _checks(score)["budget_stale"] is True
+
+
 def test_stale_snapshot_uses_explicit_cap_with_pending_spending() -> None:
     case = _case("F01")
     _map(case["inputs"]).update(

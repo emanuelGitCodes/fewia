@@ -8,7 +8,6 @@ from app.evaluation_shapes import valid_public_result
 
 _FINAL_ONLY = ("F01", "F02", "F05", "X04", "A01")
 _CONDITIONS = ("deterministic", "tool_enabled", "no_tool")
-_PAYLOADS = ("plan", "request", "budget")
 _REQUEST = (
     "meals diet budget_period plan_cap_cents pantry_ingredients ingredient_exclusions"
 ).split()
@@ -97,7 +96,7 @@ def score_plan(
     if not all(checks.values()):
         return report("failed", "Observation is invalid or incomplete.")
     final = mp(mp(turns[-1]).get("result"))
-    plan, request, budget = (mp(final.get(key)) for key in _PAYLOADS)
+    plan, request, budget = (mp(final[key]) for key in ("plan", "request", "budget"))
     required = (
         "lines" in expected
         or "missing_price_ingredient" in expected
@@ -137,13 +136,15 @@ def score_plan(
         checks["budget_arithmetic"] = _has(
             budget, "available_cents", scenario_budget.available_cents
         )
+        checks["budget_pending"] = _has(
+            budget, "pending_cents", scenario_budget.pending_cents
+        )
         checks["budget_stale"] = _has(budget, "stale", scenario_budget.stale)
     if "lines" in expected:
         actual, golden = _lines(plan.get("lines")), _lines(expected["lines"])
         checks["golden_lines"] = (
             actual is not None and golden is not None and eq(actual, golden)
         )
-    checks.update(
-        {f"integrity_{key}": value for key, value in plan_integrity(final).items()}
-    )
+    for key, value in plan_integrity(final).items():
+        checks[f"integrity_{key}"] = value
     return report("passed" if all(checks.values()) else "failed")
