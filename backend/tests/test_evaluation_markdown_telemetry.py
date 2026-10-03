@@ -93,8 +93,7 @@ def test_mixed_groups_keep_usage_bounds_and_costs_separate() -> None:
     assert "| no\\_tool | real\\_bedrock | estimated | 0\\.00033 |" in rendered
     assert (
         "| tool\\_enabled | deterministic\\_fake\\_provider | "
-        "not\\_applicable | Unknown |"
-        in rendered
+        "not\\_applicable | Unknown |" in rendered
     )
     assert "| tool\\_enabled | controlled\\_fixture | unknown | Unknown |" in rendered
     assert "does not mean a live benchmark is free" in rendered

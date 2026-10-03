@@ -51,7 +51,9 @@ def _measurements(source: dict[str, object]) -> list[str]:
             zip(tokens.split(), _numbers(group, tokens, nullable=True), strict=True)
         )
         parts.append("Known input/output token totals are lower bounds.")
-        rows = [(key.replace("_", " "), value) for key, value in values.items()]
+        rows: list[tuple[object, ...]] = [
+            (key.replace("_", " "), value) for key, value in values.items()
+        ]
         parts.append(table(("Usage metric", "Value"), rows))
         calls = as_map(group["provider_calls"])
         call_values = (
