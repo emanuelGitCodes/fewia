@@ -1,0 +1,5 @@
+{"sha": "62e77e243b9a67f685c7c89ef15754034fb6a4a4", "clean": true, "lines": 53, "finished": "2026-10-03T12:22:01.854696+00:00", "gates": [{"area": "backend", "gate": "ruff-check", "status": "PASS", "last_line": "All checks passed!"}, {"area": "backend", "gate": "ruff-format", "status": "PASS", "last_line": "264 files already formatted"}, {"area": "backend", "gate": "mypy", "status": "PASS", "last_line": "Success: no issues found in 131 source files"}, {"area": "backend", "gate": "pytest", "status": "PASS", "last_line": "6153 passed, 1 warning in 14.42s"}]}
+MUTATION KILLED: 08b-allow-unknown: 12 failed, 86 deselected, 1 warning in 0.10s
+MUTATION KILLED: 08b-allow-orphans: 1 failed, 97 deselected, 1 warning in 0.07s
+MUTATION KILLED: 08b-allow-invalid-status: 5 failed, 29 passed, 64 deselected, 1 warning in 0.09s
+The deliberately failed mutant runs above do not describe the reviewed implementation.

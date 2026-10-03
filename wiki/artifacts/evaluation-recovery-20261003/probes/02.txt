@@ -1,0 +1,6 @@
+{"sha": "05abadb17e8de4e5cb089d82bb524924de28e52a", "clean": true, "lines": 148, "finished": "2026-10-03T12:17:48.477455+00:00", "gates": [{"area": "backend", "gate": "ruff-check", "status": "PASS", "last_line": "All checks passed!"}, {"area": "backend", "gate": "ruff-format", "status": "PASS", "last_line": "264 files already formatted"}, {"area": "backend", "gate": "mypy", "status": "PASS", "last_line": "Success: no issues found in 131 source files"}, {"area": "backend", "gate": "pytest", "status": "PASS", "last_line": "6214 passed, 1 warning in 12.32s"}]}
+PROBE: 7225 public scorer cases matched an independent brute-force assignment oracle across empty, repeated, reordered, overlapping, wrong, and mixed-name calls.
+
+MUTATION KILLED: 02-r4-old-greedy: 21 failed, 21 passed, 117 deselected, 1 warning in 0.26s
+MUTATION KILLED: 02-r4-no-reassignment: 21 failed, 23 passed, 115 deselected, 1 warning in 0.25s
+These failures are deliberate disposable mutations, not failures of the reviewed head.

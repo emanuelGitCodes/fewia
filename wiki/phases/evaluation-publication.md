@@ -1,5 +1,7 @@
 # Evaluation draft publication and Graphify update
 
+> **Later update (2026-10-03):** `main` at `5e5cdc9c06bc1d25d921ecba4fd42f89b911a4bd` matches the exact tree of prior published snapshot `9e8e55f`. It also includes the observed user merge of [integration PR #292](https://github.com/emanuelGitCodes/fewia/pull/292). This recovery run did not merge `main`. See the [recovery checkpoint](evaluation-recovery.md).
+
 Publication facts were captured at `2026-10-03T07:21:57Z`. The 41 published pull requests are drafts. No pull request merged to `main`.
 
 ## Merge order

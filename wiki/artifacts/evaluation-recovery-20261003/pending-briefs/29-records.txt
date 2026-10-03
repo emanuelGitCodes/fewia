@@ -1,0 +1,27 @@
+ITEM: evaluation-completion-29 — Record verified evaluation delivery
+ROLE: docs-dev   TIER: S   COMPLEXITY: simple
+WRITER: --only --model gpt-6-luna --effort xhigh
+DO NOT DISPATCH until final benchmark artifacts and final usage/gate/review record paths are supplied.
+OWNED FILES:
+- docs/EVALUATION.md
+- wiki/phases/evaluation-completion.md
+- wiki/index.md
+- wiki/log.md
+READ:
+- .codex/project-context.md
+- wiki/decisions/0015-writer-routing-by-difficulty.md
+- wiki/decisions/0016-spoonacular-read-time-overlay.md
+- wiki/decisions/0017-forty-meal-catalog.md
+- backend/app/evaluate.py
+- backend/app/evaluation_matrix.py
+- Final coordinator evidence record and report paths supplied at dispatch
+CONTRACT:
+- Describe the actual benchmark CLI, explicit live-model opt-in, environment variable names (no values/secrets), exclusive output/journal/reports, current corpus/conditions, and validated runtime configuration.
+- Record exact executed revision, model/region/prompt/catalog/config hashes and artifact paths. Link the local report and reproducible invocation with placeholders where appropriate.
+- Summarize actual90primary/48baseline execution, metric coverage, failures, unassessed claims, usage/cost/latency and actual local service path evidence. Separate synthetic guards from real Bedrock and local Floci from deployedAWS.
+- Do not mark targets met unless the report proves them. Do not claim livePlaid/Instacart or public deployment. Note any pending review/known limitation exactly as coordinator record says.
+- Add one dated entry per verified work item and loop usage total to append-only wiki/log.md; preserve all existing content. Add phase page to index. No rewrite of historical health scope or newestproduct decisions.
+- Document branch/parent stack integration order without claiming remote push/PR/merge. Keep report language concise and evidence-based.
+- Use short active prose and uppercase MUST/MUST NOT/SHOULD/SHOULD NOT/MAY for requirements. No status/history in code comments; these wiki files are the proper place.
+CHECKS: source/code command names and artifact hashes match; Markdown links valid; appendedlog preserves existing prefix. Docs-only gates and independent review by coordinator.
+HARD RULES: Released documentation only. You are not alone. Codex MAY read/search named files with read-only shell. No tests, packages, git, or writing shell commands. Edit only owned files with apply_patch. Commit nothing.

@@ -1,0 +1,24 @@
+ITEM: evaluation-completion-22 — Execute the frozen primary and baseline matrices
+ROLE: backend-dev   TIER: L   COMPLEXITY: complex
+WRITER: --only --model gpt-6.1-sol --effort high
+OWNED FILES:
+- backend/app/evaluation_batch.py
+- backend/tests/test_evaluation_batch.py
+READ:
+- /private/tmp/fewia-evaluation-6813/design.md
+- backend/app/evaluation_matrix.py
+- backend/app/evaluation_dispatch.py
+- backend/app/evaluation_manifest.py
+- backend/app/evaluation_no_tool.py
+- backend/app/evaluation_runner.py
+CONTRACT:
+- run_evaluation_batch(corpus, runtime: EvaluationRuntime, *, region:str, model_config:dict[str,object], revision:str, on_slot:Callable[[dict[str,object]],None]|None=None) -> dict[str,object].
+- Validate/freeze corpus, matrix, model metadata/config and canonical40hex revision before any provider/DB execution or callback. Build manifest once. Model ID comes from runtime. No provider calls during validation. Existing run_evaluation API remains untouched.
+- Execute primary90 then no_tool33 then deterministic15 slots from prepare_matrix. Exactly one outcome per tuple. Keep primary slots under slots and baseline conditions under baseline_slots (48), with manifest, revision, started_at/finished_at UTC, mode complete_evaluation, primary_slot_count90,total_slot_count138.
+- Include tool-enabled and no-tool prompt hashes from actual observer prompt contracts, same catalog hash/config/model for both. Verify recorded observation model_id/catalogversion/prompt hash matches pinned contracts; a mismatch is failed evidence, not silently patched.
+- on_slot receives a deep copy after each actual slot. Caller mutation MUST NOT change results. A callback failure propagates with static error so CLI stops instead of losing journal evidence. KeyboardInterrupt propagates. Per-slot execution failures are isolated by dispatch and remain present.
+- metrics_status must describe assessed/partial based on actual assessments; do not copy corpus unassessed into a false universal success. Batch does not invent pass percentages; summary module aggregates explicit denominators.
+- Never include provider object, DB URL, profile, credentials, raw exception, or hidden reasoning in output. Manifest contains only frozen public inputs/hashes/settings.
+TESTS: exact complete138 and90primary; no silent missing/duplicate slot; model failure preserves later slots; same model/catalog across conditions; manifest and source copies not mutable through callbacks; prompt/model mismatch detected; validation before side effects; interrupted callback; existing fixture API still42scored48unassessed.
+CAP: <=150 added application lines; tests excluded. Propose split before compression.
+HARD RULES: Released implementation. You are not alone. Codex MAY read/search named files with read-only shell. No tests, packages, git, or writing shell commands. Edit only owned files with apply_patch. Commit nothing.
