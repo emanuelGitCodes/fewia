@@ -3015,3 +3015,52 @@ record](artifacts/backlog-20261003/c4-resume.md).
 ## 2026-10-03 — Align supervisor writer command rules
 
 Updated the supervisor opening to match the provider-specific junior protocol.
+
+## 2026-10-03 — B5 strict-value helper publication
+
+PR [#322](https://github.com/emanuelGitCodes/fewia/pull/322) publishes
+`98fde259ebc2281cf652d045eb26add13f07172e` with 28 code lines on
+`codex/backlog-resume-b5-values`. The supplied backend record reports Ruff,
+format, strict mypy, and 6,874 tests passed with one warning. Independent Luna
+high review approved the helper. GitHub CI reported all 7 checks successful
+at this snapshot. This result covers the helper only; B5 remains partial.
+
+## 2026-10-03 — C4 fixture handoff guards
+
+PR [#323](https://github.com/emanuelGitCodes/fewia/pull/323) publishes
+`0246c9b1c249f719b1f10b4a9bf99db499a1f26b` with 10 code lines on
+`codex/backlog-resume-c4`. The supplied frontend install, lint, test, and build
+gates passed. Independent Luna high review approved the change. GitHub CI
+reported all 7 checks successful at this snapshot. This is fixture-flow code
+evidence, not live Instacart evidence.
+
+## 2026-10-03 — B6 structured error matching
+
+PR [#324](https://github.com/emanuelGitCodes/fewia/pull/324) publishes
+`578df44aa0fa5107167dadec1e8f7773ce9e041f` with 12 code lines on
+`codex/backlog-resume-b6`. The supplied tooling record reports 326 tests,
+Ruff, formatting, and strict mypy passed. Independent Luna high review
+approved the change. GitHub CI reported all 7 checks successful at this
+snapshot.
+
+## 2026-10-03 — B4 consent browser evidence
+
+PR [#327](https://github.com/emanuelGitCodes/fewia/pull/327) publishes
+`85493df8ace8ff246df0c15dfccb40e22aef1a62` with 119 code lines, stacked on
+#323. The supplied frontend gates passed and independent Luna high review
+approved the change. The first browser record failed consent-before-POST; the
+repaired browser record passed 14 checks, including consent, keyboard focus,
+mobile fit, and one explicit retry. These checks used an isolated local
+PostgreSQL/Floci stack with fixture handoff responses. They do not establish
+live provider, purchase, deployed, or model-quality results. See the
+[verification plan](../docs/GROCERY_VERIFICATION_PLAN.md) and the
+[backlog resume record](phases/backlog-resume-20261003.md).
+
+## 2026-10-03 — C1 runtime publication
+
+PR [#328](https://github.com/emanuelGitCodes/fewia/pull/328) publishes
+`26fe9148da0c12bd5c55218b063fcc15d54ee7c4` with 92 source lines on
+`codex/backlog-resume-runtime`. Backend Ruff, format, strict mypy, and 6,889
+tests passed. The 18-fixture smoke passed with no model calls. An empty-check
+mutation caused 3 failures. Independent Luna high review approved the change.
+No GitHub CI result is recorded.

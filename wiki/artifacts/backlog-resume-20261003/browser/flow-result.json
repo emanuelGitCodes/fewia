@@ -1,0 +1,66 @@
+{
+  "scope": "isolated local PostgreSQL/Floci stack; handoff HTTP responses are browser fixtures",
+  "checks": [
+    {
+      "name": "polling stops on completion",
+      "pass": true,
+      "polls": 10
+    },
+    {
+      "name": "handoff consent dialog before POST",
+      "pass": false,
+      "dialogs": 0,
+      "posts": 1
+    },
+    {
+      "name": "mobile horizontal overflow",
+      "pass": true
+    }
+  ],
+  "focus": [
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "text": "Bean tacos for two"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "text": "Three vegan dinners (2 servings each)"
+    },
+    {
+      "tag": "INPUT",
+      "id": "monthly-limit",
+      "text": ""
+    },
+    {
+      "tag": "INPUT",
+      "id": "plan-cap",
+      "text": ""
+    },
+    {
+      "tag": "SELECT",
+      "id": "recipe-0",
+      "text": "chicken tacosbean tacosvegetable pastachicken and rice bowlslentil soupchickpea "
+    },
+    {
+      "tag": "SELECT",
+      "id": "servings-0",
+      "text": "12345678"
+    },
+    {
+      "tag": "BUTTON",
+      "id": "",
+      "text": "Add meal"
+    },
+    {
+      "tag": "SELECT",
+      "id": "diet",
+      "text": "No preferenceVegetarianVegan"
+    }
+  ],
+  "desktopText": "FEWIA\nLocal demo · Sample prices\nMeals that fit your budget\n\nPlan a few meals with what you have.\n\nYour conversation\n\nUse the meal controls to choose 1 to 3 meals and 1 to 8 servings. Sample estimates use the demo price catalog.\n\nBean tacos for two\nThree vegan dinners (2 servings each)\n\nThe estimate is within the plan budget.\n\nSource Your entered budget.\n\nBudget and meals\nMonthly limit\nPlan cap (optional)\nRecipe 1\nchicken tacos\nbean tacos\nvegetable pasta\nchicken and rice bowls\nlentil soup\nchickpea curry\nvegetable stir fry\nbaked potatoes with beans\nbreakfast burritos\novernight oats\nchicken pasta\nchicken stir fry\nchicken curry\nchicken vegetable soup\nchicken burrito bowls\nchicken potato bake\nchicken lentil stew\nchicken chickpea skillet\nchicken fried rice\nchicken tortilla soup\negg fried rice\negg tacos\ntomato egg pasta\npotato hash with eggs\nchickpea egg scramble\nvegetable egg stir fry\negg rice bowls\nlentil egg skillet\nrice and beans\nlentil pasta\nchickpea tacos\npotato curry\ntomato rice\ngarlic tomato pasta\nvegetable soup\nlentil tacos\nchickpea pasta\ncoconut lentil curry\npotato tacos\nsalsa rice bowls\nServings 1\n1\n2\n3\n4\n5\n6\n7\n8\nRemove meal 1\nAdd meal\nDiet\nNo preference\nVegetarian\nVegan\nPantry\nIngredient exclusions\nMeal ideas\nServings per meal\n1\n2\n3\n4\n5\n6\n7\n8\nFind meal ideas\n\nUse Build my estimate after choosing meals.\n\nBuild my estimate\nMeal chat\n\nMeal chat is unavailable.\n\nNo messages yet\n\nSend a meal request to start a conversation.\n\nMessage\nSend\nRetry the same requestStart a new conversation\nGrocery estimate\n\nThis estimate is within the plan budget.\n\n$17.03\n\nAvailable for this plan $40.00\n\nSource Your entered budget\n\nblack beans\n\nNeeded 240 g\n\n1 package\n\n$1.29\n\nI have black beans\n\nground cumin\n\nNeeded 2 g\n\n1 package\n\n$1.99\n\nI have ground cumin\n\nolive oil\n\nNeeded 20 g\n\n1 package\n\n$5.99\n\nI have olive oil\n\nonion\n\nNeeded 60 g\n\n1 package\n\n$1.29\n\nI have onion\n\nsalsa\n\nNeeded 80 g\n\n1 package\n\n$2.49\n\nI have salsa\n\nsalt\n\nNeeded 2 g\n\n1 package\n\n$0.99\n\nI have salt\n\ncorn tortillas\n\nNeeded 4 each\n\n1 package\n\n$2.99\n\nI have corn tortillas\nEstimated nutrition\n\nPlan total 758 kcal, 29.0 g protein, 111.6 g carbohydrate, 24.7 g fat\n\nbean tacos\n\n2 servings\n\nPer serving 379 kcal, 14.5 g protein, 55.8 g carbohydrate, 12.3 g fat\n\nMeal total 758 kcal, 29.0 g protein, 111.6 g carbohydrate, 24.7 g fat\n\nEstimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.\n\nPortion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.\n\nEstimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.\n\nShopping list\nRetry shopping list\n\nThe shopping link is uncertain. Retry only if you choose to.\n\nNo purchases are made here.",
+  "errors": [],
+  "url": "http://127.0.0.1:5187/",
+  "title": "FEWIA · Meals that fit your budget"
+}

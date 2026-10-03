@@ -1,0 +1,61 @@
+{
+  "source_baseline": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "files": [
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e.json",
+      "sha256": "3d88a3f5e77f5503c465c6e843fb3ce11e1377d11dc14a356697f8d1e7dcc757"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e-gpt-6-luna.md",
+      "sha256": "b709fddf17af27ad0c221ed78460cfc25fa1443024601d77dcd36a29700911f8"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b.json",
+      "sha256": "593538cf071fa09239196359ee8dd69fa9b90df440165a05a9c469204d7f6525"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b-gpt-6-luna.md",
+      "sha256": "28a3221f2c44533b260fec914949bb2f33239326b6e82e78fb0084c637333fad"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f.json",
+      "sha256": "521d77f88177322ba4b3b4d5aff781aa0e6cbb468ed1562c6da763571ce5508a"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f-gpt-6-luna.md",
+      "sha256": "8d8a8595aab8f0935a265f980cb821102aae15934f1208e71206d9a66a612f7f"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62.json",
+      "sha256": "58b5426fa5f341a6dec24c23689be960bcf6f62a286557a46ce2c8e99d7bb26a"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62-gpt-6-luna.md",
+      "sha256": "807636bcb5e07e586af8ad90c5350def975035c632ef894521a925731a09bcdc"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4.json",
+      "sha256": "336d9533735b3b59c14e4b454167c686c319cb9c9dab8f6b584a30b71a6820d1"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4-gpt-6-luna.md",
+      "sha256": "34620cf25bc6d2fe4e3536882a5a5ad629e2bb6e245e7505aeda0f9f06e51be0"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af.json",
+      "sha256": "70ce34b1dd9c6abaad92335d50ddbf76e0f821d6119557a1b3b62b9e38d953d1"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af-gpt-6.1-sol.md",
+      "sha256": "a58df0c8c9a480f8a902f7fcdc26ea5280546edd7aadb9a5e3ba50ab7cd2c7fc"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58.json",
+      "sha256": "ba56ab0e26f3d642e6e3beea3c3fd03dcfc314986eb98667f75f49d61a40f0c6"
+    },
+    {
+      "path": "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58-gpt-6.1-sol.md",
+      "sha256": "edeae8988f0b18da4ff210600db00cf4b0f1ccf8b71128b97ae65dc1bb13a5dc"
+    }
+  ]
+}
