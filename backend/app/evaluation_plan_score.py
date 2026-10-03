@@ -117,13 +117,13 @@ def score_plan(
         if key in ("pantry_ingredients", "ingredient_exclusions"):
             match = _ids(left) is not None and _ids(left) == _ids(right)
         checks[f"request_{key}"] = source in inputs and match
-    for key in ("accepted", "total_cents", "notice"):
-        checks[f"expected_{key}"] = key in expected and _has(plan, key, expected[key])
     catalog = mp(mp(expected.get("evidence_ids")).get("when_plan_returned"))
-    version = expected.get("catalog_version", catalog.get("catalog_version"))
-    checks["expected_catalog_version"] = type(version) is str and _has(
-        plan, "catalog_version", version
-    )
+    for key in ("accepted", "total_cents", "notice", "catalog_version"):
+        gold = expected if key != "catalog_version" or key in expected else catalog
+        if key in gold:
+            checks[f"expected_{key}"] = _has(plan, key, gold[key]) and (
+                key != "catalog_version" or type(gold[key]) is str
+            )
     for key in _BUDGET:
         if key in expected:
             checks[f"expected_budget_{key}"] = _has(budget, key, expected[key])

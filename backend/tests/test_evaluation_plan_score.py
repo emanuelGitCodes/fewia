@@ -420,6 +420,126 @@ def test_wrong_plan_expectations(field: str, value: object) -> None:
     assert score_plan(case, observation)["status"] == "failed"
 
 
+@pytest.mark.parametrize(
+    "fields",
+    (
+        ("accepted",),
+        ("total_cents",),
+        ("notice",),
+        ("catalog_version",),
+        ("accepted", "total_cents", "notice", "catalog_version"),
+    ),
+)
+def test_missing_optional_plan_gold_is_skipped(fields: tuple[str, ...]) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    expected = _map(case["expected"])
+    catalog = _map(_map(expected.get("evidence_ids", {})).get("when_plan_returned", {}))
+    for field in fields:
+        expected.pop(field, None)
+        if field == "catalog_version":
+            catalog.pop(field, None)
+    assert "lines" in expected
+    original_case, original_observation = deepcopy(case), deepcopy(observation)
+    score = score_plan(case, observation)
+    assert score["status"] == "passed", score
+    assert _checks(score)["golden_lines"] is True
+    assert all(plan_integrity(_final(observation)).values())
+    assert all(f"expected_{field}" not in _checks(score) for field in fields)
+    assert case == original_case
+    assert observation == original_observation
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("accepted", None),
+        ("accepted", 1),
+        ("total_cents", None),
+        ("total_cents", True),
+        ("total_cents", "1248"),
+        ("notice", None),
+        ("notice", []),
+        ("catalog_version", None),
+        ("catalog_version", 2),
+    ),
+)
+def test_explicit_malformed_plan_gold_fails(field: str, value: object) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    _map(case["expected"])[field] = value
+    score = score_plan(case, observation)
+    assert score["status"] == "failed"
+    assert _checks(score)[f"expected_{field}"] is False
+    assert all(plan_integrity(_final(observation)).values())
+
+
+@pytest.mark.parametrize("value", (None, 2, "other", "sample-prices-v2"))
+def test_nested_catalog_gold_compares_when_present(value: object) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    expected = _map(case["expected"])
+    expected.pop("catalog_version", None)
+    catalog = _map(
+        _map(expected.setdefault("evidence_ids", {})).setdefault(
+            "when_plan_returned", {}
+        )
+    )
+    catalog["catalog_version"] = value
+    score = score_plan(case, observation)
+    matches = value == "sample-prices-v2"
+    assert score["status"] == ("passed" if matches else "failed")
+    assert _checks(score)["expected_catalog_version"] is matches
+    assert all(plan_integrity(_final(observation)).values())
+
+
+@pytest.mark.parametrize("direct", (None, "sample-prices-v2"))
+def test_direct_catalog_gold_takes_precedence(direct: object) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    expected = _map(case["expected"])
+    expected["catalog_version"] = direct
+    catalog = _map(
+        _map(expected.setdefault("evidence_ids", {})).setdefault(
+            "when_plan_returned", {}
+        )
+    )
+    catalog["catalog_version"] = "sample-prices-v2" if direct is None else "other"
+    score = score_plan(case, observation)
+    assert score["status"] == ("failed" if direct is None else "passed")
+    assert _checks(score)["expected_catalog_version"] is (direct is not None)
+
+
+@pytest.mark.parametrize("field", ("notice", "catalog_version"))
+def test_plan_integrity_still_checks_absent_optional_gold(field: str) -> None:
+    case = _case("F01")
+    observation = _observation(case)
+    expected = _map(case["expected"])
+    expected.pop("notice", None)
+    expected.pop("catalog_version", None)
+    catalog = _map(_map(expected.get("evidence_ids", {})).get("when_plan_returned", {}))
+    catalog.pop("catalog_version", None)
+    assert score_plan(case, observation)["status"] == "passed"
+    _map(_final(observation)["plan"])[field] = "Unverified retailer quote"
+    integrity = plan_integrity(_final(observation))
+    assert not all(integrity.values())
+    original_case, original_observation = deepcopy(case), deepcopy(observation)
+    score = score_plan(case, observation)
+    assert score["status"] == "failed"
+    assert "expected_notice" not in _checks(score)
+    assert "expected_catalog_version" not in _checks(score)
+    assert _checks(score)["golden_lines"] is True
+    assert all(
+        _checks(score)[f"integrity_{key}"] is value for key, value in integrity.items()
+    )
+    assert all(
+        str(check).startswith("integrity_")
+        for check in _list(score["constraint_violations"])
+    )
+    assert case == original_case
+    assert observation == original_observation
+
+
 def test_available_budget_uses_scenario_when_gold_omits_it() -> None:
     case = _case("F05")
     observation = _observation(case)
