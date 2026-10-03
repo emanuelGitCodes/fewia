@@ -2940,3 +2940,29 @@ The corrected command passed. No live-provider or deployed result is claimed.
 
 The [build checkpoint](phases/backlog-build-20261003.md) records scope and open work.
 Independent review and publication remain pending for this checkpoint.
+
+## 2026-10-03 — Backlog reviews and published branches
+
+PR #314 publishes direct polling-hook tests at `fdb89cb2f14f68bcaffb5432132562b136592a8a`.
+All frontend gates passed. The focused suite passed 12 tests.
+A disposable mutation removed terminal polling stop; the new success test failed as expected.
+Luna high returned `APPROVE`. GitHub checks passed.
+
+PR #315 publishes ledger corrections at `23ca51afdb9110da19a3dd08316e3f2660055152`.
+Sol low first found two incorrect historical states. The writer corrected them.
+The second review returned `APPROVE`. GitHub checks passed.
+
+PR #316 publishes automatic review fallback at `38657a757a528c670d3022f44f3674fd5864c83a`.
+The tooling gates passed 243 tests, Ruff, formatting, and strict mypy.
+The focused review suite passed 106 tests.
+A disposable mutation disabled fallback; the missing-Codex regression failed as expected.
+Luna high returned `APPROVE`. GitHub checks passed.
+
+Luna medium reviewed historical nutrition commit `c9316dad200186d1c8421870e8cabbcd01c19232`.
+The verdict was `REQUEST_CHANGES`: manual nutrition aliasing and chat request/nutrition mismatch.
+The coordinator confirmed both patterns on the current baseline. Repairs run on a separate branch.
+The historical review checkout needed the current reviewer role file because that commit predates it.
+
+Completed reviews, gates, mutation evidence, and a partial CLI usage snapshot are preserved
+under `wiki/artifacts/backlog-20261003/`. No PR was merged by this build.
+At this checkpoint, weekly Codex usage reports 6 percent. The stop remains 8 percent.

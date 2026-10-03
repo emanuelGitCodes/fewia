@@ -13,22 +13,22 @@ Open pull requests do not establish that a change reached `main`.
 
 | Item | State | Evidence or next step |
 |---|---|---|
-| A1 | Reconciled locally | Track the corrected ledger copies on this branch; independent review is pending. |
-| A2 | Open | Alembic lint passes. CI omits that path. The backend image already copies migrations. |
+| A1 | Published, CI green | [PR 315](https://github.com/emanuelGitCodes/fewia/pull/315), `23ca51a`; independent Sol review approved. |
+| A2 | Committed, review pending | `6c6d189` updates Node24 actions, Alembic lint, and historical phase records. |
 | A3 | Present and checked locally | Both audit commands use `--no-deps`. Import and line-length lint passes. |
 | A4 | Awaiting retention choice | No data deletion is authorized by this build. |
 | A5 | Present and tested | Quantity and serving scaling already exists; nutrition and catalog tests pass. |
 | A6 | Present and tested | Session counter reset and pre-launch recovery already exist; focused tests pass. |
-| A7 | In progress | Direct polling-hook tests are missing. Spoonacular catalog tests already exist. |
-| B1 | In progress | Add automatic review fallback with explicit provenance. |
-| B2 | Open | Historical compatibility commit is `c9316dad200186d1c8421870e8cabbcd01c19232`. |
-| B3 | Open | Record this loop's measured usage against the historical pilot baseline. |
+| A7 | Published, CI green | [PR 314](https://github.com/emanuelGitCodes/fewia/pull/314), `fdb89cb`; 12 new tests, mutation caught, Luna review approved. |
+| B1 | Published, CI green | [PR 316](https://github.com/emanuelGitCodes/fewia/pull/316), `38657a7`; 243 tooling tests, mutation caught, Luna review approved. |
+| B2 | Review complete; repairs in progress | Luna requested changes at historical `c9316da`: nutrition aliasing and request/nutrition mismatch. Both patterns remain on the baseline. |
+| B3 | Partial measurement | CLI usage is recorded below; junior/coordinator totals and one timed-out writer remain unavailable. |
 | B4 | Open | Browser checks need screenshots and recorded results. |
-| B5 | In progress | Render canonical batch evidence and separate legacy fixture coverage. |
+| B5 | Partial implementation | The report-data helper is being verified. The renderer remains open. |
 | C1 | Open | Implement slot dispatch after the report contract is fixed. |
 | C2 | Open | Implement the 138-slot batch after C1. |
 | C3 | Open | Implement the opt-in CLI after C2 and B5. |
-| C4 | Open | Build the fixture-only handoff flow. |
+| C4 | In progress | URL validation and retry already exist. Guard stale visibility and validate again before rendering links. |
 | D1 | Blocked by C1 to C3 | Fixture and live benchmarks have not run in this build. |
 | D2 | Blocked by D1 | Record final benchmark artifacts only after execution. |
 | D3 | Blocked by D1 | The paper needs benchmark evidence. |
@@ -52,3 +52,24 @@ branch's gates or its independent review.
 The container `fewia-backlog-20261003-postgres` belongs to this build.
 Its host port is 55447. Existing FEWIA containers remain untouched.
 The build creates no deployed AWS evidence.
+
+## Review artifacts
+
+The [artifact directory](../artifacts/backlog-20261003/) preserves completed
+reviews and the gate/probe records. The historical nutrition review returned
+`REQUEST_CHANGES`; it does not approve the existing compatibility code.
+
+Two A7 writer runs made no edits under a blanket command prohibition.
+The corrected brief permitted the Codex file-reading shell commands that
+`AGENTS.md` permits. The next writer run produced the tests.
+
+## Measurement limits
+
+The historical delegation-efficiency baseline estimates 1.8 million junior,
+reviewer, and audit tokens. It omits writer and review-model tokens.
+This run's CLI ledger measures writer and review-model tokens. It does not
+provide the coordinator and junior totals. These scopes cannot establish a
+token reduction. A timed-out B5 helper attempt also has unknown token counts.
+
+The user asked about Grafana. No Grafana configuration was found in this
+checkout. Clarification between Grafana and Graphify remains pending.
