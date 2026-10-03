@@ -220,6 +220,20 @@ def test_invalid_catalog_json_has_static_error(
     _assert_invalid(manifest)
 
 
+def test_hostile_catalog_key_has_static_error(manifest: dict[str, object]) -> None:
+    class HostileKey:
+        def __hash__(self) -> int:
+            return hash("version")
+
+        def __eq__(self, other: object) -> bool:
+            raise RuntimeError("SYNTHETIC_PRIVATE_MARKER")
+
+    key = HostileKey()
+    assert hash(key) == hash("version")
+    manifest["catalog"] = {key: "value"}
+    _assert_invalid(manifest)
+
+
 def test_cyclic_catalog_has_static_error(manifest: dict[str, object]) -> None:
     catalog = cast(dict[str, object], manifest["catalog"])
     catalog["cycle"] = catalog

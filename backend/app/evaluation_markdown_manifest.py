@@ -35,9 +35,9 @@ def prepare_manifest(value: object) -> dict[str, object]:
         for name in _HASHES:
             text(source[name], r"[0-9a-f]{64}")
         catalog = as_map(source["catalog"])
+        require(source["catalog_hash"] == _hash(catalog))
         require(type(catalog.get("version")) is str)
         require(catalog.get("version") == source["catalog_version"])
-        require(source["catalog_hash"] == _hash(catalog))
         require(source["model_config_hash"] == _hash(config))
         identity = {key: item for key, item in source.items() if key != "manifest_hash"}
         require(source["manifest_hash"] == _hash(identity))
