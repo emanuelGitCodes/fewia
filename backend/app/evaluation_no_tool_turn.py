@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from time import perf_counter
+from types import TracebackType
 from typing import cast
 
 from app.agent.chat_context import build_messages
@@ -18,6 +19,20 @@ class _ProviderFailure(Exception):
     pass
 
 
+class _ProviderExceptionBoundary:
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if isinstance(exc_value, Exception):
+            raise _ProviderFailure("provider_failed") from None
+
+
 class _SanitizedProvider:
     def __init__(self, provider: LLMProvider) -> None:
         self._provider = provider
@@ -28,10 +43,8 @@ class _SanitizedProvider:
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
-        try:
+        with _ProviderExceptionBoundary():
             return self._provider.converse(system_prompt, messages, tools)
-        except Exception:
-            raise _ProviderFailure("provider_failed") from None
 
 
 def observe_no_tool_turn(
