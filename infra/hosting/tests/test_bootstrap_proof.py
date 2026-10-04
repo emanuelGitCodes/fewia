@@ -322,6 +322,23 @@ def test_offsets_and_inclusive_time_boundaries(
     assert _check(response, now=now) is None
 
 
+@pytest.mark.parametrize("precision", range(1, 7))
+@pytest.mark.parametrize(
+    ("offset", "started_hour", "stopped_hour"),
+    [("Z", "10", "11"), ("+02:00", "12", "13"), ("-05:00", "05", "06")],
+)
+def test_supported_fractional_timestamp_precision(
+    precision: int, offset: str, started_hour: str, stopped_hour: str
+) -> None:
+    response = _response()
+    fraction = "123456"[:precision]
+    _task(response).update(
+        startedAt=f"2026-10-03T{started_hour}:00:00.{fraction}{offset}",
+        stoppedAt=f"2026-10-03T{stopped_hour}:00:00.{fraction}{offset}",
+    )
+    assert _check(response) is None
+
+
 @pytest.mark.parametrize("name", ["a", "A_0-" + "a" * 251])
 @pytest.mark.parametrize("revision", ["1", "123456789"])
 def test_valid_arn_name_lengths_and_revisions(name: str, revision: str) -> None:
@@ -591,6 +608,10 @@ def test_failures_must_be_absent_or_an_exact_empty_list(failures: object) -> Non
         "2026-10-03 11:00:00Z",
         "2026-10-03T11:00:00+0000",
         "2026-10-03T11:00:00+24:00",
+        "2026-10-03T11:00:00.1234567Z",
+        "2026-10-03T13:00:00.1234567+02:00",
+        "2026-10-03T06:00:00.1234567-05:00",
+        "2026-10-03T11:00:00.12345678901234567890Z",
         "2026-10-03T11:00:60Z",
         "2026-02-30T11:00:00Z",
         "0000-10-03T11:00:00Z",
@@ -611,6 +632,7 @@ def test_timestamps_require_valid_aware_iso_strings(field: str, value: object) -
         ("2026-10-03T11:00:01Z", "2026-10-03T11:00:00Z"),
         ("2026-10-03T12:00:01Z", "2026-10-03T12:00:02Z"),
         ("2026-10-03T10:00:00Z", "2026-10-03T12:00:00.000001Z"),
+        ("2026-10-03T10:00:00Z", "2026-10-03T12:00:00.0000001Z"),
         ("2026-10-02T10:00:00Z", "2026-10-02T11:59:59.999999Z"),
     ],
 )
