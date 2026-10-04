@@ -5,10 +5,9 @@ from dataclasses import FrozenInstanceError, replace
 from types import SimpleNamespace
 from typing import NoReturn, cast
 
-import boto3  # type: ignore[import-untyped]
 import pytest
 
-from app.providers import job_transport_settings
+from app.providers import aws_sqs_sender, job_transport_settings
 from app.providers.job_transport_settings import (
     JobTransportSettings,
     load_job_transport,
@@ -54,7 +53,7 @@ def _reject_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
     def reject(*args: object, **kwargs: object) -> NoReturn:
         raise AssertionError("Settings MUST NOT construct AWS sessions")
 
-    monkeypatch.setattr(boto3, "Session", reject)
+    monkeypatch.setattr(aws_sqs_sender.boto3, "Session", reject)
 
 
 def test_default_local_uses_fake_environment_without_mutation() -> None:
