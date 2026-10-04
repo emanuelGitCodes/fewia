@@ -3193,3 +3193,26 @@ Release is NOT certified. No live Plaid, Plaid Sandbox, live Instacart, or deplo
 The user authorized legacy-data retention and restricted owner/invited-user hosting; neither adds deployment evidence.
 D3's author-owned outline and evidence pack remain pending.
 The writer ran no checks. Coordinator verification and independent Codex or Grok review remain open.
+
+## 2026-10-03 — Prepare the author-owned course supporting pack
+
+Prepared the [course pack](../docs/course/README.md) with an author-prompt outline,
+a GUI demo shot list, seven observed failure categories, and limitations.
+The outline budgets at most eight pages in two columns, including references as a conservative planning assumption.
+The course transcript remains unchanged. The owner still writes the final paper and records/submits the video.
+This pack supplies no completed paper, recorded demo, hosted demo, or new live batch.
+
+Original observations remain at `4b877d470258561cedd3375e38efc02362ce5f22`.
+The post-hoc scorer and corrected gold remain at `e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`.
+The pack preserves 17/33 original task passes beside 23/33 post-hoc passes, with the 90% target failing under both.
+Claims stay 98/(98 assessed + two unknown), with ten supported refusals excluded; no-tool task quality stays 0/33.
+Unknown claims are not proven false claims. Failure categories are triage, not proven root causes.
+The pack links supplied PNG, SVG, PDF, data, reproducer, failure examples, and manifests without editing generated artifacts.
+
+The product scope stays at 40 meals, 1-3 meals per request, and 1-8 servings per meal.
+Every grocery estimate retains the exact demo-price notice.
+Deterministic, local emulator, Sandbox, live-provider, and deployed evidence remain separate.
+Purchase attempts remain unmeasured. Release remains unverified.
+A4 retains legacy data. D4 stays paused. D5 still requires owner confirmation for each mutating AWS step.
+Restricted-hosting source work supplies no deployment evidence.
+The writer ran no checks or external actions. Artifact verification, gates, and independent Codex or Grok review remain coordinator work.

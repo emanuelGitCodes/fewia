@@ -55,7 +55,11 @@ The 90% target still FAILS; claims and 0/33 no-tool success stay unchanged.
 The correction matches the existing final-turn scorer contract.
 It changes no scoring code or allowed outcomes and makes no provider or database calls.
 It is not a fresh batch, model retest, or independent benchmark.
-D3's author-owned outline and evidence pack remain pending.
+D3's [author-owned course supporting pack](../docs/course/README.md) is prepared.
+It links prompts, figures, failure examples, and provenance for the author's own writing.
+The final paper has a maximum of eight pages in two columns.
+The owner still writes the final paper and records/submits the video.
+Coordinator verification and independent review remain open.
 
 ## Development operations
 
