@@ -1,0 +1,66 @@
+[
+  {
+    "command": [
+      "uv",
+      "run",
+      "ruff",
+      "check",
+      "app",
+      "tests"
+    ],
+    "exit_code": 0,
+    "seconds": 0.9055606249894481,
+    "tail": [
+      "Using CPython 3.12.11",
+      "Creating virtual environment at: .venv",
+      "Installed 47 packages in 139ms",
+      "All checks passed!"
+    ]
+  },
+  {
+    "command": [
+      "uv",
+      "run",
+      "ruff",
+      "format",
+      "--check",
+      "app",
+      "tests"
+    ],
+    "exit_code": 0,
+    "seconds": 0.0847434589813929,
+    "tail": [
+      "324 files already formatted"
+    ]
+  },
+  {
+    "command": [
+      "uv",
+      "run",
+      "mypy",
+      "--strict",
+      "app"
+    ],
+    "exit_code": 0,
+    "seconds": 5.286339458019938,
+    "tail": [
+      "Success: no issues found in 159 source files"
+    ]
+  },
+  {
+    "command": [
+      "uv",
+      "run",
+      "pytest",
+      "-q"
+    ],
+    "exit_code": 0,
+    "seconds": 41.39759237499675,
+    "tail": [
+      "    from starlette.testclient import TestClient as TestClient  # noqa",
+      "",
+      "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+      "9045 passed, 1 skipped, 1 warning in 37.63s"
+    ]
+  }
+]

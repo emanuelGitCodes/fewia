@@ -1,0 +1,23 @@
+{
+  "hosting_reference_sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+  "hosting_compared_files": 43,
+  "differences": [],
+  "reuse_gates_allowed": true,
+  "gate_record_source": "/private/tmp/fewia-resume-20261003-hosting-preflight-cli/.fewia-supervisor-gates/7b2e370d081e9c79e80fd41863708a3735fddfe5.json",
+  "frontend": {
+    "same_source": true,
+    "file_count": 82
+  },
+  "dev_supervisor": {
+    "same_source": true,
+    "file_count": 9
+  },
+  "tests/supervisor": {
+    "same_source": true,
+    "file_count": 9
+  },
+  "tests/infra": {
+    "same_source": true,
+    "file_count": 1
+  }
+}

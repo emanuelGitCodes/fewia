@@ -1,0 +1,53 @@
+{
+  "captured_at_utc": "2026-10-04T04:47:06.525010+00:00",
+  "requested_through_utc": "capture time; ledger rows expose no per-run timestamp",
+  "scope": "resume-* CLI usage only; excluded final-record writer/review work items",
+  "source_path": "/Users/emanuelcortes/GitHub/fewia/.git/.fewia-supervisor-usage.jsonl",
+  "source_rows_total": 801,
+  "resume_prefix_rows": 209,
+  "included_run_count": 209,
+  "included_item_count": 64,
+  "excluded_final_record_rows": 0,
+  "known_cli_counts": {
+    "input_tokens": 57504770,
+    "cached_tokens": 49929728,
+    "output_tokens": 1109989,
+    "reasoning_tokens": 427209,
+    "elapsed_ms": 36972615
+  },
+  "missing_metric_counts": {
+    "input_tokens": 2,
+    "cached_tokens": 2,
+    "output_tokens": 2,
+    "reasoning_tokens": 2,
+    "elapsed_ms": 0
+  },
+  "coverage_values": {
+    "complete": 207,
+    "unknown": 2
+  },
+  "providers": {
+    "codex": 209
+  },
+  "models": {
+    "gpt-6-luna": 82,
+    "gpt-6.1-sol": 127
+  },
+  "phases": {
+    "implement": 61,
+    "repair": 65,
+    "review": 83
+  },
+  "outcomes": {
+    "completed": 207,
+    "stalled": 1,
+    "time_limit": 1
+  },
+  "event_timestamps_available": false,
+  "native_agent_tokens": null,
+  "coordinator_tokens": null,
+  "limitations": [
+    "Usage ledger rows have no per-run timestamp; snapshot time is the collection bound.",
+    "Native-agent and coordinator token totals are unavailable."
+  ]
+}

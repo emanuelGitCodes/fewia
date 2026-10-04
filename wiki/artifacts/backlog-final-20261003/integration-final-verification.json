@@ -1,0 +1,133 @@
+{
+  "recorded_at": "2026-10-04T03:53:34.129066+00:00",
+  "scope": "60 published PR filesystem composition321-380, unmerged and not deployed",
+  "source_manifest": "integration-final-source-manifest.json",
+  "backend": [
+    {
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "app",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.9055606249894481,
+      "tail": [
+        "Using CPython 3.12.11",
+        "Creating virtual environment at: .venv",
+        "Installed 47 packages in 139ms",
+        "All checks passed!"
+      ]
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "app",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.0847434589813929,
+      "tail": [
+        "324 files already formatted"
+      ]
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "mypy",
+        "--strict",
+        "app"
+      ],
+      "exit_code": 0,
+      "seconds": 5.286339458019938,
+      "tail": [
+        "Success: no issues found in 159 source files"
+      ]
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "-q"
+      ],
+      "exit_code": 0,
+      "seconds": 41.39759237499675,
+      "tail": [
+        "    from starlette.testclient import TestClient as TestClient  # noqa",
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "9045 passed, 1 skipped, 1 warning in 37.63s"
+      ]
+    }
+  ],
+  "exact_source_reuse": {
+    "hosting_reference_sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+    "hosting_compared_files": 43,
+    "differences": [],
+    "reuse_gates_allowed": true,
+    "gate_record_source": "/private/tmp/fewia-resume-20261003-hosting-preflight-cli/.fewia-supervisor-gates/7b2e370d081e9c79e80fd41863708a3735fddfe5.json",
+    "frontend": {
+      "same_source": true,
+      "file_count": 82
+    },
+    "dev_supervisor": {
+      "same_source": true,
+      "file_count": 9
+    },
+    "tests/supervisor": {
+      "same_source": true,
+      "file_count": 9
+    },
+    "tests/infra": {
+      "same_source": true,
+      "file_count": 1
+    }
+  },
+  "hosting_gate": {
+    "sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+    "base": "29b70df05716b19baf4736589ddb4cfc787bdc55",
+    "clean": true,
+    "lines": 145,
+    "finished": "2026-10-04T03:44:25.245564+00:00",
+    "gates": [
+      {
+        "area": "hosting",
+        "gate": "ruff-check",
+        "status": "PASS",
+        "last_line": "All checks passed!"
+      },
+      {
+        "area": "hosting",
+        "gate": "ruff-format",
+        "status": "PASS",
+        "last_line": "41 files already formatted"
+      },
+      {
+        "area": "hosting",
+        "gate": "mypy",
+        "status": "PASS",
+        "last_line": "Success: no issues found in 40 source files"
+      },
+      {
+        "area": "hosting",
+        "gate": "pytest",
+        "status": "PASS",
+        "last_line": "1775 passed in 28.85s"
+      }
+    ]
+  },
+  "frontend_and_tooling_evidence": "integration-verification.json",
+  "limits": [
+    "PostgreSQL16 skips PG17 MAINTAIN case",
+    "No AWS deployment or authenticated hosted chat",
+    "Runbook/final record are separate documentation changes"
+  ]
+}

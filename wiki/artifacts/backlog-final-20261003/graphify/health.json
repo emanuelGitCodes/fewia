@@ -1,0 +1,136 @@
+{
+  "snapshot_identity": "published PR source composition 321-381",
+  "diagnostic": {
+    "node_count": 8901,
+    "unverified_node_count": 0,
+    "raw_edge_count": 26414,
+    "non_object_edges": 0,
+    "missing_endpoint_edges": 0,
+    "dangling_endpoint_edges": 0,
+    "external_reference_edges": 0,
+    "self_loop_edges": 12,
+    "valid_candidate_edges": 26414,
+    "exact_duplicate_edges": 0,
+    "directed_unique_endpoint_pairs": 26414,
+    "directed_same_endpoint_collapsed_edges": 0,
+    "undirected_unique_endpoint_pairs": 26414,
+    "undirected_same_endpoint_collapsed_edges": 0,
+    "same_endpoint_group_count": 0,
+    "relation_variant_groups": 0,
+    "source_file_variant_groups": 0,
+    "source_location_variant_groups": 0,
+    "context_variant_groups": 0,
+    "post_build_graph_type": "Graph",
+    "post_build_node_count": 8901,
+    "post_build_edge_count": 26414,
+    "post_build_error": "",
+    "producer_suppression": {
+      "path": "/Users/emanuelcortes/.local/share/uv/tools/graphifyy/lib/python3.12/site-packages/graphify/extract.py",
+      "total_sites": 12,
+      "sites": [
+        {
+          "line": 1661,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+        },
+        {
+          "line": 2194,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+        },
+        {
+          "line": 2196,
+          "name": "seen_doc_refs",
+          "tuple_arity": 0,
+          "sample": "seen_doc_refs: set[str] = set()"
+        },
+        {
+          "line": 2613,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids: set[str] = {n[\"id\"] for n in nodes}"
+        },
+        {
+          "line": 2760,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids = {n.get(\"id\") for n in nodes}"
+        },
+        {
+          "line": 3486,
+          "name": "seen_keys",
+          "tuple_arity": 0,
+          "sample": "seen_keys: set[tuple] = set()"
+        },
+        {
+          "line": 3655,
+          "name": "seen_keys",
+          "tuple_arity": 0,
+          "sample": "seen_keys: set[tuple] = set()"
+        },
+        {
+          "line": 5762,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids: set[str] = set()"
+        },
+        {
+          "line": 5870,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids: set[str] = set()"
+        },
+        {
+          "line": 5949,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids: set[str] = set()"
+        },
+        {
+          "line": 6464,
+          "name": "seen_ids",
+          "tuple_arity": 0,
+          "sample": "seen_ids: set[str] = set()"
+        },
+        {
+          "line": 6465,
+          "name": "seen_edges",
+          "tuple_arity": 4,
+          "sample": "seen_edges: set[tuple[str, str, str, str | None]] = set()"
+        }
+      ],
+      "error": ""
+    },
+    "examples": []
+  },
+  "baseline": {
+    "nodes": 7103,
+    "edges": 20599,
+    "self_loop_edges": 18,
+    "quarantined_ast_collisions": 6,
+    "verified_direct_recursive_calls": 12
+  },
+  "quarantined_edges": {
+    "path": "diagnostics/quarantined-edges.json",
+    "count": 27,
+    "breakdown": {
+      "new_snapshot_ast_collisions": 19,
+      "baseline_ast_collisions": 6,
+      "tail_PR376_380_ast_collisions": 2
+    },
+    "retargeted": 0
+  },
+  "verified_recursive_edges": {
+    "path": "diagnostics/verified-recursive-edges.json",
+    "count": 12
+  },
+  "notes": [
+    "Twelve retained self-loops have source lines that call the same function or method recursively.",
+    "Twenty-seven false AST self-loops with source evidence of ID collisions are excluded.",
+    "Graphify identified 12 static source-code deduplication sites. This is not an observed count of suppressed records."
+  ],
+  "warnings": [],
+  "status": "ok"
+}

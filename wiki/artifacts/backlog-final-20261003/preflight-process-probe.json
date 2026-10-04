@@ -1,0 +1,180 @@
+{
+  "sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+  "scope": "Actual CLI child processes with synthetic AWS executable; zero AWS network calls",
+  "results": [
+    {
+      "case": "foundation",
+      "exit_code": 0,
+      "aws_shim_calls": 1,
+      "operations": [
+        [
+          "sts",
+          "get-caller-identity"
+        ]
+      ],
+      "output": {
+        "status": "passed",
+        "phase": "foundation",
+        "checks": [
+          "caller_account"
+        ]
+      }
+    },
+    {
+      "case": "bootstrap",
+      "exit_code": 0,
+      "aws_shim_calls": 5,
+      "operations": [
+        [
+          "sts",
+          "get-caller-identity"
+        ],
+        [
+          "acm",
+          "describe-certificate"
+        ],
+        [
+          "cloudformation",
+          "describe-stacks"
+        ],
+        [
+          "ecr",
+          "describe-images"
+        ],
+        [
+          "ecr",
+          "describe-images"
+        ]
+      ],
+      "output": {
+        "status": "passed",
+        "phase": "bootstrap",
+        "checks": [
+          "caller_account",
+          "certificate",
+          "stack",
+          "backend_image",
+          "frontend_image"
+        ]
+      }
+    },
+    {
+      "case": "active",
+      "exit_code": 0,
+      "aws_shim_calls": 6,
+      "operations": [
+        [
+          "sts",
+          "get-caller-identity"
+        ],
+        [
+          "acm",
+          "describe-certificate"
+        ],
+        [
+          "cloudformation",
+          "describe-stacks"
+        ],
+        [
+          "ecr",
+          "describe-images"
+        ],
+        [
+          "ecr",
+          "describe-images"
+        ],
+        [
+          "ecs",
+          "describe-tasks"
+        ]
+      ],
+      "output": {
+        "status": "passed",
+        "phase": "active",
+        "checks": [
+          "caller_account",
+          "certificate",
+          "stack",
+          "backend_image",
+          "frontend_image",
+          "bootstrap_task"
+        ]
+      }
+    },
+    {
+      "case": "override",
+      "exit_code": 1,
+      "aws_shim_calls": 6,
+      "operations": [
+        [
+          "sts",
+          "get-caller-identity"
+        ],
+        [
+          "acm",
+          "describe-certificate"
+        ],
+        [
+          "cloudformation",
+          "describe-stacks"
+        ],
+        [
+          "ecr",
+          "describe-images"
+        ],
+        [
+          "ecr",
+          "describe-images"
+        ],
+        [
+          "ecs",
+          "describe-tasks"
+        ]
+      ],
+      "output": {
+        "status": "failed",
+        "stage": "preflight"
+      }
+    },
+    {
+      "case": "wrong-account",
+      "exit_code": 1,
+      "aws_shim_calls": 1,
+      "operations": [
+        [
+          "sts",
+          "get-caller-identity"
+        ]
+      ],
+      "output": {
+        "status": "failed",
+        "stage": "preflight"
+      }
+    },
+    {
+      "case": "bad-profile",
+      "exit_code": 1,
+      "aws_shim_calls": 0,
+      "operations": [],
+      "output": {
+        "status": "failed",
+        "stage": "arguments"
+      }
+    },
+    {
+      "case": "bad-response",
+      "exit_code": 1,
+      "aws_shim_calls": 1,
+      "operations": [
+        [
+          "sts",
+          "get-caller-identity"
+        ]
+      ],
+      "output": {
+        "status": "failed",
+        "stage": "preflight"
+      }
+    }
+  ]
+}
