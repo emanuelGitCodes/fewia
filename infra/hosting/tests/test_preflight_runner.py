@@ -562,12 +562,15 @@ def test_active_binds_all_proof_identities_and_now(field: str, value: str) -> No
 
 
 def test_active_binds_backend_digest_and_successful_exit() -> None:
+    def assert_active_invalid(invoke: _Invoke) -> None:
+        _assert_invalid(lambda: _runtime_run(invoke, active=True))
+
     for field, value in (("imageDigest", _FRONTEND_DIGEST), ("exitCode", 1)):
         invoke = _Invoke()
         task = _task()
         cast(list[dict[str, object]], task["containers"])[0][field] = value
         invoke.responses[5] = {"tasks": [task]}
-        _assert_invalid(lambda invoke=invoke: _runtime_run(invoke, active=True))
+        assert_active_invalid(invoke)
         assert invoke.calls == _commands()
 
 
