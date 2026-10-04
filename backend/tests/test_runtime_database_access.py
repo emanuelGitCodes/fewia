@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import re
 from collections.abc import Iterator
 from typing import cast
 from unittest.mock import MagicMock
@@ -232,41 +233,63 @@ _PRIVILEGES = (
 _COLUMN_PRIVILEGES = {"SELECT", "INSERT", "UPDATE", "REFERENCES"}
 
 
+def _is_test_database(database: str) -> bool:
+    return re.fullmatch(r"fewia_eval(?:_[A-Za-z0-9_]+)?", database) is not None
+
+
 def _safe_target(url_text: str) -> dict[str, str | int]:
     try:
         url = make_url(url_text)
+        port = url.port
     except (ArgumentError, ValueError):
         raise ValueError("runtime role test database target is unsafe") from None
     if (
         url.get_backend_name() != "postgresql"
-        or url.database != _DATABASE
-        or url.host != "127.0.0.1"
-        or url.port != 55447
+        or url.database is None
+        or not _is_test_database(url.database)
+        or url.host not in {"localhost", "127.0.0.1", "::1", None}
+        or (port is not None and not 1 <= port <= 65535)
         or url.query
     ):
         raise ValueError("runtime role test database target is unsafe")
     options: dict[str, str | int] = {
-        "dbname": _DATABASE,
-        "host": "127.0.0.1",
-        "port": 55447,
+        "dbname": url.database,
+        "host": url.host or "/tmp",
         "connect_timeout": 5,
     }
     if url.username is not None:
         options["user"] = url.username
     if url.password is not None:
         options["password"] = url.password
+    if port is not None:
+        options["port"] = port
     return options
 
 
 @pytest.mark.parametrize(
     "url",
     [
+        "postgresql://localhost/fewia",
         "postgresql://127.0.0.1:55447/postgres",
-        "postgresql://127.0.0.1:55447/fewia_eval_runtime_database_access",
+        "postgresql://localhost/fewia_eval_",
+        "postgresql://localhost/fewia_evaltest",
+        "postgresql://localhost/fewia_evaluation",
+        "postgresql://localhost/other_fewia_eval_test",
+        "postgresql://localhost/fewia_eval_tést",
+        "postgresql://localhost/fewia_eval_１２",
+        "postgresql://localhost/fewia_eval_test-other",
+        "postgresql://localhost/fewia_eval_test/other",
+        "postgresql://localhost/fewia_eval_test\n",
         f"postgresql://remote:55447/{_DATABASE}",
-        f"postgresql://localhost:55447/{_DATABASE}",
-        f"postgresql://127.0.0.1:5432/{_DATABASE}",
-        f"postgresql://127.0.0.1/{_DATABASE}",
+        "postgresql://remote/fewia_eval",
+        "postgresql://127.0.0.2/fewia_eval_test",
+        "postgresql://localhost:invalid/fewia_eval",
+        "postgresql://localhost:0/fewia_eval",
+        "postgresql://localhost:-1/fewia_eval",
+        "postgresql://localhost:65536/fewia_eval",
+        "postgresql://localhost/",
+        "postgresql://localhost/fewia_eval?host=remote",
+        "postgresql://localhost/fewia_eval?dbname=postgres",
         f"postgresql://127.0.0.1:55447/{_DATABASE}?host=remote",
         f"sqlite:///{_DATABASE}",
         "not a database URL",
@@ -279,7 +302,7 @@ def test_postgres_target_rejects_unsafe_database(url: str) -> None:
         _safe_target(url)
 
 
-def test_postgres_target_accepts_only_assigned_endpoint() -> None:
+def test_postgres_target_accepts_assigned_endpoint() -> None:
     assert _safe_target(f"postgresql://127.0.0.1:55447/{_DATABASE}") == {
         "dbname": _DATABASE,
         "host": "127.0.0.1",
@@ -288,11 +311,39 @@ def test_postgres_target_accepts_only_assigned_endpoint() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "database",
+    ["fewia_eval", "fewia_eval_test", "fewia_eval_Runtime_42_provisioning"],
+)
+@pytest.mark.parametrize(
+    ("authority", "host", "port"),
+    [
+        ("localhost", "localhost", None),
+        ("localhost:5432", "localhost", 5432),
+        ("127.0.0.1:55447", "127.0.0.1", 55447),
+        ("[::1]", "::1", None),
+        ("[::1]:5432", "::1", 5432),
+        ("", "/tmp", None),
+    ],
+)
+def test_postgres_target_accepts_local_test_database(
+    database: str, authority: str, host: str, port: int | None
+) -> None:
+    expected: dict[str, str | int] = {
+        "dbname": database,
+        "host": host,
+        "connect_timeout": 5,
+    }
+    if port is not None:
+        expected["port"] = port
+    assert _safe_target(f"postgresql://{authority}/{database}") == expected
+
+
 @pytest.fixture()
 def admin() -> Iterator[PgConnection]:
     options = _safe_target(require_test_database_url())
     with psycopg.connect(**options, autocommit=True) as connection:
-        assert connection.info.dbname == _DATABASE
+        assert connection.info.dbname == options["dbname"]
         assert connection.execute(
             "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
         ).fetchone() == (True,), "runtime role tests require a disposable superuser"
@@ -300,13 +351,12 @@ def admin() -> Iterator[PgConnection]:
             "SELECT datdba = (SELECT oid FROM pg_roles WHERE rolname = current_user) "
             "FROM pg_database WHERE datname = current_database()"
         ).fetchone() == (True,), "runtime role tests require the task database owner"
-        assert (
-            connection.execute(
-                "SELECT 1 FROM pg_database WHERE datname NOT IN "
-                "('postgres', 'template0', 'template1', %s)",
-                (_DATABASE,),
-            ).fetchone()
-            is None
+        assert all(
+            _is_test_database(cast(str, row[0]))
+            for row in connection.execute(
+                "SELECT datname FROM pg_database WHERE datname NOT IN "
+                "('postgres', 'template0', 'template1')"
+            ).fetchall()
         ), "runtime role tests require an isolated PostgreSQL server"
         with connection.transaction():
             connection.execute("SET LOCAL lock_timeout = '5s'")
@@ -334,7 +384,7 @@ def admin() -> Iterator[PgConnection]:
             ).fetchone() == (1,), "runtime role tests require the evidence trigger"
             connection.execute(
                 sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(
-                    sql.Identifier(_DATABASE)
+                    sql.Identifier(connection.info.dbname)
                 )
             )
             connection.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
@@ -478,7 +528,7 @@ def _assert_privileges(connection: PgConnection) -> None:
 def _seed_direct_acl(connection: PgConnection) -> None:
     connection.execute(
         sql.SQL("GRANT ALL ON DATABASE {} TO fewia_app WITH GRANT OPTION").format(
-            sql.Identifier(_DATABASE)
+            sql.Identifier(connection.info.dbname)
         )
     )
     connection.execute("GRANT ALL ON SCHEMA public TO fewia_app WITH GRANT OPTION")
@@ -543,7 +593,7 @@ def test_postgres_create_repeat_reset_rotate_and_preserve_rows(
     admin.execute("GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO fewia_eval_member")
     admin.execute(
         sql.SQL("GRANT CONNECT ON DATABASE {} TO fewia_eval_member").format(
-            sql.Identifier(_DATABASE)
+            sql.Identifier(admin.info.dbname)
         )
     )
     before = _rows(admin)
@@ -639,7 +689,7 @@ def test_postgres_unsafe_role_is_unchanged(admin: PgConnection, change: str) -> 
     if change == "database_owner":
         admin.execute(
             sql.SQL("ALTER DATABASE {} OWNER TO fewia_app").format(
-                sql.Identifier(_DATABASE)
+                sql.Identifier(admin.info.dbname)
             )
         )
     elif change == "sequence_owner":
@@ -694,7 +744,7 @@ def test_postgres_non_superuser_creator_with_admin_option(admin: PgConnection) -
     admin.execute(
         sql.SQL(
             "GRANT ALL ON DATABASE {} TO fewia_eval_role_admin WITH GRANT OPTION"
-        ).format(sql.Identifier(_DATABASE))
+        ).format(sql.Identifier(admin.info.dbname))
     )
     admin.execute(
         "GRANT ALL ON SCHEMA public TO fewia_eval_role_admin WITH GRANT OPTION"
@@ -749,7 +799,7 @@ def test_postgres_excess_effective_access_refuses_and_rolls_back(
         privilege = "CREATE" if grant == "database_create" else "TEMPORARY"
         admin.execute(
             sql.SQL("GRANT {} ON DATABASE {} TO PUBLIC").format(
-                sql.SQL(privilege), sql.Identifier(_DATABASE)
+                sql.SQL(privilege), sql.Identifier(admin.info.dbname)
             )
         )
     elif grant in {"custom_table", "custom_sequence"}:
