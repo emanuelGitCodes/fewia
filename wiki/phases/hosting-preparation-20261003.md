@@ -197,4 +197,3 @@ The earlier tier S pilot has a different scope; its historical log entry remains
 
 The owner MUST confirm every mutating AWS step before execution.
 Additional source work continues beyond this bounded checkpoint.
-
