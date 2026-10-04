@@ -1,5 +1,6 @@
 import importlib
 import json
+import os
 import subprocess
 import sys
 import traceback
@@ -82,8 +83,8 @@ class _Process:
 @pytest.fixture(autouse=True)
 def process(monkeypatch: pytest.MonkeyPatch) -> _Process:
     spy = _Process()
-    monkeypatch.setattr(cli.subprocess, "run", spy)
-    monkeypatch.setattr(cli.os, "environ", _ENVIRONMENT.copy())
+    monkeypatch.setattr(subprocess, "run", spy)
+    monkeypatch.setattr(os, "environ", _ENVIRONMENT.copy())
     return spy
 
 
@@ -130,7 +131,7 @@ def test_adapter_exact_read_only_subprocess_contract(
     command: list[str], process: _Process
 ) -> None:
     original = command.copy()
-    inherited_environment = dict(cli.os.environ)
+    inherited_environment = dict(os.environ)
     assert cli._invoke_aws(command, profile=_PROFILE) == {"Account": _ACCOUNT}
     assert command == original
     assert process.calls == [
@@ -155,8 +156,8 @@ def test_adapter_exact_read_only_subprocess_contract(
             },
         )
     ]
-    assert dict(cli.os.environ) == inherited_environment
-    assert process.calls[0][1]["env"] is not cli.os.environ
+    assert dict(os.environ) == inherited_environment
+    assert process.calls[0][1]["env"] is not os.environ
 
 
 @pytest.mark.parametrize(
