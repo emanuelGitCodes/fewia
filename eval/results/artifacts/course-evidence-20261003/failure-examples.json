@@ -145,7 +145,8 @@
           "result_status": "planned",
           "tools": [
             "plan_groceries"
-          ]
+          ],
+          "reason": null
         },
         {
           "status": "completed",
@@ -153,15 +154,18 @@
           "result_status": "planned",
           "tools": [
             "plan_groceries"
-          ]
+          ],
+          "reason": null
         },
         {
           "status": "completed",
           "reason_code": null,
           "result_status": "clarification",
-          "tools": []
+          "tools": [],
+          "reason": null
         }
-      ]
+      ],
+      "observation_reason": null
     },
     {
       "category": "outcome_not_recognized",
@@ -247,9 +251,11 @@
           "status": "completed",
           "reason_code": null,
           "result_status": "clarification",
-          "tools": []
+          "tools": [],
+          "reason": null
         }
-      ]
+      ],
+      "observation_reason": null
     },
     {
       "category": "unexpected_planner_and_unknown_public_claim",
@@ -339,9 +345,11 @@
           "result_status": "clarification",
           "tools": [
             "plan_groceries"
-          ]
+          ],
+          "reason": null
         }
-      ]
+      ],
+      "observation_reason": null
     },
     {
       "category": "missing_structured_budget_rejection",
@@ -481,9 +489,11 @@
           "status": "completed",
           "reason_code": null,
           "result_status": "clarification",
-          "tools": []
+          "tools": [],
+          "reason": null
         }
-      ]
+      ],
+      "observation_reason": null
     },
     {
       "category": "adversarial_outcome_and_tool_mismatch",
@@ -570,9 +580,11 @@
           "status": "completed",
           "reason_code": null,
           "result_status": "clarification",
-          "tools": []
+          "tools": [],
+          "reason": null
         }
-      ]
+      ],
+      "observation_reason": null
     },
     {
       "category": "baseline_schema_failure",
@@ -651,9 +663,11 @@
           "status": "failed",
           "reason_code": null,
           "result_status": null,
-          "tools": []
+          "tools": [],
+          "reason": "invalid_output"
         }
-      ]
+      ],
+      "observation_reason": "invalid_output"
     },
     {
       "category": "original_gold_contract_mismatch",
@@ -741,15 +755,18 @@
           "result_status": "planned",
           "tools": [
             "plan_groceries"
-          ]
+          ],
+          "reason": null
         },
         {
           "status": "completed",
           "reason_code": null,
           "result_status": "clarification",
-          "tools": []
+          "tools": [],
+          "reason": null
         }
-      ]
+      ],
+      "observation_reason": null
     }
   ]
 }
