@@ -61,7 +61,7 @@ Runtime roles are published in [#362](https://github.com/emanuelGitCodes/fewia/p
 Identity is published in [#364](https://github.com/emanuelGitCodes/fewia/pull/364) at `14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a`.
 Preflight CLI is published in [#380](https://github.com/emanuelGitCodes/fewia/pull/380) at `7b2e370d081e9c79e80fd41863708a3735fddfe5`.
 The deployment runbook is published in [#381](https://github.com/emanuelGitCodes/fewia/pull/381) at `d43d606df795a6a6e748fdc9263554349867ae9c`.
-Those pull requests remain unmerged. Source publication does not establish deployed controls.
+Those pull requests merged on 2026-10-04. Merged source does not establish deployed controls.
 The hostname, ACM certificate, and deployment credentials await owner input.
 The coordinator MUST NOT invent these values or include credentials in project records.
 The live hosted demo remains unverified.

@@ -43,10 +43,11 @@ This procedure does not authorize their deletion or reuse as current price evide
 
 ## Integration prerequisites
 
-The coordinator MUST complete source integration before deployment.
-The runbook branch is `codex/backlog-resume-hosting-runbook`.
-Its source base is `c7c5b170ac4fd9f0456b3f5530d92a71b888b44c`, published hosting-record PR #366.
-That base does not establish that the full hosting stack is integrated.
+The hosting source, this runbook, and the preflight CLI are merged on `main`
+at `ed00904` (2026-10-04). Two synth findings from the
+[integrity check](../wiki/phases/integrity-20261004.md) MUST be fixed before
+the first deployment: fixed availability zones on both stacks, and a non-root
+nginx container on port 8080.
 
 The coordinator MUST review and integrate the prerequisite branches and PRs:
 
