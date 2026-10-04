@@ -567,7 +567,7 @@ def test_active_binds_backend_digest_and_successful_exit() -> None:
         task = _task()
         cast(list[dict[str, object]], task["containers"])[0][field] = value
         invoke.responses[5] = {"tasks": [task]}
-        _assert_invalid(lambda: _runtime_run(invoke, active=True))
+        _assert_invalid(lambda invoke=invoke: _runtime_run(invoke, active=True))
         assert invoke.calls == _commands()
 
 
