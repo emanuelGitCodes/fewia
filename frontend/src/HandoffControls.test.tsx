@@ -3,7 +3,7 @@
 import { createElement } from "react";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HandoffControls, type HandoffControlsProps } from "./HandoffControls";
 import type { HandoffView } from "./handoffTypes";
 
@@ -58,6 +58,22 @@ function mount(
 
 afterEach(cleanup);
 
+beforeEach(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement): void {
+      this.open = true;
+      this.querySelector<HTMLButtonElement>("button")?.focus();
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true,
+    value: function (this: HTMLDialogElement): void {
+      this.open = false;
+    },
+  });
+});
+
 describe("HandoffControls", () => {
   it("shows start when canStart is true and view is null", () => {
     const { rendered, onStart, onRetry } = mount({ canStart: true });
@@ -68,10 +84,40 @@ describe("HandoffControls", () => {
     expect(within(rendered.container).queryAllByRole("link")).toHaveLength(0);
     expect(within(rendered.container).queryAllByRole("button")).toHaveLength(1);
     fireEvent.click(start);
+    expect(onStart).not.toHaveBeenCalled();
+    expect(within(rendered.container).getByRole("dialog")).toBeTruthy();
+    fireEvent.click(buttonNamed(rendered.container, "Confirm shopping list"));
     expect(onStart).toHaveBeenCalledTimes(1);
+    expect(within(rendered.container).queryByRole("dialog")).toBeNull();
     expect(onRetry).not.toHaveBeenCalled();
     rendered.unmount();
   });
+
+  it.each(["blocked", "pending", "existing handoff"])(
+    "closes consent when creation becomes invalid: %s",
+    (reason) => {
+      const { rendered, onStart, onRetry } = mount({ canStart: true });
+      fireEvent.click(buttonNamed(rendered.container, "Create shopping list"));
+      const confirm = buttonNamed(rendered.container, "Confirm shopping list");
+      const props: HandoffControlsProps = {
+        view: reason === "existing handoff" ? view() : null,
+        error: null,
+        pending: reason === "pending",
+        canStart: reason !== "blocked",
+        onStart,
+        onRetry,
+      };
+      rendered.rerender(createElement(HandoffControls, props));
+      expect(within(rendered.container).queryByRole("dialog")).toBeNull();
+      fireEvent.click(confirm);
+      expect(onStart).not.toHaveBeenCalled();
+      rendered.rerender(
+        createElement(HandoffControls, { ...props, view: null, pending: false, canStart: true }),
+      );
+      expect(within(rendered.container).queryByRole("dialog")).toBeNull();
+      expect(onRetry).not.toHaveBeenCalled();
+    },
+  );
 
   it("hides start when canStart is false and view is null", () => {
     const { rendered } = mount({ canStart: false });
