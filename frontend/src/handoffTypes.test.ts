@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { SHAPE_ERROR } from "./apiTypes";
-import { parseHandoffView, type HandoffView } from "./handoffTypes";
+import { isSafeHandoffUrl, parseHandoffView, type HandoffView } from "./handoffTypes";
 
 const ID = "00000000-0000-0000-0000-000000000001";
 const STAMP = "2026-09-06T15:00:00+00:00";
@@ -97,6 +97,13 @@ function expectShapeError(value: unknown): void {
 }
 
 describe("parseHandoffView", () => {
+  it.each([null, undefined, 42, true, {}, []].map((value) => ({ value })))(
+    "rejects a non-string URL without throwing: $value",
+    ({ value }) => {
+      expect(isSafeHandoffUrl(value)).toBe(false);
+    },
+  );
+
   it("accepts a prepared view and copies the seven known fields", () => {
     const parsed = parseHandoffView(base());
     expect(parsed).toEqual({
@@ -283,6 +290,7 @@ describe("parseHandoffView", () => {
   it.each(VALID_URLS.map((url) => [url.slice(0, 40), url]))(
     "accepts a valid Instacart URL %s",
     (_label: string, url: string) => {
+      expect(isSafeHandoffUrl(url)).toBe(true);
       const parsed: HandoffView = parseHandoffView(
         base({ state: "succeeded", attempts: 1, url, expires_at: STAMP, retry_allowed: false }),
       );
@@ -294,6 +302,7 @@ describe("parseHandoffView", () => {
   it.each(UNSAFE_URLS.map((url) => [url.slice(0, 48), url]))(
     "rejects an unsafe Instacart URL %s",
     (_label: string, url: string) => {
+      expect(isSafeHandoffUrl(url)).toBe(false);
       expectShapeError(
         base({
           state: "succeeded",

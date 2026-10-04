@@ -25,6 +25,18 @@ def _arguments(**changes: object) -> dict[str, object]:
     }
 
 
+def _chicken_tacos_call(servings: int) -> dict[str, object]:
+    return {
+        "tool": "plan_groceries",
+        "input": _arguments(
+            meals=[{"recipe_id": "chicken_tacos", "servings": servings}],
+            diet="omnivore",
+            pantry_ingredients=[],
+            ingredient_exclusions=[],
+        ),
+    }
+
+
 def _case(tools: list[object] | None = None) -> dict[str, object]:
     return {
         "id": "test",
@@ -630,8 +642,8 @@ def test_clarification_without_calls_passes() -> None:
     [
         ("F01", 2, 1),
         ("F02", 3, 1),
-        ("F04", 2, 1),
-        ("F05", 2, 2),
+        ("F04", 2, 0),
+        ("F05", 2, 1),
         ("X04", 1, 1),
         ("A01", 1, 1),
         ("A02", 1, 1),
@@ -668,29 +680,124 @@ def test_original_corpus_tool_expectations(
     assert _metric(score, "unnecessary_calls")["numerator"] == 0
 
 
-def test_original_corpus_setup_match_does_not_count_on_final_turn() -> None:
-    case = _corpus_case("F05")
-    tools = cast(
-        list[dict[str, object]],
-        cast(dict[str, object], case["expected"])["model_tools"],
+@pytest.mark.parametrize("unexpected_final_call", [False, True])
+def test_f04_clarification_scores_only_final_calls(unexpected_final_call: bool) -> None:
+    case = _corpus_case("F04")
+    planner = {
+        "tool": "plan_groceries",
+        "input": _arguments(
+            meals=[{"recipe_id": "breakfast_burritos", "servings": 2}],
+            diet="vegetarian",
+            pantry_ingredients=[],
+            ingredient_exclusions=[],
+        ),
+    }
+    clarification = _result(
+        status="clarification",
+        answer="Breakfast burritos contain eggs. Which vegan recipe do you want?",
+        request=None,
+        plan=None,
+        budget=None,
     )
+    observation = _observation([]) | {
+        "case_id": "F04",
+        "turns": [
+            _turn([planner], result=_result(request=deepcopy(planner["input"]))),
+            _turn(
+                [deepcopy(planner)] if unexpected_final_call else [],
+                result=clarification,
+            ),
+        ],
+    }
+    score = score_tools(case, observation)
+    assert score["status"] == ("failed" if unexpected_final_call else "passed")
+    assert _metric(score, "valid_calls") == {
+        "status": "passed",
+        "numerator": 2 if unexpected_final_call else 1,
+        "denominator": 2 if unexpected_final_call else 1,
+    }
+    for metric in ("expected_tool_selection", "expected_arguments"):
+        assert _metric(score, metric) == {
+            "status": "passed",
+            "numerator": 0,
+            "denominator": 0,
+        }
+    assert _metric(score, "unnecessary_calls") == {
+        "status": "failed" if unexpected_final_call else "passed",
+        "numerator": 1 if unexpected_final_call else 0,
+        "denominator": 1 if unexpected_final_call else 0,
+    }
+
+
+@pytest.mark.parametrize("duplicate_final_call", [False, True])
+def test_f05_revision_scores_only_final_calls(duplicate_final_call: bool) -> None:
+    case = _corpus_case("F05")
+    setup, final = _chicken_tacos_call(2), _chicken_tacos_call(4)
     observation = _observation([]) | {
         "case_id": "F05",
         "turns": [
-            _turn([{"tool": tool["name"], "input": deepcopy(tool["arguments"])}])
-            for tool in tools
+            _turn([setup], result=_result(request=deepcopy(setup["input"]))),
+            _turn(
+                [final, deepcopy(final)] if duplicate_final_call else [final],
+                result=_result(request=deepcopy(final["input"])),
+            ),
+        ],
+    }
+    score = score_tools(case, observation)
+    assert score["status"] == ("failed" if duplicate_final_call else "passed")
+    assert _metric(score, "valid_calls") == {
+        "status": "passed",
+        "numerator": 3 if duplicate_final_call else 2,
+        "denominator": 3 if duplicate_final_call else 2,
+    }
+    for metric in ("expected_tool_selection", "expected_arguments"):
+        assert _metric(score, metric) == {
+            "status": "passed",
+            "numerator": 1,
+            "denominator": 1,
+        }
+    assert _metric(score, "unnecessary_calls") == {
+        "status": "failed" if duplicate_final_call else "passed",
+        "numerator": 1 if duplicate_final_call else 0,
+        "denominator": 2 if duplicate_final_call else 1,
+    }
+
+
+def test_original_corpus_setup_match_does_not_count_on_final_turn() -> None:
+    case = _corpus_case("F05")
+    setup, final = _chicken_tacos_call(4), _chicken_tacos_call(2)
+    assert cast(dict[str, object], case["expected"])["model_tools"] == [
+        {"name": "plan_groceries", "arguments": setup["input"]}
+    ]
+    observation = _observation([]) | {
+        "case_id": "F05",
+        "turns": [
+            _turn([setup], result=_result(request=deepcopy(setup["input"]))),
+            _turn([final], result=_result(request=deepcopy(final["input"]))),
         ],
     }
     score = score_tools(case, observation)
     assert score["status"] == "failed"
-    assert _metric(score, "valid_calls")["numerator"] == 2
-    for metric in ("expected_tool_selection", "expected_arguments"):
-        assert _metric(score, metric) == {
-            "status": "failed",
-            "numerator": 1,
-            "denominator": 2,
-        }
-    assert _metric(score, "unnecessary_calls")["numerator"] == 0
+    assert _metric(score, "valid_calls") == {
+        "status": "passed",
+        "numerator": 2,
+        "denominator": 2,
+    }
+    assert _metric(score, "expected_tool_selection") == {
+        "status": "passed",
+        "numerator": 1,
+        "denominator": 1,
+    }
+    assert _metric(score, "expected_arguments") == {
+        "status": "failed",
+        "numerator": 0,
+        "denominator": 1,
+    }
+    assert _metric(score, "unnecessary_calls") == {
+        "status": "passed",
+        "numerator": 0,
+        "denominator": 1,
+    }
 
 
 def test_expected_poison_cannot_create_observed_calls() -> None:

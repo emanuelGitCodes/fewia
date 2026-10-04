@@ -151,11 +151,19 @@ def fallback_reason(raw: bytes) -> str | None:
         error = event.get("error", event)
         if not isinstance(error, dict):
             return None
-        value = error.get("code", error.get("message"))
-        matches = [key for key, values in reasons.items() if value in values]
-        if not matches or (reason is not None and reason != "codex_" + matches[0]):
+        matches = {
+            key
+            for value in (error.get("code"), error.get("message"))
+            if isinstance(value, str)
+            for key, values in reasons.items()
+            if value in values
+        }
+        if len(matches) != 1:
             return None
-        reason = "codex_" + matches[0]
+        event_reason = "codex_" + matches.pop()
+        if reason is not None and reason != event_reason:
+            return None
+        reason = event_reason
     return reason
 
 
