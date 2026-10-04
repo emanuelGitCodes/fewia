@@ -1,5 +1,6 @@
 """Check the runtime policy on a disposable PostgreSQL server."""
 
+import re
 from collections.abc import Iterator, MutableMapping
 from typing import cast
 
@@ -19,7 +20,6 @@ from app.runtime_database_policy import (
 from tests.conftest import require_test_database_url
 
 PgConnection = psycopg.Connection[tuple[object, ...]]
-_DATABASE = "fewia_eval_runtime_database_policy"
 _TEST_ROLES = ("fewia_app", "fewia_eval_member", "fewia_eval_role_admin")
 _TABLE_GRANTS: dict[str, frozenset[str]] = {
     "users": frozenset({"SELECT"}),
@@ -105,6 +105,10 @@ def test_runtime_grants_are_exact_and_immutable() -> None:
         cast(MutableMapping[str, str], RUNTIME_GRANTS)["users"] = "ALL"
 
 
+def _is_test_database(database: str) -> bool:
+    return re.fullmatch(r"fewia_eval(?:_[A-Za-z0-9_]+)?", database) is not None
+
+
 def _safe_target(url_text: str) -> dict[str, str | int]:
     try:
         url = make_url(url_text)
@@ -112,13 +116,14 @@ def _safe_target(url_text: str) -> dict[str, str | int]:
         raise ValueError("runtime role test database target is unsafe") from None
     if (
         url.get_backend_name() != "postgresql"
-        or url.database != _DATABASE
+        or url.database is None
+        or not _is_test_database(url.database)
         or url.host not in {"localhost", "127.0.0.1", "::1", None}
         or url.query
     ):
         raise ValueError("runtime role test database target is unsafe")
     options: dict[str, str | int] = {
-        "dbname": _DATABASE,
+        "dbname": url.database,
         "host": url.host or "/tmp",
         "connect_timeout": 5,
     }
@@ -132,13 +137,54 @@ def _safe_target(url_text: str) -> dict[str, str | int]:
 
 
 @pytest.mark.parametrize(
+    "database",
+    ["fewia_eval", "fewia_eval_test", "fewia_eval_Runtime_42_policy"],
+)
+@pytest.mark.parametrize(
+    ("authority", "host", "port"),
+    [
+        ("localhost", "localhost", None),
+        ("localhost:5432", "localhost", 5432),
+        ("127.0.0.1:6543", "127.0.0.1", 6543),
+        ("[::1]", "::1", None),
+        ("[::1]:6543", "::1", 6543),
+        ("", "/tmp", None),
+    ],
+)
+def test_postgres_target_accepts_local_test_database(
+    database: str, authority: str, host: str, port: int | None
+) -> None:
+    expected: dict[str, str | int] = {
+        "dbname": database,
+        "host": host,
+        "connect_timeout": 5,
+    }
+    if port is not None:
+        expected["port"] = port
+    assert _safe_target(f"postgresql://{authority}/{database}") == expected
+
+
+@pytest.mark.parametrize(
     "url",
     [
         "postgresql://localhost/fewia",
         "postgresql://localhost/postgres",
-        "postgresql://localhost/fewia_eval_test",
+        "postgresql://localhost/fewia_eval_",
+        "postgresql://localhost/fewia_evaltest",
+        "postgresql://localhost/fewia_evaluation",
+        "postgresql://localhost/other_fewia_eval_test",
+        "postgresql://localhost/fewia_eval_tést",
+        "postgresql://localhost/fewia_eval_１２",
+        "postgresql://localhost/fewia_eval_test-other",
+        "postgresql://localhost/fewia_eval_test/other",
+        "postgresql://localhost/fewia_eval_test\n",
+        "postgresql://remote/fewia_eval",
         "postgresql://remote/fewia_eval_runtime_database_policy",
+        "postgresql://127.0.0.2/fewia_eval_test",
+        "postgresql://localhost:invalid/fewia_eval",
+        "postgresql://localhost/",
         "sqlite:///fewia_eval_runtime_database_policy",
+        "postgresql://localhost/fewia_eval?host=remote",
         "postgresql://localhost/fewia_eval_runtime_database_policy?host=remote",
         "not a database URL",
     ],
@@ -154,17 +200,16 @@ def test_postgres_target_rejects_unsafe_database(url: str) -> None:
 def admin() -> Iterator[PgConnection]:
     options = _safe_target(require_test_database_url())
     with psycopg.connect(**options, autocommit=True) as connection:
-        assert connection.info.dbname == _DATABASE
+        assert connection.info.dbname == options["dbname"]
         assert connection.execute(
             "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
         ).fetchone() == (True,), "runtime policy tests require a disposable superuser"
-        assert (
-            connection.execute(
-                "SELECT 1 FROM pg_database WHERE datname NOT IN "
+        assert all(
+            _is_test_database(cast(str, row[0]))
+            for row in connection.execute(
+                "SELECT datname FROM pg_database WHERE datname NOT IN "
                 "('postgres', 'template0', 'template1') "
-                "AND left(datname, 11) <> 'fewia_eval_'"
-            ).fetchone()
-            is None
+            ).fetchall()
         ), "runtime policy tests require a dedicated PostgreSQL server"
         assert (
             connection.execute(
@@ -181,7 +226,7 @@ def admin() -> Iterator[PgConnection]:
             connection.execute("SET LOCAL statement_timeout = '10s'")
             connection.execute(
                 sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(
-                    sql.Identifier(_DATABASE)
+                    sql.Identifier(connection.info.dbname)
                 )
             )
             connection.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
@@ -205,7 +250,7 @@ def _create_role(connection: PgConnection) -> None:
 def _grant_exact(connection: PgConnection) -> None:
     connection.execute(
         sql.SQL("GRANT CONNECT ON DATABASE {} TO fewia_app").format(
-            sql.Identifier(_DATABASE)
+            sql.Identifier(connection.info.dbname)
         )
     )
     connection.execute("GRANT USAGE ON SCHEMA public TO fewia_app")
@@ -309,7 +354,9 @@ def test_postgres_database_create_and_public_temp_are_unsafe(
 ) -> None:
     runtime.execute(
         sql.SQL("GRANT {} ON DATABASE {} TO {}").format(
-            sql.SQL(privilege), sql.Identifier(_DATABASE), sql.SQL(recipient)
+            sql.SQL(privilege),
+            sql.Identifier(runtime.info.dbname),
+            sql.SQL(recipient),
         )
     )
     before = _snapshot(runtime)
@@ -555,7 +602,7 @@ def test_postgres_any_object_ownership_is_unsafe(
     if ownership == "database":
         runtime.execute(
             sql.SQL("ALTER DATABASE {} OWNER TO fewia_app").format(
-                sql.Identifier(_DATABASE)
+                sql.Identifier(runtime.info.dbname)
             )
         )
     elif ownership == "schema":
