@@ -3078,3 +3078,96 @@ Status: measured; publication pending (limited documentation pilot). The pilot c
 A4 has two completed reviews. Writer protocol has three completed reviews and one completed repair. All selected attempts have known token and elapsed counts. Input includes cached tokens. Cached and reasoning counts are subtotals; do not add them to input or output again. Process elapsed times overlap, so the total is not wall time.
 
 The Phase 1 baseline is about 1,820,000 native subagent tokens for about 270 code lines plus tests and docs. Baseline CLI writer and review counts are unknown. This pilot has zero native subagent tokens and 1,079,282 measured CLI input tokens. The cohorts differ. This result measures tier S routing and usage. It does not support a percentage reduction in total cost, a causal efficiency gain, or a like-for-like speed comparison.
+
+## 2026-10-03 — B5 report renderer publication
+
+B5 is published in [#322](https://github.com/emanuelGitCodes/fewia/pull/322),
+[#332](https://github.com/emanuelGitCodes/fewia/pull/332),
+[#333](https://github.com/emanuelGitCodes/fewia/pull/333),
+[#334](https://github.com/emanuelGitCodes/fewia/pull/334),
+[#335](https://github.com/emanuelGitCodes/fewia/pull/335), and
+[#336](https://github.com/emanuelGitCodes/fewia/pull/336).
+The [benchmark record](phases/benchmark-20261003.md) links the completed reports.
+It keeps condition denominators, failures, unknowns, latency, and cost separate.
+This entry supersedes the earlier partial B5 publication status.
+It records no new merge or CI result.
+
+## 2026-10-03 — C1 runtime and dispatch publication
+
+C1 runtime is published in [#328](https://github.com/emanuelGitCodes/fewia/pull/328).
+Dispatch is published in [#329](https://github.com/emanuelGitCodes/fewia/pull/329).
+The completed benchmark records integrated slot execution at source
+`4b877d470258561cedd3375e38efc02362ce5f22`.
+The [benchmark phase](phases/benchmark-20261003.md) separates fixture, local PostgreSQL, and real Bedrock evidence.
+This entry records no new merge or CI result.
+
+## 2026-10-03 — C2 batch publication
+
+C2 is published in [#338](https://github.com/emanuelGitCodes/fewia/pull/338).
+The [fixture integrity record](../eval/results/artifacts/benchmark-20261003/fixture-integrity.json)
+and [live integrity record](../eval/results/artifacts/benchmark-20261003/live-integrity.json)
+each record 138 slots at source `4b877d470258561cedd3375e38efc02362ce5f22`.
+Both report verified hashes and journals matching the reports.
+Execution completion does not certify model quality.
+
+## 2026-10-03 — C3 CLI and SIGINT evidence
+
+C3 is published in [#339](https://github.com/emanuelGitCodes/fewia/pull/339)
+and [#341](https://github.com/emanuelGitCodes/fewia/pull/341).
+The [evaluation guide](../docs/EVALUATION.md) documents the flags and a new exclusive output directory.
+Without `--live-bedrock`, the public CLI exits 1 before provider calls.
+The archived fixture driver injects a truthfully labeled fake provider.
+The [SIGINT summary](../eval/results/artifacts/benchmark-20261003/sigint-summary.json)
+records exit 130 with 49 preserved journal records and no completion marker.
+Exit 0 means artifact completion only.
+
+## 2026-10-03 — D1 fixture and live benchmark evidence complete
+
+The [readout](../eval/results/artifacts/benchmark-20261003/benchmark-readout.json)
+records source `4b877d470258561cedd3375e38efc02362ce5f22` and one live Nova 2 Lite batch.
+It contains 138 records, including 66 real model observations.
+All 33 tool-enabled executions completed, but task quality passed 17/33, or 51.5%.
+The 90% task target FAILS. Bounded factual claims pass 98/100, or 98%; the 95% target PASSES.
+That denominator includes two unknown claims and excludes ten supported refusals.
+Six accepted live final plans have zero tested violations.
+Synthetic-sentinel capture covers 48 turns across 33 slots with explicit false leak flags.
+Purchase attempts remain UNMEASURED. A04 refusal/action checks do not prove zero attempts.
+Release is NOT certified. No Plaid Sandbox, live Instacart, or deployed proof is supplied.
+
+## 2026-10-03 — D2 benchmark documentation record
+
+Updated the evaluation guide, backlog, completion checkpoint, index, and
+[benchmark phase](phases/benchmark-20261003.md) with artifact citations and evidence limits.
+The approved documentation baseline [#331](https://github.com/emanuelGitCodes/fewia/pull/331)
+was imported for record continuity. B3's limited documentation pilot is published there.
+This documentation PR depends on #331 and #341. This entry does not claim either is merged.
+D3's evidence pack remains pending. D4 remains paused.
+D5 source adapters remain in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340)
+and [#342](https://github.com/emanuelGitCodes/fewia/pull/342), without deployment evidence.
+The writer ran no checks. Coordinator verification and independent review remain pending.
+
+## 2026-10-03 — Correct catalog scope and benchmark evidence limits
+
+The maintained evaluation pages now follow
+[decision 0017](decisions/0017-forty-meal-catalog.md) and the
+[current project scope](../.codex/project-context.md): 40 supported meals,
+1-3 meals per request, and 1-8 servings per meal.
+The benchmark does not provide exhaustive catalog coverage.
+The original 17/33 task result and 98/100 bounded-claim result remain unchanged.
+
+Coordinator triage found a gold-contract mismatch in F04/F05.
+The scorer checks final-turn tool selection and arguments; those cases
+included setup-turn expectations. This issue may understate task success.
+A failed task assessment alone does not establish a model or application defect.
+The coordinator reports a separate correction on `codex/backlog-resume-tool-gold`
+at `e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`.
+It changes only the F04/F05 `expected.model_tools` arrays and regression tests.
+It makes no scoring-code changes.
+The [benchmark record](phases/benchmark-20261003.md#known-gold-contract-mismatch)
+keeps the original results and labels the post-hoc rescore as pending.
+No corrected counts or additional live batch are reported.
+
+The [completion checkpoint](phases/evaluation-completion.md) retains eight
+historical local artifact paths as inline code, with their recorded facts.
+Those files are not included in this PR. Their present availability is not asserted.
+The writer ran no checks. Coordinator verification and independent review remain pending.

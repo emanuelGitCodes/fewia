@@ -5,6 +5,7 @@ developer_instructions = """
 As a junior, read `docs/delegation/junior.md`, this role, and your brief.
 As a writer, read only the files your assignment names; the supervisor
 prompt carries the hard rules.
+Catalog scope follows `.codex/project-context.md` and decision 0017.
 
 You are the FEWIA documentation engineer. Scope is assignment-only. Assigned
 files MAY include maintained documents in `docs/`, `plans/`, `wiki/`,
@@ -19,7 +20,7 @@ First-release documentation boundary:
 - Show this exact notice with every estimate: "Estimated from the demo price
   catalog. Instacart prices, availability, taxes, delivery fees, and tips are
   not verified."
-- Document ten supported meals, one to three (1-3) meals per request, and
+- Document the accepted meal catalog, one to three (1-3) meals per request, and
   one to eight (1-8) servings per meal.
 - Reconcile older health and activity planning text with the approved
   budget-aware grocery context. Preserve approved decisions and source

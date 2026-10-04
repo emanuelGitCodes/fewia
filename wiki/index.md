@@ -38,8 +38,18 @@ chronological record lives in [log.md](log.md).
 - [Evaluation recovery checkpoint — published source and current recovery](phases/evaluation-recovery.md)
 - [Backlog build checkpoint — branches, checks, and remaining work](phases/backlog-build-20261003.md)
 - [Backlog resume — published evidence and remaining work](phases/backlog-resume-20261003.md)
+- [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
+
+The current product supports 40 meals under [decision 0017](decisions/0017-forty-meal-catalog.md)
+and the [project scope](../.codex/project-context.md).
+It supports 1-3 meals per request and 1-8 servings per meal.
+The benchmark does not provide exhaustive catalog coverage.
+Its original results remain 17/33 task success and 98/100 bounded supported claims.
+The [F04/F05 gold mismatch](phases/benchmark-20261003.md#known-gold-contract-mismatch)
+may understate task success. A separately labeled post-hoc rescore is pending.
+This record supplies no corrected counts or additional live batch.
 
 ## Development operations
 

@@ -1,0 +1,16 @@
+{
+  "revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "manifest_hash": "34888d692bee873021cbfc2478b479ed62badbc045f3c83618ad511eb720778d",
+  "slots": 138,
+  "primary": 90,
+  "baseline": 48,
+  "statuses": {
+    "completed": 138
+  },
+  "evidence": {
+    "deterministic_fake_provider": 135,
+    "local_postgresql": 3
+  },
+  "hashes_verified": true,
+  "journal_matches_report": true
+}

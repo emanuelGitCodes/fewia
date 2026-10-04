@@ -1,9 +1,16 @@
 # FEWIA feature backlog
 
-This document lists every feature the project committed to build, its
-state on `main` at `8bfd4b8` (2026-10-03, after #313 to #320), and the open work ranked from
-easiest to hardest. It is the handoff for the next writer. The senior
-coordinator verifies each item after the writer reports.
+This document records the feature backlog and publication checkpoint on
+2026-10-03. The built-feature table preserves the historical `main`
+snapshot at `8bfd4b8`, after #313 to #320. The work tables include later
+source publications and [benchmark evidence](../wiki/phases/benchmark-20261003.md).
+Publication does not imply merge, CI success, deployment, or release certification.
+The senior coordinator verifies each item after the writer reports.
+
+The approved documentation baseline [#331](https://github.com/emanuelGitCodes/fewia/pull/331)
+was imported for record continuity. This documentation PR depends on #331
+and [#341](https://github.com/emanuelGitCodes/fewia/pull/341).
+This record does not claim either dependency is merged.
 
 Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 `docs/EVALUATION.md`, `docs/GROCERY_VERIFICATION_PLAN.md`, the pages under
@@ -27,9 +34,15 @@ Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 - Do not claim a live-provider result from a fixture run. Label evidence
   as fixture, emulator, Sandbox, live, or deployed.
 
-## Part 1. Built and verified
+## Part 1. Historical built-feature snapshot
 
-These need no work. They are listed so the writer does not rebuild them.
+These entries preserve the earlier snapshot. Their test counts and CI
+statements are historical, not new verification of the current branch.
+The current product supports 40 meals under
+[decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) and the
+[project scope](../.codex/project-context.md). It supports 1-3 meals per
+request and 1-8 servings per meal. The benchmark does not provide exhaustive
+catalog coverage. Retired health and activity planning remains historical.
 
 | Area | What exists | Evidence |
 |---|---|---|
@@ -73,29 +86,38 @@ make that check pass.
 |---|---|---|---|---|---|
 | B1 | Grok fallback for the review command when Codex is unavailable, with the deviation recorded in the review output. | merged, #316; see B6 | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | With Codex forced unavailable, the review runs on Grok and the JSON names the fallback. |
 | B2 | Independent review of the 2026-09-21 nutrition compatibility change, recorded in the wiki. | merged, #320 | 2 | `wiki/log.md`, `wiki/phases/grocery-mvp-checkpoint.md` | A review verdict and SHA appear in the log. |
-| B3 | Delegation-efficiency item 09: record a limited tier S documentation pilot beside the Phase 1 baseline. | measured; publication pending (limited documentation pilot; [record](../wiki/phases/backlog-resume-20261003.md)) | 2 | `.claude/loop/delegation-efficiency.md`, `wiki/log.md` | Record per-item and total CLI tokens beside the baseline. State the cohort limits. Do not claim a percentage reduction, a causal efficiency gain, or a like-for-like speed comparison. |
+| B3 | Delegation-efficiency item 09: record a limited tier S documentation pilot beside the Phase 1 baseline. | Published in [#331](https://github.com/emanuelGitCodes/fewia/pull/331); limited documentation pilot, no causal efficiency claim | 2 | `.claude/loop/delegation-efficiency.md`, `wiki/log.md` | Record per-item and total CLI tokens beside the baseline. State the cohort limits. Do not claim a percentage reduction, a causal efficiency gain, or a like-for-like speed comparison. |
 | B4 | Browser checks from the verification plan: desktop and mobile layout, focus order, polling stop on completion, handoff consent dialog. Record each as pass or fail with a screenshot path. | published, unmerged: [#327](https://github.com/emanuelGitCodes/fewia/pull/327); all 7 GitHub CI checks passed at the latest snapshot | 3 | `docs/GROCERY_VERIFICATION_PLAN.md`, `frontend/src/*.test.tsx` for any gap found | The record preserves the original consent failure and the repaired 14-check fixture pass. Desktop and mobile layout checks passed. Initial focus order passed for the listed controls only. Broader browser scope remains open. |
-| B5 | Evaluation item 27: `render_report(output) -> str` in `backend/app/evaluation_markdown.py`. Coverage-first Markdown: per-condition numerators and denominators, failures, unassessed reasons, token use, p50 and p95 latency, cost. It MUST NOT state that a target is met. | partial: strict-value helper is published, unmerged in [#322](https://github.com/emanuelGitCodes/fewia/pull/322); data branch `codex/backlog-resume-b5-data` has latest clean checkpoint `98a2db8` at 109 source lines and 7,088 tests, with findings-context work in progress, no PR, and no complete review; report-sections branch `codex/backlog-resume-report-sections` is at `411b0d0` with 147 source lines and backend gates passing 7,142 tests, review pending; telemetry branch `codex/backlog-resume-report-telemetry` is in progress | 3 | `backend/app/evaluation_markdown.py`, `backend/tests/test_evaluation_markdown.py` | Rendering a fixture output with 42 scored and 48 unassessed shows both counts and no target claim. Labels are escaped. |
+| B5 | Evaluation item 27: `render_report(output) -> str` in `backend/app/evaluation_markdown.py`. Coverage-first Markdown: per-condition numerators and denominators, failures, unassessed reasons, token use, p50 and p95 latency, cost. It MUST NOT state that a target is met. | Published in [#322](https://github.com/emanuelGitCodes/fewia/pull/322), [#332](https://github.com/emanuelGitCodes/fewia/pull/332), [#333](https://github.com/emanuelGitCodes/fewia/pull/333), [#334](https://github.com/emanuelGitCodes/fewia/pull/334), [#335](https://github.com/emanuelGitCodes/fewia/pull/335), and [#336](https://github.com/emanuelGitCodes/fewia/pull/336); completed report artifacts are linked in the benchmark record | 3 | `backend/app/evaluation_markdown.py`, `backend/tests/test_evaluation_markdown.py` | Rendering a fixture output with 42 scored and 48 unassessed shows both counts and no target claim. Labels are escaped. |
 | B6 | Review fallback matcher: match a structured Codex error on both `code` and `message`. Today only `code` is matched when present, so `{"code":"api_error","message":"HTTP 503 service unavailable"}` does not fall back to Grok. Recorded at #316 merge. | published, unmerged: [#324](https://github.com/emanuelGitCodes/fewia/pull/324) | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | That error shape falls back with `fallback_reason == "codex_unavailable"`. Existing fallback tests still pass. |
 
 ### Tier C. New contracts that other code depends on
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| C1 | Evaluation item 21: `run_slot(slot, runtime: EvaluationRuntime) -> dict` in `backend/app/evaluation_dispatch.py`. Route each matrix slot to the fixture evaluator, the model observer, the no-tool observer, the reference driver, or a provider-failure driver P01 to P05, then attach assessments. A missing local service reports `unassessed`, never a pass. | partial: runtime published in [#328](https://github.com/emanuelGitCodes/fewia/pull/328) on `codex/backlog-resume-runtime` at `26fe9148da0c12bd5c55218b063fcc15d54ee7c4`; 92 source lines, backend gates passed 6,889 tests, 18-fixture smoke passed with no model calls, empty-check mutation caused 3 failures, independent Luna high review approved; dispatch branch `codex/backlog-resume-dispatch` is in progress with no PR; no CI result is recorded for #328 | 4 | `backend/app/evaluation_dispatch.py`, `backend/tests/test_evaluation_dispatch.py` | Every slot kind in `evaluation_matrix.py` dispatches. With PostgreSQL absent, database slots return `unassessed` with a reason. No provider is called for fixture slots. |
-| C2 | Evaluation item 22: `run_evaluation_batch(corpus, manifest, runtime, on_slot)` in `backend/app/evaluation_batch.py`. Freeze corpus, manifest, and revision. Run 90 primary, 33 no-tool, and 15 deterministic slots, 138 in total. Call `on_slot` with a deep copy after each slot. | incomplete; pending brief exists | 4 | `backend/app/evaluation_batch.py`, `backend/tests/test_evaluation_batch.py` | A fixture run produces 138 slot records in order. A failure in slot 50 keeps slots 1 to 49 in the journal. Depends on C1. |
-| C3 | Evaluation item 28: `python -m app.evaluate` CLI with `--live-bedrock` as an explicit opt-in, Nova 2 Lite US profile only, optional `--local-services`, exclusive output and journal paths, exit codes 0, 1, and 130. | incomplete; pending brief exists | 4 | `backend/app/evaluate.py`, `backend/tests/test_evaluate_cli.py` | Without `--live-bedrock`, no network call occurs. An existing output path exits 1. SIGINT exits 130 with a partial journal. Depends on C2 and B5. |
+| C1 | Evaluation item 21: `run_slot(slot, runtime: EvaluationRuntime) -> dict` in `backend/app/evaluation_dispatch.py`. Route each matrix slot to the fixture evaluator, the model observer, the no-tool observer, the reference driver, or a provider-failure driver P01 to P05, then attach assessments. A missing local service reports `unassessed`, never a pass. | Runtime published in [#328](https://github.com/emanuelGitCodes/fewia/pull/328); dispatch published in [#329](https://github.com/emanuelGitCodes/fewia/pull/329). The benchmark records integrated execution; no new CI or merge claim | 4 | `backend/app/evaluation_dispatch.py`, `backend/tests/test_evaluation_dispatch.py` | Every slot kind in `evaluation_matrix.py` dispatches. With PostgreSQL absent, database slots return `unassessed` with a reason. No provider is called for fixture slots. |
+| C2 | Evaluation item 22: `run_evaluation_batch(corpus, manifest, runtime, on_slot)` in `backend/app/evaluation_batch.py`. Freeze corpus, manifest, and revision. Run 90 primary, 33 no-tool, and 15 deterministic slots, 138 in total. Call `on_slot` with a deep copy after each slot. | Published in [#338](https://github.com/emanuelGitCodes/fewia/pull/338); fixture and live batch artifacts recorded | 4 | `backend/app/evaluation_batch.py`, `backend/tests/test_evaluation_batch.py` | A fixture run produces 138 slot records in order. A failure in slot 50 keeps slots 1 to 49 in the journal. Depends on C1. |
+| C3 | Evaluation item 28: `python -m app.evaluate` CLI with `--live-bedrock` as an explicit opt-in, Nova 2 Lite US profile only, optional `--local-services`, exclusive output and journal paths, exit codes 0, 1, and 130. | Published in [#339](https://github.com/emanuelGitCodes/fewia/pull/339) and [#341](https://github.com/emanuelGitCodes/fewia/pull/341); runnable CLI and SIGINT evidence recorded | 4 | `backend/app/evaluate.py`, `backend/tests/test_evaluate_cli.py` | Without `--live-bedrock`, the public CLI exits 1 before provider calls. An existing output path exits 1. SIGINT exits 130 with a partial journal. Exit 0 means artifact completion only. Depends on C2 and B5. |
 | C4 | Handoff button flow in the frontend: validate the handoff URL before navigation and surface the existing `POST /grocery/handoffs/{id}/retry` as a visible retry on an uncertain write. The backend routes exist. Instacart itself stays parked; the flow runs against a fixture provider with `instacart_configured` true. | published, unmerged: [#323](https://github.com/emanuelGitCodes/fewia/pull/323); consent follow-up: [#327](https://github.com/emanuelGitCodes/fewia/pull/327) | 3 | `frontend/src/HandoffControls.tsx`, `frontend/src/useHandoff.ts`, `frontend/src/handoffApi.ts`, tests | With `instacart_configured` false, nothing renders. With a fixture provider, a link appears only after URL validation, and an uncertain write shows a retry button that calls the retry route once per click. |
 
 ### Tier D. Live evidence and release work
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | not run | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
-| D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | deferred until D1 | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
-| D3 | Course deliverables: 8-page paper, demo script, failure log with one example per failure class, limitations. | required, no status | 4 | `docs/` | Each section cites an artifact in the repository. |
+| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | Evidence complete at `4b877d47`; task target FAIL (17/33, 51.5%); bounded claims target PASS (98/100, 98%); release unverified | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
+| D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | This [benchmark record](../wiki/phases/benchmark-20261003.md); coordinator verification and publication remain | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
+| D3 | Course deliverables: 8-page paper, demo script, failure log with one example per failure class, limitations. | Evidence pack pending; citations and provenance support the student's own paper | 4 | `docs/` | Each section cites an artifact in the repository. |
 | D4 | Plaid Sandbox live evidence: run `/transactions/sync` against Sandbox, serialize item syncs, apply changes and cursor atomically, and record posted and pending grocery spend. Last feature by decision. | paused | 5 | `backend/app/services/plaid_sync.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
-| D5 | Public hosting: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. Every mutating AWS step confirmed by the owner first. | not started | 5 | `infra/` | The deployed stack answers one chat turn with live Bedrock and the deployed label. |
+| D5 | Public hosting: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. Every mutating AWS step confirmed by the owner first. | Source adapters in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340) and [#342](https://github.com/emanuelGitCodes/fewia/pull/342); no deployment evidence | 5 | `infra/` | The deployed stack answers one chat turn with live Bedrock and the deployed label. |
+
+D1 retains the original 17/33 task result and 98/100 bounded-claim result.
+Coordinator triage found setup-turn tool expectations in F04/F05, although
+the scorer checks final-turn selection and arguments. This gold mismatch
+may understate task success. A failed assessment alone does not establish
+a model or application defect. The separate
+[gold correction record](../wiki/phases/benchmark-20261003.md#known-gold-contract-mismatch)
+names the branch and SHA. A separately labeled post-hoc rescore is pending.
+No corrected counts or additional live batch are reported here.
 
 ## Part 3. Items that need no writer
 
@@ -108,9 +130,10 @@ make that check pass.
 ## Part 4. Suggested order
 
 1. Done: A1, A2, A7, B1, B2. Already present: A3, A5, A6.
-2. A4, B3, B4, B6 in any order. Each is one pull request and one review round.
-3. B5, then C1, then C2, then C3. These form one stack and MUST merge in that order.
-4. C4 in parallel with the C stack.
-5. D1, then D2.
-6. D3 after D1 so the paper cites real numbers.
-7. D4, then D5, only if time remains.
+2. Preserve the published A4, B3, B4, B6, and C4 records.
+3. Review the published B5, C1, C2, and C3 sources in dependency order.
+   Merges need separate owner authorization.
+4. Verify and publish D2 against the completed D1 artifacts.
+5. Build the D3 evidence pack with the benchmark's failed target and limits.
+6. Keep D4 paused. Continue D5 source work within its assigned scope.
+   Source publication does not establish deployed evidence.

@@ -1,0 +1,21 @@
+{
+  "revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "manifest_hash": "34888d692bee873021cbfc2478b479ed62badbc045f3c83618ad511eb720778d",
+  "slots": 138,
+  "primary": 90,
+  "baseline": 48,
+  "statuses": {
+    "completed": 106,
+    "failed": 31,
+    "partial": 1
+  },
+  "evidence": {
+    "deterministic_fake_provider": 69,
+    "real_bedrock": 66,
+    "local_postgresql": 3
+  },
+  "hashes_verified": true,
+  "journal_matches_report": true,
+  "started_at": "2026-10-03T22:51:03.983156+00:00",
+  "finished_at": "2026-10-03T22:59:50.730712+00:00"
+}

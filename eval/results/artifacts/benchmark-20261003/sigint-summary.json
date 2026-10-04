@@ -1,0 +1,6 @@
+{
+  "exit_code": 130,
+  "journal_records": 49,
+  "completion_marker": false,
+  "signal": "OS SIGINT at actual slot50"
+}
