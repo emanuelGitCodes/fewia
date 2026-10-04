@@ -1,0 +1,89 @@
+{
+  "scope": "Local PostgreSQL/Floci plan; browser fixture handoff; no external provider call",
+  "checks": [
+    {
+      "name": "polling stops",
+      "pass": true,
+      "polls": 13
+    },
+    {
+      "name": "consent opens before POST",
+      "pass": true
+    },
+    {
+      "name": "initial focus Cancel",
+      "pass": true
+    },
+    {
+      "name": "Tab does not focus background controls",
+      "pass": true,
+      "tabs": [
+        {
+          "tag": "BUTTON",
+          "inDialog": true
+        },
+        {
+          "tag": "BODY",
+          "inDialog": false
+        },
+        {
+          "tag": "BUTTON",
+          "inDialog": true
+        },
+        {
+          "tag": "BUTTON",
+          "inDialog": true
+        },
+        {
+          "tag": "BUTTON",
+          "inDialog": true
+        }
+      ]
+    },
+    {
+      "name": "background programmatic focus blocked",
+      "pass": true
+    },
+    {
+      "name": "Escape cancels without POST and returns focus",
+      "pass": true
+    },
+    {
+      "name": "Cancel makes no POST",
+      "pass": true
+    },
+    {
+      "name": "mobile modal within viewport",
+      "pass": true
+    },
+    {
+      "name": "confirmation creates once",
+      "pass": true
+    },
+    {
+      "name": "retry disabled while pending",
+      "pass": true
+    },
+    {
+      "name": "explicit retry once",
+      "pass": true,
+      "retries": 1
+    },
+    {
+      "name": "validated link rendered",
+      "pass": true
+    },
+    {
+      "name": "no mobile horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "no browser errors",
+      "pass": true
+    }
+  ],
+  "retryBody": {
+    "expected_attempt": 1
+  },
+  "errors": []
+}
