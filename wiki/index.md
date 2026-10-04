@@ -38,6 +38,7 @@ chronological record lives in [log.md](log.md).
 - [Evaluation draft publication and Graphify update](phases/evaluation-publication.md)
 - [Evaluation recovery checkpoint — published source and current recovery](phases/evaluation-recovery.md)
 - [Backlog build checkpoint — branches, checks, and remaining work](phases/backlog-build-20261003.md)
+- [Agent catalog scope correction — 40-meal wording in role briefs](phases/agent-catalog-scope-20261003.md)
 - [Backlog resume — published evidence and remaining work](phases/backlog-resume-20261003.md)
 - [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
 - [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)

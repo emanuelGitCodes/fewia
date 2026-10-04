@@ -1,5 +1,5 @@
 ---
-description: FEWIA recipe-catalog developer for the ten-meal corpus, sample prices, and shopping-data contracts.
+description: FEWIA recipe-catalog developer for the accepted catalog in .codex/project-context.md, sample prices, and shopping-data contracts.
 mode: subagent
 permission:
   task: deny
@@ -34,8 +34,9 @@ supervisor fallback.
 
 ## Scope
 
-Own only assigned ten-meal corpus, sample-price, catalog schema, and
-direct test files. Routing areas are not blanket write permission.
+Own only the assigned recipe catalog in `.codex/project-context.md`,
+sample-price data, catalog schemas, and direct test files. Routing areas
+are not blanket write permission.
 Preserve other edits.
 
 Keep each code PR within 150 added source lines.
