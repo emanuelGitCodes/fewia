@@ -1,0 +1,152 @@
+{
+  "retrieved_at": "2026-10-04T01:57:47.663755+00:00",
+  "scope": "Illustrative fixed list-price subtotal; not a complete quote or bill",
+  "fargate": {
+    "source": "https://aws.amazon.com/fargate/pricing/",
+    "region": "us-east-1",
+    "os": "Linux",
+    "architecture": "X86",
+    "cpu_usd_per_second": "0.000011244",
+    "memory_gb_usd_per_second": "0.000001235",
+    "steady_tasks": 2,
+    "vcpu_per_task": "0.5",
+    "gib_per_task": "1",
+    "hours_assumed": 730,
+    "derived_monthly_usd": "36.0403920000"
+  },
+  "other_sources": {
+    "network": "https://aws.amazon.com/vpc/pricing/",
+    "alb": "https://aws.amazon.com/elasticloadbalancing/pricing/",
+    "rds": "https://aws.amazon.com/rds/postgresql/pricing/"
+  },
+  "not_in_partial_total": [
+    "ALB LCU",
+    "NAT processing GB",
+    "RDS burst credits, backup growth and storage growth",
+    "Retained resources after stack deletion",
+    "CloudWatch",
+    "Secrets Manager",
+    "Bedrock",
+    "SQS/S3/ECR",
+    "Cognito",
+    "Data transfer",
+    "Domain, DNS and tax",
+    "Temporary bootstrap or overlapping deployment tasks"
+  ],
+  "no_free_tier_or_discount_assumed": true,
+  "verified_fixed_components": [
+    {
+      "service": "natgateway",
+      "label": "Hourly charge for NAT Gateways",
+      "rate": "0.0450000000",
+      "quantity": "730",
+      "unit": "hours",
+      "monthly_usd": "32.8500000000",
+      "rate_code": "M2YSHUBETB3JX4M4.JRTCKXETXF.6YS6EN2CT7",
+      "source_file": "natgateway-pricing-map.json",
+      "source_manifest": {
+        "serviceId": "ec2",
+        "accessType": "publish",
+        "esIndex": "plc-ec2-usd-20260925174521",
+        "hawkFilePublicationDate": "2026-09-25T17:45:21Z",
+        "ETLIngestionTriggerDate": "2026-09-25T17:45:21Z",
+        "currencyCode": "USD",
+        "source": "natgateway",
+        "isMapped": "true"
+      }
+    },
+    {
+      "service": "vpc",
+      "label": "Hourly charge for In use Public IPv4 Addresses per Hrs",
+      "rate": "0.0050000000",
+      "quantity": "2190",
+      "unit": "address-hours",
+      "monthly_usd": "10.9500000000",
+      "rate_code": "4GQUNXTFWVSGPUZK.JRTCKXETXF.6YS6EN2CT7",
+      "source_file": "vpc-pricing-map.json",
+      "source_manifest": {
+        "serviceId": "vpc",
+        "accessType": "publish",
+        "esIndex": "plc-vpc-usd-20260917190528",
+        "hawkFilePublicationDate": "2026-09-17T19:05:28Z",
+        "ETLIngestionTriggerDate": "2026-09-17T19:05:28Z",
+        "currencyCode": "USD",
+        "source": "vpc",
+        "isMapped": "true"
+      }
+    },
+    {
+      "service": "elb",
+      "label": "Application Load Balancer Hours",
+      "rate": "0.0225000000",
+      "quantity": "730",
+      "unit": "hours",
+      "monthly_usd": "16.4250000000",
+      "rate_code": "37CUWUT8GSNQEPUV.JRTCKXETXF.6YS6EN2CT7",
+      "source_file": "elb-pricing-map.json",
+      "source_manifest": {
+        "serviceId": "elb",
+        "accessType": "publish",
+        "esIndex": "plc-elb-usd-20260911124544",
+        "hawkFilePublicationDate": "2026-09-11T12:45:44Z",
+        "ETLIngestionTriggerDate": "2026-09-11T12:45:44Z",
+        "currencyCode": "USD",
+        "source": "elb",
+        "isMapped": "true"
+      }
+    },
+    {
+      "service": "rds",
+      "label": "Database Storage Single AZ General Purpose-GP3",
+      "rate": "0.1150000000",
+      "quantity": "20",
+      "unit": "GB-month",
+      "monthly_usd": "2.3000000000",
+      "rate_code": "KYVYY29G957PKY3B.JRTCKXETXF.6YS6EN2CT7",
+      "source_file": "rds-pricing-map.json",
+      "source_manifest": {
+        "serviceId": "rds",
+        "accessType": "publish",
+        "esIndex": "plc-rds-usd-20261001060230",
+        "hawkFilePublicationDate": "2026-10-01T06:02:30Z",
+        "ETLIngestionTriggerDate": "2026-10-01T06:02:30Z",
+        "currencyCode": "USD",
+        "source": "rds-postgresql-ondemand",
+        "isMapped": "true"
+      }
+    },
+    {
+      "service": "rds",
+      "label": "Database Instance PostgreSQL No license required db t4g.micro General purpose Single-AZ Current Generation",
+      "rate": "0.0160000000",
+      "quantity": "730",
+      "unit": "hours",
+      "monthly_usd": "11.6800000000",
+      "rate_code": "9HPEGXQTDDGH53C9.JRTCKXETXF.6YS6EN2CT7",
+      "source_file": "rds-pricing-map.json",
+      "source_manifest": {
+        "serviceId": "rds",
+        "accessType": "publish",
+        "esIndex": "plc-rds-usd-20261001060230",
+        "hawkFilePublicationDate": "2026-10-01T06:02:30Z",
+        "ETLIngestionTriggerDate": "2026-10-01T06:02:30Z",
+        "currencyCode": "USD",
+        "source": "rds-postgresql-ondemand",
+        "isMapped": "true"
+      }
+    }
+  ],
+  "assumptions": [
+    "730 hours; no discount or free tier",
+    "One standard NAT gateway",
+    "One ALB with two public IPv4 addresses plus one NAT public IPv4: three assumed",
+    "RDS Single-AZ 20GB GP3"
+  ],
+  "fixed_subtotal_usd": "110.2453920000",
+  "price_map_urls": {
+    "natgateway": "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/natgateway.json",
+    "vpc": "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/vpc/USD/current/vpc.json",
+    "elb": "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/elb/USD/current/elb.json",
+    "rds": "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/rds/USD/current/rds-postgresql-ondemand.json"
+  }
+}

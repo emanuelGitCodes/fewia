@@ -75,13 +75,38 @@ def test_max_messages_bounds_processing(
 
 @pytest.mark.parametrize("value", ["0", "10001", "-1", "not-an-int"])
 def test_max_messages_rejects_invalid_bounds(
-    value: str, capsys: pytest.CaptureFixture[str]
+    value: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with pytest.raises(SystemExit) as error:
-        consume_jobs.main(["--endpoint", ENDPOINT, "--max-messages", value])
+    calls: list[str] = []
 
-    assert error.value.code == 2
-    assert "max-messages" in capsys.readouterr().err
+    def forbidden(*args: object, **kwargs: object) -> None:
+        calls.append("effect")
+        raise AssertionError("Invalid bounds triggered an effect")
+
+    monkeypatch.setattr(consume_jobs, "build_job_queue", forbidden)
+    monkeypatch.setattr(consume_jobs, "process_one", forbidden)
+    code = consume_jobs.main(["--endpoint", ENDPOINT, "--max-messages", value])
+    output = capsys.readouterr()
+
+    assert code == 1
+    assert json.loads(output.out) == {
+        "counts": {
+            "busy": 0,
+            "empty": 0,
+            "exhausted": 0,
+            "handler_failed": 0,
+            "invalid": 0,
+            "lease_lost": 0,
+            "retry": 0,
+            "succeeded": 0,
+            "terminal": 0,
+        },
+        "status": "worker_failed",
+    }
+    assert output.err == ""
+    assert calls == []
 
 
 def test_operational_errors_emit_only_static_sanitized_json(

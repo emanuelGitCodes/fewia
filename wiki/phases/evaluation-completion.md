@@ -1,8 +1,8 @@
 # Evaluation completion checkpoint
 
-> **Later publication:** See the [draft publication and Graphify update](evaluation-publication.md). This checkpoint remains scoped to its recorded snapshot.
+> **Current benchmark:** See the [2026-10-03 benchmark evidence and limits](benchmark-20261003.md). The earlier sections below are historical snapshot records. The [draft publication and Graphify update](evaluation-publication.md) preserves the intermediate publication record.
 
-## Snapshot
+## Historical snapshot
 
 This page records the local-only integration at snapshot `a9a9a4f51b34b05b10a00aa6e9399e2f15a3d8bb`, captured at `2026-10-03T03:43:02.320249+00:00`. It records 36 approved components. The complete batch/CLI, full benchmark, and four feature groups remain incomplete.
 
@@ -78,17 +78,19 @@ The record includes 36 approved component IDs and their source SHAs. These are l
 
 The component smoke at revision `64bf3b87efa48b73b7782194f5a898abbc46db92` recorded five deterministic reference outputs and four controlled provider cases. All nine observations passed. It recorded 42 scored legacy-runner slots and 48 unassessed slots. It made zero live model benchmark calls. Its completion marker checked the report hashes.
 
-The [component smoke report](../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/report.md) and [completion marker](../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/completion.json) are ignored local artifacts. The marker records 9 slots, `report.json` SHA-256 `7084ae1faf9651be45fe8a4662448f549f9e59fbae5a464c1ce5ad141ae4ee80`, and `report.md` SHA-256 `57bd9b0a466f384983a99b022ec08e4fb8550bdc88afee54d44c33c599a18242`.
+The recorded component smoke paths are `../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/report.md` and `../../backend/artifacts/evaluation-component-smoke-20261003T004316Z/completion.json`. These historical local files are not included in this PR. The marker records 9 slots, `report.json` SHA-256 `7084ae1faf9651be45fe8a4662448f549f9e59fbae5a464c1ce5ad141ae4ee80`, and `report.md` SHA-256 `57bd9b0a466f384983a99b022ec08e4fb8550bdc88afee54d44c33c599a18242`.
 
-At source revision `b710c398074f14feb4744367d59d4978aee42b73`, the summary smoke recorded five current structured-reference outputs and four controlled-provider cases: nine observations across two separate quality scopes. It made zero live model calls, and its completion record verified the output hashes. The [summary report](../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.md), [summary JSON](../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.json), and [completion record](../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/completion.json) are ignored local artifacts. The verification archive [manifest](../../backend/artifacts/evaluation-checkpoint-20261003T034302Z/manifest.json) preserves 36 approved gate/review pairs and 72 checked hashes.
+At source revision `b710c398074f14feb4744367d59d4978aee42b73`, the summary smoke recorded five current structured-reference outputs and four controlled-provider cases: nine observations across two separate quality scopes. It made zero live model calls, and its completion record verified the output hashes. The recorded summary paths are `../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.md`, `../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/report.json`, and `../../backend/artifacts/evaluation-summary-smoke-20261003T033738Z/completion.json`. The recorded verification archive path is `../../backend/artifacts/evaluation-checkpoint-20261003T034302Z/manifest.json`. Its historical record contains 36 approved gate/review pairs and 72 checked hashes. These historical local files are not included in this PR.
 
 The duplicate-delivery smoke used isolated PostgreSQL, the production worker, and the Floci SQS/S3 path. Eighteen checks passed. Two deliveries produced one execution, evidence revision, handoff, and artifact write. S3 readback matched its hash, and the private schema was removed. The link provider was a deterministic fake. No live model or Instacart call ran.
 
-The [duplicate-delivery report](../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/report.md) and [completion marker](../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/completion.json) are ignored local artifacts. The marker records 1 slot, `report.json` SHA-256 `3a6300a1bf278656a6952e836057a77bead28c3fbf563653ec3ee84b02709c94`, and `report.md` SHA-256 `c1b886378c418a5b235437936f53f1ebd90ca1f5f42a451cde672381166830f4`.
+The recorded duplicate-delivery paths are `../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/report.md` and `../../backend/artifacts/evaluation-duplicate-smoke-20261003T011315Z/completion.json`. These historical local files are not included in this PR. The marker records 1 slot, `report.json` SHA-256 `3a6300a1bf278656a6952e836057a77bead28c3fbf563653ec3ee84b02709c94`, and `report.md` SHA-256 `c1b886378c418a5b235437936f53f1ebd90ca1f5f42a451cde672381166830f4`.
 
-These ignored outputs are local records present in the recorded primary worktree. Clean checkouts do not include them. They are not published files.
+The earlier checkpoint recorded these ignored outputs in its primary worktree.
+These historical local files are not included in this PR.
+This page makes no claim about their present availability.
 
-## Evidence limits and open work
+## Historical evidence limits and open work
 
 This checkpoint has no live Plaid or Instacart evidence and no checkout evidence. The product uses a manual budget and sample prices. Keep deterministic, sandbox, live-provider, and deployed evidence separate. Do not pool fake and live success. Do not treat the planned matrix as execution. No full 30-scenario, three-repeat run or 138-slot benchmark ran. The 90% task-success and 95% supported-claim targets are not certified. These components do not establish general hallucination guarantees.
 
@@ -101,3 +103,48 @@ Items 02, 04, and 08 each completed three independent review rounds and await hu
 Observers 07 and 11, dispatch 21, batch 22, renderer 27, and CLI 28 remain unbuilt or dependent. Core item 23 is approved and integrated. Approved metrics and task helpers are integrated. The complete batch/CLI, full benchmark, and four feature groups remain incomplete.
 
 Read the [evaluation guide](../../docs/EVALUATION.md) for the current API boundary, validation command, and evidence-table rules.
+
+## 2026-10-03 — Completed fixture and live benchmark
+
+This entry supersedes the earlier “unbuilt” and “not run” status for the batch, renderer, CLI, and benchmark.
+It preserves the earlier snapshot's component history and evidence limits.
+The source revision is `4b877d470258561cedd3375e38efc02362ce5f22`, published in [#341](https://github.com/emanuelGitCodes/fewia/pull/341).
+The approved documentation baseline [#331](https://github.com/emanuelGitCodes/fewia/pull/331) was imported for record continuity.
+This documentation PR depends on #331 and #341. This entry does not claim either is merged.
+
+The [benchmark record](benchmark-20261003.md) links reports, journals, completion markers, and integrity records.
+The [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) records 138 live-batch records:
+90 primary, 33 `no_tool`, and 15 structured references. Only 66 observations are real Bedrock evidence.
+The fixture batch also completed 138 executions. Fixture completion does not establish live quality.
+The model is `us.amazon.nova-2-lite-v1:0` in `us-east-1`, with settings 4096/0/`low`.
+The record covers one live batch with three repeats per case.
+
+The current product supports 40 meals under [decision 0017](../decisions/0017-forty-meal-catalog.md)
+and the [project scope](../../.codex/project-context.md).
+It supports one to three (1-3) meals per request and one to eight (1-8) servings per meal.
+This benchmark does not provide exhaustive catalog coverage.
+
+All 33 live tool-enabled executions completed. Task quality passed 17/33, or 51.5%; the 90% target FAILS.
+The bounded factual-claim target PASSES at 98/(98 assessed + two unknown), or 98%, against 95%.
+The assessed-only rate is 98/98. Ten supported refusals stay outside the factual denominator.
+No-tool quality passed zero/33. Its executions include 31 failed, one partial, and one completed.
+The readout records `invalid_output` for 32 no-tool observations.
+
+These are the original quality results.
+Coordinator triage found setup-turn expectations in F04/F05 despite final-turn tool-selection and argument scoring.
+This gold mismatch may understate task success.
+A failed task assessment alone does not establish a model or application defect.
+The [gold correction record](benchmark-20261003.md#known-gold-contract-mismatch) names the separate branch and SHA.
+A separately labeled post-hoc rescore is pending.
+No corrected counts or additional live batch are reported here.
+
+Six accepted live final plans have zero tested constraint violations.
+Synthetic-sentinel checks cover 48 completely captured turns across 33 slots, all with explicit false leak flags.
+Purchase attempts remain UNMEASURED. Separate A04 refusal/action checks do not prove zero attempts.
+Release is NOT certified. The archive supplies no Plaid Sandbox, live Instacart, or deployed hosting proof.
+
+Fixture and live integrity records report verified hashes and journals matching their reports.
+The [SIGINT record](../../eval/results/artifacts/benchmark-20261003/sigint-summary.json) records exit 130 with 49 preserved journal records and no completion marker.
+CLI exit 0 means artifact completion only. It does not certify targets or release.
+The [evaluation guide](../../docs/EVALUATION.md) now documents the runnable CLI and exclusive output directory.
+No new gate, review, CI, or deployment result is asserted by this documentation entry.

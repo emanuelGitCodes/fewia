@@ -59,7 +59,7 @@ long command has a timeout; review model != writer model; effort by tier.
 | 06 | Adapters: AGENTS.md, CLAUDE.md slim, TEAM.md, DEV_SUPERVISOR.md, tech-lead/code-reviewer TOML, OpenCode skill + adapters, Claude skill slim | senior (prose/config) | S | 04+05 | -06 | listed files | 04, 05 | blocked |
 | 07 | .claude/agents adapters (own PR per repo rule) | senior (config) | S | 06 | -07 | .claude/agents/*.md | 06 | blocked |
 | 08 | Wiki log entries | senior | S | 07 | -08 | wiki/log.md | 07 | queued |
-| 09 | Pilot: Phase 1 follow-ups via new tiers; measure vs baseline | loop | S/M | main after merge | debt-followups-* | ruff.toml + dev_supervisor long lines; audit.yml --no-deps; conftest skip counter | 01–08 merged | queued |
+| 09 | Pilot: Phase 1 follow-ups via new tiers; measure vs baseline | loop | S/M | main after merge | debt-followups-* | ruff.toml + dev_supervisor long lines; audit.yml --no-deps; conftest skip counter | 01–08 merged | measured (limited documentation pilot) |
 
 Routing addition: dev_supervisor/ and dev tooling -> aws-infra (add to TEAM.md in item 06).
 
@@ -89,3 +89,18 @@ Routing addition: dev_supervisor/ and dev tooling -> aws-infra (add to TEAM.md i
 - Codex restored (user check). Prose stack reviewed with dev_supervisor.review (Luna): r1 REQUEST_CHANGES (tier S review before commit), r2 REQUEST_CHANGES (repair loop), r3 model APPROVE; tool reported BLOCKED because the model bolded the verdict inline -> review.py parser bug (item 04b, tier S).
 - Review token cost via the tool: 309k input (medium, whole prose stack), 151k and 183k input (low). Output ~1-2k.
 - 2026-10-03 State reconciliation: 01, 04, 06, and 07 blocked after their recorded review tools returned BLOCKED; 02 merged at #166; 03, 08, and 09 queued with no item-specific work event; 05 in_progress.
+- 2026-10-03 — Tier S documentation pilot measured for item 09. See [pilot evidence](../../wiki/artifacts/backlog-resume-20261003/tier-s-pilot.json). The pilot measures routing and usage for two documentation items; it does not compare equal work to Phase 1.
+
+### Tier S documentation pilot
+
+The cohort has two completed documentation items: A4 retention and Writer protocol. Both ran as tier S without a native junior or reviewer subagent. Coordinator tokens are excluded.
+
+| Item | Attempts | Input tokens | Output tokens | Input + output | Reasoning tokens | Cached tokens | Process seconds | Native subagent tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A4 retention | 3 | 490204 | 7281 | 497485 | 3329 | 403328 | 184.185 | 0 |
+| Writer protocol | 5 | 589078 | 10109 | 599187 | 5752 | 475520 | 264.479 | 0 |
+| Total | 8 | 1079282 | 17390 | 1096672 | 9081 | 878848 | 448.664 | 0 |
+
+A4 has two completed reviews. Writer protocol has three completed reviews and one completed repair. All selected attempts have known token and elapsed counts. Input includes cached tokens. Cached and reasoning counts are subtotals; do not add them to input or output again. Process elapsed times overlap, so the total is not wall time.
+
+Phase 1 used about 1,820,000 native subagent tokens for about 270 code lines plus tests and docs. Its CLI writer and review totals are unknown. The pilot has 0 native subagent tokens and 1,079,282 measured CLI input tokens. The cohorts differ. The pilot proves tier S routing and measurement. It does not support a percentage reduction in total cost, a causal efficiency gain, or a like-for-like speed comparison.

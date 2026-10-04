@@ -1,0 +1,368 @@
+[
+  {
+    "after": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "expected_tool_selection": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "status": "passed",
+      "unnecessary_calls": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      }
+    },
+    "before": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "failed"
+      },
+      "expected_tool_selection": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "failed"
+      },
+      "status": "failed",
+      "unnecessary_calls": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      }
+    },
+    "case_id": "F04",
+    "condition": "tool_enabled",
+    "repeat": 1
+  },
+  {
+    "after": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "expected_tool_selection": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "status": "passed",
+      "unnecessary_calls": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      }
+    },
+    "before": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "failed"
+      },
+      "expected_tool_selection": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "failed"
+      },
+      "status": "failed",
+      "unnecessary_calls": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      }
+    },
+    "case_id": "F04",
+    "condition": "tool_enabled",
+    "repeat": 2
+  },
+  {
+    "after": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "expected_tool_selection": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "status": "passed",
+      "unnecessary_calls": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      }
+    },
+    "before": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "failed"
+      },
+      "expected_tool_selection": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "failed"
+      },
+      "status": "failed",
+      "unnecessary_calls": {
+        "denominator": 0,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      }
+    },
+    "case_id": "F04",
+    "condition": "tool_enabled",
+    "repeat": 3
+  },
+  {
+    "after": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      },
+      "expected_tool_selection": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      },
+      "status": "passed",
+      "unnecessary_calls": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 2,
+        "numerator": 2,
+        "status": "passed"
+      }
+    },
+    "before": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 2,
+        "numerator": 1,
+        "status": "failed"
+      },
+      "expected_tool_selection": {
+        "denominator": 2,
+        "numerator": 1,
+        "status": "failed"
+      },
+      "status": "failed",
+      "unnecessary_calls": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 2,
+        "numerator": 2,
+        "status": "passed"
+      }
+    },
+    "case_id": "F05",
+    "condition": "tool_enabled",
+    "repeat": 1
+  },
+  {
+    "after": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      },
+      "expected_tool_selection": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      },
+      "status": "passed",
+      "unnecessary_calls": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 2,
+        "numerator": 2,
+        "status": "passed"
+      }
+    },
+    "before": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 2,
+        "numerator": 1,
+        "status": "failed"
+      },
+      "expected_tool_selection": {
+        "denominator": 2,
+        "numerator": 1,
+        "status": "failed"
+      },
+      "status": "failed",
+      "unnecessary_calls": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 2,
+        "numerator": 2,
+        "status": "passed"
+      }
+    },
+    "case_id": "F05",
+    "condition": "tool_enabled",
+    "repeat": 2
+  },
+  {
+    "after": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      },
+      "expected_tool_selection": {
+        "denominator": 1,
+        "numerator": 1,
+        "status": "passed"
+      },
+      "status": "passed",
+      "unnecessary_calls": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 2,
+        "numerator": 2,
+        "status": "passed"
+      }
+    },
+    "before": {
+      "checks": {
+        "call_shapes": true,
+        "case_id": true,
+        "turns_complete": true
+      },
+      "expected_arguments": {
+        "denominator": 2,
+        "numerator": 1,
+        "status": "failed"
+      },
+      "expected_tool_selection": {
+        "denominator": 2,
+        "numerator": 1,
+        "status": "failed"
+      },
+      "status": "failed",
+      "unnecessary_calls": {
+        "denominator": 1,
+        "numerator": 0,
+        "status": "passed"
+      },
+      "valid_calls": {
+        "denominator": 2,
+        "numerator": 2,
+        "status": "passed"
+      }
+    },
+    "case_id": "F05",
+    "condition": "tool_enabled",
+    "repeat": 3
+  }
+]

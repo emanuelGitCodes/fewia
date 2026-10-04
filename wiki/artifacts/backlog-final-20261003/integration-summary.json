@@ -1,0 +1,72 @@
+{
+  "recorded_at_utc": "2026-10-04T04:38:04.659898+00:00",
+  "main_sha": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "publication_scope": {
+    "ours": [
+      322,
+      381
+    ],
+    "count": 60,
+    "reference_pr": 321,
+    "all_unmerged": true
+  },
+  "final_graph_archive": {
+    "component_count": 61,
+    "pr_range": [
+      321,
+      381
+    ],
+    "status": "imported",
+    "artifact_path": "wiki/artifacts/backlog-final-20261003/graphify"
+  },
+  "backend_integration": {
+    "pytest_passed": 9045,
+    "postgres17_only_case_skipped_on_postgres16": 1,
+    "warnings": 1,
+    "source": "integration-final-verification.json plus coordinator summary"
+  },
+  "source_reuse": {
+    "hosting_reference_sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+    "hosting_files_compared": 43,
+    "differences": [],
+    "frontend_same_source": true,
+    "frontend_files": 82,
+    "dev_supervisor_files": 9,
+    "supervisor_test_files": 9,
+    "infra_test_files": 1,
+    "unchanged_through_runbook_sha": "d43d606df795a6a6e748fdc9263554349867ae9c"
+  },
+  "runbook": {
+    "pr": 381,
+    "head_sha": "d43d606df795a6a6e748fdc9263554349867ae9c",
+    "local_review": "APPROVE",
+    "gate_category": "NO_CHECKS_SELECTED",
+    "source_prose_repair_lines": 11,
+    "synthesis_fences_unchanged_through_d43d606": true,
+    "documented_cdk_syntax": "cdk synth \"$STACK\" --profile \"$PROFILE\" --output \"$HOSTING_SYNTH_OUTDIR\" --app 'exec \"$HOSTING_SYNTH_PYTHON\" \"infra/hosting/hosted_app.py\" --config \"$HOSTING_SYNTH_CONFIG\" --outdir \"$HOSTING_SYNTH_OUTDIR\"'",
+    "probe_artifact": "artifacts/integration/runbook-synth-probe.json",
+    "probe_code_sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+    "probe_document_sha256": "db27d06dd6259516b53c6cfee4b4ecf4b199c4849bde558fbdbcc5bc3fed80e3",
+    "probe_verified_matching_commit": "451ff28c955c36b5eaf626c37f8e7755d018d332",
+    "cdk_cli_version": "2.1130.0",
+    "offline_positive_cases": 3,
+    "offline_positive_phases": [
+      "foundation",
+      "bootstrap",
+      "active"
+    ],
+    "offline_negative_cases": 2,
+    "offline_negative_cases_named": [
+      "unresolved_context",
+      "dummy_zone"
+    ],
+    "all_probe_exits_expected": true,
+    "live_aws_state": "unknown",
+    "aws_calls": 0
+  },
+  "limitations": [
+    "No AWS deployment or authenticated hosted chat was performed.",
+    "The current probe uses synthetic cached context and does not establish live AWS lookup behavior.",
+    "The graph archive artifact is not yet available in this scratch bundle."
+  ]
+}

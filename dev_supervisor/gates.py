@@ -59,6 +59,10 @@ GATES = (
     ("cdk", "ruff-check", "infra/bedrock", (*UV_RUN, "ruff", "check", "."), ()),
     ("cdk", "ruff-format", "infra/bedrock", CDK_RUFF_FORMAT, ()),
     ("cdk", "mypy", "infra/bedrock", (*UV_RUN, "mypy", "--strict", "."), ()),
+    ("hosting", "ruff-check", "infra/hosting", (*UV_RUN, "ruff", "check", "."), ()),
+    ("hosting", "ruff-format", "infra/hosting", CDK_RUFF_FORMAT, ()),
+    ("hosting", "mypy", "infra/hosting", (*UV_RUN, "mypy", "--strict", "."), ()),
+    ("hosting", "pytest", "infra/hosting", (*UV_RUN, "pytest", "-q"), ()),
     ("compose", "config", "", COMPOSE_CONFIG, ()),
 )
 
@@ -128,6 +132,8 @@ def areas_for(paths: set[str]) -> set[str]:
     for path in paths:
         if path.startswith("infra/bedrock/"):
             found.add("cdk")
+        elif path.startswith("infra/hosting/"):
+            found.add("hosting")
         elif path.startswith(("backend/", "frontend/")):
             found.add(path.split("/", 1)[0])
         elif path.startswith(("dev_supervisor/", "tests/")) or path == "ruff.toml":
@@ -159,7 +165,7 @@ def count_added_lines(cwd: Path, base: str) -> int:
 
 
 def is_clean(cwd: Path) -> bool:
-    return _git(cwd, "status", "--porcelain", "--untracked-files=no") == []
+    return _git(cwd, "status", "--porcelain", "--untracked-files=all") == []
 
 
 def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
@@ -210,7 +216,13 @@ def format_output(results: list[GateRow], lines: int, areas: set[str]) -> str:
 
 
 def write_record(
-    cwd: Path, sha: str, clean: bool, lines: int, results: list[GateRow]
+    cwd: Path,
+    sha: str,
+    clean: bool,
+    lines: int,
+    results: list[GateRow],
+    *,
+    base: str,
 ) -> None:
     (cwd / RECORD_DIR).mkdir(parents=True, exist_ok=True)
     gates = [
@@ -219,6 +231,7 @@ def write_record(
     ]
     payload = dict(
         sha=sha,
+        base=base,
         clean=clean,
         lines=lines,
         finished=datetime.now(UTC).isoformat(),
@@ -227,7 +240,7 @@ def write_record(
     (cwd / RECORD_DIR / f"{sha}.json").write_text(json.dumps(payload))
 
 
-def load_reuse(cwd: Path, sha: str, clean: bool) -> str | None:
+def load_reuse(cwd: Path, sha: str, clean: bool, *, base: str) -> str | None:
     path = cwd / RECORD_DIR / f"{sha}.json"
     if not clean or not path.is_file():
         return None
@@ -236,6 +249,8 @@ def load_reuse(cwd: Path, sha: str, clean: bool) -> str | None:
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict) or data.get("clean") is not True:
+        return None
+    if data.get("sha") != sha or data.get("base") != base:
         return None
     try:
         lines = data["lines"]
@@ -259,6 +274,8 @@ def load_reuse(cwd: Path, sha: str, clean: bool) -> str | None:
             return None
         if not all(isinstance(item, str) for item in (area, gate, status, last_line)):
             return None
+        if status not in {"PASS", "FAIL", "SKIP"}:
+            return None
         results.append((area, gate, status, last_line, ()))
     areas = {area for area, _, _, _, _ in results}
     text = format_output(results, lines, areas)
@@ -278,20 +295,34 @@ def main(argv: list[str] | None = None) -> int:
     ns = parser.parse_args(argv)
     try:
         sha = _git(ns.cwd, "rev-parse", "HEAD")[0]
+        base = _git(ns.cwd, "merge-base", ns.base, sha)[0]
         clean = is_clean(ns.cwd)
         if ns.reuse:
-            reused = load_reuse(ns.cwd, sha, clean)
+            reused = load_reuse(ns.cwd, sha, clean, base=base)
             if reused is not None:
                 print(reused, end="")
                 return int(reused.splitlines()[-1] == "RESULT FAIL")
-        areas = areas_for(changed_paths(ns.cwd, ns.base))
+        areas = areas_for(changed_paths(ns.cwd, base))
+        added = count_added_lines(ns.cwd, base) if areas else 0
         results = run_area_gates(ns.cwd, areas, ns.timeout) if areas else []
-        added = count_added_lines(ns.cwd, ns.base) if areas else 0
+        try:
+            final_sha = _git(ns.cwd, "rev-parse", "HEAD")[0]
+            final_clean = is_clean(ns.cwd)
+        except GitCommandError:
+            final_sha = ""
+            final_clean = False
+        if final_sha != sha or (clean and not final_clean):
+            results.append(
+                ("snapshot", "source", "FAIL", "source changed during gates", ())
+            )
+            areas.add("snapshot")
+            clean = False
+        clean = clean and final_clean
     except GitCommandError as exc:
         print(f"RESULT FAIL (git: {exc})\n", end="")
         return 1
     print(format_output(results, added, areas), end="")
-    write_record(ns.cwd, sha, clean, added, results)
+    write_record(ns.cwd, sha, clean, added, results, base=base)
     return int(any(status == "FAIL" for _, _, status, _, _ in results))
 
 

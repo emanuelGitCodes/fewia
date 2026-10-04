@@ -1,0 +1,72 @@
+{
+  "snapshot": "published PR source composition 321-381",
+  "identity_kind": "unmerged filesystem composition",
+  "base_sha": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "pull_request_range": [
+    321,
+    381
+  ],
+  "component_count": 61,
+  "source_manifest_sha256": "03b20a93a4c998705416504be0a2c2d929c9bda027778f495f692ed1bbd08a22",
+  "source_tree_sha256": "600cbe03008f4f7008dd640752378e4489de5ade64c3c6eef566adb90853eb82",
+  "source_files": 717,
+  "changed_files": {
+    "code": 13,
+    "document": 2,
+    "paper": 0,
+    "image": 0,
+    "video": 0
+  },
+  "processed": {
+    "ast_code_files": 153,
+    "semantic_files": 50,
+    "json_examples_manually_extracted": 3,
+    "ast_failures": 0
+  },
+  "graph": {
+    "nodes": 8901,
+    "edges": 26414,
+    "hyperedges": 28,
+    "communities": 433,
+    "html_community_nodes": 433,
+    "html_cross_community_edges": 1230
+  },
+  "health": {
+    "status": "ok",
+    "missing_endpoints": 0,
+    "dangling_endpoints": 0,
+    "duplicate_edges": 0,
+    "undirected_collapses": 0,
+    "verified_recursive_edges": 12,
+    "quarantined_false_ast_edges": 27,
+    "quarantine_breakdown": {
+      "new_snapshot_ast_collisions": 19,
+      "baseline_ast_collisions": 6,
+      "tail_PR376_380_ast_collisions": 2
+    }
+  },
+  "usage": {
+    "host_native_tokens": "unknown",
+    "current_run_input_tokens": null,
+    "current_run_output_tokens": null,
+    "historical_reported_input_tokens": 2201120,
+    "historical_reported_output_tokens": 52800
+  },
+  "outputs": [
+    "graph.json",
+    "graph.html",
+    "GRAPH_REPORT.md",
+    "manifest.json",
+    "health.json",
+    "source-provenance.json",
+    "cost.json",
+    "diagnostics/quarantined-edges.json",
+    "diagnostics/verified-recursive-edges.json",
+    "diagnostics/tail-ast-evidence.json"
+  ],
+  "limitations": [
+    "No single Git commit identifies the unmerged composition.",
+    "PR 382 and later are not included.",
+    "Twelve static Graphify deduplication sites were detected; no runtime suppressed-edge count is available."
+  ]
+}

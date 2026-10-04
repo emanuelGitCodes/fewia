@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-04 America/New_York",
+  "run_slug": "20261003",
+  "main": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "created_pull_requests": {
+    "first": 322,
+    "last": 381,
+    "count": 60,
+    "state": "OPEN, unmerged; reference PR321 is outside created count"
+  },
+  "completed_source": "Backlog source, evaluation/report/CLI, AWS transport, invitation-only hosting components, bootstrap/preflight CLI and runbook published; no deployment or merge",
+  "integration": {
+    "kind": "unmerged filesystem composition, source through PR380",
+    "backend": "9045 passed, 1 PG17-only skip on PG16, 1 warning; Ruff and strict mypy pass",
+    "hosting": "1775 passed, Ruff/format/strict mypy pass; all43 files byte-identical to approved7b2e370",
+    "frontend": "492 tests and production build pass; all82 files unchanged in final composition",
+    "tooling": "359 tests pass after correcting missing PYTHONPATH in coordinator command; initial9 collection errors preserved",
+    "reference": "integration-final-verification.json"
+  },
+  "benchmark": {
+    "original_task": "17/33,51.5%,FAIL90",
+    "same_observation_posthoc_task": "23/33,69.7%,FAIL90",
+    "claims": "98/100,98%,PASS95 under bounded claim extraction",
+    "no_tool": "0/33 under strict scoring; not proof all natural-language text is false",
+    "model_rerun_for_posthoc": false,
+    "purchase_attempts": "unmeasured"
+  },
+  "remaining": [
+    "Owner account/profile, hostname and us-east-1 ACM certificate input; every AWS mutation needs explicit owner confirmation",
+    "Hosted deployment/authenticated real Bedrock chat remains unverified",
+    "No merge authorization",
+    "D4 Plaid paused; live Instacart parked",
+    "D3 supporting pack published; final authored paper/video remain author work"
+  ],
+  "defaults": "USD100 monthly, USD40 plan cap, integer cents; legacy data retained by0018; shared demo user/no per-user data isolation; owner/invited users only/no public signup",
+  "pricing": "Illustrative fixed110.245392USD/730h; not a quote or bill; variable costs excluded",
+  "process_repairs": [
+    "Runtime policy CI fixture failed113 setups against exactfewia_eval; portable guardfix passed and CIgreen",
+    "Provisioning initialSol stalled; sameSol retry launched before routing correction. This recorded deviation does not change routing policy",
+    "Bootstrap command/env/role/resource override bypass repaired; mutation167 failures",
+    "Unsupported submicrosecond timestamp truncation rejected",
+    "CLI ECR repository length bound repaired; mutation2 failures",
+    "Direct Python synthesis missing AZcontext and CDK quotedappcommand failure repaired; executableCDKapp+exec prefix+assembly guards verified"
+  ],
+  "records": "Use final registry/compact summary for exacthead/base/CI observations; empty gatearrays meanNO_CHECKS_SELECTED, notexecutedtests",
+  "log_append": "Restore role-catalog-log-append.md verbatim815bytes if absent, then dated entries for items362\u2013381 andGraphify/finalrecord, preserveexistingprefix",
+  "graph": "Final graph artifacts/provenance provided separately; records61-component unmergedsnapshot321\u2013381, excludes this finalrecord itself; neverclaim main oronecommit freshness",
+  "cleanup": "Own temporarycontainers stopped; originalfewiastack stillrunning. Worktrees retained after autoapproval denied forcedremoval without explicitcleanup authorization."
+}

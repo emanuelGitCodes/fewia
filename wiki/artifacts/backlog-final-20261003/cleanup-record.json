@@ -1,0 +1,28 @@
+{
+  "stopped_task_containers": [
+    "fewia-resume-20261003-web-1",
+    "fewia-resume-20261003-api-1",
+    "fewia-resume-20261003-worker-1",
+    "fewia-resume-20261003-sync-worker-1",
+    "fewia-resume-20261003-postgres-1",
+    "fewia-resume-20261003-floci-1",
+    "fewia-benchmark-20261003-postgres-1",
+    "fewia-benchmark-20261003-floci-1",
+    "fewia-resume-20261003-postgres"
+  ],
+  "existing_user_stack_after_cleanup": [
+    "fewia-web-1\tUp 35 hours",
+    "fewia-api-1\tUp 35 hours (healthy)",
+    "fewia-worker-1\tUp 35 hours",
+    "fewia-sync-worker-1\tUp 35 hours",
+    "fewia-postgres-1\tUp 2 days (healthy)",
+    "fewia-floci-1\tUp 2 days (healthy)"
+  ],
+  "notes": [
+    "Only containers created for this run were stopped.",
+    "The separate disposable PostgreSQL test container had auto_remove=true and was removed on stop; fixture databases were not exported.",
+    "The Compose test containers and their volumes remain stopped and retained.",
+    "The original fewia stack remained running.",
+    "Worktrees and branches remain. An earlier automatic approval review rejected forced worktree removal because explicit cleanup authorization was required."
+  ]
+}

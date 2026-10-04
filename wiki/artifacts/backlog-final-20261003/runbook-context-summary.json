@@ -1,0 +1,13 @@
+{
+  "source_sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+  "exit_code": 0,
+  "missing_context_count": 1,
+  "missing_providers": [
+    "availability-zones"
+  ],
+  "aws_calls": 0,
+  "stdout_included": false,
+  "interpretation": "Earlier configured context probe was incomplete; later local offline probe passed three phases using synthetic cached zones and rejected both unsafe assemblies.",
+  "live_aws_state": "unknown",
+  "documentation_repair_sha": "d43d606df795a6a6e748fdc9263554349867ae9c"
+}

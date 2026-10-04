@@ -26,6 +26,7 @@ jobs:
           cache-dependency-glob: |
             backend/uv.lock
             infra/bedrock/uv.lock
+            infra/hosting/uv.lock
 
       - name: Audit the backend dependencies
         run: |
@@ -35,6 +36,11 @@ jobs:
       - name: Audit the Bedrock infrastructure dependencies
         run: |
           uv export --frozen --no-hashes --project infra/bedrock > req.txt
+          uvx pip-audit -r req.txt --strict --no-deps --disable-pip
+
+      - name: Audit the hosting infrastructure dependencies
+        run: |
+          uv export --frozen --no-hashes --project infra/hosting > req.txt
           uvx pip-audit -r req.txt --strict --no-deps --disable-pip
 
   npm:

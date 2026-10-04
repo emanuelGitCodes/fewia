@@ -1,0 +1,601 @@
+{
+  "captured_at": "2026-10-04T01:18:06.110352+00:00",
+  "scope": "Measured CLI supervisor writer and review records with resume- work item prefixes; ongoing items are partial.",
+  "native_agent_tokens": null,
+  "native_agent_tokens_reason": "Tool metadata does not provide measured native-agent counts.",
+  "cached_and_reasoning_are_subsets": true,
+  "items": {
+    "resume-b5-values": {
+      "runs": 5,
+      "input_tokens": 639413,
+      "output_tokens": 15700,
+      "cached_tokens_subset": 534528,
+      "reasoning_tokens_subset": 7974,
+      "elapsed_ms": 524859,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-c4": {
+      "runs": 3,
+      "input_tokens": 749071,
+      "output_tokens": 11421,
+      "cached_tokens_subset": 615424,
+      "reasoning_tokens_subset": 5151,
+      "elapsed_ms": 322015,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-writer-protocol": {
+      "runs": 1,
+      "input_tokens": 167305,
+      "output_tokens": 4390,
+      "cached_tokens_subset": 142848,
+      "reasoning_tokens_subset": 2903,
+      "elapsed_ms": 87261,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna"
+      ]
+    },
+    "resume-a4": {
+      "runs": 3,
+      "input_tokens": 490204,
+      "output_tokens": 7281,
+      "cached_tokens_subset": 403328,
+      "reasoning_tokens_subset": 3329,
+      "elapsed_ms": 184185,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-b6": {
+      "runs": 3,
+      "input_tokens": 716136,
+      "output_tokens": 9339,
+      "cached_tokens_subset": 609152,
+      "reasoning_tokens_subset": 4544,
+      "elapsed_ms": 299357,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-protocol": {
+      "runs": 4,
+      "input_tokens": 421773,
+      "output_tokens": 5719,
+      "cached_tokens_subset": 332672,
+      "reasoning_tokens_subset": 2849,
+      "elapsed_ms": 177218,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-b5-data": {
+      "runs": 7,
+      "input_tokens": 1614420,
+      "output_tokens": 29578,
+      "cached_tokens_subset": 1350656,
+      "reasoning_tokens_subset": 9394,
+      "elapsed_ms": 1032435,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-b4-consent": {
+      "runs": 2,
+      "input_tokens": 802872,
+      "output_tokens": 13647,
+      "cached_tokens_subset": 713472,
+      "reasoning_tokens_subset": 5471,
+      "elapsed_ms": 486991,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-report-sections": {
+      "runs": 4,
+      "input_tokens": 1000762,
+      "output_tokens": 24138,
+      "cached_tokens_subset": 834560,
+      "reasoning_tokens_subset": 11574,
+      "elapsed_ms": 836588,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-manifest-check": {
+      "runs": 5,
+      "input_tokens": 591011,
+      "output_tokens": 19634,
+      "cached_tokens_subset": 482688,
+      "reasoning_tokens_subset": 10705,
+      "elapsed_ms": 626551,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-runtime": {
+      "runs": 3,
+      "input_tokens": 742419,
+      "output_tokens": 15063,
+      "cached_tokens_subset": 634496,
+      "reasoning_tokens_subset": 6812,
+      "elapsed_ms": 457141,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-records": {
+      "runs": 3,
+      "input_tokens": 3075256,
+      "output_tokens": 57203,
+      "cached_tokens_subset": 2885376,
+      "reasoning_tokens_subset": 33122,
+      "elapsed_ms": 1623847,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-dispatch": {
+      "runs": 3,
+      "input_tokens": 1339615,
+      "output_tokens": 24058,
+      "cached_tokens_subset": 1166976,
+      "reasoning_tokens_subset": 8151,
+      "elapsed_ms": 706720,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-report-telemetry": {
+      "runs": 3,
+      "input_tokens": 1009547,
+      "output_tokens": 22066,
+      "cached_tokens_subset": 884608,
+      "reasoning_tokens_subset": 10121,
+      "elapsed_ms": 728619,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-batch": {
+      "runs": 5,
+      "input_tokens": 1334861,
+      "output_tokens": 34946,
+      "cached_tokens_subset": 1108096,
+      "reasoning_tokens_subset": 18271,
+      "elapsed_ms": 989744,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-pilot": {
+      "runs": 2,
+      "input_tokens": 893462,
+      "output_tokens": 15289,
+      "cached_tokens_subset": 811008,
+      "reasoning_tokens_subset": 9224,
+      "elapsed_ms": 334171,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-render-report": {
+      "runs": 3,
+      "input_tokens": 1017427,
+      "output_tokens": 20958,
+      "cached_tokens_subset": 902400,
+      "reasoning_tokens_subset": 7486,
+      "elapsed_ms": 717652,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-cli-config": {
+      "runs": 3,
+      "input_tokens": 777477,
+      "output_tokens": 17326,
+      "cached_tokens_subset": 663936,
+      "reasoning_tokens_subset": 6858,
+      "elapsed_ms": 596015,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-gate-cache": {
+      "runs": 2,
+      "input_tokens": 630002,
+      "output_tokens": 14897,
+      "cached_tokens_subset": 539264,
+      "reasoning_tokens_subset": 5787,
+      "elapsed_ms": 444597,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-aws-sender": {
+      "runs": 2,
+      "input_tokens": 878161,
+      "output_tokens": 11356,
+      "cached_tokens_subset": 741376,
+      "reasoning_tokens_subset": 3477,
+      "elapsed_ms": 364767,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-cli": {
+      "runs": 3,
+      "input_tokens": 1329520,
+      "output_tokens": 20224,
+      "cached_tokens_subset": 1176704,
+      "reasoning_tokens_subset": 8606,
+      "elapsed_ms": 605422,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-aws-consumer": {
+      "runs": 3,
+      "input_tokens": 655381,
+      "output_tokens": 13015,
+      "cached_tokens_subset": 575744,
+      "reasoning_tokens_subset": 3639,
+      "elapsed_ms": 444288,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-resources": {
+      "runs": 4,
+      "input_tokens": 854235,
+      "output_tokens": 14860,
+      "cached_tokens_subset": 711296,
+      "reasoning_tokens_subset": 4164,
+      "elapsed_ms": 515346,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-aws-artifacts": {
+      "runs": 2,
+      "input_tokens": 376858,
+      "output_tokens": 11901,
+      "cached_tokens_subset": 316032,
+      "reasoning_tokens_subset": 3616,
+      "elapsed_ms": 354410,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-bootstrap-database": {
+      "runs": 3,
+      "input_tokens": 636544,
+      "output_tokens": 18466,
+      "cached_tokens_subset": 556032,
+      "reasoning_tokens_subset": 8649,
+      "elapsed_ms": 577315,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-gates": {
+      "runs": 2,
+      "input_tokens": 504645,
+      "output_tokens": 7761,
+      "cached_tokens_subset": 430976,
+      "reasoning_tokens_subset": 2279,
+      "elapsed_ms": 250015,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-benchmark-docs": {
+      "runs": 3,
+      "input_tokens": 2266977,
+      "output_tokens": 28118,
+      "cached_tokens_subset": 2051200,
+      "reasoning_tokens_subset": 5723,
+      "elapsed_ms": 959454,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-tool-gold": {
+      "runs": 2,
+      "input_tokens": 552514,
+      "output_tokens": 6316,
+      "cached_tokens_subset": 473472,
+      "reasoning_tokens_subset": 1808,
+      "elapsed_ms": 223913,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-role-catalog": {
+      "runs": 2,
+      "input_tokens": 1114711,
+      "output_tokens": 22384,
+      "cached_tokens_subset": 1026432,
+      "reasoning_tokens_subset": 15706,
+      "elapsed_ms": 669893,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-transport-settings": {
+      "runs": 4,
+      "input_tokens": 779078,
+      "output_tokens": 16400,
+      "cached_tokens_subset": 661760,
+      "reasoning_tokens_subset": 6265,
+      "elapsed_ms": 564196,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-transport-factory": {
+      "runs": 3,
+      "input_tokens": 567420,
+      "output_tokens": 9111,
+      "cached_tokens_subset": 476416,
+      "reasoning_tokens_subset": 2834,
+      "elapsed_ms": 329430,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-network": {
+      "runs": 4,
+      "input_tokens": 824597,
+      "output_tokens": 18026,
+      "cached_tokens_subset": 691200,
+      "reasoning_tokens_subset": 8253,
+      "elapsed_ms": 665321,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-posthoc-evidence": {
+      "runs": 4,
+      "input_tokens": 1839398,
+      "output_tokens": 20423,
+      "cached_tokens_subset": 1661312,
+      "reasoning_tokens_subset": 4316,
+      "elapsed_ms": 691952,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-database": {
+      "runs": 3,
+      "input_tokens": 484137,
+      "output_tokens": 10992,
+      "cached_tokens_subset": 383616,
+      "reasoning_tokens_subset": 3966,
+      "elapsed_ms": 388973,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-worker-transport": {
+      "runs": 2,
+      "input_tokens": 719248,
+      "output_tokens": 15865,
+      "cached_tokens_subset": 626176,
+      "reasoning_tokens_subset": 5444,
+      "elapsed_ms": 536640,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-assets": {
+      "runs": 3,
+      "input_tokens": 421919,
+      "output_tokens": 8993,
+      "cached_tokens_subset": 359680,
+      "reasoning_tokens_subset": 3463,
+      "elapsed_ms": 293085,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-bounded-job-transport": {
+      "runs": 3,
+      "input_tokens": 762778,
+      "output_tokens": 18421,
+      "cached_tokens_subset": 650880,
+      "reasoning_tokens_subset": 4845,
+      "elapsed_ms": 571778,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-course-evidence": {
+      "runs": 5,
+      "input_tokens": 2162996,
+      "output_tokens": 25875,
+      "cached_tokens_subset": 1942016,
+      "reasoning_tokens_subset": 5277,
+      "elapsed_ms": 805760,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-execution-roles": {
+      "runs": 3,
+      "input_tokens": 543365,
+      "output_tokens": 11582,
+      "cached_tokens_subset": 467840,
+      "reasoning_tokens_subset": 3566,
+      "elapsed_ms": 381271,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-nginx-upstream": {
+      "runs": 2,
+      "input_tokens": 311754,
+      "output_tokens": 5514,
+      "cached_tokens_subset": 267776,
+      "reasoning_tokens_subset": 1637,
+      "elapsed_ms": 178880,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-cloud-database-settings": {
+      "runs": 3,
+      "input_tokens": 582164,
+      "output_tokens": 13827,
+      "cached_tokens_subset": 487296,
+      "reasoning_tokens_subset": 5429,
+      "elapsed_ms": 455234,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-task-roles": {
+      "runs": 2,
+      "input_tokens": 399874,
+      "output_tokens": 9283,
+      "cached_tokens_subset": 332928,
+      "reasoning_tokens_subset": 2956,
+      "elapsed_ms": 301147,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-cloud-database-integration": {
+      "runs": 2,
+      "input_tokens": 287320,
+      "output_tokens": 8592,
+      "cached_tokens_subset": 232960,
+      "reasoning_tokens_subset": 3561,
+      "elapsed_ms": 264546,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-identity": {
+      "runs": 2,
+      "input_tokens": 422966,
+      "output_tokens": 10601,
+      "cached_tokens_subset": 376832,
+      "reasoning_tokens_subset": 3121,
+      "elapsed_ms": 338881,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6-luna",
+        "gpt-6.1-sol"
+      ]
+    },
+    "resume-hosting-task-settings": {
+      "runs": 1,
+      "input_tokens": 233946,
+      "output_tokens": 7263,
+      "cached_tokens_subset": 205696,
+      "reasoning_tokens_subset": 1757,
+      "elapsed_ms": 237929,
+      "unknown_usage_runs": 0,
+      "models": [
+        "gpt-6.1-sol"
+      ]
+    }
+  },
+  "totals": {
+    "runs": 136,
+    "input_tokens": 38525539,
+    "output_tokens": 727822,
+    "cached_tokens_subset": 33499136,
+    "reasoning_tokens_subset": 294083,
+    "elapsed_ms": 23145812,
+    "unknown_usage_runs": 0
+  }
+}

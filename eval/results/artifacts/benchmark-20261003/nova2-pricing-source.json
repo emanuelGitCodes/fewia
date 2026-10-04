@@ -1,0 +1,61 @@
+{
+  "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/20261003001138/us-east-1/index.json",
+  "version": "20261003001138",
+  "publicationDate": "2026-10-03T00:11:38Z",
+  "matches": [
+    {
+      "sku": "FY8T82UUN7VZR55K",
+      "attributes": {
+        "servicecode": "AmazonBedrock",
+        "location": "US East (N. Virginia)",
+        "locationType": "AWS Region",
+        "usagetype": "USE1-Nova2.0Lite-input-tokens",
+        "operation": "",
+        "feature": "On-demand Inference",
+        "inferenceType": "Input tokens",
+        "model": "Nova 2.0 Lite",
+        "regionCode": "us-east-1",
+        "servicename": "Amazon Bedrock"
+      },
+      "effectiveDate": "2026-10-01T00:00:00Z",
+      "priceDimension": {
+        "rateCode": "FY8T82UUN7VZR55K.JRTCKXETXF.6YS6EN2CT7",
+        "description": "$0.00033 per 1K tokens for USE1-Nova2.0Lite-input-tokens in US East (N. Virginia)",
+        "beginRange": "0",
+        "endRange": "Inf",
+        "unit": "1K tokens",
+        "pricePerUnit": {
+          "USD": "0.0003300000"
+        },
+        "appliesTo": []
+      }
+    },
+    {
+      "sku": "DY69Q8C3F88CHA2Q",
+      "attributes": {
+        "servicecode": "AmazonBedrock",
+        "location": "US East (N. Virginia)",
+        "locationType": "AWS Region",
+        "usagetype": "USE1-Nova2.0Lite-output-tokens",
+        "operation": "",
+        "feature": "On-demand Inference",
+        "inferenceType": "Output tokens",
+        "model": "Nova 2.0 Lite",
+        "regionCode": "us-east-1",
+        "servicename": "Amazon Bedrock"
+      },
+      "effectiveDate": "2026-10-01T00:00:00Z",
+      "priceDimension": {
+        "rateCode": "DY69Q8C3F88CHA2Q.JRTCKXETXF.6YS6EN2CT7",
+        "description": "$0.00275 per 1K tokens for USE1-Nova2.0Lite-output-tokens in US East (N. Virginia)",
+        "beginRange": "0",
+        "endRange": "Inf",
+        "unit": "1K tokens",
+        "pricePerUnit": {
+          "USD": "0.0027500000"
+        },
+        "appliesTo": []
+      }
+    }
+  ]
+}

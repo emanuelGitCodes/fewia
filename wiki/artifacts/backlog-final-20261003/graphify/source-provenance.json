@@ -1,0 +1,400 @@
+{
+  "identity_kind": "unmerged filesystem composition",
+  "snapshot_label": "published PR source composition 321-381",
+  "base_sha": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "pull_request_range_included": [
+    321,
+    381
+  ],
+  "component_count": 61,
+  "components": [
+    {
+      "pr": 321,
+      "head": "f5aa8f09cd757e08034f035e46019285a436d78d",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 322,
+      "head": "117e37d77537f94d0e9170e2665eb73d12ac533b",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 323,
+      "head": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 324,
+      "head": "578df44aa0fa5107167dadec1e8f7773ce9e041f",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 325,
+      "head": "36843e7e2d01590c29ad3655691c6bfbc161ae58",
+      "parent": "f5aa8f09cd757e08034f035e46019285a436d78d"
+    },
+    {
+      "pr": 326,
+      "head": "e903429cb69f3d562d8c72e19f431000a34ab7af",
+      "parent": "36843e7e2d01590c29ad3655691c6bfbc161ae58"
+    },
+    {
+      "pr": 327,
+      "head": "85493df8ace8ff246df0c15dfccb40e22aef1a62",
+      "parent": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b"
+    },
+    {
+      "pr": 328,
+      "head": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d",
+      "parent": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2"
+    },
+    {
+      "pr": 329,
+      "head": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375",
+      "parent": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d"
+    },
+    {
+      "pr": 330,
+      "head": "4b1e949b74a2f41b6d1dd320fd1b93681557025e",
+      "parent": "e903429cb69f3d562d8c72e19f431000a34ab7af"
+    },
+    {
+      "pr": 331,
+      "head": "c46170e5641f8e0755d52602035f6ba45673c96c",
+      "parent": "4b1e949b74a2f41b6d1dd320fd1b93681557025e"
+    },
+    {
+      "pr": 332,
+      "head": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a",
+      "parent": "117e37d77537f94d0e9170e2665eb73d12ac533b"
+    },
+    {
+      "pr": 333,
+      "head": "e863c24ec527754f73e78bd3312cbe652475937e",
+      "parent": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a"
+    },
+    {
+      "pr": 334,
+      "head": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac",
+      "parent": "e863c24ec527754f73e78bd3312cbe652475937e"
+    },
+    {
+      "pr": 335,
+      "head": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb",
+      "parent": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac"
+    },
+    {
+      "pr": 336,
+      "head": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2",
+      "parent": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb"
+    },
+    {
+      "pr": 337,
+      "head": "b5b0cd4ad423e463a2f43830cf448a3ddefb1c7c",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 338,
+      "head": "bba58fcf1f4726f5aaa93b54888346e031bb72bd",
+      "parent": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375"
+    },
+    {
+      "pr": 339,
+      "head": "88a95114ece4a2a7b53bb33d687a6efaba108178",
+      "parent": "bba58fcf1f4726f5aaa93b54888346e031bb72bd"
+    },
+    {
+      "pr": 340,
+      "head": "345acfc1dc4e094812366a0faef9fe092fb728f5",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 341,
+      "head": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "parent": "88a95114ece4a2a7b53bb33d687a6efaba108178"
+    },
+    {
+      "pr": 342,
+      "head": "13b0ae290091406d7a68f7ad38b5ec23e1909d48",
+      "parent": "345acfc1dc4e094812366a0faef9fe092fb728f5"
+    },
+    {
+      "pr": 343,
+      "head": "5eceecebebc2885bf537aef7b499e49f552b0861",
+      "parent": "13b0ae290091406d7a68f7ad38b5ec23e1909d48"
+    },
+    {
+      "pr": 344,
+      "head": "1068f642d3b039ff1cc880797d1af03bb2e47d94",
+      "parent": "b5b0cd4ad423e463a2f43830cf448a3ddefb1c7c"
+    },
+    {
+      "pr": 345,
+      "head": "bac57e53606147dd49c0ec2dceeaec1dfde0c407",
+      "parent": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    {
+      "pr": 346,
+      "head": "98fb635beb92f0107aad5c508ba48e18faba709e",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 347,
+      "head": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a"
+    },
+    {
+      "pr": 348,
+      "head": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22"
+    },
+    {
+      "pr": 349,
+      "head": "dde72370811523c5d8d118ced60f3a85dfc3d6e7",
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22"
+    },
+    {
+      "pr": 350,
+      "head": "535f29e6bbf34679c7fc0fe7e340d31b741155cf",
+      "parent": "5eceecebebc2885bf537aef7b499e49f552b0861"
+    },
+    {
+      "pr": 351,
+      "head": "f4f9daa147aacdcce87c157dc5e59e42c95da609",
+      "parent": "535f29e6bbf34679c7fc0fe7e340d31b741155cf"
+    },
+    {
+      "pr": 352,
+      "head": "dde56e843fecb4b182c330bcaf136a09ed7d9631",
+      "parent": "bac57e53606147dd49c0ec2dceeaec1dfde0c407"
+    },
+    {
+      "pr": 353,
+      "head": "07bec2dc32b19b21197a8058279781815bbcb4cd",
+      "parent": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    {
+      "pr": 354,
+      "head": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d",
+      "parent": "dde56e843fecb4b182c330bcaf136a09ed7d9631"
+    },
+    {
+      "pr": 355,
+      "head": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a",
+      "parent": "f4f9daa147aacdcce87c157dc5e59e42c95da609"
+    },
+    {
+      "pr": 356,
+      "head": "f6f9b160e556691904980947f7cd118f287710aa",
+      "parent": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d"
+    },
+    {
+      "pr": 357,
+      "head": "2d0d577f67121c94d58d60114ba1e0464397853b",
+      "parent": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a"
+    },
+    {
+      "pr": 358,
+      "head": "98c21db1e8b7c1d31521607d0078213b1095ace8",
+      "parent": "f6f9b160e556691904980947f7cd118f287710aa"
+    },
+    {
+      "pr": 359,
+      "head": "0c38e1c0665587fba93f230cdb1e527f206cc7aa",
+      "parent": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b"
+    },
+    {
+      "pr": 360,
+      "head": "16714fb2910777e132af3c00d58eafa747a9af24",
+      "parent": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    {
+      "pr": 361,
+      "head": "484caf434084f7d9c5995c0bac1165ee7034e85c",
+      "parent": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    {
+      "pr": 362,
+      "head": "573dd0b4a21b38b73d19e4b70482686854299b46",
+      "parent": "98c21db1e8b7c1d31521607d0078213b1095ace8"
+    },
+    {
+      "pr": 363,
+      "head": "ca7c4615c83cdd78c08389af65c372e88d58c0ef",
+      "parent": "0c38e1c0665587fba93f230cdb1e527f206cc7aa"
+    },
+    {
+      "pr": 364,
+      "head": "14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a",
+      "parent": "573dd0b4a21b38b73d19e4b70482686854299b46"
+    },
+    {
+      "pr": 365,
+      "head": "493dd89d4f6170f618616c751004c4bc5c96606e",
+      "parent": "14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a"
+    },
+    {
+      "pr": 366,
+      "head": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c",
+      "parent": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    {
+      "pr": 367,
+      "head": "a457cbd72bff1705c8f10132eec350b35e9fb9de",
+      "parent": "493dd89d4f6170f618616c751004c4bc5c96606e"
+    },
+    {
+      "pr": 368,
+      "head": "2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7",
+      "parent": "a457cbd72bff1705c8f10132eec350b35e9fb9de"
+    },
+    {
+      "pr": 369,
+      "head": "51778e5b56f4ed25ea589fe8ff960dbe2924a879",
+      "parent": "2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7"
+    },
+    {
+      "pr": 370,
+      "head": "b287376ebc77a225647ffab63af247516a415f8f",
+      "parent": "ca7c4615c83cdd78c08389af65c372e88d58c0ef"
+    },
+    {
+      "pr": 371,
+      "head": "426b618814e74e136a40af29bccac8b9e1df4d0a",
+      "parent": "51778e5b56f4ed25ea589fe8ff960dbe2924a879"
+    },
+    {
+      "pr": 372,
+      "head": "58e9192fcf4fa0f92852dabe240409a9c0867922",
+      "parent": "426b618814e74e136a40af29bccac8b9e1df4d0a"
+    },
+    {
+      "pr": 373,
+      "head": "edac61cfa83aca15e345ef104125e9535e3aa9fa",
+      "parent": "58e9192fcf4fa0f92852dabe240409a9c0867922"
+    },
+    {
+      "pr": 374,
+      "head": "0b9098693f87d8a7b00f8996510908db6f9e827d",
+      "parent": "edac61cfa83aca15e345ef104125e9535e3aa9fa"
+    },
+    {
+      "pr": 375,
+      "head": "f9be9716a0da9379333e985bd6d3dff2a189338d",
+      "parent": "b287376ebc77a225647ffab63af247516a415f8f"
+    },
+    {
+      "pr": 376,
+      "head": "787f467161e9c8bac69f4b43a6e9626a9d33f4bc",
+      "parent": "f9be9716a0da9379333e985bd6d3dff2a189338d"
+    },
+    {
+      "pr": 377,
+      "head": "623ab8347aaabf55964bfd3c44fbe3065839dbdf",
+      "parent": "0b9098693f87d8a7b00f8996510908db6f9e827d"
+    },
+    {
+      "pr": 378,
+      "head": "59a9713028d46b55376968999e0f2be59efe5444",
+      "parent": "623ab8347aaabf55964bfd3c44fbe3065839dbdf"
+    },
+    {
+      "pr": 379,
+      "head": "29b70df05716b19baf4736589ddb4cfc787bdc55",
+      "parent": "59a9713028d46b55376968999e0f2be59efe5444"
+    },
+    {
+      "pr": 380,
+      "head": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+      "parent": "29b70df05716b19baf4736589ddb4cfc787bdc55"
+    },
+    {
+      "pr": 381,
+      "head": "d43d606df795a6a6e748fdc9263554349867ae9c",
+      "parent": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    }
+  ],
+  "source_manifest_path": "/private/tmp/fewia-resume-20261003/integration-source-manifest.json",
+  "source_manifest_sha256": "03b20a93a4c998705416504be0a2c2d929c9bda027778f495f692ed1bbd08a22",
+  "source_tree_sha256": "600cbe03008f4f7008dd640752378e4489de5ade64c3c6eef566adb90853eb82",
+  "source_file_count": 717,
+  "file_types": {
+    "code": 544,
+    "document": 163,
+    "paper": 1,
+    "image": 9,
+    "video": 0
+  },
+  "changed_files": {
+    "code": 13,
+    "document": 2,
+    "paper": 0,
+    "image": 0,
+    "video": 0
+  },
+  "changed_paths": [
+    "backend/app/bootstrap_hosting.py",
+    "backend/tests/test_bootstrap_hosting.py",
+    "docs/HOSTED_DEMO.md",
+    "infra/hosting/bootstrap_proof.py",
+    "infra/hosting/examples/active.json",
+    "infra/hosting/examples/bootstrap.json",
+    "infra/hosting/examples/foundation.json",
+    "infra/hosting/preflight_checks.py",
+    "infra/hosting/preflight_cli.py",
+    "infra/hosting/preflight_runner.py",
+    "infra/hosting/tests/test_bootstrap_proof.py",
+    "infra/hosting/tests/test_preflight_checks.py",
+    "infra/hosting/tests/test_preflight_cli.py",
+    "infra/hosting/tests/test_preflight_runner.py",
+    "wiki/log.md"
+  ],
+  "ast_code_files_processed": 153,
+  "ast_failed_sources": [],
+  "semantic_files_processed": 50,
+  "json_configuration_examples_manually_extracted": 3,
+  "semantic_usage": {
+    "status": "unknown_host_native_usage",
+    "input_tokens": null,
+    "output_tokens": null
+  },
+  "single_git_head": null,
+  "built_at_commit": null,
+  "boundary": "Pull requests 382 and later are not included in this frozen 321-381 composition.",
+  "wiki_log_append": {
+    "kind": "approved append composition",
+    "base_pr": 366,
+    "base_sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c",
+    "additional_role_catalog_fragment": "98fb635b, 815 bytes",
+    "runbook_append_pr": 381,
+    "runbook_append_sha": "d43d606df795a6a6e748fdc9263554349867ae9c",
+    "sha256": "a86e74d4e97fee7c2e082e8b9a7f34aa91f5d554a2e9455110437b044f3b8bce"
+  },
+  "graph_output": {
+    "nodes": 8901,
+    "edges": 26414,
+    "hyperedges": 28,
+    "communities": 433,
+    "built_at_commit": null
+  },
+  "html_output": {
+    "mode": "aggregated community view",
+    "community_nodes": 433,
+    "cross_community_edges": 1230,
+    "reason": "Graph exceeds 5000-node HTML threshold."
+  },
+  "quarantined_false_edges": {
+    "path": "diagnostics/quarantined-edges.json",
+    "count": 27,
+    "breakdown": {
+      "new_snapshot_ast_collisions": 19,
+      "baseline_ast_collisions": 6,
+      "tail_PR376_380_ast_collisions": 2
+    },
+    "retargeted": 0
+  },
+  "verified_recursive_edges": {
+    "path": "diagnostics/verified-recursive-edges.json",
+    "count": 12
+  }
+}

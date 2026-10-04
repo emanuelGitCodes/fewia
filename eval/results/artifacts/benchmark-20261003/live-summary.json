@@ -1,0 +1,3411 @@
+{
+  "total_slots": 138,
+  "groups": [
+    {
+      "condition": "controlled_fixture",
+      "evidence_class": "deterministic_fake_provider",
+      "slot_count": 12,
+      "metrics": {
+        "assessments": {
+          "tools": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "plan": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "claims": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "supported_count": 0,
+              "assessed_count": 0,
+              "unsupported_count": 0,
+              "unknown_count": 0,
+              "supported_refusal_count": 0
+            },
+            "scope": "public_output_only",
+            "support_rate": null,
+            "conservative_support_rate": null
+          },
+          "fixture": {
+            "status_counts": {
+              "passed": 12,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 12,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "tool_metrics": {
+          "valid_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_tool_selection": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_arguments": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "unnecessary_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 12
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null,
+            "direction": "lower_is_better"
+          }
+        },
+        "plan_checks": {},
+        "fixture_checks": {
+          "accepted": {
+            "status_counts": {
+              "passed": 6,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 6,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "budget_safe": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "cursor_unchanged": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "last_synced_unchanged": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "ledger_unchanged": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 6,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 6,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "provider_calls": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "stale": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "sync_failed": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "valid_case": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "after_retry": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "before_retry": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "first_dispatch": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "owner_scoped": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "same_intent": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "stale_retry": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "total_cents": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "unavailable": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "duplicate_id": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "invalid_planner": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "malformed_input": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "stop_mismatch": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "too_many_tools": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "unknown_tool": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "clarification_correctness": {
+          "status_counts": {
+            "passed": 0,
+            "failed": 0,
+            "unassessed": 0,
+            "not_applicable": 12
+          },
+          "denominator": 0,
+          "pass_rate": null,
+          "counts": {}
+        },
+        "known_failures": []
+      },
+      "tasks": {
+        "condition": "controlled_fixture",
+        "evidence_class": "deterministic_fake_provider",
+        "execution": {
+          "slot": {
+            "completed": 12,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          },
+          "observation": {
+            "completed": 12,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          }
+        },
+        "quality": {
+          "scope": "fixture_guard",
+          "passed": 12,
+          "failed": 0,
+          "unassessed": 0,
+          "not_applicable": 0,
+          "all_applicable": 12,
+          "assessed_denominator": 12,
+          "conservative_rate": 1.0,
+          "assessed_only_rate": 1.0,
+          "coverage": 1.0
+        }
+      }
+    },
+    {
+      "condition": "controlled_fixture",
+      "evidence_class": "local_postgresql",
+      "slot_count": 3,
+      "metrics": {
+        "assessments": {
+          "tools": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "plan": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "claims": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "supported_count": 0,
+              "assessed_count": 0,
+              "unsupported_count": 0,
+              "unknown_count": 0,
+              "supported_refusal_count": 0
+            },
+            "scope": "public_output_only",
+            "support_rate": null,
+            "conservative_support_rate": null
+          },
+          "fixture": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "tool_metrics": {
+          "valid_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_tool_selection": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_arguments": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "unnecessary_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 3
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null,
+            "direction": "lower_is_better"
+          }
+        },
+        "plan_checks": {},
+        "fixture_checks": {
+          "artifact_once": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "artifact_saved": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "cache": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "deliveries": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "gold_deliveries": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "gold_total": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "handler_once": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "handoff_attempts": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "handoff_succeeded": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "job_attempts": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "job_succeeded": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "one_handoff": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "one_job": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "one_revision": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "outbox": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "outbox_sent": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "provider_once": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "revision": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "clarification_correctness": {
+          "status_counts": {
+            "passed": 0,
+            "failed": 0,
+            "unassessed": 0,
+            "not_applicable": 3
+          },
+          "denominator": 0,
+          "pass_rate": null,
+          "counts": {}
+        },
+        "known_failures": []
+      },
+      "tasks": {
+        "condition": "controlled_fixture",
+        "evidence_class": "local_postgresql",
+        "execution": {
+          "slot": {
+            "completed": 3,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          },
+          "observation": {
+            "completed": 3,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          }
+        },
+        "quality": {
+          "scope": "fixture_guard",
+          "passed": 3,
+          "failed": 0,
+          "unassessed": 0,
+          "not_applicable": 0,
+          "all_applicable": 3,
+          "assessed_denominator": 3,
+          "conservative_rate": 1.0,
+          "assessed_only_rate": 1.0,
+          "coverage": 1.0
+        }
+      }
+    },
+    {
+      "condition": "deterministic",
+      "evidence_class": "deterministic_fake_provider",
+      "slot_count": 15,
+      "metrics": {
+        "assessments": {
+          "tools": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "plan": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "claims": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "supported_count": 0,
+              "assessed_count": 0,
+              "unsupported_count": 0,
+              "unknown_count": 0,
+              "supported_refusal_count": 0
+            },
+            "scope": "public_output_only",
+            "support_rate": null,
+            "conservative_support_rate": null
+          },
+          "fixture": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          }
+        },
+        "tool_metrics": {
+          "valid_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_tool_selection": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_arguments": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "unnecessary_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 15
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null,
+            "direction": "lower_is_better"
+          }
+        },
+        "plan_checks": {
+          "budget_arithmetic": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "budget_inputs": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "budget_pending": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "budget_stale": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "case_identity": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "condition": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "expected_accepted": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "expected_budget_available_cents": {
+            "status_counts": {
+              "passed": 12,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 12,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "expected_catalog_version": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "expected_notice": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "expected_total_cents": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "final_plan_present": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "final_scope": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "golden_lines": {
+            "status_counts": {
+              "passed": 12,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 12,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_acceptance": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_budget_cap": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_catalog_version": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_diet": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_exclusions": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_ingredient_coverage": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_notice": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_package_rounding": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_quantities": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_sample_costs": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_schema": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "integrity_total_cents": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "observation_complete": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_budget_period": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_diet": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_ingredient_exclusions": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_meals": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_pantry_ingredients": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_plan_cap_cents": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "turns_complete": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "user_turn_count_original": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "fixture_checks": {},
+        "clarification_correctness": {
+          "status_counts": {
+            "passed": 0,
+            "failed": 0,
+            "unassessed": 0,
+            "not_applicable": 15
+          },
+          "denominator": 0,
+          "pass_rate": null,
+          "counts": {}
+        },
+        "known_failures": []
+      },
+      "tasks": {
+        "condition": "deterministic",
+        "evidence_class": "deterministic_fake_provider",
+        "execution": {
+          "slot": {
+            "completed": 15,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          },
+          "observation": {
+            "completed": 15,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          }
+        },
+        "quality": {
+          "scope": "structured_reference",
+          "passed": 15,
+          "failed": 0,
+          "unassessed": 0,
+          "not_applicable": 0,
+          "all_applicable": 15,
+          "assessed_denominator": 15,
+          "conservative_rate": 1.0,
+          "assessed_only_rate": 1.0,
+          "coverage": 1.0
+        }
+      }
+    },
+    {
+      "condition": "deterministic_fixture",
+      "evidence_class": "deterministic_fake_provider",
+      "slot_count": 42,
+      "metrics": {
+        "assessments": {
+          "tools": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "plan": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "claims": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "supported_count": 0,
+              "assessed_count": 0,
+              "unsupported_count": 0,
+              "unknown_count": 0,
+              "supported_refusal_count": 0
+            },
+            "scope": "public_output_only",
+            "support_rate": null,
+            "conservative_support_rate": null
+          },
+          "fixture": {
+            "status_counts": {
+              "passed": 42,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 42,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "tool_metrics": {
+          "valid_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_tool_selection": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_arguments": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "unnecessary_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 42
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null,
+            "direction": "lower_is_better"
+          }
+        },
+        "plan_checks": {},
+        "fixture_checks": {
+          "available_cents": {
+            "status_counts": {
+              "passed": 9,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 9,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 30,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 30,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "pending_cents": {
+            "status_counts": {
+              "passed": 9,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 9,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "stale": {
+            "status_counts": {
+              "passed": 9,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 9,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B04a.available_cents": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B04a.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B04b.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B05a.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B05b.available_cents": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B05b.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B05b.stale": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "B05c.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "accepted": {
+            "status_counts": {
+              "passed": 24,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 24,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "total_cents": {
+            "status_counts": {
+              "passed": 18,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 18,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "M06a.accepted": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "M06a.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "M06a.total_cents": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "M06b.accepted": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "M06b.outcome": {
+            "status_counts": {
+              "passed": 3,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 3,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "clarification_correctness": {
+          "status_counts": {
+            "passed": 0,
+            "failed": 0,
+            "unassessed": 0,
+            "not_applicable": 42
+          },
+          "denominator": 0,
+          "pass_rate": null,
+          "counts": {}
+        },
+        "known_failures": []
+      },
+      "tasks": {
+        "condition": "deterministic_fixture",
+        "evidence_class": "deterministic_fake_provider",
+        "execution": {
+          "slot": {
+            "completed": 42,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          },
+          "observation": {
+            "completed": 42,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          }
+        },
+        "quality": {
+          "scope": "fixture_guard",
+          "passed": 42,
+          "failed": 0,
+          "unassessed": 0,
+          "not_applicable": 0,
+          "all_applicable": 42,
+          "assessed_denominator": 42,
+          "conservative_rate": 1.0,
+          "assessed_only_rate": 1.0,
+          "coverage": 1.0
+        }
+      }
+    },
+    {
+      "condition": "no_tool",
+      "evidence_class": "real_bedrock",
+      "slot_count": 33,
+      "metrics": {
+        "assessments": {
+          "tools": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          },
+          "plan": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 33,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.0,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 33,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.0,
+            "counts": {}
+          },
+          "claims": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 33,
+              "not_applicable": 0
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "supported_count": 0,
+              "assessed_count": 0,
+              "unsupported_count": 0,
+              "unknown_count": 4,
+              "supported_refusal_count": 0
+            },
+            "scope": "public_output_only",
+            "support_rate": null,
+            "conservative_support_rate": 0.0
+          },
+          "fixture": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          }
+        },
+        "tool_metrics": {
+          "valid_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_tool_selection": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "expected_arguments": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null
+          },
+          "unnecessary_calls": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {
+              "numerator": 0,
+              "denominator": 0
+            },
+            "rate": null,
+            "direction": "lower_is_better"
+          }
+        },
+        "plan_checks": {
+          "case_identity": {
+            "status_counts": {
+              "passed": 33,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "condition": {
+            "status_counts": {
+              "passed": 33,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "final_scope": {
+            "status_counts": {
+              "passed": 33,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "observation_complete": {
+            "status_counts": {
+              "passed": 1,
+              "failed": 32,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.030303030303030304,
+            "counts": {}
+          },
+          "turns_complete": {
+            "status_counts": {
+              "passed": 1,
+              "failed": 32,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.030303030303030304,
+            "counts": {}
+          },
+          "user_turn_count_original": {
+            "status_counts": {
+              "passed": 33,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "no_unexpected_plan": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 1,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 1,
+            "pass_rate": 0.0,
+            "counts": {}
+          }
+        },
+        "fixture_checks": {},
+        "clarification_correctness": {
+          "status_counts": {
+            "passed": 0,
+            "failed": 9,
+            "unassessed": 0,
+            "not_applicable": 24
+          },
+          "denominator": 9,
+          "pass_rate": 0.0,
+          "counts": {}
+        },
+        "known_failures": [
+          {
+            "case_id": "F01",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F01",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F01",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F01",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F01",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F01",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F02",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F02",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F02",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F04",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F04",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F04",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F04",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F04",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F04",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F05",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F05",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F05",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F05",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "F05",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "F05",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X02",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X02",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X02",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X02",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X02",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X02",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X03",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X03",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X03",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X03",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X03",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X03",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X04",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X04",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X04",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X04",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "X04",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "X04",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A01",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A01",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A01",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A01",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A01",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A01",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A02",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A02",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A02",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "no_unexpected_plan"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": [
+              "no_plan"
+            ]
+          },
+          {
+            "case_id": "A03",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A03",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A03",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A03",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A03",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A03",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A04",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A04",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A04",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A04",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": []
+          },
+          {
+            "case_id": "A04",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "observation_complete",
+              "turns_complete"
+            ]
+          },
+          {
+            "case_id": "A04",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": []
+          }
+        ]
+      },
+      "tasks": {
+        "condition": "no_tool",
+        "evidence_class": "real_bedrock",
+        "execution": {
+          "slot": {
+            "completed": 1,
+            "failed": 31,
+            "partial": 1,
+            "unassessed": 0
+          },
+          "observation": {
+            "completed": 1,
+            "failed": 31,
+            "partial": 1,
+            "unassessed": 0
+          }
+        },
+        "quality": {
+          "scope": "language_task",
+          "passed": 0,
+          "failed": 33,
+          "unassessed": 0,
+          "not_applicable": 0,
+          "all_applicable": 33,
+          "assessed_denominator": 33,
+          "conservative_rate": 0.0,
+          "assessed_only_rate": 0.0,
+          "coverage": 1.0
+        }
+      }
+    },
+    {
+      "condition": "tool_enabled",
+      "evidence_class": "real_bedrock",
+      "slot_count": 33,
+      "metrics": {
+        "assessments": {
+          "tools": {
+            "status_counts": {
+              "passed": 18,
+              "failed": 15,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.5454545454545454,
+            "counts": {}
+          },
+          "plan": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 18
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "outcome": {
+            "status_counts": {
+              "passed": 23,
+              "failed": 4,
+              "unassessed": 6,
+              "not_applicable": 0
+            },
+            "denominator": 27,
+            "pass_rate": 0.8518518518518519,
+            "counts": {}
+          },
+          "claims": {
+            "status_counts": {
+              "passed": 24,
+              "failed": 0,
+              "unassessed": 2,
+              "not_applicable": 7
+            },
+            "denominator": 24,
+            "pass_rate": 1.0,
+            "counts": {
+              "supported_count": 98,
+              "assessed_count": 98,
+              "unsupported_count": 0,
+              "unknown_count": 2,
+              "supported_refusal_count": 10
+            },
+            "scope": "public_output_only",
+            "support_rate": 1.0,
+            "conservative_support_rate": 0.98
+          },
+          "fixture": {
+            "status_counts": {
+              "passed": 0,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 33
+            },
+            "denominator": 0,
+            "pass_rate": null,
+            "counts": {}
+          }
+        },
+        "tool_metrics": {
+          "valid_calls": {
+            "status_counts": {
+              "passed": 33,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 1.0,
+            "counts": {
+              "numerator": 28,
+              "denominator": 28
+            },
+            "rate": 1.0
+          },
+          "expected_tool_selection": {
+            "status_counts": {
+              "passed": 20,
+              "failed": 13,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.6060606060606061,
+            "counts": {
+              "numerator": 11,
+              "denominator": 24
+            },
+            "rate": 0.4583333333333333
+          },
+          "expected_arguments": {
+            "status_counts": {
+              "passed": 20,
+              "failed": 13,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.6060606060606061,
+            "counts": {
+              "numerator": 11,
+              "denominator": 24
+            },
+            "rate": 0.4583333333333333
+          },
+          "unnecessary_calls": {
+            "status_counts": {
+              "passed": 31,
+              "failed": 2,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 33,
+            "pass_rate": 0.9393939393939394,
+            "counts": {
+              "numerator": 2,
+              "denominator": 13
+            },
+            "rate": 0.15384615384615385,
+            "direction": "lower_is_better"
+          }
+        },
+        "plan_checks": {
+          "budget_arithmetic": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "budget_inputs": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "budget_pending": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "budget_stale": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "case_identity": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "condition": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "expected_accepted": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "expected_budget_available_cents": {
+            "status_counts": {
+              "passed": 8,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 12,
+            "pass_rate": 0.6666666666666666,
+            "counts": {}
+          },
+          "expected_catalog_version": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "expected_notice": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "expected_total_cents": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "final_plan_present": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "final_scope": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "golden_lines": {
+            "status_counts": {
+              "passed": 9,
+              "failed": 3,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 12,
+            "pass_rate": 0.75,
+            "counts": {}
+          },
+          "integrity_acceptance": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_budget_cap": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_catalog_version": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_diet": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_exclusions": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_ingredient_coverage": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_notice": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_package_rounding": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_quantities": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_sample_costs": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_schema": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "integrity_total_cents": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "observation_complete": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "request_budget_period": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "request_diet": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "request_ingredient_exclusions": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "request_meals": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "request_pantry_ingredients": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "request_plan_cap_cents": {
+            "status_counts": {
+              "passed": 11,
+              "failed": 4,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 0.7333333333333333,
+            "counts": {}
+          },
+          "turns_complete": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          },
+          "user_turn_count_original": {
+            "status_counts": {
+              "passed": 15,
+              "failed": 0,
+              "unassessed": 0,
+              "not_applicable": 0
+            },
+            "denominator": 15,
+            "pass_rate": 1.0,
+            "counts": {}
+          }
+        },
+        "fixture_checks": {},
+        "clarification_correctness": {
+          "status_counts": {
+            "passed": 6,
+            "failed": 1,
+            "unassessed": 2,
+            "not_applicable": 24
+          },
+          "denominator": 7,
+          "pass_rate": 0.8571428571428571,
+          "counts": {}
+        },
+        "known_failures": [
+          {
+            "case_id": "F02",
+            "repeat": 1,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "budget_arithmetic",
+              "budget_pending",
+              "budget_stale",
+              "expected_accepted",
+              "expected_budget_available_cents",
+              "expected_catalog_version",
+              "expected_notice",
+              "expected_total_cents",
+              "final_plan_present",
+              "golden_lines",
+              "integrity_acceptance",
+              "integrity_budget_cap",
+              "integrity_catalog_version",
+              "integrity_diet",
+              "integrity_exclusions",
+              "integrity_ingredient_coverage",
+              "integrity_notice",
+              "integrity_package_rounding",
+              "integrity_quantities",
+              "integrity_sample_costs",
+              "integrity_schema",
+              "integrity_total_cents",
+              "request_budget_period",
+              "request_diet",
+              "request_ingredient_exclusions",
+              "request_meals",
+              "request_pantry_ingredients",
+              "request_plan_cap_cents"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 2,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 2,
+            "assessment": "plan",
+            "checks": [
+              "budget_arithmetic",
+              "budget_pending",
+              "budget_stale",
+              "expected_accepted",
+              "expected_budget_available_cents",
+              "expected_catalog_version",
+              "expected_notice",
+              "expected_total_cents",
+              "final_plan_present",
+              "golden_lines",
+              "integrity_acceptance",
+              "integrity_budget_cap",
+              "integrity_catalog_version",
+              "integrity_diet",
+              "integrity_exclusions",
+              "integrity_ingredient_coverage",
+              "integrity_notice",
+              "integrity_package_rounding",
+              "integrity_quantities",
+              "integrity_sample_costs",
+              "integrity_schema",
+              "integrity_total_cents",
+              "request_budget_period",
+              "request_diet",
+              "request_ingredient_exclusions",
+              "request_meals",
+              "request_pantry_ingredients",
+              "request_plan_cap_cents"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 3,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F02",
+            "repeat": 3,
+            "assessment": "plan",
+            "checks": [
+              "budget_arithmetic",
+              "budget_pending",
+              "budget_stale",
+              "expected_accepted",
+              "expected_budget_available_cents",
+              "expected_catalog_version",
+              "expected_notice",
+              "expected_total_cents",
+              "final_plan_present",
+              "golden_lines",
+              "integrity_acceptance",
+              "integrity_budget_cap",
+              "integrity_catalog_version",
+              "integrity_diet",
+              "integrity_exclusions",
+              "integrity_ingredient_coverage",
+              "integrity_notice",
+              "integrity_package_rounding",
+              "integrity_quantities",
+              "integrity_sample_costs",
+              "integrity_schema",
+              "integrity_total_cents",
+              "request_budget_period",
+              "request_diet",
+              "request_ingredient_exclusions",
+              "request_meals",
+              "request_pantry_ingredients",
+              "request_plan_cap_cents"
+            ]
+          },
+          {
+            "case_id": "F04",
+            "repeat": 1,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F04",
+            "repeat": 2,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F04",
+            "repeat": 3,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F05",
+            "repeat": 1,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F05",
+            "repeat": 2,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "F05",
+            "repeat": 3,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "X03",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": [
+              "allowed_outcome"
+            ]
+          },
+          {
+            "case_id": "X03",
+            "repeat": 2,
+            "assessment": "tools",
+            "checks": [
+              "unnecessary_calls"
+            ]
+          },
+          {
+            "case_id": "X03",
+            "repeat": 3,
+            "assessment": "tools",
+            "checks": [
+              "unnecessary_calls"
+            ]
+          },
+          {
+            "case_id": "A01",
+            "repeat": 1,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "A01",
+            "repeat": 1,
+            "assessment": "plan",
+            "checks": [
+              "budget_arithmetic",
+              "budget_pending",
+              "budget_stale",
+              "expected_accepted",
+              "expected_budget_available_cents",
+              "expected_catalog_version",
+              "expected_notice",
+              "expected_total_cents",
+              "final_plan_present",
+              "integrity_acceptance",
+              "integrity_budget_cap",
+              "integrity_catalog_version",
+              "integrity_diet",
+              "integrity_exclusions",
+              "integrity_ingredient_coverage",
+              "integrity_notice",
+              "integrity_package_rounding",
+              "integrity_quantities",
+              "integrity_sample_costs",
+              "integrity_schema",
+              "integrity_total_cents",
+              "request_budget_period",
+              "request_diet",
+              "request_ingredient_exclusions",
+              "request_meals",
+              "request_pantry_ingredients",
+              "request_plan_cap_cents"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 1,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 1,
+            "assessment": "outcome",
+            "checks": [
+              "allowed_outcome"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 2,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 2,
+            "assessment": "outcome",
+            "checks": [
+              "allowed_outcome"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 3,
+            "assessment": "tools",
+            "checks": [
+              "expected_tool_selection",
+              "expected_arguments"
+            ]
+          },
+          {
+            "case_id": "A02",
+            "repeat": 3,
+            "assessment": "outcome",
+            "checks": [
+              "allowed_outcome"
+            ]
+          }
+        ]
+      },
+      "tasks": {
+        "condition": "tool_enabled",
+        "evidence_class": "real_bedrock",
+        "execution": {
+          "slot": {
+            "completed": 33,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          },
+          "observation": {
+            "completed": 33,
+            "failed": 0,
+            "partial": 0,
+            "unassessed": 0
+          }
+        },
+        "quality": {
+          "scope": "language_task",
+          "passed": 17,
+          "failed": 16,
+          "unassessed": 0,
+          "not_applicable": 0,
+          "all_applicable": 33,
+          "assessed_denominator": 33,
+          "conservative_rate": 0.5151515151515151,
+          "assessed_only_rate": 0.5151515151515151,
+          "coverage": 1.0
+        }
+      }
+    }
+  ]
+}

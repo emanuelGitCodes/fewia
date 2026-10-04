@@ -1,5 +1,6 @@
-import type { JSX } from "react";
-import type { HandoffView } from "./handoffTypes";
+import { useEffect, useRef, useState, type JSX } from "react";
+import { HandoffConsent } from "./HandoffConsent";
+import { isSafeHandoffUrl, type HandoffView } from "./handoffTypes";
 
 export type HandoffControlsProps = {
   view: HandoffView | null;
@@ -39,23 +40,48 @@ export function HandoffControls({
   onStart,
   onRetry,
 }: HandoffControlsProps): JSX.Element {
+  const [consentOpen, setConsentOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!canStart || pending || view !== null) {
+      setConsentOpen(false);
+    }
+  }, [canStart, pending, view]);
   const linkHref =
-    view !== null && view.state === "succeeded" && view.retry_allowed === false ? view.url : null;
+    view !== null &&
+    view.state === "succeeded" &&
+    view.retry_allowed === false &&
+    isSafeHandoffUrl(view.url)
+      ? view.url
+      : null;
   const status = pending ? IN_PROGRESS : view === null ? null : stateStatus(view.state);
   return (
     <section className="handoff-controls" aria-labelledby="handoff-heading">
       <h2 id="handoff-heading">Shopping list</h2>
       {view === null && canStart ? (
         <button
+          ref={triggerRef}
           type="button"
           className="rebuild-estimate"
+          aria-haspopup="dialog"
           disabled={pending}
           onClick={() => {
-            onStart();
+            triggerRef.current?.focus();
+            setConsentOpen(true);
           }}
         >
           Create shopping list
         </button>
+      ) : null}
+      {consentOpen && canStart && !pending && view === null ? (
+        <HandoffConsent
+          onCancel={() => setConsentOpen(false)}
+          onConfirm={() => {
+            if (canStart && !pending && view === null) {
+              onStart();
+            }
+          }}
+        />
       ) : null}
       {view !== null && view.retry_allowed ? (
         <button

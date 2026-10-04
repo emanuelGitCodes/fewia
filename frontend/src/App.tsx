@@ -35,6 +35,9 @@ export default function App(): JSX.Element {
   const result = estimateJob?.status === "succeeded" ? estimateJob.result : null;
   const canStart =
     chat.instacartConfigured &&
+    !blocked &&
+    !chat.configurationPending &&
+    chat.providerError === null &&
     !estimateDirty &&
     !busy &&
     jobId !== null &&
@@ -144,14 +147,15 @@ export default function App(): JSX.Element {
               onRebuild={demo.submitForm}
               rebuildDisabled={blocked || busy}
             />
-            {chat.instacartConfigured || handoff.view !== null ? (
+            {chat.instacartConfigured ? (
               <HandoffControls
+                key={JSON.stringify([jobId, result?.plan])}
                 view={handoff.view}
                 error={handoff.error}
                 pending={handoff.pending}
                 canStart={canStart}
                 onStart={() => {
-                  if (typeof jobId === "string") {
+                  if (canStart && typeof jobId === "string") {
                     void handoff.start(jobId);
                   }
                 }}

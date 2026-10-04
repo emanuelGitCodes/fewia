@@ -2994,6 +2994,452 @@ The run's PostgreSQL container stopped. Disposable mutation and historical revie
 checkouts were removed. The existing FEWIA stack was not changed.
 No Grafana or Graphify update occurred. No PR was merged and no AWS deployment ran.
 
+## 2026-10-03 — Backlog PRs merged and the fallback follow-up
+
+The coordinator evaluated #314 to #320 against `main`. All seven branches merged together passed 6,831 backend tests, 243 tooling tests, 423 frontend tests, lint, strict mypy, and the frontend build. #314, #320, #319, #315, and #318 merged in that order with merge commits. #317 merged after a repair pinned `astral-sh/setup-uv@v10.2.0`. #316 merged on `8eddcc7` after two repairs; its third review round found that a structured Codex error with both `code` and `message` is matched on `code` only. The owner merged as is. The follow-up is backlog item B6 in `docs/FEATURE_BACKLOG.md`. The coordinator ran an independent review on #320 (APPROVE) and mutation probes on #314, #316, and #320; every mutation was caught. Branch `codex/backlog-20261003-b5` holds an unpublished start on B5 at `db4226f`. Main is at `8bfd4b8`.
+
+## 2026-10-03 — Decision 0018: retain legacy data for now
+
+The user chose to retain existing stored Spoonacular totals and retired
+health tables for now. Deletion needs a separate decision. Decision:
+[0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md).
+
+## 2026-10-03 — Correct provider-specific writer read permissions
+
+Updated the [junior protocol](../docs/delegation/junior.md) to allow Codex
+read-only shell access for reads and searches, forbid Grok shell commands, and
+keep checks with the junior. The junior MUST check its final brief for
+contradictory command prohibitions before launch. See the [C4 recovery
+record](artifacts/backlog-20261003/c4-resume.md).
+
+## 2026-10-03 — Align supervisor writer command rules
+
+Updated the supervisor opening to match the provider-specific junior protocol.
+
+## 2026-10-03 — B5 strict-value helper publication
+
+PR [#322](https://github.com/emanuelGitCodes/fewia/pull/322) publishes
+`98fde259ebc2281cf652d045eb26add13f07172e` with 28 code lines on
+`codex/backlog-resume-b5-values`. The supplied backend record reports Ruff,
+format, strict mypy, and 6,874 tests passed with one warning. Independent Luna
+high review approved the helper. GitHub CI reported all 7 checks successful
+at this snapshot. This result covers the helper only; B5 remains partial.
+
+## 2026-10-03 — C4 fixture handoff guards
+
+PR [#323](https://github.com/emanuelGitCodes/fewia/pull/323) publishes
+`0246c9b1c249f719b1f10b4a9bf99db499a1f26b` with 10 code lines on
+`codex/backlog-resume-c4`. The supplied frontend install, lint, test, and build
+gates passed. Independent Luna high review approved the change. GitHub CI
+reported all 7 checks successful at this snapshot. This is fixture-flow code
+evidence, not live Instacart evidence.
+
+## 2026-10-03 — B6 structured error matching
+
+PR [#324](https://github.com/emanuelGitCodes/fewia/pull/324) publishes
+`578df44aa0fa5107167dadec1e8f7773ce9e041f` with 12 code lines on
+`codex/backlog-resume-b6`. The supplied tooling record reports 326 tests,
+Ruff, formatting, and strict mypy passed. Independent Luna high review
+approved the change. GitHub CI reported all 7 checks successful at this
+snapshot.
+
+## 2026-10-03 — B4 consent browser evidence
+
+PR [#327](https://github.com/emanuelGitCodes/fewia/pull/327) publishes
+`85493df8ace8ff246df0c15dfccb40e22aef1a62` with 119 code lines, stacked on
+#323. The supplied frontend gates passed and independent Luna high review
+approved the change. The first browser record failed consent-before-POST; the
+repaired browser record passed 14 checks, including consent, keyboard focus,
+mobile fit, and one explicit retry. These checks used an isolated local
+PostgreSQL/Floci stack with fixture handoff responses. They do not establish
+live provider, purchase, deployed, or model-quality results. See the
+[verification plan](../docs/GROCERY_VERIFICATION_PLAN.md) and the
+[backlog resume record](phases/backlog-resume-20261003.md).
+
+## 2026-10-03 — C1 runtime publication
+
+PR [#328](https://github.com/emanuelGitCodes/fewia/pull/328) publishes
+`26fe9148da0c12bd5c55218b063fcc15d54ee7c4` with 92 source lines on
+`codex/backlog-resume-runtime`. Backend Ruff, format, strict mypy, and 6,889
+tests passed. The 18-fixture smoke passed with no model calls. An empty-check
+mutation caused 3 failures. Independent Luna high review approved the change.
+No GitHub CI result is recorded.
+
+## 2026-10-03 — B3 tier S documentation pilot measured
+
+Status: measured; publication pending (limited documentation pilot). The pilot covers two completed tier S documentation items: A4 retention and Writer protocol. Both used no native junior or reviewer subagent. Coordinator tokens are excluded. See the [pilot evidence](artifacts/backlog-resume-20261003/tier-s-pilot.json) and the [detailed ledger](../.claude/loop/delegation-efficiency.md#tier-s-documentation-pilot).
+
+| Item | Attempts | Input tokens | Output tokens | Input + output | Reasoning tokens | Cached tokens | Process seconds | Native subagent tokens |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| A4 retention | 3 | 490204 | 7281 | 497485 | 3329 | 403328 | 184.185 | 0 |
+| Writer protocol | 5 | 589078 | 10109 | 599187 | 5752 | 475520 | 264.479 | 0 |
+| Total | 8 | 1079282 | 17390 | 1096672 | 9081 | 878848 | 448.664 | 0 |
+
+A4 has two completed reviews. Writer protocol has three completed reviews and one completed repair. All selected attempts have known token and elapsed counts. Input includes cached tokens. Cached and reasoning counts are subtotals; do not add them to input or output again. Process elapsed times overlap, so the total is not wall time.
+
+The Phase 1 baseline is about 1,820,000 native subagent tokens for about 270 code lines plus tests and docs. Baseline CLI writer and review counts are unknown. This pilot has zero native subagent tokens and 1,079,282 measured CLI input tokens. The cohorts differ. This result measures tier S routing and usage. It does not support a percentage reduction in total cost, a causal efficiency gain, or a like-for-like speed comparison.
+
+## 2026-10-03 — B5 report renderer publication
+
+B5 is published in [#322](https://github.com/emanuelGitCodes/fewia/pull/322),
+[#332](https://github.com/emanuelGitCodes/fewia/pull/332),
+[#333](https://github.com/emanuelGitCodes/fewia/pull/333),
+[#334](https://github.com/emanuelGitCodes/fewia/pull/334),
+[#335](https://github.com/emanuelGitCodes/fewia/pull/335), and
+[#336](https://github.com/emanuelGitCodes/fewia/pull/336).
+The [benchmark record](phases/benchmark-20261003.md) links the completed reports.
+It keeps condition denominators, failures, unknowns, latency, and cost separate.
+This entry supersedes the earlier partial B5 publication status.
+It records no new merge or CI result.
+
+## 2026-10-03 — C1 runtime and dispatch publication
+
+C1 runtime is published in [#328](https://github.com/emanuelGitCodes/fewia/pull/328).
+Dispatch is published in [#329](https://github.com/emanuelGitCodes/fewia/pull/329).
+The completed benchmark records integrated slot execution at source
+`4b877d470258561cedd3375e38efc02362ce5f22`.
+The [benchmark phase](phases/benchmark-20261003.md) separates fixture, local PostgreSQL, and real Bedrock evidence.
+This entry records no new merge or CI result.
+
+## 2026-10-03 — C2 batch publication
+
+C2 is published in [#338](https://github.com/emanuelGitCodes/fewia/pull/338).
+The [fixture integrity record](../eval/results/artifacts/benchmark-20261003/fixture-integrity.json)
+and [live integrity record](../eval/results/artifacts/benchmark-20261003/live-integrity.json)
+each record 138 slots at source `4b877d470258561cedd3375e38efc02362ce5f22`.
+Both report verified hashes and journals matching the reports.
+Execution completion does not certify model quality.
+
+## 2026-10-03 — C3 CLI and SIGINT evidence
+
+C3 is published in [#339](https://github.com/emanuelGitCodes/fewia/pull/339)
+and [#341](https://github.com/emanuelGitCodes/fewia/pull/341).
+The [evaluation guide](../docs/EVALUATION.md) documents the flags and a new exclusive output directory.
+Without `--live-bedrock`, the public CLI exits 1 before provider calls.
+The archived fixture driver injects a truthfully labeled fake provider.
+The [SIGINT summary](../eval/results/artifacts/benchmark-20261003/sigint-summary.json)
+records exit 130 with 49 preserved journal records and no completion marker.
+Exit 0 means artifact completion only.
+
+## 2026-10-03 — D1 fixture and live benchmark evidence complete
+
+The [readout](../eval/results/artifacts/benchmark-20261003/benchmark-readout.json)
+records source `4b877d470258561cedd3375e38efc02362ce5f22` and one live Nova 2 Lite batch.
+It contains 138 records, including 66 real model observations.
+All 33 tool-enabled executions completed, but task quality passed 17/33, or 51.5%.
+The 90% task target FAILS. Bounded factual claims pass 98/100, or 98%; the 95% target PASSES.
+That denominator includes two unknown claims and excludes ten supported refusals.
+Six accepted live final plans have zero tested violations.
+Synthetic-sentinel capture covers 48 turns across 33 slots with explicit false leak flags.
+Purchase attempts remain UNMEASURED. A04 refusal/action checks do not prove zero attempts.
+Release is NOT certified. No Plaid Sandbox, live Instacart, or deployed proof is supplied.
+
+## 2026-10-03 — D2 benchmark documentation record
+
+Updated the evaluation guide, backlog, completion checkpoint, index, and
+[benchmark phase](phases/benchmark-20261003.md) with artifact citations and evidence limits.
+The approved documentation baseline [#331](https://github.com/emanuelGitCodes/fewia/pull/331)
+was imported for record continuity. B3's limited documentation pilot is published there.
+This documentation PR depends on #331 and #341. This entry does not claim either is merged.
+D3's evidence pack remains pending. D4 remains paused.
+D5 source adapters remain in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340)
+and [#342](https://github.com/emanuelGitCodes/fewia/pull/342), without deployment evidence.
+The writer ran no checks. Coordinator verification and independent review remain pending.
+
+## 2026-10-03 — Correct catalog scope and benchmark evidence limits
+
+The maintained evaluation pages now follow
+[decision 0017](decisions/0017-forty-meal-catalog.md) and the
+[current project scope](../.codex/project-context.md): 40 supported meals,
+1-3 meals per request, and 1-8 servings per meal.
+The benchmark does not provide exhaustive catalog coverage.
+The original 17/33 task result and 98/100 bounded-claim result remain unchanged.
+
+Coordinator triage found a gold-contract mismatch in F04/F05.
+The scorer checks final-turn tool selection and arguments; those cases
+included setup-turn expectations. This issue may understate task success.
+A failed task assessment alone does not establish a model or application defect.
+The coordinator reports a separate correction on `codex/backlog-resume-tool-gold`
+at `e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`.
+It changes only the F04/F05 `expected.model_tools` arrays and regression tests.
+It makes no scoring-code changes.
+The [benchmark record](phases/benchmark-20261003.md#known-gold-contract-mismatch)
+keeps the original results and labels the post-hoc rescore as pending.
+No corrected counts or additional live batch are reported.
+
+The [completion checkpoint](phases/evaluation-completion.md) retains eight
+historical local artifact paths as inline code, with their recorded facts.
+Those files are not included in this PR. Their present availability is not asserted.
+The writer ran no checks. Coordinator verification and independent review remain pending.
+
+## 2026-10-03 — Record the bounded post-hoc gold correction
+
+The separate [post-hoc record](phases/posthoc-gold-20261003.md) rescores the exact saved observations
+from `4b877d470258561cedd3375e38efc02362ce5f22` with corrected gold and scorer source
+`e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`, published in [#348](https://github.com/emanuelGitCodes/fewia/pull/348).
+The derivation occurred at `2026-10-03T23:57:26.642449+00:00`, after the original outputs were available.
+The corrected manifest hash is `6af7f64580e9edca91fa73ef7bf88f28615440b03c0ef635d8ed7864e682c2da`.
+Six tool-enabled F04/F05 tools assessments change across three repeats each.
+Task success becomes 23/33 (69.7%), with ten failed and zero unassessed; the 90% target still FAILS.
+Claims remain 98/(98 assessed + two unknown), or 98%; no-tool task success remains 0/33.
+The correction matches the existing final-turn scorer contract without changing scoring code or allowed outcomes.
+All other assessments, observations, latency, token counts, and execution statuses stay unchanged.
+No provider or database calls occur. This is not a fresh batch, model retest, or independent benchmark.
+Original 17/33 tables, artifacts, and earlier log entries remain intact.
+The new page links hashes, all six deltas, and the exclusive reproduction command.
+The original canonical corpus hash is absent from the assigned evidence; coordinator confirmation remains open.
+Purchase attempts remain UNMEASURED; synthetic-sentinel evidence retains its bounded scope.
+Release is NOT certified. No live Plaid, Plaid Sandbox, live Instacart, or deployed result is supplied.
+The user authorized legacy-data retention and restricted owner/invited-user hosting; neither adds deployment evidence.
+D3's author-owned outline and evidence pack remain pending.
+The writer ran no checks. Coordinator verification and independent Codex or Grok review remain open.
+
+## 2026-10-03 — Prepare the author-owned course supporting pack
+
+Prepared the [course pack](../docs/course/README.md) with an author-prompt outline,
+a GUI demo shot list, seven observed failure categories, and limitations.
+The outline budgets at most eight pages in two columns, including references as a conservative planning assumption.
+The course transcript remains unchanged. The owner still writes the final paper and records/submits the video.
+This pack supplies no completed paper, recorded demo, hosted demo, or new live batch.
+
+Original observations remain at `4b877d470258561cedd3375e38efc02362ce5f22`.
+The post-hoc scorer and corrected gold remain at `e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`.
+The pack preserves 17/33 original task passes beside 23/33 post-hoc passes, with the 90% target failing under both.
+Claims stay 98/(98 assessed + two unknown), with ten supported refusals excluded; no-tool task quality stays 0/33.
+Unknown claims are not proven false claims. Failure categories are triage, not proven root causes.
+The pack links supplied PNG, SVG, PDF, data, reproducer, failure examples, and manifests without editing generated artifacts.
+
+The product scope stays at 40 meals, 1-3 meals per request, and 1-8 servings per meal.
+Every grocery estimate retains the exact demo-price notice.
+Deterministic, local emulator, Sandbox, live-provider, and deployed evidence remain separate.
+Purchase attempts remain unmeasured. Release remains unverified.
+A4 retains legacy data. D4 stays paused. D5 still requires owner confirmation for each mutating AWS step.
+Restricted-hosting source work supplies no deployment evidence.
+The writer ran no checks or external actions. Artifact verification, gates, and independent Codex or Grok review remain coordinator work.
+
+## 2026-10-03 — Decision 0019: invitation-only shared demo access
+
+Recorded [decision 0019](decisions/0019-invitation-only-hosting.md) from the accepted owner decision.
+The demo admits the owner and invited users only, with no public signup.
+Invited users share the current server-selected demo context; they do not receive private application accounts.
+This record starts from course-pack source `484caf434084f7d9c5995c0bac1165ee7034e85c`
+([#361](https://github.com/emanuelGitCodes/fewia/pull/361)); this documentation item has no publication SHA or PR yet.
+Its final commit, gates, and independent Codex or Grok review remain coordinator work.
+The owner MUST confirm every mutating AWS step first, including users and invitations.
+No AWS resources, users, or invitations have been created by this run. No merge authorization exists.
+ECS composition, application-role bootstrap, runbook/preflight, and the live demo remain in progress.
+Hostname, ACM certificate, and deployment credentials await owner input.
+
+## 2026-10-03 — Source publication #340: Add a task-role SQS sender for future hosting
+
+PR [#340](https://github.com/emanuelGitCodes/fewia/pull/340) publishes
+`345acfc1dc4e094812366a0faef9fe092fb728f5`, with saved base `main`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #342: Add a task-role SQS consumer for future hosting
+
+PR [#342](https://github.com/emanuelGitCodes/fewia/pull/342) publishes
+`13b0ae290091406d7a68f7ad38b5ec23e1909d48`, with saved base `codex/backlog-resume-aws-sender`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #343: Add a task-role S3 report adapter for future hosting
+
+PR [#343](https://github.com/emanuelGitCodes/fewia/pull/343) publishes
+`5eceecebebc2885bf537aef7b499e49f552b0861`, with saved base `codex/backlog-resume-aws-consumer`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #344: Define private queues and artifact storage for hosting
+
+PR [#344](https://github.com/emanuelGitCodes/fewia/pull/344) publishes
+`1068f642d3b039ff1cc880797d1af03bb2e47d94`, with saved base `codex/backlog-resume-gate-cache`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #345: Gate and audit the hosting CDK project
+
+PR [#345](https://github.com/emanuelGitCodes/fewia/pull/345) publishes
+`bac57e53606147dd49c0ec2dceeaec1dfde0c407`, with saved base `codex/backlog-resume-hosting-resources`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #347: Add an explicit service-free database bootstrap command
+
+PR [#347](https://github.com/emanuelGitCodes/fewia/pull/347) publishes
+`a5f44e05a8ba1dbcb12182a53696b27a8f694f8b`, with saved base `main`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #350: Validate local and task-role job transport settings
+
+PR [#350](https://github.com/emanuelGitCodes/fewia/pull/350) publishes
+`535f29e6bbf34679c7fc0fe7e340d31b741155cf`, with saved base `codex/backlog-resume-aws-artifacts`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #351: Select job providers from validated transport settings
+
+PR [#351](https://github.com/emanuelGitCodes/fewia/pull/351) publishes
+`f4f9daa147aacdcce87c157dc5e59e42c95da609`, with saved base `codex/backlog-resume-transport-settings`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #352: Define isolated hosting subnets and restricted network rules
+
+PR [#352](https://github.com/emanuelGitCodes/fewia/pull/352) publishes
+`dde56e843fecb4b182c330bcaf136a09ed7d9631`, with saved base `codex/backlog-resume-hosting-gates`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #354: Define retained private PostgreSQL and separate credentials
+
+PR [#354](https://github.com/emanuelGitCodes/fewia/pull/354) publishes
+`108f0cc0a3946e8cc7c87ed061089d749cfc3a8d`, with saved base `codex/backlog-resume-hosting-network`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #355: Route the worker through validated local or AWS transport
+
+PR [#355](https://github.com/emanuelGitCodes/fewia/pull/355) publishes
+`81108b5cf96a04ae9b3ceb23964d6359179fdf8a`, with saved base `codex/backlog-resume-transport-factory`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #356: Define retained container repositories and task logs
+
+PR [#356](https://github.com/emanuelGitCodes/fewia/pull/356) publishes
+`f6f9b160e556691904980947f7cd118f287710aa`, with saved base `codex/backlog-resume-hosting-database`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #357: Route bounded job commands through validated transport
+
+PR [#357](https://github.com/emanuelGitCodes/fewia/pull/357) publishes
+`2d0d577f67121c94d58d60114ba1e0464397853b`, with saved base `codex/backlog-resume-worker-transport`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #358: Scope ECS image, log and secret execution permissions
+
+PR [#358](https://github.com/emanuelGitCodes/fewia/pull/358) publishes
+`98c21db1e8b7c1d31521607d0078213b1095ace8`, with saved base `codex/backlog-resume-hosting-assets`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #359: Build cloud database URLs with verified TLS
+
+PR [#359](https://github.com/emanuelGitCodes/fewia/pull/359) publishes
+`0c38e1c0665587fba93f230cdb1e527f206cc7aa`, with saved base `codex/backlog-resume-bootstrap-database`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #360: Validate nginx upstreams for Compose and ECS task networking
+
+PR [#360](https://github.com/emanuelGitCodes/fewia/pull/360) publishes
+`16714fb2910777e132af3c00d58eafa747a9af24`, with saved base `codex/backlog-resume-consent`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Measured resume-loop CLI snapshot
+
+The [usage artifact](artifacts/hosting-preparation-20261003/cli-usage.json)
+was captured at `2026-10-04T01:18:06.110352+00:00` UTC, October 3 in America/New_York.
+It records 136 supervisor CLI writer/review runs with `resume-` prefixes.
+Input totals 38,525,539 tokens; output totals 727,822; input plus output totals 39,253,361.
+Cached input totals 33,499,136; reasoning output totals 294,083. Both counts are subsets.
+Unknown-usage runs total zero. Native-agent token counts are unknown, not zero.
+CLI process duration totals 23,145,812 ms; overlapping durations do not measure total loop wall time.
+The [phase table](phases/hosting-preparation-20261003.md#measured-cli-loop-snapshot)
+records each item separately, including completed published source items and active partial items.
+Runtime roles `573dd0b` and identity `14dd9e41` remain coordinator-reported unpublished checkpoints pending review.
+Cloud database integration and task settings also remain active partial usage records.
+This snapshot supports no savings percentage or causal efficiency claim.
+It does not replace the earlier tier S pilot or repeat the benchmark, post-hoc, and course-pack history entries.
+The writer ran no tests, gates, network requests, or external actions.
+The coordinator still verifies artifact values, links, the preserved log prefix, gates, and independent review.
+
+## 2026-10-03 — Invitation-only deployment source runbook
+
+Added [docs/HOSTED_DEMO.md](../docs/HOSTED_DEMO.md) and three synthetic
+configuration examples on `codex/backlog-resume-hosting-runbook`.
+The assigned source base is `c7c5b170ac4fd9f0456b3f5530d92a71b888b44c`, published hosting-record PR #366.
+The runbook requires reviewed source integration before deployment.
+It separates foundation, image publication, zero-service bootstrap, activation,
+DNS, administrator-created access, and live acceptance.
+Each AWS mutation needs a separate owner confirmation.
+Invitation delivery needs an explicit instruction to send it.
+The runbook preserves shared demo context, parked providers, and retained legacy data.
+It separates metadata preflight from live and deployed evidence.
+Rollback keeps data and retained resources. Zero services do not stop all charges.
+
+The saved `hosting-pricing-sources.json` was retrieved at `2026-10-04T01:57:47.663755+00:00` UTC.
+Its fixed list-price subtotal is USD 110.245392 for 730 hours, with stated exclusions.
+The runbook preserves those inputs and official pricing links. This is not a full quote or bill.
+The examples use synthetic account, hostname, certificate, prefix, and image digests.
+They are not usable deployment configurations.
+
+The writer read the assigned source snapshots and final preflight CLI source.
+The writer ran no tests, packages, git commands, network calls, or command templates.
+Final-parser validation, command and link checks, gates, and independent review remain pending.
+The coordinator still verifies Dockerfile paths, build contexts, and bootstrap freshness rules.
+Owner account, profile, hostname, certificate, DNS control, and action confirmations remain prerequisites.
+This entry records source work only. It does not establish merge, deployment, users, or invitations.
+
+## 2026-10-04 — Recovered approved role-catalog log fragment
+
+The following two 2026-10-03 headings restore the approved 815-byte role-catalog log fragment.
+The fragment was absent from this log. Existing entries stay unchanged.
+
 ## 2026-10-03 — Agent catalog scope correction
 
 Decision 0017 and `.codex/project-context.md` set the supported catalog at 40 meals. During benchmark documentation work, stale role wording led the docs writer to invent a separate ten-meal release boundary. The writable Claude and OpenCode adapters now point to the accepted catalog. Canonical `.codex/agents/` corrections remain outstanding because that directory is read-only in this writer workspace.
@@ -3004,3 +3450,209 @@ The coordinator applied the catalog wording correction to five protected
 canonical role files after the writer sandbox blocked those edits. The roles
 now follow the accepted catalog in `.codex/project-context.md` and decision
 0017. This changes no model, tool permission, or ownership rule.
+
+## 2026-10-04 — Source publication #362: Scope ECS runtime roles to queues and Bedrock
+
+PR [#362](https://github.com/emanuelGitCodes/fewia/pull/362) publishes
+`573dd0b4a21b38b73d19e4b70482686854299b46`, parent #358.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged. It does not establish deployed permissions.
+
+## 2026-10-04 — Source publication #363: Wire verified RDS TLS into application settings
+
+PR [#363](https://github.com/emanuelGitCodes/fewia/pull/363) publishes
+`ca7c4615c83cdd78c08389af65c372e88d58c0ef`, parent #359.
+The 2026-10-04 CI snapshot records 7 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #364: Define invitation-only Cognito access
+
+PR [#364](https://github.com/emanuelGitCodes/fewia/pull/364) publishes
+`14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a`, parent #362.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged. It creates no users or invitations.
+
+## 2026-10-04 — Source publication #365: Share pinned ECS images and secret mappings
+
+PR [#365](https://github.com/emanuelGitCodes/fewia/pull/365) publishes
+`493dd89d4f6170f618616c751004c4bc5c96606e`, parent #364.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #366: Record invitation-only hosting scope and source progress
+
+PR [#366](https://github.com/emanuelGitCodes/fewia/pull/366) publishes
+`c7c5b170ac4fd9f0456b3f5530d92a71b888b44c`, parent #361.
+The 2026-10-04 CI snapshot records 7 `COMPLETED_SUCCESS` checks.
+Gate category: `NO_CHECKS_SELECTED`. Independent review: `APPROVE`.
+This is a documentation record. It remains unmerged.
+
+## 2026-10-04 — Source publication #367: Define the API and nginx Fargate task
+
+PR [#367](https://github.com/emanuelGitCodes/fewia/pull/367) publishes
+`a457cbd72bff1705c8f10132eec350b35e9fb9de`, parent #365.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #368: Define agent and one-shot bootstrap Fargate tasks
+
+PR [#368](https://github.com/emanuelGitCodes/fewia/pull/368) publishes
+`2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7`, parent #367.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #369: Authenticate all hosted routes through the HTTPS edge
+
+PR [#369](https://github.com/emanuelGitCodes/fewia/pull/369) publishes
+`51778e5b56f4ed25ea589fe8ff960dbe2924a879`, parent #368.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #370: Define and test the runtime database privilege boundary
+
+PR [#370](https://github.com/emanuelGitCodes/fewia/pull/370) publishes
+`b287376ebc77a225647ffab63af247516a415f8f`, parent #363.
+The 2026-10-04 CI snapshot records 7 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+A portable CI database-name guard replaced a fixture that failed 113 setups against exact name `fewia_eval`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #371: Keep private ECS services disabled until bootstrap
+
+PR [#371](https://github.com/emanuelGitCodes/fewia/pull/371) publishes
+`426b618814e74e136a40af29bccac8b9e1df4d0a`, parent #369.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #372: Validate explicit staged hosting configuration
+
+PR [#372](https://github.com/emanuelGitCodes/fewia/pull/372) publishes
+`58e9192fcf4fa0f92852dabe240409a9c0867922`, parent #371.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #373: Compose the staged invitation-only hosted demo
+
+PR [#373](https://github.com/emanuelGitCodes/fewia/pull/373) publishes
+`edac61cfa83aca15e345ef104125e9535e3aa9fa`, parent #372.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #374: Synthesize hosting from bounded explicit configuration
+
+PR [#374](https://github.com/emanuelGitCodes/fewia/pull/374) publishes
+`0b9098693f87d8a7b00f8996510908db6f9e827d`, parent #373.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+Direct Python synthesis missed Availability Zone context, and a quoted CDK app command failed.
+The published path uses an executable CDK app, an `exec` prefix, and assembly guards.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #375: Provision the constrained application database role
+
+PR [#375](https://github.com/emanuelGitCodes/fewia/pull/375) publishes
+`f9be9716a0da9379333e985bd6d3dff2a189338d`, parent #370.
+The 2026-10-04 CI snapshot records 7 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+An initial Sol provisioning run stalled. A same-Sol retry launched before routing correction.
+That recorded deviation does not change routing policy.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #376: Prepare the hosted database with an explicit bootstrap command
+
+PR [#376](https://github.com/emanuelGitCodes/fewia/pull/376) publishes
+`787f467161e9c8bac69f4b43a6e9626a9d33f4bc`, parent #375.
+The 2026-10-04 CI snapshot records 7 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #377: Check deployment account, certificate, and image metadata
+
+PR [#377](https://github.com/emanuelGitCodes/fewia/pull/377) publishes
+`623ab8347aaabf55964bfd3c44fbe3065839dbdf`, parent #374.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #378: Require exact successful bootstrap task metadata before activation
+
+PR [#378](https://github.com/emanuelGitCodes/fewia/pull/378) publishes
+`59a9713028d46b55376968999e0f2be59efe5444`, parent #377.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+Bootstrap command, environment, role, and resource override bypasses were repaired, with 167 mutation failures.
+Unsupported submicrosecond timestamp truncation was rejected.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #379: Run phase-specific deployment metadata checks
+
+PR [#379](https://github.com/emanuelGitCodes/fewia/pull/379) publishes
+`29b70df05716b19baf4736589ddb4cfc787bdc55`, parent #378.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+This source remains unmerged.
+
+## 2026-10-04 — Source publication #380: Add a read-only hosted deployment preflight CLI
+
+PR [#380](https://github.com/emanuelGitCodes/fewia/pull/380) publishes
+`7b2e370d081e9c79e80fd41863708a3735fddfe5`, parent #379.
+The 2026-10-04 CI snapshot records 8 `COMPLETED_SUCCESS` checks.
+Local gates: `PASS`. Independent review: `APPROVE`.
+CLI ECR repository length bounds were repaired, with 2 mutation failures.
+This source remains unmerged. Offline probes use synthetic cached zones. Live AWS state is unknown.
+
+## 2026-10-04 — Source publication #381: Document invitation-only deployment and validation steps
+
+PR [#381](https://github.com/emanuelGitCodes/fewia/pull/381) publishes
+`d43d606df795a6a6e748fdc9263554349867ae9c`, parent #366.
+The 2026-10-04 CI snapshot records 7 `COMPLETED_SUCCESS` checks.
+Gate category: `NO_CHECKS_SELECTED`. Independent review: `APPROVE`.
+This is a documentation record for [docs/HOSTED_DEMO.md](../docs/HOSTED_DEMO.md).
+It remains unmerged. It does not establish deployment, users, or invitations.
+
+## 2026-10-04 — Graphify archive for unmerged PR source 321-381
+
+Graphify recorded an unmerged filesystem composition of 61 components, pull requests 321-381.
+The composition is not `main` and is not one Git commit.
+Source tree SHA-256 is `600cbe03008f4f7008dd640752378e4489de5ade64c3c6eef566adb90853eb82`.
+Manifest SHA-256 is `03b20a93a4c998705416504be0a2c2d929c9bda027778f495f692ed1bbd08a22`.
+Archive SHA-256 is `73581554e657c41fd1dae09badc383e1b0590e48f613275fcd62f75ebeedf08c` (795036 bytes).
+Corpus: 717 files; this update changed 13 code files and 2 documents.
+Graph: 8901 nodes, 26414 edges, 28 hyperedges, 433 communities.
+Quarantined false AST edges: 27. Retained verified recursive edges: 12.
+Native semantic token counts are unknown.
+This record does not claim that every graph relationship is independently verified.
+See the [final record](phases/backlog-final-20261003.md).
+
+## 2026-10-04 — Backlog final record
+
+Recorded published backlog source for created pull requests #322-#381.
+Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`. All 60 created PRs remain unmerged.
+Reference PR #321 is outside the created count.
+The 2026-10-04 CI snapshot shows `COMPLETED_SUCCESS` for all 60.
+Local gates: 50 `PASS` and 10 `NO_CHECKS_SELECTED` documentation records.
+Original benchmark task success stays 17/33 (51.5%), FAIL at 90%.
+Post-hoc rescore stays 23/33 (69.7%), FAIL at 90%. Claims stay 98/100 (98%), PASS at 95%.
+No-tool success stays 0/33. The corrected gold did not rerun the model.
+Purchase attempts remain unmeasured.
+D3 supporting pack is published. Final paper and video remain author work.
+D4 stays paused. Live Instacart stays parked. A4 retains legacy data.
+D5 source, preflight, and runbook publication is complete in this record.
+Live deployment still awaits owner inputs and confirmations.
+Invitees share one application user. Public signup stays disabled.
+Resume CLI usage at `2026-10-04T04:47:06.525010+00:00` UTC: 209 runs, 64 items,
+57,504,770 known input, 1,109,989 known output, 49,929,728 cached subset,
+427,209 reasoning subset, 36,972,615 ms overlapping summed time, 2 unknown-metric runs.
+Native and coordinator tokens are unknown. This snapshot supports no cost or efficiency claim.
+The writer edited owned Markdown only and ran no shell, tests, git, or network commands.
+Coordinator checks and independent review remain open.

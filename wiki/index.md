@@ -23,6 +23,8 @@ chronological record lives in [log.md](log.md).
 - [0015 — Writer routing by difficulty](decisions/0015-writer-routing-by-difficulty.md)
 - [0016 — Spoonacular prices at read time, user-entered budget](decisions/0016-spoonacular-read-time-overlay.md)
 - [0017 — Forty-meal sample catalog](decisions/0017-forty-meal-catalog.md)
+- [0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md)
+- [0019 — Invitation-only hosted demo](decisions/0019-invitation-only-hosting.md)
 
 ## Phases
 
@@ -37,8 +39,44 @@ chronological record lives in [log.md](log.md).
 - [Evaluation recovery checkpoint — published source and current recovery](phases/evaluation-recovery.md)
 - [Backlog build checkpoint — branches, checks, and remaining work](phases/backlog-build-20261003.md)
 - [Agent catalog scope correction — 40-meal wording in role briefs](phases/agent-catalog-scope-20261003.md)
+- [Backlog resume — published evidence and remaining work](phases/backlog-resume-20261003.md)
+- [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
+- [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)
+- [Hosting preparation — accepted private access, published source, bounded CI and CLI usage](phases/hosting-preparation-20261003.md)
+- [Backlog final record — published PRs 322-381, integration evidence, and Graphify archive](phases/backlog-final-20261003.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
+
+The current product supports 40 meals under [decision 0017](decisions/0017-forty-meal-catalog.md)
+and the [project scope](../.codex/project-context.md).
+It supports 1-3 meals per request and 1-8 servings per meal.
+The benchmark does not provide exhaustive catalog coverage.
+Its original results remain 17/33 task success and 98/100 bounded supported claims.
+The separate [post-hoc correction](phases/posthoc-gold-20261003.md)
+changes six F04/F05 tools assessments using the same saved observations.
+Task success becomes 23/33 (69.7%), with ten failed and zero unassessed.
+The 90% target still FAILS; claims and 0/33 no-tool success stay unchanged.
+The correction matches the existing final-turn scorer contract.
+It changes no scoring code or allowed outcomes and makes no provider or database calls.
+It is not a fresh batch, model retest, or independent benchmark.
+D3's [author-owned course supporting pack](../docs/course/README.md) is prepared.
+It links prompts, figures, failure examples, and provenance for the author's own writing.
+The final paper has a maximum of eight pages in two columns.
+The owner still writes the final paper and records/submits the video.
+Coordinator verification and independent review remain open.
+
+Source publications now include original benchmark #349, post-hoc record #353,
+course pack #361, and later hosting source through runbook #381.
+The [hosting snapshot](phases/hosting-preparation-20261003.md)
+keeps its 2026-10-03 heads, parents, and CI observations.
+The [final record](phases/backlog-final-20261003.md) lists all 60 created pull requests #322-#381 as unmerged on 2026-10-04.
+Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
+[Decision 0019](decisions/0019-invitation-only-hosting.md) accepts owner and invited-user access with no public signup.
+Invited users share the current server-selected demo context. They have no private application accounts.
+D5 source, preflight CLI, and runbook are published. Live deployment still awaits owner inputs and confirmations.
+No AWS resources, users, or invitations have been created by this run.
+The owner MUST confirm every mutating AWS step first. No merge authorization exists.
+D4 remains paused. Live Instacart stays parked.
 
 ## Development operations
 

@@ -1,0 +1,41 @@
+{
+  "runbook_checkout_sha": "324f37efb6b6a2534c7911a0f1c8dfbc6ea5467e",
+  "tested_document_sha256": "db27d06dd6259516b53c6cfee4b4ecf4b199c4849bde558fbdbcc5bc3fed80e3",
+  "code_sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+  "cdk_cli_version": "2.1130.0",
+  "scope": "Local CDK CLI synthesis with lookups disabled, synthetic cached zones and no credentials; live AWS lookup unverified",
+  "results": [
+    {
+      "phase": "foundation",
+      "synth_exit": 0,
+      "missing_context": [],
+      "assembly_guard_exit": 0,
+      "literal_path_injection_marker_created": false
+    },
+    {
+      "phase": "bootstrap",
+      "synth_exit": 0,
+      "missing_context": [],
+      "assembly_guard_exit": 0,
+      "literal_path_injection_marker_created": false
+    },
+    {
+      "phase": "active",
+      "synth_exit": 0,
+      "missing_context": [],
+      "assembly_guard_exit": 0,
+      "literal_path_injection_marker_created": false
+    },
+    {
+      "case": "unresolved_context",
+      "guard_exit": 1,
+      "error": "Assembly has unresolved context"
+    },
+    {
+      "case": "dummy_zone",
+      "guard_exit": 1,
+      "error": "Assembly has dummy Availability Zone placeholders"
+    }
+  ],
+  "verified_matching_commit": "451ff28c955c36b5eaf626c37f8e7755d018d332"
+}
