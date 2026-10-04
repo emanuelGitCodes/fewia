@@ -24,6 +24,7 @@ chronological record lives in [log.md](log.md).
 - [0016 — Spoonacular prices at read time, user-entered budget](decisions/0016-spoonacular-read-time-overlay.md)
 - [0017 — Forty-meal sample catalog](decisions/0017-forty-meal-catalog.md)
 - [0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md)
+- [0019 — Invitation-only hosted demo](decisions/0019-invitation-only-hosting.md)
 
 ## Phases
 
@@ -40,6 +41,7 @@ chronological record lives in [log.md](log.md).
 - [Backlog resume — published evidence and remaining work](phases/backlog-resume-20261003.md)
 - [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
 - [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)
+- [Hosting preparation — accepted private access, published source, bounded CI and CLI usage](phases/hosting-preparation-20261003.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
@@ -60,6 +62,17 @@ It links prompts, figures, failure examples, and provenance for the author's own
 The final paper has a maximum of eight pages in two columns.
 The owner still writes the final paper and records/submits the video.
 Coordinator verification and independent review remain open.
+
+Source publications now include original benchmark #349, post-hoc record #353,
+and course pack #361. The [hosting snapshot](phases/hosting-preparation-20261003.md)
+records their exact saved heads, parents, and CI observations.
+[Decision 0019](decisions/0019-invitation-only-hosting.md) accepts owner and invited-user access with no public signup.
+Invited users share the current server-selected demo context, not private application accounts.
+D5 source preparation continues. Runtime roles and identity remain unpublished checkpoints.
+ECS composition, application-role bootstrap, runbook/preflight, and the live hosted demo remain in progress.
+No AWS resources, users, or invitations have been created by this run.
+The owner MUST confirm every mutating AWS step first. No merge authorization exists.
+D4 remains paused. Live Instacart stays parked.
 
 ## Development operations
 

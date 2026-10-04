@@ -12,6 +12,11 @@ was imported for record continuity. This documentation PR depends on #331
 and [#341](https://github.com/emanuelGitCodes/fewia/pull/341).
 This record does not claim either dependency is merged.
 
+The later [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md)
+records source publications and CI at `2026-10-04T01:18:06.107436+00:00` UTC
+(October 3 in America/New_York). Those observations are bounded to the saved heads.
+They do not replace the historical built-feature snapshot.
+
 Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 `docs/EVALUATION.md`, `docs/GROCERY_VERIFICATION_PLAN.md`, the pages under
 `wiki/phases/`, the decisions under `wiki/decisions/`, the ledgers under
@@ -75,7 +80,7 @@ make that check pass.
 | A1 | Refresh the two stale ledger State columns so they match their event logs. | merged, #315 | 1 | `.claude/loop/tech-debt-2.md`, `.claude/loop/delegation-efficiency.md` | Every row's State agrees with the last event for that item. Prose only. |
 | A2 | Close or record the Phase 1 to 3 open items: alembic in the lint path, Node 20 actions, mypy on tests, alembic in the backend image. | merged, #317 | 1 | `wiki/phases/phase-1.md`, `phase-3.md`, `.github/workflows/*.yml` if a fix is small | Each item is either fixed in CI or recorded as closed with a reason. |
 | A3 | Add `pip-audit --no-deps` and extend Ruff to the `I` and `E501` rule sets, per the debt-guardrails follow-ups. | already present before this backlog | 1 | `.github/workflows/tooling.yml`, `backend/pyproject.toml` | Tooling CI passes with the new rules. No file-level suppressions. |
-| A4 | Record the retention decision for stored Spoonacular totals and the retired health tables. Write decision 0018. No data deletion. | published, unmerged: [#325](https://github.com/emanuelGitCodes/fewia/pull/325), stacked on #321 | 1 | `wiki/decisions/0018-*.md`, `wiki/index.md`, `wiki/log.md` | Decision 0018 retains existing records only and states the future deletion review requirements. |
+| A4 | Record the retention decision for stored Spoonacular totals and the retired health tables. Write decision 0018. No data deletion. | Published in [#325](https://github.com/emanuelGitCodes/fewia/pull/325) at `36843e7e2d01590c29ad3655691c6bfbc161ae58`; base `claude/backlog-status-20261003`; 7 CI successes in the saved [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md). Retention accepted; no deletion or merge by this run | 1 | `wiki/decisions/0018-*.md`, `wiki/index.md`, `wiki/log.md` | Decision 0018 retains existing records only and states the future deletion review requirements. |
 | A5 | Quantity-scaled nutrition totals: scale USDA per-100g facts by the planned ingredient quantity and servings. | already present before this backlog | 2 | `backend/app/services/meal_nutrition.py`, its tests | A 4-serving plan reports double the 2-serving totals. Labels say the totals are estimates. |
 | A6 | Reset the supervisor DB-test skip counter per session and release the lease on a pre-spawn crash. | already present before this backlog | 2 | `dev_supervisor/lease.py`, `dev_supervisor/__main__.py`, `tests/supervisor/` | A crash before spawn leaves no lease file. Tests cover both paths. |
 | A7 | Add the missing unit tests for `frontend/src/usePolledJob.ts` and `backend/app/domain/spoonacular_catalog.py`. | merged, #314 | 1 | the two test files | Each file has a direct test. Removing the polling stop condition fails a test. |
@@ -104,11 +109,11 @@ make that check pass.
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | Original evidence complete at `4b877d47`: task 17/33 (51.5%), FAIL; separate [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md): 23/33 (69.7%), still FAIL; claims unchanged at 98/100 (98%), PASS; release unverified | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
-| D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | This [benchmark record](../wiki/phases/benchmark-20261003.md); coordinator verification and publication remain | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
-| D3 | Course deliverables: maximum eight-page paper in two columns, code repository, demo video, script, failure examples, and limitations. | [Supporting pack prepared](course/README.md); final authored paper and recorded/submitted video remain owner work. Coordinator verification and independent review remain open. | 4 | `docs/course/`, assigned backlog and wiki records | Each outline section cites a repository artifact or source. The pack preserves original and post-hoc results and supports the author's own writing. |
+| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | Original evidence published in [#349](https://github.com/emanuelGitCodes/fewia/pull/349), observations at `4b877d47`: task 17/33 (51.5%), FAIL. Separate [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md) published in [#353](https://github.com/emanuelGitCodes/fewia/pull/353): 23/33 (69.7%), still FAIL; claims unchanged at 98/100 (98%), PASS; release unverified | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
+| D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | Benchmark record published in [#349](https://github.com/emanuelGitCodes/fewia/pull/349) at `dde72370811523c5d8d118ced60f3a85dfc3d6e7`; post-hoc record in [#353](https://github.com/emanuelGitCodes/fewia/pull/353) at `07bec2dc32b19b21197a8058279781815bbcb4cd`. Each has 7 CI successes at the saved query; no merge or deployment by this run | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
+| D3 | Course deliverables: maximum eight-page paper in two columns, code repository, demo video, script, failure examples, and limitations. | [Supporting pack](course/README.md) published in [#361](https://github.com/emanuelGitCodes/fewia/pull/361) at `484caf434084f7d9c5995c0bac1165ee7034e85c`; 7 CI successes at the saved query. Final authored paper and recorded/submitted video remain author work; publication does not establish completed deliverables or independent review | 4 | `docs/course/`, assigned backlog and wiki records | Each outline section cites a repository artifact or source. The pack preserves original and post-hoc results and supports the author's own writing. |
 | D4 | Plaid Sandbox live evidence: run `/transactions/sync` against Sandbox, serialize item syncs, apply changes and cursor atomically, and record posted and pending grocery spend. Last feature by decision. | paused | 5 | `backend/app/services/plaid_sync.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
-| D5 | Restricted hosting for the owner and invited users: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. | Owner authorization covers only restricted owner/invited-user access scope and source design. It does not authorize deployment; source adapters in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340) and [#342](https://github.com/emanuelGitCodes/fewia/pull/342); no deployment evidence | 5 | `infra/` | The owner MUST confirm every mutating AWS step first. The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. |
+| D5 | Restricted hosting for the owner and invited users: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. | [Decision 0019](../wiki/decisions/0019-invitation-only-hosting.md) accepts owner/invited-user access with no public signup and shared demo context. Source published: AWS adapters #340/#342/#343; settings #350; factory #351; worker #355; bounded commands #357; resources #344; gates #345; network #352; RDS #354; assets #356; execution roles #358; bootstrap #347; cloud URL/TLS #359; nginx #360. Exact heads, parents, and bounded CI in the [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md). Runtime roles `573dd0b` and identity `14dd9e41` pending publication/review. ECS composition, application-role bootstrap, runbook/preflight, and live demo remain in progress; no deployment evidence | 5 | `infra/` | The owner MUST confirm every mutating AWS step first. The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. |
 
 D1 retains the original 17/33 task result and 98/100 bounded-claim result.
 The separate [post-hoc record](../wiki/phases/posthoc-gold-20261003.md)
@@ -118,6 +123,19 @@ failed and zero unassessed. The 90% target still FAILS. Claims and the 0/33
 no-tool result stay unchanged. No scoring code or allowed outcomes change.
 This is not a fresh batch, model retest, or independent benchmark.
 A failed assessment alone does not establish a model or application defect.
+
+D5 accepts shared demo access under decision 0019, not private application accounts.
+The proposed design uses an authenticated HTTPS edge with administrator-created Cognito users,
+private ECS tasks, retained isolated RDS with verified TLS, separate secrets, and narrow roles.
+Manual budget defaults are USD 100 monthly and a USD 40 plan cap.
+The owner-entered monthly limit remains the whole budget.
+The owner MUST confirm every mutating AWS step first, including users and invitations.
+No AWS resources, users, or invitations have been created by this run.
+Hostname, ACM certificate, and deployment credentials await owner input.
+No merge authorization exists. D4 remains paused; live Instacart remains parked.
+Every grocery estimate MUST show this exact notice:
+
+> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
 
 ## Part 3. Items that need no writer
 
@@ -133,7 +151,7 @@ A failed assessment alone does not establish a model or application defect.
 2. Preserve the published A4, B3, B4, B6, and C4 records.
 3. Review the published B5, C1, C2, and C3 sources in dependency order.
    Merges need separate owner authorization.
-4. Verify and publish D2 against the completed D1 artifacts.
-5. Verify the [prepared D3 supporting pack](course/README.md). The owner writes the final paper within eight pages and records/submits the video.
+4. Verify the published D2 records against the D1 artifacts and saved source heads.
+5. Verify the [published D3 supporting pack](course/README.md). The author writes the final paper within eight pages and records/submits the video.
 6. Keep D4 paused. Continue D5 source work within its assigned scope.
    Source publication does not establish deployed evidence.
