@@ -2,7 +2,7 @@ import json
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, TypeVar, cast
+from typing import Any, Literal, cast
 from unittest.mock import patch
 
 import pytest
@@ -27,7 +27,9 @@ from worker_tasks import HostingWorkerTasks
 _ACCOUNT = "111122223333"
 _BACKEND = "sha256:" + "a" * 64
 _FRONTEND = "sha256:" + "b" * 64
-_CERTIFICATE = f"arn:aws:acm:{REGION}:{_ACCOUNT}:certificate/12345678-1234-abcd-1234-123456789abc"
+_CERTIFICATE = (
+    f"arn:aws:acm:{REGION}:{_ACCOUNT}:certificate/12345678-1234-abcd-1234-123456789abc"
+)
 _RUNTIME = RuntimeConfig(
     hostname="demo.example.test",
     domain_prefix="fewia-demo",
@@ -37,7 +39,6 @@ _RUNTIME = RuntimeConfig(
 )
 _Phase = Literal["foundation", "bootstrap", "active"]
 _Json = dict[str, Any]
-_T = TypeVar("_T")
 _FOUNDATION_OUTPUTS = {
     "DeploymentPhase",
     "BackendRepositoryName",
@@ -430,7 +431,7 @@ def _statements_for_role(template: Template, role: IConstruct) -> list[_Json]:
     ]
 
 
-def _list(value: _T | list[_T]) -> list[_T]:
+def _list[_T](value: _T | list[_T]) -> list[_T]:
     return value if isinstance(value, list) else [value]
 
 
