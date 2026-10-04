@@ -431,7 +431,7 @@ def _statements_for_role(template: Template, role: IConstruct) -> list[_Json]:
     ]
 
 
-def _list[_T](value: _T | list[_T]) -> list[_T]:
+def _list[T](value: T | list[T]) -> list[T]:
     return value if isinstance(value, list) else [value]
 
 
