@@ -6,7 +6,7 @@ FEWIA runs a local React and TypeScript chat with FastAPI, PostgreSQL, a worker,
 
 The product supports 40 meals under [decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) and the [current project scope](../.codex/project-context.md). A request supports one to three (1-3) meals. Each meal supports one to eight (1-8) servings. This benchmark does not provide exhaustive catalog coverage.
 
-The current evidence is [the benchmark record](../wiki/phases/benchmark-20261003.md). The [completion checkpoint](../wiki/phases/evaluation-completion.md) also preserves earlier component history. Older health and activity planning sources remain historical. [Decision 0018](../wiki/decisions/0018-retain-legacy-data.md) retains existing legacy data without reviving retired routes or treating stored totals as current prices.
+The current evidence includes [the original benchmark](../wiki/phases/benchmark-20261003.md) and a separate [post-hoc gold correction](../wiki/phases/posthoc-gold-20261003.md). The [completion checkpoint](../wiki/phases/evaluation-completion.md) also preserves earlier component history. Older health and activity planning sources remain historical. [Decision 0018](../wiki/decisions/0018-retain-legacy-data.md) retains existing legacy data without reviving retired routes or treating stored totals as current prices.
 
 Every grocery estimate MUST show this notice:
 
@@ -57,7 +57,7 @@ The [benchmark phase](../wiki/phases/benchmark-20261003.md) records the exact ma
 
 Ten supported refusals do not enter the factual denominator. The no-tool executions include 31 failed, one partial, and one completed. Observations record `invalid_output` for 32 slots. Fixture success does not establish live quality.
 
-These are the original quality results. Coordinator triage found a gold-contract mismatch in F04/F05. The scorer checks final-turn tool selection and arguments, but those cases included setup-turn expectations. This issue may understate task success. A failed task assessment alone does not establish a model or application defect. The [gold correction record](../wiki/phases/benchmark-20261003.md#known-gold-contract-mismatch) names the separate correction branch and SHA. A separately labeled post-hoc rescore is pending. No corrected counts or additional live batch are reported here.
+These are the original quality results. The separate [post-hoc record](../wiki/phases/posthoc-gold-20261003.md) reports 23/33 task passes (69.7%), ten failed, and zero unassessed. The 90% target still FAILS. The correction removes F04/F05 setup-turn expectations to match the existing final-turn scorer contract. It changes six tools assessments only. It changes no scoring code or allowed outcomes. The original tables and archive remain unchanged. This rescore uses the exact saved observations after the original outputs were available. It makes no provider or database calls. It is not a fresh batch, a model retest, or an independent benchmark. Claims remain 98/(98 + two unknown), or 98%; no-tool task success remains 0/33. A failed task assessment alone does not establish a model or application defect.
 
 Six accepted live final plans have zero tested violations. The synthetic-sentinel check captures 48 turns across 33 tool-enabled slots with explicit false leak flags and no incomplete capture. Purchase attempts are UNMEASURED. Separate A04 refusal/action checks do not prove zero purchase attempts.
 

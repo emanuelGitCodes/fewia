@@ -39,6 +39,7 @@ chronological record lives in [log.md](log.md).
 - [Backlog build checkpoint — branches, checks, and remaining work](phases/backlog-build-20261003.md)
 - [Backlog resume — published evidence and remaining work](phases/backlog-resume-20261003.md)
 - [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
+- [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
@@ -47,9 +48,14 @@ and the [project scope](../.codex/project-context.md).
 It supports 1-3 meals per request and 1-8 servings per meal.
 The benchmark does not provide exhaustive catalog coverage.
 Its original results remain 17/33 task success and 98/100 bounded supported claims.
-The [F04/F05 gold mismatch](phases/benchmark-20261003.md#known-gold-contract-mismatch)
-may understate task success. A separately labeled post-hoc rescore is pending.
-This record supplies no corrected counts or additional live batch.
+The separate [post-hoc correction](phases/posthoc-gold-20261003.md)
+changes six F04/F05 tools assessments using the same saved observations.
+Task success becomes 23/33 (69.7%), with ten failed and zero unassessed.
+The 90% target still FAILS; claims and 0/33 no-tool success stay unchanged.
+The correction matches the existing final-turn scorer contract.
+It changes no scoring code or allowed outcomes and makes no provider or database calls.
+It is not a fresh batch, model retest, or independent benchmark.
+D3's author-owned outline and evidence pack remain pending.
 
 ## Development operations
 
