@@ -7,6 +7,7 @@ import pytest
 
 from dev_supervisor.gates import (
     GATE_KILL_GRACE,
+    GateRow,
     _run_gate,
     areas_for,
     changed_paths,
@@ -37,9 +38,19 @@ def _repo(tmp_path: Path) -> Path:
     _git(repo, "config", "user.name", "Dev")
     _git(repo, "config", "commit.gpgsign", "false")
     (repo / "keep.txt").write_text("a\n")
-    _git(repo, "add", "keep.txt")
+    (repo / ".gitignore").write_text(".fewia-supervisor*/\nignored/\n")
+    _git(repo, "add", "keep.txt", ".gitignore")
     _git(repo, "commit", "-m", "init")
     return repo
+
+
+def _commit_backend(repo: Path) -> str:
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / "backend").mkdir()
+    (repo / "backend" / "x.py").write_text("a\n")
+    _git(repo, "add", "backend/x.py")
+    _git(repo, "commit", "-m", "Add backend source")
+    return base
 
 
 def _route(code: int = 0, output: str = "ok\n") -> object:
@@ -298,11 +309,15 @@ def test_frontend_fail_does_not_stop_later_gates(
     ]
 
 
-def test_is_clean_ignores_untracked(tmp_path: Path) -> None:
+def test_is_clean_rejects_untracked(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     assert is_clean(repo) is True
     (repo / "untracked.txt").write_text("x\n")
-    assert is_clean(repo) is True
+    assert is_clean(repo) is False
+
+
+def test_is_clean_rejects_tracked_changes(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
     (repo / "keep.txt").write_text("changed\n")
     assert is_clean(repo) is False
 
@@ -324,13 +339,13 @@ def test_fail_run_writes_record(
 
 def test_record_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo = _repo(tmp_path)
-    (repo / "backend").mkdir()
-    (repo / "backend" / "x.py").write_text("a\n")
+    base = _commit_backend(repo)
     monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
-    assert main(["--cwd", str(repo), "--base", "HEAD"]) == 0
+    assert main(["--cwd", str(repo), "--base", base]) == 0
     sha = _git(repo, "rev-parse", "HEAD").strip()
     data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
     assert data["sha"] == sha
+    assert data["base"] == base
     assert data["clean"] is True
     assert data["lines"] == 1
     assert isinstance(data["finished"], str)
@@ -342,35 +357,34 @@ def test_record_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         assert row["area"] == "backend"
 
 
-def test_reuse_hit_makes_no_subprocess_call(
+def test_reuse_hit_runs_no_gates_with_ignored_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    sha = "abc123"
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
     write_record(
-        tmp_path,
+        repo,
         sha,
         True,
         4,
         [("backend", "ruff-check", "PASS", "ok", ())],
+        base=sha,
     )
-    cached = load_reuse(tmp_path, sha, True)
+    cached = load_reuse(repo, sha, True, base=sha)
     assert cached is not None
-
-    def always_sha(*args: object, **kwargs: object) -> list[str]:
-        return [sha]
-
-    def always_clean(_cwd: Path) -> bool:
-        return True
+    (repo / ".fewia-supervisor-session").mkdir()
+    (repo / ".fewia-supervisor-session" / "progress.md").write_text("running\n")
+    (repo / "ignored").mkdir()
+    (repo / "ignored" / "cache.py").write_text("cache\n")
+    assert is_clean(repo) is True
 
     def never_run(*args: object, **kwargs: object) -> None:
         raise AssertionError("_run_gate must not be called")
 
-    monkeypatch.setattr("dev_supervisor.gates._git", always_sha)
-    monkeypatch.setattr("dev_supervisor.gates.is_clean", always_clean)
     monkeypatch.setattr("dev_supervisor.gates._run_gate", never_run)
-    assert main(["--cwd", str(tmp_path), "--base", "main", "--reuse"]) == 0
+    assert main(["--cwd", str(repo), "--base", "main", "--reuse"]) == 0
     out = capsys.readouterr().out
     assert "REUSED PASS backend:ruff-check ok" in out
     assert "REUSED LINES 4/150" in out
@@ -390,6 +404,7 @@ def test_reuse_miss_different_sha(
         True,
         2,
         [("backend", "ruff-check", "PASS", "old", ())],
+        base=sha,
     )
     (repo / "keep.txt").write_text("a\nb\n")
     _git(repo, "add", "keep.txt")
@@ -414,6 +429,7 @@ def test_reuse_miss_when_record_not_clean(
         False,
         2,
         [("backend", "ruff-check", "PASS", "old", ())],
+        base=sha,
     )
     (repo / "backend").mkdir()
     (repo / "backend" / "x.py").write_text("a\n")
@@ -443,6 +459,21 @@ def test_reuse_miss_when_record_not_clean(
             }
         ),
         json.dumps({"sha": "x", "clean": True, "lines": 1, "gates": "nope"}),
+        json.dumps(
+            {
+                "sha": "x",
+                "clean": True,
+                "lines": 1,
+                "gates": [
+                    {
+                        "area": "backend",
+                        "gate": "pytest",
+                        "status": "UNKNOWN",
+                        "last_line": "ok",
+                    }
+                ],
+            }
+        ),
     ],
 )
 def test_reuse_miss_malformed_record(
@@ -452,14 +483,20 @@ def test_reuse_miss_malformed_record(
     payload: str,
 ) -> None:
     repo = _repo(tmp_path)
+    base = _commit_backend(repo)
     sha = _git(repo, "rev-parse", "HEAD").strip()
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        pass
+    else:
+        data.update(sha=sha, base=base)
+        payload = json.dumps(data)
     record_dir = repo / ".fewia-supervisor-gates"
     record_dir.mkdir()
     (record_dir / f"{sha}.json").write_text(payload)
-    (repo / "backend").mkdir()
-    (repo / "backend" / "x.py").write_text("a\n")
     monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
-    assert main(["--cwd", str(repo), "--base", "HEAD", "--reuse"]) == 0
+    assert main(["--cwd", str(repo), "--base", base, "--reuse"]) == 0
     assert "REUSED" not in capsys.readouterr().out
 
 
@@ -476,6 +513,7 @@ def test_reuse_miss_when_dirty(
         True,
         2,
         [("backend", "ruff-check", "PASS", "old", ())],
+        base=sha,
     )
     (repo / "keep.txt").write_text("dirty\n")
     (repo / "backend").mkdir()
@@ -485,12 +523,179 @@ def test_reuse_miss_when_dirty(
     assert "REUSED" not in capsys.readouterr().out
 
 
-def test_unknown_base_fails(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_untracked_source_forces_rerun(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     repo = _repo(tmp_path)
-    assert main(["--cwd", str(repo), "--base", "no-such-ref"]) == 1
+    base = _commit_backend(repo)
+    argv = ["--cwd", str(repo), "--base", base, "--reuse"]
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
+    assert main(argv) == 0
+    capsys.readouterr()
+    (repo / "backend" / "new.py").write_text("new\n")
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route(0, "rerun\n"))
+    assert main(argv) == 0
+    out = capsys.readouterr().out
+    assert "REUSED" not in out
+    assert "PASS backend:pytest rerun" in out
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["clean"] is False
+    assert load_reuse(repo, sha, True, base=base) is None
+
+
+def test_same_head_changed_base_invalidates_reuse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    _git(repo, "tag", "comparison", base)
+    argv = ["--cwd", str(repo), "--base", "comparison", "--reuse"]
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
+    assert main(argv) == 0
+    assert "LINES 1/150" in capsys.readouterr().out
+    _git(repo, "tag", "-f", "comparison", sha)
+    assert main(argv) == 0
+    assert capsys.readouterr().out == "RESULT PASS (no gates for these paths)\n"
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["base"] == sha
+    assert data["gates"] == []
+    assert _git(repo, "rev-parse", "HEAD").strip() == sha
+
+
+def test_base_alias_reuses_resolved_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    _git(repo, "tag", "comparison", base)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
+    assert main(["--cwd", str(repo), "--base", base]) == 0
+    capsys.readouterr()
+    assert main(["--cwd", str(repo), "--base", "comparison", "--reuse"]) == 0
+    assert "REUSED PASS backend:pytest" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("base", None), ("sha", None), ("base", "wrong"), ("sha", "wrong")],
+)
+def test_reuse_rejects_missing_or_mismatched_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    value: str | None,
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    write_record(
+        repo, sha, True, 1, [("backend", "pytest", "PASS", "cached", ())], base=base
+    )
+    path = repo / ".fewia-supervisor-gates" / f"{sha}.json"
+    data = json.loads(path.read_text())
+    if value is None:
+        del data[field]
+    else:
+        data[field] = value
+    path.write_text(json.dumps(data))
+    assert is_clean(repo) is True
+    assert load_reuse(repo, sha, True, base=base) is None
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route(0, "rerun\n"))
+    assert main(["--cwd", str(repo), "--base", base, "--reuse"]) == 0
+    out = capsys.readouterr().out
+    assert "REUSED" not in out
+    assert "PASS backend:pytest rerun" in out
+
+
+@pytest.mark.parametrize(
+    "change", ["tracked", "untracked", "head", "unrelated-head", "missing-head"]
+)
+def test_snapshot_change_during_gates_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    change: str,
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+
+    def change_snapshot(*args: object, **kwargs: object) -> list[GateRow]:
+        if change == "tracked":
+            (repo / "backend" / "x.py").write_text("changed\n")
+        elif change == "untracked":
+            (repo / "backend" / "new.py").write_text("new\n")
+        elif change == "head":
+            _git(repo, "commit", "--allow-empty", "-m", "Advance HEAD")
+        elif change == "unrelated-head":
+            _git(repo, "checkout", "--orphan", "unrelated")
+            _git(repo, "commit", "-m", "Create unrelated root")
+        else:
+            _git(repo, "update-ref", "-d", "refs/heads/main")
+        return [("backend", "pytest", "PASS", "ok", ())]
+
+    monkeypatch.setattr("dev_supervisor.gates.run_area_gates", change_snapshot)
+    assert main(["--cwd", str(repo), "--base", base]) == 1
+    out = capsys.readouterr().out
+    assert "FAIL snapshot:source source changed during gates" in out
+    assert out.endswith("RESULT FAIL\n")
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["sha"] == sha
+    assert data["base"] == base
+    assert data["clean"] is False
+    assert data["gates"][-1]["status"] == "FAIL"
+    assert load_reuse(repo, sha, True, base=base) is None
+    if change in {"head", "unrelated-head"}:
+        new_sha = _git(repo, "rev-parse", "HEAD").strip()
+        assert new_sha != sha
+        assert not (repo / ".fewia-supervisor-gates" / f"{new_sha}.json").exists()
+
+
+def test_dirty_snapshot_stays_nonreusable_when_gates_clean_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    source = repo / "backend" / "x.py"
+    source.write_text("dirty\n")
+
+    def clean_snapshot(*args: object, **kwargs: object) -> list[GateRow]:
+        source.write_text("a\n")
+        return [("backend", "pytest", "PASS", "ok", ())]
+
+    monkeypatch.setattr("dev_supervisor.gates.run_area_gates", clean_snapshot)
+    assert main(["--cwd", str(repo), "--base", base]) == 0
+    assert is_clean(repo) is True
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["clean"] is False
+    assert load_reuse(repo, sha, True, base=base) is None
+
+
+@pytest.mark.parametrize("reuse", [False, True])
+def test_unknown_base_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], reuse: bool
+) -> None:
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    write_record(repo, sha, True, 0, [], base=sha)
+    argv = ["--cwd", str(repo), "--base", "no-such-ref"]
+    if reuse:
+        argv.append("--reuse")
+    assert main(argv) == 1
     out = capsys.readouterr().out
     assert out.startswith("RESULT FAIL (git: ")
     assert "RESULT PASS" not in out
+    assert "REUSED" not in out
 
 
 def test_rename_reports_old_and_new_paths(
