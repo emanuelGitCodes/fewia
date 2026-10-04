@@ -42,6 +42,7 @@ chronological record lives in [log.md](log.md).
 - [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
 - [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)
 - [Hosting preparation — accepted private access, published source, bounded CI and CLI usage](phases/hosting-preparation-20261003.md)
+- [Backlog final record — published PRs 322-381, integration evidence, and Graphify archive](phases/backlog-final-20261003.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
@@ -64,12 +65,14 @@ The owner still writes the final paper and records/submits the video.
 Coordinator verification and independent review remain open.
 
 Source publications now include original benchmark #349, post-hoc record #353,
-and course pack #361. The [hosting snapshot](phases/hosting-preparation-20261003.md)
-records their exact saved heads, parents, and CI observations.
+course pack #361, and later hosting source through runbook #381.
+The [hosting snapshot](phases/hosting-preparation-20261003.md)
+keeps its 2026-10-03 heads, parents, and CI observations.
+The [final record](phases/backlog-final-20261003.md) lists all 60 created pull requests #322-#381 as unmerged on 2026-10-04.
+Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
 [Decision 0019](decisions/0019-invitation-only-hosting.md) accepts owner and invited-user access with no public signup.
-Invited users share the current server-selected demo context, not private application accounts.
-D5 source preparation continues. Runtime roles and identity remain unpublished checkpoints.
-ECS composition, application-role bootstrap, runbook/preflight, and the live hosted demo remain in progress.
+Invited users share the current server-selected demo context. They have no private application accounts.
+D5 source, preflight CLI, and runbook are published. Live deployment still awaits owner inputs and confirmations.
 No AWS resources, users, or invitations have been created by this run.
 The owner MUST confirm every mutating AWS step first. No merge authorization exists.
 D4 remains paused. Live Instacart stays parked.

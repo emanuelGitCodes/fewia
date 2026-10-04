@@ -16,6 +16,9 @@ The later [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md)
 records source publications and CI at `2026-10-04T01:18:06.107436+00:00` UTC
 (October 3 in America/New_York). Those observations are bounded to the saved heads.
 They do not replace the historical built-feature snapshot.
+The [final record](../wiki/phases/backlog-final-20261003.md) dated 2026-10-04
+lists created pull requests #322-#381 as unmerged, with registry heads, Graphify,
+and integration evidence. Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
 
 Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 `docs/EVALUATION.md`, `docs/GROCERY_VERIFICATION_PLAN.md`, the pages under
@@ -113,7 +116,7 @@ make that check pass.
 | D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | Benchmark record published in [#349](https://github.com/emanuelGitCodes/fewia/pull/349) at `dde72370811523c5d8d118ced60f3a85dfc3d6e7`; post-hoc record in [#353](https://github.com/emanuelGitCodes/fewia/pull/353) at `07bec2dc32b19b21197a8058279781815bbcb4cd`. Each has 7 CI successes at the saved query; no merge or deployment by this run | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
 | D3 | Course deliverables: maximum eight-page paper in two columns, code repository, demo video, script, failure examples, and limitations. | [Supporting pack](course/README.md) published in [#361](https://github.com/emanuelGitCodes/fewia/pull/361) at `484caf434084f7d9c5995c0bac1165ee7034e85c`; 7 CI successes at the saved query. Final authored paper and recorded/submitted video remain author work; publication does not establish completed deliverables or independent review | 4 | `docs/course/`, assigned backlog and wiki records | Each outline section cites a repository artifact or source. The pack preserves original and post-hoc results and supports the author's own writing. |
 | D4 | Plaid Sandbox live evidence: run `/transactions/sync` against Sandbox, serialize item syncs, apply changes and cursor atomically, and record posted and pending grocery spend. Last feature by decision. | paused | 5 | `backend/app/services/plaid_sync.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
-| D5 | Restricted hosting for the owner and invited users: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. | [Decision 0019](../wiki/decisions/0019-invitation-only-hosting.md) accepts owner/invited-user access with no public signup and shared demo context. Source published: AWS adapters #340/#342/#343; settings #350; factory #351; worker #355; bounded commands #357; resources #344; gates #345; network #352; RDS #354; assets #356; execution roles #358; bootstrap #347; cloud URL/TLS #359; nginx #360. Exact heads, parents, and bounded CI in the [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md). Runtime roles `573dd0b` and identity `14dd9e41` pending publication/review. ECS composition, application-role bootstrap, runbook/preflight, and live demo remain in progress; no deployment evidence | 5 | `infra/` | The owner MUST confirm every mutating AWS step first. The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. |
+| D5 | Restricted hosting for the owner and invited users: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. | [Decision 0019](../wiki/decisions/0019-invitation-only-hosting.md) accepts owner/invited-user access with no public signup and shared demo context. Source through preflight CLI [#380](https://github.com/emanuelGitCodes/fewia/pull/380) at `7b2e370d081e9c79e80fd41863708a3735fddfe5` and runbook [#381](https://github.com/emanuelGitCodes/fewia/pull/381) at `d43d606df795a6a6e748fdc9263554349867ae9c` is published and unmerged. Runtime roles [#362](https://github.com/emanuelGitCodes/fewia/pull/362) at `573dd0b4a21b38b73d19e4b70482686854299b46` and identity [#364](https://github.com/emanuelGitCodes/fewia/pull/364) at `14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a` are published. Exact heads, parents, gates, review, and CI live in the [final record](../wiki/phases/backlog-final-20261003.md). The 2026-10-03 [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md) remains the earlier query. Live hosted demo still awaits owner inputs and confirmations | 5 | `infra/` | The owner MUST confirm every mutating AWS step first. The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. |
 
 D1 retains the original 17/33 task result and 98/100 bounded-claim result.
 The separate [post-hoc record](../wiki/phases/posthoc-gold-20261003.md)
@@ -124,11 +127,12 @@ no-tool result stay unchanged. No scoring code or allowed outcomes change.
 This is not a fresh batch, model retest, or independent benchmark.
 A failed assessment alone does not establish a model or application defect.
 
-D5 accepts shared demo access under decision 0019, not private application accounts.
+D5 accepts shared demo access under decision 0019. Invitees share one application user.
 The proposed design uses an authenticated HTTPS edge with administrator-created Cognito users,
 private ECS tasks, retained isolated RDS with verified TLS, separate secrets, and narrow roles.
 Manual budget defaults are USD 100 monthly and a USD 40 plan cap.
 The owner-entered monthly limit remains the whole budget.
+Source, preflight CLI, and runbook publication is complete in the [final record](../wiki/phases/backlog-final-20261003.md).
 The owner MUST confirm every mutating AWS step first, including users and invitations.
 No AWS resources, users, or invitations have been created by this run.
 Hostname, ACM certificate, and deployment credentials await owner input.
@@ -153,5 +157,6 @@ Every grocery estimate MUST show this exact notice:
    Merges need separate owner authorization.
 4. Verify the published D2 records against the D1 artifacts and saved source heads.
 5. Verify the [published D3 supporting pack](course/README.md). The author writes the final paper within eight pages and records/submits the video.
-6. Keep D4 paused. Continue D5 source work within its assigned scope.
-   Source publication does not establish deployed evidence.
+6. Keep D4 paused. D5 source, preflight, and runbook publication is complete
+   in the [final record](../wiki/phases/backlog-final-20261003.md).
+   Live deployment still awaits owner inputs and confirmations.
