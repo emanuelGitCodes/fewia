@@ -2,7 +2,7 @@ import json
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeVar, cast
 from unittest.mock import patch
 
 import pytest
@@ -27,10 +27,7 @@ from worker_tasks import HostingWorkerTasks
 _ACCOUNT = "111122223333"
 _BACKEND = "sha256:" + "a" * 64
 _FRONTEND = "sha256:" + "b" * 64
-_CERTIFICATE = (
-    f"arn:aws:acm:{REGION}:{_ACCOUNT}:certificate/"
-    "12345678-1234-abcd-1234-123456789abc"
-)
+_CERTIFICATE = f"arn:aws:acm:{REGION}:{_ACCOUNT}:certificate/12345678-1234-abcd-1234-123456789abc"
 _RUNTIME = RuntimeConfig(
     hostname="demo.example.test",
     domain_prefix="fewia-demo",
@@ -40,6 +37,7 @@ _RUNTIME = RuntimeConfig(
 )
 _Phase = Literal["foundation", "bootstrap", "active"]
 _Json = dict[str, Any]
+_T = TypeVar("_T")
 _FOUNDATION_OUTPUTS = {
     "DeploymentPhase",
     "BackendRepositoryName",
@@ -112,7 +110,7 @@ def test_construct_exports_and_stable_ids(demo: HostedDemoStack, phase: _Phase) 
     ):
         assert isinstance(construct, kind)
         assert demo.node.find_child(name) is construct
-    for name, construct, kind in (
+    for runtime_name, runtime_construct, runtime_kind in (
         ("Identity", demo.identity, HostingIdentity),
         ("AppTask", demo.app_task, HostingAppTask),
         ("WorkerTasks", demo.worker_tasks, HostingWorkerTasks),
@@ -120,11 +118,11 @@ def test_construct_exports_and_stable_ids(demo: HostedDemoStack, phase: _Phase) 
         ("Edge", demo.edge, HostingEdge),
     ):
         if phase == "foundation":
-            assert construct is None
-            assert demo.node.try_find_child(name) is None
+            assert runtime_construct is None
+            assert demo.node.try_find_child(runtime_name) is None
         else:
-            assert isinstance(construct, kind)
-            assert demo.node.find_child(name) is construct
+            assert isinstance(runtime_construct, runtime_kind)
+            assert demo.node.find_child(runtime_name) is runtime_construct
 
 
 def test_complete_templates_have_exact_phase_resources(
@@ -432,7 +430,7 @@ def _statements_for_role(template: Template, role: IConstruct) -> list[_Json]:
     ]
 
 
-def _list(value: Any) -> list[Any]:
+def _list(value: _T | list[_T]) -> list[_T]:
     return value if isinstance(value, list) else [value]
 
 
