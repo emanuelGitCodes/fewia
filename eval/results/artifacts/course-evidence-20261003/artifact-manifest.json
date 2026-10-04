@@ -1,0 +1,15 @@
+{
+  "observation_revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "scoring_revision": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+  "new_inference_calls": 0,
+  "figure_library": "matplotlib==3.10.8",
+  "visual_check": "Coordinator inspected PNG; labels and evidence scopes readable. PDF and SVG exported from same figure.",
+  "files": {
+    "benchmark-quality.pdf": "21bd9d00682f7c1b921bcfde4dffd7a802b4cfa46ece629c2aef0b868040de65",
+    "benchmark-quality.png": "32984839d9d58af43b6bea8e90cf69663d79df88d9bd67879c514c49ae490de7",
+    "benchmark-quality.svg": "cb6c42619cada9513d0aa6a36b11862a8ae83f0c50d281af39b994c39d1fed13",
+    "failure-examples.json": "abf91ede4e018abe0de3d17f9a6bfd44d6046628bbe5310fae3b2fc1bd5205c4",
+    "figure-data.json": "f59afec4c2d6740f956c40c75bc33036973247023f98c606806042b53ca28d8a",
+    "figures.py": "154f2e9a24d4624712612cf986910a26b25389aca763fb26465ca0f5ecaebaef"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "observation_revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "scoring_revision": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+  "language_task_passes": [
+    17,
+    23,
+    0
+  ],
+  "language_task_denominator": 33,
+  "supported_claims": 98,
+  "unknown_claims": 2,
+  "excluded_supported_refusals": 10,
+  "new_inference_calls": 0,
+  "original_report_sha256": "552dd3511ad2771a4ee5ae8c1a9f15e0eda4ff9380207547d48a29e0f0654aa7"
+}

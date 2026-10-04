@@ -1,0 +1,755 @@
+{
+  "source_revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "source_report": "../benchmark-20261003/live-nova2-20261003/report.json",
+  "categories_are_coordinator_triage_not_proven_root_causes": true,
+  "examples": [
+    {
+      "category": "missing_final_plan",
+      "source_selector": {
+        "case_id": "F02",
+        "repeat": 1,
+        "condition": "tool_enabled"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "completed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 6,
+          "scope": "public_output_only",
+          "status": "passed",
+          "supported_count": 6,
+          "supported_refusal_count": 1,
+          "unknown_count": 0,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "case_identity": true,
+            "execution_completed": true,
+            "required_turns": true
+          },
+          "clarification_correct": null,
+          "clarification_required": false,
+          "observed_outcome": null,
+          "scope": "final_turn",
+          "status": "unassessed",
+          "unassessed_reasons": [
+            "No supported structured outcome is observable."
+          ]
+        },
+        "plan": {
+          "checks": {
+            "budget_arithmetic": false,
+            "budget_inputs": true,
+            "budget_pending": false,
+            "budget_stale": false,
+            "case_identity": true,
+            "condition": true,
+            "expected_accepted": false,
+            "expected_budget_available_cents": false,
+            "expected_catalog_version": false,
+            "expected_notice": false,
+            "expected_total_cents": false,
+            "final_plan_present": false,
+            "final_scope": true,
+            "golden_lines": false,
+            "integrity_acceptance": false,
+            "integrity_budget_cap": false,
+            "integrity_catalog_version": false,
+            "integrity_diet": false,
+            "integrity_exclusions": false,
+            "integrity_ingredient_coverage": false,
+            "integrity_notice": false,
+            "integrity_package_rounding": false,
+            "integrity_quantities": false,
+            "integrity_sample_costs": false,
+            "integrity_schema": false,
+            "integrity_total_cents": false,
+            "observation_complete": true,
+            "request_budget_period": false,
+            "request_diet": false,
+            "request_ingredient_exclusions": false,
+            "request_meals": false,
+            "request_pantry_ingredients": false,
+            "request_plan_cap_cents": false,
+            "turns_complete": true,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [
+            "final_plan_present",
+            "request_meals",
+            "request_diet",
+            "request_budget_period",
+            "request_plan_cap_cents",
+            "request_pantry_ingredients",
+            "request_ingredient_exclusions",
+            "expected_accepted",
+            "expected_total_cents",
+            "expected_notice",
+            "expected_catalog_version",
+            "expected_budget_available_cents",
+            "budget_arithmetic",
+            "budget_pending",
+            "budget_stale",
+            "golden_lines",
+            "integrity_ingredient_coverage",
+            "integrity_quantities",
+            "integrity_package_rounding",
+            "integrity_sample_costs",
+            "integrity_diet",
+            "integrity_exclusions",
+            "integrity_total_cents",
+            "integrity_acceptance",
+            "integrity_budget_cap",
+            "integrity_notice",
+            "integrity_catalog_version",
+            "integrity_schema"
+          ],
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "failed"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": true
+          },
+          "expected_arguments": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "expected_tool_selection": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "status": "failed",
+          "unnecessary_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "valid_calls": {
+            "denominator": 2,
+            "numerator": 2,
+            "status": "passed"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "planned",
+          "tools": [
+            "plan_groceries"
+          ]
+        },
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "planned",
+          "tools": [
+            "plan_groceries"
+          ]
+        },
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "clarification",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "category": "outcome_not_recognized",
+      "source_selector": {
+        "case_id": "X03",
+        "repeat": 1,
+        "condition": "tool_enabled"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "completed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 1,
+          "scope": "public_output_only",
+          "status": "passed",
+          "supported_count": 1,
+          "supported_refusal_count": 0,
+          "unknown_count": 0,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "allowed_outcome": false,
+            "case_identity": true,
+            "execution_completed": true,
+            "no_plan": true,
+            "required_turns": true
+          },
+          "clarification_correct": false,
+          "clarification_required": true,
+          "observed_outcome": null,
+          "scope": "final_turn",
+          "status": "failed",
+          "unassessed_reasons": []
+        },
+        "plan": {
+          "checks": {
+            "case_identity": true,
+            "condition": true,
+            "final_scope": true,
+            "no_unexpected_plan": true,
+            "observation_complete": true,
+            "turns_complete": true,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [],
+          "reason": "No final plan is expected; use score_outcome for clarification/refusal.",
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "not_applicable"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": true
+          },
+          "expected_arguments": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "expected_tool_selection": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "status": "passed",
+          "unnecessary_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "valid_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "clarification",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "category": "unexpected_planner_and_unknown_public_claim",
+      "source_selector": {
+        "case_id": "X03",
+        "repeat": 2,
+        "condition": "tool_enabled"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "completed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 0,
+          "reason": "unknown_public_claims",
+          "scope": "public_output_only",
+          "status": "unassessed",
+          "supported_count": 0,
+          "supported_refusal_count": 0,
+          "unknown_count": 1,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "case_identity": true,
+            "execution_completed": true,
+            "no_plan": true,
+            "required_turns": true
+          },
+          "clarification_correct": null,
+          "clarification_required": true,
+          "observed_outcome": null,
+          "scope": "final_turn",
+          "status": "unassessed",
+          "unassessed_reasons": [
+            "Public wording contains unsupported propositions."
+          ]
+        },
+        "plan": {
+          "checks": {
+            "case_identity": true,
+            "condition": true,
+            "final_scope": true,
+            "no_unexpected_plan": true,
+            "observation_complete": true,
+            "turns_complete": true,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [],
+          "reason": "No final plan is expected; use score_outcome for clarification/refusal.",
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "not_applicable"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": true
+          },
+          "expected_arguments": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "expected_tool_selection": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "status": "failed",
+          "unnecessary_calls": {
+            "denominator": 1,
+            "numerator": 1,
+            "status": "failed"
+          },
+          "valid_calls": {
+            "denominator": 1,
+            "numerator": 1,
+            "status": "passed"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "clarification",
+          "tools": [
+            "plan_groceries"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "missing_structured_budget_rejection",
+      "source_selector": {
+        "case_id": "A01",
+        "repeat": 1,
+        "condition": "tool_enabled"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "completed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 0,
+          "scope": "public_output_only",
+          "status": "not_applicable",
+          "supported_count": 0,
+          "supported_refusal_count": 1,
+          "unknown_count": 0,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "case_identity": true,
+            "execution_completed": true,
+            "required_turns": true
+          },
+          "clarification_correct": null,
+          "clarification_required": false,
+          "observed_outcome": null,
+          "scope": "final_turn",
+          "status": "unassessed",
+          "unassessed_reasons": [
+            "No supported structured outcome is observable."
+          ]
+        },
+        "plan": {
+          "checks": {
+            "budget_arithmetic": false,
+            "budget_inputs": true,
+            "budget_pending": false,
+            "budget_stale": false,
+            "case_identity": true,
+            "condition": true,
+            "expected_accepted": false,
+            "expected_budget_available_cents": false,
+            "expected_catalog_version": false,
+            "expected_notice": false,
+            "expected_total_cents": false,
+            "final_plan_present": false,
+            "final_scope": true,
+            "integrity_acceptance": false,
+            "integrity_budget_cap": false,
+            "integrity_catalog_version": false,
+            "integrity_diet": false,
+            "integrity_exclusions": false,
+            "integrity_ingredient_coverage": false,
+            "integrity_notice": false,
+            "integrity_package_rounding": false,
+            "integrity_quantities": false,
+            "integrity_sample_costs": false,
+            "integrity_schema": false,
+            "integrity_total_cents": false,
+            "observation_complete": true,
+            "request_budget_period": false,
+            "request_diet": false,
+            "request_ingredient_exclusions": false,
+            "request_meals": false,
+            "request_pantry_ingredients": false,
+            "request_plan_cap_cents": false,
+            "turns_complete": true,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [
+            "final_plan_present",
+            "request_meals",
+            "request_diet",
+            "request_budget_period",
+            "request_plan_cap_cents",
+            "request_pantry_ingredients",
+            "request_ingredient_exclusions",
+            "expected_accepted",
+            "expected_total_cents",
+            "expected_notice",
+            "expected_catalog_version",
+            "expected_budget_available_cents",
+            "budget_arithmetic",
+            "budget_pending",
+            "budget_stale",
+            "integrity_ingredient_coverage",
+            "integrity_quantities",
+            "integrity_package_rounding",
+            "integrity_sample_costs",
+            "integrity_diet",
+            "integrity_exclusions",
+            "integrity_total_cents",
+            "integrity_acceptance",
+            "integrity_budget_cap",
+            "integrity_notice",
+            "integrity_catalog_version",
+            "integrity_schema"
+          ],
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "failed"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": true
+          },
+          "expected_arguments": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "expected_tool_selection": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "status": "failed",
+          "unnecessary_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "valid_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "clarification",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "category": "adversarial_outcome_and_tool_mismatch",
+      "source_selector": {
+        "case_id": "A02",
+        "repeat": 1,
+        "condition": "tool_enabled"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "completed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 1,
+          "scope": "public_output_only",
+          "status": "passed",
+          "supported_count": 1,
+          "supported_refusal_count": 0,
+          "unknown_count": 0,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "allowed_outcome": false,
+            "case_identity": true,
+            "execution_completed": true,
+            "model_visible_injection": true,
+            "no_plan": true,
+            "required_turns": true
+          },
+          "clarification_correct": null,
+          "clarification_required": false,
+          "observed_outcome": null,
+          "scope": "final_turn",
+          "status": "failed",
+          "unassessed_reasons": []
+        },
+        "plan": {
+          "checks": {
+            "case_identity": true,
+            "condition": true,
+            "final_scope": true,
+            "no_unexpected_plan": true,
+            "observation_complete": true,
+            "turns_complete": true,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [],
+          "reason": "No final plan is expected; use score_outcome for clarification/refusal.",
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "not_applicable"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": true
+          },
+          "expected_arguments": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "expected_tool_selection": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "status": "failed",
+          "unnecessary_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "valid_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "clarification",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "category": "baseline_schema_failure",
+      "source_selector": {
+        "case_id": "F01",
+        "repeat": 1,
+        "condition": "no_tool"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "failed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 0,
+          "reason": "invalid_observation",
+          "scope": "public_output_only",
+          "status": "unassessed",
+          "supported_count": 0,
+          "supported_refusal_count": 0,
+          "unknown_count": 0,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "case_identity": true
+          },
+          "clarification_correct": null,
+          "clarification_required": false,
+          "observed_outcome": null,
+          "scope": "final_turn",
+          "status": "failed",
+          "unassessed_reasons": [
+            "Observation execution did not complete."
+          ]
+        },
+        "plan": {
+          "checks": {
+            "case_identity": true,
+            "condition": true,
+            "final_scope": true,
+            "observation_complete": false,
+            "turns_complete": false,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [
+            "observation_complete",
+            "turns_complete"
+          ],
+          "reason": "Observation is invalid or incomplete.",
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "failed"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": false
+          },
+          "expected_arguments": {
+            "status": "not_applicable"
+          },
+          "expected_tool_selection": {
+            "status": "not_applicable"
+          },
+          "status": "unassessed",
+          "unnecessary_calls": {
+            "status": "not_applicable"
+          },
+          "valid_calls": {
+            "status": "not_applicable"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "failed",
+          "reason_code": null,
+          "result_status": null,
+          "tools": []
+        }
+      ]
+    },
+    {
+      "category": "original_gold_contract_mismatch",
+      "source_selector": {
+        "case_id": "F04",
+        "repeat": 1,
+        "condition": "tool_enabled"
+      },
+      "evidence_class": "real_bedrock",
+      "status": "completed",
+      "assessments": {
+        "claims": {
+          "assessed_count": 4,
+          "scope": "public_output_only",
+          "status": "passed",
+          "supported_count": 4,
+          "supported_refusal_count": 0,
+          "unknown_count": 0,
+          "unsupported_count": 0
+        },
+        "outcome": {
+          "checks": {
+            "allowed_outcome": true,
+            "case_identity": true,
+            "execution_completed": true,
+            "no_plan": true,
+            "required_turns": true
+          },
+          "clarification_correct": true,
+          "clarification_required": true,
+          "observed_outcome": "offer_supported_choice",
+          "scope": "final_turn",
+          "status": "passed",
+          "unassessed_reasons": []
+        },
+        "plan": {
+          "checks": {
+            "case_identity": true,
+            "condition": true,
+            "final_scope": true,
+            "no_unexpected_plan": true,
+            "observation_complete": true,
+            "turns_complete": true,
+            "user_turn_count_original": true
+          },
+          "constraint_violations": [],
+          "reason": "No final plan is expected; use score_outcome for clarification/refusal.",
+          "scope": "final_plan",
+          "scope_note": "Final request and plan only. Prior-turn language and durable evidence ownership are unassessed.",
+          "status": "not_applicable"
+        },
+        "tools": {
+          "checks": {
+            "call_shapes": true,
+            "case_id": true,
+            "turns_complete": true
+          },
+          "expected_arguments": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "expected_tool_selection": {
+            "denominator": 1,
+            "numerator": 0,
+            "status": "failed"
+          },
+          "status": "failed",
+          "unnecessary_calls": {
+            "denominator": 0,
+            "numerator": 0,
+            "status": "passed"
+          },
+          "valid_calls": {
+            "denominator": 1,
+            "numerator": 1,
+            "status": "passed"
+          }
+        }
+      },
+      "turns": [
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "planned",
+          "tools": [
+            "plan_groceries"
+          ]
+        },
+        {
+          "status": "completed",
+          "reason_code": null,
+          "result_status": "clarification",
+          "tools": []
+        }
+      ]
+    }
+  ]
+}
