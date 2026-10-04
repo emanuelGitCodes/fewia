@@ -1,7 +1,7 @@
 # FEWIA feature backlog
 
 This document lists every feature the project committed to build, its
-state on `main` at `36749bf` (2026-10-03), and the open work ranked from
+state on `main` at `8bfd4b8` (2026-10-03, after #313 to #320), and the open work ranked from
 easiest to hardest. It is the handoff for the next writer. The senior
 coordinator verifies each item after the writer reports.
 
@@ -59,23 +59,24 @@ make that check pass.
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| A1 | Refresh the two stale ledger State columns so they match their event logs. | not done | 1 | `.claude/loop/tech-debt-2.md`, `.claude/loop/delegation-efficiency.md` | Every row's State agrees with the last event for that item. Prose only. |
-| A2 | Close or record the Phase 1 to 3 open items: alembic in the lint path, Node 20 actions, mypy on tests, alembic in the backend image. | unknown | 1 | `wiki/phases/phase-1.md`, `phase-3.md`, `.github/workflows/*.yml` if a fix is small | Each item is either fixed in CI or recorded as closed with a reason. |
-| A3 | Add `pip-audit --no-deps` and extend Ruff to the `I` and `E501` rule sets, per the debt-guardrails follow-ups. | not done | 1 | `.github/workflows/tooling.yml`, `backend/pyproject.toml` | Tooling CI passes with the new rules. No file-level suppressions. |
+| A1 | Refresh the two stale ledger State columns so they match their event logs. | merged, #315 | 1 | `.claude/loop/tech-debt-2.md`, `.claude/loop/delegation-efficiency.md` | Every row's State agrees with the last event for that item. Prose only. |
+| A2 | Close or record the Phase 1 to 3 open items: alembic in the lint path, Node 20 actions, mypy on tests, alembic in the backend image. | merged, #317 | 1 | `wiki/phases/phase-1.md`, `phase-3.md`, `.github/workflows/*.yml` if a fix is small | Each item is either fixed in CI or recorded as closed with a reason. |
+| A3 | Add `pip-audit --no-deps` and extend Ruff to the `I` and `E501` rule sets, per the debt-guardrails follow-ups. | already present before this backlog | 1 | `.github/workflows/tooling.yml`, `backend/pyproject.toml` | Tooling CI passes with the new rules. No file-level suppressions. |
 | A4 | Record the retention decision for stored Spoonacular totals and the retired health tables. Write decision 0018. No data deletion. | open | 1 | `wiki/decisions/0018-*.md`, `wiki/index.md`, `wiki/log.md` | Decision states keep or delete, the reason, and the migration plan. |
-| A5 | Quantity-scaled nutrition totals: scale USDA per-100g facts by the planned ingredient quantity and servings. | proposed, not built | 2 | `backend/app/services/meal_nutrition.py`, its tests | A 4-serving plan reports double the 2-serving totals. Labels say the totals are estimates. |
-| A6 | Reset the supervisor DB-test skip counter per session and release the lease on a pre-spawn crash. | follow-up, not done | 2 | `dev_supervisor/lease.py`, `dev_supervisor/__main__.py`, `tests/supervisor/` | A crash before spawn leaves no lease file. Tests cover both paths. |
-| A7 | Add the missing unit tests for `frontend/src/usePolledJob.ts` and `backend/app/domain/spoonacular_catalog.py`. | not done | 1 | the two test files | Each file has a direct test. Removing the polling stop condition fails a test. |
+| A5 | Quantity-scaled nutrition totals: scale USDA per-100g facts by the planned ingredient quantity and servings. | already present before this backlog | 2 | `backend/app/services/meal_nutrition.py`, its tests | A 4-serving plan reports double the 2-serving totals. Labels say the totals are estimates. |
+| A6 | Reset the supervisor DB-test skip counter per session and release the lease on a pre-spawn crash. | already present before this backlog | 2 | `dev_supervisor/lease.py`, `dev_supervisor/__main__.py`, `tests/supervisor/` | A crash before spawn leaves no lease file. Tests cover both paths. |
+| A7 | Add the missing unit tests for `frontend/src/usePolledJob.ts` and `backend/app/domain/spoonacular_catalog.py`. | merged, #314 | 1 | the two test files | Each file has a direct test. Removing the polling stop condition fails a test. |
 
 ### Tier B. Bounded code with a fixed contract
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| B1 | Grok fallback for the review command when Codex is unavailable, with the deviation recorded in the review output. | follow-up, not done | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | With Codex forced unavailable, the review runs on Grok and the JSON names the fallback. |
-| B2 | Independent review of the 2026-09-21 nutrition compatibility change, recorded in the wiki. | pending | 2 | `wiki/log.md`, `wiki/phases/grocery-mvp-checkpoint.md` | A review verdict and SHA appear in the log. |
+| B1 | Grok fallback for the review command when Codex is unavailable, with the deviation recorded in the review output. | merged, #316; see B6 | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | With Codex forced unavailable, the review runs on Grok and the JSON names the fallback. |
+| B2 | Independent review of the 2026-09-21 nutrition compatibility change, recorded in the wiki. | merged, #320 | 2 | `wiki/log.md`, `wiki/phases/grocery-mvp-checkpoint.md` | A review verdict and SHA appear in the log. |
 | B3 | Delegation-efficiency item 09: run the token pilot that measures one loop against the Phase 1 baseline, and record it. | queued | 2 | `.claude/loop/delegation-efficiency.md`, `wiki/log.md` | The log holds per-item and total tokens next to the baseline. |
 | B4 | Browser checks from the verification plan: desktop and mobile layout, focus order, polling stop on completion, handoff consent dialog. Record each as pass or fail with a screenshot path. | required, no status | 3 | `docs/GROCERY_VERIFICATION_PLAN.md`, `frontend/src/*.test.tsx` for any gap found | Every listed check has a recorded result. New tests cover any defect found. |
-| B5 | Evaluation item 27: `render_report(output) -> str` in `backend/app/evaluation_markdown.py`. Coverage-first Markdown: per-condition numerators and denominators, failures, unassessed reasons, token use, p50 and p95 latency, cost. It MUST NOT state that a target is met. | pending brief exists | 3 | `backend/app/evaluation_markdown.py`, `backend/tests/test_evaluation_markdown.py` | Rendering a fixture output with 42 scored and 48 unassessed shows both counts and no target claim. Labels are escaped. |
+| B5 | Evaluation item 27: `render_report(output) -> str` in `backend/app/evaluation_markdown.py`. Coverage-first Markdown: per-condition numerators and denominators, failures, unassessed reasons, token use, p50 and p95 latency, cost. It MUST NOT state that a target is met. | started on branch `codex/backlog-20261003-b5` at `db4226f`, no PR; 158 code lines, over the cap, and two strict mypy errors. Split before opening a PR. | 3 | `backend/app/evaluation_markdown.py`, `backend/tests/test_evaluation_markdown.py` | Rendering a fixture output with 42 scored and 48 unassessed shows both counts and no target claim. Labels are escaped. |
+| B6 | Review fallback matcher: match a structured Codex error on both `code` and `message`. Today only `code` is matched when present, so `{"code":"api_error","message":"HTTP 503 service unavailable"}` does not fall back to Grok. Recorded at #316 merge. | not done | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | That error shape falls back with `fallback_reason == "codex_unavailable"`. Existing fallback tests still pass. |
 
 ### Tier C. New contracts that other code depends on
 
@@ -84,7 +85,7 @@ make that check pass.
 | C1 | Evaluation item 21: `run_slot(slot, runtime: EvaluationRuntime) -> dict` in `backend/app/evaluation_dispatch.py`. Route each matrix slot to the fixture evaluator, the model observer, the no-tool observer, the reference driver, or a provider-failure driver P01 to P05, then attach assessments. A missing local service reports `unassessed`, never a pass. | pending brief exists | 4 | `backend/app/evaluation_dispatch.py`, `backend/tests/test_evaluation_dispatch.py` | Every slot kind in `evaluation_matrix.py` dispatches. With PostgreSQL absent, database slots return `unassessed` with a reason. No provider is called for fixture slots. |
 | C2 | Evaluation item 22: `run_evaluation_batch(corpus, manifest, runtime, on_slot)` in `backend/app/evaluation_batch.py`. Freeze corpus, manifest, and revision. Run 90 primary, 33 no-tool, and 15 deterministic slots, 138 in total. Call `on_slot` with a deep copy after each slot. | pending brief exists | 4 | `backend/app/evaluation_batch.py`, `backend/tests/test_evaluation_batch.py` | A fixture run produces 138 slot records in order. A failure in slot 50 keeps slots 1 to 49 in the journal. Depends on C1. |
 | C3 | Evaluation item 28: `python -m app.evaluate` CLI with `--live-bedrock` as an explicit opt-in, Nova 2 Lite US profile only, optional `--local-services`, exclusive output and journal paths, exit codes 0, 1, and 130. | pending brief exists | 4 | `backend/app/evaluate.py`, `backend/tests/test_evaluate_cli.py` | Without `--live-bedrock`, no network call occurs. An existing output path exits 1. SIGINT exits 130 with a partial journal. Depends on C2 and B5. |
-| C4 | Handoff button flow in the frontend: validate the handoff URL before navigation and surface the existing `POST /grocery/handoffs/{id}/retry` as a visible retry on an uncertain write. The backend routes exist. Instacart itself stays parked; the flow runs against a fixture provider with `instacart_configured` true. | unfinished in the UI | 3 | `frontend/src/HandoffControls.tsx`, `frontend/src/useHandoff.ts`, `frontend/src/handoffApi.ts`, tests | With `instacart_configured` false, nothing renders. With a fixture provider, a link appears only after URL validation, and an uncertain write shows a retry button that calls the retry route once per click. |
+| C4 | Handoff button flow in the frontend: validate the handoff URL before navigation and surface the existing `POST /grocery/handoffs/{id}/retry` as a visible retry on an uncertain write. The backend routes exist. Instacart itself stays parked; the flow runs against a fixture provider with `instacart_configured` true. | recorded in #319; UI work not started | 3 | `frontend/src/HandoffControls.tsx`, `frontend/src/useHandoff.ts`, `frontend/src/handoffApi.ts`, tests | With `instacart_configured` false, nothing renders. With a fixture provider, a link appears only after URL validation, and an uncertain write shows a retry button that calls the retry route once per click. |
 
 ### Tier D. Live evidence and release work
 
@@ -106,8 +107,8 @@ make that check pass.
 
 ## Part 4. Suggested order
 
-1. A1 to A7 in any order. Each is one pull request and one review round.
-2. B1 to B4 in any order.
+1. Done: A1, A2, A7, B1, B2. Already present: A3, A5, A6.
+2. A4, B3, B4, B6 in any order. Each is one pull request and one review round.
 3. B5, then C1, then C2, then C3. These form one stack and MUST merge in that order.
 4. C4 in parallel with the C stack.
 5. D1, then D2.

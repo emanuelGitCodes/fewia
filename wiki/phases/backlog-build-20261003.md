@@ -14,22 +14,22 @@ Open pull requests do not establish that a change reached `main`.
 
 | Item | State | Evidence or next step |
 |---|---|---|
-| A1 | Published, CI green | [PR 315](https://github.com/emanuelGitCodes/fewia/pull/315), `23ca51a`; independent Sol review approved. |
-| A2 | Draft; CI blocked | [PR 317](https://github.com/emanuelGitCodes/fewia/pull/317), `6c6d189`; review approved, but GitHub cannot resolve `astral-sh/setup-uv@v10`. |
+| A1 | Merged | [PR 315](https://github.com/emanuelGitCodes/fewia/pull/315) merged to `main` on 2026-10-03. |
+| A2 | Merged | [PR 317](https://github.com/emanuelGitCodes/fewia/pull/317) merged after a repair pinned `astral-sh/setup-uv@v10.2.0`; the action has no floating `v10` tag. Review APPROVE on `3c23442`. |
 | A3 | Present and checked locally | Both audit commands use `--no-deps`. Import and line-length lint passes. |
 | A4 | Awaiting retention choice | No data deletion is authorized by this build. |
 | A5 | Present and tested | Quantity and serving scaling already exists; nutrition and catalog tests pass. |
 | A6 | Present and tested | Session counter reset and pre-launch recovery already exist; focused tests pass. |
-| A7 | Published, CI green | [PR 314](https://github.com/emanuelGitCodes/fewia/pull/314), `fdb89cb`; 12 new tests, mutation caught, Luna review approved. |
-| B1 | Published, CI green | [PR 316](https://github.com/emanuelGitCodes/fewia/pull/316), `38657a7`; 243 tooling tests, mutation caught, Luna review approved. |
-| B2 | Draft repair; independent review pending | [PR 320](https://github.com/emanuelGitCodes/fewia/pull/320), `24ba3d6`; frontend gates and 51 focused tests pass. Historical review requested changes. |
+| A7 | Merged | [PR 314](https://github.com/emanuelGitCodes/fewia/pull/314) merged to `main` on 2026-10-03. |
+| B1 | Merged with one follow-up | [PR 316](https://github.com/emanuelGitCodes/fewia/pull/316) merged on `8eddcc7` after two repairs: `usage_limit_reached` is a quota code, and only an `item.completed` agent message suppresses fallback. A third review round found that a structured error with both `code` and `message` is matched on `code` only. The owner merged as is and recorded backlog item B6. |
+| B2 | Merged | [PR 320](https://github.com/emanuelGitCodes/fewia/pull/320) merged on `24ba3d6`. The coordinator ran the independent review: APPROVE, gpt-6-luna high. Two mutations were caught. |
 | B3 | Partial measurement | CLI usage is recorded below; junior/coordinator totals and one timed-out writer remain unavailable. |
 | B4 | Open | Browser checks need screenshots and recorded results. |
 | B5 | Committed and pushed; gates fail | `db4226f` on `codex/backlog-20261003-b5`; 6914 tests pass, strict mypy has two errors, and the gate counts 158/150 lines. Split before opening a code PR. Renderer remains open. |
 | C1 | Open | Implement slot dispatch after the report contract is fixed. |
 | C2 | Open | Implement the 138-slot batch after C1. |
 | C3 | Open | Implement the opt-in CLI after C2 and B5. |
-| C4 | Draft recovery record; no code change | [PR 319](https://github.com/emanuelGitCodes/fewia/pull/319) preserves findings and the corrected writer constraints. The requested guards remain open. |
+| C4 | Record merged; UI work open | [PR 319](https://github.com/emanuelGitCodes/fewia/pull/319) merged. No application code changed. |
 | D1 | Blocked by C1 to C3 | Fixture and live benchmarks have not run in this build. |
 | D2 | Blocked by D1 | Record final benchmark artifacts only after execution. |
 | D3 | Blocked by D1 | The paper needs benchmark evidence. |
