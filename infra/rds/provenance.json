@@ -1,0 +1,8 @@
+{
+  "url": "https://truststore.pki.rds.amazonaws.com/us-east-1/us-east-1-bundle.pem",
+  "retrieved_at": "2026-10-04T00:39:58.249468+00:00",
+  "sha256": "b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77",
+  "bytes": 4576,
+  "certificate_count": 3,
+  "scope": "Public AWS RDS regional CA certificates, no private key; downloaded over HTTPS."
+}
