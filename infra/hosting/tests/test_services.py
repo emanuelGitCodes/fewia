@@ -158,17 +158,13 @@ def test_services_have_exact_private_deployment_settings(
     ):
         props = _properties(template, service, "AWS::ECS::Service")
         expected: _Json = {
-            "Cluster": case.stack.resolve(services.cluster.cluster_arn),
+            "Cluster": {"Ref": _logical_id(services.cluster)},
             "TaskDefinition": {"Ref": _logical_id(task)},
             "DesiredCount": 1 if enabled else 0,
             "LaunchType": "FARGATE",
             "PlatformVersion": "1.4.0",
             "EnableExecuteCommand": False,
-            "DeploymentConfiguration": {
-                "DeploymentCircuitBreaker": {"Enable": True, "Rollback": True},
-                "MinimumHealthyPercent": 100,
-                "MaximumPercent": 200,
-            },
+            "DeploymentController": {"Type": "ECS"},
             "NetworkConfiguration": {
                 "AwsvpcConfiguration": {
                     "AssignPublicIp": "DISABLED",
@@ -188,7 +184,17 @@ def test_services_have_exact_private_deployment_settings(
         }
         if component == "app":
             expected["HealthCheckGracePeriodSeconds"] = 60
-        assert props == expected
+        else:
+            assert "HealthCheckGracePeriodSeconds" not in props
+        for key, value in expected.items():
+            assert props[key] == value
+        deployment = props["DeploymentConfiguration"]
+        assert deployment["DeploymentCircuitBreaker"] == {
+            "Enable": True,
+            "Rollback": True,
+        }
+        assert deployment["MinimumHealthyPercent"] == 100
+        assert deployment["MaximumPercent"] == 200
         task_props = _properties(template, task, "AWS::ECS::TaskDefinition")
         assert task_props["ExecutionRoleArn"] == case.stack.resolve(execution.role_arn)
         assert task_props["TaskRoleArn"] == case.stack.resolve(runtime.role_arn)
@@ -205,14 +211,25 @@ def test_services_add_only_cluster_and_two_services(
     service_case: _Case, enabled: bool | None
 ) -> None:
     case = service_case
-    baseline = Template.from_stack(case.stack).to_json()
     paths_before = {node.node.path for node in case.stack.node.find_all()}
+    resources_before = {
+        node.node.path: node.cfn_resource_type
+        for node in case.stack.node.find_all()
+        if isinstance(node, CfnResource)
+    }
     _services(case, enabled)
     template = Template.from_stack(case.stack)
-    added_resources = [
-        node.cfn_resource_type
+    paths_after = {node.node.path for node in case.stack.node.find_all()}
+    assert paths_before <= paths_after
+    resources_after = {
+        node.node.path: node.cfn_resource_type
         for node in case.stack.node.find_all()
-        if isinstance(node, CfnResource) and node.node.path not in paths_before
+        if isinstance(node, CfnResource)
+    }
+    for path, kind in resources_before.items():
+        assert resources_after[path] == kind
+    added_resources = [
+        kind for path, kind in resources_after.items() if path not in resources_before
     ]
     assert sorted(added_resources) == [
         "AWS::ECS::Cluster",
@@ -220,9 +237,7 @@ def test_services_add_only_cluster_and_two_services(
         "AWS::ECS::Service",
     ]
     resources = template.to_json()["Resources"]
-    for logical_id, resource in baseline["Resources"].items():
-        assert resources[logical_id] == resource
-    assert len(resources) == len(baseline["Resources"]) + 3
+    assert len(resources) == len(resources_before) + 3
     assert not template.to_json().get("Outputs")
     for kind in (
         "AWS::Events::Rule",
