@@ -120,12 +120,57 @@ BOOTSTRAP_ASSEMBLY='OWNER_SUPPLIED_BOOTSTRAP_ASSEMBLY_PATH'
 ACTIVE_ASSEMBLY='OWNER_SUPPLIED_ACTIVE_ASSEMBLY_PATH'
 ```
 
-`python infra/hosting/hosted_app.py` synthesizes a cloud assembly only.
+Use `cdk synth` with the fixed executable app command shown in each phase.
+The Toolkit resolves missing Availability Zone context, then reruns the Python app.
+Synthesis can read AWS metadata and write local context and assembly data.
 It does not deploy resources, run tasks, create users, or send invitations.
-Synthesis writes local output. CDK context lookups may read AWS metadata.
+See the official [CDK context guide](https://docs.aws.amazon.com/cdk/v2/guide/context.html)
+and [synth CLI reference](https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd-synth.html).
+The coordinator MUST export the task-specific interpreter, configuration, and output variables shown below.
+The coordinator MUST keep the app command string fixed, including its shell quotes.
+The coordinator MUST NOT interpolate owner-supplied paths into the app shell text.
+The coordinator MUST run all commands from the reviewed repository root.
+CDK `--output` and Python `--outdir` use the same assembly directory for each phase.
 Use the explicit profile and region even when a tool has defaults.
 CDK commands below set the region through environment variables or the bootstrap target.
 AWS CLI commands carry explicit `--profile` and `--region` arguments.
+
+**OFFLINE / LOCAL READ:** define the assembly check in the same shell before using the phase commands.
+Before every diff or deploy with a prebuilt assembly, the coordinator MUST require an empty manifest `missing` list.
+An omitted `missing` field means no missing context.
+The coordinator MUST verify that its template artifacts contain no `dummy1a`, `dummy1b`, or `dummy1c` placeholders.
+The Python CLI's `synthesized` status alone does not meet this check.
+The coordinator MUST stop if synthesis or the assembly check fails.
+
+```bash
+check_hosting_assembly() {
+  "$HOSTING_PYTHON" - "$1" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+
+def check_assembly(assembly: Path) -> None:
+    manifest = json.loads((assembly / "manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("missing", []) != []:
+        raise SystemExit("Assembly has unresolved context")
+    templates = [
+        artifact["properties"]["templateFile"]
+        for artifact in manifest["artifacts"].values()
+        if artifact["type"] == "aws:cloudformation:stack"
+    ]
+    if not templates:
+        raise SystemExit("Assembly has no stack templates")
+    for template_file in templates:
+        template = (assembly / template_file).read_text(encoding="utf-8")
+        if any(dummy in template for dummy in ("dummy1a", "dummy1b", "dummy1c")):
+            raise SystemExit("Assembly has dummy Availability Zone placeholders")
+
+
+check_assembly(Path(sys.argv[1]))
+PY
+}
+```
 
 `python infra/hosting/preflight_cli.py` performs fixed read-only AWS metadata calls.
 Its allowlist is STS `get-caller-identity`, ACM `describe-certificate`,
@@ -146,12 +191,15 @@ App and agent tasks bind only the application database password.
 
 ## Stage 1: foundation
 
-**OFFLINE / LOCAL OUTPUT:** synthesize the foundation assembly.
+**READ-ONLY AWS / LOCAL OUTPUT:** synthesize the foundation assembly through the Toolkit.
 
 ```bash
+export HOSTING_SYNTH_PYTHON="$HOSTING_PYTHON"
+export HOSTING_SYNTH_CONFIG="$FOUNDATION_CONFIG"
+export HOSTING_SYNTH_OUTDIR="$FOUNDATION_ASSEMBLY"
 AWS_PROFILE="$PROFILE" AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
-  "$HOSTING_PYTHON" 'infra/hosting/hosted_app.py' \
-  --config "$FOUNDATION_CONFIG" --outdir "$FOUNDATION_ASSEMBLY"
+  cdk synth "$STACK" --profile "$PROFILE" --output "$HOSTING_SYNTH_OUTDIR" \
+  --app 'exec "$HOSTING_SYNTH_PYTHON" "infra/hosting/hosted_app.py" --config "$HOSTING_SYNTH_CONFIG" --outdir "$HOSTING_SYNTH_OUTDIR"'
 ```
 
 **READ-ONLY AWS:** confirm caller metadata and inspect the diff.
@@ -161,6 +209,7 @@ If CDK bootstrap resources are absent, complete the separately approved bootstra
 ```bash
 "$HOSTING_PYTHON" 'infra/hosting/preflight_cli.py' \
   --config "$FOUNDATION_CONFIG" --profile "$PROFILE"
+check_hosting_assembly "$FOUNDATION_ASSEMBLY" && \
 AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
   cdk --app "$FOUNDATION_ASSEMBLY" --profile "$PROFILE" \
   diff "$STACK" --no-change-set
@@ -175,6 +224,7 @@ cdk bootstrap "aws://$ACCOUNT/$REGION" --profile "$PROFILE"
 **MUTATING AWS — separate owner confirmation for foundation deployment:**
 
 ```bash
+check_hosting_assembly "$FOUNDATION_ASSEMBLY" && \
 AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
   cdk --app "$FOUNDATION_ASSEMBLY" --profile "$PROFILE" \
   deploy "$STACK" --require-approval 'any-change'
@@ -279,12 +329,15 @@ Image existence does not establish either property.
 
 ## Stage 3: bootstrap infrastructure with services at zero
 
-**OFFLINE / LOCAL OUTPUT:** synthesize the bootstrap assembly from the pinned configuration.
+**READ-ONLY AWS / LOCAL OUTPUT:** synthesize the bootstrap assembly through the Toolkit from the pinned configuration.
 
 ```bash
+export HOSTING_SYNTH_PYTHON="$HOSTING_PYTHON"
+export HOSTING_SYNTH_CONFIG="$BOOTSTRAP_CONFIG"
+export HOSTING_SYNTH_OUTDIR="$BOOTSTRAP_ASSEMBLY"
 AWS_PROFILE="$PROFILE" AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
-  "$HOSTING_PYTHON" 'infra/hosting/hosted_app.py' \
-  --config "$BOOTSTRAP_CONFIG" --outdir "$BOOTSTRAP_ASSEMBLY"
+  cdk synth "$STACK" --profile "$PROFILE" --output "$HOSTING_SYNTH_OUTDIR" \
+  --app 'exec "$HOSTING_SYNTH_PYTHON" "infra/hosting/hosted_app.py" --config "$HOSTING_SYNTH_CONFIG" --outdir "$HOSTING_SYNTH_OUTDIR"'
 ```
 
 **READ-ONLY AWS:** check metadata and the bootstrap diff.
@@ -292,6 +345,7 @@ AWS_PROFILE="$PROFILE" AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
 ```bash
 "$HOSTING_PYTHON" 'infra/hosting/preflight_cli.py' \
   --config "$BOOTSTRAP_CONFIG" --profile "$PROFILE"
+check_hosting_assembly "$BOOTSTRAP_ASSEMBLY" && \
 AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
   cdk --app "$BOOTSTRAP_ASSEMBLY" --profile "$PROFILE" \
   diff "$STACK" --no-change-set
@@ -300,6 +354,7 @@ AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
 **MUTATING AWS — separate owner confirmation for bootstrap-phase deployment:**
 
 ```bash
+check_hosting_assembly "$BOOTSTRAP_ASSEMBLY" && \
 AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
   cdk --app "$BOOTSTRAP_ASSEMBLY" --profile "$PROFILE" \
   deploy "$STACK" --require-approval 'any-change'
@@ -382,12 +437,15 @@ The coordinator MUST finish stage 3 and separate verification before activation.
 Keep the same hostname, certificate, Cognito prefix, and image digests in the active configuration.
 If any bootstrap input changes, stop and review the bootstrap requirements again.
 
-**OFFLINE / LOCAL OUTPUT:** synthesize active configuration.
+**READ-ONLY AWS / LOCAL OUTPUT:** synthesize the active assembly through the Toolkit.
 
 ```bash
+export HOSTING_SYNTH_PYTHON="$HOSTING_PYTHON"
+export HOSTING_SYNTH_CONFIG="$ACTIVE_CONFIG"
+export HOSTING_SYNTH_OUTDIR="$ACTIVE_ASSEMBLY"
 AWS_PROFILE="$PROFILE" AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
-  "$HOSTING_PYTHON" 'infra/hosting/hosted_app.py' \
-  --config "$ACTIVE_CONFIG" --outdir "$ACTIVE_ASSEMBLY"
+  cdk synth "$STACK" --profile "$PROFILE" --output "$HOSTING_SYNTH_OUTDIR" \
+  --app 'exec "$HOSTING_SYNTH_PYTHON" "infra/hosting/hosted_app.py" --config "$HOSTING_SYNTH_CONFIG" --outdir "$HOSTING_SYNTH_OUTDIR"'
 ```
 
 **READ-ONLY AWS:** repeat active preflight immediately before deployment and inspect the diff.
@@ -396,6 +454,7 @@ AWS_PROFILE="$PROFILE" AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
 "$HOSTING_PYTHON" 'infra/hosting/preflight_cli.py' \
   --config "$ACTIVE_CONFIG" --profile "$PROFILE" \
   --bootstrap-task-arn "$BOOTSTRAP_TASK_ARN"
+check_hosting_assembly "$ACTIVE_ASSEMBLY" && \
 AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
   cdk --app "$ACTIVE_ASSEMBLY" --profile "$PROFILE" \
   diff "$STACK" --no-change-set
@@ -404,6 +463,7 @@ AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
 **MUTATING AWS — separate owner confirmation for active deployment:**
 
 ```bash
+check_hosting_assembly "$ACTIVE_ASSEMBLY" && \
 AWS_REGION="$REGION" AWS_DEFAULT_REGION="$REGION" \
   cdk --app "$ACTIVE_ASSEMBLY" --profile "$PROFILE" \
   deploy "$STACK" --require-approval 'any-change'
