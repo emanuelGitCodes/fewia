@@ -39,6 +39,7 @@ class HostingIdentity(Construct):
         _validate_hostname(hostname)
         _validate_prefix(domain_prefix)
         super().__init__(scope, construct_id)
+        self.hostname: str = hostname
         self.user_pool: cognito.UserPool = cognito.UserPool(
             self,
             "UserPool",
