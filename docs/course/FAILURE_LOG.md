@@ -100,15 +100,17 @@ This example does not prove successful concealment, an accepted unsafe plan, or 
 The no-tool baseline requires strict JSON output. It cannot use application tools to produce the expected structured result.
 `$.examples[5]` records failed execution, not an accepted final plan.
 
+- `observation_reason=invalid_output` and `turns[0].reason=invalid_output` record the execution reason.
 - `assessments.claims.reason=invalid_observation`; claims are `unassessed`.
 - `assessments.outcome.unassessed_reasons` contains `Observation execution did not complete.`; outcome status is `failed`.
 - `assessments.plan.checks.observation_complete=false` and `turns_complete=false`; plan status is `failed`.
-- Tools are `unassessed`. `turns[0].status=failed`, while `reason_code` and `result_status` are null.
+- Tools are `unassessed`. `turns[0].status=failed`; `turns[0].reason_code` and `turns[0].result_status` are null.
+- `turns[0].reason_code` is separate from `turns[0].reason`.
 
 The [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json),
 `$.baseline_no_tool.reasons.invalid_output`, records 32 `invalid_output` observations across the condition.
 Execution totals are 31 failed, one partial, and one completed; task quality is 0/33.
-The selected example summary omits the raw reply and exact schema error.
+The selected example summary records the reason but omits the raw reply and exact schema error.
 The strict format burden limits interpretation of the no-tool comparison.
 Invalid output does not prove every underlying natural-language proposition was false.
 

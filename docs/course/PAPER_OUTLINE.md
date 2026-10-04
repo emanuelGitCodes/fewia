@@ -112,7 +112,7 @@ It changes no scoring code or allowed outcomes. Preserve the original result bes
 Evidence: `real_tool_enabled`, `baseline_no_tool`, `telemetry_groups`, and `cost` in the
 [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json).
 For corrected quality, select `groups` with `condition=tool_enabled` and `evidence_class=real_bedrock` in the
-[summary](../../eval/results/artifacts/posthoc-gold-20261003/summary.json), then read `metrics.quality`.
+[summary](../../eval/results/artifacts/posthoc-gold-20261003/summary.json), then read `tasks.quality`.
 The [benchmark record](../../wiki/phases/benchmark-20261003.md) records scope, percentiles, and dated pricing provenance.
 
 Use the supplied figure: [PNG](../../eval/results/artifacts/course-evidence-20261003/benchmark-quality.png),
