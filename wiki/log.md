@@ -3407,3 +3407,30 @@ This snapshot supports no savings percentage or causal efficiency claim.
 It does not replace the earlier tier S pilot or repeat the benchmark, post-hoc, and course-pack history entries.
 The writer ran no tests, gates, network requests, or external actions.
 The coordinator still verifies artifact values, links, the preserved log prefix, gates, and independent review.
+
+## 2026-10-03 — Invitation-only deployment source runbook
+
+Added [docs/HOSTED_DEMO.md](../docs/HOSTED_DEMO.md) and three synthetic
+configuration examples on `codex/backlog-resume-hosting-runbook`.
+The assigned source base is `c7c5b170ac4fd9f0456b3f5530d92a71b888b44c`, published hosting-record PR #366.
+The runbook requires reviewed source integration before deployment.
+It separates foundation, image publication, zero-service bootstrap, activation,
+DNS, administrator-created access, and live acceptance.
+Each AWS mutation needs a separate owner confirmation.
+Invitation delivery needs an explicit instruction to send it.
+The runbook preserves shared demo context, parked providers, and retained legacy data.
+It separates metadata preflight from live and deployed evidence.
+Rollback keeps data and retained resources. Zero services do not stop all charges.
+
+The saved `hosting-pricing-sources.json` was retrieved at `2026-10-04T01:57:47.663755+00:00` UTC.
+Its fixed list-price subtotal is USD 110.245392 for 730 hours, with stated exclusions.
+The runbook preserves those inputs and official pricing links. This is not a full quote or bill.
+The examples use synthetic account, hostname, certificate, prefix, and image digests.
+They are not usable deployment configurations.
+
+The writer read the assigned source snapshots and final preflight CLI source.
+The writer ran no tests, packages, git commands, network calls, or command templates.
+Final-parser validation, command and link checks, gates, and independent review remain pending.
+The coordinator still verifies Dockerfile paths, build contexts, and bootstrap freshness rules.
+Owner account, profile, hostname, certificate, DNS control, and action confirmations remain prerequisites.
+This entry records source work only. It does not establish merge, deployment, users, or invitations.
