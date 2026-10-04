@@ -1,7 +1,7 @@
 # Invitation-only hosted demo
 
 This is a source runbook. No deployed evidence is recorded here.
-The command templates have not run. They do not authorize any action.
+The command templates do not authorize any action.
 The owner MUST confirm each AWS mutation separately before the coordinator performs it.
 The coordinator MUST NOT treat preflight success as owner confirmation.
 
@@ -27,6 +27,7 @@ The app task contains the API and web containers. No sync worker runs.
 The accepted catalog contains 40 meals under decision 0017.
 Requests accept one to three (1-3) meals and one to eight (1-8) servings per meal.
 Manual budget defaults are USD 100 per month and a USD 40 plan cap.
+Application tools MUST use USD integer cents for budget inputs and arithmetic.
 The entered monthly limit remains the whole budget. These limits do not reserve money.
 Every grocery estimate MUST show this exact notice:
 
@@ -556,6 +557,9 @@ The coordinator MUST observe these acceptance checks before recording deployed s
 - Logged-in chat completes a real Bedrock request through the agent worker.
 - The owner confirms each invitee received the shared demo context explanation before invitation delivery.
 - Manual budget defaults, meal limits, serving limits, and catalog validation match the accepted product scope.
+- Budget inputs and arithmetic use USD integer cents. The entered monthly limit remains the whole budget.
+  Available budget equals the monthly limit minus net posted grocery spending, with a zero floor.
+  A smaller explicit plan cap limits the available plan budget. Pending spending appears separately.
 - Each displayed grocery estimate includes the exact sample-price notice above.
 - Instacart development links remain a handoff. Plaid, live Instacart, and the sync worker remain parked.
 
@@ -639,7 +643,12 @@ Foundation starts costs before activation. Zero service tasks do not mean zero c
 | Live | Observed real Bedrock response or normal HTTPS behavior | Unobserved deployment controls or per-user isolation |
 | Deployed | Observed controls and behavior for a named deployed revision | Other revisions, future state, or verified retailer and financial claims |
 
-Current evidence for this runbook is source only. No templates or deployed checks have run here.
+The foundation, bootstrap, and active CDK synth commands were checked with cached synthetic Availability Zone context and `--lookups=false`.
+These checks provide deterministic local synthesis evidence.
+They used no AWS credentials, live context lookup, AWS mutation, or deployment.
+The `--lookups=false` flag and cached synthetic context describe the offline probe only.
+The future synthesis commands above can perform read-only AWS context lookups.
+This source runbook remains undeployed. No deployed acceptance evidence is recorded.
 The coordinator MUST keep gates, independent review, CI, merge, and deployment evidence separate.
 Record deployed evidence only after direct observation.
 Use append-only wiki entries with the checkout SHA, configuration phase, image digests,
