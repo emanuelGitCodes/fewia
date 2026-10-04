@@ -59,6 +59,10 @@ GATES = (
     ("cdk", "ruff-check", "infra/bedrock", (*UV_RUN, "ruff", "check", "."), ()),
     ("cdk", "ruff-format", "infra/bedrock", CDK_RUFF_FORMAT, ()),
     ("cdk", "mypy", "infra/bedrock", (*UV_RUN, "mypy", "--strict", "."), ()),
+    ("hosting", "ruff-check", "infra/hosting", (*UV_RUN, "ruff", "check", "."), ()),
+    ("hosting", "ruff-format", "infra/hosting", CDK_RUFF_FORMAT, ()),
+    ("hosting", "mypy", "infra/hosting", (*UV_RUN, "mypy", "--strict", "."), ()),
+    ("hosting", "pytest", "infra/hosting", (*UV_RUN, "pytest", "-q"), ()),
     ("compose", "config", "", COMPOSE_CONFIG, ()),
 )
 
@@ -128,6 +132,8 @@ def areas_for(paths: set[str]) -> set[str]:
     for path in paths:
         if path.startswith("infra/bedrock/"):
             found.add("cdk")
+        elif path.startswith("infra/hosting/"):
+            found.add("hosting")
         elif path.startswith(("backend/", "frontend/")):
             found.add(path.split("/", 1)[0])
         elif path.startswith(("dev_supervisor/", "tests/")) or path == "ruff.toml":

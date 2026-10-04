@@ -91,6 +91,43 @@ def test_area_cdk_priority() -> None:
     assert areas_for({"infra/bedrock/stack.py"}) == {"cdk"}
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "infra/hosting/app.py",
+        "infra/hosting/tests/test_resources.py",
+        "infra/hosting/README.md",
+        "infra/hosting/pyproject.toml",
+        "infra/hosting/cdk.json",
+        "infra/hosting/uv.lock",
+        "infra/hosting/nested/other.txt",
+    ],
+)
+def test_area_hosting_priority(path: str) -> None:
+    assert areas_for({path}) == {"hosting"}
+
+
+def test_area_hosting_mixed_paths() -> None:
+    paths = {
+        "infra/hosting/uv.lock",
+        "infra/bedrock/README.md",
+        "infra/floci_bootstrap.py",
+        "backend/app/main.py",
+        "frontend/src/App.tsx",
+        "tests/supervisor/test_gates.py",
+        "compose.yaml",
+        "docs/plan.md",
+    }
+    assert areas_for(paths) == {
+        "hosting",
+        "cdk",
+        "tools",
+        "backend",
+        "frontend",
+        "compose",
+    }
+
+
 def test_area_docs_only() -> None:
     paths = {
         "docs/plan.md",
@@ -281,6 +318,92 @@ def test_tools_sets_pythonpath(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     for env in seen:
         assert isinstance(env, dict)
         assert env["PYTHONPATH"] == "."
+
+
+def test_hosting_dispatches_project_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[str, ...]] = []
+
+    def fake_run(
+        argv: tuple[str, ...],
+        *,
+        cwd: Path,
+        timeout: float,
+        env: dict[str, str] | None,
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == tmp_path / "infra" / "hosting"
+        assert timeout == 17
+        assert env is None
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "ok\n", "")
+
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake_run)
+    results = run_area_gates(tmp_path, {"hosting"}, 17)
+    assert seen == [
+        ("uv", "run", "ruff", "check", "."),
+        ("uv", "run", "ruff", "format", "--check", "."),
+        ("uv", "run", "mypy", "--strict", "."),
+        ("uv", "run", "pytest", "-q"),
+    ]
+    assert results == [
+        ("hosting", gate, "PASS", "ok", ("ok",))
+        for gate in ("ruff-check", "ruff-format", "mypy", "pytest")
+    ]
+
+
+@pytest.mark.parametrize("failure", ["exit", "timeout"])
+@pytest.mark.parametrize("failed_index", range(4))
+def test_hosting_failure_reaches_exit_and_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+    failed_index: int,
+) -> None:
+    repo = _repo(tmp_path)
+    hosting = repo / "infra" / "hosting"
+    hosting.mkdir(parents=True)
+    (hosting / "uv.lock").write_text("lock\n")
+    seen: list[tuple[str, ...]] = []
+
+    def fake_run(
+        argv: tuple[str, ...],
+        *,
+        cwd: Path,
+        timeout: float,
+        env: dict[str, str] | None,
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == hosting
+        assert timeout == 19
+        assert env is None
+        seen.append(argv)
+        if len(seen) - 1 == failed_index:
+            if failure == "timeout":
+                raise subprocess.TimeoutExpired(argv, timeout)
+            return subprocess.CompletedProcess(argv, 1, "detail\nfailed\n", "")
+        return subprocess.CompletedProcess(argv, 0, "ok\n", "")
+
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake_run)
+    assert main(["--cwd", str(repo), "--base", "HEAD", "--timeout", "19"]) == 1
+    output = capsys.readouterr().out
+    names = ("ruff-check", "ruff-format", "mypy", "pytest")
+    last = "timeout" if failure == "timeout" else "failed"
+    assert f"FAIL hosting:{names[failed_index]} {last}\n" in output
+    if failure == "exit":
+        assert "  detail\n  failed\n" in output
+    assert output.endswith("RESULT FAIL\n")
+    assert len(seen) == 4
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
+    assert data["sha"] == sha
+    assert data["base"] == sha
+    assert [row["gate"] for row in data["gates"]] == list(names)
+    assert all(row["area"] == "hosting" for row in data["gates"])
+    assert [row["status"] for row in data["gates"]] == [
+        "FAIL" if index == failed_index else "PASS" for index in range(4)
+    ]
+    assert data["gates"][failed_index]["last_line"] == last
 
 
 def test_frontend_fail_does_not_stop_later_gates(
