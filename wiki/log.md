@@ -2997,3 +2997,9 @@ No Grafana or Graphify update occurred. No PR was merged and no AWS deployment r
 ## 2026-10-03 — Backlog PRs merged and the fallback follow-up
 
 The coordinator evaluated #314 to #320 against `main`. All seven branches merged together passed 6,831 backend tests, 243 tooling tests, 423 frontend tests, lint, strict mypy, and the frontend build. #314, #320, #319, #315, and #318 merged in that order with merge commits. #317 merged after a repair pinned `astral-sh/setup-uv@v10.2.0`. #316 merged on `8eddcc7` after two repairs; its third review round found that a structured Codex error with both `code` and `message` is matched on `code` only. The owner merged as is. The follow-up is backlog item B6 in `docs/FEATURE_BACKLOG.md`. The coordinator ran an independent review on #320 (APPROVE) and mutation probes on #314, #316, and #320; every mutation was caught. Branch `codex/backlog-20261003-b5` holds an unpublished start on B5 at `db4226f`. Main is at `8bfd4b8`.
+
+## 2026-10-03 — Decision 0018: retain legacy data for now
+
+The user chose to retain existing stored Spoonacular totals and retired
+health tables for now. Deletion needs a separate decision. Decision:
+[0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md).
