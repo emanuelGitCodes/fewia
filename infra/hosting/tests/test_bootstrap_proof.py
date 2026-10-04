@@ -142,6 +142,166 @@ def test_unknown_metadata_is_permitted_without_inspection() -> None:
 
 
 @pytest.mark.parametrize(
+    "overrides",
+    [
+        {},
+        {"containerOverrides": []},
+        {"inferenceAcceleratorOverrides": []},
+        {"containerOverrides": [], "inferenceAcceleratorOverrides": []},
+        {"containerOverrides": [{"name": "bootstrap"}]},
+        {
+            "containerOverrides": [{"name": "bootstrap"}],
+            "inferenceAcceleratorOverrides": [],
+        },
+    ],
+)
+def test_empty_and_default_overrides_preserve_success(
+    overrides: dict[str, object],
+) -> None:
+    response = _response()
+    _task(response)["overrides"] = overrides
+    response["ResponseMetadata"] = {"private": _MARKER}
+    before = deepcopy(response)
+    assert _check(response) is None
+    assert response == before
+
+
+def test_absent_overrides_preserve_success() -> None:
+    response = _response()
+    assert "overrides" not in _task(response)
+    assert _check(response) is None
+
+
+def test_command_override_cannot_prove_bootstrap_completion() -> None:
+    response = _response()
+    _task(response)["overrides"] = {
+        "containerOverrides": [{"name": "bootstrap", "command": ["true"]}]
+    }
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [None, True, False, 0, "", [], (), _DictSubclass(), UserDict()],
+)
+def test_overrides_require_an_exact_dictionary(overrides: object) -> None:
+    response = _response()
+    _task(response)["overrides"] = overrides
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "cpu",
+        "ephemeralStorage",
+        "executionRoleArn",
+        "memory",
+        "taskRoleArn",
+        "unknownOverride",
+    ],
+)
+@pytest.mark.parametrize("value", [None, False, 0, "", [], {}, _MARKER])
+def test_task_override_fields_fail_even_when_empty(field: str, value: object) -> None:
+    response = _response()
+    _task(response)["overrides"] = {field: value}
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "command",
+        "cpu",
+        "environment",
+        "environmentFiles",
+        "memory",
+        "memoryReservation",
+        "resourceRequirements",
+        "executionRoleArn",
+        "taskRoleArn",
+        "unknownOverride",
+    ],
+)
+@pytest.mark.parametrize("value", [None, False, 0, "", [], {}, [_MARKER]])
+def test_container_override_fields_fail_even_when_empty(
+    field: str, value: object
+) -> None:
+    response = _response()
+    _task(response)["overrides"] = {
+        "containerOverrides": [{"name": "bootstrap", field: value}]
+    }
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        True,
+        False,
+        0,
+        "",
+        {},
+        (),
+        _ListSubclass(),
+        _ListSubclass([{"name": "bootstrap"}]),
+        [None],
+        [True],
+        [0],
+        [_MARKER],
+        [[]],
+        [{}],
+        [_DictSubclass({"name": "bootstrap"})],
+        [UserDict({"name": "bootstrap"})],
+        [{"name": "bootstrap"}, {"name": "bootstrap"}],
+        [{"name": "bootstrap"}, {"name": "other"}],
+    ],
+)
+def test_container_overrides_require_exact_empty_or_single_object_lists(
+    value: object,
+) -> None:
+    response = _response()
+    _task(response)["overrides"] = {"containerOverrides": value}
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [None, True, 0, "", "other", "bootstrap\n", [], {}, _StringSubclass("bootstrap")],
+)
+def test_container_override_name_requires_the_exact_bootstrap_string(
+    name: object,
+) -> None:
+    response = _response()
+    _task(response)["overrides"] = {"containerOverrides": [{"name": name}]}
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, True, False, 0, "", {}, (), _ListSubclass(), [None], [{}], [_MARKER]],
+)
+def test_inference_overrides_require_an_exact_empty_list(value: object) -> None:
+    response = _response()
+    _task(response)["overrides"] = {"inferenceAcceleratorOverrides": value}
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize("container_level", [False, True])
+@pytest.mark.parametrize("key", [0, _StringSubclass("name"), _MARKER])
+def test_override_keys_fail_closed(container_level: bool, key: object) -> None:
+    response = _response()
+    overrides: dict[object, object] = {key: _MARKER}
+    if container_level:
+        overrides["name"] = "bootstrap"
+        _task(response)["overrides"] = {"containerOverrides": [overrides]}
+    else:
+        _task(response)["overrides"] = overrides
+    _assert_invalid(response)
+
+
+@pytest.mark.parametrize(
     ("started", "stopped", "now"),
     [
         ("2026-10-03T12:00:00+02:00", "2026-10-03T06:00:00-05:00", _NOW),

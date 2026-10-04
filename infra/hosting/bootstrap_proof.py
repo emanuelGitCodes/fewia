@@ -34,6 +34,22 @@ def _single(raw: object) -> dict[str, object]:
     return _object(cast(list[object], raw)[0])
 
 
+def _overrides(raw: object) -> None:
+    values = _object(raw)
+    if values.keys() - {"containerOverrides", "inferenceAcceleratorOverrides"}:
+        raise PreflightError(_ERROR)
+    accelerators = values.get("inferenceAcceleratorOverrides", [])
+    if type(accelerators) is not list or accelerators:
+        raise PreflightError(_ERROR)
+    containers = values.get("containerOverrides", [])
+    if type(containers) is not list:
+        raise PreflightError(_ERROR)
+    if containers:
+        container = _single(containers)
+        if set(container) != {"name"} or _string(container.get("name")) != "bootstrap":
+            raise PreflightError(_ERROR)
+
+
 def _timestamp(raw: object) -> datetime:
     value = _string(raw)
     if re.fullmatch(_TIMESTAMP, value) is None:
@@ -93,6 +109,7 @@ def check_bootstrap_task(
     if type(failures) is not list or failures:
         raise PreflightError(_ERROR)
     task = _single(metadata.get("tasks"))
+    _overrides(task.get("overrides", {}))
     for key, expected in (
         ("taskArn", task_arn),
         ("taskDefinitionArn", task_definition_arn),
