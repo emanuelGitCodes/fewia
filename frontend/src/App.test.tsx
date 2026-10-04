@@ -687,6 +687,56 @@ describe("App", () => {
     renderer.unmount();
   });
 
+  it.each(["succeeded", "uncertain"] as const)(
+    "hides a stale %s handoff until Instacart is configured",
+    (state) => {
+      const url = "https://www.instacart.com/store/lists/demo?retailer_key=abc";
+      const handoff = handoffState({
+        view: {
+          id: "00000000-0000-0000-0000-000000000001",
+          state,
+          attempts: 1,
+          url: state === "succeeded" ? url : null,
+          error_code: state === "uncertain" ? "invalid_cached_url" : null,
+          expires_at: "2026-09-06T15:00:00+00:00",
+          retry_allowed: state === "uncertain",
+        },
+      });
+      const renderer = mount(demoState({ job: succeededJob }), chatState(), undefined, handoff);
+      expect(renderer.container.querySelector(".handoff-controls")).toBeNull();
+      expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
+      expect(hasButton(renderer.container, "Retry shopping list")).toBe(false);
+      expect(screen.queryByRole("link", { name: "Open shopping list" })).toBeNull();
+      expect(handoff.start).not.toHaveBeenCalled();
+      expect(handoff.retry).not.toHaveBeenCalled();
+
+      vi.mocked(useProviderCapabilities).mockReturnValue(instacartProviders());
+      renderer.rerender(createElement(App));
+      if (state === "succeeded") {
+        expect(screen.getByRole("link", { name: "Open shopping list" }).getAttribute("href")).toBe(
+          url,
+        );
+      } else {
+        expect(childText(renderer.container)).toContain(
+          "The shopping link is uncertain. Retry only if you choose to.",
+        );
+        fireEvent.click(buttonNamed(renderer.container, "Retry shopping list"));
+        expect(handoff.retry).toHaveBeenCalledTimes(1);
+      }
+      expect(handoff.start).not.toHaveBeenCalled();
+
+      vi.mocked(useProviderCapabilities).mockReturnValue({
+        ...instacartProviders(),
+        capabilities: providersReady,
+      });
+      renderer.rerender(createElement(App));
+      expect(renderer.container.querySelector(".handoff-controls")).toBeNull();
+      expect(hasButton(renderer.container, "Retry shopping list")).toBe(false);
+      expect(screen.queryByRole("link", { name: "Open shopping list" })).toBeNull();
+      renderer.unmount();
+    },
+  );
+
   it("hides start when the estimate is dirty", () => {
     const renderer = mount(
       demoState({ job: succeededJob, dirty: true }),

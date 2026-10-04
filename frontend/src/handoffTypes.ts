@@ -80,8 +80,9 @@ function rawAuthority(value: string): { host: string; port: string } | null {
     : { host: authority.slice(0, colon), port: authority.slice(colon + 1) };
 }
 
-function isSafeHandoffUrl(value: string): boolean {
+export function isSafeHandoffUrl(value: unknown): value is string {
   if (
+    typeof value !== "string" ||
     !value ||
     value.length > 2048 ||
     RAW_UNSAFE.test(value) ||

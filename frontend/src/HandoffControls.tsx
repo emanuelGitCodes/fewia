@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import type { HandoffView } from "./handoffTypes";
+import { isSafeHandoffUrl, type HandoffView } from "./handoffTypes";
 
 export type HandoffControlsProps = {
   view: HandoffView | null;
@@ -40,7 +40,12 @@ export function HandoffControls({
   onRetry,
 }: HandoffControlsProps): JSX.Element {
   const linkHref =
-    view !== null && view.state === "succeeded" && view.retry_allowed === false ? view.url : null;
+    view !== null &&
+    view.state === "succeeded" &&
+    view.retry_allowed === false &&
+    isSafeHandoffUrl(view.url)
+      ? view.url
+      : null;
   const status = pending ? IN_PROGRESS : view === null ? null : stateStatus(view.state);
   return (
     <section className="handoff-controls" aria-labelledby="handoff-heading">

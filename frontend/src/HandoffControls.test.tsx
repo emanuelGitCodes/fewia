@@ -168,6 +168,59 @@ describe("HandoffControls", () => {
     rendered.unmount();
   });
 
+  it.each([
+    "javascript:alert(1)",
+    "http://www.instacart.com/store/lists/demo",
+    "https://example.com/store/lists/demo",
+    "https://www.instacart.com.evil.com/list",
+    "https://www.instacart.com./list",
+    "https://user@www.instacart.com/list",
+    "https://www.instacart.com:8443/list",
+    "https://www.instacart.com/list#fragment",
+    "https://www.instacart.com/list with space",
+    "https://www.instacart.com/a%0d%0a",
+    "https://www.instacart.com/a\\b",
+    "",
+  ])("hides an unsafe direct component URL: %s", (url) => {
+    const { rendered } = mount({
+      view: view({ state: "succeeded", attempts: 1, url, expires_at: STAMP }),
+    });
+    expect(within(rendered.container).queryAllByRole("link")).toHaveLength(0);
+    expect(rendered.container.querySelector("a[href]")).toBeNull();
+    rendered.unmount();
+  });
+
+  it.each([null, undefined, 42, true, {}, []].map((url) => ({ url })))(
+    "hides a malformed runtime URL: $url",
+    ({ url }) => {
+      const { rendered } = mount({
+        view: view({
+          state: "succeeded",
+          attempts: 1,
+          url: url as string,
+          expires_at: STAMP,
+        }),
+      });
+      expect(rendered.container.querySelector("a[href]")).toBeNull();
+      rendered.unmount();
+    },
+  );
+
+  it.each([
+    "https://instacart.com/store/lists/demo",
+    "https://www.instacart.ca/store/lists/demo",
+    "https://instacart.ca/store/lists/demo",
+    "https://WWW.INSTACART.COM:443/store/lists/demo",
+  ])("keeps a valid direct component URL: %s", (url) => {
+    const { rendered } = mount({
+      view: view({ state: "succeeded", attempts: 1, url, expires_at: STAMP }),
+    });
+    expect(
+      within(rendered.container).getByRole("link", { name: "Open shopping list" }).getAttribute("href"),
+    ).toBe(url);
+    rendered.unmount();
+  });
+
   it("shows dispatching status without start, retry, or a link", () => {
     const { rendered } = mount({
       view: view({ state: "dispatching", attempts: 1 }),
