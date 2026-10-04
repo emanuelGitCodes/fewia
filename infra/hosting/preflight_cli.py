@@ -31,7 +31,7 @@ _OPTIONS: dict[tuple[str, str], tuple[str, ...]] = {
     ("cloudformation", "describe-stacks"): ("--stack-name=FewiaHostedDemoDev",),
     ("ecr", "describe-images"): (
         r"--registry-id=[0-9]{12}",
-        r"--repository-name=[a-z0-9]+(?:[._-][a-z0-9]+)*"
+        r"--repository-name=(?=.{2,256}$)[a-z0-9]+(?:[._-][a-z0-9]+)*"
         r"(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*",
         r"--image-ids=imageDigest=sha256:[0-9a-f]{64}",
     ),

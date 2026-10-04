@@ -160,6 +160,38 @@ def test_adapter_exact_read_only_subprocess_contract(
     assert process.calls[0][1]["env"] is not os.environ
 
 
+@pytest.mark.parametrize("length", [1, 257])
+def test_adapter_rejects_repository_lengths_before_subprocess(
+    length: int, process: _Process
+) -> None:
+    command = _COMMANDS[3].copy()
+    command[7] = "--repository-name=" + "a" * length
+    _assert_static_error(lambda: cli._invoke_aws(command, profile=_PROFILE))
+    assert process.calls == []
+
+
+@pytest.mark.parametrize("length", [2, 256])
+def test_adapter_accepts_repository_length_boundaries(
+    length: int, process: _Process
+) -> None:
+    repository = "a" * length
+    command = _COMMANDS[3].copy()
+    command[7] = f"--repository-name={repository}"
+    metadata = {
+        "imageDetails": [
+            {
+                "registryId": _ACCOUNT,
+                "repositoryName": repository,
+                "imageDigest": _DIGEST,
+            }
+        ]
+    }
+    process.stdout = json.dumps(metadata).encode()
+    assert cli._invoke_aws(command, profile=_PROFILE) == metadata
+    assert len(process.calls) == 1
+    assert process.calls[0][0][7] == command[7]
+
+
 @pytest.mark.parametrize(
     "stdout",
     [
