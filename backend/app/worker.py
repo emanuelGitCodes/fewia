@@ -6,6 +6,7 @@ import threading
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from types import FrameType
+from typing import NoReturn, cast
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
@@ -20,8 +21,8 @@ from app.provider_settings import (
     ProviderConfigurationError,
     load_provider_settings,
 )
-from app.providers.local_sqs import LocalSqsSender
-from app.providers.local_sqs_consumer import LocalSqsConsumer
+from app.providers.job_transport import build_job_queue, build_job_sender
+from app.providers.job_transport_settings import load_job_transport
 from app.services.agent_jobs import make_agent_handler
 from app.services.chat_job import ChatJobInput
 from app.services.job_consumer import process_one
@@ -133,6 +134,11 @@ def _write_result(status: str, counts: dict[str, int]) -> None:
     print(json.dumps({"status": status, "counts": counts}, sort_keys=True))
 
 
+class _WorkerParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        raise ValueError("Worker arguments are invalid")
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -145,17 +151,25 @@ def main(
     now: NowFn | None = None,
     wait: WaitFn | None = None,
 ) -> int:
-    parser = argparse.ArgumentParser(description="Process local jobs.")
-    parser.add_argument("--endpoint", required=True)
+    parser = _WorkerParser(description="Process jobs.")
+    parser.add_argument("--transport", choices=("local", "aws"))
+    parser.add_argument("--endpoint")
     parser.add_argument("--kind", choices=("agent", "sync"), default="agent")
-    args = parser.parse_args(argv)
     counts = {outcome: 0 for outcome in _OUTCOMES}
+    try:
+        args = parser.parse_args(argv)
+        transport = load_job_transport(mode=args.transport, endpoint=args.endpoint)
+        if transport.mode == "aws" and (
+            consumer_factory is not None or sender_factory is not None
+        ):
+            raise ValueError("Legacy factories require local transport")
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    except Exception:  # noqa: BLE001
+        _write_result("worker_failed", counts)
+        return 1
     selected_factory = SessionLocal if factory is None else factory
     selected_stop = threading.Event() if stop is None else stop
-    selected_consumer = (
-        LocalSqsConsumer if consumer_factory is None else consumer_factory
-    )
-    selected_sender = LocalSqsSender if sender_factory is None else sender_factory
     signals = (signal.SIGINT, signal.SIGTERM)
     previous_handlers = {signum: signal.getsignal(signum) for signum in signals}
 
@@ -172,10 +186,20 @@ def main(
             if handler is not None
             else _default_handler(selected_factory, args.kind)
         )
+        queue = (
+            build_job_queue(transport, args.kind)
+            if consumer_factory is None
+            else consumer_factory(cast(str, transport.endpoint), args.kind)
+        )
+        sender = (
+            build_job_sender(transport)
+            if sender_factory is None
+            else sender_factory(cast(str, transport.endpoint))
+        )
         run_worker(
             selected_factory,
-            selected_consumer(args.endpoint, args.kind),
-            selected_sender(args.endpoint),
+            queue,
+            sender,
             selected_handler,
             selected_stop,
             processor=processor,
