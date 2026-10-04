@@ -246,7 +246,10 @@ def test_every_app_container_has_non_root_user(
     _, _, template = task_case
     for container in _containers(template).values():
         assert "User" in container
-        assert container["User"] not in {"root", "0", "0:0"}
+        uid = str(container["User"]).split(":", 1)[0]
+        assert uid != ""
+        assert uid not in {"root", "0"}
+        assert uid.isdigit()
 
 
 def test_only_web_mounts_two_private_empty_volumes(
