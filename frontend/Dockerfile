@@ -7,10 +7,10 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-FROM nginx:stable-alpine
+FROM nginxinc/nginx-unprivileged:stable-alpine
 ENV FEWIA_API_UPSTREAM=api:8000
 ENV NGINX_ENVSUBST_FILTER="^FEWIA_API_UPSTREAM$"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --chmod=755 docker-entrypoint.d/15-validate-api-upstream.sh /docker-entrypoint.d/15-validate-api-upstream.sh
 COPY --from=build /src/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080

@@ -57,7 +57,7 @@ def _inputs(tmp_path: Path, env: Environment) -> _Inputs:
         stack, "Identity", hostname="example.test", domain_prefix="fewia-dev"
     )
     task = ecs.FargateTaskDefinition(stack, "Task")
-    for name, port in (("api", 8000), ("web", 80)):
+    for name, port in (("api", 8000), ("web", 8080)):
         task.add_container(
             name,
             container_name=name,
@@ -201,12 +201,13 @@ def test_private_target_health_and_exact_web_registration(inputs: _Inputs) -> No
     template = Template.from_stack(inputs.stack)
     template.resource_count_is("AWS::ElasticLoadBalancingV2::TargetGroup", 1)
     props = _properties(template, edge.target_group)
-    assert props["Port"] == 80
+    assert props["Port"] == 8080
     assert props["Protocol"] == "HTTP"
     assert props["TargetType"] == "ip"
     assert props["VpcId"] == inputs.stack.resolve(inputs.network.vpc.vpc_id)
     assert props["HealthCheckPath"] == "/api/healthz"
     assert props["HealthCheckProtocol"] == "HTTP"
+    assert props["HealthCheckPort"] == "8080"
     assert props["Matcher"] == {"HttpCode": "200"}
     assert props["HealthCheckIntervalSeconds"] == 30
     assert props["HealthCheckTimeoutSeconds"] == 5
@@ -220,7 +221,7 @@ def test_private_target_health_and_exact_web_registration(inputs: _Inputs) -> No
     assert service["LoadBalancers"] == [
         {
             "ContainerName": "web",
-            "ContainerPort": 80,
+            "ContainerPort": 8080,
             "TargetGroupArn": {"Ref": _logical_id(edge.target_group)},
         }
     ]
@@ -267,7 +268,7 @@ def test_edge_adds_no_identity_roles_secrets_or_widened_network(
             assert props["CidrIp"] == "0.0.0.0/0"
             assert "SourceSecurityGroupId" not in props
         elif props["GroupId"] == app_id:
-            assert props["FromPort"] == 80
+            assert props["FromPort"] == 8080
             assert props["SourceSecurityGroupId"] == edge_id
             assert "CidrIp" not in props
         else:
@@ -290,12 +291,12 @@ def test_edge_adds_no_identity_roles_secrets_or_widened_network(
         assert props["IpProtocol"] == "tcp"
         assert props["FromPort"] == props["ToPort"]
         rule = {key: value for key, value in props.items() if key != "Description"}
-        if props["GroupId"] == edge_id and props["FromPort"] == 80:
+        if props["GroupId"] == edge_id and props["FromPort"] == 8080:
             assert rule == {
                 "GroupId": edge_id,
                 "IpProtocol": "tcp",
-                "FromPort": 80,
-                "ToPort": 80,
+                "FromPort": 8080,
+                "ToPort": 8080,
                 "DestinationSecurityGroupId": app_id,
             }
         elif props["GroupId"] == app_id and props["FromPort"] == 5432:

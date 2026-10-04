@@ -191,7 +191,7 @@ def test_container_security_ports_health_dependency_and_logs(
     containers = _containers(template)
     for name, port, log_group in (
         ("api", 8000, inputs.assets.api_logs),
-        ("web", 80, inputs.assets.web_logs),
+        ("web", 8080, inputs.assets.web_logs),
     ):
         container = containers[name]
         assert container["Essential"] is True
@@ -221,7 +221,7 @@ def test_container_security_ports_health_dependency_and_logs(
         )
     api, web = containers["api"], containers["web"]
     assert api["User"] == "1000:1000"
-    assert "User" not in web
+    assert web["User"] == "101:101"
     assert "HealthCheck" not in web
     assert "DependsOn" not in api
     assert api["HealthCheck"] == {
@@ -240,14 +240,22 @@ def test_container_security_ports_health_dependency_and_logs(
     assert web["DependsOn"] == [{"ContainerName": "api", "Condition": "HEALTHY"}]
 
 
-def test_only_web_mounts_three_private_empty_volumes(
+def test_every_app_container_has_non_root_user(
+    task_case: tuple[_Inputs, HostingAppTask, Template],
+) -> None:
+    _, _, template = task_case
+    for container in _containers(template).values():
+        assert "User" in container
+        assert container["User"] not in {"root", "0", "0:0"}
+
+
+def test_only_web_mounts_two_private_empty_volumes(
     task_case: tuple[_Inputs, HostingAppTask, Template],
 ) -> None:
     _, _, template = task_case
     mounts = {
+        "nginx-tmp": "/tmp",
         "nginx-conf": "/etc/nginx/conf.d",
-        "nginx-cache": "/var/cache/nginx",
-        "nginx-run": "/var/run",
     }
     assert _properties(template)["Volumes"] == [{"Name": name} for name in mounts]
     containers = _containers(template)

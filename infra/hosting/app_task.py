@@ -83,19 +83,19 @@ class HostingAppTask(Construct):
             environment={"FEWIA_API_UPSTREAM": "127.0.0.1:8000"},
             essential=True,
             readonly_root_filesystem=True,
+            user="101:101",
             privileged=False,
             stop_timeout=Duration.seconds(30),
             port_mappings=[
-                ecs.PortMapping(container_port=80, protocol=ecs.Protocol.TCP)
+                ecs.PortMapping(container_port=8080, protocol=ecs.Protocol.TCP)
             ],
             logging=ecs.LogDrivers.aws_logs(
                 log_group=assets.web_logs, stream_prefix="web"
             ),
         )
         for name, path in (
+            ("nginx-tmp", "/tmp"),
             ("nginx-conf", "/etc/nginx/conf.d"),
-            ("nginx-cache", "/var/cache/nginx"),
-            ("nginx-run", "/var/run"),
         ):
             self.task_definition.add_volume(name=name)
             self.web_container.add_mount_points(

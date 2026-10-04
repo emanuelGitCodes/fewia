@@ -410,7 +410,7 @@ def test_composed_edge_authenticates_owned_app_service(
     assert _properties(template, demo.services.app_service)["LoadBalancers"] == [
         {
             "ContainerName": "web",
-            "ContainerPort": 80,
+            "ContainerPort": 8080,
             "TargetGroupArn": {"Ref": _logical_id(demo.edge.target_group)},
         }
     ]

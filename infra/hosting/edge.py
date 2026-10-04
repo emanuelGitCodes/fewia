@@ -62,16 +62,17 @@ class HostingEdge(Construct):
             self,
             "TargetGroup",
             vpc=network.vpc,
-            port=80,
+            port=8080,
             protocol=elbv2.ApplicationProtocol.HTTP,
             target_type=elbv2.TargetType.IP,
             targets=[
-                service.load_balancer_target(container_name="web", container_port=80)
+                service.load_balancer_target(container_name="web", container_port=8080)
             ],
             deregistration_delay=Duration.seconds(30),
             health_check=elbv2.HealthCheck(
                 protocol=elbv2.Protocol.HTTP,
                 path="/api/healthz",
+                port="8080",
                 healthy_http_codes="200",
                 interval=Duration.seconds(30),
                 timeout=Duration.seconds(5),
