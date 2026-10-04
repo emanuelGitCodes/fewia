@@ -1,0 +1,23 @@
+{
+  "source": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+  "config": "synthetic runbook foundation example",
+  "exit_code": 0,
+  "stdout": "{\"status\": \"synthesized\", \"phase\": \"foundation\", \"stack\": \"FewiaHostedDemoDev\"}",
+  "missing_context": [
+    {
+      "key": "availability-zones:account=123456789012:region=us-east-1",
+      "provider": "availability-zones",
+      "props": {
+        "dummyValue": [
+          "dummy1a",
+          "dummy1b",
+          "dummy1c"
+        ],
+        "account": "123456789012",
+        "region": "us-east-1",
+        "lookupRoleArn": "arn:${AWS::Partition}:iam::123456789012:role/cdk-hnb659fds-lookup-role-123456789012-us-east-1"
+      }
+    }
+  ],
+  "aws_calls": 0
+}

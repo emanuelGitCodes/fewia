@@ -1,7 +1,7 @@
 # 0019 — Invitation-only hosted demo
 
 - Date: 2026-10-03 (America/New_York).
-- Status: accepted access scope; implementation and deployment remain in progress.
+- Status: accepted access scope; source, preflight, and runbook published; live deployment remains unverified.
 - Relates to: [0018 — Retain legacy data](0018-retain-legacy-data.md),
   [project scope](../../.codex/project-context.md), and
   [hosting preparation](../phases/hosting-preparation-20261003.md).
@@ -55,10 +55,13 @@ Sample prices and synthetic data do not verify retailer, financial, or populatio
 
 ## Implementation and deployment status
 
-The [phase snapshot](../phases/hosting-preparation-20261003.md) records published source and bounded CI observations.
-Runtime roles at `573dd0b` and identity at `14dd9e41` remain source checkpoints pending publication and review.
-ECS task definitions, services, listeners, and stack composition remain in progress.
-Application-role bootstrap, the deployment runbook, and preflight remain in progress.
+The [2026-10-03 hosting snapshot](../phases/hosting-preparation-20261003.md) keeps its original published-source table.
+The [2026-10-04 final record](../phases/backlog-final-20261003.md) records later published heads.
+Runtime roles are published in [#362](https://github.com/emanuelGitCodes/fewia/pull/362) at `573dd0b4a21b38b73d19e4b70482686854299b46`.
+Identity is published in [#364](https://github.com/emanuelGitCodes/fewia/pull/364) at `14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a`.
+Preflight CLI is published in [#380](https://github.com/emanuelGitCodes/fewia/pull/380) at `7b2e370d081e9c79e80fd41863708a3735fddfe5`.
+The deployment runbook is published in [#381](https://github.com/emanuelGitCodes/fewia/pull/381) at `d43d606df795a6a6e748fdc9263554349867ae9c`.
+Those pull requests remain unmerged. Source publication does not establish deployed controls.
 The hostname, ACM certificate, and deployment credentials await owner input.
 The coordinator MUST NOT invent these values or include credentials in project records.
 The live hosted demo remains unverified.

@@ -1,0 +1,1621 @@
+{
+  "kind": "unmerged filesystem composition",
+  "base": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "components": [
+    {
+      "pr": 321,
+      "head": "f5aa8f09cd757e08034f035e46019285a436d78d",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "docs/FEATURE_BACKLOG.md",
+        "wiki/log.md",
+        "wiki/phases/backlog-build-20261003.md"
+      ]
+    },
+    {
+      "pr": 322,
+      "head": "117e37d77537f94d0e9170e2665eb73d12ac533b",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "backend/app/evaluation_markdown_values.py",
+        "backend/tests/test_evaluation_markdown_values.py"
+      ]
+    },
+    {
+      "pr": 323,
+      "head": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "frontend/src/App.test.tsx",
+        "frontend/src/App.tsx",
+        "frontend/src/HandoffControls.test.tsx",
+        "frontend/src/HandoffControls.tsx",
+        "frontend/src/handoffTypes.test.ts",
+        "frontend/src/handoffTypes.ts"
+      ]
+    },
+    {
+      "pr": 324,
+      "head": "578df44aa0fa5107167dadec1e8f7773ce9e041f",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "dev_supervisor/review.py",
+        "tests/supervisor/test_review.py"
+      ]
+    },
+    {
+      "pr": 325,
+      "head": "36843e7e2d01590c29ad3655691c6bfbc161ae58",
+      "parent": "f5aa8f09cd757e08034f035e46019285a436d78d",
+      "paths": [
+        "wiki/decisions/0018-retain-legacy-data.md",
+        "wiki/index.md",
+        "wiki/log.md"
+      ]
+    },
+    {
+      "pr": 326,
+      "head": "e903429cb69f3d562d8c72e19f431000a34ab7af",
+      "parent": "36843e7e2d01590c29ad3655691c6bfbc161ae58",
+      "paths": [
+        "docs/DEV_SUPERVISOR.md",
+        "docs/delegation/junior.md",
+        "wiki/log.md"
+      ]
+    },
+    {
+      "pr": 327,
+      "head": "85493df8ace8ff246df0c15dfccb40e22aef1a62",
+      "parent": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b",
+      "paths": [
+        "frontend/src/App.test.tsx",
+        "frontend/src/App.tsx",
+        "frontend/src/HandoffConsent.test.tsx",
+        "frontend/src/HandoffConsent.tsx",
+        "frontend/src/HandoffControls.test.tsx",
+        "frontend/src/HandoffControls.tsx",
+        "frontend/src/estimate.css"
+      ]
+    },
+    {
+      "pr": 328,
+      "head": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d",
+      "parent": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2",
+      "paths": [
+        "backend/app/evaluation_runtime.py",
+        "backend/tests/test_evaluation_runtime.py"
+      ]
+    },
+    {
+      "pr": 329,
+      "head": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375",
+      "parent": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d",
+      "paths": [
+        "backend/app/evaluation_dispatch.py",
+        "backend/tests/test_evaluation_dispatch.py"
+      ]
+    },
+    {
+      "pr": 330,
+      "head": "4b1e949b74a2f41b6d1dd320fd1b93681557025e",
+      "parent": "e903429cb69f3d562d8c72e19f431000a34ab7af",
+      "paths": [
+        "docs/FEATURE_BACKLOG.md",
+        "docs/GROCERY_VERIFICATION_PLAN.md",
+        "wiki/artifacts/backlog-resume-20261003/browser/consent-desktop.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/consent-mobile.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/consent-result.json",
+        "wiki/artifacts/backlog-resume-20261003/browser/desktop-estimate.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/flow-result.json",
+        "wiki/artifacts/backlog-resume-20261003/browser/handoff-before-consent-fix.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/handoff-retry-success.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/mobile-estimate.png",
+        "wiki/artifacts/backlog-resume-20261003/checks-manifest.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58-gpt-6.1-sol.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af-gpt-6.1-sol.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4.json",
+        "wiki/index.md",
+        "wiki/log.md",
+        "wiki/phases/backlog-resume-20261003.md"
+      ]
+    },
+    {
+      "pr": 331,
+      "head": "c46170e5641f8e0755d52602035f6ba45673c96c",
+      "parent": "4b1e949b74a2f41b6d1dd320fd1b93681557025e",
+      "paths": [
+        ".claude/loop/delegation-efficiency.md",
+        "docs/FEATURE_BACKLOG.md",
+        "wiki/artifacts/backlog-resume-20261003/tier-s-pilot.json",
+        "wiki/log.md",
+        "wiki/phases/backlog-resume-20261003.md"
+      ]
+    },
+    {
+      "pr": 332,
+      "head": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a",
+      "parent": "117e37d77537f94d0e9170e2665eb73d12ac533b",
+      "paths": [
+        "backend/app/evaluation_markdown_manifest.py",
+        "backend/tests/test_evaluation_markdown_manifest.py"
+      ]
+    },
+    {
+      "pr": 333,
+      "head": "e863c24ec527754f73e78bd3312cbe652475937e",
+      "parent": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a",
+      "paths": [
+        "backend/app/evaluation_markdown_data.py",
+        "backend/tests/test_evaluation_markdown_data.py"
+      ]
+    },
+    {
+      "pr": 334,
+      "head": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac",
+      "parent": "e863c24ec527754f73e78bd3312cbe652475937e",
+      "paths": [
+        "backend/app/evaluation_markdown_sections.py",
+        "backend/tests/test_evaluation_markdown_sections.py"
+      ]
+    },
+    {
+      "pr": 335,
+      "head": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb",
+      "parent": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac",
+      "paths": [
+        "backend/app/evaluation_markdown_telemetry.py",
+        "backend/tests/test_evaluation_markdown_telemetry.py"
+      ]
+    },
+    {
+      "pr": 336,
+      "head": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2",
+      "parent": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb",
+      "paths": [
+        "backend/app/evaluation_markdown.py",
+        "backend/tests/test_evaluation_markdown.py"
+      ]
+    },
+    {
+      "pr": 337,
+      "head": "b5b0cd4ad423e463a2f43830cf448a3ddefb1c7c",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "dev_supervisor/gates.py",
+        "tests/supervisor/test_gates.py"
+      ]
+    },
+    {
+      "pr": 338,
+      "head": "bba58fcf1f4726f5aaa93b54888346e031bb72bd",
+      "parent": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375",
+      "paths": [
+        "backend/app/evaluation_batch.py",
+        "backend/tests/test_evaluation_batch.py"
+      ]
+    },
+    {
+      "pr": 339,
+      "head": "88a95114ece4a2a7b53bb33d687a6efaba108178",
+      "parent": "bba58fcf1f4726f5aaa93b54888346e031bb72bd",
+      "paths": [
+        "backend/app/evaluation_cli_config.py",
+        "backend/tests/test_evaluation_cli_config.py"
+      ]
+    },
+    {
+      "pr": 340,
+      "head": "345acfc1dc4e094812366a0faef9fe092fb728f5",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "backend/app/providers/aws_sqs_sender.py",
+        "backend/tests/test_aws_sqs_sender.py"
+      ]
+    },
+    {
+      "pr": 341,
+      "head": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "parent": "88a95114ece4a2a7b53bb33d687a6efaba108178",
+      "paths": [
+        "backend/app/evaluate.py",
+        "backend/tests/test_evaluate.py"
+      ]
+    },
+    {
+      "pr": 342,
+      "head": "13b0ae290091406d7a68f7ad38b5ec23e1909d48",
+      "parent": "345acfc1dc4e094812366a0faef9fe092fb728f5",
+      "paths": [
+        "backend/app/providers/aws_sqs_consumer.py",
+        "backend/tests/test_aws_sqs_consumer.py"
+      ]
+    },
+    {
+      "pr": 343,
+      "head": "5eceecebebc2885bf537aef7b499e49f552b0861",
+      "parent": "13b0ae290091406d7a68f7ad38b5ec23e1909d48",
+      "paths": [
+        "backend/app/providers/aws_artifacts.py",
+        "backend/tests/test_aws_artifacts.py"
+      ]
+    },
+    {
+      "pr": 344,
+      "head": "1068f642d3b039ff1cc880797d1af03bb2e47d94",
+      "parent": "b5b0cd4ad423e463a2f43830cf448a3ddefb1c7c",
+      "paths": [
+        "infra/hosting/README.md",
+        "infra/hosting/app.py",
+        "infra/hosting/pyproject.toml",
+        "infra/hosting/stack.py",
+        "infra/hosting/tests/test_stack.py",
+        "infra/hosting/uv.lock"
+      ]
+    },
+    {
+      "pr": 345,
+      "head": "bac57e53606147dd49c0ec2dceeaec1dfde0c407",
+      "parent": "1068f642d3b039ff1cc880797d1af03bb2e47d94",
+      "paths": [
+        ".github/workflows/audit.yml",
+        ".github/workflows/tooling.yml",
+        "dev_supervisor/gates.py",
+        "tests/supervisor/test_gates.py"
+      ]
+    },
+    {
+      "pr": 346,
+      "head": "98fb635beb92f0107aad5c508ba48e18faba709e",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        ".claude/agents/catalog-dev.md",
+        ".codex/agents/catalog-dev.toml",
+        ".codex/agents/docs-dev.toml",
+        ".codex/agents/eval-engineer.toml",
+        ".codex/agents/ml-dev.toml",
+        ".codex/agents/test-engineer.toml",
+        ".opencode/agents/catalog-dev.md",
+        "wiki/log.md",
+        "wiki/phases/agent-catalog-scope-20261003.md"
+      ]
+    },
+    {
+      "pr": 347,
+      "head": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b",
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "paths": [
+        "backend/app/bootstrap_database.py",
+        "backend/tests/test_bootstrap_database.py"
+      ]
+    },
+    {
+      "pr": 348,
+      "head": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "paths": [
+        "backend/tests/evaluation/scenarios.json",
+        "backend/tests/test_evaluation_tool_score.py"
+      ]
+    },
+    {
+      "pr": 349,
+      "head": "dde72370811523c5d8d118ced60f3a85dfc3d6e7",
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "paths": [
+        ".claude/loop/delegation-efficiency.md",
+        ".codex/agents/docs-dev.toml",
+        "docs/DEV_SUPERVISOR.md",
+        "docs/EVALUATION.md",
+        "docs/FEATURE_BACKLOG.md",
+        "docs/GROCERY_VERIFICATION_PLAN.md",
+        "docs/delegation/junior.md",
+        "eval/results/artifacts/benchmark-20261003/artifact-manifest.json",
+        "eval/results/artifacts/benchmark-20261003/benchmark-readout.json",
+        "eval/results/artifacts/benchmark-20261003/fixture-20261003/completion.json",
+        "eval/results/artifacts/benchmark-20261003/fixture-20261003/completion.pending",
+        "eval/results/artifacts/benchmark-20261003/fixture-20261003/report.json",
+        "eval/results/artifacts/benchmark-20261003/fixture-20261003/report.md",
+        "eval/results/artifacts/benchmark-20261003/fixture-20261003/slots.jsonl",
+        "eval/results/artifacts/benchmark-20261003/fixture-driver-provenance.json",
+        "eval/results/artifacts/benchmark-20261003/fixture-integrity.json",
+        "eval/results/artifacts/benchmark-20261003/fixture-stdout.txt",
+        "eval/results/artifacts/benchmark-20261003/fixture-summary.json",
+        "eval/results/artifacts/benchmark-20261003/fixture_driver.py",
+        "eval/results/artifacts/benchmark-20261003/live-cost.json",
+        "eval/results/artifacts/benchmark-20261003/live-integrity.json",
+        "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/completion.json",
+        "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/completion.pending",
+        "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/report.json",
+        "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/report.md",
+        "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/slots.jsonl",
+        "eval/results/artifacts/benchmark-20261003/live-stdout.txt",
+        "eval/results/artifacts/benchmark-20261003/live-summary.json",
+        "eval/results/artifacts/benchmark-20261003/live-telemetry.json",
+        "eval/results/artifacts/benchmark-20261003/nova2-pricing-source.json",
+        "eval/results/artifacts/benchmark-20261003/nova2-rates.json",
+        "eval/results/artifacts/benchmark-20261003/scenarios.json",
+        "eval/results/artifacts/benchmark-20261003/sigint-probe/slots.jsonl",
+        "eval/results/artifacts/benchmark-20261003/sigint-stdout.txt",
+        "eval/results/artifacts/benchmark-20261003/sigint-summary.json",
+        "eval/results/artifacts/benchmark-20261003/sigint_driver.py",
+        "wiki/artifacts/backlog-resume-20261003/browser/consent-desktop.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/consent-mobile.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/consent-result.json",
+        "wiki/artifacts/backlog-resume-20261003/browser/desktop-estimate.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/flow-result.json",
+        "wiki/artifacts/backlog-resume-20261003/browser/handoff-before-consent-fix.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/handoff-retry-success.png",
+        "wiki/artifacts/backlog-resume-20261003/browser/mobile-estimate.png",
+        "wiki/artifacts/backlog-resume-20261003/checks-manifest.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58-gpt-6.1-sol.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af-gpt-6.1-sol.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af.json",
+        "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4-gpt-6-luna.md",
+        "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4.json",
+        "wiki/artifacts/backlog-resume-20261003/tier-s-pilot.json",
+        "wiki/decisions/0018-retain-legacy-data.md",
+        "wiki/index.md",
+        "wiki/log.md",
+        "wiki/phases/backlog-build-20261003.md",
+        "wiki/phases/backlog-resume-20261003.md",
+        "wiki/phases/benchmark-20261003.md",
+        "wiki/phases/evaluation-completion.md"
+      ]
+    },
+    {
+      "pr": 350,
+      "head": "535f29e6bbf34679c7fc0fe7e340d31b741155cf",
+      "parent": "5eceecebebc2885bf537aef7b499e49f552b0861",
+      "paths": [
+        "backend/app/providers/job_transport_settings.py",
+        "backend/tests/test_job_transport_settings.py"
+      ]
+    },
+    {
+      "pr": 351,
+      "head": "f4f9daa147aacdcce87c157dc5e59e42c95da609",
+      "parent": "535f29e6bbf34679c7fc0fe7e340d31b741155cf",
+      "paths": [
+        "backend/app/providers/job_transport.py",
+        "backend/tests/test_job_transport.py"
+      ]
+    },
+    {
+      "pr": 352,
+      "head": "dde56e843fecb4b182c330bcaf136a09ed7d9631",
+      "parent": "bac57e53606147dd49c0ec2dceeaec1dfde0c407",
+      "paths": [
+        "infra/hosting/network.py",
+        "infra/hosting/tests/test_network.py"
+      ]
+    },
+    {
+      "pr": 353,
+      "head": "07bec2dc32b19b21197a8058279781815bbcb4cd",
+      "parent": "dde72370811523c5d8d118ced60f3a85dfc3d6e7",
+      "paths": [
+        "docs/EVALUATION.md",
+        "docs/FEATURE_BACKLOG.md",
+        "eval/results/artifacts/posthoc-gold-20261003/artifact-manifest.json",
+        "eval/results/artifacts/posthoc-gold-20261003/assessment-deltas.json",
+        "eval/results/artifacts/posthoc-gold-20261003/corrected-manifest.json",
+        "eval/results/artifacts/posthoc-gold-20261003/corrected-scenarios.json",
+        "eval/results/artifacts/posthoc-gold-20261003/provenance.json",
+        "eval/results/artifacts/posthoc-gold-20261003/rescore.py",
+        "eval/results/artifacts/posthoc-gold-20261003/summary.json",
+        "wiki/index.md",
+        "wiki/log.md",
+        "wiki/phases/benchmark-20261003.md",
+        "wiki/phases/posthoc-gold-20261003.md"
+      ]
+    },
+    {
+      "pr": 354,
+      "head": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d",
+      "parent": "dde56e843fecb4b182c330bcaf136a09ed7d9631",
+      "paths": [
+        "infra/hosting/database.py",
+        "infra/hosting/tests/test_database.py"
+      ]
+    },
+    {
+      "pr": 355,
+      "head": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a",
+      "parent": "f4f9daa147aacdcce87c157dc5e59e42c95da609",
+      "paths": [
+        "backend/app/worker.py",
+        "backend/tests/test_worker_transport.py"
+      ]
+    },
+    {
+      "pr": 356,
+      "head": "f6f9b160e556691904980947f7cd118f287710aa",
+      "parent": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d",
+      "paths": [
+        "infra/hosting/assets.py",
+        "infra/hosting/tests/test_assets.py"
+      ]
+    },
+    {
+      "pr": 357,
+      "head": "2d0d577f67121c94d58d60114ba1e0464397853b",
+      "parent": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a",
+      "paths": [
+        "backend/app/consume_jobs.py",
+        "backend/app/publish_jobs.py",
+        "backend/tests/test_consume_jobs.py",
+        "backend/tests/test_consume_jobs_transport.py",
+        "backend/tests/test_publish_jobs.py"
+      ]
+    },
+    {
+      "pr": 358,
+      "head": "98c21db1e8b7c1d31521607d0078213b1095ace8",
+      "parent": "f6f9b160e556691904980947f7cd118f287710aa",
+      "paths": [
+        "infra/hosting/execution_roles.py",
+        "infra/hosting/task_trust.py",
+        "infra/hosting/tests/test_execution_roles.py"
+      ]
+    },
+    {
+      "pr": 359,
+      "head": "0c38e1c0665587fba93f230cdb1e527f206cc7aa",
+      "parent": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b",
+      "paths": [
+        "backend/app/cloud_database_settings.py",
+        "backend/tests/test_cloud_database_settings.py"
+      ]
+    },
+    {
+      "pr": 360,
+      "head": "16714fb2910777e132af3c00d58eafa747a9af24",
+      "parent": "85493df8ace8ff246df0c15dfccb40e22aef1a62",
+      "paths": [
+        "frontend/Dockerfile",
+        "frontend/docker-entrypoint.d/15-validate-api-upstream.sh",
+        "frontend/nginx.conf",
+        "frontend/tests/nginx-entrypoint.test.ts"
+      ]
+    },
+    {
+      "pr": 361,
+      "head": "484caf434084f7d9c5995c0bac1165ee7034e85c",
+      "parent": "07bec2dc32b19b21197a8058279781815bbcb4cd",
+      "paths": [
+        "docs/FEATURE_BACKLOG.md",
+        "docs/course/DEMO_SCRIPT.md",
+        "docs/course/FAILURE_LOG.md",
+        "docs/course/LIMITATIONS.md",
+        "docs/course/PAPER_OUTLINE.md",
+        "docs/course/README.md",
+        "eval/results/artifacts/course-evidence-20261003/artifact-manifest.json",
+        "eval/results/artifacts/course-evidence-20261003/benchmark-quality.pdf",
+        "eval/results/artifacts/course-evidence-20261003/benchmark-quality.png",
+        "eval/results/artifacts/course-evidence-20261003/benchmark-quality.svg",
+        "eval/results/artifacts/course-evidence-20261003/failure-examples.json",
+        "eval/results/artifacts/course-evidence-20261003/figure-data.json",
+        "eval/results/artifacts/course-evidence-20261003/figures.py",
+        "wiki/index.md",
+        "wiki/log.md"
+      ]
+    },
+    {
+      "pr": 362,
+      "head": "573dd0b4a21b38b73d19e4b70482686854299b46",
+      "parent": "98c21db1e8b7c1d31521607d0078213b1095ace8",
+      "paths": [
+        "infra/hosting/task_roles.py",
+        "infra/hosting/tests/test_task_roles.py"
+      ]
+    },
+    {
+      "pr": 363,
+      "head": "ca7c4615c83cdd78c08389af65c372e88d58c0ef",
+      "parent": "0c38e1c0665587fba93f230cdb1e527f206cc7aa",
+      "paths": [
+        "backend/alembic/env.py",
+        "backend/app/config.py",
+        "backend/tests/test_cloud_database_config.py",
+        "infra/rds/provenance.json",
+        "infra/rds/us-east-1-bundle.pem"
+      ]
+    },
+    {
+      "pr": 364,
+      "head": "14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a",
+      "parent": "573dd0b4a21b38b73d19e4b70482686854299b46",
+      "paths": [
+        "infra/hosting/identity.py",
+        "infra/hosting/tests/test_identity.py"
+      ]
+    },
+    {
+      "pr": 365,
+      "head": "493dd89d4f6170f618616c751004c4bc5c96606e",
+      "parent": "14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a",
+      "paths": [
+        "infra/hosting/task_settings.py",
+        "infra/hosting/tests/test_task_settings.py"
+      ]
+    },
+    {
+      "pr": 366,
+      "head": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c",
+      "parent": "484caf434084f7d9c5995c0bac1165ee7034e85c",
+      "paths": [
+        "docs/FEATURE_BACKLOG.md",
+        "wiki/artifacts/hosting-preparation-20261003/cli-usage.json",
+        "wiki/artifacts/hosting-preparation-20261003/source-status.json",
+        "wiki/decisions/0019-invitation-only-hosting.md",
+        "wiki/index.md",
+        "wiki/log.md",
+        "wiki/phases/hosting-preparation-20261003.md"
+      ]
+    },
+    {
+      "pr": 367,
+      "head": "a457cbd72bff1705c8f10132eec350b35e9fb9de",
+      "parent": "493dd89d4f6170f618616c751004c4bc5c96606e",
+      "paths": [
+        "infra/hosting/app_task.py",
+        "infra/hosting/tests/test_app_task.py"
+      ]
+    },
+    {
+      "pr": 368,
+      "head": "2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7",
+      "parent": "a457cbd72bff1705c8f10132eec350b35e9fb9de",
+      "paths": [
+        "infra/hosting/tests/test_worker_tasks.py",
+        "infra/hosting/worker_tasks.py"
+      ]
+    },
+    {
+      "pr": 369,
+      "head": "51778e5b56f4ed25ea589fe8ff960dbe2924a879",
+      "parent": "2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7",
+      "paths": [
+        "infra/hosting/edge.py",
+        "infra/hosting/identity.py",
+        "infra/hosting/tests/test_edge.py"
+      ]
+    },
+    {
+      "pr": 370,
+      "head": "b287376ebc77a225647ffab63af247516a415f8f",
+      "parent": "ca7c4615c83cdd78c08389af65c372e88d58c0ef",
+      "paths": [
+        "backend/app/runtime_database_policy.py",
+        "backend/tests/test_runtime_database_policy.py"
+      ]
+    },
+    {
+      "pr": 371,
+      "head": "426b618814e74e136a40af29bccac8b9e1df4d0a",
+      "parent": "51778e5b56f4ed25ea589fe8ff960dbe2924a879",
+      "paths": [
+        "infra/hosting/services.py",
+        "infra/hosting/tests/test_services.py"
+      ]
+    },
+    {
+      "pr": 372,
+      "head": "58e9192fcf4fa0f92852dabe240409a9c0867922",
+      "parent": "426b618814e74e136a40af29bccac8b9e1df4d0a",
+      "paths": [
+        "infra/hosting/deployment_config.py",
+        "infra/hosting/tests/test_deployment_config.py"
+      ]
+    },
+    {
+      "pr": 373,
+      "head": "edac61cfa83aca15e345ef104125e9535e3aa9fa",
+      "parent": "58e9192fcf4fa0f92852dabe240409a9c0867922",
+      "paths": [
+        "infra/hosting/hosted_stack.py",
+        "infra/hosting/tests/test_hosted_stack.py"
+      ]
+    },
+    {
+      "pr": 374,
+      "head": "0b9098693f87d8a7b00f8996510908db6f9e827d",
+      "parent": "edac61cfa83aca15e345ef104125e9535e3aa9fa",
+      "paths": [
+        "infra/hosting/hosted_app.py",
+        "infra/hosting/tests/test_hosted_app.py"
+      ]
+    },
+    {
+      "pr": 375,
+      "head": "f9be9716a0da9379333e985bd6d3dff2a189338d",
+      "parent": "b287376ebc77a225647ffab63af247516a415f8f",
+      "paths": [
+        "backend/app/runtime_database_access.py",
+        "backend/tests/test_runtime_database_access.py"
+      ]
+    },
+    {
+      "pr": 376,
+      "head": "787f467161e9c8bac69f4b43a6e9626a9d33f4bc",
+      "parent": "f9be9716a0da9379333e985bd6d3dff2a189338d",
+      "paths": [
+        "backend/app/bootstrap_hosting.py",
+        "backend/tests/test_bootstrap_hosting.py"
+      ],
+      "publication": "published"
+    },
+    {
+      "pr": 377,
+      "head": "623ab8347aaabf55964bfd3c44fbe3065839dbdf",
+      "parent": "0b9098693f87d8a7b00f8996510908db6f9e827d",
+      "paths": [
+        "infra/hosting/preflight_checks.py",
+        "infra/hosting/tests/test_preflight_checks.py"
+      ],
+      "publication": "published"
+    },
+    {
+      "pr": 378,
+      "head": "59a9713028d46b55376968999e0f2be59efe5444",
+      "parent": "623ab8347aaabf55964bfd3c44fbe3065839dbdf",
+      "paths": [
+        "infra/hosting/bootstrap_proof.py",
+        "infra/hosting/tests/test_bootstrap_proof.py"
+      ],
+      "publication": "published"
+    },
+    {
+      "pr": 379,
+      "head": "29b70df05716b19baf4736589ddb4cfc787bdc55",
+      "parent": "59a9713028d46b55376968999e0f2be59efe5444",
+      "paths": [
+        "infra/hosting/preflight_runner.py",
+        "infra/hosting/tests/test_preflight_runner.py"
+      ],
+      "publication": "published"
+    },
+    {
+      "pr": 380,
+      "head": "7b2e370d081e9c79e80fd41863708a3735fddfe5",
+      "parent": "29b70df05716b19baf4736589ddb4cfc787bdc55",
+      "paths": [
+        "infra/hosting/preflight_cli.py",
+        "infra/hosting/tests/test_preflight_cli.py"
+      ],
+      "publication": "published"
+    }
+  ],
+  "conflicts": [
+    {
+      "path": "wiki/log.md",
+      "pr": 346,
+      "previous": {
+        "pr": 331,
+        "sha": "c46170e5641f8e0755d52602035f6ba45673c96c"
+      },
+      "parent": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+      "head": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    {
+      "path": "docs/FEATURE_BACKLOG.md",
+      "pr": 349,
+      "previous": {
+        "pr": 331,
+        "sha": "c46170e5641f8e0755d52602035f6ba45673c96c"
+      },
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "head": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    {
+      "path": "wiki/index.md",
+      "pr": 349,
+      "previous": {
+        "pr": 330,
+        "sha": "4b1e949b74a2f41b6d1dd320fd1b93681557025e"
+      },
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "head": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    {
+      "path": "wiki/log.md",
+      "pr": 349,
+      "previous": {
+        "pr": 346,
+        "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+      },
+      "parent": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "head": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    }
+  ],
+  "path_provenance": {
+    "docs/FEATURE_BACKLOG.md": {
+      "pr": 366,
+      "sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    },
+    "wiki/log.md": {
+      "base_sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c",
+      "append_sha": "98fb635beb92f0107aad5c508ba48e18faba709e",
+      "append_bytes": 815,
+      "sha256": "7d86003c14892a1813f71b8dc41c61321c3266c955e51d30b8e8152891429ad4",
+      "additional_approved_append": "98fb635b (role-catalog), 815 bytes"
+    },
+    "wiki/phases/backlog-build-20261003.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "backend/app/evaluation_markdown_values.py": {
+      "pr": 322,
+      "sha": "117e37d77537f94d0e9170e2665eb73d12ac533b"
+    },
+    "backend/tests/test_evaluation_markdown_values.py": {
+      "pr": 322,
+      "sha": "117e37d77537f94d0e9170e2665eb73d12ac533b"
+    },
+    "frontend/src/App.test.tsx": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "frontend/src/App.tsx": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "frontend/src/HandoffControls.test.tsx": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "frontend/src/HandoffControls.tsx": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "frontend/src/handoffTypes.test.ts": {
+      "pr": 323,
+      "sha": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b"
+    },
+    "frontend/src/handoffTypes.ts": {
+      "pr": 323,
+      "sha": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b"
+    },
+    "dev_supervisor/review.py": {
+      "pr": 324,
+      "sha": "578df44aa0fa5107167dadec1e8f7773ce9e041f"
+    },
+    "tests/supervisor/test_review.py": {
+      "pr": 324,
+      "sha": "578df44aa0fa5107167dadec1e8f7773ce9e041f"
+    },
+    "wiki/decisions/0018-retain-legacy-data.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/index.md": {
+      "pr": 366,
+      "sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    },
+    "docs/DEV_SUPERVISOR.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "docs/delegation/junior.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "frontend/src/HandoffConsent.test.tsx": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "frontend/src/HandoffConsent.tsx": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "frontend/src/estimate.css": {
+      "pr": 327,
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62"
+    },
+    "backend/app/evaluation_markdown_manifest.py": {
+      "pr": 332,
+      "sha": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a"
+    },
+    "backend/tests/test_evaluation_markdown_manifest.py": {
+      "pr": 332,
+      "sha": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a"
+    },
+    "backend/app/evaluation_markdown_data.py": {
+      "pr": 333,
+      "sha": "e863c24ec527754f73e78bd3312cbe652475937e"
+    },
+    "backend/tests/test_evaluation_markdown_data.py": {
+      "pr": 333,
+      "sha": "e863c24ec527754f73e78bd3312cbe652475937e"
+    },
+    "backend/app/evaluation_markdown_sections.py": {
+      "pr": 334,
+      "sha": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac"
+    },
+    "backend/tests/test_evaluation_markdown_sections.py": {
+      "pr": 334,
+      "sha": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac"
+    },
+    "backend/app/evaluation_markdown_telemetry.py": {
+      "pr": 335,
+      "sha": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb"
+    },
+    "backend/tests/test_evaluation_markdown_telemetry.py": {
+      "pr": 335,
+      "sha": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb"
+    },
+    "backend/app/evaluation_markdown.py": {
+      "pr": 336,
+      "sha": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2"
+    },
+    "backend/tests/test_evaluation_markdown.py": {
+      "pr": 336,
+      "sha": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2"
+    },
+    "backend/app/evaluation_runtime.py": {
+      "pr": 328,
+      "sha": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d"
+    },
+    "backend/tests/test_evaluation_runtime.py": {
+      "pr": 328,
+      "sha": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d"
+    },
+    "backend/app/evaluation_dispatch.py": {
+      "pr": 329,
+      "sha": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375"
+    },
+    "backend/tests/test_evaluation_dispatch.py": {
+      "pr": 329,
+      "sha": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375"
+    },
+    "docs/GROCERY_VERIFICATION_PLAN.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/consent-desktop.png": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/consent-mobile.png": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/consent-result.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/desktop-estimate.png": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/flow-result.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/handoff-before-consent-fix.png": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/handoff-retry-success.png": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/browser/mobile-estimate.png": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks-manifest.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58-gpt-6.1-sol.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/a4-36843e7e2d01590c29ad3655691c6bfbc161ae58.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e-gpt-6-luna.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/b5-values-98fde259ebc2281cf652d045eb26add13f07172e.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f-gpt-6-luna.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/b6-578df44aa0fa5107167dadec1e8f7773ce9e041f.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b-gpt-6-luna.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/c4-0246c9b1c249f719b1f10b4a9bf99db499a1f26b.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62-gpt-6-luna.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/consent-85493df8ace8ff246df0c15dfccb40e22aef1a62.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af-gpt-6.1-sol.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/protocol-e903429cb69f3d562d8c72e19f431000a34ab7af.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4-gpt-6-luna.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/checks/runtime-26fe9148da0c12bd5c55218b063fcc15d54ee7c4.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/phases/backlog-resume-20261003.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    ".claude/loop/delegation-efficiency.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/artifacts/backlog-resume-20261003/tier-s-pilot.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "dev_supervisor/gates.py": {
+      "pr": 345,
+      "sha": "bac57e53606147dd49c0ec2dceeaec1dfde0c407"
+    },
+    "tests/supervisor/test_gates.py": {
+      "pr": 345,
+      "sha": "bac57e53606147dd49c0ec2dceeaec1dfde0c407"
+    },
+    "backend/app/evaluation_batch.py": {
+      "pr": 338,
+      "sha": "bba58fcf1f4726f5aaa93b54888346e031bb72bd"
+    },
+    "backend/tests/test_evaluation_batch.py": {
+      "pr": 338,
+      "sha": "bba58fcf1f4726f5aaa93b54888346e031bb72bd"
+    },
+    "backend/app/evaluation_cli_config.py": {
+      "pr": 339,
+      "sha": "88a95114ece4a2a7b53bb33d687a6efaba108178"
+    },
+    "backend/tests/test_evaluation_cli_config.py": {
+      "pr": 339,
+      "sha": "88a95114ece4a2a7b53bb33d687a6efaba108178"
+    },
+    "backend/app/providers/aws_sqs_sender.py": {
+      "pr": 340,
+      "sha": "345acfc1dc4e094812366a0faef9fe092fb728f5"
+    },
+    "backend/tests/test_aws_sqs_sender.py": {
+      "pr": 340,
+      "sha": "345acfc1dc4e094812366a0faef9fe092fb728f5"
+    },
+    "backend/app/evaluate.py": {
+      "pr": 341,
+      "sha": "4b877d470258561cedd3375e38efc02362ce5f22"
+    },
+    "backend/tests/test_evaluate.py": {
+      "pr": 341,
+      "sha": "4b877d470258561cedd3375e38efc02362ce5f22"
+    },
+    "backend/app/providers/aws_sqs_consumer.py": {
+      "pr": 342,
+      "sha": "13b0ae290091406d7a68f7ad38b5ec23e1909d48"
+    },
+    "backend/tests/test_aws_sqs_consumer.py": {
+      "pr": 342,
+      "sha": "13b0ae290091406d7a68f7ad38b5ec23e1909d48"
+    },
+    "backend/app/providers/aws_artifacts.py": {
+      "pr": 343,
+      "sha": "5eceecebebc2885bf537aef7b499e49f552b0861"
+    },
+    "backend/tests/test_aws_artifacts.py": {
+      "pr": 343,
+      "sha": "5eceecebebc2885bf537aef7b499e49f552b0861"
+    },
+    "infra/hosting/README.md": {
+      "pr": 344,
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    "infra/hosting/app.py": {
+      "pr": 344,
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    "infra/hosting/pyproject.toml": {
+      "pr": 344,
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    "infra/hosting/stack.py": {
+      "pr": 344,
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    "infra/hosting/tests/test_stack.py": {
+      "pr": 344,
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    "infra/hosting/uv.lock": {
+      "pr": 344,
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94"
+    },
+    ".github/workflows/audit.yml": {
+      "pr": 345,
+      "sha": "bac57e53606147dd49c0ec2dceeaec1dfde0c407"
+    },
+    ".github/workflows/tooling.yml": {
+      "pr": 345,
+      "sha": "bac57e53606147dd49c0ec2dceeaec1dfde0c407"
+    },
+    ".claude/agents/catalog-dev.md": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    ".codex/agents/catalog-dev.toml": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    ".codex/agents/docs-dev.toml": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    ".codex/agents/eval-engineer.toml": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    ".codex/agents/ml-dev.toml": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    ".codex/agents/test-engineer.toml": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    ".opencode/agents/catalog-dev.md": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    "wiki/phases/agent-catalog-scope-20261003.md": {
+      "pr": 346,
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e"
+    },
+    "backend/app/bootstrap_database.py": {
+      "pr": 347,
+      "sha": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b"
+    },
+    "backend/tests/test_bootstrap_database.py": {
+      "pr": 347,
+      "sha": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b"
+    },
+    "backend/tests/evaluation/scenarios.json": {
+      "pr": 348,
+      "sha": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6"
+    },
+    "backend/tests/test_evaluation_tool_score.py": {
+      "pr": 348,
+      "sha": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6"
+    },
+    "docs/EVALUATION.md": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/benchmark-20261003/artifact-manifest.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/benchmark-readout.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-20261003/completion.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-20261003/completion.pending": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-20261003/report.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-20261003/report.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-20261003/slots.jsonl": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-driver-provenance.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-integrity.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-stdout.txt": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture-summary.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/fixture_driver.py": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-cost.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-integrity.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/completion.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/completion.pending": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/report.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/report.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-nova2-20261003/slots.jsonl": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-stdout.txt": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-summary.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/live-telemetry.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/nova2-pricing-source.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/nova2-rates.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/scenarios.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/sigint-probe/slots.jsonl": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/sigint-stdout.txt": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/sigint-summary.json": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "eval/results/artifacts/benchmark-20261003/sigint_driver.py": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "wiki/phases/benchmark-20261003.md": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "wiki/phases/evaluation-completion.md": {
+      "pr": 349,
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7"
+    },
+    "backend/app/providers/job_transport_settings.py": {
+      "pr": 350,
+      "sha": "535f29e6bbf34679c7fc0fe7e340d31b741155cf"
+    },
+    "backend/tests/test_job_transport_settings.py": {
+      "pr": 350,
+      "sha": "535f29e6bbf34679c7fc0fe7e340d31b741155cf"
+    },
+    "backend/app/providers/job_transport.py": {
+      "pr": 351,
+      "sha": "f4f9daa147aacdcce87c157dc5e59e42c95da609"
+    },
+    "backend/tests/test_job_transport.py": {
+      "pr": 351,
+      "sha": "f4f9daa147aacdcce87c157dc5e59e42c95da609"
+    },
+    "infra/hosting/network.py": {
+      "pr": 352,
+      "sha": "dde56e843fecb4b182c330bcaf136a09ed7d9631"
+    },
+    "infra/hosting/tests/test_network.py": {
+      "pr": 352,
+      "sha": "dde56e843fecb4b182c330bcaf136a09ed7d9631"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/artifact-manifest.json": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/assessment-deltas.json": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/corrected-manifest.json": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/corrected-scenarios.json": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/provenance.json": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/rescore.py": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "eval/results/artifacts/posthoc-gold-20261003/summary.json": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "wiki/phases/posthoc-gold-20261003.md": {
+      "pr": 353,
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd"
+    },
+    "infra/hosting/database.py": {
+      "pr": 354,
+      "sha": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d"
+    },
+    "infra/hosting/tests/test_database.py": {
+      "pr": 354,
+      "sha": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d"
+    },
+    "backend/app/worker.py": {
+      "pr": 355,
+      "sha": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a"
+    },
+    "backend/tests/test_worker_transport.py": {
+      "pr": 355,
+      "sha": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a"
+    },
+    "infra/hosting/assets.py": {
+      "pr": 356,
+      "sha": "f6f9b160e556691904980947f7cd118f287710aa"
+    },
+    "infra/hosting/tests/test_assets.py": {
+      "pr": 356,
+      "sha": "f6f9b160e556691904980947f7cd118f287710aa"
+    },
+    "backend/app/consume_jobs.py": {
+      "pr": 357,
+      "sha": "2d0d577f67121c94d58d60114ba1e0464397853b"
+    },
+    "backend/app/publish_jobs.py": {
+      "pr": 357,
+      "sha": "2d0d577f67121c94d58d60114ba1e0464397853b"
+    },
+    "backend/tests/test_consume_jobs.py": {
+      "pr": 357,
+      "sha": "2d0d577f67121c94d58d60114ba1e0464397853b"
+    },
+    "backend/tests/test_consume_jobs_transport.py": {
+      "pr": 357,
+      "sha": "2d0d577f67121c94d58d60114ba1e0464397853b"
+    },
+    "backend/tests/test_publish_jobs.py": {
+      "pr": 357,
+      "sha": "2d0d577f67121c94d58d60114ba1e0464397853b"
+    },
+    "infra/hosting/execution_roles.py": {
+      "pr": 358,
+      "sha": "98c21db1e8b7c1d31521607d0078213b1095ace8"
+    },
+    "infra/hosting/task_trust.py": {
+      "pr": 358,
+      "sha": "98c21db1e8b7c1d31521607d0078213b1095ace8"
+    },
+    "infra/hosting/tests/test_execution_roles.py": {
+      "pr": 358,
+      "sha": "98c21db1e8b7c1d31521607d0078213b1095ace8"
+    },
+    "backend/app/cloud_database_settings.py": {
+      "pr": 359,
+      "sha": "0c38e1c0665587fba93f230cdb1e527f206cc7aa"
+    },
+    "backend/tests/test_cloud_database_settings.py": {
+      "pr": 359,
+      "sha": "0c38e1c0665587fba93f230cdb1e527f206cc7aa"
+    },
+    "frontend/Dockerfile": {
+      "pr": 360,
+      "sha": "16714fb2910777e132af3c00d58eafa747a9af24"
+    },
+    "frontend/docker-entrypoint.d/15-validate-api-upstream.sh": {
+      "pr": 360,
+      "sha": "16714fb2910777e132af3c00d58eafa747a9af24"
+    },
+    "frontend/nginx.conf": {
+      "pr": 360,
+      "sha": "16714fb2910777e132af3c00d58eafa747a9af24"
+    },
+    "frontend/tests/nginx-entrypoint.test.ts": {
+      "pr": 360,
+      "sha": "16714fb2910777e132af3c00d58eafa747a9af24"
+    },
+    "docs/course/DEMO_SCRIPT.md": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "docs/course/FAILURE_LOG.md": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "docs/course/LIMITATIONS.md": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "docs/course/PAPER_OUTLINE.md": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "docs/course/README.md": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/artifact-manifest.json": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/benchmark-quality.pdf": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/benchmark-quality.png": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/benchmark-quality.svg": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/failure-examples.json": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/figure-data.json": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "eval/results/artifacts/course-evidence-20261003/figures.py": {
+      "pr": 361,
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c"
+    },
+    "infra/hosting/task_roles.py": {
+      "pr": 362,
+      "sha": "573dd0b4a21b38b73d19e4b70482686854299b46"
+    },
+    "infra/hosting/tests/test_task_roles.py": {
+      "pr": 362,
+      "sha": "573dd0b4a21b38b73d19e4b70482686854299b46"
+    },
+    "backend/alembic/env.py": {
+      "pr": 363,
+      "sha": "ca7c4615c83cdd78c08389af65c372e88d58c0ef"
+    },
+    "backend/app/config.py": {
+      "pr": 363,
+      "sha": "ca7c4615c83cdd78c08389af65c372e88d58c0ef"
+    },
+    "backend/tests/test_cloud_database_config.py": {
+      "pr": 363,
+      "sha": "ca7c4615c83cdd78c08389af65c372e88d58c0ef"
+    },
+    "infra/rds/provenance.json": {
+      "pr": 363,
+      "sha": "ca7c4615c83cdd78c08389af65c372e88d58c0ef"
+    },
+    "infra/rds/us-east-1-bundle.pem": {
+      "pr": 363,
+      "sha": "ca7c4615c83cdd78c08389af65c372e88d58c0ef"
+    },
+    "infra/hosting/identity.py": {
+      "pr": 369,
+      "sha": "51778e5b56f4ed25ea589fe8ff960dbe2924a879"
+    },
+    "infra/hosting/tests/test_identity.py": {
+      "pr": 364,
+      "sha": "14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a"
+    },
+    "infra/hosting/task_settings.py": {
+      "pr": 365,
+      "sha": "493dd89d4f6170f618616c751004c4bc5c96606e"
+    },
+    "infra/hosting/tests/test_task_settings.py": {
+      "pr": 365,
+      "sha": "493dd89d4f6170f618616c751004c4bc5c96606e"
+    },
+    "wiki/artifacts/hosting-preparation-20261003/cli-usage.json": {
+      "pr": 366,
+      "sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    },
+    "wiki/artifacts/hosting-preparation-20261003/source-status.json": {
+      "pr": 366,
+      "sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    },
+    "wiki/decisions/0019-invitation-only-hosting.md": {
+      "pr": 366,
+      "sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    },
+    "wiki/phases/hosting-preparation-20261003.md": {
+      "pr": 366,
+      "sha": "c7c5b170ac4fd9f0456b3f5530d92a71b888b44c"
+    },
+    "infra/hosting/app_task.py": {
+      "pr": 367,
+      "sha": "a457cbd72bff1705c8f10132eec350b35e9fb9de"
+    },
+    "infra/hosting/tests/test_app_task.py": {
+      "pr": 367,
+      "sha": "a457cbd72bff1705c8f10132eec350b35e9fb9de"
+    },
+    "infra/hosting/tests/test_worker_tasks.py": {
+      "pr": 368,
+      "sha": "2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7"
+    },
+    "infra/hosting/worker_tasks.py": {
+      "pr": 368,
+      "sha": "2cfcedde3bbda381ecc6c5fd1f601b619b6f78d7"
+    },
+    "infra/hosting/edge.py": {
+      "pr": 369,
+      "sha": "51778e5b56f4ed25ea589fe8ff960dbe2924a879"
+    },
+    "infra/hosting/tests/test_edge.py": {
+      "pr": 369,
+      "sha": "51778e5b56f4ed25ea589fe8ff960dbe2924a879"
+    },
+    "backend/app/runtime_database_policy.py": {
+      "pr": 370,
+      "sha": "b287376ebc77a225647ffab63af247516a415f8f"
+    },
+    "backend/tests/test_runtime_database_policy.py": {
+      "pr": 370,
+      "sha": "b287376ebc77a225647ffab63af247516a415f8f"
+    },
+    "infra/hosting/services.py": {
+      "pr": 371,
+      "sha": "426b618814e74e136a40af29bccac8b9e1df4d0a"
+    },
+    "infra/hosting/tests/test_services.py": {
+      "pr": 371,
+      "sha": "426b618814e74e136a40af29bccac8b9e1df4d0a"
+    },
+    "infra/hosting/deployment_config.py": {
+      "pr": 372,
+      "sha": "58e9192fcf4fa0f92852dabe240409a9c0867922"
+    },
+    "infra/hosting/tests/test_deployment_config.py": {
+      "pr": 372,
+      "sha": "58e9192fcf4fa0f92852dabe240409a9c0867922"
+    },
+    "infra/hosting/hosted_stack.py": {
+      "pr": 373,
+      "sha": "edac61cfa83aca15e345ef104125e9535e3aa9fa"
+    },
+    "infra/hosting/tests/test_hosted_stack.py": {
+      "pr": 373,
+      "sha": "edac61cfa83aca15e345ef104125e9535e3aa9fa"
+    },
+    "infra/hosting/hosted_app.py": {
+      "pr": 374,
+      "sha": "0b9098693f87d8a7b00f8996510908db6f9e827d"
+    },
+    "infra/hosting/tests/test_hosted_app.py": {
+      "pr": 374,
+      "sha": "0b9098693f87d8a7b00f8996510908db6f9e827d"
+    },
+    "backend/app/runtime_database_access.py": {
+      "pr": 375,
+      "sha": "f9be9716a0da9379333e985bd6d3dff2a189338d"
+    },
+    "backend/tests/test_runtime_database_access.py": {
+      "pr": 375,
+      "sha": "f9be9716a0da9379333e985bd6d3dff2a189338d"
+    },
+    "backend/app/bootstrap_hosting.py": {
+      "pr": 376,
+      "sha": "787f467161e9c8bac69f4b43a6e9626a9d33f4bc"
+    },
+    "backend/tests/test_bootstrap_hosting.py": {
+      "pr": 376,
+      "sha": "787f467161e9c8bac69f4b43a6e9626a9d33f4bc"
+    },
+    "infra/hosting/preflight_checks.py": {
+      "pr": 377,
+      "sha": "623ab8347aaabf55964bfd3c44fbe3065839dbdf"
+    },
+    "infra/hosting/tests/test_preflight_checks.py": {
+      "pr": 377,
+      "sha": "623ab8347aaabf55964bfd3c44fbe3065839dbdf"
+    },
+    "infra/hosting/bootstrap_proof.py": {
+      "pr": 378,
+      "sha": "59a9713028d46b55376968999e0f2be59efe5444"
+    },
+    "infra/hosting/tests/test_bootstrap_proof.py": {
+      "pr": 378,
+      "sha": "59a9713028d46b55376968999e0f2be59efe5444"
+    },
+    "infra/hosting/preflight_runner.py": {
+      "pr": 379,
+      "sha": "29b70df05716b19baf4736589ddb4cfc787bdc55"
+    },
+    "infra/hosting/tests/test_preflight_runner.py": {
+      "pr": 379,
+      "sha": "29b70df05716b19baf4736589ddb4cfc787bdc55"
+    },
+    "infra/hosting/preflight_cli.py": {
+      "pr": 380,
+      "sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5"
+    },
+    "infra/hosting/tests/test_preflight_cli.py": {
+      "pr": 380,
+      "sha": "7b2e370d081e9c79e80fd41863708a3735fddfe5"
+    }
+  },
+  "documentation_resolution": "Approved c7c5b17 documentation is canonical. wiki/log.md then appends the exact two approved role-catalog entries from98fb635, preserving both branch histories."
+}

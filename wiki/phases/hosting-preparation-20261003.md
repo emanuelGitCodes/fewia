@@ -197,3 +197,17 @@ The earlier tier S pilot has a different scope; its historical log entry remains
 
 The owner MUST confirm every mutating AWS step before execution.
 Additional source work continues beyond this bounded checkpoint.
+
+## Later status on 2026-10-04
+
+This section is a later checkpoint. The tables and CI counts above stay the 2026-10-03 snapshot.
+
+The [final record](backlog-final-20261003.md) dated 2026-10-04 lists created pull requests #322-#381 as unmerged.
+Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
+Runtime roles are published in #362 at `573dd0b4a21b38b73d19e4b70482686854299b46`.
+Identity is published in #364 at `14dd9e41aaa2b16aca3562d7227f1c5f063e9f2a`.
+Preflight CLI is published in #380 at `7b2e370d081e9c79e80fd41863708a3735fddfe5`.
+The runbook is published in #381 at `d43d606df795a6a6e748fdc9263554349867ae9c`.
+D5 source, preflight, and runbook publication is complete in that later record.
+Live deployment still awaits owner inputs and confirmations.
+No merge or deployed health is recorded here.
