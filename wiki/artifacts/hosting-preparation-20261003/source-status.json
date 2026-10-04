@@ -1,0 +1,448 @@
+{
+  "captured_at": "2026-10-04T01:18:06.107436+00:00",
+  "main_sha": "8bfd4b80c71bca85cb1245446d933f965b17b86a",
+  "state": "open PR source; no merges or deployment by this run",
+  "pull_requests": [
+    {
+      "number": 322,
+      "title": "Extract strict evaluation report value helpers",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/322",
+      "branch": "codex/backlog-resume-b5-values",
+      "sha": "117e37d77537f94d0e9170e2665eb73d12ac533b",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 323,
+      "title": "Guard fixture handoff visibility and navigation",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/323",
+      "branch": "codex/backlog-resume-c4",
+      "sha": "0246c9b1c249f719b1f10b4a9bf99db499a1f26b",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 324,
+      "title": "Match structured review errors on code and message",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/324",
+      "branch": "codex/backlog-resume-b6",
+      "sha": "578df44aa0fa5107167dadec1e8f7773ce9e041f",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 325,
+      "title": "Record decision 0018 to retain legacy data",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/325",
+      "branch": "codex/backlog-resume-a4",
+      "sha": "36843e7e2d01590c29ad3655691c6bfbc161ae58",
+      "base": "claude/backlog-status-20261003",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 326,
+      "title": "Allow Codex writers to inspect files in junior briefs",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/326",
+      "branch": "codex/backlog-resume-writer-protocol",
+      "sha": "e903429cb69f3d562d8c72e19f431000a34ab7af",
+      "base": "codex/backlog-resume-a4",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 327,
+      "title": "Require consent before creating a shopping link",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/327",
+      "branch": "codex/backlog-resume-consent",
+      "sha": "85493df8ace8ff246df0c15dfccb40e22aef1a62",
+      "base": "codex/backlog-resume-c4",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 328,
+      "title": "Normalize evaluation fixture results and freeze runtime inputs",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/328",
+      "branch": "codex/backlog-resume-runtime",
+      "sha": "ecc3b4e91091d4d50cb9c97e079d104e61648a0d",
+      "base": "codex/backlog-resume-render-report",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 329,
+      "title": "Dispatch evaluation matrix slots with separate assessments",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/329",
+      "branch": "codex/backlog-resume-dispatch",
+      "sha": "9b37f75dcc9dc9c1f6d22f5ca980b1d9edd69375",
+      "base": "codex/backlog-resume-runtime",
+      "checks": {
+        "SUCCESS": 14
+      }
+    },
+    {
+      "number": 330,
+      "title": "Record backlog publication and consent browser evidence",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/330",
+      "branch": "codex/backlog-resume-20261003-records",
+      "sha": "4b1e949b74a2f41b6d1dd320fd1b93681557025e",
+      "base": "codex/backlog-resume-writer-protocol",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 331,
+      "title": "Record a bounded tier S token pilot",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/331",
+      "branch": "codex/backlog-resume-pilot",
+      "sha": "c46170e5641f8e0755d52602035f6ba45673c96c",
+      "base": "codex/backlog-resume-20261003-records",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 332,
+      "title": "Validate evaluation report manifest provenance",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/332",
+      "branch": "codex/backlog-resume-manifest-check",
+      "sha": "12fad5df07b7e5c45a1688a5dcc45b5657e9d45a",
+      "base": "codex/backlog-resume-b5-values",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 333,
+      "title": "Prepare scoped evaluation report facts",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/333",
+      "branch": "codex/backlog-resume-b5-data",
+      "sha": "e863c24ec527754f73e78bd3312cbe652475937e",
+      "base": "codex/backlog-resume-manifest-check",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 334,
+      "title": "Render evaluation quality counts by condition and evidence",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/334",
+      "branch": "codex/backlog-resume-report-sections",
+      "sha": "946500d12676297ba2bdfdffdc7fc0e4736bb1ac",
+      "base": "codex/backlog-resume-b5-data",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 335,
+      "title": "Render measured evaluation latency usage and cost",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/335",
+      "branch": "codex/backlog-resume-report-telemetry",
+      "sha": "a734f8fa81fefc330e9ccf9ccbd6c3cc929b58eb",
+      "base": "codex/backlog-resume-report-sections",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 336,
+      "title": "Assemble coverage-first evaluation Markdown",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/336",
+      "branch": "codex/backlog-resume-render-report",
+      "sha": "f8e0300fbdd9416daa995a5d10b1b4728c80c5e2",
+      "base": "codex/backlog-resume-report-telemetry",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 337,
+      "title": "Bind reusable gates to the tested source and base",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/337",
+      "branch": "codex/backlog-resume-gate-cache",
+      "sha": "b5b0cd4ad423e463a2f43830cf448a3ddefb1c7c",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 338,
+      "title": "Execute the frozen evaluation matrix and preserve slot journals",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/338",
+      "branch": "codex/backlog-resume-batch",
+      "sha": "bba58fcf1f4726f5aaa93b54888346e031bb72bd",
+      "base": "codex/backlog-resume-dispatch",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 339,
+      "title": "Validate explicit evaluation CLI configuration",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/339",
+      "branch": "codex/backlog-resume-cli-config",
+      "sha": "88a95114ece4a2a7b53bb33d687a6efaba108178",
+      "base": "codex/backlog-resume-batch",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 340,
+      "title": "Add a task-role SQS sender for future hosting",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/340",
+      "branch": "codex/backlog-resume-aws-sender",
+      "sha": "345acfc1dc4e094812366a0faef9fe092fb728f5",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 341,
+      "title": "Run journaled evaluations through an explicit CLI",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/341",
+      "branch": "codex/backlog-resume-cli",
+      "sha": "4b877d470258561cedd3375e38efc02362ce5f22",
+      "base": "codex/backlog-resume-cli-config",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 342,
+      "title": "Add a task-role SQS consumer for future hosting",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/342",
+      "branch": "codex/backlog-resume-aws-consumer",
+      "sha": "13b0ae290091406d7a68f7ad38b5ec23e1909d48",
+      "base": "codex/backlog-resume-aws-sender",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 343,
+      "title": "Add a task-role S3 report adapter for future hosting",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/343",
+      "branch": "codex/backlog-resume-aws-artifacts",
+      "sha": "5eceecebebc2885bf537aef7b499e49f552b0861",
+      "base": "codex/backlog-resume-aws-consumer",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 344,
+      "title": "Define private queues and artifact storage for hosting",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/344",
+      "branch": "codex/backlog-resume-hosting-resources",
+      "sha": "1068f642d3b039ff1cc880797d1af03bb2e47d94",
+      "base": "codex/backlog-resume-gate-cache",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 345,
+      "title": "Gate and audit the hosting CDK project",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/345",
+      "branch": "codex/backlog-resume-hosting-gates",
+      "sha": "bac57e53606147dd49c0ec2dceeaec1dfde0c407",
+      "base": "codex/backlog-resume-hosting-resources",
+      "checks": {
+        "SUCCESS": 8
+      }
+    },
+    {
+      "number": 346,
+      "title": "Align role briefs with the accepted 40-meal catalog",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/346",
+      "branch": "codex/backlog-resume-role-catalog",
+      "sha": "98fb635beb92f0107aad5c508ba48e18faba709e",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 347,
+      "title": "Add an explicit service-free database bootstrap command",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/347",
+      "branch": "codex/backlog-resume-bootstrap-database",
+      "sha": "a5f44e05a8ba1dbcb12182a53696b27a8f694f8b",
+      "base": "main",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 348,
+      "title": "Align follow-up tool gold with final-turn scoring",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/348",
+      "branch": "codex/backlog-resume-tool-gold",
+      "sha": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+      "base": "codex/backlog-resume-cli",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 349,
+      "title": "Record the fixture and live benchmark evidence",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/349",
+      "branch": "codex/backlog-resume-benchmark-evidence",
+      "sha": "dde72370811523c5d8d118ced60f3a85dfc3d6e7",
+      "base": "codex/backlog-resume-cli",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 350,
+      "title": "Validate local and task-role job transport settings",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/350",
+      "branch": "codex/backlog-resume-transport-settings",
+      "sha": "535f29e6bbf34679c7fc0fe7e340d31b741155cf",
+      "base": "codex/backlog-resume-aws-artifacts",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 351,
+      "title": "Select job providers from validated transport settings",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/351",
+      "branch": "codex/backlog-resume-transport-factory",
+      "sha": "f4f9daa147aacdcce87c157dc5e59e42c95da609",
+      "base": "codex/backlog-resume-transport-settings",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 352,
+      "title": "Define isolated hosting subnets and restricted network rules",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/352",
+      "branch": "codex/backlog-resume-hosting-network",
+      "sha": "dde56e843fecb4b182c330bcaf136a09ed7d9631",
+      "base": "codex/backlog-resume-hosting-gates",
+      "checks": {
+        "SUCCESS": 8
+      }
+    },
+    {
+      "number": 353,
+      "title": "Preserve the separate post-hoc gold rescore",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/353",
+      "branch": "codex/backlog-resume-posthoc-evidence",
+      "sha": "07bec2dc32b19b21197a8058279781815bbcb4cd",
+      "base": "codex/backlog-resume-benchmark-evidence",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 354,
+      "title": "Define retained private PostgreSQL and separate credentials",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/354",
+      "branch": "codex/backlog-resume-hosting-database",
+      "sha": "108f0cc0a3946e8cc7c87ed061089d749cfc3a8d",
+      "base": "codex/backlog-resume-hosting-network",
+      "checks": {
+        "SUCCESS": 8
+      }
+    },
+    {
+      "number": 355,
+      "title": "Route the worker through validated local or AWS transport",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/355",
+      "branch": "codex/backlog-resume-worker-transport",
+      "sha": "81108b5cf96a04ae9b3ceb23964d6359179fdf8a",
+      "base": "codex/backlog-resume-transport-factory",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 356,
+      "title": "Define retained container repositories and task logs",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/356",
+      "branch": "codex/backlog-resume-hosting-assets",
+      "sha": "f6f9b160e556691904980947f7cd118f287710aa",
+      "base": "codex/backlog-resume-hosting-database",
+      "checks": {
+        "SUCCESS": 8
+      }
+    },
+    {
+      "number": 357,
+      "title": "Route bounded job commands through validated transport",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/357",
+      "branch": "codex/backlog-resume-bounded-job-transport",
+      "sha": "2d0d577f67121c94d58d60114ba1e0464397853b",
+      "base": "codex/backlog-resume-worker-transport",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 358,
+      "title": "Scope ECS image, log and secret execution permissions",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/358",
+      "branch": "codex/backlog-resume-hosting-execution-roles",
+      "sha": "98c21db1e8b7c1d31521607d0078213b1095ace8",
+      "base": "codex/backlog-resume-hosting-assets",
+      "checks": {
+        "SUCCESS": 8
+      }
+    },
+    {
+      "number": 359,
+      "title": "Build cloud database URLs with verified TLS",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/359",
+      "branch": "codex/backlog-resume-cloud-database-settings",
+      "sha": "0c38e1c0665587fba93f230cdb1e527f206cc7aa",
+      "base": "codex/backlog-resume-bootstrap-database",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 360,
+      "title": "Validate nginx upstreams for Compose and ECS task networking",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/360",
+      "branch": "codex/backlog-resume-nginx-upstream",
+      "sha": "16714fb2910777e132af3c00d58eafa747a9af24",
+      "base": "codex/backlog-resume-consent",
+      "checks": {
+        "SUCCESS": 7
+      }
+    },
+    {
+      "number": 361,
+      "title": "Prepare the author-owned course evidence pack",
+      "url": "https://github.com/emanuelGitCodes/fewia/pull/361",
+      "branch": "codex/backlog-resume-course-evidence",
+      "sha": "484caf434084f7d9c5995c0bac1165ee7034e85c",
+      "base": "codex/backlog-resume-posthoc-evidence",
+      "checks": {
+        "SUCCESS": 7
+      }
+    }
+  ],
+  "note": "This is a bounded snapshot of the earlier GitHub query, not a continuous status monitor."
+}
