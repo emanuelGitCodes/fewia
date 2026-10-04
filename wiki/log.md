@@ -3216,3 +3216,194 @@ Purchase attempts remain unmeasured. Release remains unverified.
 A4 retains legacy data. D4 stays paused. D5 still requires owner confirmation for each mutating AWS step.
 Restricted-hosting source work supplies no deployment evidence.
 The writer ran no checks or external actions. Artifact verification, gates, and independent Codex or Grok review remain coordinator work.
+
+## 2026-10-03 — Decision 0019: invitation-only shared demo access
+
+Recorded [decision 0019](decisions/0019-invitation-only-hosting.md) from the accepted owner decision.
+The demo admits the owner and invited users only, with no public signup.
+Invited users share the current server-selected demo context; they do not receive private application accounts.
+This record starts from course-pack source `484caf434084f7d9c5995c0bac1165ee7034e85c`
+([#361](https://github.com/emanuelGitCodes/fewia/pull/361)); this documentation item has no publication SHA or PR yet.
+Its final commit, gates, and independent Codex or Grok review remain coordinator work.
+The owner MUST confirm every mutating AWS step first, including users and invitations.
+No AWS resources, users, or invitations have been created by this run. No merge authorization exists.
+ECS composition, application-role bootstrap, runbook/preflight, and the live demo remain in progress.
+Hostname, ACM certificate, and deployment credentials await owner input.
+
+## 2026-10-03 — Source publication #340: Add a task-role SQS sender for future hosting
+
+PR [#340](https://github.com/emanuelGitCodes/fewia/pull/340) publishes
+`345acfc1dc4e094812366a0faef9fe092fb728f5`, with saved base `main`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #342: Add a task-role SQS consumer for future hosting
+
+PR [#342](https://github.com/emanuelGitCodes/fewia/pull/342) publishes
+`13b0ae290091406d7a68f7ad38b5ec23e1909d48`, with saved base `codex/backlog-resume-aws-sender`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #343: Add a task-role S3 report adapter for future hosting
+
+PR [#343](https://github.com/emanuelGitCodes/fewia/pull/343) publishes
+`5eceecebebc2885bf537aef7b499e49f552b0861`, with saved base `codex/backlog-resume-aws-consumer`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #344: Define private queues and artifact storage for hosting
+
+PR [#344](https://github.com/emanuelGitCodes/fewia/pull/344) publishes
+`1068f642d3b039ff1cc880797d1af03bb2e47d94`, with saved base `codex/backlog-resume-gate-cache`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #345: Gate and audit the hosting CDK project
+
+PR [#345](https://github.com/emanuelGitCodes/fewia/pull/345) publishes
+`bac57e53606147dd49c0ec2dceeaec1dfde0c407`, with saved base `codex/backlog-resume-hosting-resources`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #347: Add an explicit service-free database bootstrap command
+
+PR [#347](https://github.com/emanuelGitCodes/fewia/pull/347) publishes
+`a5f44e05a8ba1dbcb12182a53696b27a8f694f8b`, with saved base `main`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #350: Validate local and task-role job transport settings
+
+PR [#350](https://github.com/emanuelGitCodes/fewia/pull/350) publishes
+`535f29e6bbf34679c7fc0fe7e340d31b741155cf`, with saved base `codex/backlog-resume-aws-artifacts`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #351: Select job providers from validated transport settings
+
+PR [#351](https://github.com/emanuelGitCodes/fewia/pull/351) publishes
+`f4f9daa147aacdcce87c157dc5e59e42c95da609`, with saved base `codex/backlog-resume-transport-settings`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #352: Define isolated hosting subnets and restricted network rules
+
+PR [#352](https://github.com/emanuelGitCodes/fewia/pull/352) publishes
+`dde56e843fecb4b182c330bcaf136a09ed7d9631`, with saved base `codex/backlog-resume-hosting-gates`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #354: Define retained private PostgreSQL and separate credentials
+
+PR [#354](https://github.com/emanuelGitCodes/fewia/pull/354) publishes
+`108f0cc0a3946e8cc7c87ed061089d749cfc3a8d`, with saved base `codex/backlog-resume-hosting-network`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #355: Route the worker through validated local or AWS transport
+
+PR [#355](https://github.com/emanuelGitCodes/fewia/pull/355) publishes
+`81108b5cf96a04ae9b3ceb23964d6359179fdf8a`, with saved base `codex/backlog-resume-transport-factory`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #356: Define retained container repositories and task logs
+
+PR [#356](https://github.com/emanuelGitCodes/fewia/pull/356) publishes
+`f6f9b160e556691904980947f7cd118f287710aa`, with saved base `codex/backlog-resume-hosting-database`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #357: Route bounded job commands through validated transport
+
+PR [#357](https://github.com/emanuelGitCodes/fewia/pull/357) publishes
+`2d0d577f67121c94d58d60114ba1e0464397853b`, with saved base `codex/backlog-resume-worker-transport`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #358: Scope ECS image, log and secret execution permissions
+
+PR [#358](https://github.com/emanuelGitCodes/fewia/pull/358) publishes
+`98c21db1e8b7c1d31521607d0078213b1095ace8`, with saved base `codex/backlog-resume-hosting-assets`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 8 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #359: Build cloud database URLs with verified TLS
+
+PR [#359](https://github.com/emanuelGitCodes/fewia/pull/359) publishes
+`0c38e1c0665587fba93f230cdb1e527f206cc7aa`, with saved base `codex/backlog-resume-bootstrap-database`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Source publication #360: Validate nginx upstreams for Compose and ECS task networking
+
+PR [#360](https://github.com/emanuelGitCodes/fewia/pull/360) publishes
+`16714fb2910777e132af3c00d58eafa747a9af24`, with saved base `codex/backlog-resume-consent`.
+The source query at `2026-10-04T01:18:06.107436+00:00` UTC records 7 successful CI checks.
+This is October 3 in America/New_York. Later heads and CI remain outside this snapshot.
+The supplied hosting artifacts contain no local gate output or independent-review verdict for this item.
+This entry records published source only. It does not establish merge, AWS execution, or deployed behavior.
+See the [hosting checkpoint](phases/hosting-preparation-20261003.md) for dependency and evidence limits.
+
+## 2026-10-03 — Measured resume-loop CLI snapshot
+
+The [usage artifact](artifacts/hosting-preparation-20261003/cli-usage.json)
+was captured at `2026-10-04T01:18:06.110352+00:00` UTC, October 3 in America/New_York.
+It records 136 supervisor CLI writer/review runs with `resume-` prefixes.
+Input totals 38,525,539 tokens; output totals 727,822; input plus output totals 39,253,361.
+Cached input totals 33,499,136; reasoning output totals 294,083. Both counts are subsets.
+Unknown-usage runs total zero. Native-agent token counts are unknown, not zero.
+CLI process duration totals 23,145,812 ms; overlapping durations do not measure total loop wall time.
+The [phase table](phases/hosting-preparation-20261003.md#measured-cli-loop-snapshot)
+records each item separately, including completed published source items and active partial items.
+Runtime roles `573dd0b` and identity `14dd9e41` remain coordinator-reported unpublished checkpoints pending review.
+Cloud database integration and task settings also remain active partial usage records.
+This snapshot supports no savings percentage or causal efficiency claim.
+It does not replace the earlier tier S pilot or repeat the benchmark, post-hoc, and course-pack history entries.
+The writer ran no tests, gates, network requests, or external actions.
+The coordinator still verifies artifact values, links, the preserved log prefix, gates, and independent review.
