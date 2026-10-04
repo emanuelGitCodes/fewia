@@ -102,16 +102,16 @@ def test_caller_and_image_accept_exact_values_without_runtime_dependency(
     phase: Literal["foundation", "bootstrap", "active"],
 ) -> None:
     config = DeploymentConfig(_ACCOUNT, phase, None)
-    assert check_caller(config, {"Account": _ACCOUNT, "extra": _Unreadable()}) is None
-    assert (
-        check_image(
-            config,
-            {"imageDetails": [_image()], "extra": _Unreadable()},
-            repository_name=_REPOSITORY,
-            digest=_DIGEST,
-        )
-        is None
+    expected_config = deepcopy(config)
+    check_caller(config, {"Account": _ACCOUNT, "extra": _Unreadable()})
+    check_image(
+        config,
+        {"imageDetails": [_image()], "extra": _Unreadable()},
+        repository_name=_REPOSITORY,
+        digest=_DIGEST,
     )
+    assert config == expected_config
+    assert config.runtime is None
 
 
 @pytest.mark.parametrize(
@@ -181,12 +181,11 @@ def test_certificate_accepts_exact_and_single_label_wildcard_sans(
 ) -> None:
     certificate = _certificate()
     certificate.update(Type=kind, SubjectAlternativeNames=names, extra=_Unreadable())
-    assert (
-        check_certificate(
-            _config(), {"Certificate": certificate, "extra": _Unreadable()}, now=_NOW
-        )
-        is None
+    expected_certificate = certificate.copy()
+    check_certificate(
+        _config(), {"Certificate": certificate, "extra": _Unreadable()}, now=_NOW
     )
+    assert certificate == expected_certificate
 
 
 @pytest.mark.parametrize(
@@ -206,7 +205,9 @@ def test_certificate_compares_aware_instants_and_includes_not_before(
 ) -> None:
     certificate = _certificate()
     certificate.update(NotBefore=before, NotAfter=after)
-    assert check_certificate(_config(), {"Certificate": certificate}, now=now) is None
+    expected_certificate = deepcopy(certificate)
+    check_certificate(_config(), {"Certificate": certificate}, now=now)
+    assert certificate == expected_certificate
 
 
 @pytest.mark.parametrize("field", list(_certificate()))
@@ -441,15 +442,14 @@ def test_image_requires_exact_digest_repository_and_registry(
 def test_image_accepts_bounded_repository_names(repository: str) -> None:
     image = _image()
     image.update(repositoryName=repository, extra=_Unreadable())
-    assert (
-        check_image(
-            _config(),
-            {"imageDetails": [image]},
-            repository_name=repository,
-            digest=_DIGEST,
-        )
-        is None
+    expected_image = image.copy()
+    check_image(
+        _config(),
+        {"imageDetails": [image]},
+        repository_name=repository,
+        digest=_DIGEST,
     )
+    assert image == expected_image
 
 
 @pytest.mark.parametrize(
@@ -569,6 +569,11 @@ def test_all_checks_use_explicit_inputs_without_io_or_resources(
     def forbidden(*args: object, **kwargs: object) -> Never:
         raise AssertionError("preflight performed an external operation")
 
+    config = _config()
+    caller: dict[str, object] = {"Account": _ACCOUNT}
+    certificate: dict[str, object] = {"Certificate": _certificate()}
+    image: dict[str, object] = {"imageDetails": [_image()]}
+    expected = deepcopy((config, caller, certificate, image))
     with monkeypatch.context() as guarded:
         guarded.setattr(builtins, "open", forbidden)
         guarded.setattr(Path, "open", forbidden)
@@ -578,12 +583,10 @@ def test_all_checks_use_explicit_inputs_without_io_or_resources(
         guarded.setattr(subprocess, "Popen", forbidden)
         guarded.setattr(Construct, "__init__", forbidden)
         guarded.setattr(ecs.ContainerImage, "from_ecr_repository", forbidden)
-        assert check_caller(_config(), {"Account": _ACCOUNT}) is None
-        assert (
-            check_certificate(_config(), {"Certificate": _certificate()}, now=_NOW)
-            is None
-        )
-        assert _check_image({"imageDetails": [_image()]}) is None
+        check_caller(config, caller)
+        check_certificate(config, certificate, now=_NOW)
+        _check_image(image)
+        assert (config, caller, certificate, image) == expected
         with pytest.raises(PreflightError, match=f"^{_ERROR}$"):
             check_caller(_config(), {"Account": _MARKER})
         with pytest.raises(PreflightError, match=f"^{_ERROR}$"):

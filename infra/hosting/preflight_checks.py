@@ -73,7 +73,10 @@ def check_caller(config: DeploymentConfig, response: object) -> None:
 def check_certificate(
     config: DeploymentConfig, response: object, *, now: datetime
 ) -> None:
-    """Check metadata. Chain trust and the deployed TLS handshake need separate checks."""
+    """Check metadata.
+
+    Chain trust and the deployed TLS handshake need separate checks.
+    """
     runtime = config.runtime
     if runtime is None or type(now) is not datetime or now.utcoffset() is None:
         raise PreflightError(_ERROR)
