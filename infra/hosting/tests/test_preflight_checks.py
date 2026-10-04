@@ -210,6 +210,51 @@ def test_certificate_compares_aware_instants_and_includes_not_before(
     assert certificate == expected_certificate
 
 
+@pytest.mark.parametrize("fraction", ["1", "12", "123", "1234", "12345", "123456"])
+@pytest.mark.parametrize("suffix", ["Z", "+00:00"])
+def test_certificate_accepts_one_through_six_fractional_digits(
+    fraction: str, suffix: str
+) -> None:
+    certificate = _certificate()
+    certificate.update(
+        NotBefore=f"2026-10-03T11:00:00.{fraction}{suffix}",
+        NotAfter=f"2026-10-03T13:00:00.{fraction}{suffix}",
+    )
+    check_certificate(_config(), {"Certificate": certificate}, now=_NOW)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("NotBefore", "2026-10-03T12:00:00.0000001"),
+        ("NotAfter", "2026-10-03T12:00:00.0000001"),
+        ("NotBefore", "2026-10-03T11:00:00.1234567"),
+        ("NotAfter", "2026-10-03T13:00:00.1234567"),
+    ],
+)
+@pytest.mark.parametrize("suffix", ["Z", "+00:00"])
+def test_certificate_rejects_precision_beyond_microseconds(
+    field: str, value: str, suffix: str
+) -> None:
+    certificate = _certificate()
+    certificate[field] = value + suffix
+    _assert_invalid(
+        lambda: check_certificate(_config(), {"Certificate": certificate}, now=_NOW)
+    )
+
+
+@pytest.mark.parametrize("fraction", ["0", "00", "000", "0000", "00000", "000000"])
+@pytest.mark.parametrize("suffix", ["Z", "+00:00"])
+def test_certificate_rejects_fractional_not_after_at_now(
+    fraction: str, suffix: str
+) -> None:
+    certificate = _certificate()
+    certificate["NotAfter"] = f"2026-10-03T12:00:00.{fraction}{suffix}"
+    _assert_invalid(
+        lambda: check_certificate(_config(), {"Certificate": certificate}, now=_NOW)
+    )
+
+
 @pytest.mark.parametrize("field", list(_certificate()))
 def test_certificate_requires_every_metadata_field(field: str) -> None:
     certificate = _certificate()
