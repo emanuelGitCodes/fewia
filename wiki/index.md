@@ -36,6 +36,7 @@ chronological record lives in [log.md](log.md).
 - [Evaluation draft publication and Graphify update](phases/evaluation-publication.md)
 - [Evaluation recovery checkpoint — published source and current recovery](phases/evaluation-recovery.md)
 - [Backlog build checkpoint — branches, checks, and remaining work](phases/backlog-build-20261003.md)
+- [Agent catalog scope correction — 40-meal wording in role briefs](phases/agent-catalog-scope-20261003.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 

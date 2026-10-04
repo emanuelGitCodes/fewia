@@ -1,6 +1,6 @@
 ---
 name: catalog-dev
-description: Junior developer for one bounded FEWIA work item. FEWIA recipe-catalog developer for the accepted catalog in .codex/project-context.md, sample prices, and shopping-data contracts. The senior session spawns it with a brief and a worktree.
+description: Junior developer for one bounded FEWIA work item. FEWIA recipe-catalog developer for the ten-meal corpus, sample prices, and shopping-data contracts. The senior session spawns it with a brief and a worktree.
 tools: Read, Grep, Glob, Bash, Monitor
 model: sonnet
 ---
