@@ -3,12 +3,14 @@ import json
 import signal
 from collections.abc import Callable, Sequence
 from types import FrameType
+from typing import NoReturn, cast
 
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import models  # noqa: F401
 from app.db import SessionLocal
-from app.providers.local_sqs_consumer import LocalSqsConsumer
+from app.providers.job_transport import build_job_queue
+from app.providers.job_transport_settings import load_job_transport
 from app.services.job_consumer import process_one
 from app.services.job_delivery import JobHandler, JobQueue
 from app.services.plan_job import plan_job
@@ -35,6 +37,11 @@ def _write_result(status: str, counts: dict[str, int]) -> None:
     print(json.dumps({"status": status, "counts": counts}, sort_keys=True))
 
 
+class _ConsumerParser(argparse.ArgumentParser):
+    def error(self, message: str) -> NoReturn:
+        raise ValueError("Consumer arguments are invalid")
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -43,13 +50,25 @@ def main(
     processor: Processor | None = None,
     handler: JobHandler | None = None,
 ) -> int:
-    parser = argparse.ArgumentParser(description="Process bounded local agent jobs.")
-    parser.add_argument("--endpoint", required=True)
+    parser = _ConsumerParser(description="Process bounded agent jobs.")
+    parser.add_argument("--transport", choices=("local", "aws"))
+    parser.add_argument("--endpoint")
     parser.add_argument("--max-messages", type=_bounded_count, default=20)
-    args = parser.parse_args(argv)
     counts = {outcome: 0 for outcome in _OUTCOMES}
+    try:
+        args = parser.parse_args(argv)
+        transport = load_job_transport(mode=args.transport, endpoint=args.endpoint)
+        if transport.mode == "aws" and consumer_factory is not None:
+            raise ValueError("Legacy factories require local transport")
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    except KeyboardInterrupt:
+        _write_result("stopped", counts)
+        return 0
+    except Exception:  # noqa: BLE001
+        _write_result("worker_failed", counts)
+        return 1
     selected_factory = SessionLocal if factory is None else factory
-    consumer = LocalSqsConsumer if consumer_factory is None else consumer_factory
     selected_processor = process_one if processor is None else processor
     selected_handler = plan_job if handler is None else handler
     stop_requested = False
@@ -65,7 +84,11 @@ def main(
     try:
         for signum in previous_handlers:
             signal.signal(signum, request_stop)
-        queue = consumer(args.endpoint, "agent")
+        queue = (
+            build_job_queue(transport, "agent")
+            if consumer_factory is None
+            else consumer_factory(cast(str, transport.endpoint), "agent")
+        )
         for _ in range(args.max_messages):
             if stop_requested:
                 status = "stopped"
