@@ -1,0 +1,14 @@
+{
+  "kind": "post_hoc_gold_correction",
+  "observation_revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "scoring_revision": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+  "new_inference_calls": 0,
+  "files": {
+    "assessment-deltas.json": "6eb28e56e82cc47e2e8a1fd8103b00a0a6cdabee7db8fe3229efdb057308292f",
+    "corrected-manifest.json": "4a5753cf283add87e9adc9e75a103d4ea15f006bbcfcbc3722c6c5cf8ec5ae0f",
+    "corrected-scenarios.json": "3b264242357cdfaba23b72a86363e49c0f05c12cdb8bca2764292a85ddcd14a5",
+    "provenance.json": "16126f0c857d5ccfd01430529fa8a5df58208e3ff97ea316d4c1580cc59fca1f",
+    "rescore.py": "c769096e48fbe7f3f99896749be51fc55cc44685d6add251897fcf9427d5efa5",
+    "summary.json": "bd21e5fcdc8e46f35bdad7a8e2d9c60a710b2e85674fc10b3ab1e7a057927d8a"
+  }
+}

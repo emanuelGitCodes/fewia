@@ -104,20 +104,20 @@ make that check pass.
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | Evidence complete at `4b877d47`; task target FAIL (17/33, 51.5%); bounded claims target PASS (98/100, 98%); release unverified | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
+| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | Original evidence complete at `4b877d47`: task 17/33 (51.5%), FAIL; separate [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md): 23/33 (69.7%), still FAIL; claims unchanged at 98/100 (98%), PASS; release unverified | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
 | D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | This [benchmark record](../wiki/phases/benchmark-20261003.md); coordinator verification and publication remain | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
-| D3 | Course deliverables: 8-page paper, demo script, failure log with one example per failure class, limitations. | Evidence pack pending; citations and provenance support the student's own paper | 4 | `docs/` | Each section cites an artifact in the repository. |
+| D3 | Course deliverables: 8-page paper, demo script, failure log with one example per failure class, limitations. | Author-owned outline and evidence pack pending; citations and provenance support the student's own paper | 4 | `docs/` | Each section cites an artifact in the repository. |
 | D4 | Plaid Sandbox live evidence: run `/transactions/sync` against Sandbox, serialize item syncs, apply changes and cursor atomically, and record posted and pending grocery spend. Last feature by decision. | paused | 5 | `backend/app/services/plaid_sync.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
-| D5 | Public hosting: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. Every mutating AWS step confirmed by the owner first. | Source adapters in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340) and [#342](https://github.com/emanuelGitCodes/fewia/pull/342); no deployment evidence | 5 | `infra/` | The deployed stack answers one chat turn with live Bedrock and the deployed label. |
+| D5 | Restricted hosting for the owner and invited users: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. | Owner authorization covers only restricted owner/invited-user access scope and source design. It does not authorize deployment; source adapters in progress in [#340](https://github.com/emanuelGitCodes/fewia/pull/340) and [#342](https://github.com/emanuelGitCodes/fewia/pull/342); no deployment evidence | 5 | `infra/` | The owner MUST confirm every mutating AWS step first. The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. |
 
 D1 retains the original 17/33 task result and 98/100 bounded-claim result.
-Coordinator triage found setup-turn tool expectations in F04/F05, although
-the scorer checks final-turn selection and arguments. This gold mismatch
-may understate task success. A failed assessment alone does not establish
-a model or application defect. The separate
-[gold correction record](../wiki/phases/benchmark-20261003.md#known-gold-contract-mismatch)
-names the branch and SHA. A separately labeled post-hoc rescore is pending.
-No corrected counts or additional live batch are reported here.
+The separate [post-hoc record](../wiki/phases/posthoc-gold-20261003.md)
+rescores the exact saved observations with corrected F04/F05 final-turn gold.
+Six tools assessments change. Task success becomes 23/33 (69.7%), with ten
+failed and zero unassessed. The 90% target still FAILS. Claims and the 0/33
+no-tool result stay unchanged. No scoring code or allowed outcomes change.
+This is not a fresh batch, model retest, or independent benchmark.
+A failed assessment alone does not establish a model or application defect.
 
 ## Part 3. Items that need no writer
 

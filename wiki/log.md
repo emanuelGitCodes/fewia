@@ -3171,3 +3171,25 @@ The [completion checkpoint](phases/evaluation-completion.md) retains eight
 historical local artifact paths as inline code, with their recorded facts.
 Those files are not included in this PR. Their present availability is not asserted.
 The writer ran no checks. Coordinator verification and independent review remain pending.
+
+## 2026-10-03 — Record the bounded post-hoc gold correction
+
+The separate [post-hoc record](phases/posthoc-gold-20261003.md) rescores the exact saved observations
+from `4b877d470258561cedd3375e38efc02362ce5f22` with corrected gold and scorer source
+`e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`, published in [#348](https://github.com/emanuelGitCodes/fewia/pull/348).
+The derivation occurred at `2026-10-03T23:57:26.642449+00:00`, after the original outputs were available.
+The corrected manifest hash is `6af7f64580e9edca91fa73ef7bf88f28615440b03c0ef635d8ed7864e682c2da`.
+Six tool-enabled F04/F05 tools assessments change across three repeats each.
+Task success becomes 23/33 (69.7%), with ten failed and zero unassessed; the 90% target still FAILS.
+Claims remain 98/(98 assessed + two unknown), or 98%; no-tool task success remains 0/33.
+The correction matches the existing final-turn scorer contract without changing scoring code or allowed outcomes.
+All other assessments, observations, latency, token counts, and execution statuses stay unchanged.
+No provider or database calls occur. This is not a fresh batch, model retest, or independent benchmark.
+Original 17/33 tables, artifacts, and earlier log entries remain intact.
+The new page links hashes, all six deltas, and the exclusive reproduction command.
+The original canonical corpus hash is absent from the assigned evidence; coordinator confirmation remains open.
+Purchase attempts remain UNMEASURED; synthetic-sentinel evidence retains its bounded scope.
+Release is NOT certified. No live Plaid, Plaid Sandbox, live Instacart, or deployed result is supplied.
+The user authorized legacy-data retention and restricted owner/invited-user hosting; neither adds deployment evidence.
+D3's author-owned outline and evidence pack remain pending.
+The writer ran no checks. Coordinator verification and independent Codex or Grok review remain open.

@@ -1,0 +1,1558 @@
+{
+  "baseline_system_prompt_hash": "102fb3fa12470fa1992b906f3d92d960c81faf66beb3dfe6fd0ccbb90272d374",
+  "catalog": {
+    "estimate_notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+    "ingredients": [
+      {
+        "id": "black_beans",
+        "is_pantry": false,
+        "name": "black beans",
+        "package_quantity": 425,
+        "price_cents": 129,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "chicken_breast",
+        "is_pantry": false,
+        "name": "chicken breast",
+        "package_quantity": 454,
+        "price_cents": 799,
+        "unit": "g",
+        "vegan": false,
+        "vegetarian": false
+      },
+      {
+        "id": "chickpeas",
+        "is_pantry": false,
+        "name": "chickpeas",
+        "package_quantity": 425,
+        "price_cents": 129,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "coconut_milk",
+        "is_pantry": false,
+        "name": "coconut milk",
+        "package_quantity": 400,
+        "price_cents": 249,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "cumin",
+        "is_pantry": true,
+        "name": "ground cumin",
+        "package_quantity": 42,
+        "price_cents": 199,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "curry_powder",
+        "is_pantry": true,
+        "name": "curry powder",
+        "package_quantity": 42,
+        "price_cents": 249,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "eggs",
+        "is_pantry": false,
+        "name": "eggs",
+        "package_quantity": 12,
+        "price_cents": 349,
+        "unit": "each",
+        "vegan": false,
+        "vegetarian": true
+      },
+      {
+        "id": "garlic",
+        "is_pantry": false,
+        "name": "garlic",
+        "package_quantity": 100,
+        "price_cents": 89,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "lentils",
+        "is_pantry": false,
+        "name": "brown lentils",
+        "package_quantity": 454,
+        "price_cents": 179,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "mixed_vegetables",
+        "is_pantry": false,
+        "name": "mixed vegetables",
+        "package_quantity": 454,
+        "price_cents": 199,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "oat_milk",
+        "is_pantry": false,
+        "name": "oat milk",
+        "package_quantity": 946,
+        "price_cents": 399,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "oats",
+        "is_pantry": false,
+        "name": "rolled oats",
+        "package_quantity": 454,
+        "price_cents": 349,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "olive_oil",
+        "is_pantry": true,
+        "name": "olive oil",
+        "package_quantity": 500,
+        "price_cents": 599,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "onion",
+        "is_pantry": false,
+        "name": "onion",
+        "package_quantity": 454,
+        "price_cents": 129,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "pasta",
+        "is_pantry": false,
+        "name": "dry pasta",
+        "package_quantity": 454,
+        "price_cents": 149,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "potato",
+        "is_pantry": false,
+        "name": "russet potato",
+        "package_quantity": 5,
+        "price_cents": 399,
+        "unit": "each",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "rice",
+        "is_pantry": false,
+        "name": "white rice",
+        "package_quantity": 907,
+        "price_cents": 199,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "salsa",
+        "is_pantry": false,
+        "name": "salsa",
+        "package_quantity": 454,
+        "price_cents": 249,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "salt",
+        "is_pantry": true,
+        "name": "salt",
+        "package_quantity": 737,
+        "price_cents": 99,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "soy_sauce",
+        "is_pantry": false,
+        "name": "soy sauce",
+        "package_quantity": 296,
+        "price_cents": 199,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "tomato",
+        "is_pantry": false,
+        "name": "canned tomato",
+        "package_quantity": 411,
+        "price_cents": 179,
+        "unit": "g",
+        "vegan": true,
+        "vegetarian": true
+      },
+      {
+        "id": "tortillas",
+        "is_pantry": false,
+        "name": "corn tortillas",
+        "package_quantity": 8,
+        "price_cents": 299,
+        "unit": "each",
+        "vegan": true,
+        "vegetarian": true
+      }
+    ],
+    "recipes": [
+      {
+        "id": "baked_potatoes_with_beans",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "potato",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "bean_tacos",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 120
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 2
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "breakfast_burritos",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 60
+          },
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 20
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_and_rice_bowls",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_burrito_bowls",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_chickpea_skillet",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "chickpeas",
+            "quantity": 120
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_curry",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "coconut_milk",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "curry_powder",
+            "quantity": 3
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_fried_rice",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "eggs",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "soy_sauce",
+            "quantity": 15
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_lentil_stew",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "lentils",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_pasta",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "pasta",
+            "quantity": 90
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_potato_bake",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "potato",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_stir_fry",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 150
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "soy_sauce",
+            "quantity": 15
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_tacos",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 2
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_tortilla_soup",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chicken_vegetable_soup",
+        "ingredients": [
+          {
+            "ingredient_id": "chicken_breast",
+            "quantity": 100
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chickpea_curry",
+        "ingredients": [
+          {
+            "ingredient_id": "chickpeas",
+            "quantity": 120
+          },
+          {
+            "ingredient_id": "coconut_milk",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "curry_powder",
+            "quantity": 3
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chickpea_egg_scramble",
+        "ingredients": [
+          {
+            "ingredient_id": "chickpeas",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chickpea_pasta",
+        "ingredients": [
+          {
+            "ingredient_id": "chickpeas",
+            "quantity": 120
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "pasta",
+            "quantity": 90
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "chickpea_tacos",
+        "ingredients": [
+          {
+            "ingredient_id": "chickpeas",
+            "quantity": 120
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 2
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "coconut_lentil_curry",
+        "ingredients": [
+          {
+            "ingredient_id": "coconut_milk",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "curry_powder",
+            "quantity": 3
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "lentils",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "egg_fried_rice",
+        "ingredients": [
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "soy_sauce",
+            "quantity": 15
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "egg_rice_bowls",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 20
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "egg_tacos",
+        "ingredients": [
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 2
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "garlic_tomato_pasta",
+        "ingredients": [
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "pasta",
+            "quantity": 90
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "lentil_egg_skillet",
+        "ingredients": [
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "lentils",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "lentil_pasta",
+        "ingredients": [
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "lentils",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "pasta",
+            "quantity": 90
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "lentil_soup",
+        "ingredients": [
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "lentils",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "lentil_tacos",
+        "ingredients": [
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "lentils",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 2
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "overnight_oats",
+        "ingredients": [
+          {
+            "ingredient_id": "oat_milk",
+            "quantity": 180
+          },
+          {
+            "ingredient_id": "oats",
+            "quantity": 50
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "potato_curry",
+        "ingredients": [
+          {
+            "ingredient_id": "coconut_milk",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "curry_powder",
+            "quantity": 3
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "potato",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "potato_hash_with_eggs",
+        "ingredients": [
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "potato",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "potato_tacos",
+        "ingredients": [
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "potato",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tortillas",
+            "quantity": 2
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "rice_and_beans",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 120
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "salsa_rice_bowls",
+        "ingredients": [
+          {
+            "ingredient_id": "black_beans",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salsa",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "tomato_egg_pasta",
+        "ingredients": [
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "pasta",
+            "quantity": 90
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "tomato_rice",
+        "ingredients": [
+          {
+            "ingredient_id": "cumin",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "vegetable_egg_stir_fry",
+        "ingredients": [
+          {
+            "ingredient_id": "eggs",
+            "quantity": 2
+          },
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 150
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "soy_sauce",
+            "quantity": 15
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "vegetable_pasta",
+        "ingredients": [
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 80
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "pasta",
+            "quantity": 90
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "vegetable_soup",
+        "ingredients": [
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 150
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 40
+          },
+          {
+            "ingredient_id": "salt",
+            "quantity": 1
+          },
+          {
+            "ingredient_id": "tomato",
+            "quantity": 80
+          }
+        ],
+        "servings": 1
+      },
+      {
+        "id": "vegetable_stir_fry",
+        "ingredients": [
+          {
+            "ingredient_id": "garlic",
+            "quantity": 5
+          },
+          {
+            "ingredient_id": "mixed_vegetables",
+            "quantity": 150
+          },
+          {
+            "ingredient_id": "olive_oil",
+            "quantity": 10
+          },
+          {
+            "ingredient_id": "onion",
+            "quantity": 30
+          },
+          {
+            "ingredient_id": "rice",
+            "quantity": 75
+          },
+          {
+            "ingredient_id": "soy_sauce",
+            "quantity": 15
+          }
+        ],
+        "servings": 1
+      }
+    ],
+    "version": "sample-prices-v2"
+  },
+  "catalog_hash": "89361b6a53b35016d379a2446265c530348ad24b915564bca982fc00f6e3eb2f",
+  "catalog_version": "sample-prices-v2",
+  "conditions": [
+    "tool_enabled",
+    "no_tool",
+    "deterministic"
+  ],
+  "corpus_hash": "87d5808e305501f875e2e9ac8ad915df1f85564789bbdd2bc8e0bd650a313071",
+  "manifest_hash": "6af7f64580e9edca91fa73ef7bf88f28615440b03c0ef635d8ed7864e682c2da",
+  "model_config": {
+    "max_tokens": 4096,
+    "reasoning_effort": "low",
+    "temperature": 0
+  },
+  "model_config_hash": "9f9e812cd127182909e4e22dd0cb3825d7b47e156c5d835c1df8f7fb787c9987",
+  "model_id": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-east-1",
+  "system_prompt_hash": "e91c08b52032242aeb1f0f16d8c91a3d0840a64a140252013ad2b1903fdbc891",
+  "version": "evaluation-manifest-v1"
+}

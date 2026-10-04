@@ -1,0 +1,19 @@
+{
+  "changed_assessment": "tools",
+  "changed_cases": [
+    "F04",
+    "F05"
+  ],
+  "corrected_corpus_sha256": "3b264242357cdfaba23b72a86363e49c0f05c12cdb8bca2764292a85ddcd14a5",
+  "corrected_manifest_hash": "6af7f64580e9edca91fa73ef7bf88f28615440b03c0ef635d8ed7864e682c2da",
+  "derived_at": "2026-10-03T23:57:26.642449+00:00",
+  "kind": "post_hoc_gold_correction",
+  "new_inference_calls": 0,
+  "observation_revision": "4b877d470258561cedd3375e38efc02362ce5f22",
+  "observations_unchanged": true,
+  "original_manifest_hash": "34888d692bee873021cbfc2478b479ed62badbc045f3c83618ad511eb720778d",
+  "original_report_sha256": "552dd3511ad2771a4ee5ae8c1a9f15e0eda4ff9380207547d48a29e0f0654aa7",
+  "scope": "Saved observations rescored with final-turn gold. Original benchmark remains authoritative for its original corpus. This is not a fresh inference batch.",
+  "scoring_revision": "e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6",
+  "total_observation_slots": 138
+}

@@ -55,6 +55,8 @@ The structured reference tests final structured requests, not the preceding lang
 
 All values below come from `real_tool_enabled` and `baseline_no_tool` in the [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json).
 These rows cover `real_bedrock` evidence at the source revision and date above.
+The table preserves the original results. The separate [post-hoc gold correction](posthoc-gold-20261003.md)
+reports 23/33 task passes (69.7%) from these same saved observations; the 90% target still FAILS.
 
 | Measure | Numerator and denominator | Result and scope |
 |---|---|---|
@@ -94,8 +96,13 @@ The coordinator reports a separate correction on `codex/backlog-resume-tool-gold
 That correction changes only the F04/F05 `expected.model_tools` arrays and regression tests.
 It makes no scoring-code changes.
 The original benchmark files and results remain unchanged.
-A separately labeled post-hoc rescore is pending.
-This record supplies no corrected counts and records no additional live batch.
+The separate [post-hoc record](posthoc-gold-20261003.md) now reports the completed rescore.
+It changes six tools assessments for F04/F05 across three repeats each.
+Task quality becomes 23/33 (69.7%), with ten failed and zero unassessed; the 90% target still FAILS.
+Claims remain 98/100 (98%); no-tool task success remains 0/33.
+No allowed outcomes or other assessments change. No provider or database calls occur.
+This is not a fresh batch, a model retest, or an independent benchmark.
+The separate record preserves the correction timing, both revisions, hashes, deltas, and reproduction command.
 
 ## Tested constraints and safety limits
 
@@ -153,8 +160,8 @@ CLI exit 1 means input or execution failed. Exit 130 means interruption.
 ## Remaining work
 
 D1 evidence is complete, but its task target failed and release remains unverified.
-D1 retains its original result pending the separately labeled post-hoc rescore described above.
-D2 is this documentation record. D3's paper evidence pack remains pending.
+D1 retains its original result beside the completed [post-hoc rescore](posthoc-gold-20261003.md).
+D2 is this documentation record. D3's author-owned outline and paper evidence pack remain pending.
 Evidence tables MUST retain source revision, evidence class, scope, date, denominator, and artifact citation.
 Course authors MAY cite this record. This work does not write or submit a student's graded paper.
 D4 Plaid Sandbox remains paused.
