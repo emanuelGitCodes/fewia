@@ -3003,3 +3003,15 @@ The coordinator evaluated #314 to #320 against `main`. All seven branches merged
 The user chose to retain existing stored Spoonacular totals and retired
 health tables for now. Deletion needs a separate decision. Decision:
 [0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md).
+
+## 2026-10-03 — Correct provider-specific writer read permissions
+
+Updated the [junior protocol](../docs/delegation/junior.md) to allow Codex
+read-only shell access for reads and searches, forbid Grok shell commands, and
+keep checks with the junior. The junior MUST check its final brief for
+contradictory command prohibitions before launch. See the [C4 recovery
+record](artifacts/backlog-20261003/c4-resume.md).
+
+## 2026-10-03 — Align supervisor writer command rules
+
+Updated the supervisor opening to match the provider-specific junior protocol.
