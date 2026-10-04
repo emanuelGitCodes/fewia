@@ -264,3 +264,28 @@ def test_hosting_stack_keeps_network_dormant(tmp_path: Path) -> None:
     assert stack.node.try_find_child("Network") is None
     resources = Template.from_stack(stack).to_json()["Resources"]
     assert all(not item["Type"].startswith("AWS::EC2::") for item in resources.values())
+
+
+def test_hosting_stack_synthesizes_fixed_zones_without_az_context(
+    tmp_path: Path,
+) -> None:
+    application = App(outdir=str(tmp_path / "assembly"))
+    stack = HostingStack(
+        application,
+        "S",
+        env=Environment(account=_ACCOUNT, region="us-east-1"),
+    )
+    HostingNetwork(stack, "Network")
+    assembly = application.synth()
+    manifest = json.loads((Path(assembly.directory) / "manifest.json").read_text())
+    assert not manifest.get("missing")
+    rendered = Template.from_stack(stack).to_json()
+    serialized = json.dumps(rendered)
+    assert "dummy1a" not in serialized
+    assert "dummy1b" not in serialized
+    zones = {
+        resource["Properties"]["AvailabilityZone"]
+        for resource in rendered["Resources"].values()
+        if resource["Type"] == "AWS::EC2::Subnet"
+    }
+    assert zones == {"us-east-1a", "us-east-1b"}

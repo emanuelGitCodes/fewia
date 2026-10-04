@@ -1,6 +1,8 @@
 from aws_cdk import aws_ec2 as ec2
 from constructs import Construct
 
+HOSTING_AVAILABILITY_ZONES: tuple[str, str] = ("us-east-1a", "us-east-1b")
+
 
 class HostingNetwork(Construct):
     def __init__(self, scope: Construct, construct_id: str) -> None:

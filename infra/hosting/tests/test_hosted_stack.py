@@ -574,7 +574,11 @@ def test_full_synthesis_needs_no_environment_or_lookups(
         "AWS_DEFAULT_REGION",
     ):
         monkeypatch.delenv(name, raising=False)
-    demo = _build(tmp_path, phase)
+    demo = HostedDemoStack(
+        App(outdir=str(tmp_path / "assembly")),
+        "HostedDemo",
+        config=_config(phase),
+    )
     app = demo.node.root
     assert isinstance(app, App)
     assembly = app.synth()
@@ -584,6 +588,7 @@ def test_full_synthesis_needs_no_environment_or_lookups(
     assert artifact.termination_protection is True
     assert artifact.environment.account == _ACCOUNT
     assert artifact.environment.region == REGION
+    assert "dummy1a" not in json.dumps(Template.from_stack(demo).to_json())
 
 
 def test_existing_minimal_stack_keeps_only_queues_and_artifacts(tmp_path: Path) -> None:

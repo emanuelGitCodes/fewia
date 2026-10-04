@@ -10,7 +10,7 @@ from deployment_config import REGION, DeploymentConfig, parse_deployment_config
 from edge import HostingEdge
 from execution_roles import HostingExecutionRoles
 from identity import HostingIdentity
-from network import HostingNetwork
+from network import HOSTING_AVAILABILITY_ZONES, HostingNetwork
 from services import HostingServices
 from stack import HostingResources
 from task_roles import HostingTaskRoles
@@ -124,3 +124,7 @@ class HostedDemoStack(Stack):
             "DemoUrl": f"https://{runtime.hostname}/",
         }.items():
             CfnOutput(self, key, value=value)
+
+    @property
+    def availability_zones(self) -> list[str]:
+        return list(HOSTING_AVAILABILITY_ZONES)
