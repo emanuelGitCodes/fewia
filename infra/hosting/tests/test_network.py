@@ -210,14 +210,14 @@ def test_security_group_rules_allow_only_the_named_pairs(
             ingress,
             [
                 (edge, "CidrIp", "0.0.0.0/0", 443),
-                (app, "SourceSecurityGroupId", edge, 80),
+                (app, "SourceSecurityGroupId", edge, 8080),
                 (database, "SourceSecurityGroupId", app, 5432),
             ],
         ),
         (
             egress,
             [
-                (edge, "DestinationSecurityGroupId", app, 80),
+                (edge, "DestinationSecurityGroupId", app, 8080),
                 (edge, "CidrIp", "0.0.0.0/0", 443),
                 (app, "CidrIp", "0.0.0.0/0", 443),
                 (app, "DestinationSecurityGroupId", database, 5432),

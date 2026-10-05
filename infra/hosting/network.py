@@ -44,11 +44,11 @@ class HostingNetwork(Construct):
             ec2.Peer.any_ipv4(), ec2.Port.tcp(443)
         )
         self.edge_security_group.add_egress_rule(
-            self.app_security_group, ec2.Port.tcp(80)
+            self.app_security_group, ec2.Port.tcp(8080)
         )
         self.edge_security_group.add_egress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(443))
         self.app_security_group.add_ingress_rule(
-            self.edge_security_group, ec2.Port.tcp(80)
+            self.edge_security_group, ec2.Port.tcp(8080)
         )
         self.app_security_group.add_egress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(443))
         self.app_security_group.add_egress_rule(
