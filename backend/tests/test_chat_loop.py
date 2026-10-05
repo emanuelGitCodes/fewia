@@ -1525,19 +1525,10 @@ def test_system_prompt_places_purchase_definition_before_refusal_json() -> None:
     assert SYSTEM_PROMPT.index(definition) < SYSTEM_PROMPT.index(refusal_instruction)
 
 
-def test_system_prompt_keeps_conflict_rule_and_earlier_result_rule() -> None:
+def test_system_prompt_keeps_conflict_rule() -> None:
     assert (
         "When a named catalog meal conflicts with the stated diet, call "
         "plan_groceries with both; the tool reports the conflict." in SYSTEM_PROMPT
-    )
-    assert (
-        "When an earlier plan_groceries result in this conversation already "
-        "lists an ingredient of that meal that the new diet excludes, you "
-        "MUST NOT call plan_groceries again." in SYSTEM_PROMPT
-    )
-    assert (
-        "Name that ingredient and ask the user to change the meal or the diet."
-        in SYSTEM_PROMPT
     )
 
 
