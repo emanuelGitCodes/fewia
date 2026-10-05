@@ -295,6 +295,33 @@ def test_missing_aws_profile_does_not_use_alternate_profile_environment(
     assert options.profile_name is None
 
 
+def test_local_services_accept_host_mapped_floci_endpoint(
+    cli_args: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEWIA_EVALUATION_DATABASE_URL", DATABASE_URL)
+    monkeypatch.setenv("FEWIA_EVALUATION_FLOCI_ENDPOINT", "http://127.0.0.1:4567")
+    options = cli.load_options(cli_args + ["--local-services"], fixture=True)
+    assert options.database_url == DATABASE_URL
+    assert options.endpoint == "http://127.0.0.1:4567"
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://0.0.0.0:4567",
+        "http://127.0.0.1:4568",
+        "https://127.0.0.1:4567",
+        "http://floci:4567",
+    ],
+)
+def test_local_services_reject_near_miss_floci_endpoints(
+    cli_args: list[str], monkeypatch: pytest.MonkeyPatch, endpoint: str
+) -> None:
+    monkeypatch.setenv("FEWIA_EVALUATION_DATABASE_URL", DATABASE_URL)
+    monkeypatch.setenv("FEWIA_EVALUATION_FLOCI_ENDPOINT", endpoint)
+    _assert_invalid(cli_args + ["--local-services"])
+
+
 @pytest.mark.parametrize("endpoint", sorted(local_sqs.ALLOWED_ENDPOINTS))
 def test_local_services_require_flag_and_hide_inputs_in_repr(
     cli_args: list[str], monkeypatch: pytest.MonkeyPatch, endpoint: str
