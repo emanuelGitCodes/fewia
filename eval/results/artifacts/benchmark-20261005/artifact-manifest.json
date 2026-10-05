@@ -1,0 +1,24 @@
+{
+ "source_revision": "d50572a15d007be5afe26f44a378a57ff6d896db",
+ "model_id": "us.amazon.nova-2-lite-v1:0",
+ "region": "us-east-1",
+ "fixture_driver": "eval/results/artifacts/benchmark-20261003/fixture_driver.py",
+ "files": {
+  "fixture-20261005/completion.json": "47763b71d718c8ab4d73987a25b2eefe667461ef5066aeda37b37f7578c61588",
+  "fixture-20261005/completion.pending": "47763b71d718c8ab4d73987a25b2eefe667461ef5066aeda37b37f7578c61588",
+  "fixture-20261005/report.json": "f592affdeec6492cb4dc88fb65ccbec4acbca5da67efd84b74c29801838e7983",
+  "fixture-20261005/report.md": "2d139729723c493331baaa7c70cfd11eddb07440907f2a88798df64bebaabd20",
+  "fixture-20261005/slots.jsonl": "b4da9914bac3cc70574f1f778737ad6e8a7f983dea1384b68e28d1947296f7c6",
+  "fixture-integrity.json": "c0c777ee8a135ea96a92d3a30a1ed074e0c519b936c4f18667b1bbdc39367950",
+  "fixture-stdout.txt": "856e6783dfcbf42565dfbddbcd34256fc36145b652fc652b421030a99b5f1381",
+  "live-integrity.json": "0f4742d689444b04eac7780124f086c127cd966da1db03162d46e5dc4e11c266",
+  "live-nova2-20261005/completion.json": "9716bf44c646aaf752678d0e65a6be81f204af994e50b87e5e95accf142f9903",
+  "live-nova2-20261005/completion.pending": "9716bf44c646aaf752678d0e65a6be81f204af994e50b87e5e95accf142f9903",
+  "live-nova2-20261005/report.json": "783049abd997e4b14a47941ad4e62183828b74c99d85cd7fa46a8054c167659b",
+  "live-nova2-20261005/report.md": "182eb8753fe48e76e2091ae6703b526c99ac5971a7a9c27ae4f60d5888742b20",
+  "live-nova2-20261005/slots.jsonl": "b4ddd4fef8a94b874ab90496688e25ccc7eb4ce77c3973a561a56eeb531cf991",
+  "live-stdout.txt": "14479858f80934d502c15ee4c0ee10ced5d7ddb19ceab4396cbb3699fec9ab05",
+  "nova2-rates.json": "30cff5eeffddd162ec45702d758218e4dd724f92850d212f3147069969c428ec",
+  "scenarios.json": "c75c6ed014bb5c8306c6c89b23160604da1f96d839620f636ff1892e2fed7c9c"
+ }
+}

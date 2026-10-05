@@ -148,3 +148,12 @@ The [SIGINT record](../../eval/results/artifacts/benchmark-20261003/sigint-summa
 CLI exit 0 means artifact completion only. It does not certify targets or release.
 The [evaluation guide](../../docs/EVALUATION.md) now documents the runnable CLI and exclusive output directory.
 No new gate, review, CI, or deployment result is asserted by this documentation entry.
+
+## 2026-10-05 — Fresh live batch
+
+A fresh 138-slot batch ran on Nova 2 Lite at `main` revision
+`d50572a15d007be5afe26f44a378a57ff6d896db`. All 33 live tool-enabled executions
+completed. Task quality passed 25/33, or 75.8%; the 90% target FAILS. The bounded
+factual-claim target PASSES at 109/(109 assessed + three unknown), or 97.3%, against 95%.
+No-tool task success is 0/33. The [benchmark record](benchmark-20261005.md) holds the
+details. The 2026-10-03 records stay unchanged.

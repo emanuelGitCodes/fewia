@@ -42,6 +42,7 @@ chronological record lives in [log.md](log.md).
 - [Backlog resume — published evidence and remaining work](phases/backlog-resume-20261003.md)
 - [Benchmark — original fixture and live results, known gold mismatch, and release limits](phases/benchmark-20261003.md)
 - [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)
+- [Fresh live benchmark — 25/33 task success, 97.3% supported claims, and unchanged release limits](phases/benchmark-20261005.md)
 - [Hosting preparation — accepted private access, published source, bounded CI and CLI usage](phases/hosting-preparation-20261003.md)
 - [Backlog final record — published PRs 322-381, integration evidence, and Graphify archive](phases/backlog-final-20261003.md)
 - [Integrity check — merged main exercised end to end, findings, and backlog state](phases/integrity-20261004.md)
@@ -60,6 +61,8 @@ The 90% target still FAILS; claims and 0/33 no-tool success stay unchanged.
 The correction matches the existing final-turn scorer contract.
 It changes no scoring code or allowed outcomes and makes no provider or database calls.
 It is not a fresh batch, model retest, or independent benchmark.
+A [fresh live batch](phases/benchmark-20261005.md) on 2026-10-05 reports 25/33
+(75.8%) task success; the 90% target still FAILS. Claims PASS at 109/112 (97.3%).
 D3's [author-owned course supporting pack](../docs/course/README.md) is prepared.
 It links prompts, figures, failure examples, and provenance for the author's own writing.
 The final paper has a maximum of eight pages in two columns.

@@ -1,0 +1,19 @@
+{
+ "revision": "d50572a15d007be5afe26f44a378a57ff6d896db",
+ "manifest_hash": "996eeb4f372967f1cc647815040196b6ab8254464f0ad8c49df042c7d984933d",
+ "slots": 138,
+ "primary": 90,
+ "baseline": 48,
+ "statuses": {
+  "completed": 106,
+  "failed": 32
+ },
+ "evidence": {
+  "deterministic_fake_provider": 69,
+  "local_postgresql": 3,
+  "real_bedrock": 66
+ },
+ "journal_matches_report": true,
+ "started_at": "2026-10-05T21:04:29.647010+00:00",
+ "finished_at": "2026-10-05T21:13:08.359416+00:00"
+}
