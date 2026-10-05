@@ -64,6 +64,30 @@ repository with mode 600. To use Bedrock too, add both `-f` flags.
 docker compose --env-file .env -f compose.yaml -f compose.spoonacular.yaml up -d
 ```
 
+## Secret scanning
+
+Gitleaks scans every commit for secrets. Install the hook once per clone:
+
+```bash
+uv tool install pre-commit
+pre-commit install
+```
+
+The hook scans the staged changes before each commit and blocks a commit
+that holds a secret. The first run downloads gitleaks and, when Go is not
+installed, a Go toolchain. Scan the whole repository history on demand:
+
+```bash
+pre-commit run gitleaks --all-files
+docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --no-banner
+```
+
+The `Secrets` workflow in `.github/workflows/secrets.yml` runs the
+history scan on every push to `main` and on every pull request.
+`.gitleaksignore` lists reviewed false positives by fingerprint. Do not
+add an entry for a real secret. Remove the secret, rotate it, and then
+commit.
+
 ## Checks
 
 Run the shared gates from the repository root:

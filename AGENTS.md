@@ -61,6 +61,10 @@ Juniors and writers read only the files their brief names.
   `backend/app/agent/`. Do not import boto3 outside the provider and
   infra modules.
 - Secrets MUST stay out of source, prompts, logs, and model inputs.
+- Every commit MUST pass the gitleaks pre-commit hook. Agents MUST NOT
+  skip it with `--no-verify` or `SKIP=gitleaks`. A finding that is a
+  false positive goes in `.gitleaksignore` only after the coordinator
+  reviews it.
 - Prose in comments, docstrings, Markdown, and commit messages uses
   short, plain, active sentences. Requirement words are MUST, MUST NOT,
   SHOULD, SHOULD NOT, and MAY, in uppercase, with no synonyms.
