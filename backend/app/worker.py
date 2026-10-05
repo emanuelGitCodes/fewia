@@ -92,6 +92,23 @@ def _default_handler(factory: sessionmaker[Session], kind: str) -> JobHandler:
     return make_agent_handler(factory, _bedrock_provider(settings))
 
 
+def run_publisher(
+    factory: sessionmaker[Session],
+    sender: JobSender,
+    stop: threading.Event,
+    *,
+    idle_seconds: float = 0.2,
+) -> None:
+    while not stop.is_set():
+        try:
+            published = publish_pending(factory, sender, limit=20)
+        except PublicationError:
+            stop.wait(_BACKOFF_SECONDS)
+            continue
+        if published == 0:
+            stop.wait(idle_seconds)
+
+
 def run_worker(
     factory: sessionmaker[Session],
     queue: JobQueue,
@@ -110,23 +127,37 @@ def run_worker(
     selected_wait: WaitFn = stop.wait if wait is None else wait
     if counts is None:
         counts = {outcome: 0 for outcome in _OUTCOMES}
-    while not stop.is_set():
-        recover_jobs(factory, job_replay_safe, now=selected_now())
-        if stop.is_set():
-            break
+    recorded: list[BaseException] = []
+
+    def run_outbox_thread() -> None:
         try:
-            publish_pending(factory, sender, limit=1)
-        except PublicationError:
-            selected_wait(_BACKOFF_SECONDS)
-            continue
-        if stop.is_set():
-            break
-        outcome = selected_processor(factory, queue, kind, handler)
-        if outcome not in counts:
-            raise RuntimeError("unsupported worker outcome")
-        counts[outcome] += 1
-        if outcome == "empty":
-            selected_wait(_BACKOFF_SECONDS)
+            run_publisher(factory, sender, stop)
+        except Exception as exc:  # noqa: BLE001
+            recorded.append(exc)
+            stop.set()
+
+    thread = threading.Thread(
+        target=run_outbox_thread,
+        name="outbox-publisher",
+        daemon=True,
+    )
+    thread.start()
+    try:
+        while not stop.is_set():
+            recover_jobs(factory, job_replay_safe, now=selected_now())
+            if stop.is_set():
+                break
+            outcome = selected_processor(factory, queue, kind, handler)
+            if outcome not in counts:
+                raise RuntimeError("unsupported worker outcome")
+            counts[outcome] += 1
+            if outcome == "empty":
+                selected_wait(_BACKOFF_SECONDS)
+    finally:
+        stop.set()
+        thread.join(5)
+    if recorded:
+        raise RuntimeError("outbox publisher failed")
     return counts
 
 

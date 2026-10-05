@@ -235,20 +235,14 @@ def test_initial_stop_has_zero_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     assert counts == ZERO_COUNTS
 
 
-def test_recover_then_publish_then_process_order(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    order: list[object] = []
+def test_recover_then_process_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    order: list[str] = []
     stop = threading.Event()
 
     def recover(*args: object, **kwargs: object) -> int:
         order.append("recover")
         assert kwargs["now"] == NOW
         assert args[1] is worker.job_replay_safe
-        return 0
-
-    def publish(*args: object, **kwargs: object) -> int:
-        order.append(("publish", kwargs.get("limit", 20)))
         return 0
 
     def processor(
@@ -262,7 +256,7 @@ def test_recover_then_publish_then_process_order(
         stop.set()
         return "succeeded"
 
-    stub_cycle(monkeypatch, recover=recover, publish=publish)
+    stub_cycle(monkeypatch, recover=recover)
     worker.run_worker(
         dummy_factory(),
         dummy_queue(),
@@ -273,17 +267,19 @@ def test_recover_then_publish_then_process_order(
         now=frozen_now,
     )
 
-    assert order == ["recover", ("publish", 1), "process"]
+    assert order == ["recover", "process"]
 
 
-def test_max_publisher_batch_is_one(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_publisher_batch_limit_is_twenty(monkeypatch: pytest.MonkeyPatch) -> None:
     limits: list[int] = []
     stop = threading.Event()
+    published = threading.Event()
 
     def publish(*args: object, **kwargs: object) -> int:
         limit = kwargs.get("limit")
         assert isinstance(limit, int)
         limits.append(limit)
+        published.set()
         return 0
 
     def processor(
@@ -293,6 +289,7 @@ def test_max_publisher_batch_is_one(monkeypatch: pytest.MonkeyPatch) -> None:
         handler: JobHandler,
     ) -> str:
         del factory, queue, kind, handler
+        assert published.wait(2)
         stop.set()
         return "succeeded"
 
@@ -307,21 +304,112 @@ def test_max_publisher_batch_is_one(monkeypatch: pytest.MonkeyPatch) -> None:
         now=frozen_now,
     )
 
-    assert limits == [1]
+    assert limits
+    assert all(limit == 20 for limit in limits)
 
 
-def test_publication_error_retries_without_raw_error(
+def test_run_publisher_idle_wait_uses_idle_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop = threading.Event()
+    waits: list[float | None] = []
+
+    def publish(*args: object, **kwargs: object) -> int:
+        assert kwargs.get("limit") == 20
+        return 0
+
+    def tracked_wait(timeout: float | None = None) -> bool:
+        waits.append(timeout)
+        stop.set()
+        return True
+
+    monkeypatch.setattr(worker, "publish_pending", publish)
+    monkeypatch.setattr(stop, "wait", tracked_wait)
+    worker.run_publisher(
+        dummy_factory(),
+        DummySender(),
+        stop,
+        idle_seconds=0.5,
+    )
+
+    assert waits == [0.5]
+
+
+def test_run_publisher_publication_error_waits_backoff(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     stop = threading.Event()
-    attempts = {"n": 0}
-    waits: list[float] = []
-    process_calls = {"n": 0}
+    waits: list[float | None] = []
 
     def publish(*args: object, **kwargs: object) -> int:
-        attempts["n"] += 1
-        if attempts["n"] == 1:
-            raise PublicationError(0, 1)
+        raise PublicationError(0, 1)
+
+    def tracked_wait(timeout: float | None = None) -> bool:
+        waits.append(timeout)
+        stop.set()
+        return True
+
+    monkeypatch.setattr(worker, "publish_pending", publish)
+    monkeypatch.setattr(stop, "wait", tracked_wait)
+    worker.run_publisher(dummy_factory(), DummySender(), stop)
+    output = capsys.readouterr()
+
+    assert waits == [worker._BACKOFF_SECONDS]
+    assert output.out == ""
+    assert output.err == ""
+    assert "published=" not in output.out
+    assert "Traceback" not in output.out
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+
+
+def test_run_publisher_positive_count_loops_without_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop = threading.Event()
+    waits: list[float | None] = []
+    calls = {"n": 0}
+
+    def publish(*args: object, **kwargs: object) -> int:
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            stop.set()
+        return 2
+
+    def tracked_wait(timeout: float | None = None) -> bool:
+        waits.append(timeout)
+        raise AssertionError("wait")
+
+    monkeypatch.setattr(worker, "publish_pending", publish)
+    monkeypatch.setattr(stop, "wait", tracked_wait)
+    worker.run_publisher(dummy_factory(), DummySender(), stop)
+
+    assert calls["n"] == 3
+    assert waits == []
+
+
+def test_run_publisher_other_exceptions_propagate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop = threading.Event()
+
+    def publish(*args: object, **kwargs: object) -> int:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(worker, "publish_pending", publish)
+    with pytest.raises(RuntimeError, match="db down"):
+        worker.run_publisher(dummy_factory(), DummySender(), stop)
+
+
+def test_run_worker_publishes_while_processor_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stop = threading.Event()
+    published = threading.Event()
+    entered = threading.Event()
+
+    def publish(*args: object, **kwargs: object) -> int:
+        published.set()
         return 1
 
     def processor(
@@ -331,42 +419,33 @@ def test_publication_error_retries_without_raw_error(
         handler: JobHandler,
     ) -> str:
         del factory, queue, kind, handler
-        process_calls["n"] += 1
+        entered.set()
+        assert published.wait(2)
         stop.set()
         return "succeeded"
 
-    def wait(seconds: float) -> None:
-        waits.append(seconds)
-
-    code = invoke_main(
-        monkeypatch,
+    stub_cycle(monkeypatch, publish=publish)
+    worker.run_worker(
+        dummy_factory(),
+        dummy_queue(),
+        DummySender(),
+        dummy_handler,
+        stop,
         processor=processor,
-        publish=publish,
-        stop=stop,
-        wait=wait,
+        now=frozen_now,
     )
-    output = capsys.readouterr()
-    result = json.loads(output.out)
 
-    assert code == 0
-    assert result["status"] == "stopped"
-    assert result["counts"]["succeeded"] == 1
-    assert attempts["n"] == 2
-    assert process_calls["n"] == 1
-    assert waits == [1]
-    assert SECRET not in output.out
-    assert SECRET not in output.err
-    assert output.err == ""
-    assert "Traceback" not in output.out
+    assert entered.is_set()
+    assert published.is_set()
 
 
-def test_publication_error_does_not_print_payloads(
+def test_run_worker_publisher_failure_raises(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     stop = threading.Event()
 
     def publish(*args: object, **kwargs: object) -> int:
-        raise PublicationError(0, 1)
+        raise RuntimeError(SECRET)
 
     def processor(
         factory: sessionmaker[Session],
@@ -375,26 +454,61 @@ def test_publication_error_does_not_print_payloads(
         handler: JobHandler,
     ) -> str:
         del factory, queue, kind, handler
-        raise AssertionError("process must not run")
+        assert stop.wait(2)
+        return "succeeded"
 
-    def wait(seconds: float) -> None:
-        del seconds
-        stop.set()
+    stub_cycle(monkeypatch, publish=publish)
+    with pytest.raises(RuntimeError, match="outbox publisher failed"):
+        worker.run_worker(
+            dummy_factory(),
+            dummy_queue(),
+            DummySender(),
+            dummy_handler,
+            stop,
+            processor=processor,
+            now=frozen_now,
+        )
+    output = capsys.readouterr()
+
+    assert SECRET not in output.out
+    assert SECRET not in output.err
+    assert "Traceback" not in output.out
+    assert "Traceback" not in output.err
+
+
+def test_publisher_failure_emits_static_worker_failed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stop = threading.Event()
+
+    def publish(*args: object, **kwargs: object) -> int:
+        raise RuntimeError(SECRET)
+
+    def processor(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+    ) -> str:
+        del factory, queue, kind, handler
+        return "empty"
 
     code = invoke_main(
         monkeypatch,
         processor=processor,
         publish=publish,
         stop=stop,
-        wait=wait,
     )
     output = capsys.readouterr()
     result = json.loads(output.out)
 
-    assert code == 0
-    assert result == {"counts": ZERO_COUNTS, "status": "stopped"}
+    assert code == 1
+    assert result["status"] == "worker_failed"
+    assert SECRET not in output.out
+    assert SECRET not in output.err
     assert output.err == ""
-    assert "published=" not in output.out
+    assert "Traceback" not in output.out
+    assert "outbox publisher failed" not in output.out
 
 
 def test_strict_replay_classification() -> None:
