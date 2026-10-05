@@ -5,6 +5,7 @@ import threading
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import Engine
@@ -445,20 +446,23 @@ def test_job_failure_persists_detail_and_logs_once(
 def test_diet_conflict_job_persists_failure_detail(
     factory: sessionmaker[Session],
 ) -> None:
+    period = (
+        datetime.now(ZoneInfo("America/New_York")).date().replace(day=1).isoformat()
+    )
     job_id = seed_job(
         factory,
         payload={
             "request": {
                 "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
                 "diet": "vegan",
-                "budget_period": "2026-01-01",
+                "budget_period": period,
             },
             "monthly_limit_cents": 10_000,
             "spending": {
-                "period": "2026-01-01",
+                "period": period,
                 "posted_cents": 0,
                 "pending_cents": 0,
-                "refreshed_at": T0.isoformat(),
+                "refreshed_at": datetime.now(UTC).isoformat(),
             },
             "spending_source": "manual",
         },

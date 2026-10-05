@@ -120,8 +120,9 @@ def _diet_conflict_answer(error: dict[str, object]) -> str | None:
         or (diet == "vegan" and not ingredient.vegan)
     ):
         return None
-    verb = "are" if recipe.name.endswith("s") else "is"
-    return f"{recipe.name.capitalize()} {verb} not {diet}. {_CHANGE}"
+    name = recipe_id.replace("_", " ")
+    verb = "are" if name.endswith("s") else "is"
+    return f"{name[:1].upper()}{name[1:]} {verb} not {diet}. {_CHANGE}"
 
 
 def _unsupported_answer(error: dict[str, object]) -> str | None:

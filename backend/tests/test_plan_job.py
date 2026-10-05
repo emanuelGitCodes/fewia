@@ -231,6 +231,8 @@ def test_plan_job_diet_conflict_raises_job_failure(
 def test_plan_job_preserves_untyped_planning_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
+
     def fail(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise PlanningToolError("catalog constraint is invalid")
 
