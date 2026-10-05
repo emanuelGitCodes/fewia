@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse hook for Bash, filtered to `gh pr create`.
+# PreToolUse hook for Bash, filtered to the pull request create command.
 # Rule: a work item is done when the gates pass on the head SHA and the
 # review command returns APPROVE on the same SHA. Both records live on
 # disk, keyed by SHA. Deny the pull request when either one is missing.
@@ -7,18 +7,13 @@ set -euo pipefail
 
 cmd="$(jq -r '.tool_input.command // empty')"
 grep -Eq 'gh\s+pr\s+create\b' <<<"$cmd" || exit 0
+. "$(dirname "$0")/pr-checkout.sh"
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 
-# A leading `cd <dir> &&` names the checkout the command runs in.
-dir="${CLAUDE_PROJECT_DIR:-$PWD}"
-if [[ "$cmd" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:];&]+) ]]; then
-  dir="${BASH_REMATCH[1]/#\~/$HOME}"
-  [[ "$dir" = /* ]] || dir="${CLAUDE_PROJECT_DIR:-$PWD}/$dir"
-fi
 sha="$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)"
 [ -z "$sha" ] && exit 0
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
