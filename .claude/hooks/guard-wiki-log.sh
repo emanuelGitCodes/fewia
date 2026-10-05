@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook for Edit, Write, and MultiEdit.
 # Rule: `wiki/log.md` is append-only. Agents MUST NOT edit or delete an
-# existing entry. An edit passes only when it keeps the old text intact.
+# existing entry. An edit passes only when the new text starts with the
+# old text, so every change lands after what exists.
 set -euo pipefail
 
 input="$(cat)"
@@ -24,14 +25,14 @@ case "$tool" in
   Edit)
     old="$(jq -r '.tool_input.old_string' <<<"$input")"
     new="$(jq -r '.tool_input.new_string' <<<"$input")"
-    [[ "$new" == *"$old"* ]] || deny "wiki/log.md is append-only. The new text must contain the old text unchanged."
+    [[ "$new" == "$old"* ]] || deny "wiki/log.md is append-only. The new text must start with the old text unchanged."
     ;;
   MultiEdit)
     n="$(jq '.tool_input.edits | length' <<<"$input")"
     for ((i = 0; i < n; i++)); do
       old="$(jq -r ".tool_input.edits[$i].old_string" <<<"$input")"
       new="$(jq -r ".tool_input.edits[$i].new_string" <<<"$input")"
-      [[ "$new" == *"$old"* ]] || deny "wiki/log.md is append-only. Edit $((i + 1)) removes existing text."
+      [[ "$new" == "$old"* ]] || deny "wiki/log.md is append-only. Edit $((i + 1)) changes existing text."
     done
     ;;
 esac
