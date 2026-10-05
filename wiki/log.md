@@ -3723,3 +3723,13 @@ On `main` at `6cad8f4`, backend tests report 9162 passed and 1 skipped.
 Ruff, format, mypy, and the 359 tooling tests pass. A gitleaks scan of
 936 commits finds no leaks. GitHub Actions stays blocked by billing, so
 these are local results.
+
+## 2026-10-05 — Fresh live benchmark (F1)
+
+The owner renewed the Bedrock session and approved the run. A 138-slot batch ran on
+Nova 2 Lite in `us-east-1` at `main` revision `d50572a`, from 21:04:29 to 21:13:08 UTC.
+A fixture rehearsal at the same revision completed 138/138 slots first.
+Tool-enabled task quality is 25/33 (75.8%); the 90% target FAILS. Supported claims are
+109/(109 + three unknown), 97.3%; the 95% target PASSES. The estimated model cost is
+USD 0.3374943000. The [benchmark record](phases/benchmark-20261005.md) lists the eight
+failed slots. The archive is under `eval/results/artifacts/benchmark-20261005/`.

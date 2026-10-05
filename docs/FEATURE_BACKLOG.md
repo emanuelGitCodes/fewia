@@ -88,7 +88,7 @@ make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| F1 | D1 fresh live batch: run the 138-slot benchmark once more with `--live-bedrock` on Nova 2 Lite after the four application fixes in #387 to #390. The analysis estimates 27 to 31 of 33; the 90% target needs 30. Depends on E1 for a host run, or runs inside the Compose network. | open; owner confirms cost and renews the AWS MFA session first | 4 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md`, `wiki/log.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Task success states pass or fail against 90%. The original 17/33 and post-hoc 23/33 records stay unchanged. |
+| F1 | D1 fresh live batch: run the 138-slot benchmark once more with `--live-bedrock` on Nova 2 Lite after the four application fixes in #387 to #390. The analysis estimates 27 to 31 of 33; the 90% target needs 30. Depends on E1 for a host run, or runs inside the Compose network. | done, 2026-10-05: task 25/33 (75.8%), 90% target FAIL; claims 109/112 (97.3%), 95% target PASS; see the [benchmark record](../wiki/phases/benchmark-20261005.md) | 4 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md`, `wiki/log.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Task success states pass or fail against 90%. The original 17/33 and post-hoc 23/33 records stay unchanged. |
 | F2 | D5 deployment: the owner supplies the hostname, the ACM certificate, and the deployment credentials, then confirms each mutating step in [docs/HOSTED_DEMO.md](HOSTED_DEMO.md). Source, preflight CLI, and runbook are on `main`. Hosting findings F1 and F2 are closed. | blocked on owner input | 5 | `infra/`, `docs/HOSTED_DEMO.md`, `wiki/log.md` | The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. Every AWS mutation has an owner confirmation in the log. |
 | F3 | D3 course deliverables: the author writes the paper and records the video from the pack under `docs/course/`. The course rule forbids a model-generated report. No draft exists in the repository. | author work | — | `docs/course/` as support only | The author owns the acceptance. The pack cites original and post-hoc results and does not establish completion. |
 | F4 | D4 Plaid Sandbox live evidence. Last feature by decision. Depends on the grant widening recorded in E2. | paused | 5 | `backend/app/services/plaid_sync.py`, `backend/app/runtime_database_policy.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
@@ -202,10 +202,9 @@ Every grocery estimate MUST show this exact notice:
 2. Done: E1 to E4 (#392 to #395) and gitleaks secret scanning (#396).
 3. Owner: restore GitHub Actions billing; turn on secret scanning; decide
    A02 gold alignment and the refusal-override lever.
-4. F1: one fresh live batch on Nova 2 Lite after the owner confirms cost and
-   renews the AWS MFA session. With E1 merged, the batch can run from the
-   host with `--local-services`. Then update the D2 documents with the new
-   artifacts.
+4. Done: F1. The fresh batch reports 25/33; the 90% target still FAILS.
+   Eight slots failed: A02 three times, F04 three times, and F02 twice. The
+   A02 gold decision caps the reachable result at 30/33 while A02 fails.
 5. F2: the owner supplies hostname, certificate, and credentials and confirms
    each mutating step in [docs/HOSTED_DEMO.md](HOSTED_DEMO.md).
 6. F3: the author writes the paper and records the video.

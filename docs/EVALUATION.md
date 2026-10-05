@@ -65,6 +65,41 @@ Release is NOT certified. The task target failed. Plaid Sandbox, live Instacart,
 
 The approved documentation baseline [#331](https://github.com/emanuelGitCodes/fewia/pull/331) was imported for record continuity. This documentation PR depends on #331 and #341. It does not claim either is merged.
 
+## Fresh live batch, 2026-10-05
+
+A fresh live batch ran at `main` revision `d50572a15d007be5afe26f44a378a57ff6d896db`.
+It used the current corpus, which carries the F04/F05 and X03 gold changes, and
+`--local-services`. The [benchmark record](../wiki/phases/benchmark-20261005.md) holds the
+identity, the failed slots, and the limits. The
+[archive](../eval/results/artifacts/benchmark-20261005/) holds the outputs and their hashes.
+
+| Live measure | Numerator / denominator | Verdict |
+|---|---|---|
+| Tool-enabled language task | 25 / 33; all 33 executions completed | 75.8%; 90% target FAIL |
+| Supported factual claims, conservative | 109 / (109 assessed + three unknown) | 97.3%; 95% target PASS for bounded public-output claims |
+| Supported factual claims, assessed only | 109 / 109 | 100%; excludes unknown claims |
+| No-tool language task | Zero / 33 | All 33 failed quality |
+
+Eight slots failed: A02 in three repeats, F04 in three repeats, and F02 in two repeats.
+The estimated model cost is USD 0.3374943000. Tool-enabled latency is 8.01 s at p50 and
+16.75 s at p95. Release stays not certified.
+
+Run this command from `backend/`. It needs a new output directory for each run. Set
+`AWS_PROFILE`, `FEWIA_EVALUATION_DATABASE_URL`, and `FEWIA_EVALUATION_FLOCI_ENDPOINT`
+outside the command. The Floci host endpoint is `http://127.0.0.1:4567`.
+
+```sh
+uv run python -m app.evaluate \
+  --corpus tests/evaluation/scenarios.json \
+  --output-dir "../eval/results/nova2-live-$(date -u +%Y%m%dT%H%M%S)" \
+  --revision "$(git rev-parse HEAD)" \
+  --model-id us.amazon.nova-2-lite-v1:0 \
+  --region us-east-1 \
+  --rates ../eval/results/artifacts/benchmark-20261003/nova2-rates.json \
+  --local-services \
+  --live-bedrock
+```
+
 ## Component boundaries
 
 - [`observe_reference_case`](../backend/app/evaluation_reference.py) runs the final structured request for five supported reference scenarios through deterministic planning. It does not run earlier language turns or a durable evidence store.
