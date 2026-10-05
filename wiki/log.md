@@ -3676,6 +3676,23 @@ fixes against the 90% target. The model-drafted paper and the model-text
 observability item were dropped by owner decision.
 
 
+## 2026-10-05 — Secret scanning with gitleaks
+
+The owner asked that no secret reach the repository. A pre-commit hook now
+runs gitleaks v8.30.1 on staged changes before each commit. The `Secrets`
+workflow scans the full history with the gitleaks image pinned by digest.
+`AGENTS.md` forbids skipping the hook.
+
+A redacted scan of 933 commits found two findings. Both are false
+positives: an ordered synthetic test password in
+`backend/tests/test_runtime_database_policy.py` and a SHA-256 hash in this
+log. `.gitleaksignore` lists them by fingerprint. No real secret was found.
+
+Probes on a clone: the hook blocked a commit with a random fake AWS key and
+allowed a clean commit. `pre-commit run --all-files` does not scan the
+history, because the hook reads staged changes only. The GitHub secret
+scanning and push protection settings stay an owner action.
+
 ## 2026-10-05 — Integrity findings 4 to 7 on branches
 
 The loop `integrity-2` built backlog items E1 to E4 with grok-4.6 writers at
