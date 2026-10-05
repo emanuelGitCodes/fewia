@@ -93,6 +93,57 @@ def test_invalid_kind_is_rejected_before_session_creation(
     session_factory.assert_not_called()
 
 
+_EVAL_QUEUE = "fewia-eval-" + "ab" * 16
+
+
+def test_receive_uses_override_queue_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+    queue_url = f"http://127.0.0.1:4566/000000000000/{_EVAL_QUEUE}"
+    client.get_queue_url.return_value = {"QueueUrl": queue_url}
+    client.receive_message.return_value = {
+        "Messages": [{"Body": "raw-job", "ReceiptHandle": "rh-1"}]
+    }
+    session_factory = _patch_client(monkeypatch, client)
+
+    consumer = LocalSqsConsumer(
+        "http://127.0.0.1:4566", "agent", queue_name=_EVAL_QUEUE
+    )
+    message = consumer.receive()
+
+    assert message == QueueMessage(body="raw-job", receipt_handle="rh-1")
+    session_factory.assert_called_once()
+    client.get_queue_url.assert_called_once_with(QueueName=_EVAL_QUEUE)
+    client.receive_message.assert_called_once_with(
+        QueueUrl=queue_url,
+        MaxNumberOfMessages=1,
+        WaitTimeSeconds=10,
+        VisibilityTimeout=120,
+    )
+
+
+@pytest.mark.parametrize(
+    "queue_name",
+    [
+        "fewia-agent",
+        "fewia-eval-" + "AB" * 16,
+        "fewia-eval-" + "a" * 31,
+        "fewia-eval-" + "a" * 32 + "\n",
+    ],
+)
+def test_invalid_queue_name_is_rejected_before_session_creation(
+    monkeypatch: pytest.MonkeyPatch, queue_name: str
+) -> None:
+    session_factory = Mock()
+    monkeypatch.setattr(local_sqs_consumer.boto3, "Session", session_factory)
+
+    with pytest.raises(ValueError, match="queue_name"):
+        LocalSqsConsumer("http://127.0.0.1:4566", "agent", queue_name=queue_name)
+
+    session_factory.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "queue_url",
     [

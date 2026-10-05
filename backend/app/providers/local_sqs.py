@@ -1,6 +1,7 @@
 """Send durable job identifiers to local Floci SQS queues."""
 
 import json
+import re
 from typing import Protocol, cast
 
 import boto3  # type: ignore[import-untyped]
@@ -17,6 +18,15 @@ ALLOWED_ENDPOINTS = frozenset(
     }
 )
 QUEUE_NAMES = {"sync": "fewia-sync", "agent": "fewia-agent"}
+_EVAL_QUEUE = re.compile(r"fewia-eval-[0-9a-f]{32}")
+
+
+def _eval_queue_name(queue_name: str | None) -> str | None:
+    if queue_name is None:
+        return None
+    if _EVAL_QUEUE.fullmatch(queue_name) is None:
+        raise ValueError("queue_name MUST match fewia-eval-[0-9a-f]{32}")
+    return queue_name
 
 
 class SqsClient(Protocol):
@@ -28,9 +38,10 @@ class SqsClient(Protocol):
 class LocalSqsSender:
     """Send one job message through a local SQS endpoint."""
 
-    def __init__(self, endpoint_url: str) -> None:
+    def __init__(self, endpoint_url: str, *, queue_name: str | None = None) -> None:
         if endpoint_url not in ALLOWED_ENDPOINTS:
             raise ValueError("endpoint_url MUST target the local Floci service")
+        self._queue_name = _eval_queue_name(queue_name)
         session = boto3.Session(
             aws_access_key_id="test",
             aws_secret_access_key="test",
@@ -46,9 +57,10 @@ class LocalSqsSender:
         )
 
     def send(self, kind: str, job_id: str) -> None:
-        queue_name = QUEUE_NAMES.get(kind)
-        if queue_name is None:
+        mapped = QUEUE_NAMES.get(kind)
+        if mapped is None:
             raise ValueError("kind MUST be sync or agent")
+        queue_name = self._queue_name if self._queue_name is not None else mapped
         response = self._client.get_queue_url(QueueName=queue_name)
         queue_url = response.get("QueueUrl")
         if not isinstance(queue_url, str):

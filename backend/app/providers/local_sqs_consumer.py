@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 import boto3  # type: ignore[import-untyped]
 
 from app.providers.aws_config import aws_client_config
-from app.providers.local_sqs import ALLOWED_ENDPOINTS, QUEUE_NAMES
+from app.providers.local_sqs import ALLOWED_ENDPOINTS, QUEUE_NAMES, _eval_queue_name
 
 _WAIT_TIME_SECONDS = 10
 _VISIBILITY_TIMEOUT = 120
@@ -52,14 +52,17 @@ def _normalize_queue_url(
 class LocalSqsConsumer:
     """Receive, extend, and acknowledge one local SQS message."""
 
-    def __init__(self, endpoint_url: str, kind: str) -> None:
+    def __init__(
+        self, endpoint_url: str, kind: str, *, queue_name: str | None = None
+    ) -> None:
         if endpoint_url not in ALLOWED_ENDPOINTS:
             raise ValueError("endpoint_url MUST target the local Floci service")
         self._endpoint_url = endpoint_url
-        queue_name = QUEUE_NAMES.get(kind)
-        if queue_name is None:
+        override = _eval_queue_name(queue_name)
+        mapped = QUEUE_NAMES.get(kind)
+        if mapped is None:
             raise ValueError("kind MUST be sync or agent")
-        self._queue_name = queue_name
+        self._queue_name = override if override is not None else mapped
         session = boto3.Session(
             aws_access_key_id="test",
             aws_secret_access_key="test",

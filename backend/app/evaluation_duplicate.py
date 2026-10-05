@@ -11,8 +11,8 @@ from app.handoff_models import ShoppingHandoff
 from app.job_models import Job, JobOutbox
 from app.models import User
 from app.providers.local_artifacts import LocalArtifactStore
-from app.providers.local_sqs import ALLOWED_ENDPOINTS, LocalSqsSender
-from app.providers.local_sqs_consumer import LocalSqsConsumer
+from app.providers.local_sqs import ALLOWED_ENDPOINTS
+from app.providers.local_sqs_isolated import IsolatedLocalQueue
 from app.services.job_consumer import process_one
 from app.services.job_delivery import JobQueue
 from app.services.job_submission import create_job
@@ -72,9 +72,8 @@ def _evaluate(
             factory = database.factory
             if services is None:
                 store = cleanup.enter_context(closing(LocalArtifactStore(endpoint)))
-                services = _Services(
-                    LocalSqsSender(endpoint), LocalSqsConsumer(endpoint, "agent"), store
-                )
+                queue = cleanup.enter_context(closing(IsolatedLocalQueue(endpoint)))
+                services = _Services(queue.sender, queue.consumer, store)
             handler = DuplicateHandler(factory, context, services.artifacts)
             owner = context.user_id
             with factory.begin() as session:

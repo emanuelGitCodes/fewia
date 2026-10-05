@@ -1,11 +1,13 @@
 import hashlib
 import json
 import os
+import re
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Never, cast
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app import evaluation_duplicate as driver
 from app.evaluation_database import FixtureDatabase, fixture_database
 from app.evaluation_duplicate_handler import DuplicateHandler
+from app.providers import local_sqs, local_sqs_consumer, local_sqs_isolated
 from app.providers.local_artifacts import ArtifactPut
 from app.providers.local_sqs_consumer import QueueMessage
 from app.services.job_consumer import process_one
@@ -31,10 +34,24 @@ class MemoryQueue:
         self.acknowledged: list[str] = []
         self.extended: list[str] = []
         self.drop_duplicate = False
+        self.closed = False
+        self.events: list[str] = []
+
+    def _require_open(self) -> None:
+        if self.closed:
+            raise RuntimeError("queue closed")
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        self.events.append("close")
 
     def send(self, kind: str, job_id: str) -> None:
+        self._require_open()
         assert kind == "agent"
         self.sent.append(job_id)
+        self.events.append("send")
         if self.drop_duplicate and len(self.sent) == 2:
             return
         self.messages.append(
@@ -42,12 +59,16 @@ class MemoryQueue:
         )
 
     def receive(self) -> QueueMessage | None:
+        self._require_open()
+        self.events.append("receive")
         return self.messages.pop(0) if self.messages else None
 
     def acknowledge(self, message: QueueMessage) -> None:
+        self._require_open()
         self.acknowledged.append(message.receipt_handle)
 
     def extend(self, message: QueueMessage, seconds: int) -> None:
+        self._require_open()
         assert seconds == 120
         self.extended.append(message.receipt_handle)
 
@@ -98,21 +119,23 @@ def default_adapters(monkeypatch: pytest.MonkeyPatch) -> driver._Services:
     queue = MemoryQueue()
     artifacts = MemoryArtifacts()
 
-    def sender(endpoint: str) -> MemoryQueue:
-        assert endpoint == ENDPOINT
-        return queue
-
-    def consumer(endpoint: str, kind: str) -> MemoryQueue:
-        assert endpoint == ENDPOINT and kind == "agent"
-        return queue
-
     def store(endpoint: str) -> MemoryArtifacts:
         assert endpoint == ENDPOINT
         return artifacts
 
-    monkeypatch.setattr(driver, "LocalSqsSender", sender)
-    monkeypatch.setattr(driver, "LocalSqsConsumer", consumer)
+    class Isolated:
+        def __init__(self, endpoint: str) -> None:
+            assert endpoint == ENDPOINT
+            self.sender = queue
+            self.consumer = queue
+            self.name = "fewia-eval-" + "0" * 32
+
+        def close(self) -> None:
+            self.sender.close()
+            self.consumer.close()
+
     monkeypatch.setattr(driver, "LocalArtifactStore", store)
+    monkeypatch.setattr(driver, "IsolatedLocalQueue", Isolated)
     return driver._Services(queue, queue, artifacts)
 
 
@@ -234,11 +257,45 @@ def test_default_artifact_store_closes_after_success(
     assert len(schemas) == 1
 
 
+def test_default_p05_closes_private_queue_after_both_deliveries(
+    case: dict[str, object],
+    database_url: str,
+    default_adapters: driver._Services,
+    schemas: list[str],
+) -> None:
+    report = driver.evaluate_duplicate_case(
+        case, database_url=database_url, endpoint=ENDPOINT
+    )
+    assert report["status"] == "passed"
+    checks = cast(dict[str, object], report["checks"])
+    assert checks and all(value is True for value in checks.values())
+    queue = cast(MemoryQueue, default_adapters.queue)
+    assert len(queue.sent) == 2 and queue.sent[0] == queue.sent[1]
+    assert queue.acknowledged == ["1", "2"]
+    assert queue.events.count("send") == 2
+    assert queue.events.count("receive") == 2
+    assert queue.events.count("close") == 1
+    close_at = queue.events.index("close")
+    last_send = max(i for i, event in enumerate(queue.events) if event == "send")
+    last_receive = max(i for i, event in enumerate(queue.events) if event == "receive")
+    assert last_send < close_at
+    assert last_receive < close_at
+    closed = QueueMessage("{}", "closed")
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.send("agent", "closed")
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.receive()
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.acknowledge(closed)
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.extend(closed, 120)
+    assert len(schemas) == 1
+
+
 @pytest.mark.parametrize(
     "failure_point",
     [
-        "LocalSqsSender",
-        "LocalSqsConsumer",
+        "IsolatedLocalQueue",
         "DuplicateHandler",
         "create_job",
         "publish_pending",
@@ -669,4 +726,120 @@ def test_gold_is_scored_after_real_behavior(
     assert report["evidence_class"] == "local_postgresql"
     assert MARKER not in json.dumps(report)
     assert len(cast(MemoryArtifacts, services.artifacts).reports) == 1
+    assert len(schemas) == 1
+
+
+class FakeFlociSqs:
+    def __init__(self) -> None:
+        self.created: list[str] = []
+        self.deleted_urls: list[str] = []
+        self.lookups: list[str] = []
+        self.sent_urls: list[str] = []
+        self.received_urls: list[str] = []
+        self._messages: list[tuple[str, str]] = []
+        self._receipts = 0
+
+    def create_queue(self, *, QueueName: str) -> dict[str, object]:
+        self.created.append(QueueName)
+        return {"QueueUrl": f"{ENDPOINT}/000000000000/{QueueName}"}
+
+    def get_queue_url(self, *, QueueName: str) -> dict[str, object]:
+        self.lookups.append(QueueName)
+        return {"QueueUrl": f"{ENDPOINT}/000000000000/{QueueName}"}
+
+    def send_message(self, *, QueueUrl: str, MessageBody: str) -> dict[str, object]:
+        self.sent_urls.append(QueueUrl)
+        self._messages.append((QueueUrl, MessageBody))
+        return {}
+
+    def receive_message(self, **kwargs: object) -> dict[str, object]:
+        queue_url = kwargs.get("QueueUrl")
+        if isinstance(queue_url, str):
+            self.received_urls.append(queue_url)
+        if not self._messages:
+            return {}
+        _url, body = self._messages.pop(0)
+        self._receipts += 1
+        return {"Messages": [{"Body": body, "ReceiptHandle": str(self._receipts)}]}
+
+    def delete_message(self, **kwargs: object) -> dict[str, object]:
+        return {}
+
+    def change_message_visibility(self, **kwargs: object) -> dict[str, object]:
+        return {}
+
+    def delete_queue(self, *, QueueUrl: str) -> dict[str, object]:
+        self.deleted_urls.append(QueueUrl)
+        return {}
+
+
+def _patch_fake_sqs(
+    monkeypatch: pytest.MonkeyPatch, client: FakeFlociSqs
+) -> MemoryArtifacts:
+    session = Mock()
+    session.client.return_value = client
+    factory = Mock(return_value=session)
+    monkeypatch.setattr(local_sqs.boto3, "Session", factory)
+    monkeypatch.setattr(local_sqs_consumer.boto3, "Session", factory)
+    monkeypatch.setattr(local_sqs_isolated.boto3, "Session", factory)
+    artifacts = MemoryArtifacts()
+
+    def store(endpoint: str) -> MemoryArtifacts:
+        assert endpoint == ENDPOINT
+        return artifacts
+
+    monkeypatch.setattr(driver, "LocalArtifactStore", store)
+    return artifacts
+
+
+def _assert_private_queue(client: FakeFlociSqs) -> None:
+    assert len(client.created) == 1
+    name = client.created[0]
+    assert re.fullmatch(r"fewia-eval-[0-9a-f]{32}", name)
+    assert "fewia-agent" not in client.lookups
+    assert all(item == name for item in client.lookups)
+    queue_url = f"{ENDPOINT}/000000000000/{name}"
+    assert client.deleted_urls == [queue_url]
+    assert all(url == queue_url for url in client.sent_urls)
+    assert all(url == queue_url for url in client.received_urls)
+
+
+def test_duplicate_driver_deletes_private_queue_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    case: dict[str, object],
+    database_url: str,
+    schemas: list[str],
+) -> None:
+    client = FakeFlociSqs()
+    artifacts = _patch_fake_sqs(monkeypatch, client)
+    report = driver.evaluate_duplicate_case(
+        case, database_url=database_url, endpoint=ENDPOINT
+    )
+    assert report["status"] == "passed"
+    assert "floci_sqs" in cast(list[object], report["evidence_paths"])
+    _assert_private_queue(client)
+    assert len(client.sent_urls) == 2
+    assert len(client.received_urls) >= 2
+    assert artifacts.close_calls == 1
+    assert len(schemas) == 1
+
+
+def test_duplicate_driver_deletes_private_queue_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    case: dict[str, object],
+    database_url: str,
+    schemas: list[str],
+) -> None:
+    client = FakeFlociSqs()
+    _patch_fake_sqs(monkeypatch, client)
+
+    def fail(*args: object, **kwargs: object) -> Never:
+        raise RuntimeError(MARKER)
+
+    monkeypatch.setattr(driver, "process_one", fail)
+    report = driver.evaluate_duplicate_case(
+        case, database_url=database_url, endpoint=ENDPOINT
+    )
+    assert report["status"] == "failed"
+    _assert_private_queue(client)
     assert len(schemas) == 1
