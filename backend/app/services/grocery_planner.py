@@ -19,6 +19,16 @@ class ExclusionConflict(PlanningError):
         super().__init__(f"ingredient is excluded: {ingredient_id}")
 
 
+class DietConflict(PlanningError):
+    error_code = "diet_conflict"
+
+    def __init__(self, recipe_id: str, ingredient_id: str, diet: str) -> None:
+        self.recipe_id = recipe_id
+        self.ingredient_id = ingredient_id
+        self.diet = diet
+        super().__init__(f"ingredient conflicts with diet: {ingredient_id}")
+
+
 @dataclass(frozen=True, slots=True)
 class ShoppingLine:
     ingredient_id: str
@@ -88,7 +98,7 @@ def plan_groceries(
             if (request.diet == "vegetarian" and not ingredient.vegetarian) or (
                 request.diet == "vegan" and not ingredient.vegan
             ):
-                raise PlanningError(f"ingredient conflicts with diet: {ingredient_id}")
+                raise DietConflict(meal.recipe_id, ingredient_id, request.diet)
             quantities[ingredient_id] = quantities.get(ingredient_id, 0) + (
                 per_serving_quantity * meal.servings
             )

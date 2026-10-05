@@ -1549,6 +1549,29 @@ def test_summary_then_later_failure_uses_clarification() -> None:
     _assert_public(result)
 
 
+def test_diet_conflict_returns_public_clarification() -> None:
+    args = plan_args(
+        meals=[{"recipe_id": "chicken_tacos", "servings": 2}], diet="vegan"
+    )
+    result, _provider = _run(_planner_then_final(payload=args))
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["answer"] == (
+        "Chicken tacos are not vegan. Change the recipe or the restriction."
+    )
+    assert result["tool_trace"] == [_error_trace(TOOL_NAME, "call-1")]
+    _assert_public(result)
+
+
+def test_system_prompt_routes_named_meal_diet_conflicts_to_tool() -> None:
+    assert (
+        "A fixed recipe MUST NOT silently omit a conflicting ingredient. "
+        "When a named catalog meal conflicts with the stated diet, call "
+        "plan_groceries with both; the tool reports the conflict. "
+    ) in SYSTEM_PROMPT
+
+
 def test_typed_clarification_then_summary_keeps_typed_error() -> None:
     excluded = plan_args(
         meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],

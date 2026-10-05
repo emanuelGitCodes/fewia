@@ -9,6 +9,7 @@ from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES, Ingredient, Recipe
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 from app.services.grocery_planner import (
+    DietConflict,
     ExclusionConflict,
     PlanEstimate,
     PlanningError,
@@ -114,6 +115,34 @@ def test_exclusion_conflict_has_recipe_and_ingredient_ids() -> None:
     assert caught.value.recipe_id == "vegetable_pasta"
     assert caught.value.ingredient_id == "onion"
     assert str(caught.value) == "ingredient is excluded: onion"
+
+
+def test_diet_conflict_has_recipe_ingredient_and_diet() -> None:
+    with pytest.raises(DietConflict) as caught:
+        plan_groceries(request(diet="vegan"), budget())
+    assert caught.value.error_code == "diet_conflict"
+    assert caught.value.recipe_id == "chicken_tacos"
+    assert caught.value.ingredient_id == "chicken_breast"
+    assert caught.value.diet == "vegan"
+    assert str(caught.value) == "ingredient conflicts with diet: chicken_breast"
+
+
+def test_vegetarian_egg_recipe_is_allowed() -> None:
+    result = plan_groceries(
+        request(
+            meals=[{"recipe_id": "breakfast_burritos", "servings": 2}],
+            diet="vegetarian",
+        ),
+        budget(),
+    )
+    assert result.accepted
+
+
+def test_exclusion_precedes_diet_conflict() -> None:
+    with pytest.raises(ExclusionConflict):
+        plan_groceries(
+            request(diet="vegan", ingredient_exclusions=["chicken_breast"]), budget()
+        )
 
 
 def test_missing_recipe_and_ingredient_fail() -> None:

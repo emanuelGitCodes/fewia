@@ -59,6 +59,8 @@ SYSTEM_PROMPT = (
     "lower it. You MUST NOT clear or raise the cap. "
     "A cap may change only when the user changes budget controls. "
     "A fixed recipe MUST NOT silently omit a conflicting ingredient. "
+    "When a named catalog meal conflicts with the stated diet, call "
+    "plan_groceries with both; the tool reports the conflict. "
     "You MUST use only those exact catalog IDs for pantry and exclusion "
     "tool fields. "
     "You MUST ask for clarification for unknown terms. "

@@ -7,6 +7,7 @@ from app.agent import chat_answer
 from app.agent.chat_answer import CLARIFICATION, _vegan_meal_names, render_public_answer
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
+from app.domain.catalog import Recipe
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
@@ -160,6 +161,55 @@ def test_unsupported_recipe_offers_three_vegan_names() -> None:
     assert "satisfy" not in lowered
     assert "without peanuts" not in lowered
     assert "fit your" not in lowered
+
+
+@pytest.mark.parametrize(
+    ("recipe_id", "ingredient_id", "diet", "expected"),
+    [
+        (
+            "chicken_tacos",
+            "chicken_breast",
+            "vegan",
+            "Chicken tacos are not vegan. Change the recipe or the restriction.",
+        ),
+        ("unknown", "chicken_breast", "vegan", CLARIFICATION),
+        ("chicken_tacos", "unknown", "vegan", CLARIFICATION),
+        ("chicken_tacos", "oats", "vegan", CLARIFICATION),
+        ("chicken_tacos", "chicken_breast", "keto", CLARIFICATION),
+        ("chicken_tacos", "chicken_breast", "omnivore", CLARIFICATION),
+        ("chicken_tacos", "olive_oil", "vegan", CLARIFICATION),
+        (1, "chicken_breast", "vegan", CLARIFICATION),
+        ("chicken_tacos", [], "vegan", CLARIFICATION),
+        ("chicken_tacos", "chicken_breast", [], CLARIFICATION),
+    ],
+)
+def test_diet_conflict_answer_validates_catalog_evidence(
+    recipe_id: object, ingredient_id: object, diet: object, expected: str
+) -> None:
+    error = {
+        "error_code": "diet_conflict",
+        "recipe_id": recipe_id,
+        "ingredient_id": ingredient_id,
+        "diet": diet,
+    }
+    assert render_public_answer(None, error) == expected
+
+
+def test_diet_conflict_singular_recipe_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        chat_answer,
+        "RECIPES",
+        {"chicken_bowl": Recipe("chicken_bowl", (("chicken_breast", 100),))},
+    )
+    error = {
+        "error_code": "diet_conflict",
+        "recipe_id": "chicken_bowl",
+        "ingredient_id": "chicken_breast",
+        "diet": "vegetarian",
+    }
+    assert render_public_answer(None, error) == (
+        "Chicken bowl is not vegetarian. Change the recipe or the restriction."
+    )
 
 
 def test_no_tool_and_generic_error_use_static_clarification() -> None:

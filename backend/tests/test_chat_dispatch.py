@@ -686,6 +686,49 @@ def test_unsupported_ingredient_with_invalid_field_returns_invalid_args(
     assert "unsupported_ingredient" not in dumped
 
 
+def test_diet_conflict_returns_static_typed_tool_error() -> None:
+    call = ToolCall("diet-1", TOOL_NAME, arguments(diet="vegan"))
+    trace: list[dict[str, object]] = []
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert candidate is None
+    assert _tool_json(block) == {
+        "error": "ingredient conflicts with diet",
+        "error_code": "diet_conflict",
+        "recipe_id": "chicken_tacos",
+        "ingredient_id": "chicken_breast",
+        "diet": "vegan",
+    }
+    assert block["toolResult"]["status"] == "error"
+    assert trace == [_error_trace(TOOL_NAME, "diet-1")]
+
+
+@pytest.mark.parametrize("field", ["recipe_id", "ingredient_id", "diet"])
+def test_diet_conflict_invalid_detail_returns_invalid_args(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    detail: dict[str, object] = {
+        "recipe_id": "chicken_tacos",
+        "ingredient_id": "chicken_breast",
+        "diet": "vegan",
+    }
+    detail[field] = 1
+
+    def fake_execute(
+        _arguments: object, _budget: BudgetResult, _period: date, **_kwargs: object
+    ) -> dict[str, object]:
+        raise PlanningToolError(
+            "ingredient conflicts with diet",
+            error_code="diet_conflict",
+            detail=cast(dict[str, str], detail),
+        )
+
+    monkeypatch.setattr("app.agent.chat_dispatch.execute_plan", fake_execute)
+    call = ToolCall("bad-diet", TOOL_NAME, arguments())
+    candidate, block = dispatch(call, budget(), PERIOD, 1, "fixture", [])
+    assert candidate is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+
+
 def test_exclusion_conflict_returns_static_typed_tool_error() -> None:
     args = arguments(
         meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
