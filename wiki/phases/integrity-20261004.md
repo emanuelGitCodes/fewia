@@ -35,3 +35,36 @@ Done: A1 to A7, B1 to B6, C1 to C4, D2. Partial: D1 (task success 23/33 against 
 ## Side effects of the check
 
 46 demo jobs and 2 prepared handoff rows in the local `fewia` database; orphan messages in the local dead-letter queue. All harmless.
+
+## Follow-up loop, same day
+
+The senior ran the loop `integrity-followups` with Codex writers on the
+delegation ladder. Seven pull requests merged on `main` at `b21a854`.
+
+| PR | Change | Lines | Review |
+|---|---|---|---|
+| #385 | Backlog, hosting README, decision 0019, runbook, and this page record the merged state | 0 | APPROVE |
+| #384 | Both hosting stacks override `availability_zones`; synthesis needs no context lookup | 13 | APPROVE |
+| #386 | The web container runs the unprivileged nginx image as uid 101 on port 8080; edge and security groups follow | 12 | APPROVE after one repair |
+| #387 | Every `plan_groceries` schema field carries a description | 41 | APPROVE |
+| #388 | A diet conflict is a typed `diet_conflict` error in the planner, the chat tool, the public answer, and the HTTP job | 74 | APPROVE after two repairs |
+| #390 | An unknown restriction term passes verbatim to the tool; the composer answers with a fixed sentence; X03 gold expects the call | 11 | APPROVE after one repair |
+| #389 | The system prompt defines a purchase narrowly | 8 | APPROVE |
+
+Every head passed the repository gates with a dedicated PostgreSQL. Tier L items
+carried mutation probes in throwaway worktrees. After the merges the full gates
+pass on `main`: backend 9074, hosting 1778, frontend 492, tooling 359.
+
+The D1 failure analysis classified the ten failed live slots: four model
+behavior, four unreachable gold, two mixed. The four application fixes above
+address all ten on the application side. The analyst estimates 27 to 31 of 33
+after one fresh live batch on Nova 2 Lite; the 90% target needs 30.
+
+Dropped by owner decision: a model-drafted course paper (the course rule
+forbids a generated report) and model-text observability in the evaluation
+record (the evidence rule forbids model prose). Open owner decisions: the A02
+gold alignment and a loop lever that overrides a model refusal.
+
+Open findings from the list above: 4, 5, 6, and 7, plus GitHub Actions billing
+and secret scanning.
+
