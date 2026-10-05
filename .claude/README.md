@@ -52,7 +52,7 @@ A hook receives one JSON object on stdin. It answers on stdout.
 
 | Script | Event | Matcher | Rule it enforces |
 |---|---|---|---|
-| `guard-senior-edits.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | The senior MUST NOT write code. Prose and agent config stay open. |
+| `guard-senior-edits.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | The senior MUST NOT write code. Every repository path is denied except prose, `wiki/`, `docs/`, and agent config. |
 | `guard-bash.sh` | `PreToolUse` | `Bash` | Deny a gitleaks skip, supervisor dir deletion, force push, push to main. Ask on push, PR, merge. |
 | `check-pr-size.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A PR MUST NOT add more than 150 code lines. |
 | `check-pr-done.sh` | `PreToolUse` | `Bash`, only `gh pr create` | HEAD needs a clean gates record and an `APPROVE` review in `.fewia-supervisor-*`. |
@@ -62,8 +62,9 @@ A hook receives one JSON object on stdin. It answers on stdout.
 | `stop-wiki-reminder.sh` | `Stop` | all | Remind when a branch is ahead of main with no log entry. Never blocks. |
 | `lint-prose.sh` | `PostToolUse` | `Edit\|Write` on `.md` | Flag house-style violations. Never blocks. |
 
-The three `gh pr create` hooks read a leading `cd <dir> &&` to find the
-checkout. Open a pull request from its worktree with that form.
+The three `gh pr create` hooks share `pr-checkout.sh`. It reads a leading
+`cd <dir> &&` to find the checkout and the `--base` flag to find the
+parent branch. Open a stacked pull request with both.
 
 `guard-bash.sh` reads the whole command text. A heredoc that quotes a
 blocked command trips it. Write such text with the Write tool instead.
