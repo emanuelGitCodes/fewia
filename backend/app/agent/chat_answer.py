@@ -1,6 +1,8 @@
+from typing import get_args
+
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import INGREDIENTS, RECIPES
-from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS, Diet
 
 _CHANGE = "Change the recipe or the restriction."
 _MISSING_PRICE = "A purchase price is missing, so this estimate is incomplete."
@@ -97,6 +99,31 @@ def _exclusion_answer(error: dict[str, object]) -> str | None:
     return f"The selected recipe includes {ingredient.name}. {_CHANGE}"
 
 
+def _diet_conflict_answer(error: dict[str, object]) -> str | None:
+    if error.get("error_code") != "diet_conflict":
+        return None
+    recipe_id = error.get("recipe_id")
+    ingredient_id = error.get("ingredient_id")
+    diet = error.get("diet")
+    if type(recipe_id) is not str or type(ingredient_id) is not str:
+        return None
+    if type(diet) is not str or diet not in get_args(Diet):
+        return None
+    recipe = RECIPES.get(recipe_id)
+    ingredient = INGREDIENTS.get(ingredient_id)
+    if recipe is None or ingredient is None:
+        return None
+    if not any(item_id == ingredient_id for item_id, _qty in recipe.ingredients):
+        return None
+    if not (
+        (diet == "vegetarian" and not ingredient.vegetarian)
+        or (diet == "vegan" and not ingredient.vegan)
+    ):
+        return None
+    verb = "are" if recipe.name.endswith("s") else "is"
+    return f"{recipe.name.capitalize()} {verb} not {diet}. {_CHANGE}"
+
+
 def _unsupported_answer(error: dict[str, object]) -> str | None:
     if error.get("error_code") != "unsupported_recipe":
         return None
@@ -132,6 +159,9 @@ def render_public_answer(
         exclusion = _exclusion_answer(tool_error)
         if exclusion is not None:
             return exclusion
+        diet_conflict = _diet_conflict_answer(tool_error)
+        if diet_conflict is not None:
+            return diet_conflict
         unsupported = _unsupported_answer(tool_error)
         if unsupported is not None:
             return unsupported

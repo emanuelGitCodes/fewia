@@ -224,13 +224,17 @@ def test_invalid_period_raises_without_raw_input() -> None:
     assert str(caught.value) == "period is invalid"
 
 
-def test_catalog_constraint_raises_without_raw_input() -> None:
+def test_diet_conflict_raises_typed_error_without_raw_input() -> None:
     with pytest.raises(PlanningToolError) as caught:
         execute_plan(arguments(diet="vegan"), budget(), PERIOD)
     _assert_static(caught.value, "chicken_breast")
-    assert str(caught.value) == "catalog constraint is invalid"
-    assert caught.value.error_code is None
-    assert caught.value.detail == {}
+    assert str(caught.value) == "ingredient conflicts with diet"
+    assert caught.value.error_code == "diet_conflict"
+    assert caught.value.detail == {
+        "recipe_id": "chicken_tacos",
+        "ingredient_id": "chicken_breast",
+        "diet": "vegan",
+    }
 
 
 def test_unsupported_diet_raises_typed_error() -> None:

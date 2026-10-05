@@ -204,11 +204,11 @@ def test_plan_job_exclusion_raises_job_failure(
     }
 
 
-def test_plan_job_preserves_untyped_planning_error(
+def test_plan_job_diet_conflict_raises_job_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
-    with pytest.raises(PlanningToolError) as caught:
+    with pytest.raises(JobFailure) as caught:
         plan_job_module.plan_job(
             payload(
                 request={
@@ -219,6 +219,24 @@ def test_plan_job_preserves_untyped_planning_error(
             ),
             lambda: None,
         )
+    assert str(caught.value) == caught.value.error_code == "diet_conflict"
+    assert caught.value.__cause__ is None and caught.value.__suppress_context__ is True
+    assert caught.value.detail == {
+        "recipe_id": "chicken_tacos",
+        "ingredient_id": "chicken_breast",
+        "diet": "vegan",
+    }
+
+
+def test_plan_job_preserves_untyped_planning_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise PlanningToolError("catalog constraint is invalid")
+
+    monkeypatch.setattr(plan_job_module, "execute_plan", fail)
+    with pytest.raises(PlanningToolError) as caught:
+        plan_job_module.plan_job(payload(), lambda: None)
     assert caught.value.error_code is None
     assert str(caught.value) == "catalog constraint is invalid"
 

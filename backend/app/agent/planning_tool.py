@@ -11,6 +11,7 @@ from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet, GroceryRequest
 from app.services.grocery_planner import (
+    DietConflict,
     ExclusionConflict,
     PlanEstimate,
     PlanningError,
@@ -156,6 +157,7 @@ def execute_plan(
         )
     plan: PlanEstimate | None
     exclusion_detail: dict[str, str] | None = None
+    diet_detail: dict[str, str] | None = None
     try:
         plan = plan_groceries(request, planning_budget)
     except ExclusionConflict as exc:
@@ -164,6 +166,13 @@ def execute_plan(
             "recipe_id": exc.recipe_id,
             "ingredient_id": exc.ingredient_id,
         }
+    except DietConflict as exc:
+        plan = None
+        diet_detail = {
+            "recipe_id": exc.recipe_id,
+            "ingredient_id": exc.ingredient_id,
+            "diet": exc.diet,
+        }
     except PlanningError:
         plan = None
     if exclusion_detail is not None:
@@ -171,6 +180,12 @@ def execute_plan(
             "ingredient is excluded",
             error_code="exclusion_reject",
             detail=exclusion_detail,
+        )
+    if diet_detail is not None:
+        raise PlanningToolError(
+            "ingredient conflicts with diet",
+            error_code="diet_conflict",
+            detail=diet_detail,
         )
     if plan is None:
         raise PlanningToolError("catalog constraint is invalid")

@@ -154,6 +154,7 @@ def dispatch(
         payload = None
         recipe_id = exc.detail.get("recipe_id")
         ingredient_id = exc.detail.get("ingredient_id")
+        diet = exc.detail.get("diet")
         if (
             exc.error_code == "exclusion_reject"
             and isinstance(recipe_id, str)
@@ -164,6 +165,19 @@ def dispatch(
                 "error_code": "exclusion_reject",
                 "recipe_id": recipe_id,
                 "ingredient_id": ingredient_id,
+            }
+        elif (
+            exc.error_code == "diet_conflict"
+            and isinstance(recipe_id, str)
+            and isinstance(ingredient_id, str)
+            and isinstance(diet, str)
+        ):
+            error_body = {
+                "error": "ingredient conflicts with diet",
+                "error_code": "diet_conflict",
+                "recipe_id": recipe_id,
+                "ingredient_id": ingredient_id,
+                "diet": diet,
             }
         elif exc.error_code == "unsupported_recipe":
             error_body = {

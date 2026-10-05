@@ -23,6 +23,7 @@ from app.services.job_consumer import (
 from app.services.job_delivery import JobFailure
 from app.services.job_leases import claim_job
 from app.services.job_submission import create_job
+from app.services.plan_job import plan_job
 
 pytest_plugins = ["test_job_submission"]
 
@@ -439,6 +440,45 @@ def test_job_failure_persists_detail_and_logs_once(
             sort_keys=True,
         )
     ]
+
+
+def test_diet_conflict_job_persists_failure_detail(
+    factory: sessionmaker[Session],
+) -> None:
+    job_id = seed_job(
+        factory,
+        payload={
+            "request": {
+                "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+                "diet": "vegan",
+                "budget_period": "2026-01-01",
+            },
+            "monthly_limit_cents": 10_000,
+            "spending": {
+                "period": "2026-01-01",
+                "posted_cents": 0,
+                "pending_cents": 0,
+                "refreshed_at": T0.isoformat(),
+            },
+            "spending_source": "manual",
+        },
+    )
+    queue = FakeQueue(body(job_id))
+    assert (
+        process_one(factory, queue, "agent", plan_job, now=lambda: T0)
+        == "handler_failed"
+    )
+    failed = stored_job(factory, job_id)
+    assert failed.status == "failed"
+    assert failed.error_code == "diet_conflict"
+    assert failed.result == {
+        "error_detail": {
+            "recipe_id": "chicken_tacos",
+            "ingredient_id": "chicken_breast",
+            "diet": "vegan",
+        }
+    }
+    assert queue.acknowledgments == 1
 
 
 def test_heartbeat_loss_prevents_completion_and_acknowledgment(
