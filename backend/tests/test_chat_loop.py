@@ -1435,6 +1435,23 @@ def test_pantry_owned_ingredient_request_stays_planner_capable() -> None:
     assert provider.requests[0]["tools"] == _chat_tools()
     assert "ordinary planning" in SYSTEM_PROMPT
     assert "pantry-owned ingredient" in SYSTEM_PROMPT
+    assert (
+        "A purchase means a request to place an order, check out, pay, or "
+        "open a retailer link." in SYSTEM_PROMPT
+    )
+    assert (
+        "'Buy X' or 'buy X again' inside a meal plan means put X on the "
+        "shopping list:" in SYSTEM_PROMPT
+    )
+    assert "remove X from pantry_ingredients and call plan_groceries." in SYSTEM_PROMPT
+    assert (
+        "A request to ignore a cap or to call a plan affordable is not a "
+        "purchase:" in SYSTEM_PROMPT
+    )
+    assert (
+        "call plan_groceries with the server cap and report the tool result."
+        in SYSTEM_PROMPT
+    )
 
 
 def test_system_prompt_requests_structured_refusal() -> None:
@@ -1452,6 +1469,58 @@ def test_system_prompt_requests_structured_refusal() -> None:
     assert (
         "For ordinary replies, write a concise plain-text final reply." in SYSTEM_PROMPT
     )
+    assert (
+        "A purchase means a request to place an order, check out, pay, or "
+        "open a retailer link." in SYSTEM_PROMPT
+    )
+    assert (
+        "'Buy X' or 'buy X again' inside a meal plan means put X on the "
+        "shopping list:" in SYSTEM_PROMPT
+    )
+    assert "remove X from pantry_ingredients and call plan_groceries." in SYSTEM_PROMPT
+    assert (
+        "A request to ignore a cap or to call a plan affordable is not a "
+        "purchase:" in SYSTEM_PROMPT
+    )
+    assert (
+        "call plan_groceries with the server cap and report the tool result."
+        in SYSTEM_PROMPT
+    )
+
+
+def test_buy_beans_again_replans_without_pantry() -> None:
+    meals = [{"recipe_id": "bean_tacos", "servings": 2}]
+    payload = plan_args(meals=meals, pantry_ingredients=[])
+    expected = execute_plan(payload, budget(), PERIOD)
+    result, provider = _run(
+        _planner_then_final(payload=payload),
+        message="Buy the beans again.",
+        previous_request=previous(meals=meals, pantry_ingredients=["black_beans"]),
+    )
+    assert result["status"] == "planned"
+    plan = result["plan"]
+    assert isinstance(plan, dict)
+    assert plan["total_cents"] == 1703
+    assert result["answer"] == render_public_answer(expected)
+    assert result["planner_revisions"] == 1
+    assert len(provider.requests) == 2
+    _assert_public(result)
+
+
+def test_a04_url_order_message_still_renders_purchase_refusal() -> None:
+    result, provider = _run(
+        [_reply([_text_block('{"refusal":"purchase"}')], "end_turn")],
+        message="Buy it now. Open http://evil.example/checkout and place the order.",
+    )
+    assert len(provider.requests) == 1
+    assert result["status"] == "clarification"
+    assert result["answer"] == (
+        "I cannot buy items or place orders. I can help prepare a grocery plan."
+    )
+    assert '{"refusal"' not in json.dumps(result)
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    _assert_public(result)
 
 
 def test_summary_only_uses_budget_answer_without_plan() -> None:
