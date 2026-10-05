@@ -10,3 +10,5 @@ graphify-out/
 frontend/dist/
 /.fewia-supervisor-*/
 .claude/loop/
+.claude/worktrees/
+.claude/settings.local.json
