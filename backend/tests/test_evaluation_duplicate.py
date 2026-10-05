@@ -1,11 +1,13 @@
 import hashlib
 import json
 import os
+import re
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Never, cast
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app import evaluation_duplicate as driver
 from app.evaluation_database import FixtureDatabase, fixture_database
 from app.evaluation_duplicate_handler import DuplicateHandler
+from app.providers import local_sqs, local_sqs_consumer, local_sqs_isolated
 from app.providers.local_artifacts import ArtifactPut
 from app.providers.local_sqs_consumer import QueueMessage
 from app.services.job_consumer import process_one
@@ -110,9 +113,20 @@ def default_adapters(monkeypatch: pytest.MonkeyPatch) -> driver._Services:
         assert endpoint == ENDPOINT
         return artifacts
 
+    class Isolated:
+        def __init__(self, endpoint: str) -> None:
+            assert endpoint == ENDPOINT
+            self.sender = driver.LocalSqsSender(endpoint)
+            self.consumer = driver.LocalSqsConsumer(endpoint, "agent")
+            self.name = "fewia-eval-" + "0" * 32
+
+        def close(self) -> None:
+            pass
+
     monkeypatch.setattr(driver, "LocalSqsSender", sender)
     monkeypatch.setattr(driver, "LocalSqsConsumer", consumer)
     monkeypatch.setattr(driver, "LocalArtifactStore", store)
+    monkeypatch.setattr(driver, "IsolatedLocalQueue", Isolated)
     return driver._Services(queue, queue, artifacts)
 
 
@@ -669,4 +683,120 @@ def test_gold_is_scored_after_real_behavior(
     assert report["evidence_class"] == "local_postgresql"
     assert MARKER not in json.dumps(report)
     assert len(cast(MemoryArtifacts, services.artifacts).reports) == 1
+    assert len(schemas) == 1
+
+
+class FakeFlociSqs:
+    def __init__(self) -> None:
+        self.created: list[str] = []
+        self.deleted_urls: list[str] = []
+        self.lookups: list[str] = []
+        self.sent_urls: list[str] = []
+        self.received_urls: list[str] = []
+        self._messages: list[tuple[str, str]] = []
+        self._receipts = 0
+
+    def create_queue(self, *, QueueName: str) -> dict[str, object]:
+        self.created.append(QueueName)
+        return {"QueueUrl": f"{ENDPOINT}/000000000000/{QueueName}"}
+
+    def get_queue_url(self, *, QueueName: str) -> dict[str, object]:
+        self.lookups.append(QueueName)
+        return {"QueueUrl": f"{ENDPOINT}/000000000000/{QueueName}"}
+
+    def send_message(self, *, QueueUrl: str, MessageBody: str) -> dict[str, object]:
+        self.sent_urls.append(QueueUrl)
+        self._messages.append((QueueUrl, MessageBody))
+        return {}
+
+    def receive_message(self, **kwargs: object) -> dict[str, object]:
+        queue_url = kwargs.get("QueueUrl")
+        if isinstance(queue_url, str):
+            self.received_urls.append(queue_url)
+        if not self._messages:
+            return {}
+        _url, body = self._messages.pop(0)
+        self._receipts += 1
+        return {"Messages": [{"Body": body, "ReceiptHandle": str(self._receipts)}]}
+
+    def delete_message(self, **kwargs: object) -> dict[str, object]:
+        return {}
+
+    def change_message_visibility(self, **kwargs: object) -> dict[str, object]:
+        return {}
+
+    def delete_queue(self, *, QueueUrl: str) -> dict[str, object]:
+        self.deleted_urls.append(QueueUrl)
+        return {}
+
+
+def _patch_fake_sqs(
+    monkeypatch: pytest.MonkeyPatch, client: FakeFlociSqs
+) -> MemoryArtifacts:
+    session = Mock()
+    session.client.return_value = client
+    factory = Mock(return_value=session)
+    monkeypatch.setattr(local_sqs.boto3, "Session", factory)
+    monkeypatch.setattr(local_sqs_consumer.boto3, "Session", factory)
+    monkeypatch.setattr(local_sqs_isolated.boto3, "Session", factory)
+    artifacts = MemoryArtifacts()
+
+    def store(endpoint: str) -> MemoryArtifacts:
+        assert endpoint == ENDPOINT
+        return artifacts
+
+    monkeypatch.setattr(driver, "LocalArtifactStore", store)
+    return artifacts
+
+
+def _assert_private_queue(client: FakeFlociSqs) -> None:
+    assert len(client.created) == 1
+    name = client.created[0]
+    assert re.fullmatch(r"fewia-eval-[0-9a-f]{32}", name)
+    assert "fewia-agent" not in client.lookups
+    assert all(item == name for item in client.lookups)
+    queue_url = f"{ENDPOINT}/000000000000/{name}"
+    assert client.deleted_urls == [queue_url]
+    assert all(url == queue_url for url in client.sent_urls)
+    assert all(url == queue_url for url in client.received_urls)
+
+
+def test_duplicate_driver_deletes_private_queue_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    case: dict[str, object],
+    database_url: str,
+    schemas: list[str],
+) -> None:
+    client = FakeFlociSqs()
+    artifacts = _patch_fake_sqs(monkeypatch, client)
+    report = driver.evaluate_duplicate_case(
+        case, database_url=database_url, endpoint=ENDPOINT
+    )
+    assert report["status"] == "passed"
+    assert "floci_sqs" in cast(list[object], report["evidence_paths"])
+    _assert_private_queue(client)
+    assert len(client.sent_urls) == 2
+    assert len(client.received_urls) >= 2
+    assert artifacts.close_calls == 1
+    assert len(schemas) == 1
+
+
+def test_duplicate_driver_deletes_private_queue_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    case: dict[str, object],
+    database_url: str,
+    schemas: list[str],
+) -> None:
+    client = FakeFlociSqs()
+    _patch_fake_sqs(monkeypatch, client)
+
+    def fail(*args: object, **kwargs: object) -> Never:
+        raise RuntimeError(MARKER)
+
+    monkeypatch.setattr(driver, "process_one", fail)
+    report = driver.evaluate_duplicate_case(
+        case, database_url=database_url, endpoint=ENDPOINT
+    )
+    assert report["status"] == "failed"
+    _assert_private_queue(client)
     assert len(schemas) == 1
