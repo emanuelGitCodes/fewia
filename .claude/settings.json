@@ -37,6 +37,26 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-pr-size.sh",
+            "timeout": 20,
+            "statusMessage": "Checking pull request size"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-pr-done.sh",
+            "timeout": 10,
+            "statusMessage": "Checking gates and review records"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-agents-pr.sh",
+            "timeout": 10
           }
         ]
       }
