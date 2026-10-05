@@ -16,7 +16,7 @@ _FIXED_PROPOSITIONS: tuple[tuple[str, str], ...] = (
     ("that recipe is not in the catalog", "unsupported"),
     ("salmon tacos are not supported", "unsupported"),
     (
-        "i cannot map mystery spice or nightshades to catalog ingredients",
+        "i cannot map the named restrictions to catalog ingredients",
         "unknown",
     ),
     ("which catalog ingredients should i exclude", "restriction_question"),

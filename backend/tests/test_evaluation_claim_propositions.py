@@ -197,7 +197,7 @@ def test_unknown_clauses_around_notices_are_retained_as_counts() -> None:
         ("Eggs are not vegan.", "egg_conflict"),
         ("Chicken tacos are not vegan.", "diet_conflict"),
         (
-            "I cannot map mystery spice or nightshades to catalog ingredients.",
+            "I cannot map the named restrictions to catalog ingredients.",
             "unknown",
         ),
         ("Which catalog ingredients should I exclude?", "restriction_question"),

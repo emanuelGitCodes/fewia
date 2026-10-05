@@ -1815,8 +1815,16 @@
       },
       "expected": {
         "domain_calls": [],
-        "model_tools": [],
-        "unnecessary_model_tools": ["plan_groceries"],
+        "model_tools": [
+          {
+            "name": "plan_groceries",
+            "arguments": {
+              "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+              "budget_period": "2026-09-01"
+            }
+          }
+        ],
+        "unnecessary_model_tools": [],
         "allowed_outcomes": ["clarify_unknown_restriction"],
         "accepted": false,
         "total_cents": null,

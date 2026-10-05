@@ -65,9 +65,10 @@ SYSTEM_PROMPT = (
     "tool fields. "
     "You MUST ask for clarification for unknown terms. "
     "You MUST NOT invent aliases or mappings. "
-    "Unknown pantry items and restriction or group values require "
-    "clarification before tool use. "
-    "You MUST NOT guess a mapping for an unsupported restriction. "
+    "Put a restriction term you cannot map in ingredient_exclusions exactly "
+    "as the user wrote it. "
+    "You MUST NOT translate a restriction group such as nightshades into catalog IDs. "
+    "The tool rejects unknown terms and asks the user. "
     "Ask the user before you choose an alternative."
 )
 _LIMIT = "The job reached a processing limit."
