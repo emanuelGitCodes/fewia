@@ -81,3 +81,51 @@ def test_create_queue_error_is_not_swallowed(
         IsolatedLocalQueue(_ENDPOINT)
 
     client.delete_queue.assert_not_called()
+
+
+def test_create_queue_agent_path_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = Mock()
+    client.create_queue.return_value = {
+        "QueueUrl": f"{_ENDPOINT}/000000000000/fewia-agent"
+    }
+    _patch_sessions(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="SQS queue URL response is invalid"):
+        IsolatedLocalQueue(_ENDPOINT)
+
+    client.delete_queue.assert_not_called()
+
+
+def test_create_queue_foreign_origin_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+
+    def create_queue(*, QueueName: str) -> dict[str, str]:
+        return {"QueueUrl": f"http://evil:4566/000000000000/{QueueName}"}
+
+    client.create_queue.side_effect = create_queue
+    _patch_sessions(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="SQS queue URL response is invalid"):
+        IsolatedLocalQueue(_ENDPOINT)
+
+    client.delete_queue.assert_not_called()
+
+
+def test_close_deletes_normalized_endpoint_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+
+    def create_queue(*, QueueName: str) -> dict[str, str]:
+        return {"QueueUrl": f"http://localhost:4566/000000000000/{QueueName}"}
+
+    client.create_queue.side_effect = create_queue
+    _patch_sessions(monkeypatch, client)
+
+    queue = IsolatedLocalQueue(_ENDPOINT)
+    queue.close()
+    client.delete_queue.assert_called_once_with(
+        QueueUrl=f"{_ENDPOINT}/000000000000/{queue.name}"
+    )

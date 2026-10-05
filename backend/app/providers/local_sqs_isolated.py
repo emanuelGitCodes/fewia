@@ -7,7 +7,7 @@ import boto3  # type: ignore[import-untyped]
 
 from app.providers.aws_config import aws_client_config
 from app.providers.local_sqs import ALLOWED_ENDPOINTS, LocalSqsSender
-from app.providers.local_sqs_consumer import LocalSqsConsumer
+from app.providers.local_sqs_consumer import LocalSqsConsumer, _normalize_queue_url
 
 
 class IsolatedSqsClient(Protocol):
@@ -36,14 +36,19 @@ class IsolatedLocalQueue:
                 config=aws_client_config(5, local=True),
             ),
         )
-        self._closed = False
-        response = self._client.create_queue(QueueName=self.name)
-        queue_url = response.get("QueueUrl")
-        if not isinstance(queue_url, str):
-            raise RuntimeError("SQS queue URL response is invalid")
-        self._queue_url = queue_url
         self.sender = LocalSqsSender(endpoint_url, queue_name=self.name)
         self.consumer = LocalSqsConsumer(endpoint_url, "agent", queue_name=self.name)
+        response = self._client.create_queue(QueueName=self.name)
+        queue_url = response.get("QueueUrl")
+        normalized = (
+            _normalize_queue_url(queue_url, endpoint_url, self.name)
+            if isinstance(queue_url, str)
+            else None
+        )
+        if normalized is None:
+            raise RuntimeError("SQS queue URL response is invalid")
+        self._queue_url = normalized
+        self._closed = False
 
     def close(self) -> None:
         if self._closed:

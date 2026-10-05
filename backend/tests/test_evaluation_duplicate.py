@@ -101,14 +101,6 @@ def default_adapters(monkeypatch: pytest.MonkeyPatch) -> driver._Services:
     queue = MemoryQueue()
     artifacts = MemoryArtifacts()
 
-    def sender(endpoint: str) -> MemoryQueue:
-        assert endpoint == ENDPOINT
-        return queue
-
-    def consumer(endpoint: str, kind: str) -> MemoryQueue:
-        assert endpoint == ENDPOINT and kind == "agent"
-        return queue
-
     def store(endpoint: str) -> MemoryArtifacts:
         assert endpoint == ENDPOINT
         return artifacts
@@ -116,15 +108,13 @@ def default_adapters(monkeypatch: pytest.MonkeyPatch) -> driver._Services:
     class Isolated:
         def __init__(self, endpoint: str) -> None:
             assert endpoint == ENDPOINT
-            self.sender = driver.LocalSqsSender(endpoint)
-            self.consumer = driver.LocalSqsConsumer(endpoint, "agent")
+            self.sender = queue
+            self.consumer = queue
             self.name = "fewia-eval-" + "0" * 32
 
         def close(self) -> None:
             pass
 
-    monkeypatch.setattr(driver, "LocalSqsSender", sender)
-    monkeypatch.setattr(driver, "LocalSqsConsumer", consumer)
     monkeypatch.setattr(driver, "LocalArtifactStore", store)
     monkeypatch.setattr(driver, "IsolatedLocalQueue", Isolated)
     return driver._Services(queue, queue, artifacts)
@@ -251,8 +241,7 @@ def test_default_artifact_store_closes_after_success(
 @pytest.mark.parametrize(
     "failure_point",
     [
-        "LocalSqsSender",
-        "LocalSqsConsumer",
+        "IsolatedLocalQueue",
         "DuplicateHandler",
         "create_job",
         "publish_pending",
