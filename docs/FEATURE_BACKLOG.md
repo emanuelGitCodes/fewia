@@ -1,7 +1,7 @@
 # FEWIA feature backlog
 
 This document records the feature backlog and its state on `main` at
-`c6571fe` (2026-10-05, after #384 to #391). The historical built-feature
+`6cad8f4` (2026-10-05, after #384 to #396). The historical built-feature
 table keeps the earlier snapshot. The merged-work tables record merged work
 and the [benchmark evidence](../wiki/phases/benchmark-20261003.md).
 A merge does not imply deployment or release certification.
@@ -79,10 +79,10 @@ make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
 
 | ID | Item | Status | Difficulty | Owned files | Acceptance check |
 |---|---|---|---|---|---|
-| E1 | Add the host Floci endpoints `http://127.0.0.1:4567` and `http://localhost:4567` to `ALLOWED_ENDPOINTS`. Compose maps the host port 4567 to the container port 4566, so the benchmark cannot run from the host with `--local-services` today. | verified, branch `claude/integrity-2-01`, unmerged | 1 | `backend/app/providers/local_sqs.py`, `backend/tests/test_local_sqs*.py`, `backend/tests/test_evaluation_cli_config.py` | With `FEWIA_EVALUATION_FLOCI_ENDPOINT=http://127.0.0.1:4567`, the CLI accepts `--local-services`. A non-loopback endpoint still raises `Invalid evaluation CLI input`. No other endpoint joins the set. |
-| E2 | Record the Plaid grant rule. `RUNTIME_GRANTS` gives SELECT only on `plaid_items` and `plaid_transactions`. The paused sync service writes them. The hosted app task runs no sync worker. | done, branch `claude/integrity-2-02`, unmerged; see the [finding 6 disposition](../wiki/phases/integrity-20261004.md#finding-6-disposition-2026-10-05) | 1 | `wiki/log.md`, `docs/HOSTED_DEMO.md`, `backend/app/runtime_database_policy.py` comment if needed | The wiki states that the runtime role stays SELECT-only on the Plaid tables until D4 resumes, and that D4 MUST widen the grants with a policy test before any Sandbox run. No grant changes now. Prose only. |
-| E3 | Isolate the P05 duplicate-delivery slots from a running worker. Today they share the global `fewia-agent` queue and fail when another consumer is up. | verified, branch `claude/integrity-2-03`, unmerged | 3 | `backend/app/evaluation_duplicate.py`, `backend/app/providers/local_sqs.py`, `backend/tests/test_evaluation_duplicate.py` | With a worker consuming `fewia-agent`, each P05 slot either passes on its own queue or reports `unassessed` with a named reason. No P05 slot fails because of a foreign consumer. Fixture runs still call no provider. |
-| E4 | Publish the outbox off the long-poll path. `run_worker` calls `publish_pending` once per loop and then blocks up to 10 s in `WaitTimeSeconds` on an empty queue, so a 50 ms job takes 0.5 to 11 s. | verified, branch `claude/integrity-2-04`, unmerged | 3 | `backend/app/worker.py`, `backend/app/services/outbox_publisher.py`, `backend/tests/test_worker.py` | With an empty queue and one pending outbox row, the row publishes within 1 s. The stop event still ends the loop within one wait. The backoff and `PublicationError` tests still pass. Duplicate publication stays impossible. |
+| E1 | Add the host Floci endpoints `http://127.0.0.1:4567` and `http://localhost:4567` to `ALLOWED_ENDPOINTS`. Compose maps the host port 4567 to the container port 4566, so the benchmark cannot run from the host with `--local-services` today. | merged, #393 | 1 | `backend/app/providers/local_sqs.py`, `backend/tests/test_local_sqs*.py`, `backend/tests/test_evaluation_cli_config.py` | With `FEWIA_EVALUATION_FLOCI_ENDPOINT=http://127.0.0.1:4567`, the CLI accepts `--local-services`. A non-loopback endpoint still raises `Invalid evaluation CLI input`. No other endpoint joins the set. |
+| E2 | Record the Plaid grant rule. `RUNTIME_GRANTS` gives SELECT only on `plaid_items` and `plaid_transactions`. The paused sync service writes them. The hosted app task runs no sync worker. | merged, #392; see the [finding 6 disposition](../wiki/phases/integrity-20261004.md#finding-6-disposition-2026-10-05) | 1 | `wiki/log.md`, `docs/HOSTED_DEMO.md`, `backend/app/runtime_database_policy.py` comment if needed | The wiki states that the runtime role stays SELECT-only on the Plaid tables until D4 resumes, and that D4 MUST widen the grants with a policy test before any Sandbox run. No grant changes now. Prose only. |
+| E3 | Isolate the P05 duplicate-delivery slots from a running worker. Today they share the global `fewia-agent` queue and fail when another consumer is up. | merged, #394 | 3 | `backend/app/evaluation_duplicate.py`, `backend/app/providers/local_sqs.py`, `backend/tests/test_evaluation_duplicate.py` | With a worker consuming `fewia-agent`, each P05 slot either passes on its own queue or reports `unassessed` with a named reason. No P05 slot fails because of a foreign consumer. Fixture runs still call no provider. |
+| E4 | Publish the outbox off the long-poll path. `run_worker` calls `publish_pending` once per loop and then blocks up to 10 s in `WaitTimeSeconds` on an empty queue, so a 50 ms job takes 0.5 to 11 s. | merged, #395 | 3 | `backend/app/worker.py`, `backend/app/services/outbox_publisher.py`, `backend/tests/test_worker.py` | With an empty queue and one pending outbox row, the row publishes within 1 s. The stop event still ends the loop within one wait. The backoff and `PublicationError` tests still pass. Duplicate publication stays impossible. |
 
 ### Tier F. Live evidence and release work
 
@@ -188,7 +188,7 @@ Every grocery estimate MUST show this exact notice:
 ## Part 4. Items that need no writer
 
 - **GitHub Actions billing.** Every workflow run on `main` is refused because the account spending limit or payment failed. The latest runs at 2026-10-05 01:15 UTC on `main` and on the #391 branch report "The job was not started because recent account payments have failed". The owner restores billing, then reruns the latest workflows on `main`. Local gates substitute until then.
-- **Secret scanning and push protection.** A GitHub repository setting. The owner turns it on. The repository API did not return the `security_and_analysis` field to this token on 2026-10-05, so the setting is unverified from the CLI.
+- **Secret scanning and push protection.** Gitleaks runs in pre-commit and in the `Secrets` workflow since #396. The GitHub repository setting is separate. The owner turns it on. The repository API did not return the `security_and_analysis` field to this token on 2026-10-05, so the setting is unverified from the CLI.
 - **Renew the AWS MFA session** before F1 and before any F2 step. Owner action.
 - **Instacart handoff.** Parked until the Instacart Developer Platform reopens. C4 built the flow against a fixture only.
 - **Health-era Phases 4 to 9** in `project-plan.md`. Historical. Do not resume.
@@ -199,10 +199,7 @@ Every grocery estimate MUST show this exact notice:
 
 1. Done: A1 to A7, B1 to B6, C1 to C4, D2, hosting F1 and F2, integrity
    finding 1, D1 application fixes F1 to F4.
-2. Owner: review and merge E1 to E4. The four branches merge cleanly in any
-   order. Suggested order: `claude/integrity-2-02` (prose), then
-   `claude/integrity-2-01`, `claude/integrity-2-03`, and
-   `claude/integrity-2-04`.
+2. Done: E1 to E4 (#392 to #395) and gitleaks secret scanning (#396).
 3. Owner: restore GitHub Actions billing; turn on secret scanning; decide
    A02 gold alignment and the refusal-override lever.
 4. F1: one fresh live batch on Nova 2 Lite after the owner confirms cost and
