@@ -3664,3 +3664,14 @@ The [integrity check](phases/integrity-20261004.md) exercised every merged subsy
 Seven findings are open; two block the first hosted deployment.
 GitHub Actions is blocked by the account spending limit, so local gates substitute until the owner restores billing.
 The backlog, the hosting README, decision 0019, and the runbook now state the merged state.
+
+## 2026-10-04 — Integrity follow-ups merged
+
+Pull requests #384 to #390 merged in stack order after independent review and
+local gates with a dedicated PostgreSQL. They close hosting findings F1 and F2,
+type the diet-conflict error on every path, and land four D1 application fixes
+from the failure analysis. The [integrity page](phases/integrity-20261004.md)
+holds the table. The next live benchmark is the only way to measure the D1
+fixes against the 90% target. The model-drafted paper and the model-text
+observability item were dropped by owner decision.
+
