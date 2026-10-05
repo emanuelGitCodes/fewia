@@ -313,9 +313,13 @@ def test_run_publisher_idle_wait_uses_idle_seconds(
 ) -> None:
     stop = threading.Event()
     waits: list[float | None] = []
+    calls = {"n": 0}
 
     def publish(*args: object, **kwargs: object) -> int:
         assert kwargs.get("limit") == 20
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            stop.set()
         return 0
 
     def tracked_wait(timeout: float | None = None) -> bool:
@@ -340,8 +344,12 @@ def test_run_publisher_publication_error_waits_backoff(
 ) -> None:
     stop = threading.Event()
     waits: list[float | None] = []
+    calls = {"n": 0}
 
     def publish(*args: object, **kwargs: object) -> int:
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            stop.set()
         raise PublicationError(0, 1)
 
     def tracked_wait(timeout: float | None = None) -> bool:

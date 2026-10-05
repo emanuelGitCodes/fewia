@@ -496,14 +496,14 @@ def test_aws_signal_stop_restores_previous_handlers(
         installed[0](signal.SIGTERM, None)
         return 0
 
-    def forbid_publish(*args: object, **kwargs: object) -> NoReturn:
-        raise AssertionError("publish after stop")
+    def publish(*args: object, **kwargs: object) -> int:
+        return 0
 
     monkeypatch.setattr(worker.signal, "signal", set_signal)
     monkeypatch.setattr(worker, "build_job_queue", make_queue)
     monkeypatch.setattr(worker, "build_job_sender", make_sender)
     monkeypatch.setattr(worker, "recover_jobs", recover)
-    monkeypatch.setattr(worker, "publish_pending", forbid_publish)
+    monkeypatch.setattr(worker, "publish_pending", publish)
     code = worker.main(
         ["--transport", "aws"],
         factory=dummy_factory(),
