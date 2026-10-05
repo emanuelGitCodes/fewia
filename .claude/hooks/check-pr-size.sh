@@ -9,7 +9,11 @@ grep -Eq 'gh\s+pr\s+create\b' <<<"$cmd" || exit 0
 . "$(dirname "$0")/pr-checkout.sh"
 
 cap=150
-merge="$(git -C "$dir" merge-base "$base" HEAD 2>/dev/null || git -C "$dir" merge-base main HEAD)"
+merge="$(git -C "$dir" merge-base "$base" HEAD 2>/dev/null || true)"
+if [ -z "$merge" ]; then
+  jq -n --arg b "$base" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("Cannot resolve the base ref " + $b + ", so the 150-line cap cannot be checked. Fetch it or pass --base.")}}'
+  exit 0
+fi
 lines="$(git -C "$dir" diff --numstat "$merge" | awk -F'\t' '
   $1 != "-" \
   && $3 !~ /(^|\/)(test|tests|spec|__tests__|vendor|dist|build|node_modules)\// \

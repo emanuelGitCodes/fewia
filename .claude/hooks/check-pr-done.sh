@@ -23,13 +23,16 @@ for cand in "$dir/.fewia-supervisor-gates/$sha.json" "$root/.fewia-supervisor-ga
   [ -f "$cand" ] && { gates="$cand"; break; }
 done
 [ -z "$gates" ] && deny "No gates record for HEAD ${sha:0:7}. Run dev_supervisor.gates on this head first."
-jq -e '.clean == true and ([.gates[]? | select(.status == "FAIL")] | length == 0)' "$gates" >/dev/null \
-  || deny "The gates record for HEAD ${sha:0:7} is not clean or has a FAIL. Repair and run the gates again."
+jq -e '.clean == true and all(.gates[]?; .status == "PASS" or .status == "SKIP")' "$gates" >/dev/null \
+  || deny "The gates record for HEAD ${sha:0:7} is not clean or has a row that is not PASS or SKIP. Repair and run the gates again."
 
 review=""
 for d in "$dir/.fewia-supervisor-reviews" "$root/.fewia-supervisor-reviews"; do
   for f in "$d/$sha"-*.md; do
-    [ -f "$f" ] && grep -q 'VERDICT: APPROVE' "$f" && { review="$f"; break 2; }
+    [ -f "$f" ] || continue
+    # The verdict is the last non-empty line, with Markdown emphasis removed.
+    last="$(grep -v '^[[:space:]]*$' "$f" | tail -1 | tr -d '*_' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [ "$last" = "VERDICT: APPROVE" ] && { review="$f"; break 2; }
   done
 done
 [ -z "$review" ] && deny "No APPROVE review for HEAD ${sha:0:7}. Run dev_supervisor.review on this head first."
