@@ -67,8 +67,8 @@ uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" \
   --base codex/backlog-resume-gate-cache
 ```
 
-The current gate router does not run this project's pytest or strict mypy checks.
-The coordinator MUST run the project checks separately and record their results.
+The gate router runs this project's Ruff, format, strict mypy, and pytest checks
+as the `hosting` area and records their results under the head SHA.
 A separate Codex or Grok agent reviews the result.
 
 ## Evidence and scope
@@ -77,6 +77,6 @@ Synthesized templates prove resource definitions only. They do not prove real
 AWS behavior. Floci SQS and S3 smoke tests provide separate integration evidence;
 they do not prove real AWS behavior or deploy these definitions.
 
-This project defines no task roles, ECS services, RDS databases, VPCs, or secrets.
+This project defines the network, database, secrets, container repositories, log groups, execution and task roles, identity, task definitions, services, edge, deployment configuration, synthesis, and preflight checks for the invitation-only demo. Nothing is deployed until the owner confirms each step in `docs/HOSTED_DEMO.md`.
 It makes no Bedrock changes. It provides no deployment or bootstrap command.
 No AWS mutation is authorized in this work item.

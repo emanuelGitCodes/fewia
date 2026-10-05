@@ -2298,7 +2298,7 @@ Backend Ruff reported `All checks passed!`. Format reported
 `191 files already formatted`. Strict mypy passed 98 source files.
 The isolated PostgreSQL run reported 1515 passed and one Starlette warning.
 The earlier default run reported 1501 passed and 14 skipped.
-Independent review of the compatibility change remains pending.
+Independent review of the compatibility change is recorded in the 2026-10-03 entry for #320.
 No live provider verification occurred.
 
 ## 2026-09-25 — Claude Code senior and junior loop
@@ -3656,3 +3656,11 @@ Resume CLI usage at `2026-10-04T04:47:06.525010+00:00` UTC: 209 runs, 64 items,
 Native and coordinator tokens are unknown. This snapshot supports no cost or efficiency claim.
 The writer edited owned Markdown only and ran no shell, tests, git, or network commands.
 Coordinator checks and independent review remain open.
+
+## 2026-10-04 — Backlog merge and integrity check
+
+Pull requests #321 to #383 merged in stack order after independent review of every diff and a composed local gate run.
+The [integrity check](phases/integrity-20261004.md) exercised every merged subsystem on the local stack.
+Seven findings are open; two block the first hosted deployment.
+GitHub Actions is blocked by the account spending limit, so local gates substitute until the owner restores billing.
+The backlog, the hosting README, decision 0019, and the runbook now state the merged state.

@@ -44,6 +44,7 @@ chronological record lives in [log.md](log.md).
 - [Post-hoc gold correction — saved observations, six tool deltas, and unchanged release limits](phases/posthoc-gold-20261003.md)
 - [Hosting preparation — accepted private access, published source, bounded CI and CLI usage](phases/hosting-preparation-20261003.md)
 - [Backlog final record — published PRs 322-381, integration evidence, and Graphify archive](phases/backlog-final-20261003.md)
+- [Integrity check — merged main exercised end to end, findings, and backlog state](phases/integrity-20261004.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
@@ -69,7 +70,7 @@ Source publications now include original benchmark #349, post-hoc record #353,
 course pack #361, and later hosting source through runbook #381.
 The [hosting snapshot](phases/hosting-preparation-20261003.md)
 keeps its 2026-10-03 heads, parents, and CI observations.
-The [final record](phases/backlog-final-20261003.md) lists all 60 created pull requests #322-#381 as unmerged on 2026-10-04.
+The [final record](phases/backlog-final-20261003.md) lists the 60 created pull requests #322-#381 as of its 2026-10-04 snapshot; all merged later that day, see the [integrity check](phases/integrity-20261004.md).
 Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
 [Decision 0019](decisions/0019-invitation-only-hosting.md) accepts owner and invited-user access with no public signup.
 Invited users share the current server-selected demo context. They have no private application accounts.
