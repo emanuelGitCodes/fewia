@@ -8,7 +8,13 @@ import boto3  # type: ignore[import-untyped]
 from app.providers.aws_config import aws_client_config
 
 ALLOWED_ENDPOINTS = frozenset(
-    {"http://127.0.0.1:4566", "http://localhost:4566", "http://floci:4566"}
+    {
+        "http://127.0.0.1:4566",
+        "http://localhost:4566",
+        "http://floci:4566",
+        "http://127.0.0.1:4567",
+        "http://localhost:4567",
+    }
 )
 QUEUE_NAMES = {"sync": "fewia-sync", "agent": "fewia-agent"}
 

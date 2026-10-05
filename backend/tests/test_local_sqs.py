@@ -9,6 +9,18 @@ from app.providers import local_sqs
 from app.providers.local_sqs import LocalSqsSender
 
 
+def test_allowed_endpoints_match_the_shared_set() -> None:
+    assert local_sqs.ALLOWED_ENDPOINTS == frozenset(
+        {
+            "http://127.0.0.1:4566",
+            "http://localhost:4566",
+            "http://floci:4566",
+            "http://127.0.0.1:4567",
+            "http://localhost:4567",
+        }
+    )
+
+
 @pytest.mark.parametrize(
     ("kind", "queue_name"),
     [("sync", "fewia-sync"), ("agent", "fewia-agent")],
