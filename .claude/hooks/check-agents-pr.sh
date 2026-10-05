@@ -1,26 +1,21 @@
 #!/usr/bin/env bash
-# PreToolUse hook for Bash, filtered to `gh pr create`.
+# PreToolUse hook for Bash, filtered to the pull request create command.
 # Rule: a change to a file in `.claude/agents/` MUST ship as its own pull
 # request. The body MUST link the wiki entry that records the reason.
 set -euo pipefail
 
 cmd="$(jq -r '.tool_input.command // empty')"
 grep -Eq 'gh\s+pr\s+create\b' <<<"$cmd" || exit 0
+. "$(dirname "$0")/pr-checkout.sh"
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 
-dir="${CLAUDE_PROJECT_DIR:-$PWD}"
-if [[ "$cmd" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:];&]+) ]]; then
-  dir="${BASH_REMATCH[1]/#\~/$HOME}"
-  [[ "$dir" = /* ]] || dir="${CLAUDE_PROJECT_DIR:-$PWD}/$dir"
-fi
-
-base="$(git -C "$dir" merge-base origin/main HEAD 2>/dev/null || git -C "$dir" merge-base main HEAD 2>/dev/null || true)"
-[ -z "$base" ] && exit 0
-files="$(git -C "$dir" diff --name-only "$base" HEAD)"
+merge="$(git -C "$dir" merge-base "$base" HEAD 2>/dev/null || git -C "$dir" merge-base main HEAD 2>/dev/null || true)"
+[ -z "$merge" ] && exit 0
+files="$(git -C "$dir" diff --name-only "$merge" HEAD)"
 grep -q '^\.claude/agents/' <<<"$files" || exit 0
 
 others="$(grep -v '^\.claude/agents/' <<<"$files" | grep -v '^wiki/' || true)"
