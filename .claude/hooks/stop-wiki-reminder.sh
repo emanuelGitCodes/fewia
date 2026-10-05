@@ -14,8 +14,9 @@ base="$(git merge-base main HEAD 2>/dev/null || true)"
 ahead="$(git rev-list --count "$base..HEAD")"
 [ "$ahead" -eq 0 ] && exit 0
 
-git diff --name-only "$base" HEAD | grep -q '^wiki/log.md$' && exit 0
-git status --porcelain wiki/log.md | grep -q . && exit 0
+# `git diff <base>` with no second ref compares the base to the working
+# tree, so a committed entry and an uncommitted one both count.
+git diff --name-only "$base" -- wiki/log.md | grep -q . && exit 0
 
 jq -n --arg b "$branch" --arg n "$ahead" \
   '{systemMessage: ("Branch " + $b + " has " + $n + " commit(s) ahead of main and no wiki/log.md entry. AGENTS.md asks for one dated entry per finished work item.")}'
