@@ -12,7 +12,10 @@ _DIET = (
     "You MAY name a catalog ingredient to exclude."
 )
 _PANTRY_INGREDIENT = "Name a listed pantry ingredient."
-_EXCLUDE_INGREDIENT = "Name a listed ingredient to exclude."
+_UNKNOWN_RESTRICTION = (
+    "I cannot map the named restrictions to catalog ingredients. "
+    "Which catalog ingredients should I exclude?"
+)
 _QUESTION = (
     "Which meal should I plan, and what servings, restrictions, and pantry items apply?"
 )
@@ -144,7 +147,7 @@ def _input_clarification(error: dict[str, object]) -> str | None:
     if field == "pantry_ingredients":
         return _PANTRY_INGREDIENT
     if field == "ingredient_exclusions":
-        return _EXCLUDE_INGREDIENT
+        return _UNKNOWN_RESTRICTION
     return None
 
 

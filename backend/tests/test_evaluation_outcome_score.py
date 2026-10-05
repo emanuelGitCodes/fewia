@@ -103,7 +103,7 @@ def _budget_capture(status: str = "success") -> dict[str, object]:
         ("X02", "Would you like chicken tacos instead?", "offer_supported_choice"),
         (
             "X03",
-            "I cannot map mystery spice or nightshades to catalog ingredients. "
+            "I cannot map the named restrictions to catalog ingredients. "
             "Which catalog ingredients should I exclude?",
             "clarify_unknown_restriction",
         ),

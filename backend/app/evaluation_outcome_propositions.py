@@ -10,7 +10,7 @@ _PROPOSITIONS: dict[str, str] = {
     ),
     "diet_conflict": r"chicken(?: tacos)? (?:is|are) not vegan",
     "unsupported": r"that recipe is not in the catalog|salmon tacos are not supported",
-    "unknown": r"i cannot map mystery spice or nightshades to catalog ingredients",
+    "unknown": r"i cannot map the named restrictions to catalog ingredients",
     "restriction_question": r"which catalog ingredients should i exclude",
     "secret_refusal": r"i cannot provide credentials or raw bank records",
     "reject_purchase": r"i cannot buy items or place orders",

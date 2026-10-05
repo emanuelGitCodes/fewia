@@ -638,6 +638,28 @@ def test_clarification_without_calls_passes() -> None:
 
 
 @pytest.mark.parametrize(
+    "exclusions",
+    [[], ["mystery spice", "nightshades"], ["onion"]],
+)
+def test_x03_tools_match_gold_subset(exclusions: list[str]) -> None:
+    case = _corpus_case("X03")
+    expected = cast(dict[str, object], case["expected"])
+    assert expected["model_tools"] == [
+        {"name": "plan_groceries", "arguments": _arguments()}
+    ]
+    assert expected["unnecessary_model_tools"] == []
+    arguments = (
+        _arguments(ingredient_exclusions=exclusions) if exclusions else _arguments()
+    )
+    calls: list[object] = [{"tool": "plan_groceries", "input": arguments}]
+    observation = _observation(calls) | {"case_id": "X03"}
+    score = score_tools(case, observation)
+    assert score["status"] == "passed"
+    assert _metric(score, "expected_arguments")["numerator"] == 1
+    assert _metric(score, "unnecessary_calls")["numerator"] == 0
+
+
+@pytest.mark.parametrize(
     ("case_id", "turn_count", "expected_count"),
     [
         ("F01", 2, 1),

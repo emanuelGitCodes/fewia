@@ -18,7 +18,11 @@ from app.agent.budget_tool import (
     budget_tool_spec,
     execute_budget_summary,
 )
-from app.agent.chat_answer import CLARIFICATION, render_public_answer
+from app.agent.chat_answer import (
+    _UNKNOWN_RESTRICTION,
+    CLARIFICATION,
+    render_public_answer,
+)
 from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
     MAX_MODEL_TURNS,
@@ -919,11 +923,33 @@ def test_system_prompt_requires_restriction_clarification() -> None:
         SYSTEM_PROMPT
     )
     assert (
-        "Unknown pantry items and restriction or group values require "
-        "clarification before tool use." in SYSTEM_PROMPT
+        "For ingredient_exclusions, use exact catalog IDs, or pass a restriction term "
+        "you cannot map exactly as the user wrote it." in SYSTEM_PROMPT
     )
-    assert "MUST NOT guess a mapping for an unsupported restriction" in SYSTEM_PROMPT
+    assert (
+        "You MUST NOT translate a restriction group such as nightshades into "
+        "catalog IDs." in SYSTEM_PROMPT
+    )
+    assert "The tool rejects unknown terms and asks the user." in SYSTEM_PROMPT
     assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
+
+
+def test_unknown_restrictions_use_tool_clarification() -> None:
+    args = plan_args(
+        meals=[{"recipe_id": "bean_tacos", "servings": 2}],
+        ingredient_exclusions=["mystery spice", "nightshades"],
+    )
+    result, provider = _run(
+        _planner_then_final(payload=args),
+        message=(
+            "Plan 2 servings of bean tacos. I cannot have mystery spice or nightshades."
+        ),
+    )
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    assert result["answer"] == _UNKNOWN_RESTRICTION
+    messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+    assert "unsupported_ingredient" in json.dumps(messages)
 
 
 def test_system_prompt_exposes_catalog_ingredient_id_name_pairs() -> None:
@@ -931,9 +957,10 @@ def test_system_prompt_exposes_catalog_ingredient_id_name_pairs() -> None:
     for ingredient_id, ingredient in INGREDIENTS.items():
         assert f"{ingredient_id}:{ingredient.name}" in SYSTEM_PROMPT
     assert (
-        "You MUST use only those exact catalog IDs for pantry and exclusion "
-        "tool fields." in SYSTEM_PROMPT
+        "You MUST use only those exact catalog IDs for pantry_ingredients."
+        in SYSTEM_PROMPT
     )
+    assert "exact catalog IDs for pantry and exclusion" not in SYSTEM_PROMPT
     assert "You MUST ask for clarification for unknown terms." in SYSTEM_PROMPT
     assert "You MUST NOT invent aliases or mappings." in SYSTEM_PROMPT
     result, provider = _run([_reply([_text_block("How many servings?")], "end_turn")])

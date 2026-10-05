@@ -283,11 +283,17 @@ def test_unsupported_ingredient_fields_ask_listed_items() -> None:
             "error": "ingredient is not supported",
             "error_code": "unsupported_ingredient",
             "field": "ingredient_exclusions",
+            "ingredient_id": "mystery spice",
             "supported_ingredient_ids": ["peanuts"],
         },
     )
-    assert exclude == "Name a listed ingredient to exclude."
+    assert exclude == chat_answer._UNKNOWN_RESTRICTION
+    assert exclude == (
+        "I cannot map the named restrictions to catalog ingredients. "
+        "Which catalog ingredients should I exclude?"
+    )
     assert "peanuts" not in exclude
+    assert "mystery spice" not in exclude
 
 
 def test_malformed_typed_errors_use_bounded_clarification() -> None:

@@ -311,7 +311,7 @@ def test_supported_refusals_do_not_count_as_factual_claims(answer: str) -> None:
         ("Salmon tacos are not supported.", {}, "passed"),
         ("Eggs are not vegan. Chicken tacos are not vegan.", {}, "passed"),
         (
-            "I cannot map mystery spice or nightshades to catalog ingredients.",
+            "I cannot map the named restrictions to catalog ingredients.",
             {},
             "passed",
         ),
