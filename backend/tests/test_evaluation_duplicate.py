@@ -34,10 +34,24 @@ class MemoryQueue:
         self.acknowledged: list[str] = []
         self.extended: list[str] = []
         self.drop_duplicate = False
+        self.closed = False
+        self.events: list[str] = []
+
+    def _require_open(self) -> None:
+        if self.closed:
+            raise RuntimeError("queue closed")
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        self.events.append("close")
 
     def send(self, kind: str, job_id: str) -> None:
+        self._require_open()
         assert kind == "agent"
         self.sent.append(job_id)
+        self.events.append("send")
         if self.drop_duplicate and len(self.sent) == 2:
             return
         self.messages.append(
@@ -45,12 +59,16 @@ class MemoryQueue:
         )
 
     def receive(self) -> QueueMessage | None:
+        self._require_open()
+        self.events.append("receive")
         return self.messages.pop(0) if self.messages else None
 
     def acknowledge(self, message: QueueMessage) -> None:
+        self._require_open()
         self.acknowledged.append(message.receipt_handle)
 
     def extend(self, message: QueueMessage, seconds: int) -> None:
+        self._require_open()
         assert seconds == 120
         self.extended.append(message.receipt_handle)
 
@@ -113,7 +131,8 @@ def default_adapters(monkeypatch: pytest.MonkeyPatch) -> driver._Services:
             self.name = "fewia-eval-" + "0" * 32
 
         def close(self) -> None:
-            pass
+            self.sender.close()
+            self.consumer.close()
 
     monkeypatch.setattr(driver, "LocalArtifactStore", store)
     monkeypatch.setattr(driver, "IsolatedLocalQueue", Isolated)
@@ -235,6 +254,41 @@ def test_default_artifact_store_closes_after_success(
     artifacts = cast(MemoryArtifacts, default_adapters.artifacts)
     assert len(artifacts.reports) == 1
     assert artifacts.close_calls == 1
+    assert len(schemas) == 1
+
+
+def test_default_p05_closes_private_queue_after_both_deliveries(
+    case: dict[str, object],
+    database_url: str,
+    default_adapters: driver._Services,
+    schemas: list[str],
+) -> None:
+    report = driver.evaluate_duplicate_case(
+        case, database_url=database_url, endpoint=ENDPOINT
+    )
+    assert report["status"] == "passed"
+    checks = cast(dict[str, object], report["checks"])
+    assert checks and all(value is True for value in checks.values())
+    queue = cast(MemoryQueue, default_adapters.queue)
+    assert len(queue.sent) == 2 and queue.sent[0] == queue.sent[1]
+    assert queue.acknowledged == ["1", "2"]
+    assert queue.events.count("send") == 2
+    assert queue.events.count("receive") == 2
+    assert queue.events.count("close") == 1
+    close_at = queue.events.index("close")
+    last_send = max(i for i, event in enumerate(queue.events) if event == "send")
+    last_receive = max(i for i, event in enumerate(queue.events) if event == "receive")
+    assert last_send < close_at
+    assert last_receive < close_at
+    closed = QueueMessage("{}", "closed")
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.send("agent", "closed")
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.receive()
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.acknowledge(closed)
+    with pytest.raises(RuntimeError, match="queue closed"):
+        queue.extend(closed, 120)
     assert len(schemas) == 1
 
 
