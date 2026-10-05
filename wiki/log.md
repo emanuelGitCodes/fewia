@@ -3716,7 +3716,8 @@ The four branches merged together on `main` pass the backend gates:
 
 ## 2026-10-05 — Integrity and secret scanning PRs merged
 
-The owner authorized the merges. #396 merged first, then #392 to #395.
+The owner authorized the merges. They merged in this order: #396, #392,
+#393, #394, and #395.
 #392 conflicted with #396 in this log; the resolution keeps both entries.
 On `main` at `6cad8f4`, backend tests report 9162 passed and 1 skipped.
 Ruff, format, mypy, and the 359 tooling tests pass. A gitleaks scan of
