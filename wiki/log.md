@@ -3713,3 +3713,13 @@ blocks for 10 s, E4 published a new job in 0.13 to 0.15 s; `main` did not
 publish within 2.5 s. These are local emulator results, not deployed evidence.
 The four branches merged together on `main` pass the backend gates:
 9162 passed and 1 skipped. Nothing is pushed or merged.
+
+## 2026-10-05 — Integrity and secret scanning PRs merged
+
+The owner authorized the merges. They merged in this order: #396, #392,
+#393, #394, and #395.
+#392 conflicted with #396 in this log; the resolution keeps both entries.
+On `main` at `6cad8f4`, backend tests report 9162 passed and 1 skipped.
+Ruff, format, mypy, and the 359 tooling tests pass. A gitleaks scan of
+936 commits finds no leaks. GitHub Actions stays blocked by billing, so
+these are local results.
