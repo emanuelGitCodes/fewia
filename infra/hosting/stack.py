@@ -5,6 +5,8 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_sqs as sqs
 from constructs import Construct
 
+from network import HOSTING_AVAILABILITY_ZONES
+
 
 class HostingResources(Construct):
     def __init__(self, scope: Construct, construct_id: str) -> None:
@@ -66,3 +68,7 @@ class HostingStack(Stack):
             "ArtifactBucketName": self.resources.artifact_bucket.bucket_name,
         }.items():
             CfnOutput(self, key, value=value)
+
+    @property
+    def availability_zones(self) -> list[str]:
+        return list(HOSTING_AVAILABILITY_ZONES)
