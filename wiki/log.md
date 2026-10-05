@@ -3692,3 +3692,24 @@ Probes on a clone: the hook blocked a commit with a random fake AWS key and
 allowed a clean commit. `pre-commit run --all-files` does not scan the
 history, because the hook reads staged changes only. The GitHub secret
 scanning and push protection settings stay an owner action.
+
+## 2026-10-05 — Integrity findings 4 to 7 on branches
+
+The loop `integrity-2` built backlog items E1 to E4 with grok-4.6 writers at
+the user's request. E4 is a rung 4 item and ran on grok-4.6 medium as a
+recorded deviation from the writer ladder. Each code item passed the gates
+with a dedicated PostgreSQL and an independent review on its head SHA.
+
+| Item | Branch | Change | Lines | Review |
+|---|---|---|---|---|
+| E1 | `claude/integrity-2-01` | The host Floci endpoints on port 4567 join the local endpoint set | 7 | APPROVE gpt-6-luna high |
+| E2 | `claude/integrity-2-02` | The integrity page records the Plaid grant rule for D4; the backlog records the current state | 0 | prose |
+| E3 | `claude/integrity-2-03` | Each P05 run creates, uses, and deletes a private Floci queue | 98 | APPROVE gpt-6-luna medium |
+| E4 | `claude/integrity-2-04` | The worker publishes the outbox on its own thread | 47 | APPROVE gpt-6-luna high |
+
+Live probes on the local stack: P05 passed 3 of 3 with the Compose worker
+consuming `fewia-agent`; `main` with E1 failed 2 of 2. With a consumer that
+blocks for 10 s, E4 published a new job in 0.13 to 0.15 s; `main` did not
+publish within 2.5 s. These are local emulator results, not deployed evidence.
+The four branches merged together on `main` pass the backend gates:
+9162 passed and 1 skipped. Nothing is pushed or merged.

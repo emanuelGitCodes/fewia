@@ -68,3 +68,30 @@ gold alignment and a loop lever that overrides a model refusal.
 Open findings from the list above: 4, 5, 6, and 7, plus GitHub Actions billing
 and secret scanning.
 
+
+## Finding 6 disposition, 2026-10-05
+
+The runtime role `fewia_app` keeps SELECT only on `plaid_items` and
+`plaid_transactions`. `RUNTIME_GRANTS` in
+`backend/app/runtime_database_policy.py` defines that set. No grant changes
+while D4 stays paused.
+
+The paused sync path in `backend/app/services/plaid_sync.py` needs more:
+
+| Table | Statement in the sync path | Grant it needs |
+|---|---|---|
+| `plaid_transactions` | `session.merge` of added and modified rows | INSERT, UPDATE |
+| `plaid_transactions` | `delete` of removed transaction ids | DELETE |
+| `plaid_items` | `item.cursor` update after the last page | UPDATE |
+
+The hosted app task runs no sync worker, so the hosted stack has no write
+path to these tables today. The local Compose `sync-worker` connects as the
+`fewia` owner role through the shared `DATABASE_URL`, not as `fewia_app`.
+
+Rules for D4:
+
+- The D4 work item MUST widen `RUNTIME_GRANTS` to the grants in the table
+  above and no further.
+- The same pull request MUST update the policy and access tests so that a
+  `fewia_app` login can run the sync writes and is still denied DDL and GRANT.
+- No Sandbox run MAY start before that pull request merges.
