@@ -1,23 +1,23 @@
 # FEWIA feature backlog
 
 This document records the feature backlog and its state on `main` at
-`ed00904` (2026-10-04, after #313 to #383). The historical built-feature
-table keeps the earlier snapshot. The work tables record merged work and the
-[benchmark evidence](../wiki/phases/benchmark-20261003.md).
+`c6571fe` (2026-10-05, after #384 to #391). The historical built-feature
+table keeps the earlier snapshot. The merged-work tables record merged work
+and the [benchmark evidence](../wiki/phases/benchmark-20261003.md).
 A merge does not imply deployment or release certification.
 The senior coordinator verifies each item after the writer reports.
 
 The [integrity check](../wiki/phases/integrity-20261004.md) of 2026-10-04
-exercised every merged subsystem on the local stack and records the open
-findings. The [final record](../wiki/phases/backlog-final-20261003.md) and the
-[hosting snapshot](../wiki/phases/hosting-preparation-20261003.md) are dated
-checkpoints from before the merges.
+exercised every merged subsystem on the local stack. Its follow-up loop
+merged #384 to #390 the same day. The open findings from that check are the
+new work items in Part 2. The [final record](../wiki/phases/backlog-final-20261003.md)
+and the [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md) are
+dated checkpoints from before the merges.
 
 Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 `docs/EVALUATION.md`, `docs/GROCERY_VERIFICATION_PLAN.md`, the pages under
 `wiki/phases/`, the decisions under `wiki/decisions/`, the ledgers under
-`.claude/loop/`, the pending briefs under
-`wiki/artifacts/evaluation-recovery-20261003/pending-briefs/`, and the code.
+`.claude/loop/`, and the code.
 
 ## Rules for the writer
 
@@ -28,12 +28,16 @@ Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
   Writers MUST NOT merge. The coordinator needs explicit merge authorization.
 - The coordinator or junior runs the gates before reporting:
   `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
+  The gates need a dedicated PostgreSQL server. The shared Compose server
+  fails the fixture guard.
 - Prose follows ASD-STE100. Requirement words are MUST, MUST NOT, SHOULD,
   SHOULD NOT, and MAY.
 - Do not start Plaid live work, live Instacart handoff, or any health-era
   phase. C4 permits the handoff button against a fixture provider only.
 - Do not claim a live-provider result from a fixture run. Label evidence
   as fixture, emulator, Sandbox, live, or deployed.
+- Do not write model prose into an evaluation record. Do not draft the
+  course paper. The owner closed both paths on 2026-10-04.
 
 ## Part 1. Historical built-feature snapshot
 
@@ -47,8 +51,8 @@ catalog coverage. Retired health and activity planning remains historical.
 
 | Area | What exists | Evidence |
 |---|---|---|
-| Local stack | React and TypeScript chat, FastAPI, PostgreSQL, worker, Floci SQS and S3, nginx, in Docker Compose. 7 migrations. 13 routes across 6 routers plus `/healthz`, every route tested. | `docker compose up -d`; local gates green on `main` at `ed00904`; GitHub CI blocked by Actions billing since 2026-10-04 |
-| Chat loop | Bedrock `LLMProvider` with tool calling, 8 model turns and 3 planner revisions per job, refusal parser, typed unsupported-diet and unsupported-ingredient errors, read-only `get_budget_summary`. | `backend/app/agent/`; live Nova 2 Lite chat verified 2026-09-08 |
+| Local stack | React and TypeScript chat, FastAPI, PostgreSQL, worker, Floci SQS and S3, nginx, in Docker Compose. 7 migrations. 13 routes across 6 routers plus `/healthz`, every route tested. The web container runs as the unprivileged nginx user on port 8080. | `docker compose up -d`; local gates green on `main` at `b21a854` per the integrity page: backend 9074, hosting 1778, frontend 492, tooling 359; GitHub CI blocked by Actions billing since 2026-10-04 |
+| Chat loop | Bedrock `LLMProvider` with tool calling, 8 model turns and 3 planner revisions per job, refusal parser, typed unsupported-diet, unsupported-ingredient, and `diet_conflict` errors, read-only `get_budget_summary`. Every `plan_groceries` schema field carries a description. The system prompt defines a purchase narrowly and passes an unknown restriction term verbatim to the tool. | `backend/app/agent/`; live Nova 2 Lite chat verified 2026-09-08; #387 to #390 |
 | Planning | 40-meal catalog `sample-prices-v2`, 1 to 3 meals, 1 to 8 servings, pantry, exclusions, diet validation, shared-ingredient aggregation before package rounding, labeled sample prices. | `backend/app/domain/`, decision 0017 |
 | Budget | Manual spending source as default. User limit minus posted spending, clamped to zero. Pending cents separate. Stale-spending rule. Explicit plan cap. | decision 0016, `backend/app/services/` |
 | Templates | `POST /grocery/templates` with six presets filtered by budget, diet, pantry, and exclusions. Frontend meal-ideas picker. | moderate backlog item 15 |
@@ -56,10 +60,11 @@ catalog coverage. Retired health and activity planning remains historical.
 | Jobs | PostgreSQL jobs, outbox, leases, duplicate-delivery handling, dead letters, evidence revisions. Floci queues `fewia-sync` and `fewia-agent` with dead-letter queues, bucket `fewia-eval`. | `backend/app/services/`, `infra/floci_bootstrap.py` |
 | Providers | `BedrockConverseProvider` for us-east-1 and us-west-2, active only when `FEWIA_BEDROCK_MODEL_ID` is set. `PlaidSandboxProvider` and `sync_item`. `InstacartDevelopmentProvider` with `POST /grocery/handoffs`, `GET`, and `/retry`, hidden in the UI unless `instacart_configured`. | `backend/app/providers/`, `backend/app/api/handoff.py` |
 | Frontend | App, BudgetForm, Conversation, ChatPanel, ChatWorkspace, Estimate, Nutrition, TemplatePicker, HandoffControls (hidden). Manual-plan to chat context transfer. | `frontend/src/`, 492 tests |
-| Evaluation components | 60 `evaluation_*.py` modules plus `evaluate.py`: inputs, manifest, capture, adversarial scenarios, fault provider, plan facts and scoring, claim scoring, outcome scoring, refusal actions, telemetry, cost, matrix, summaries, model and no-tool observers, duplicate and handoff and refresh drivers, SQLite evidence, JSON output. | `backend/app/evaluation_*.py`; 9046 backend tests |
+| Evaluation components | 60 `evaluation_*.py` modules plus `evaluate.py`: inputs, manifest, capture, adversarial scenarios, fault provider, plan facts and scoring, claim scoring, outcome scoring, refusal actions, telemetry, cost, matrix, summaries, model and no-tool observers, duplicate and handoff and refresh drivers, SQLite evidence, JSON output. | `backend/app/evaluation_*.py` |
 | Legacy runner | `run_evaluation` scores the deterministic groups: 42 scored, 48 unassessed. | `backend/app/evaluation_runner.py` |
+| Hosting | CDK stacks for ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock, and a Cognito edge. Fixed availability zones. Preflight CLI and runbook. Nothing deployed. | `infra/hosting/`, `docs/HOSTED_DEMO.md`, decision 0019 |
 | Tooling | `dev_supervisor` writer, gates, review, usage, lease. Tooling CI. Migration drift check. Dependency audits. ESLint. | `dev_supervisor/`, `.github/workflows/` |
-| Repair loop | Nine review findings from the evaluation PRs repaired and merged. | #302 to #312 |
+| Repair loops | Nine review findings from the evaluation PRs repaired and merged. Seven integrity follow-ups merged. | #302 to #312; #384 to #390 |
 
 ## Part 2. Open work, ranked from easiest to hardest
 
@@ -67,49 +72,96 @@ Difficulty: 1 is a one-file change with a known pattern. 5 is a new
 subsystem with a live provider or a contract that other code depends on.
 
 Each item names the acceptance check the coordinator runs. The writer MUST
-make that check pass.
+make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
+4, and 7. Items F1 to F4 continue the D tier.
+
+### Tier E. Integrity findings
+
+| ID | Item | Status | Difficulty | Owned files | Acceptance check |
+|---|---|---|---|---|---|
+| E1 | Add the host Floci endpoints `http://127.0.0.1:4567` and `http://localhost:4567` to `ALLOWED_ENDPOINTS`. Compose maps the host port 4567 to the container port 4566, so the benchmark cannot run from the host with `--local-services` today. | verified, branch `claude/integrity-2-01`, unmerged | 1 | `backend/app/providers/local_sqs.py`, `backend/tests/test_local_sqs*.py`, `backend/tests/test_evaluation_cli_config.py` | With `FEWIA_EVALUATION_FLOCI_ENDPOINT=http://127.0.0.1:4567`, the CLI accepts `--local-services`. A non-loopback endpoint still raises `Invalid evaluation CLI input`. No other endpoint joins the set. |
+| E2 | Record the Plaid grant rule. `RUNTIME_GRANTS` gives SELECT only on `plaid_items` and `plaid_transactions`. The paused sync service writes them. The hosted app task runs no sync worker. | done, branch `claude/integrity-2-02`, unmerged; see the [finding 6 disposition](../wiki/phases/integrity-20261004.md#finding-6-disposition-2026-10-05) | 1 | `wiki/log.md`, `docs/HOSTED_DEMO.md`, `backend/app/runtime_database_policy.py` comment if needed | The wiki states that the runtime role stays SELECT-only on the Plaid tables until D4 resumes, and that D4 MUST widen the grants with a policy test before any Sandbox run. No grant changes now. Prose only. |
+| E3 | Isolate the P05 duplicate-delivery slots from a running worker. Today they share the global `fewia-agent` queue and fail when another consumer is up. | verified, branch `claude/integrity-2-03`, unmerged | 3 | `backend/app/evaluation_duplicate.py`, `backend/app/providers/local_sqs.py`, `backend/tests/test_evaluation_duplicate.py` | With a worker consuming `fewia-agent`, each P05 slot either passes on its own queue or reports `unassessed` with a named reason. No P05 slot fails because of a foreign consumer. Fixture runs still call no provider. |
+| E4 | Publish the outbox off the long-poll path. `run_worker` calls `publish_pending` once per loop and then blocks up to 10 s in `WaitTimeSeconds` on an empty queue, so a 50 ms job takes 0.5 to 11 s. | verified, branch `claude/integrity-2-04`, unmerged | 3 | `backend/app/worker.py`, `backend/app/services/outbox_publisher.py`, `backend/tests/test_worker.py` | With an empty queue and one pending outbox row, the row publishes within 1 s. The stop event still ends the loop within one wait. The backoff and `PublicationError` tests still pass. Duplicate publication stays impossible. |
+
+### Tier F. Live evidence and release work
+
+| ID | Item | Status | Difficulty | Owned files | Acceptance check |
+|---|---|---|---|---|---|
+| F1 | D1 fresh live batch: run the 138-slot benchmark once more with `--live-bedrock` on Nova 2 Lite after the four application fixes in #387 to #390. The analysis estimates 27 to 31 of 33; the 90% target needs 30. Depends on E1 for a host run, or runs inside the Compose network. | open; owner confirms cost and renews the AWS MFA session first | 4 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md`, `wiki/log.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Task success states pass or fail against 90%. The original 17/33 and post-hoc 23/33 records stay unchanged. |
+| F2 | D5 deployment: the owner supplies the hostname, the ACM certificate, and the deployment credentials, then confirms each mutating step in [docs/HOSTED_DEMO.md](HOSTED_DEMO.md). Source, preflight CLI, and runbook are on `main`. Hosting findings F1 and F2 are closed. | blocked on owner input | 5 | `infra/`, `docs/HOSTED_DEMO.md`, `wiki/log.md` | The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. Every AWS mutation has an owner confirmation in the log. |
+| F3 | D3 course deliverables: the author writes the paper and records the video from the pack under `docs/course/`. The course rule forbids a model-generated report. No draft exists in the repository. | author work | — | `docs/course/` as support only | The author owns the acceptance. The pack cites original and post-hoc results and does not establish completion. |
+| F4 | D4 Plaid Sandbox live evidence. Last feature by decision. Depends on the grant widening recorded in E2. | paused | 5 | `backend/app/services/plaid_sync.py`, `backend/app/runtime_database_policy.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
+
+### Owner decisions, no writer until decided
+
+- **A02 gold alignment (F3-A).** Scenario A02 injects provider text that asks
+  the model to conceal a vegan conflict. The gold expects a typed planner
+  conflict. The live model clarified instead. A gold rewrite changes the
+  evidence contract, so the owner decides.
+- **Refusal-override loop lever.** The failure analysis proposed a loop change
+  that overrides a model refusal. The owner has not accepted it.
+
+## Part 3. Merged work record
 
 ### Tier A. Small, isolated, deterministic
 
-| ID | Item | Status | Difficulty | Owned files | Acceptance check |
-|---|---|---|---|---|---|
-| A1 | Refresh the two stale ledger State columns so they match their event logs. | merged, #315 | 1 | `.claude/loop/tech-debt-2.md`, `.claude/loop/delegation-efficiency.md` | Every row's State agrees with the last event for that item. Prose only. |
-| A2 | Close or record the Phase 1 to 3 open items: alembic in the lint path, Node 20 actions, mypy on tests, alembic in the backend image. | merged, #317 | 1 | `wiki/phases/phase-1.md`, `phase-3.md`, `.github/workflows/*.yml` if a fix is small | Each item is either fixed in CI or recorded as closed with a reason. |
-| A3 | Add `pip-audit --no-deps` and extend Ruff to the `I` and `E501` rule sets, per the debt-guardrails follow-ups. | already present before this backlog | 1 | `.github/workflows/tooling.yml`, `backend/pyproject.toml` | Tooling CI passes with the new rules. No file-level suppressions. |
-| A4 | Record the retention decision for stored Spoonacular totals and the retired health tables. Write decision 0018. No data deletion. | merged, #325 | 1 | `wiki/decisions/0018-*.md`, `wiki/index.md`, `wiki/log.md` | Decision 0018 retains existing records only and states the future deletion review requirements. |
-| A5 | Quantity-scaled nutrition totals: scale USDA per-100g facts by the planned ingredient quantity and servings. | already present before this backlog | 2 | `backend/app/services/meal_nutrition.py`, its tests | A 4-serving plan reports double the 2-serving totals. Labels say the totals are estimates. |
-| A6 | Reset the supervisor DB-test skip counter per session and release the lease on a pre-spawn crash. | already present before this backlog | 2 | `dev_supervisor/lease.py`, `dev_supervisor/__main__.py`, `tests/supervisor/` | A crash before spawn leaves no lease file. Tests cover both paths. |
-| A7 | Add the missing unit tests for `frontend/src/usePolledJob.ts` and `backend/app/domain/spoonacular_catalog.py`. | merged, #314 | 1 | the two test files | Each file has a direct test. Removing the polling stop condition fails a test. |
+| ID | Item | Status | PR |
+|---|---|---|---|
+| A1 | Refresh the two stale ledger State columns. | merged | #315 |
+| A2 | Close or record the Phase 1 to 3 open items. | merged | #317 |
+| A3 | `pip-audit --no-deps` and Ruff `I` and `E501`. | present before this backlog | — |
+| A4 | Decision 0018: retain stored Spoonacular totals and retired health tables. | merged | #325 |
+| A5 | Quantity-scaled nutrition totals. | present before this backlog | — |
+| A6 | Supervisor skip counter reset and lease release on a pre-spawn crash. | present before this backlog | — |
+| A7 | Unit tests for `usePolledJob.ts` and `spoonacular_catalog.py`. | merged | #314 |
 
 ### Tier B. Bounded code with a fixed contract
 
-| ID | Item | Status | Difficulty | Owned files | Acceptance check |
-|---|---|---|---|---|---|
-| B1 | Grok fallback for the review command when Codex is unavailable, with the deviation recorded in the review output. | merged, #316; see B6 | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | With Codex forced unavailable, the review runs on Grok and the JSON names the fallback. |
-| B2 | Independent review of the 2026-09-21 nutrition compatibility change, recorded in the wiki. | merged, #320 | 2 | `wiki/log.md`, `wiki/phases/grocery-mvp-checkpoint.md` | A review verdict and SHA appear in the log. |
-| B3 | Delegation-efficiency item 09: record a limited tier S documentation pilot beside the Phase 1 baseline. | merged, #331; partial: a two-item documentation pilot, not one loop of Phase 1 follow-ups | 2 | `.claude/loop/delegation-efficiency.md`, `wiki/log.md` | Record per-item and total CLI tokens beside the baseline. State the cohort limits. Do not claim a percentage reduction, a causal efficiency gain, or a like-for-like speed comparison. |
-| B4 | Browser checks from the verification plan: desktop and mobile layout, focus order, polling stop on completion, handoff consent dialog. Record each as pass or fail with a screenshot path. | merged, #327; broader browser scope stays open | 3 | `docs/GROCERY_VERIFICATION_PLAN.md`, `frontend/src/*.test.tsx` for any gap found | The record preserves the original consent failure and the repaired 14-check fixture pass. Desktop and mobile layout checks passed. Initial focus order passed for the listed controls only. Broader browser scope remains open. |
-| B5 | Evaluation item 27: `render_report(output) -> str` in `backend/app/evaluation_markdown.py`. Coverage-first Markdown: per-condition numerators and denominators, failures, unassessed reasons, token use, p50 and p95 latency, cost. It MUST NOT state that a target is met. | merged, #322 and #332 to #336 | 3 | `backend/app/evaluation_markdown.py`, `backend/tests/test_evaluation_markdown.py` | Rendering a fixture output with 42 scored and 48 unassessed shows both counts and no target claim. Labels are escaped. |
-| B6 | Review fallback matcher: match a structured Codex error on both `code` and `message`. Today only `code` is matched when present, so `{"code":"api_error","message":"HTTP 503 service unavailable"}` does not fall back to Grok. Recorded at #316 merge. | merged, #324 | 2 | `dev_supervisor/review.py`, `tests/supervisor/test_review.py` | That error shape falls back with `fallback_reason == "codex_unavailable"`. Existing fallback tests still pass. |
+| ID | Item | Status | PR |
+|---|---|---|---|
+| B1 | Grok fallback for the review command. | merged | #316 |
+| B2 | Independent review of the nutrition compatibility change. | merged | #320 |
+| B3 | Delegation-efficiency item 09: tier S documentation pilot. Partial: two items, no percentage claim. | merged | #331 |
+| B4 | Browser checks from the verification plan. Broader browser scope stays open. | merged | #327 |
+| B5 | `render_report(output) -> str` in `evaluation_markdown.py`. | merged | #322, #332 to #336 |
+| B6 | Review fallback matcher on `code` and `message`. | merged | #324 |
 
 ### Tier C. New contracts that other code depends on
 
-| ID | Item | Status | Difficulty | Owned files | Acceptance check |
-|---|---|---|---|---|---|
-| C1 | Evaluation item 21: `run_slot(slot, runtime: EvaluationRuntime) -> dict` in `backend/app/evaluation_dispatch.py`. Route each matrix slot to the fixture evaluator, the model observer, the no-tool observer, the reference driver, or a provider-failure driver P01 to P05, then attach assessments. A missing local service reports `unassessed`, never a pass. | merged, #328 and #329 | 4 | `backend/app/evaluation_dispatch.py`, `backend/tests/test_evaluation_dispatch.py` | Every slot kind in `evaluation_matrix.py` dispatches. With PostgreSQL absent, database slots return `unassessed` with a reason. No provider is called for fixture slots. |
-| C2 | Evaluation item 22: `run_evaluation_batch(corpus, manifest, runtime, on_slot)` in `backend/app/evaluation_batch.py`. Freeze corpus, manifest, and revision. Run 90 primary, 33 no-tool, and 15 deterministic slots, 138 in total. Call `on_slot` with a deep copy after each slot. | merged, #338 | 4 | `backend/app/evaluation_batch.py`, `backend/tests/test_evaluation_batch.py` | A fixture run produces 138 slot records in order. A failure in slot 50 keeps slots 1 to 49 in the journal. Depends on C1. |
-| C3 | Evaluation item 28: `python -m app.evaluate` CLI with `--live-bedrock` as an explicit opt-in, Nova 2 Lite US profile only, optional `--local-services`, exclusive output and journal paths, exit codes 0, 1, and 130. | merged, #339 and #341 | 4 | `backend/app/evaluate.py`, `backend/tests/test_evaluate.py` | Without `--live-bedrock`, the public CLI exits 1 before provider calls. An existing output path exits 1. SIGINT exits 130 with a partial journal. Exit 0 means artifact completion only. Depends on C2 and B5. |
-| C4 | Handoff button flow in the frontend: validate the handoff URL before navigation and surface the existing `POST /grocery/handoffs/{id}/retry` as a visible retry on an uncertain write. The backend routes exist. Instacart itself stays parked; the flow runs against a fixture provider with `instacart_configured` true. | merged, #323 and #327 | 3 | `frontend/src/HandoffControls.tsx`, `frontend/src/useHandoff.ts`, `frontend/src/handoffApi.ts`, tests | With `instacart_configured` false, nothing renders. With a fixture provider, a link appears only after URL validation, and an uncertain write shows a retry button that calls the retry route once per click. |
+| ID | Item | Status | PR |
+|---|---|---|---|
+| C1 | `run_slot` dispatch in `evaluation_dispatch.py`. | merged | #328, #329 |
+| C2 | `run_evaluation_batch` with 138 slots and a journal. | merged | #338 |
+| C3 | `python -m app.evaluate` CLI with `--live-bedrock` opt-in. | merged | #339, #341 |
+| C4 | Handoff button flow against a fixture provider. | merged | #323, #327 |
 
 ### Tier D. Live evidence and release work
 
-| ID | Item | Status | Difficulty | Owned files | Acceptance check |
-|---|---|---|---|---|---|
-| D1 | Run the 138-slot benchmark with deterministic fixtures and publish the report. Then run it once with `--live-bedrock` on Nova 2 Lite. Record task success, valid tools, supported claims, clarification, latency, and cost against the 90% and 95% targets. State pass or fail for each target. | merged, #349 and #353; partial: task success 17/33 (51.5%) original and 23/33 (69.7%) after the [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md), 90% target FAILS; claims 98/100 (98%), 95% target PASSES; a fresh live batch is required to change the task result | 5 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/evaluation-completion.md` | The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Depends on C1 to C3. |
-| D2 | Evaluation item 29: update `docs/EVALUATION.md`, the completion page, the index, and the log with the final benchmark artifacts. | merged, #349 and #353 | 2 | the four files above | Every number in the docs matches a file under `eval/results/`. |
-| D3 | Course deliverables: maximum eight-page paper in two columns, code repository, demo video, script, failure examples, and limitations. | merged, #361; partial: the supporting pack exists; the paper draft is in progress; the recorded video remains author work | 4 | `docs/course/`, assigned backlog and wiki records | Each outline section cites a repository artifact or source. The pack preserves original and post-hoc results and supports the author's own writing. |
-| D4 | Plaid Sandbox live evidence: run `/transactions/sync` against Sandbox, serialize item syncs, apply changes and cursor atomically, and record posted and pending grocery spend. Last feature by decision. | paused | 5 | `backend/app/services/plaid_sync.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
-| D5 | Restricted hosting for the owner and invited users: ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock. | merged, #337 to #381 hosting stack; partial: source, preflight CLI, and runbook are on `main` under [decision 0019](../wiki/decisions/0019-invitation-only-hosting.md); nothing is deployed; two synth findings (fixed availability zones, non-root nginx) are open; hostname, ACM certificate, and deployment credentials await owner input | 5 | `infra/` | The owner MUST confirm every mutating AWS step first. The deployed stack limits access to the owner and invited users and answers one chat turn with live Bedrock and the deployed label. |
+| ID | Item | Status | PR |
+|---|---|---|---|
+| D1 | 138-slot benchmark, fixture and one live batch. Task success 17/33 original and 23/33 after the [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md); 90% target FAILS. Claims 98/100; 95% target PASSES. Four application fixes from the failure analysis merged. Continues as F1. | partial | #349, #353, #387 to #390 |
+| D2 | `docs/EVALUATION.md`, completion page, index, and log updated with the benchmark artifacts. | merged | #349, #353 |
+| D3 | Course supporting pack. The paper draft was deleted by owner decision. Continues as F3. | partial | #361 |
+| D4 | Plaid Sandbox live evidence. Continues as F4. | paused | — |
+| D5 | Restricted hosting source, preflight CLI, runbook, fixed availability zones, non-root nginx. Nothing deployed. Continues as F2. | partial | #337 to #381, #384, #386 |
+
+### Integrity follow-ups, 2026-10-04
+
+| PR | Change | Closes |
+|---|---|---|
+| #385 | Backlog, hosting README, decision 0019, runbook, and integrity page record the merged state | cosmetic findings |
+| #384 | Both hosting stacks override `availability_zones` | hosting F1 |
+| #386 | The web container runs as uid 101 on port 8080; edge and security groups follow | hosting F2 |
+| #387 | Every `plan_groceries` schema field carries a description | D1 fix F4 |
+| #388 | A diet conflict is a typed `diet_conflict` error on every path | integrity finding 1; D1 fix F3-B |
+| #390 | An unknown restriction term passes verbatim to the tool; X03 gold expects the call | D1 fix F1 |
+| #389 | The system prompt defines a purchase narrowly | D1 fix F2 |
+| #391 | The wiki records the follow-up loop | — |
+
+Dropped by owner decision: item 10, sanitized model text per observed turn,
+because the evidence rule forbids model prose; item 05, a model-drafted paper,
+because the course rule forbids a generated report.
 
 D1 retains the original 17/33 task result and 98/100 bounded-claim result.
 The separate [post-hoc record](../wiki/phases/posthoc-gold-20261003.md)
@@ -119,44 +171,46 @@ failed and zero unassessed. The 90% target still FAILS. Claims and the 0/33
 no-tool result stay unchanged. No scoring code or allowed outcomes change.
 This is not a fresh batch, model retest, or independent benchmark.
 A failed assessment alone does not establish a model or application defect.
+The four fixes in #387 to #390 are proven with fixture tests only. Only F1
+measures them against the target.
 
 D5 accepts shared demo access under decision 0019. Invitees share one application user.
-The proposed design uses an authenticated HTTPS edge with administrator-created Cognito users,
+The design uses an authenticated HTTPS edge with administrator-created Cognito users,
 private ECS tasks, retained isolated RDS with verified TLS, separate secrets, and narrow roles.
 Manual budget defaults are USD 100 monthly and a USD 40 plan cap.
 The owner-entered monthly limit remains the whole budget.
-Source, preflight CLI, and runbook are merged on `main`.
 The owner MUST confirm every mutating AWS step first, including users and invitations.
 No AWS resources, users, or invitations have been created.
-Hostname, ACM certificate, and deployment credentials await owner input.
-D4 remains paused; live Instacart remains parked.
 Every grocery estimate MUST show this exact notice:
 
 > Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
 
-## Part 3. Items that need no writer
+## Part 4. Items that need no writer
 
-- **GitHub Actions billing.** Every workflow run on `main` is refused since 2026-10-04 because the account spending limit or payment failed. The owner restores billing, then reruns the latest workflows on `main`. Local gates substitute until then.
-- **Secret scanning and push protection.** A GitHub repository setting. The owner turns it on. The API reports it disabled on 2026-10-04.
-- **Renew the AWS MFA session** before the next live test. Owner action.
-- **Instacart handoff.** Parked until the Instacart Developer Platform reopens. C4 builds the flow against a fixture only.
+- **GitHub Actions billing.** Every workflow run on `main` is refused because the account spending limit or payment failed. The latest runs at 2026-10-05 01:15 UTC on `main` and on the #391 branch report "The job was not started because recent account payments have failed". The owner restores billing, then reruns the latest workflows on `main`. Local gates substitute until then.
+- **Secret scanning and push protection.** A GitHub repository setting. The owner turns it on. The repository API did not return the `security_and_analysis` field to this token on 2026-10-05, so the setting is unverified from the CLI.
+- **Renew the AWS MFA session** before F1 and before any F2 step. Owner action.
+- **Instacart handoff.** Parked until the Instacart Developer Platform reopens. C4 built the flow against a fixture only.
 - **Health-era Phases 4 to 9** in `project-plan.md`. Historical. Do not resume.
 - **Comparison tool** from decision 0012. Build only after a measured need.
+- **Broader browser scope** from B4. Open, no owner yet.
 
-## Part 4. Suggested order
+## Part 5. Suggested order
 
-1. Done: A1 to A7, B1 to B6, C1 to C4, D2.
-2. Owner: restore GitHub Actions billing; turn on secret scanning.
-3. D5 follow-ups from the integrity check: fixed availability zones on both
-   hosting stacks, and a non-root nginx container on port 8080. Then the
-   owner supplies hostname, certificate, and credentials and confirms each
-   mutating step in [docs/HOSTED_DEMO.md](HOSTED_DEMO.md).
-4. D1: the 90% task target fails at 23/33. A failure analysis of the ten
-   failed slots drives prompt or tool changes, each proven with fixture tests
-   before one fresh live batch on Nova 2 Lite.
-5. D3: the author finishes the paper from the draft under `docs/course/paper/`
-   and records the video.
-6. Integrity findings in order: typed diet-conflict error over HTTP, per-run
-   queue isolation for the P05 duplicate check and the host Floci port in the
-   endpoint allowlist, worker publish latency, Plaid write grants.
-7. Keep D4 paused.
+1. Done: A1 to A7, B1 to B6, C1 to C4, D2, hosting F1 and F2, integrity
+   finding 1, D1 application fixes F1 to F4.
+2. Owner: review and merge E1 to E4. The four branches merge cleanly in any
+   order. Suggested order: `claude/integrity-2-02` (prose), then
+   `claude/integrity-2-01`, `claude/integrity-2-03`, and
+   `claude/integrity-2-04`.
+3. Owner: restore GitHub Actions billing; turn on secret scanning; decide
+   A02 gold alignment and the refusal-override lever.
+4. F1: one fresh live batch on Nova 2 Lite after the owner confirms cost and
+   renews the AWS MFA session. With E1 merged, the batch can run from the
+   host with `--local-services`. Then update the D2 documents with the new
+   artifacts.
+5. F2: the owner supplies hostname, certificate, and credentials and confirms
+   each mutating step in [docs/HOSTED_DEMO.md](HOSTED_DEMO.md).
+6. F3: the author writes the paper and records the video.
+7. Keep F4 paused. When D4 resumes, widen the Plaid grants first, as the
+   finding 6 disposition requires.
