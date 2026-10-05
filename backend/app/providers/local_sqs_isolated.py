@@ -58,7 +58,7 @@ class IsolatedLocalQueue:
                 )
                 if lookup_normalized is not None:
                     self._client.delete_queue(QueueUrl=lookup_normalized)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
             raise RuntimeError("SQS queue URL response is invalid")
         self._queue_url = normalized
