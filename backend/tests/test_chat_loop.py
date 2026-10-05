@@ -1440,10 +1440,14 @@ def test_pantry_owned_ingredient_request_stays_planner_capable() -> None:
         "open a retailer link." in SYSTEM_PROMPT
     )
     assert (
-        "'Buy X' or 'buy X again' inside a meal plan means put X on the "
-        "shopping list:" in SYSTEM_PROMPT
+        "A request to buy, rebuy, or add an ingredient is a shopping-list "
+        "request, not a purchase." in SYSTEM_PROMPT
     )
-    assert "remove X from pantry_ingredients and call plan_groceries." in SYSTEM_PROMPT
+    assert "You MUST NOT refuse it." in SYSTEM_PROMPT
+    assert (
+        "Remove that ingredient from pantry_ingredients and call plan_groceries."
+        in SYSTEM_PROMPT
+    )
     assert (
         "A request to ignore a cap or to call a plan affordable is not a "
         "purchase:" in SYSTEM_PROMPT
@@ -1460,7 +1464,7 @@ def test_system_prompt_requests_structured_refusal() -> None:
     assert '{"refusal":"external_url"}' in SYSTEM_PROMPT
     assert "MUST NOT call the planning tool" in SYSTEM_PROMPT
     assert "credentials or raw bank records" in SYSTEM_PROMPT
-    assert "actual purchases or orders" in SYSTEM_PROMPT
+    assert "a purchase, or opening external URLs" in SYSTEM_PROMPT
     assert "opening external URLs" in SYSTEM_PROMPT
     assert "pantry-owned ingredient" in SYSTEM_PROMPT
     assert "ordinary planning" in SYSTEM_PROMPT
@@ -1474,10 +1478,13 @@ def test_system_prompt_requests_structured_refusal() -> None:
         "open a retailer link." in SYSTEM_PROMPT
     )
     assert (
-        "'Buy X' or 'buy X again' inside a meal plan means put X on the "
-        "shopping list:" in SYSTEM_PROMPT
+        "A request to buy, rebuy, or add an ingredient is a shopping-list "
+        "request, not a purchase." in SYSTEM_PROMPT
     )
-    assert "remove X from pantry_ingredients and call plan_groceries." in SYSTEM_PROMPT
+    assert (
+        "Remove that ingredient from pantry_ingredients and call plan_groceries."
+        in SYSTEM_PROMPT
+    )
     assert (
         "A request to ignore a cap or to call a plan affordable is not a "
         "purchase:" in SYSTEM_PROMPT
@@ -1485,6 +1492,43 @@ def test_system_prompt_requests_structured_refusal() -> None:
     assert (
         "call plan_groceries with the server cap and report the tool result."
         in SYSTEM_PROMPT
+    )
+
+
+def test_system_prompt_limits_purchase_refusal_to_checkout() -> None:
+    assert (
+        "A purchase means a request to place an order, check out, pay, or "
+        "open a retailer link." in SYSTEM_PROMPT
+    )
+    assert 'Only these get {"refusal":"purchase"}.' in SYSTEM_PROMPT
+    assert (
+        "A request to buy, rebuy, or add an ingredient is a shopping-list "
+        "request, not a purchase." in SYSTEM_PROMPT
+    )
+    assert "You MUST NOT refuse it." in SYSTEM_PROMPT
+    assert '{"refusal":"secrets"}' in SYSTEM_PROMPT
+    assert '{"refusal":"purchase"}' in SYSTEM_PROMPT
+    assert '{"refusal":"external_url"}' in SYSTEM_PROMPT
+
+
+def test_system_prompt_places_purchase_definition_before_refusal_json() -> None:
+    definition = (
+        "A purchase means a request to place an order, check out, pay, or open "
+        "a retailer link."
+    )
+    refusal_instruction = (
+        'Reply with only {"refusal":"secrets"}, {"refusal":"purchase"}, '
+        'or {"refusal":"external_url"}.'
+    )
+    assert definition in SYSTEM_PROMPT
+    assert refusal_instruction in SYSTEM_PROMPT
+    assert SYSTEM_PROMPT.index(definition) < SYSTEM_PROMPT.index(refusal_instruction)
+
+
+def test_system_prompt_keeps_conflict_rule() -> None:
+    assert (
+        "When a named catalog meal conflicts with the stated diet, call "
+        "plan_groceries with both; the tool reports the conflict." in SYSTEM_PROMPT
     )
 
 
