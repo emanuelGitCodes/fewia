@@ -923,8 +923,8 @@ def test_system_prompt_requires_restriction_clarification() -> None:
         SYSTEM_PROMPT
     )
     assert (
-        "Put a restriction term you cannot map in ingredient_exclusions exactly "
-        "as the user wrote it." in SYSTEM_PROMPT
+        "For ingredient_exclusions, use exact catalog IDs, or pass a restriction term "
+        "you cannot map exactly as the user wrote it." in SYSTEM_PROMPT
     )
     assert (
         "You MUST NOT translate a restriction group such as nightshades into "
@@ -957,9 +957,10 @@ def test_system_prompt_exposes_catalog_ingredient_id_name_pairs() -> None:
     for ingredient_id, ingredient in INGREDIENTS.items():
         assert f"{ingredient_id}:{ingredient.name}" in SYSTEM_PROMPT
     assert (
-        "You MUST use only those exact catalog IDs for pantry and exclusion "
-        "tool fields." in SYSTEM_PROMPT
+        "You MUST use only those exact catalog IDs for pantry_ingredients."
+        in SYSTEM_PROMPT
     )
+    assert "exact catalog IDs for pantry and exclusion" not in SYSTEM_PROMPT
     assert "You MUST ask for clarification for unknown terms." in SYSTEM_PROMPT
     assert "You MUST NOT invent aliases or mappings." in SYSTEM_PROMPT
     result, provider = _run([_reply([_text_block("How many servings?")], "end_turn")])
