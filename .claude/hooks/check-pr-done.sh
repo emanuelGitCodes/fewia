@@ -15,7 +15,7 @@ deny() {
 }
 
 sha="$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)"
-[ -z "$sha" ] && exit 0
+[ -z "$sha" ] && deny "Cannot read HEAD in $dir, so the gates and review records cannot be checked."
 root="${CLAUDE_PROJECT_DIR:-$PWD}"
 
 gates=""

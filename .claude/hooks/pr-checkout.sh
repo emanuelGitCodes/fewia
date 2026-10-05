@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Shared by the pull request hooks. Source it after reading `$cmd`.
 # Sets `dir` to the checkout a leading `cd <dir> &&` names, else the
-# project root. Sets `base` to the `--base` ref, else `origin/main`.
+# project root. Sets `base` to `origin/<--base>`, else `origin/main`.
+# A base that is not on origin does not resolve, and the caller denies.
 dir="${CLAUDE_PROJECT_DIR:-$PWD}"
 if [[ "$cmd" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:];&]+) ]]; then
   dir="${BASH_REMATCH[1]/#\~/$HOME}"
@@ -9,8 +10,5 @@ if [[ "$cmd" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:];&]+) ]]; then
 fi
 base="origin/main"
 if [[ "$cmd" =~ --base[[:space:]=]+\"?([^[:space:]\"]+) ]]; then
-  base="${BASH_REMATCH[1]}"
-  if git -C "$dir" rev-parse --verify -q "origin/$base" >/dev/null 2>&1; then
-    base="origin/$base"
-  fi
+  base="origin/${BASH_REMATCH[1]#origin/}"
 fi
