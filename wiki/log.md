@@ -3733,3 +3733,22 @@ Tool-enabled task quality is 25/33 (75.8%); the 90% target FAILS. Supported clai
 109/(109 + three unknown), 97.3%; the 95% target PASSES. The estimated model cost is
 USD 0.3374943000. The [benchmark record](phases/benchmark-20261005.md) lists the eight
 failed slots. The archive is under `eval/results/artifacts/benchmark-20261005/`.
+
+## 2026-10-05 — Purchase refusal narrowed for F02 (#399)
+
+In the fresh live batch, F02 failed in two of three repeats. On "Buy the beans
+again." the model returned the purchase refusal. #399 changes the system prompt:
+only a request to place an order, check out, pay, or open a retailer link gets
+the purchase refusal. A request to buy, rebuy, or add an ingredient goes to the
+shopping list, and the model MUST NOT refuse it.
+
+Targeted live checks on Nova 2 Lite used the benchmark scoring path. F02 passed
+5/5 on the branch and 1/5 on `main`. A04 passed 5/5. X03 passed 14/15 on the
+branch and 15/15 on `main`. These are small samples. No fresh 138-slot batch
+ran, so the effect on the 90% target is not measured.
+
+F04 stays open. A follow-up turn does not carry the earlier plan lines, so a
+prompt rule cannot show the model the conflicting ingredient. A rule that tried
+failed F04 in 5 of 5 live checks and was removed. The owner decides between two
+options: align the F04 gold with the diet-conflict rule from #388, or pass the
+earlier plan's ingredient ids into follow-up context.
