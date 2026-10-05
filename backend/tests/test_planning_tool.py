@@ -61,6 +61,26 @@ def test_planner_tool_spec_uses_grocery_request_schema_bounds() -> None:
     assert isinstance(input_schema, dict)
     schema = GroceryRequest.model_json_schema()
     assert input_schema["json"] == schema
+    properties = schema["properties"]
+    for field in (
+        "meals",
+        "budget_period",
+        "plan_cap_cents",
+        "pantry_ingredients",
+        "ingredient_exclusions",
+        "diet",
+    ):
+        description = properties[field]["description"]
+        assert isinstance(description, str)
+        assert description.strip()
+    meal_properties = schema["$defs"]["MealRequest"]["properties"]
+    for field in ("recipe_id", "servings"):
+        description = meal_properties[field]["description"]
+        assert isinstance(description, str)
+        assert description.strip()
+    description = tool_spec["description"]
+    assert isinstance(description, str)
+    assert "does not purchase items" in description
     meals = schema["properties"]["meals"]
     assert meals["minItems"] == 1
     assert meals["maxItems"] == 3
@@ -68,6 +88,26 @@ def test_planner_tool_spec_uses_grocery_request_schema_bounds() -> None:
     assert servings["minimum"] == 1
     assert servings["maximum"] == 8
     json.dumps(spec)
+
+
+def test_grocery_request_dump_is_unchanged_by_schema_descriptions() -> None:
+    request = GroceryRequest.model_validate(arguments())
+    assert request.model_dump() == {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
+        "budget_period": PERIOD,
+        "plan_cap_cents": None,
+        "pantry_ingredients": [],
+        "ingredient_exclusions": [],
+        "diet": "omnivore",
+    }
+    assert request.model_dump(mode="json") == {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
+        "budget_period": "2026-09-01",
+        "plan_cap_cents": None,
+        "pantry_ingredients": [],
+        "ingredient_exclusions": [],
+        "diet": "omnivore",
+    }
 
 
 def test_model_cap_cannot_increase_available() -> None:

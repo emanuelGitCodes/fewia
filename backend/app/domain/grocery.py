@@ -55,8 +55,10 @@ SAMPLE_ESTIMATE_NOTICE = (
 class MealRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    recipe_id: StrictStr
-    servings: StrictInt = Field(ge=1, le=8)
+    recipe_id: StrictStr = Field(description="A supported catalog recipe ID.")
+    servings: StrictInt = Field(
+        ge=1, le=8, description="Servings for this meal, 1 to 8."
+    )
 
     @field_validator("recipe_id")
     @classmethod
@@ -69,12 +71,39 @@ class MealRequest(BaseModel):
 class GroceryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    meals: list[MealRequest] = Field(min_length=1, max_length=3)
-    budget_period: date
-    plan_cap_cents: StrictInt | None = Field(default=None, ge=0)
-    pantry_ingredients: list[StrictStr] = Field(default_factory=list)
-    ingredient_exclusions: list[StrictStr] = Field(default_factory=list)
-    diet: Diet = "omnivore"
+    meals: list[MealRequest] = Field(
+        min_length=1,
+        max_length=3,
+        description=("One to three supported catalog meals with servings from 1 to 8."),
+    )
+    budget_period: date = Field(
+        description=(
+            "First day of the budget month, YYYY-MM-DD, as the server reports it."
+        )
+    )
+    plan_cap_cents: StrictInt | None = Field(
+        default=None,
+        ge=0,
+        description=("Server plan cap in cents. Keep it or lower it. Never raise it."),
+    )
+    pantry_ingredients: list[StrictStr] = Field(
+        default_factory=list,
+        description=(
+            "Catalog ingredient IDs the user already owns. They cost "
+            "nothing in the plan."
+        ),
+    )
+    ingredient_exclusions: list[StrictStr] = Field(
+        default_factory=list,
+        description=(
+            "Catalog ingredient IDs the user excludes, or a restriction "
+            "term exactly as the user wrote it."
+        ),
+    )
+    diet: Diet = Field(
+        default="omnivore",
+        description="Diet the plan must satisfy: omnivore, vegetarian, or vegan.",
+    )
 
     @field_validator("budget_period")
     @classmethod
