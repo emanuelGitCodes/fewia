@@ -43,8 +43,10 @@ def planner_tool_spec() -> dict[str, object]:
         "toolSpec": {
             "name": TOOL_NAME,
             "description": (
-                "Plan supported meals against the server budget. "
-                "The tool does not purchase items."
+                "Plan supported catalog meals against the server budget. "
+                "Call it for every catalog meal request, including a diet "
+                "conflict or a cap question. The tool reports the result or a "
+                "typed error. The tool does not purchase items."
             ),
             "inputSchema": {
                 "json": cast(dict[str, object], GroceryRequest.model_json_schema()),
