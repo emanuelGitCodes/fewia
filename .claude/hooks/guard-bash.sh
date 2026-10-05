@@ -22,7 +22,7 @@ grep -Eq 'rm\s+(-[a-zA-Z]+\s+)*[^ ]*\.fewia-supervisor' <<<"$cmd" \
   && deny "Never delete .fewia-supervisor-* dirs. A stale lease blocks the next writer run; clear it through dev_supervisor."
 grep -Eq 'git\s+push\b.*(\s--force\b|\s-f\b|\s--force-with-lease\b)' <<<"$cmd" \
   && deny "Force push is blocked. Open a new branch or ask the user."
-grep -Eq 'git\s+push\b.*\s(origin\s+)?(main|HEAD:main)(\s|$)' <<<"$cmd" \
+grep -Eq 'git\s+push\b.*(^|[[:space:]:/])main([[:space:]]|$)' <<<"$cmd" \
   && deny "AGENTS.md: agents MUST NOT push to main."
 grep -Eq 'git\s+push\b|gh\s+pr\s+(create|merge|edit|close|ready)\b|gh\s+api\b.*-X\s*(POST|PATCH|PUT|DELETE)|git\s+merge\b' <<<"$cmd" \
   && ask "External write. CLAUDE.md requires user confirmation for pushes, pull requests, and merges."

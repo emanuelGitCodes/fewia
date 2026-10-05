@@ -10,7 +10,9 @@ input="$(cat)"
 path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input")"
 [ -z "$path" ] && exit 0
 
-root="${CLAUDE_PROJECT_DIR:-$PWD}"
+root="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" && pwd -P)"
+# Collapse `..` and `.` so a path cannot step back into the repository.
+path="$(python3 -c 'import os, sys; print(os.path.normpath(sys.argv[1]))' "$path")"
 case "$path" in
   "$root"/*) rel="${path#"$root"/}" ;;
   /*) exit 0 ;;
