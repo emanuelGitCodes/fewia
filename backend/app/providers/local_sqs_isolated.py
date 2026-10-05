@@ -13,6 +13,8 @@ from app.providers.local_sqs_consumer import LocalSqsConsumer, _normalize_queue_
 class IsolatedSqsClient(Protocol):
     def create_queue(self, *, QueueName: str) -> dict[str, object]: ...
 
+    def get_queue_url(self, *, QueueName: str) -> dict[str, object]: ...
+
     def delete_queue(self, *, QueueUrl: str) -> object: ...
 
 
@@ -46,6 +48,18 @@ class IsolatedLocalQueue:
             else None
         )
         if normalized is None:
+            try:
+                lookup = self._client.get_queue_url(QueueName=self.name)
+                lookup_url = lookup.get("QueueUrl")
+                lookup_normalized = (
+                    _normalize_queue_url(lookup_url, endpoint_url, self.name)
+                    if isinstance(lookup_url, str)
+                    else None
+                )
+                if lookup_normalized is not None:
+                    self._client.delete_queue(QueueUrl=lookup_normalized)
+            except Exception:
+                pass
             raise RuntimeError("SQS queue URL response is invalid")
         self._queue_url = normalized
         self._closed = False

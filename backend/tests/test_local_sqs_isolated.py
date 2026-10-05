@@ -113,6 +113,64 @@ def test_create_queue_foreign_origin_is_rejected(
     client.delete_queue.assert_not_called()
 
 
+def test_invalid_create_queue_url_deletes_via_get_queue_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+    client.create_queue.return_value = {
+        "QueueUrl": f"{_ENDPOINT}/000000000000/fewia-agent"
+    }
+
+    def get_queue_url(*, QueueName: str) -> dict[str, str]:
+        return {"QueueUrl": f"http://localhost:4566/000000000000/{QueueName}"}
+
+    client.get_queue_url.side_effect = get_queue_url
+    _patch_sessions(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="SQS queue URL response is invalid"):
+        IsolatedLocalQueue(_ENDPOINT)
+
+    name = client.get_queue_url.call_args.kwargs["QueueName"]
+    client.get_queue_url.assert_called_once_with(QueueName=name)
+    client.delete_queue.assert_called_once_with(
+        QueueUrl=f"{_ENDPOINT}/000000000000/{name}"
+    )
+
+
+def test_invalid_create_and_get_queue_url_skips_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+    client.create_queue.return_value = {
+        "QueueUrl": f"{_ENDPOINT}/000000000000/fewia-agent"
+    }
+    client.get_queue_url.return_value = {
+        "QueueUrl": f"{_ENDPOINT}/000000000000/fewia-agent"
+    }
+    _patch_sessions(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="SQS queue URL response is invalid"):
+        IsolatedLocalQueue(_ENDPOINT)
+
+    client.delete_queue.assert_not_called()
+
+
+def test_get_queue_url_error_does_not_replace_invalid_url_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+    client.create_queue.return_value = {
+        "QueueUrl": f"{_ENDPOINT}/000000000000/fewia-agent"
+    }
+    client.get_queue_url.side_effect = RuntimeError("lookup-failed")
+    _patch_sessions(monkeypatch, client)
+
+    with pytest.raises(RuntimeError, match="SQS queue URL response is invalid"):
+        IsolatedLocalQueue(_ENDPOINT)
+
+    client.delete_queue.assert_not_called()
+
+
 def test_close_deletes_normalized_endpoint_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
