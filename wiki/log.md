@@ -3752,3 +3752,19 @@ prompt rule cannot show the model the conflicting ingredient. A rule that tried
 failed F04 in 5 of 5 live checks and was removed. The owner decides between two
 options: align the F04 gold with the diet-conflict rule from #388, or pass the
 earlier plan's ingredient ids into follow-up context.
+
+## 2026-10-06 — Edit guard allows writers and denies worktree code
+
+Grok writers that `dev_supervisor` starts load the project hooks in
+`.claude/settings.json`. `guard-senior-edits.sh` denied their code edits, so
+Grok runs ended as `no_edits` or `task_failed` (loop `followups-20261006`).
+`dev_supervisor.process.attempt()` now starts every writer with
+`FEWIA_WRITER=1`, and the hook allows an edit when that value is `1`. A probe
+showed that a Grok hook process receives the writer process environment.
+
+The hook also judges a path under `.claude/worktrees/<name>/` by its path
+inside that worktree. A senior edit to code in a worktree is now denied.
+
+An end-to-end Grok run with the real hook confirmed both outcomes: without the
+variable the edit is denied, and with it the edit is written. The hook has no
+checked-in regression test yet.
