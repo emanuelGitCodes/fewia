@@ -14,12 +14,13 @@ if [ -z "$merge" ]; then
   jq -n --arg b "$base" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("Cannot resolve the base ref " + $b + ", so the 150-line cap cannot be checked. Fetch it or pass --base.")}}'
   exit 0
 fi
-lines="$(git -C "$dir" diff --numstat "$merge" | awk -F'\t' '
+# The pull request carries HEAD, so measure the committed diff.
+lines="$(git -C "$dir" diff --numstat "$merge" HEAD | awk -F'\t' '
   $1 != "-" \
   && $3 !~ /(^|\/)(test|tests|spec|__tests__|vendor|dist|build|node_modules)\// \
   && $3 !~ /(^|\/)test_[^\/]*\.py$/ \
   && $3 !~ /\.(test|spec)\.[tj]sx?$/ \
-  && $3 !~ /\.(md|txt|lock|snap)$/ \
+  && $3 !~ /\.(md|mdx|rst|adoc|txt|lock|snap)$/ \
   && $3 !~ /-lock\.json$/ \
   {s+=$1} END {print s+0}')"
 
