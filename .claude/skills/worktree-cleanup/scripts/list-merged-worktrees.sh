@@ -11,10 +11,13 @@ include_dirty=0
 main_path="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 here="$(pwd -P)"
 
+# Porcelain output is one block per worktree, blank-line separated. A
+# detached worktree has no `branch` line and prints nothing.
 git worktree list --porcelain | awk '
-  /^worktree / { path = substr($0, 10) }
-  /^branch /   { print path "\t" substr($0, 19) }
-  /^detached/  { path = "" }
+  /^worktree / { path = substr($0, 10); branch = "" }
+  /^branch /   { branch = substr($0, 19) }
+  /^$/         { if (path != "" && branch != "") print path "\t" branch; path = ""; branch = "" }
+  END          { if (path != "" && branch != "") print path "\t" branch }
 ' | while IFS=$'\t' read -r path branch; do
   [ -z "$path" ] && continue
   [ "$path" = "$main_path" ] && continue
