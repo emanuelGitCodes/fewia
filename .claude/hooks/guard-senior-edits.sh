@@ -11,12 +11,13 @@ path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"
 [ -z "$path" ] && exit 0
 
 root="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" && pwd -P)"
-# Collapse `..` and `.` so a path cannot step back into the repository.
+# A relative path is relative to the project root. Collapse `..` and `.`
+# so a path cannot step back into the repository.
+case "$path" in /*) ;; *) path="$root/$path" ;; esac
 path="$(python3 -c 'import os, sys; print(os.path.normpath(sys.argv[1]))' "$path")"
 case "$path" in
   "$root"/*) rel="${path#"$root"/}" ;;
-  /*) exit 0 ;;
-  *) rel="$path" ;;
+  *) exit 0 ;;
 esac
 
 case "$rel" in
