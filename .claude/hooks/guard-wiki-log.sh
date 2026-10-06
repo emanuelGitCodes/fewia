@@ -7,7 +7,9 @@ set -euo pipefail
 
 input="$(cat)"
 path="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
-case "$path" in */wiki/log.md|wiki/log.md) ;; *) exit 0 ;; esac
+root="${CLAUDE_PROJECT_DIR:-$PWD}"
+case "$path" in /*) ;; "") exit 0 ;; *) path="$root/$path" ;; esac
+case "$path" in */wiki/log.md) ;; *) exit 0 ;; esac
 [ -f "$path" ] || exit 0
 
 deny() {
