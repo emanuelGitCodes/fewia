@@ -4,9 +4,11 @@
 # infrastructure code. It MAY edit prose, the wiki, and agent configuration.
 # Every path inside the repository is denied unless it is on the allow list.
 # A path outside the repository, such as the scratchpad, is allowed.
+# A writer that dev_supervisor starts has FEWIA_WRITER=1 and is allowed.
 set -euo pipefail
 
 input="$(cat)"
+[ "${FEWIA_WRITER:-}" = 1 ] && exit 0
 path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input")"
 [ -z "$path" ] && exit 0
 
@@ -20,7 +22,14 @@ case "$path" in
   *) exit 0 ;;
 esac
 
-case "$rel" in
+# A worktree under .claude/worktrees/ holds a full checkout. Judge a path
+# in a worktree by its path relative to that worktree.
+check="$rel"
+while [[ "$check" == .claude/worktrees/*/* ]]; do
+  check="${check#.claude/worktrees/*/}"
+done
+
+case "$check" in
   *.md|*.txt|.claude/*|.codex/*|.opencode/*|.agents/*|wiki/*|docs/*|plans/*|runbooks/*)
     exit 0 ;;
 esac
