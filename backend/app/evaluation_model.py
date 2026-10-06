@@ -3,7 +3,7 @@ from types import TracebackType
 from typing import Literal, cast
 
 from app.agent import chat_loop
-from app.agent.chat_context import MAX_HISTORY, _public_text
+from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
 from app.agent.provider import LLMProvider
 from app.domain.catalog import CATALOG_VERSION
 from app.evaluation_adversarial import (
@@ -84,6 +84,7 @@ def observe_model_case(
     )
     history: list[dict[str, str]] = []
     previous: dict[str, object] | None = None
+    previous_ingredient_ids: list[str] | None = None
     store: EvaluationEvidence | None = None
     with _EvidenceErrorBoundary() as evidence:
         store = EvaluationEvidence(context)
@@ -98,6 +99,7 @@ def observe_model_case(
                     markers=markers,
                     history=history,
                     previous_request=previous,
+                    previous_ingredient_ids=previous_ingredient_ids,
                     record_evidence=store.record,
                 )
                 turns.append(turn)
@@ -108,6 +110,9 @@ def observe_model_case(
                 if result is None:
                     break
                 result = cast(dict[str, object], result)
+                ingredient_ids = plan_ingredient_ids(result.get("plan"))
+                if ingredient_ids is not None:
+                    previous_ingredient_ids = ingredient_ids
                 request, answer = result.get("request"), result.get("answer")
                 if isinstance(request, dict):
                     previous = request

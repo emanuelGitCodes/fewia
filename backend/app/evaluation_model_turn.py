@@ -41,6 +41,7 @@ def observe_model_turn(
     history: list[dict[str, str]],
     previous_request: dict[str, object] | None,
     record_evidence: Callable[[dict[str, object]], str],
+    previous_ingredient_ids: list[str] | None = None,
 ) -> dict[str, object]:
     """Observe one production chat turn with sanitized public evidence."""
     started = perf_counter()
@@ -70,6 +71,7 @@ def observe_model_turn(
         "message": message,
         "history": history,
         "previous_request": previous_request,
+        "previous_ingredient_ids": previous_ingredient_ids,
     }
     try:
         leaked_inputs = capture._leaks(inputs, set())
@@ -88,6 +90,7 @@ def observe_model_turn(
                         user_id=context.user_id,
                         spending_source="fixture",
                         previous_request=previous_request,
+                        previous_ingredient_ids=previous_ingredient_ids,
                         history=history or None,
                         record_evidence=record,
                         plan_cap_cents=context.plan_cap_cents,

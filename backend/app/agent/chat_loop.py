@@ -151,6 +151,7 @@ def run_chat(
     user_id: int = 1,
     spending_source: SpendingSource = "fixture",
     previous_request: dict[str, object] | None = None,
+    previous_ingredient_ids: list[str] | None = None,
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
     plan_cap_cents: int | None = None,
@@ -162,6 +163,7 @@ def run_chat(
         user_id=user_id,
         spending_source=spending_source,
         previous_request=previous_request,
+        previous_ingredient_ids=previous_ingredient_ids,
         history=history,
         plan_cap_cents=plan_cap_cents,
     )

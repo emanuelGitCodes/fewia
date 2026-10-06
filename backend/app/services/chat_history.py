@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
+from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN, plan_ingredient_ids
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_job import ChatHistoryTurn
@@ -122,11 +122,11 @@ def load_chat_context(
     session: Session,
     user_id: int,
     previous_job_id: str | UUID | None,
-) -> tuple[list[dict[str, str]], dict[str, object] | None]:
+) -> tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None]:
     if type(user_id) is not int or user_id < 1:
         _fail()
     if previous_job_id is None:
-        return [], None
+        return [], None, None
     job = session.scalar(
         select(Job).where(
             Job.id == str(previous_job_id),
@@ -138,8 +138,10 @@ def load_chat_context(
         _fail()
     payload = _mapping(job.payload)
     result = _mapping(job.result)
+    ingredient_ids = plan_ingredient_ids(result.get("plan"))
     if payload.get("operation") == "chat":
-        return _chat_context(payload, result)
+        history, previous = _chat_context(payload, result)
+        return history, previous, ingredient_ids
     if "operation" in payload:
         _fail()
-    return [], _previous_request(result, payload, chat=False)
+    return [], _previous_request(result, payload, chat=False), ingredient_ids
