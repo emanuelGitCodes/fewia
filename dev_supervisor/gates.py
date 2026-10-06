@@ -211,7 +211,7 @@ def format_output(results: list[GateRow], lines: int, areas: set[str]) -> str:
         if status == "FAIL":
             chunks.extend(f"  {line}" for line in tail)
     failed = any(status == "FAIL" for _, _, status, _, _ in results)
-    chunks += [f"LINES {lines}/150", "RESULT FAIL" if failed else "RESULT PASS"]
+    chunks += [f"LINES {lines}/1000", "RESULT FAIL" if failed else "RESULT PASS"]
     return "\n".join(chunks) + "\n"
 
 
