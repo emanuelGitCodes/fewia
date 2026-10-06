@@ -27,6 +27,8 @@ The skill in `.claude/skills/feature-loop/` holds the Claude Code mechanics.
 
 ## Claude Code specifics
 
+- [.claude/README.md](.claude/README.md) maps the folder: settings, hooks,
+  agents, skills, ledgers, and worktrees. Hooks enforce the rules below.
 - The juniors in `.claude/agents/` are thin adapters over
   `.codex/agents/<role>.toml`. They follow `docs/delegation/junior.md`.
 - For tier L, the senior runs the probes in `docs/delegation/reviewer.md`
