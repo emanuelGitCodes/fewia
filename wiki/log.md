@@ -3752,3 +3752,12 @@ prompt rule cannot show the model the conflicting ingredient. A rule that tried
 failed F04 in 5 of 5 live checks and was removed. The owner decides between two
 options: align the F04 gold with the diet-conflict rule from #388, or pass the
 earlier plan's ingredient ids into follow-up context.
+
+## 2026-10-06 — Pull request cap raised to 1000 code lines
+
+The owner raised the pull request cap from 150 to 1000 added code lines
+because GitHub Actions is out of minutes. `AGENTS.md`, `CLAUDE.md`,
+`docs/DELEGATION.md`, the delegation brief and junior pages, `.codex/TEAM.md`,
+the `.codex/agents/` definitions, and the backlog now state 1000. Tests, docs,
+lockfiles, and generated files still do not count. The gates print
+`LINES n/150` and do not fail on the count; that display is unchanged.

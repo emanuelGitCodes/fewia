@@ -56,5 +56,5 @@ cd frontend && npm run lint && npm test && npm run build
 ## Definition of done
 
 A work item is done when its diff matches the brief, its added code lines are
-150 or fewer, the gates pass in the senior's own run, and the review command
+1000 or fewer, the gates pass in the senior's own run, and the review command
 returns `APPROVE` on the head SHA.

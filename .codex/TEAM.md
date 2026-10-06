@@ -63,7 +63,7 @@ With four session slots, use at most three workers alongside the coordinator.
 Spawn only for concrete independent tasks. Use explicit bases and integration
 order for worktrees. Child agents MUST NOT switch branches in a shared checkout.
 
-Each code PR MUST stay within 150 added source lines. Tests and docs do not
+Each code PR MUST stay within 1000 added source lines. Tests and docs do not
 count. Include tests with each behavior change. Agents MUST NOT push to main.
 Writers and juniors MUST NOT merge; a coordinator merges only with explicit
 user authorization for that stack. Other publication follows user authorization. Preserve old migrations

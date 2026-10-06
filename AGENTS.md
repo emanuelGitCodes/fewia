@@ -51,7 +51,7 @@ Juniors and writers read only the files their brief names.
 - All Python MUST carry type annotations. `uv run mypy --strict app`
   MUST pass.
 - `uv run ruff check` and `uv run ruff format --check` MUST pass.
-- A pull request MUST NOT add more than 150 lines of code. Tests, docs,
+- A pull request MUST NOT add more than 1000 lines of code. Tests, docs,
   lockfiles, and generated files do not count. A larger change ships as
   a stack with the merge order in each PR body.
 - Work on a branch. Agents MUST NOT push to `main`. Writers and juniors

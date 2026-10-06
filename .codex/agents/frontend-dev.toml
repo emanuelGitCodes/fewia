@@ -41,4 +41,4 @@ Rules:
 - Preserve evidence labels and warnings returned by the backend.
 - Do not change backend, worker, infrastructure, evaluation, docs, or wiki
   files.
-- Keep each change inside one PR of 150 added code lines maximum."""
+- Keep each change inside one PR of 1000 added code lines maximum."""
