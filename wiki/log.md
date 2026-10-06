@@ -3766,5 +3766,5 @@ The hook also judges a path under `.claude/worktrees/<name>/` by its path
 inside that worktree. A senior edit to code in a worktree is now denied.
 
 An end-to-end Grok run with the real hook confirmed both outcomes: without the
-variable the edit is denied, and with it the edit is written. The hook has no
-checked-in regression test yet.
+variable the edit is denied, and with it the edit is written.
+`tests/supervisor/test_edit_guard.py` checks 16 hook decisions.
