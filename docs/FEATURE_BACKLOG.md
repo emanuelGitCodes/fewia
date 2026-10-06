@@ -23,9 +23,10 @@ Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 
 ## Rules for the writer
 
-- One pull request per item. A pull request MUST NOT add more than 150
-  code lines. Tests and docs do not count. Split a larger item into a stack
-  and name the parent in each body.
+- One pull request per item. A pull request MUST NOT add more than 1000
+  code lines. Tests and docs do not count. The owner raised the cap from 150
+  on 2026-10-06 because GitHub Actions is out of minutes. Split a larger
+  item into a stack and name the parent in each body.
 - Base independent branches on `main`. Base each stacked child on its parent.
   Writers MUST NOT merge. The coordinator needs explicit merge authorization.
 - The coordinator or junior runs the gates before reporting:
