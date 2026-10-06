@@ -3752,3 +3752,29 @@ prompt rule cannot show the model the conflicting ingredient. A rule that tried
 failed F04 in 5 of 5 live checks and was removed. The owner decides between two
 options: align the F04 gold with the diet-conflict rule from #388, or pass the
 earlier plan's ingredient ids into follow-up context.
+
+## 2026-10-06 — G2 option B and the gates LINES label (#407, #408)
+
+The owner chose option B for F04. #408 passes the sorted catalog ingredient ids
+of the earlier plan into the follow-up model context. The context key is
+`previous_ingredient_ids`. The server reads the ids from the previous job's
+plan; the client cannot send them. The evaluation path carries the ids across
+turns. #407 changes the gates output from `LINES n/150` to `LINES n/1000`.
+
+Both items are independent and target `main`. Gates passed on each head. The
+review command returned `APPROVE` on `b06f8e0` (#408) and `0b20bee` (#407). The
+live F04 check did not run; G3 measures it.
+
+The owner asked for `grok-4.6` writers. The Grok CLI loads the project hooks in
+`.claude/settings.json`, and `guard-senior-edits.sh` denied every Grok edit.
+Item 02 recorded the denial. Item 01 ended `task_failed` with no edits. The
+owner switched to Codex writers: `gpt-6.1-sol` `medium` for #408 and
+`gpt-6-luna` `xhigh` for #407. A separate task makes the hook exempt writer
+sessions.
+
+Through the API, a follow-up after a turn with no plan sends
+`previous_ingredient_ids` as null. The evaluation path keeps the last known ids.
+F04 is not affected.
+
+Loop tokens: writers 2.63M input and 33k output, of which about 0.93M input was
+the failed Grok run. Reviews 310k input and 2.3k output. Juniors about 123k.
