@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PreToolUse hook for Edit, Write, MultiEdit, and NotebookEdit.
+# PreToolUse hook for Edit, Write, MultiEdit, NotebookEdit, and Codex
+# apply_patch.
 # Rule: the senior session MUST NOT write application, test, or
 # infrastructure code. It MAY edit prose, the wiki, and agent configuration.
 # Every path in a checkout of the repository is denied unless it is on the
@@ -11,49 +12,29 @@ set -euo pipefail
 
 input="$(cat)"
 [ "${FEWIA_WRITER:-}" = 1 ] && exit 0
-path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input")"
-[ -z "$path" ] && exit 0
 
 root="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" && pwd -P)"
-# A relative path is relative to the project root. Resolve `..`, `.`, and
-# symbolic links so a path cannot step back into a checkout. The deepest
-# checkout that holds the path sets the relative path.
-case "$path" in /*) ;; *) path="$root/$path" ;; esac
-rel="$(python3 -c '
-import os, subprocess, sys
-path = os.path.realpath(sys.argv[1])
-root = sys.argv[2]
-try:
-    result = subprocess.run(
-        ["git", "-C", root, "worktree", "list", "--porcelain", "-z"],
-        capture_output=True, text=True,
-    )
-    listing = result.stdout if result.returncode == 0 else ""
-except OSError:
-    listing = ""
-tops = [root] + [f[9:] for f in listing.split("\0") if f.startswith("worktree ")]
-best = ""
-for top in tops:
-    top = os.path.realpath(top)
-    if path.startswith(top + os.sep) and len(top) > len(best):
-        best = top
-print(os.path.relpath(path, best) if best else "")
-' "$path" "$root")"
-[ -z "$rel" ] && exit 0
+# edit-targets.py lists every file the call writes, relative to the deepest
+# checkout that holds it. A patch can write several files.
+rels="$(python3 "$(dirname "$0")/edit-targets.py" --relative "$root" <<<"$input")"
 
-# A worktree under .claude/worktrees/ holds a full checkout. Judge a path
-# in a worktree by its path relative to that worktree.
-check="$rel"
-while [[ "$check" == .claude/worktrees/*/* ]]; do
-  check="${check#.claude/worktrees/*/}"
-done
+denied=""
+while IFS= read -r -d '' rel; do
+  # A worktree under .claude/worktrees/ holds a full checkout. Judge a path
+  # in a worktree by its path relative to that worktree.
+  check="$rel"
+  while [[ "$check" == .claude/worktrees/*/* ]]; do
+    check="${check#.claude/worktrees/*/}"
+  done
+  case "$check" in
+    *.md|*.txt|.claude/*|.codex/*|.opencode/*|.agents/*|wiki/*|docs/*|plans/*|runbooks/*) ;;
+    *) denied="${denied:+$denied, }$rel" ;;
+  esac
+done < <(jq -j '.[] + "\u0000"' <<<"$rels")
 
-case "$check" in
-  *.md|*.txt|.claude/*|.codex/*|.opencode/*|.agents/*|wiki/*|docs/*|plans/*|runbooks/*)
-    exit 0 ;;
-esac
+[ -z "$denied" ] && exit 0
 
-jq -n --arg p "$rel" '{
+jq -n --arg p "$denied" '{
   hookSpecificOutput: {
     hookEventName: "PreToolUse",
     permissionDecision: "deny",
