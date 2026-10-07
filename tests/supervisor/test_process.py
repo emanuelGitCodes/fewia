@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import selectors
@@ -178,6 +179,63 @@ def test_stop_escalates_for_group_ignoring_sigterm() -> None:
     assert sent == [(signal.SIGTERM, 0.0), (signal.SIGKILL, 2.0)]
     assert elapsed <= 4
     process.wait.assert_called_once_with(timeout=2.0)
+
+
+def test_stop_retries_transient_permission_error() -> None:
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+    )
+    real_killpg = os.killpg
+    raised = False
+
+    def killpg(pid: int, sig: int) -> None:
+        nonlocal raised
+        if sig == 0 and not raised:
+            raised = True
+            raise PermissionError(errno.EPERM, "operation not permitted")
+        real_killpg(pid, sig)
+
+    try:
+        with patch("dev_supervisor.process.os.killpg", side_effect=killpg):
+            assert stop(process)
+        assert raised
+        assert process.returncode is not None
+    finally:
+        if process.poll() is None:
+            try:
+                real_killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
+
+
+def test_stop_ignores_permission_error_on_signal() -> None:
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+    )
+    real_killpg = os.killpg
+    raised = False
+
+    def killpg(pid: int, sig: int) -> None:
+        nonlocal raised
+        if sig == signal.SIGTERM and not raised:
+            raised = True
+            raise PermissionError(errno.EPERM, "operation not permitted")
+        real_killpg(pid, sig)
+
+    try:
+        with patch("dev_supervisor.process.os.killpg", side_effect=killpg):
+            assert stop(process)
+        assert raised
+    finally:
+        if process.poll() is None:
+            try:
+                real_killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
 
 
 def test_launching_marker_before_popen(tmp_path: Path) -> None:
