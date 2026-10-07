@@ -3807,3 +3807,15 @@ rule: one hook set in `.claude/hooks/` serves Claude Code, Grok, and Codex, and
 `FEWIA_WRITER=1` exempts `dev_supervisor` writers. CI did not run on these pull
 requests because GitHub Actions jobs did not start (account billing). The merges
 rest on the local gates and the review command.
+
+## 2026-10-07 — Durable jobs runbook matches the worker
+
+`runbooks/durable-jobs.md` still listed message consumption, visibility
+renewal, duplicate handling, and dead-letter policy as future work. The worker
+in `backend/app/worker.py` and `backend/app/services/job_consumer.py` already
+does all of it. The runbook now describes how to run the worker, the stale-job
+recovery pass, and how the database lease and the SQS visibility timeout share
+failure handling: a 15-second heartbeat renews the lease and then extends
+visibility by 120 seconds, and a lost lease leaves the message for redelivery.
+A graph trace of the SQS policy and the job leases found the gap; the graph had
+only an inferred similarity edge between them.
