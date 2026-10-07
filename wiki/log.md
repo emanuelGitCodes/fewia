@@ -3874,3 +3874,14 @@ F04 is not affected.
 
 Loop tokens: writers 2.63M input and 33k output, of which about 0.93M input was
 the failed Grok run. Reviews 310k input and 2.3k output. Juniors about 123k.
+
+## 2026-10-07 — AGENTS.md writer order matches the writer ladder
+
+`AGENTS.md` gave "Grok 4.6, Codex Spark, then Luna" as the default writer
+order, but `docs/DELEGATION.md` and `.codex/TEAM.md` say Spark MUST NOT write
+code. The order is the supervisor's built-in `DEFAULTS` in
+`dev_supervisor/policy.py`, which applies only when a run names no model.
+`AGENTS.md` now states that every writer run passes
+`--only --model MODEL --effort LEVEL` with a ladder rung, that Spark does not
+write code, and that writers do not rely on the built-in order. The graph
+update found the conflict. The code default is unchanged.
