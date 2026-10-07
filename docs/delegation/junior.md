@@ -81,7 +81,7 @@ WORKTREE: <absolute path>
 WRITER: <model> effort=<effort> outcome=<outcome> runs=<n>
 FILES: <paths>
 GATES: <the RESULT line and each FAIL line from dev_supervisor.gates>
-LINES: <n>/150
+LINES: <n>/1000
 TESTS ADDED: <names>
 DEVIATIONS: none | <one line each>
 QUESTIONS: none | <one line each>

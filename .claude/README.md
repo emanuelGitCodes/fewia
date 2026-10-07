@@ -54,7 +54,7 @@ A hook receives one JSON object on stdin. It answers on stdout.
 |---|---|---|---|
 | `guard-senior-edits.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit`; Codex `apply_patch` | The senior MUST NOT write code. Every path in a checkout of the repository is denied except prose, `wiki/`, `docs/`, and agent config. A writer with `FEWIA_WRITER=1` is allowed. |
 | `guard-bash.sh` | `PreToolUse` | `Bash` | Deny a gitleaks skip, supervisor dir deletion, force push, push to main. Ask on push, PR, merge; deny them under Codex. |
-| `check-pr-size.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A PR MUST NOT add more than 150 code lines. |
+| `check-pr-size.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A PR MUST NOT add more than 1000 code lines. |
 | `check-pr-done.sh` | `PreToolUse` | `Bash`, only `gh pr create` | HEAD needs a clean gates record and an `APPROVE` review in `.fewia-supervisor-*`. |
 | `check-agents-pr.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A `.claude/agents/` change ships alone and links a wiki page. |
 | `guard-wiki-log.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit`; Codex `apply_patch`; on `wiki/log.md` | The log is append-only. |

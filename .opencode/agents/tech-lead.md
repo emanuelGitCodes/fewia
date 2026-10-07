@@ -45,7 +45,7 @@ Child workers MUST NOT switch branches in a shared checkout.
 Serialize writes to shared files. Preserve other edits.
 
 Native OpenCode has no implicit worktree isolation.
-Keep each code PR within 150 added source lines.
+Keep each code PR within 1000 added source lines.
 
 Arrange independent Codex or Grok review with read-only ownership.
 You MUST NOT push to `main`. You merge only with explicit user

@@ -33,7 +33,7 @@ OUT OF SCOPE:
 - <what the writer MUST NOT do>
 
 GATES: dev_supervisor.gates --base <base>, plus <extra command, if any>
-CAP: 150 added code lines. Tests and docs do not count.
+CAP: 1000 added code lines. Tests and docs do not count.
 PROTOCOL: docs/delegation/junior.md
 ```
 

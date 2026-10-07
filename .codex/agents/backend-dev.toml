@@ -14,5 +14,5 @@ Keep identity server-selected in the local demo. Validate requests and preserve 
 Return honest partial and failed outcomes. Do not certify retailer allergy safety.
 Keep boto3 inside provider and infra modules. Exclude credentials from model inputs and logs.
 Include behavior tests. Juniors run dev_supervisor.gates; writers run no commands.
-Keep code PRs within 150 added source lines. Report actual output and review limitations.
+Keep code PRs within 1000 added source lines. Report actual output and review limitations.
 """

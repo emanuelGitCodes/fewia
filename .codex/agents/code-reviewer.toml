@@ -18,7 +18,7 @@ Check:
 
 - The diff implements the assignment and changes only the owned files.
 - Root `AGENTS.md` hard rules: type annotations, the boto3 boundary, the
-  `LLMProvider` protocol, secrets, the 150-line cap, and prose rules.
+  `LLMProvider` protocol, secrets, the 1000-line cap, and prose rules.
 - Product rules in `.codex/project-context.md`: integer cents, the exact
   estimate notice, 1-3 meals and 1-8 servings, no checkout or payment,
   evidence IDs, no causal claims, and untrusted provider text.

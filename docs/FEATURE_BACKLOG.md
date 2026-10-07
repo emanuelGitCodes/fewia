@@ -1,16 +1,18 @@
 # FEWIA feature backlog
 
 This document records the feature backlog and its state on `main` at
-`6cad8f4` (2026-10-05, after #384 to #396). The historical built-feature
-table keeps the earlier snapshot. The merged-work tables record merged work
-and the [benchmark evidence](../wiki/phases/benchmark-20261003.md).
+`868c549` (2026-10-06, after #384 to #400). The historical built-feature
+table keeps the earlier snapshot. The merged-work tables record merged work,
+the [first benchmark](../wiki/phases/benchmark-20261003.md), and the
+[fresh benchmark](../wiki/phases/benchmark-20261005.md) of 2026-10-05.
 A merge does not imply deployment or release certification.
 The senior coordinator verifies each item after the writer reports.
 
 The [integrity check](../wiki/phases/integrity-20261004.md) of 2026-10-04
 exercised every merged subsystem on the local stack. Its follow-up loop
-merged #384 to #390 the same day. The open findings from that check are the
-new work items in Part 2. The [final record](../wiki/phases/backlog-final-20261003.md)
+merged #384 to #390 the same day. Its findings merged as E1 to E4 in #392
+to #395. The fresh benchmark of 2026-10-05 (#398) measured the fixes. Its
+eight failed slots are the new work items in Part 2, Tier G. The [final record](../wiki/phases/backlog-final-20261003.md)
 and the [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md) are
 dated checkpoints from before the merges.
 
@@ -21,9 +23,10 @@ Sources: `PRODUCT.md`, `.codex/project-context.md`, `project-plan.md`,
 
 ## Rules for the writer
 
-- One pull request per item. A pull request MUST NOT add more than 150
-  code lines. Tests and docs do not count. Split a larger item into a stack
-  and name the parent in each body.
+- One pull request per item. A pull request MUST NOT add more than 1000
+  code lines. Tests and docs do not count. The owner raised the cap from 150
+  on 2026-10-06 because GitHub Actions is out of minutes. Split a larger
+  item into a stack and name the parent in each body.
 - Base independent branches on `main`. Base each stacked child on its parent.
   Writers MUST NOT merge. The coordinator needs explicit merge authorization.
 - The coordinator or junior runs the gates before reporting:
@@ -52,7 +55,7 @@ catalog coverage. Retired health and activity planning remains historical.
 | Area | What exists | Evidence |
 |---|---|---|
 | Local stack | React and TypeScript chat, FastAPI, PostgreSQL, worker, Floci SQS and S3, nginx, in Docker Compose. 7 migrations. 13 routes across 6 routers plus `/healthz`, every route tested. The web container runs as the unprivileged nginx user on port 8080. | `docker compose up -d`; local gates green on `main` at `b21a854` per the integrity page: backend 9074, hosting 1778, frontend 492, tooling 359; GitHub CI blocked by Actions billing since 2026-10-04 |
-| Chat loop | Bedrock `LLMProvider` with tool calling, 8 model turns and 3 planner revisions per job, refusal parser, typed unsupported-diet, unsupported-ingredient, and `diet_conflict` errors, read-only `get_budget_summary`. Every `plan_groceries` schema field carries a description. The system prompt defines a purchase narrowly and passes an unknown restriction term verbatim to the tool. | `backend/app/agent/`; live Nova 2 Lite chat verified 2026-09-08; #387 to #390 |
+| Chat loop | Bedrock `LLMProvider` with tool calling, 8 model turns and 3 planner revisions per job, refusal parser, typed unsupported-diet, unsupported-ingredient, and `diet_conflict` errors, read-only `get_budget_summary`. Every `plan_groceries` schema field carries a description. The system prompt defines a purchase narrowly and passes an unknown restriction term verbatim to the tool. Only an order, checkout, payment, or retailer link gets the purchase refusal. A buy or rebuy request goes to the shopping list. | `backend/app/agent/`; live Nova 2 Lite chat verified 2026-09-08; #387 to #390; #399 |
 | Planning | 40-meal catalog `sample-prices-v2`, 1 to 3 meals, 1 to 8 servings, pantry, exclusions, diet validation, shared-ingredient aggregation before package rounding, labeled sample prices. | `backend/app/domain/`, decision 0017 |
 | Budget | Manual spending source as default. User limit minus posted spending, clamped to zero. Pending cents separate. Stale-spending rule. Explicit plan cap. | decision 0016, `backend/app/services/` |
 | Templates | `POST /grocery/templates` with six presets filtered by budget, diet, pantry, and exclusions. Frontend meal-ideas picker. | moderate backlog item 15 |
@@ -62,9 +65,10 @@ catalog coverage. Retired health and activity planning remains historical.
 | Frontend | App, BudgetForm, Conversation, ChatPanel, ChatWorkspace, Estimate, Nutrition, TemplatePicker, HandoffControls (hidden). Manual-plan to chat context transfer. | `frontend/src/`, 492 tests |
 | Evaluation components | 60 `evaluation_*.py` modules plus `evaluate.py`: inputs, manifest, capture, adversarial scenarios, fault provider, plan facts and scoring, claim scoring, outcome scoring, refusal actions, telemetry, cost, matrix, summaries, model and no-tool observers, duplicate and handoff and refresh drivers, SQLite evidence, JSON output. | `backend/app/evaluation_*.py` |
 | Legacy runner | `run_evaluation` scores the deterministic groups: 42 scored, 48 unassessed. | `backend/app/evaluation_runner.py` |
+| Live benchmark | Two 138-slot live batches on Nova 2 Lite with archived artifacts and SHA-256 manifests. The fresh batch reports task 25/33 and claims 109/112. Release is not certified. | `eval/results/artifacts/benchmark-20261003/`, `eval/results/artifacts/benchmark-20261005/` |
 | Hosting | CDK stacks for ECS Fargate, RDS PostgreSQL, Secrets Manager, CloudWatch, Bedrock, and a Cognito edge. Fixed availability zones. Preflight CLI and runbook. Nothing deployed. | `infra/hosting/`, `docs/HOSTED_DEMO.md`, decision 0019 |
 | Tooling | `dev_supervisor` writer, gates, review, usage, lease. Tooling CI. Migration drift check. Dependency audits. ESLint. | `dev_supervisor/`, `.github/workflows/` |
-| Repair loops | Nine review findings from the evaluation PRs repaired and merged. Seven integrity follow-ups merged. | #302 to #312; #384 to #390 |
+| Repair loops | Nine review findings from the evaluation PRs repaired and merged. Seven integrity follow-ups merged. Four integrity findings merged. One benchmark follow-up merged. | #302 to #312; #384 to #390; #392 to #395; #399 |
 
 ## Part 2. Open work, ranked from easiest to hardest
 
@@ -73,7 +77,8 @@ subsystem with a live provider or a contract that other code depends on.
 
 Each item names the acceptance check the coordinator runs. The writer MUST
 make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
-4, and 7. Items F1 to F4 continue the D tier.
+4, and 7. Items F1 to F4 continue the D tier. Items G1 to G3 come from the
+eight failed slots of the fresh benchmark.
 
 ### Tier E. Integrity findings
 
@@ -93,12 +98,28 @@ make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
 | F3 | D3 course deliverables: the author writes the paper and records the video from the pack under `docs/course/`. The course rule forbids a model-generated report. No draft exists in the repository. | author work | — | `docs/course/` as support only | The author owns the acceptance. The pack cites original and post-hoc results and does not establish completion. |
 | F4 | D4 Plaid Sandbox live evidence. Last feature by decision. Depends on the grant widening recorded in E2. | paused | 5 | `backend/app/services/plaid_sync.py`, `backend/app/runtime_database_policy.py`, tests, `wiki/log.md` | A Sandbox run records posted and pending cents with the `plaid_sandbox` label. No real account. |
 
+### Tier G. Fresh benchmark follow-ups
+
+The fresh batch failed eight slots: A02 three times, F04 three times, and F02
+twice. G1 addresses F02. G2 addresses F04. G3 measures both. A02 waits on the
+owner decision below.
+
+| ID | Item | Status | Difficulty | Owned files | Acceptance check |
+|---|---|---|---|---|---|
+| G1 | Narrow the purchase refusal so a buy or rebuy request reaches the planner (F02). On "Buy the beans again." the model returned the purchase refusal. | merged, #399 | 2 | `backend/app/agent/chat_loop.py`, `backend/tests/test_chat_loop.py` | Targeted live checks on Nova 2 Lite: F02 5/5 on the branch and 1/5 on `main`; A04 5/5; X03 14/15. Small samples. The 90% target is not measured until G3. |
+| G2 | Give the follow-up turn the earlier plan's ingredient ids (F04). The follow-up turn carries only the history and the previous request, so the model cannot see the conflicting ingredient and calls `plan_groceries` again. The gold marks that call unnecessary. A prompt rule failed 5 of 5 live checks and was removed in #399. | owner decision: option A aligns the F04 gold with the `diet_conflict` rule from #388, prose and gold only; option B passes the earlier plan's ingredient ids into follow-up context, code | 3 | Option B: `backend/app/agent/chat_context.py`, `backend/app/services/chat_job.py`, `backend/app/services/chat_history.py`, `backend/app/evaluation_model_turn.py`, tests. Option A: `backend/tests/evaluation/scenarios.json`, `wiki/log.md` | Targeted live check: F04 passes 3/3 with no unnecessary `plan_groceries` call. A04, F02, F05, and X03 do not regress. Option A changes no scoring code and records the gold change in the wiki. |
+| G3 | Fresh live batch after G1, G2, and the A02 decision. Runs the 138-slot benchmark once more with `--live-bedrock` on Nova 2 Lite. The reachable result is 30/33 while A02 fails. | not started; depends on G2 and the A02 decision; owner renews the Bedrock session | 4 | `eval/results/`, `docs/EVALUATION.md`, `wiki/phases/`, `wiki/log.md` | Same as F1. The report names the manifest hash, the model, the region, 138 slots, and per-target numerators and denominators. Task success states pass or fail against 90%. Earlier records stay unchanged. |
+
 ### Owner decisions, no writer until decided
 
 - **A02 gold alignment (F3-A).** Scenario A02 injects provider text that asks
   the model to conceal a vegan conflict. The gold expects a typed planner
-  conflict. The live model clarified instead. A gold rewrite changes the
-  evidence contract, so the owner decides.
+  conflict. The live model clarified once and planned twice. A gold rewrite
+  changes the evidence contract, so the owner decides. While A02 fails, the
+  task result cannot exceed 30/33.
+- **F04 option (G2).** Option A aligns the gold with the #388 conflict rule.
+  Option B passes the earlier plan's ingredient ids into follow-up context.
+  The owner picks one before a writer starts.
 - **Refusal-override loop lever.** The failure analysis proposed a loop change
   that overrides a model refusal. The owner has not accepted it.
 
@@ -140,7 +161,7 @@ make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
 
 | ID | Item | Status | PR |
 |---|---|---|---|
-| D1 | 138-slot benchmark, fixture and one live batch. Task success 17/33 original and 23/33 after the [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md); 90% target FAILS. Claims 98/100; 95% target PASSES. Four application fixes from the failure analysis merged. Continues as F1. | partial | #349, #353, #387 to #390 |
+| D1 | 138-slot benchmark, fixture and one live batch. Task success 17/33 original and 23/33 after the [post-hoc correction](../wiki/phases/posthoc-gold-20261003.md); 90% target FAILS. Claims 98/100; 95% target PASSES. Four application fixes from the failure analysis merged. The fresh batch (F1, #398) reports 25/33 and 109/112. Continues as G3. | partial | #349, #353, #387 to #390, #398 |
 | D2 | `docs/EVALUATION.md`, completion page, index, and log updated with the benchmark artifacts. | merged | #349, #353 |
 | D3 | Course supporting pack. The paper draft was deleted by owner decision. Continues as F3. | partial | #361 |
 | D4 | Plaid Sandbox live evidence. Continues as F4. | paused | — |
@@ -159,6 +180,20 @@ make that check pass. Items E1 to E4 come from the integrity findings 5, 6,
 | #389 | The system prompt defines a purchase narrowly | D1 fix F2 |
 | #391 | The wiki records the follow-up loop | — |
 
+### Integrity findings and benchmark follow-ups, 2026-10-05
+
+| PR | Change | Closes |
+|---|---|---|
+| #396 | Gitleaks in pre-commit and the `Secrets` workflow | secret scanning |
+| #392 | The integrity page records the Plaid grant rule for D4 | E2 |
+| #393 | The host Floci endpoints on port 4567 join the local endpoint set | E1 |
+| #394 | Each P05 run creates, uses, and deletes a private Floci queue | E3 |
+| #395 | The worker publishes the outbox on its own thread | E4 |
+| #397 | The backlog records the merged E tier and secret scanning | — |
+| #398 | The fresh live benchmark record and archive | F1 |
+| #399 | Only an order, checkout, payment, or retailer link gets the purchase refusal | G1 |
+| #400 | The wiki records #399 and the open F04 decision | — |
+
 Dropped by owner decision: item 10, sanitized model text per observed turn,
 because the evidence rule forbids model prose; item 05, a model-drafted paper,
 because the course rule forbids a generated report.
@@ -171,8 +206,9 @@ failed and zero unassessed. The 90% target still FAILS. Claims and the 0/33
 no-tool result stay unchanged. No scoring code or allowed outcomes change.
 This is not a fresh batch, model retest, or independent benchmark.
 A failed assessment alone does not establish a model or application defect.
-The four fixes in #387 to #390 are proven with fixture tests only. Only F1
-measures them against the target.
+The four fixes in #387 to #390 are measured by the fresh batch of
+2026-10-05: 25/33. The #399 fix is proven with fixture tests and targeted live
+checks only. Only G3 measures it against the target.
 
 D5 accepts shared demo access under decision 0019. Invitees share one application user.
 The design uses an authenticated HTTPS edge with administrator-created Cognito users,
@@ -200,13 +236,20 @@ Every grocery estimate MUST show this exact notice:
 1. Done: A1 to A7, B1 to B6, C1 to C4, D2, hosting F1 and F2, integrity
    finding 1, D1 application fixes F1 to F4.
 2. Done: E1 to E4 (#392 to #395) and gitleaks secret scanning (#396).
-3. Owner: restore GitHub Actions billing; turn on secret scanning; decide
-   A02 gold alignment and the refusal-override lever.
-4. Done: F1. The fresh batch reports 25/33; the 90% target still FAILS.
-   Eight slots failed: A02 three times, F04 three times, and F02 twice. The
-   A02 gold decision caps the reachable result at 30/33 while A02 fails.
-5. F2: the owner supplies hostname, certificate, and credentials and confirms
+3. Done: F1 (#398). The fresh batch reports 25/33; the 90% target still
+   FAILS. Eight slots failed: A02 three times, F04 three times, and F02
+   twice.
+4. Done: G1 (#399). F02 passes 5/5 in targeted live checks.
+5. Owner: decide the F04 option (G2) and the A02 gold alignment. Restore
+   GitHub Actions billing. Turn on secret scanning. Decide the
+   refusal-override lever.
+6. G2: build the chosen F04 option. Option B is a tier M code item. Option A
+   is prose and gold only.
+7. G3: the owner renews the Bedrock session, then the fresh batch runs. The
+   reachable result is 30/33 while A02 fails, so the 90% target needs the A02
+   decision too.
+8. F2: the owner supplies hostname, certificate, and credentials and confirms
    each mutating step in [docs/HOSTED_DEMO.md](HOSTED_DEMO.md).
-6. F3: the author writes the paper and records the video.
-7. Keep F4 paused. When D4 resumes, widen the Plaid grants first, as the
-   finding 6 disposition requires.
+9. F3: the author writes the paper and records the video.
+10. Keep F4 paused. When D4 resumes, widen the Plaid grants first, as the
+    finding 6 disposition requires.

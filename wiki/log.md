@@ -3831,3 +3831,20 @@ from a worktree that had clean gates and an `APPROVE` review.
 root; an explicit leading `cd` still wins. The size, done, and agents hooks pass
 their full input to it. `tests/supervisor/test_pr_hooks.py` covers the
 selection rules and the done check end to end.
+
+## 2026-10-06 — Pull request cap raised to 1000 code lines
+
+The owner raised the pull request cap from 150 to 1000 added code lines
+because GitHub Actions is out of minutes. `AGENTS.md`, `CLAUDE.md`,
+`docs/DELEGATION.md`, the delegation brief and junior pages, `.codex/TEAM.md`,
+the `.codex/agents/` definitions, and the backlog now state 1000. Tests, docs,
+lockfiles, and generated files still do not count. The gates print
+`LINES n/150` and do not fail on the count; that display is unchanged.
+
+## 2026-10-07 — The 1000-line cap reaches the hook and OpenCode
+
+The owner confirmed the 1000-line pull request cap on 2026-10-07. The cap
+change from 2026-10-06 did not reach `.claude/hooks/check-pr-size.sh`, which
+still denied a pull request above 150 code lines, or the `.opencode/agents/`
+definitions. Both now state 1000, and the `.claude/README.md` hook table
+matches. #407 changes the gates label to `LINES n/1000`.

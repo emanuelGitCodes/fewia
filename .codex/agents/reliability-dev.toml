@@ -35,5 +35,5 @@ Rules:
   training work to reliability changes.
 - The selected writer implements. A separate Codex or Grok agent verifies the diff and commands. You MUST NOT merge or
   push to `main`. Other publication follows user authorization. Keep each
-  PR within 150 added code lines. Report the actual parse, worker, and
+  PR within 1000 added code lines. Report the actual parse, worker, and
   integration results."""

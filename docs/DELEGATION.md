@@ -90,7 +90,7 @@ change of writer.
    fact, run one cheap check before dispatch. Examples: a `grep` for a
    `downgrade()` body, `docker inspect` for a built-in healthcheck, or
    the current lint output.
-3. **Design.** Fix the shared contracts. Split the work into items of 150
+3. **Design.** Fix the shared contracts. Split the work into items of 1000
    added code lines or fewer. Give each item one owner, exact owned files,
    a complexity class, a tier, a base branch, and a runnable check.
 4. **Approve.** Show the design to the user. Dispatch only released items.
@@ -180,7 +180,7 @@ Reading per role:
 - A review model verdict covers code findings only. A `BLOCKED` verdict
   that cites only sandbox limits is not a code finding.
 - An `APPROVE` MUST come from a completed review model run.
-- Code MUST NOT be compressed to fit the 150-line cap. File-level lint
+- Code MUST NOT be compressed to fit the 1000-line cap. File-level lint
   suppressions, `# fmt: off` blocks, joined statements, and encoded tables
   defeat the review. Split the item instead.
 
@@ -206,7 +206,7 @@ The agent files stay thin and stable. Lessons land in three layers:
 ## Review and merge
 
 1. Each work item delivers a branch and a pull request. A pull request
-   MUST NOT add more than 150 lines of code. A larger change ships as a
+   MUST NOT add more than 1000 lines of code. A larger change ships as a
    stack with the merge order in each pull request body.
 2. Agents MUST NOT push to `main`. Writers and juniors MUST NOT merge. A
    coordinator merges only when the user explicitly authorizes merging for
