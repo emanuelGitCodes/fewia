@@ -12,17 +12,17 @@ deny() {
   exit 0
 }
 
-# A Codex patch passes only when it adds lines to an existing log, or
-# creates the log when no log exists.
+# A Codex patch passes only when it adds lines after the end of an existing
+# log, or creates the log when no log exists.
 if [ "$(jq -r '.tool_name // empty' <<<"$input")" = apply_patch ]; then
-  while IFS=$'\t' read -r op removes target; do
+  while IFS=$'\t' read -r op appends target; do
     case "$op" in
-      update) [ "$removes" = false ] && continue ;;
+      update) [ "$appends" = true ] && continue ;;
       add) [ -f "$target" ] || continue ;;
     esac
-    deny "wiki/log.md is append-only. The patch removes, replaces, moves, or deletes log text ($op). Add lines only."
+    deny "wiki/log.md is append-only. The patch changes, inserts into, moves, or deletes log text ($op). Add lines after the last line only, with the last lines as context."
   done < <(python3 "$(dirname "$0")/edit-targets.py" <<<"$input" \
-    | jq -r '.[] | select(.path | endswith("/wiki/log.md")) | [.op, .removes, .path] | @tsv')
+    | jq -r '.[] | select(.path | endswith("/wiki/log.md")) | [.op, .appends, .path] | @tsv')
   exit 0
 fi
 
