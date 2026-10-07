@@ -19,6 +19,6 @@ done
 
 msg="FEWIA session. Branch: $branch. Worktrees: $worktrees."
 [ -n "$ledgers" ] && msg="$msg Loop ledgers with open items:$ledgers. Resume with /feature-loop resume <slug>."
-msg="$msg Hooks are active: senior code edits are denied, external writes ask, PR size is checked. See .claude/README.md."
+msg="$msg Hooks are active: coordinator code edits are denied, external writes need the user, PR size is checked. See .claude/README.md."
 
 jq -n --arg m "$msg" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$m}}'

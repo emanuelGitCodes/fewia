@@ -1,21 +1,36 @@
 #!/usr/bin/env bash
-# PreToolUse hook for Edit, Write, and MultiEdit.
+# PreToolUse hook for Edit, Write, MultiEdit, and Codex apply_patch.
 # Rule: `wiki/log.md` is append-only. Agents MUST NOT edit or delete an
 # existing entry. An edit passes only when the new text starts with the
 # old text, so every change lands after what exists.
 set -euo pipefail
 
 input="$(cat)"
-path="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
-root="${CLAUDE_PROJECT_DIR:-$PWD}"
-case "$path" in /*) ;; "") exit 0 ;; *) path="$root/$path" ;; esac
-case "$path" in */wiki/log.md) ;; *) exit 0 ;; esac
-[ -f "$path" ] || exit 0
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
+
+# A Codex patch passes only when it adds lines to an existing log, or
+# creates the log when no log exists.
+if [ "$(jq -r '.tool_name // empty' <<<"$input")" = apply_patch ]; then
+  while IFS=$'\t' read -r op removes target; do
+    case "$op" in
+      update) [ "$removes" = false ] && continue ;;
+      add) [ -f "$target" ] || continue ;;
+    esac
+    deny "wiki/log.md is append-only. The patch removes, replaces, moves, or deletes log text ($op). Add lines only."
+  done < <(python3 "$(dirname "$0")/edit-targets.py" <<<"$input" \
+    | jq -r '.[] | select(.path | endswith("/wiki/log.md")) | [.op, .removes, .path] | @tsv')
+  exit 0
+fi
+
+path="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
+root="${CLAUDE_PROJECT_DIR:-$PWD}"
+case "$path" in /*) ;; "") exit 0 ;; *) path="$root/$path" ;; esac
+case "$path" in */wiki/log.md) ;; *) exit 0 ;; esac
+[ -f "$path" ] || exit 0
 
 tool="$(jq -r '.tool_name' <<<"$input")"
 case "$tool" in

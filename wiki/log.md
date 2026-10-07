@@ -3780,3 +3780,21 @@ no checkout, such as the scratchpad, is still allowed. The hook reads the
 worktree list with NUL separators, so a worktree path with a newline cannot
 escape the match. Twelve new cases in `tests/supervisor/test_edit_guard.py`
 build a real repository with three worktrees.
+
+## 2026-10-07 — FEWIA hooks run under Codex
+
+An untracked copy of the hooks for Codex did not enforce anything. Codex sends a
+file edit as `apply_patch` with the patch in `tool_input.command`, so the edit
+hooks found no `file_path` and allowed every edit. `.codex/hooks.json` now runs
+the scripts in `.claude/hooks/` through `codex-hook.sh`, which sets
+`CLAUDE_PROJECT_DIR` and `FEWIA_HOOK_HOST=codex`. `edit-targets.py` reads the
+patch targets for the edit guard, the wiki log guard, and the prose linter.
+Codex hooks cannot ask, so `guard-bash.sh` denies an external write under Codex.
+
+Probes with `codex exec` 0.159 in a standalone clone confirmed: a senior
+`apply_patch` to code is denied, a writer with `FEWIA_WRITER=1` passes, a
+`git push` is denied, and a `wiki/log.md` replacement is denied. In a linked
+worktree, Codex runs the main checkout's `.codex/hooks.json`, and only when the
+worktree also has one. `dev_supervisor` writers and reviews use
+`--ignore-user-config`, so project hooks do not load there. Each user MUST trust
+the hooks once with `/hooks` in an interactive Codex session.

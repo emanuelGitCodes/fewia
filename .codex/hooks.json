@@ -1,0 +1,84 @@
+{
+  "description": "FEWIA hooks for Codex. Each command runs the shared script in .claude/hooks/ through codex-hook.sh.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" session-context.sh",
+            "timeout": 10,
+            "statusMessage": "Loading FEWIA session context"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" guard-senior-edits.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" guard-wiki-log.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" guard-bash.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" check-pr-size.sh",
+            "timeout": 20,
+            "statusMessage": "Checking pull request size"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" check-pr-done.sh",
+            "timeout": 10,
+            "statusMessage": "Checking gates and review records"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" check-agents-pr.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" lint-prose.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh\" stop-wiki-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
