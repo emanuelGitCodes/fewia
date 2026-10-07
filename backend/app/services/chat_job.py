@@ -39,6 +39,7 @@ class ChatJobInput(BaseModel):
     spending_source: SpendingSource
     plan_cap_cents: StrictInt | None = Field(default=None, ge=0)
     previous_request: dict[str, object] | None = None
+    previous_ingredient_ids: list[StrictStr] | None = None
     history: list[ChatHistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
     previous_job_id: UUID | None = Field(default=None)
 
@@ -99,6 +100,7 @@ def chat_job(
         user_id=1,
         spending_source=parsed.spending_source,
         previous_request=parsed.previous_request,
+        previous_ingredient_ids=parsed.previous_ingredient_ids,
         history=history,
         record_evidence=record_evidence,
         plan_cap_cents=parsed.plan_cap_cents,

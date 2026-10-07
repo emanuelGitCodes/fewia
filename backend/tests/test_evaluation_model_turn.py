@@ -123,6 +123,7 @@ def observe(
     markers: tuple[str, ...] = (),
     history: list[dict[str, str]] | None = None,
     previous_request: dict[str, object] | None = None,
+    previous_ingredient_ids: list[str] | None = None,
     record_evidence: Recorder = record,
 ) -> dict[str, object]:
     current = context if context is not None else prepare_case(case())
@@ -133,6 +134,7 @@ def observe(
         markers=markers,
         history=history if history is not None else [],
         previous_request=previous_request,
+        previous_ingredient_ids=previous_ingredient_ids,
         record_evidence=record_evidence,
     )
 
@@ -264,6 +266,36 @@ def test_marker_in_previous_request_blocks_provider() -> None:
     assert provider.messages == []
     assert previous == before
     assert MARKER not in dumps(turn)
+
+
+def test_previous_ingredient_ids_reach_provider() -> None:
+    provider = ScriptedProvider([reply()])
+    ids = ["tortillas", "eggs"]
+    turn = observe(provider, previous_ingredient_ids=ids)
+    assert turn["status"] == "completed"
+    content = cast(list[dict[str, object]], provider.messages[0][-1]["content"])
+    outgoing = loads(cast(str, content[0]["text"]))
+    assert outgoing["previous_ingredient_ids"] == ["eggs", "tortillas"]
+    assert ids == ["tortillas", "eggs"]
+
+
+def test_marker_in_previous_ingredient_ids_blocks_provider() -> None:
+    provider = ScriptedProvider([reply()])
+    turn = observe(provider, markers=(MARKER,), previous_ingredient_ids=[MARKER])
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "secret_leak"
+    assert turn["provider_calls"] == 0
+    assert provider.messages == []
+    assert MARKER not in dumps(turn)
+
+
+def test_invalid_previous_ingredient_ids_block_provider() -> None:
+    provider = ScriptedProvider([reply()])
+    turn = observe(provider, previous_ingredient_ids=["unknown"])
+    assert turn["status"] == "failed"
+    assert turn["reason"] == "protocol_error"
+    assert turn["provider_calls"] == 0
+    assert provider.messages == []
 
 
 def test_clean_history_preserves_completed_observation() -> None:
@@ -536,6 +568,7 @@ def test_incomplete_capture_is_unknown(
             "message",
             "history",
             "previous_request",
+            "previous_ingredient_ids",
         }:
             return False
         raise ValueError(PRIVATE)
@@ -589,6 +622,7 @@ def test_returned_result_leak_is_detected_when_capture_scan_fails(
             "message",
             "history",
             "previous_request",
+            "previous_ingredient_ids",
         }:
             return False
         raise ValueError(PRIVATE)
@@ -656,6 +690,7 @@ def test_callback_payload_is_sanitized_before_storage(
             "message",
             "history",
             "previous_request",
+            "previous_ingredient_ids",
         }:
             return False
         raise ValueError(PRIVATE)

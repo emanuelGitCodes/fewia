@@ -3753,6 +3753,85 @@ failed F04 in 5 of 5 live checks and was removed. The owner decides between two
 options: align the F04 gold with the diet-conflict rule from #388, or pass the
 earlier plan's ingredient ids into follow-up context.
 
+## 2026-10-06 — Edit guard allows writers and denies worktree code
+
+Grok writers that `dev_supervisor` starts load the project hooks in
+`.claude/settings.json`. `guard-senior-edits.sh` denied their code edits, so
+Grok runs ended as `no_edits` or `task_failed` (loop `followups-20261006`).
+`dev_supervisor.process.attempt()` now starts every writer with
+`FEWIA_WRITER=1`, and the hook allows an edit when that value is `1`. A probe
+showed that a Grok hook process receives the writer process environment.
+
+The hook also judges a path under `.claude/worktrees/<name>/` by its path
+inside that worktree. A senior edit to code in a worktree is now denied.
+
+An end-to-end Grok run with the real hook confirmed both outcomes: without the
+variable the edit is denied, and with it the edit is written.
+`tests/supervisor/test_edit_guard.py` checks 16 hook decisions.
+
+## 2026-10-07 — Edit guard covers every checkout of the repository
+
+A session in a worktree could edit code in the main checkout or in a sibling
+worktree, because `guard-senior-edits.sh` treated those paths as outside the
+repository. The hook now reads the checkouts from `git worktree list`, including
+the main checkout. It resolves the path with symbolic links, and the deepest
+checkout that holds the path sets the path that the allow list judges. A path in
+no checkout, such as the scratchpad, is still allowed. The hook reads the
+worktree list with NUL separators, so a worktree path with a newline cannot
+escape the match. Twelve new cases in `tests/supervisor/test_edit_guard.py`
+build a real repository with three worktrees.
+
+## 2026-10-07 — FEWIA hooks run under Codex
+
+An untracked copy of the hooks for Codex did not enforce anything. Codex sends a
+file edit as `apply_patch` with the patch in `tool_input.command`, so the edit
+hooks found no `file_path` and allowed every edit. `.codex/hooks.json` now runs
+the scripts in `.claude/hooks/` through `codex-hook.sh`, which sets
+`CLAUDE_PROJECT_DIR` and `FEWIA_HOOK_HOST=codex`. `edit-targets.py` reads the
+patch targets for the edit guard, the wiki log guard, and the prose linter.
+Codex hooks cannot ask, so `guard-bash.sh` denies an external write under Codex.
+
+Probes with `codex exec` 0.159 in a standalone clone confirmed: a senior
+`apply_patch` to code is denied, a writer with `FEWIA_WRITER=1` passes, a
+`git push` is denied, and a `wiki/log.md` replacement is denied. In a linked
+worktree, Codex runs the main checkout's `.codex/hooks.json`, and only when the
+worktree also has one. `dev_supervisor` writers and reviews use
+`--ignore-user-config`, so project hooks do not load there. Each user MUST trust
+the hooks once with `/hooks` in an interactive Codex session.
+
+## 2026-10-07 — Hook fixes merged; decision 0020
+
+#410 and #411 merged on 2026-10-07. #413 and #414 merged after them as a stack.
+[Decision 0020](decisions/0020-shared-hooks-for-every-agent-cli.md) records the
+rule: one hook set in `.claude/hooks/` serves Claude Code, Grok, and Codex, and
+`FEWIA_WRITER=1` exempts `dev_supervisor` writers. CI did not run on these pull
+requests because GitHub Actions jobs did not start (account billing). The merges
+rest on the local gates and the review command.
+
+## 2026-10-07 — Durable jobs runbook matches the worker
+
+`runbooks/durable-jobs.md` still listed message consumption, visibility
+renewal, duplicate handling, and dead-letter policy as future work. The worker
+in `backend/app/worker.py` and `backend/app/services/job_consumer.py` already
+does all of it. The runbook now describes how to run the worker, the stale-job
+recovery pass, and how the database lease and the SQS visibility timeout share
+failure handling: a 15-second heartbeat renews the lease and then extends
+visibility by 120 seconds, and a lost lease leaves the message for redelivery.
+A graph trace of the SQS policy and the job leases found the gap; the graph had
+only an inferred similarity edge between them.
+
+## 2026-10-07 — Pull request hooks read the checkout from the hook input
+
+A desktop session in a worktree runs the project hooks from the main checkout,
+with `CLAUDE_PROJECT_DIR` set to the main checkout. Claude Code also removes a
+leading `cd` to the session cwd from a Bash command before a hook reads it. The
+pull request hooks therefore checked the main checkout and denied a pull request
+from a worktree that had clean gates and an `APPROVE` review.
+`pr-checkout.sh` now uses the `cwd` field of the hook input before the project
+root; an explicit leading `cd` still wins. The size, done, and agents hooks pass
+their full input to it. `tests/supervisor/test_pr_hooks.py` covers the
+selection rules and the done check end to end.
+
 ## 2026-10-06 — Pull request cap raised to 1000 code lines
 
 The owner raised the pull request cap from 150 to 1000 added code lines

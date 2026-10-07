@@ -14,10 +14,12 @@ from app.agent.chat_context import (
     MAX_HISTORY,
     MAX_MESSAGE_LEN,
     build_messages,
+    plan_ingredient_ids,
     read_usage,
 )
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import GroceryRequest
 
 PERIOD = date(2026, 9, 1)
@@ -102,8 +104,10 @@ def test_followup_history_appends_current_user_and_context() -> None:
         "period",
         "plan_cap_cents",
         "previous_request",
+        "previous_ingredient_ids",
     }
     assert payload["plan_cap_cents"] is None
+    assert payload["previous_ingredient_ids"] is None
     assert payload["context_role"] == (
         "previous_request is prior state; apply latest explicit additions and removals"
     )
@@ -462,3 +466,61 @@ def test_previous_pantry_structure_and_context_before_user_message() -> None:
     previous_payload = payload["previous_request"]
     assert isinstance(previous_payload, dict)
     assert previous_payload["pantry_ingredients"] == ["salt", "oil"]
+
+
+@pytest.mark.parametrize(
+    ("plan", "expected"),
+    [
+        ({"lines": [{"ingredient_id": "eggs"}]}, ["eggs"]),
+        (
+            {
+                "lines": [
+                    {"ingredient_id": "tortillas"},
+                    {"ingredient_id": "eggs"},
+                    {"ingredient_id": "eggs"},
+                    {"ingredient_id": "unknown"},
+                    {"ingredient_id": []},
+                    {},
+                    "eggs",
+                ]
+            },
+            ["eggs", "tortillas"],
+        ),
+        ({"lines": []}, []),
+        ({"lines": [{"ingredient_id": "unknown"}]}, []),
+        ({"lines": None}, None),
+        ({}, None),
+        (None, None),
+        ([], None),
+    ],
+)
+def test_plan_ingredient_ids(plan: object, expected: list[str] | None) -> None:
+    assert plan_ingredient_ids(plan) == expected
+
+
+def test_previous_ingredient_ids_are_sorted_without_mutation() -> None:
+    ids = ["tortillas", "eggs"]
+    payload = _context(
+        build_messages("make it vegan", budget(), PERIOD, previous_ingredient_ids=ids)
+    )
+    assert payload["previous_ingredient_ids"] == ["eggs", "tortillas"]
+    assert ids == ["tortillas", "eggs"]
+    first_payload = _context(build_messages("hello", budget(), PERIOD))
+    assert first_payload["previous_ingredient_ids"] is None
+    assert (
+        _context(build_messages("hello", budget(), PERIOD, previous_ingredient_ids=[]))[
+            "previous_ingredient_ids"
+        ]
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    "ids",
+    ["eggs", ("eggs",), ["unknown"], [[]], [1], ["eggs"] * (len(INGREDIENTS) + 1)],
+)
+def test_invalid_previous_ingredient_ids_raise_static_error(ids: object) -> None:
+    with pytest.raises(ChatProtocolError, match="previous_request is invalid"):
+        build_messages(
+            "hello", budget(), PERIOD, previous_ingredient_ids=cast(list[str], ids)
+        )

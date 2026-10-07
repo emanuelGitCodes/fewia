@@ -34,7 +34,7 @@ def stop(process: subprocess.Popen[bytes]) -> bool:
         deadline = time.monotonic() + 2
         try:
             os.killpg(process.pid, sig)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
         while True:
             process.poll()
@@ -46,6 +46,8 @@ def stop(process: subprocess.Popen[bytes]) -> bool:
                 except subprocess.TimeoutExpired:
                     return False
                 return True
+            except PermissionError:
+                pass
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
@@ -88,11 +90,14 @@ def attempt(
         }
 
     publish(state_dir, snapshot("launching", None))
+    environment = os.environ.copy()
+    environment["FEWIA_WRITER"] = "1"
     with prompt.open("rb") as source:
         try:
             process = subprocess.Popen(
                 args,
                 cwd=cwd,
+                env=environment,
                 stdin=source,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

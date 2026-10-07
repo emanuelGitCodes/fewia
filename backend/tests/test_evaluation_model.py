@@ -9,7 +9,7 @@ import pytest
 from app import evaluation_model as model
 from app import evaluation_model_turn as turn_model
 from app.agent import chat_loop
-from app.agent.chat_context import MAX_HISTORY
+from app.agent.chat_context import MAX_HISTORY, plan_ingredient_ids
 from app.agent.provider import LLMProvider
 from app.evaluation_capture import CaptureProvider
 from app.evaluation_evidence import EvaluationEvidence
@@ -131,6 +131,10 @@ def test_multiturn_pantry_servings_and_saved_evidence() -> None:
     ]
     first_result = cast(dict[str, object], turns(observation)[0]["result"])
     assert context(provider.messages[2])["previous_request"] == first_result["request"]
+    assert context(provider.messages[0])["previous_ingredient_ids"] is None
+    assert context(provider.messages[2])["previous_ingredient_ids"] == (
+        plan_ingredient_ids(first_result["plan"])
+    )
     snapshots = cast(list[dict[str, object]], observation["snapshots"])
     assert len(snapshots) == 2
     for turn, payload in zip(turns(observation), (first, second), strict=True):
@@ -154,6 +158,27 @@ def test_multiturn_pantry_servings_and_saved_evidence() -> None:
         assert saved[0]["storage"] == "local_sqlite"
         assert saved[0]["snapshot"]
     assert "MODEL_INTERMEDIATE_PROSE" not in dumps(observation)
+
+
+def test_egg_plan_ids_reach_vegan_followup() -> None:
+    recipe = next(
+        recipe
+        for recipe in cast(list[dict[str, object]], catalog_snapshot()["recipes"])
+        if any(
+            line["ingredient_id"] == "eggs"
+            for line in cast(list[dict[str, object]], recipe["ingredients"])
+        )
+    )
+    payload = request()
+    payload["meals"] = [{"recipe_id": recipe["id"], "servings": 2}]
+    provider = ScriptedProvider([tool(payload), reply(), reply()])
+    observation = observe(case(["Plan burritos.", "Make them vegan."]), provider)
+    assert observation["status"] == "completed"
+    first_result = cast(dict[str, object], turns(observation)[0]["result"])
+    ids = plan_ingredient_ids(first_result["plan"])
+    assert ids is not None and "eggs" in ids
+    assert context(provider.messages[0])["previous_ingredient_ids"] is None
+    assert context(provider.messages[2])["previous_ingredient_ids"] == ids
 
 
 def test_wrong_gold_does_not_change_calls_or_public_results() -> None:
@@ -223,10 +248,15 @@ def test_server_context_and_history_pairs_carry_previous_request() -> None:
     observation = observe(source, provider)
     assert observation["status"] == "completed"
     previous = cast(dict[str, object], turns(observation)[0]["result"])["request"]
+    ids = plan_ingredient_ids(
+        cast(dict[str, object], turns(observation)[0]["result"])["plan"]
+    )
+    assert ids
     assert cast(dict[str, object], turns(observation)[1]["result"])["request"] is None
     for index in range(2, 6):
         current = context(provider.messages[index])
         assert current["previous_request"] == previous
+        assert current["previous_ingredient_ids"] == ids
         assert current["period"] == "2026-10-01"
         assert current["plan_cap_cents"] == 10000
     history = provider.messages[-1][:-1]
@@ -590,6 +620,7 @@ def test_real_helper_fields_and_caller_case_are_preserved(
         history: list[dict[str, str]],
         previous_request: dict[str, object] | None,
         record_evidence: Callable[[dict[str, object]], str],
+        previous_ingredient_ids: list[str] | None = None,
     ) -> dict[str, object]:
         wrappers.append(provider)
         turn = original(
@@ -599,6 +630,7 @@ def test_real_helper_fields_and_caller_case_are_preserved(
             markers=markers,
             history=history,
             previous_request=previous_request,
+            previous_ingredient_ids=previous_ingredient_ids,
             record_evidence=record_evidence,
         )
         recorded.append(deepcopy(turn))

@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import selectors
@@ -9,6 +10,8 @@ import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 from dev_supervisor.lease import lease
 from dev_supervisor.process import attempt, stop
 
@@ -19,6 +22,40 @@ def run(tmp_path: Path, script: str, **kwargs: float) -> str:
     return attempt(
         [sys.executable, "-c", script], tmp_path, prompt, tmp_path, "unique", **kwargs
     )
+
+
+def test_writer_environment_is_inherited(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("FEWIA_WRITER", raising=False)
+    monkeypatch.setenv("FEWIA_TEST_INHERITED", "parent-value")
+    script = (
+        "import json, os; from pathlib import Path; "
+        "Path('environment.json').write_text(json.dumps({"
+        "'writer': os.environ.get('FEWIA_WRITER'), "
+        "'inherited': os.environ.get('FEWIA_TEST_INHERITED'), "
+        "'path': os.environ.get('PATH')}))"
+    )
+    run(tmp_path, script)
+    assert json.loads((tmp_path / "environment.json").read_text()) == {
+        "writer": "1",
+        "inherited": "parent-value",
+        "path": os.environ.get("PATH"),
+    }
+    assert "FEWIA_WRITER" not in os.environ
+
+
+def test_writer_environment_overrides_parent_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEWIA_WRITER", "0")
+    script = (
+        "import os; from pathlib import Path; "
+        "Path('writer.txt').write_text(os.environ.get('FEWIA_WRITER', ''))"
+    )
+    run(tmp_path, script)
+    assert (tmp_path / "writer.txt").read_text() == "1"
+    assert os.environ["FEWIA_WRITER"] == "0"
 
 
 def test_missing_and_failed(tmp_path: Path) -> None:
@@ -178,6 +215,63 @@ def test_stop_escalates_for_group_ignoring_sigterm() -> None:
     assert sent == [(signal.SIGTERM, 0.0), (signal.SIGKILL, 2.0)]
     assert elapsed <= 4
     process.wait.assert_called_once_with(timeout=2.0)
+
+
+def test_stop_retries_transient_permission_error() -> None:
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+    )
+    real_killpg = os.killpg
+    raised = False
+
+    def killpg(pid: int, sig: int) -> None:
+        nonlocal raised
+        if sig == 0 and not raised:
+            raised = True
+            raise PermissionError(errno.EPERM, "operation not permitted")
+        real_killpg(pid, sig)
+
+    try:
+        with patch("dev_supervisor.process.os.killpg", side_effect=killpg):
+            assert stop(process)
+        assert raised
+        assert process.returncode is not None
+    finally:
+        if process.poll() is None:
+            try:
+                real_killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
+
+
+def test_stop_ignores_permission_error_on_signal() -> None:
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        start_new_session=True,
+    )
+    real_killpg = os.killpg
+    raised = False
+
+    def killpg(pid: int, sig: int) -> None:
+        nonlocal raised
+        if sig == signal.SIGTERM and not raised:
+            raised = True
+            raise PermissionError(errno.EPERM, "operation not permitted")
+        real_killpg(pid, sig)
+
+    try:
+        with patch("dev_supervisor.process.os.killpg", side_effect=killpg):
+            assert stop(process)
+        assert raised
+    finally:
+        if process.poll() is None:
+            try:
+                real_killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=5)
 
 
 def test_launching_marker_before_popen(tmp_path: Path) -> None:
