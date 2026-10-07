@@ -73,6 +73,7 @@ def checkout_paths(tmp_path: Path) -> dict[str, Path]:
     main = root / "main"
     session = main / ".claude/worktrees/session"
     sibling = root / "sibling"
+    odd = root / "odd\nname"
     commands = [
         ["git", "init", str(main)],
         [
@@ -90,6 +91,7 @@ def checkout_paths(tmp_path: Path) -> dict[str, Path]:
         ],
         ["git", "-C", str(main), "worktree", "add", "-b", "session", str(session)],
         ["git", "-C", str(main), "worktree", "add", "-b", "sibling", str(sibling)],
+        ["git", "-C", str(main), "worktree", "add", "-b", "odd", str(odd)],
     ]
     for command in commands:
         subprocess.run(command, check=True, capture_output=True, text=True, timeout=10)
@@ -100,6 +102,7 @@ def checkout_paths(tmp_path: Path) -> dict[str, Path]:
         "main": main,
         "session": session,
         "sibling": sibling,
+        "odd": odd,
         "outside": root / "outside",
         "link": link,
     }
@@ -113,6 +116,8 @@ def checkout_paths(tmp_path: Path) -> dict[str, Path]:
         ("{main}/.claude/hooks/x.sh", None, "allow"),
         ("{sibling}/backend/app/foo.py", None, "deny"),
         ("{sibling}/docs/x.md", None, "allow"),
+        ("{odd}/backend/app/foo.py", None, "deny"),
+        ("{odd}/docs/x.md", None, "allow"),
         ("../../../backend/app/foo.py", None, "deny"),
         ("backend/app/foo.py", None, "deny"),
         ("{outside}/backend/app/foo.py", None, "allow"),
