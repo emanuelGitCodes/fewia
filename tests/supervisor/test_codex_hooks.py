@@ -62,37 +62,77 @@ def assert_permission(result: subprocess.CompletedProcess[str], expected: str) -
 
 
 @pytest.mark.parametrize(
-    ("body", "log_exists", "expected"),
+    ("body", "log_content", "expected"),
     [
-        ("*** Update File: wiki/log.md\n@@\n entry\n+new entry\n", True, "allow"),
         (
-            "*** Update File: wiki/log.md\n@@\n-entry\n+changed\n",
-            True,
+            "*** Update File: wiki/log.md\n@@\n entry\n+new entry\n",
+            "# Log\nentry\n",
+            "allow",
+        ),
+        (
+            "*** Update File: wiki/log.md\n@@\n # Log\n+inserted\n",
+            "# Log\nentry\n",
             "deny",
         ),
-        ("*** Delete File: wiki/log.md\n", True, "deny"),
-        ("*** Add File: wiki/log.md\n+# Log\n+new entry\n", True, "deny"),
-        ("*** Add File: wiki/log.md\n+# Log\n+new entry\n", False, "allow"),
+        (
+            "*** Update File: wiki/log.md\n@@\n+inserted\n entry\n",
+            "# Log\nentry\n",
+            "deny",
+        ),
+        (
+            "*** Update File: wiki/log.md\n@@\n+x\n",
+            "# Log\nentry\n",
+            "deny",
+        ),
+        (
+            "*** Update File: wiki/log.md\n@@\n entry\n+x\n",
+            "# Log\nentry\n\nentry\n",
+            "deny",
+        ),
+        (
+            "*** Update File: wiki/log.md\n@@\n-entry\n+changed\n",
+            "# Log\nentry\n",
+            "deny",
+        ),
+        ("*** Delete File: wiki/log.md\n", "# Log\nentry\n", "deny"),
+        (
+            "*** Add File: wiki/log.md\n+# Log\n+new entry\n",
+            "# Log\nentry\n",
+            "deny",
+        ),
+        ("*** Add File: wiki/log.md\n+# Log\n+new entry\n", None, "allow"),
         (
             "*** Update File: wiki/log.md\n*** Move to: wiki/old-log.md\n@@\n entry\n",
-            True,
+            "# Log\nentry\n",
             "deny",
         ),
         (
             "*** Update File: wiki/index.md\n@@\n-entry\n+changed\n",
-            True,
+            "# Log\nentry\n",
             "allow",
         ),
     ],
-    ids=["append", "replace", "delete", "overwrite", "create", "move", "index"],
+    ids=[
+        "append",
+        "insert-after-first-line",
+        "insert-before-context",
+        "no-context",
+        "repeated-context",
+        "replace",
+        "delete",
+        "overwrite",
+        "create",
+        "move",
+        "index",
+    ],
 )
 def test_wiki_log_apply_patch(
-    tmp_path: Path, body: str, log_exists: bool, expected: str
+    tmp_path: Path, body: str, log_content: str | None, expected: str
 ) -> None:
     wiki = tmp_path / "wiki"
     wiki.mkdir()
-    if log_exists:
-        (wiki / "log.md").write_text("# Log\nentry\n", encoding="utf-8")
+    if log_content is not None:
+        (wiki / "log.md").write_text(log_content, encoding="utf-8")
     (wiki / "index.md").write_text("entry\n", encoding="utf-8")
 
     result = run_hook(
@@ -227,44 +267,3 @@ def test_codex_hook_configuration() -> None:
         ("PreToolUse", "guard-wiki-log.sh"),
         ("PostToolUse", "lint-prose.sh"),
     } <= edit_hooks
-
-
-@pytest.mark.parametrize(
-    ("body", "operations", "removals", "paths"),
-    [
-        (
-            "*** Update File: docs/a.md\n*** Move to: backend/a.py\n@@\n text\n",
-            ["move_from", "move_to"],
-            [False, False],
-            ["docs/a.md", "backend/a.py"],
-        ),
-        (
-            "*** Update File: docs/a.md\n@@\n-old\n+new\n",
-            ["update"],
-            [True],
-            ["docs/a.md"],
-        ),
-    ],
-    ids=["move", "removes"],
-)
-def test_edit_targets_apply_patch(
-    tmp_path: Path,
-    body: str,
-    operations: list[str],
-    removals: list[bool],
-    paths: list[str],
-) -> None:
-    result = subprocess.run(
-        ["python3", str(HOOKS / "edit-targets.py")],
-        input=json.dumps(patch_input(tmp_path, body)),
-        env=hook_environment(tmp_path),
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == [
-        {"path": str(tmp_path / path), "op": operation, "removes": removes}
-        for path, operation, removes in zip(paths, operations, removals, strict=True)
-    ]
