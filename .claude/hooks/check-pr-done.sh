@@ -5,7 +5,8 @@
 # disk, keyed by SHA. Deny the pull request when either one is missing.
 set -euo pipefail
 
-cmd="$(jq -r '.tool_input.command // empty')"
+input="$(cat)"
+cmd="$(jq -r '.tool_input.command // empty' <<<"$input")"
 grep -Eq 'gh\s+pr\s+create\b' <<<"$cmd" || exit 0
 . "$(dirname "$0")/pr-checkout.sh"
 

@@ -62,9 +62,15 @@ A hook receives one JSON object on stdin. It answers on stdout.
 | `stop-wiki-reminder.sh` | `Stop` | all | Remind when a branch is ahead of main with no log entry. Never blocks. |
 | `lint-prose.sh` | `PostToolUse` | `Edit\|Write`; Codex `apply_patch`; on `.md` | Flag house-style violations. Never blocks. |
 
-The three `gh pr create` hooks share `pr-checkout.sh`. It reads a leading
-`cd <dir> &&` to find the checkout and the `--base` flag to find the
-parent branch. Open a stacked pull request with both.
+The three `gh pr create` hooks share `pr-checkout.sh`. It finds the
+checkout from a leading `cd <dir> &&`, else from the `cwd` of the hook
+input, else from the project root. It reads the `--base` flag to find the
+parent branch. Open a stacked pull request with `--base`.
+
+A desktop session in a worktree runs the hooks from the main checkout,
+with `CLAUDE_PROJECT_DIR` set to the main checkout. Claude Code removes a
+leading `cd` to the session cwd from the command before a hook reads it.
+The input `cwd` still names the worktree, so the hooks check the worktree.
 
 `guard-bash.sh` reads the whole command text. A heredoc that quotes a
 blocked command trips it. Write such text with the Write tool instead.

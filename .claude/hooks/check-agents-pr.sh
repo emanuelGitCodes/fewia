@@ -4,7 +4,8 @@
 # request. The body MUST link the wiki entry that records the reason.
 set -euo pipefail
 
-cmd="$(jq -r '.tool_input.command // empty')"
+input="$(cat)"
+cmd="$(jq -r '.tool_input.command // empty' <<<"$input")"
 grep -Eq 'gh\s+pr\s+create\b' <<<"$cmd" || exit 0
 . "$(dirname "$0")/pr-checkout.sh"
 
