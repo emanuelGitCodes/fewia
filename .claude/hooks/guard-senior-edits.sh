@@ -24,10 +24,11 @@ import os, subprocess, sys
 path = os.path.realpath(sys.argv[1])
 root = sys.argv[2]
 try:
-    listing = subprocess.run(
+    result = subprocess.run(
         ["git", "-C", root, "worktree", "list", "--porcelain", "-z"],
         capture_output=True, text=True,
-    ).stdout
+    )
+    listing = result.stdout if result.returncode == 0 else ""
 except OSError:
     listing = ""
 tops = [root] + [f[9:] for f in listing.split("\0") if f.startswith("worktree ")]
