@@ -14,6 +14,9 @@ def assert_edit_guard_decision(
     expected: str,
     *,
     extra_path: Path | None = None,
+    patch: str | None = None,
+    cwd: Path | None = None,
+    reason: str | None = None,
 ) -> None:
     hook = Path(__file__).resolve().parents[2] / ".claude/hooks/guard-senior-edits.sh"
     environment = os.environ.copy()
@@ -23,12 +26,21 @@ def assert_edit_guard_decision(
         )
     environment["CLAUDE_PROJECT_DIR"] = str(project)
     environment.pop("FEWIA_WRITER", None)
+    environment.pop("FEWIA_HOOK_HOST", None)
     if writer is not None:
         environment["FEWIA_WRITER"] = writer
 
+    payload: dict[str, object] = {"tool_input": {"file_path": file_path}}
+    if patch is not None:
+        payload = {
+            "tool_name": "apply_patch",
+            "cwd": str(cwd if cwd is not None else project),
+            "tool_input": {"command": patch},
+        }
+
     result = subprocess.run(
         ["bash", str(hook)],
-        input=json.dumps({"tool_input": {"file_path": file_path}}),
+        input=json.dumps(payload),
         env=environment,
         capture_output=True,
         text=True,
@@ -41,6 +53,8 @@ def assert_edit_guard_decision(
     else:
         output = json.loads(result.stdout)
         assert output["hookSpecificOutput"]["permissionDecision"] == "deny"
+        if reason is not None:
+            assert reason in output["hookSpecificOutput"]["permissionDecisionReason"]
 
 
 @pytest.mark.parametrize(
@@ -164,4 +178,87 @@ def test_edit_guard_ignores_failed_git_listing(tmp_path: Path) -> None:
     )
     assert_edit_guard_decision(
         project, str(project / "backend/app/foo.py"), None, "deny", extra_path=bin_path
+    )
+
+
+@pytest.mark.parametrize(
+    ("patch_body", "cwd_suffix", "writer", "expected", "reason"),
+    [
+        (
+            "*** Update File: backend/app/main.py\n@@\n-old\n+new\n",
+            ".",
+            None,
+            "deny",
+            "backend/app/main.py",
+        ),
+        (
+            "*** Add File: docs/a.md\n+Text\n"
+            "*** Update File: wiki/log.md\n@@\n entry\n+new entry\n",
+            ".",
+            None,
+            "allow",
+            None,
+        ),
+        (
+            "*** Add File: docs/a.md\n+Text\n"
+            "*** Update File: app/x.py\n@@\n-old\n+new\n",
+            "backend",
+            None,
+            "deny",
+            "backend/app/x.py",
+        ),
+        (
+            "*** Update File: docs/a.md\n*** Move to: backend/a.py\n@@\n-old\n+new\n",
+            ".",
+            None,
+            "deny",
+            "backend/a.py",
+        ),
+        (
+            "*** Add File: notes.py\n+pass\n",
+            "../outside-edit-guard",
+            None,
+            "allow",
+            None,
+        ),
+        (
+            "*** Update File: backend/app/main.py\n@@\n-old\n+new\n",
+            ".",
+            "1",
+            "allow",
+            None,
+        ),
+    ],
+    ids=["code", "prose", "backend-cwd", "move", "outside", "writer"],
+)
+def test_edit_guard_apply_patch(
+    tmp_path: Path,
+    patch_body: str,
+    cwd_suffix: str,
+    writer: str | None,
+    expected: str,
+    reason: str | None,
+) -> None:
+    assert_edit_guard_decision(
+        tmp_path,
+        "",
+        writer,
+        expected,
+        patch=f"*** Begin Patch\n{patch_body}*** End Patch\n",
+        cwd=tmp_path / cwd_suffix,
+        reason=reason,
+    )
+
+
+def test_edit_guard_apply_patch_main_checkout(
+    checkout_paths: dict[str, Path],
+) -> None:
+    assert_edit_guard_decision(
+        checkout_paths["session"],
+        "",
+        None,
+        "deny",
+        patch="*** Begin Patch\n*** Delete File: frontend/src/App.tsx\n*** End Patch\n",
+        cwd=checkout_paths["main"],
+        reason="frontend/src/App.tsx",
     )
