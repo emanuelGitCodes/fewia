@@ -88,11 +88,14 @@ def attempt(
         }
 
     publish(state_dir, snapshot("launching", None))
+    environment = os.environ.copy()
+    environment["FEWIA_WRITER"] = "1"
     with prompt.open("rb") as source:
         try:
             process = subprocess.Popen(
                 args,
                 cwd=cwd,
+                env=environment,
                 stdin=source,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
