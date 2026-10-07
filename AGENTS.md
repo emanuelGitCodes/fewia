@@ -1,7 +1,11 @@
 # FEWIA rules for Codex
 
 Development writers use the CLI supervisor in `docs/DEV_SUPERVISOR.md`.
-The default order is Grok 4.6, Codex Spark, then Luna.
+Every writer run MUST pass `--only --model MODEL --effort LEVEL`. The model
+and effort MUST be a rung of the writer ladder in `docs/DELEGATION.md`.
+Codex Spark MUST NOT write code. The supervisor's built-in order (Grok 4.6,
+Codex Spark, then Luna) applies only when no model is named. Writers MUST NOT
+rely on it.
 The coordinator classifies each task before delegation.
 Valid complexity values are `simple`, `standard`, `complex`, `exceptional`,
 and `maximum`.
