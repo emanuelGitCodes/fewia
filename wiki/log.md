@@ -3798,3 +3798,12 @@ worktree, Codex runs the main checkout's `.codex/hooks.json`, and only when the
 worktree also has one. `dev_supervisor` writers and reviews use
 `--ignore-user-config`, so project hooks do not load there. Each user MUST trust
 the hooks once with `/hooks` in an interactive Codex session.
+
+## 2026-10-07 — Hook fixes merged; decision 0020
+
+#410 and #411 merged on 2026-10-07. #413 and #414 merged after them as a stack.
+[Decision 0020](decisions/0020-shared-hooks-for-every-agent-cli.md) records the
+rule: one hook set in `.claude/hooks/` serves Claude Code, Grok, and Codex, and
+`FEWIA_WRITER=1` exempts `dev_supervisor` writers. CI did not run on these pull
+requests because GitHub Actions jobs did not start (account billing). The merges
+rest on the local gates and the review command.
