@@ -3768,3 +3768,15 @@ inside that worktree. A senior edit to code in a worktree is now denied.
 An end-to-end Grok run with the real hook confirmed both outcomes: without the
 variable the edit is denied, and with it the edit is written.
 `tests/supervisor/test_edit_guard.py` checks 16 hook decisions.
+
+## 2026-10-07 — Edit guard covers every checkout of the repository
+
+A session in a worktree could edit code in the main checkout or in a sibling
+worktree, because `guard-senior-edits.sh` treated those paths as outside the
+repository. The hook now reads the checkouts from `git worktree list`, including
+the main checkout. It resolves the path with symbolic links, and the deepest
+checkout that holds the path sets the path that the allow list judges. A path in
+no checkout, such as the scratchpad, is still allowed. The hook reads the
+worktree list with NUL separators, so a worktree path with a newline cannot
+escape the match. Twelve new cases in `tests/supervisor/test_edit_guard.py`
+build a real repository with three worktrees.
