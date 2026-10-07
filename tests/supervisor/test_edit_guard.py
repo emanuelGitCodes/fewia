@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -7,10 +8,19 @@ import pytest
 
 
 def assert_edit_guard_decision(
-    project: Path, file_path: str, writer: str | None, expected: str
+    project: Path,
+    file_path: str,
+    writer: str | None,
+    expected: str,
+    *,
+    extra_path: Path | None = None,
 ) -> None:
     hook = Path(__file__).resolve().parents[2] / ".claude/hooks/guard-senior-edits.sh"
     environment = os.environ.copy()
+    if extra_path is not None:
+        environment["PATH"] = (
+            f"{extra_path}{os.pathsep}{environment.get('PATH', os.defpath)}"
+        )
     environment["CLAUDE_PROJECT_DIR"] = str(project)
     environment.pop("FEWIA_WRITER", None)
     if writer is not None:
@@ -133,4 +143,27 @@ def test_edit_guard_checkout_decision(
 ) -> None:
     assert_edit_guard_decision(
         checkout_paths["session"], file_path.format(**checkout_paths), writer, expected
+    )
+
+
+def test_edit_guard_ignores_failed_git_listing(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    project = root / "project"
+    project.mkdir()
+    sibling = root / "sibling"
+    bin_path = tmp_path / "bin"
+    bin_path.mkdir()
+    fake_git = bin_path / "git"
+    fake_git.write_text(
+        "#!/bin/bash\n"
+        f"printf 'worktree %s\\0' {shlex.quote(str(sibling))}\n"
+        "exit 1\n"
+    )
+    fake_git.chmod(0o755)
+
+    assert_edit_guard_decision(
+        project, str(sibling / "backend/app/foo.py"), None, "allow", extra_path=bin_path
+    )
+    assert_edit_guard_decision(
+        project, str(project / "backend/app/foo.py"), None, "deny", extra_path=bin_path
     )
