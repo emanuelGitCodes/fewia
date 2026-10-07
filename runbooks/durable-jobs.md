@@ -117,11 +117,59 @@ Run the lease concurrency and rollback checks against the isolated database:
 uv run pytest tests/test_job_leases.py tests/test_job_leases_postgres.py -q
 ```
 
-## Remaining worker work
+## Run the worker
 
-The next slices consume SQS messages, renew visibility, handle duplicate
-delivery, and apply retry backoff and dead-letter policy. The publisher is a bounded
-CLI command; it is not yet a continuously running worker.
+`backend/app/worker.py` runs one worker for one job kind. Compose starts
+two: `worker` (`--kind agent`) and `sync-worker` (`--kind sync`). Each uses
+`http://floci:4566` inside Compose. From the host, Compose publishes Floci
+on port 4567 (`FLOCI_HOST_PORT`). Run one worker by hand from `backend/`:
+
+```bash
+uv run python -m app.worker --endpoint http://127.0.0.1:4567 --kind agent
+```
+
+`--transport aws` selects real SQS. SIGINT or SIGTERM stops the loop after
+the current job. The worker runs the outbox publisher in a background
+thread, so a separate `app.publish_jobs` run is not necessary.
+
+Each loop pass does two steps:
+
+1. `recover_jobs` in `backend/app/services/job_recovery.py` takes at most
+   20 stale jobs. A stale job is a running job with an expired lease, or a
+   queued job whose message was published at least 300 seconds ago. A job
+   at three attempts becomes failed with `attempts_exhausted`. A job whose
+   payload `job_replay_safe` rejects becomes failed with
+   `recovery_required`. Any other stale job returns to `queued`, and its
+   outbox entry is cleared for publication again.
+2. `process_one` in `backend/app/services/job_consumer.py` handles one
+   message. An empty queue makes the worker wait one second.
+
+## Delivery and failure handling
+
+Two mechanisms protect a job. The SQS visibility timeout controls when a
+message returns to the queue. The database lease controls which worker
+can write the job. The timings nest: a 15-second heartbeat, a 60-second
+lease, and a 120-second visibility timeout.
+
+| Event | Database lease | Queue message |
+|---|---|---|
+| `claim_job` returns a token | The job runs | Stays hidden |
+| The job is terminal or exhausted | No claim | Acknowledged |
+| Another worker holds an active lease | No claim | Visibility extended 120 seconds |
+| Heartbeat, every 15 seconds | `renew_lease` | Visibility extended 120 seconds after the renewal commits |
+| `renew_lease` fails | The worker drops the job (`lease_lost`) and takes the next message | Not acknowledged or extended; it returns when its current timeout ends |
+| `RetryableJobError` | Lease runs out | Visibility extended 120 seconds; not acknowledged |
+| `JobFailure` or another exception | Renewal, then `finish_job` with an error code | Acknowledged; if the renewal or `finish_job` fails, handled as `lease_lost` |
+| Success | `finish_job` commits the result | Acknowledged after the commit; if `finish_job` fails, handled as `lease_lost` |
+
+A redelivered message for a finished job is acknowledged without a new run,
+so duplicate delivery is safe. After three receives, SQS moves the message
+to the dead-letter queue (`fewia-agent-dlq` or `fewia-sync-dlq`). The
+[infrastructure runbook](../infra/README.md) defines both queues.
+
+A lost lease does not stop a provider call that is already in progress.
+A handler that writes to a provider MUST make that write idempotent, or a
+retry can repeat it.
 
 ## Migration rollback
 
