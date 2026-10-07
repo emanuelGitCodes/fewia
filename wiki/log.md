@@ -3819,3 +3819,15 @@ failure handling: a 15-second heartbeat renews the lease and then extends
 visibility by 120 seconds, and a lost lease leaves the message for redelivery.
 A graph trace of the SQS policy and the job leases found the gap; the graph had
 only an inferred similarity edge between them.
+
+## 2026-10-07 — Pull request hooks read the checkout from the hook input
+
+A desktop session in a worktree runs the project hooks from the main checkout,
+with `CLAUDE_PROJECT_DIR` set to the main checkout. Claude Code also removes a
+leading `cd` to the session cwd from a Bash command before a hook reads it. The
+pull request hooks therefore checked the main checkout and denied a pull request
+from a worktree that had clean gates and an `APPROVE` review.
+`pr-checkout.sh` now uses the `cwd` field of the hook input before the project
+root; an explicit leading `cd` still wins. The size, done, and agents hooks pass
+their full input to it. `tests/supervisor/test_pr_hooks.py` covers the
+selection rules and the done check end to end.
