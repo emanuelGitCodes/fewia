@@ -268,6 +268,7 @@ owner decision below.
 | #406 | The pull request cap is 1000 code lines in the backlog, the hook, and the OpenCode agents | cap change |
 | #407 | The gates print `LINES n/1000` | followups-20261006 item 02 |
 | #408 | The follow-up model context carries the earlier plan's ingredient ids | G2 option B |
+| #409 | Closed without a merge; #418 carries the same wiki log entry | none |
 | #410 | `dev_supervisor` starts writers with `FEWIA_WRITER=1`; the edit guard allows them and judges worktree paths | Grok writer denial |
 | #411 | The edit guard judges a path in every checkout from `git worktree list` | cross-checkout edits |
 | #412 | `stop()` retries a transient `EPERM` from `os.killpg` | none |
