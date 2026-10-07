@@ -178,7 +178,7 @@ def test_format_pass_skip() -> None:
     assert text.splitlines() == [
         "PASS backend:ruff-check All checks passed!",
         "PASS backend:mypy ",
-        "LINES 12/150",
+        "LINES 12/1000",
         "RESULT PASS",
     ]
 
@@ -193,7 +193,7 @@ def test_format_fail_tail() -> None:
     lines = text.splitlines()
     assert lines[0] == "FAIL backend:pytest L24"
     assert lines[1:21] == [f"  L{i}" for i in range(5, 25)]
-    assert lines[21] == "LINES 1/150"
+    assert lines[21] == "LINES 1/1000"
     assert lines[22] == "RESULT FAIL"
 
 
@@ -510,7 +510,7 @@ def test_reuse_hit_runs_no_gates_with_ignored_files(
     assert main(["--cwd", str(repo), "--base", "main", "--reuse"]) == 0
     out = capsys.readouterr().out
     assert "REUSED PASS backend:ruff-check ok" in out
-    assert "REUSED LINES 4/150" in out
+    assert "REUSED LINES 4/1000" in out
     assert out.strip().endswith("RESULT PASS")
 
 
@@ -681,7 +681,7 @@ def test_same_head_changed_base_invalidates_reuse(
     argv = ["--cwd", str(repo), "--base", "comparison", "--reuse"]
     monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
     assert main(argv) == 0
-    assert "LINES 1/150" in capsys.readouterr().out
+    assert "LINES 1/1000" in capsys.readouterr().out
     _git(repo, "tag", "-f", "comparison", sha)
     assert main(argv) == 0
     assert capsys.readouterr().out == "RESULT PASS (no gates for these paths)\n"
