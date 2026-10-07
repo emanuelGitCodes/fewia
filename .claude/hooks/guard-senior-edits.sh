@@ -19,17 +19,25 @@ root="$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" && pwd -P)"
 # symbolic links so a path cannot step back into a checkout. The deepest
 # checkout that holds the path sets the relative path.
 case "$path" in /*) ;; *) path="$root/$path" ;; esac
-checkouts="$(git -C "$root" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' || true)"
 rel="$(python3 -c '
-import os, sys
+import os, subprocess, sys
 path = os.path.realpath(sys.argv[1])
+root = sys.argv[2]
+try:
+    listing = subprocess.run(
+        ["git", "-C", root, "worktree", "list", "--porcelain", "-z"],
+        capture_output=True, text=True,
+    ).stdout
+except OSError:
+    listing = ""
+tops = [root] + [f[9:] for f in listing.split("\0") if f.startswith("worktree ")]
 best = ""
-for top in [sys.argv[2], *sys.argv[3].splitlines()]:
+for top in tops:
     top = os.path.realpath(top)
     if path.startswith(top + os.sep) and len(top) > len(best):
         best = top
 print(os.path.relpath(path, best) if best else "")
-' "$path" "$root" "$checkouts")"
+' "$path" "$root")"
 [ -z "$rel" ] && exit 0
 
 # A worktree under .claude/worktrees/ holds a full checkout. Judge a path
