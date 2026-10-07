@@ -103,10 +103,11 @@ def assert_static(error: BaseException) -> None:
 
 
 def test_none_parent_returns_empty_context(session: Session) -> None:
-    history, previous = load_chat_context(session, 1, None)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, None)
 
     assert history == []
     assert previous is None
+    assert _ingredient_ids is None
 
 
 def test_owner_isolation_and_foreign_job(
@@ -130,7 +131,7 @@ def test_owner_isolation_and_foreign_job(
         result={"answer": SECRET, "request": request_body()},
     )
 
-    history, previous = load_chat_context(session, 1, owned.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, owned.id)
     assert history == [
         {"role": "user", "text": "plan chicken tacos"},
         {"role": "assistant", "text": "Here is a labeled estimate."},
@@ -154,7 +155,7 @@ def test_load_accepts_uuid_job_id(session: Session, seed_user: UserSeeder) -> No
         result={"request": request_body()},
     )
 
-    history, previous = load_chat_context(session, 1, UUID(job.id))
+    history, previous, _ingredient_ids = load_chat_context(session, 1, UUID(job.id))
 
     assert history == []
     assert previous == expected_request(request_body())
@@ -212,7 +213,7 @@ def test_legacy_plan_result_without_request(
         result={"plan": {"accepted": True}, "tool_trace": [SECRET]},
     )
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history == []
     assert previous == expected_request(request_body())
@@ -231,7 +232,7 @@ def test_plan_prefers_validated_result_request(
         result={"request": result_request},
     )
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history == []
     assert previous == expected_request(result_request)
@@ -253,7 +254,7 @@ def test_chat_followup_trims_to_last_four_pairs(
         result={"answer": "assistant-5", "request": request_body()},
     )
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert [item["text"] for item in history] == [
         "user-2",
@@ -329,7 +330,7 @@ def test_long_assistant_text_trims_copy(
     original_result = copy.deepcopy(result)
     job = add_job(session, user_id=1, payload=payload, result=result)
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history[0]["text"] == "plan chicken tacos"
     assert history[1]["role"] == "assistant"
@@ -353,7 +354,7 @@ def test_preserves_full_user_message(session: Session, seed_user: UserSeeder) ->
         result={"answer": "ok", "request": request_body()},
     )
 
-    history, _previous = load_chat_context(session, 1, job.id)
+    history, _previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history[0]["text"] == message
     assert len(history[0]["text"]) == MAX_MESSAGE_LEN
@@ -375,7 +376,7 @@ def test_chat_clarification_uses_payload_previous_request(
         },
     )
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history == [
         {"role": "user", "text": "plan chicken tacos"},
@@ -400,7 +401,7 @@ def test_chat_clarification_without_previous_request(
         },
     )
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history[-1]["text"] == "Which meals?"
     assert previous is None
@@ -457,7 +458,7 @@ def test_history_omits_tool_trace_and_spending(
         },
     )
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert previous is not None
     for item in history:
@@ -538,7 +539,7 @@ def test_assistant_whitespace_trimmed_before_truncation(
     original_result = copy.deepcopy(result)
     job = add_job(session, user_id=1, payload=payload, result=result)
 
-    history, previous = load_chat_context(session, 1, job.id)
+    history, previous, _ingredient_ids = load_chat_context(session, 1, job.id)
 
     assert history[1]["role"] == "assistant"
     assert len(history[1]["text"]) == MAX_MESSAGE_LEN
@@ -550,3 +551,37 @@ def test_assistant_whitespace_trimmed_before_truncation(
     assert job.payload == original_payload
     assert job.result == original_result
     assert SECRET not in history[1]["text"]
+
+
+@pytest.mark.parametrize("chat", [False, True])
+def test_previous_plan_ingredient_ids(
+    session: Session, seed_user: UserSeeder, chat: bool
+) -> None:
+    seed_user(1)
+    result: dict[str, object] = {
+        "answer": "Here is a labeled estimate.",
+        "request": request_body(),
+        "plan": {
+            "lines": [
+                {"ingredient_id": "tortillas", "reasoningContent": SECRET},
+                {"ingredient_id": "eggs"},
+                {"ingredient_id": "eggs"},
+                {"ingredient_id": "unknown"},
+            ]
+        },
+    }
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload() if chat else plan_payload(),
+        result=result,
+    )
+    before = copy.deepcopy(job.result)
+    loaded = load_chat_context(session, 1, job.id)
+    assert len(loaded) == 3
+    history, previous, ids = loaded
+    assert len(history) == (2 if chat else 0)
+    assert previous == expected_request(request_body())
+    assert ids == ["eggs", "tortillas"]
+    assert job.result == before
+    assert SECRET not in str(loaded)

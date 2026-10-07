@@ -282,6 +282,7 @@ def test_post_chat_stores_fixture_context(
     assert payload["previous_job_id"] is None
     assert payload["history"] == []
     assert payload["previous_request"] is None
+    assert payload["previous_ingredient_ids"] is None
     assert payload["spending_source"] == "fixture"
     assert payload["spending"]["period"] == "2026-09-01"
     assert payload["spending"]["posted_cents"] == FIXTURE_POSTED_CENTS
@@ -580,7 +581,13 @@ def test_parent_history_is_server_loaded(
 ) -> None:
     seed_user()
     enable_chat(monkeypatch)
-    add_parent(session)
+    parent = add_parent(session)
+    assert parent.result is not None
+    parent.result = {
+        **parent.result,
+        "plan": {"lines": [{"ingredient_id": "eggs"}]},
+    }
+    session.flush()
     response = post_chat(
         client,
         key="follow-up",
@@ -596,6 +603,7 @@ def test_parent_history_is_server_loaded(
         {"role": "assistant", "text": "Here is a labeled estimate."},
     ]
     assert job.payload["previous_request"]["meals"][0]["recipe_id"] == ("chicken_tacos")
+    assert job.payload["previous_ingredient_ids"] == ["eggs"]
 
 
 def test_foreign_parent_returns_static_conflict(
@@ -661,10 +669,14 @@ def test_forbidden_body_fields_are_rejected(
         key="spend",
         body=chat_body(spending={"posted_cents": 1}),
     )
+    ingredient_ids = post_chat(
+        client, key="ids", body=chat_body(previous_ingredient_ids=["unknown"])
+    )
 
     assert history.status_code == 422
     assert owner.status_code == 422
     assert spending.status_code == 422
+    assert ingredient_ids.status_code == 422
 
 
 def test_missing_demo_user_returns_static_service_error(

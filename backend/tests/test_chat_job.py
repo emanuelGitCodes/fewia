@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.agent.chat_answer import render_public_answer
+from app.agent.chat_context import plan_ingredient_ids
 from app.agent.chat_loop import ChatUnavailable
 from app.agent.planning_tool import TOOL_NAME, execute_plan
 from app.domain.budget import (
@@ -182,9 +183,12 @@ def test_chat_job_plan_then_final_and_followup(
     assert inputs.spending == SpendingInput.model_validate(spending())
 
     follow_provider = FakeLLM(_planner_then_final())
+    ingredient_ids = plan_ingredient_ids(result["plan"])
+    assert ingredient_ids
     follow = chat_job_module.chat_job(
         chat_payload(
             message="use the same meals",
+            previous_ingredient_ids=ingredient_ids,
             previous_request={
                 "meals": [{"recipe_id": "chicken_tacos", "servings": 1}],
                 "budget_period": PERIOD,
@@ -203,6 +207,8 @@ def test_chat_job_plan_then_final_and_followup(
     assert isinstance(first_messages, list)
     assert first_messages[0]["role"] == "user"
     assert first_messages[1]["role"] == "assistant"
+    content = first_messages[-1]["content"]
+    assert json.loads(content[0]["text"])["previous_ingredient_ids"] == ingredient_ids
 
 
 def test_chat_job_stores_snapshot_before_next_model_call(

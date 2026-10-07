@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import GroceryRequest
 
 MAX_MESSAGE_LEN = 4000
@@ -17,6 +18,17 @@ _PREVIOUS = "previous_request is invalid"
 _CONTEXT_ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
 )
+
+
+def plan_ingredient_ids(plan: object) -> list[str] | None:
+    if not isinstance(plan, dict) or not isinstance(plan.get("lines"), list):
+        return None
+    ids: set[str] = set()
+    for line in plan["lines"]:
+        ingredient_id = line.get("ingredient_id") if isinstance(line, dict) else None
+        if isinstance(ingredient_id, str) and ingredient_id in INGREDIENTS:
+            ids.add(ingredient_id)
+    return sorted(ids)
 
 
 def _exact_int(value: object) -> TypeGuard[int]:
@@ -92,6 +104,7 @@ def build_messages(
     user_id: int = 1,
     spending_source: SpendingSource = "fixture",
     previous_request: dict[str, object] | None = None,
+    previous_ingredient_ids: list[str] | None = None,
     history: list[dict[str, str]] | None = None,
     plan_cap_cents: int | None = None,
 ) -> list[dict[str, object]]:
@@ -107,6 +120,15 @@ def build_messages(
     ):
         raise ChatProtocolError(_REQUEST)
     previous = _previous(previous_request)
+    if previous_ingredient_ids is not None and (
+        not isinstance(previous_ingredient_ids, list)
+        or len(previous_ingredient_ids) > len(INGREDIENTS)
+        or any(
+            not isinstance(item, str) or item not in INGREDIENTS
+            for item in previous_ingredient_ids
+        )
+    ):
+        raise ChatProtocolError(_PREVIOUS)
     messages = _history(history)
     context = dumps(
         {
@@ -115,6 +137,11 @@ def build_messages(
             "period": period.isoformat(),
             "plan_cap_cents": plan_cap_cents,
             "previous_request": previous,
+            "previous_ingredient_ids": (
+                None
+                if previous_ingredient_ids is None
+                else sorted(previous_ingredient_ids)
+            ),
         },
         sort_keys=True,
         separators=(",", ":"),

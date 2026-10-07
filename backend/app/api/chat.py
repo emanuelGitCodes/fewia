@@ -76,14 +76,16 @@ def create_chat_job(
     spending = grocery_api.require_spending(
         session, settings.spending_source, _ny_now()
     )
-    loaded: tuple[list[dict[str, str]], dict[str, object] | None] | None = None
+    loaded: (
+        tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None] | None
+    ) = None
     try:
         loaded = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
     except ChatContextUnavailable:
         pass
     if loaded is None:
         raise HTTPException(status_code=409, detail=CHAT_CONTEXT_MESSAGE)
-    history, previous_request = loaded
+    history, previous_request, previous_ingredient_ids = loaded
     turns = [ChatHistoryTurn.model_validate(item) for item in history]
     payload = cast(
         dict[str, object],
@@ -95,6 +97,7 @@ def create_chat_job(
             previous_job_id=body.previous_job_id,
             history=turns,
             previous_request=previous_request,
+            previous_ingredient_ids=previous_ingredient_ids,
             spending=spending,
             spending_source=settings.spending_source,
         ).model_dump(mode="json"),
