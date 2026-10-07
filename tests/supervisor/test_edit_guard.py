@@ -155,9 +155,7 @@ def test_edit_guard_ignores_failed_git_listing(tmp_path: Path) -> None:
     bin_path.mkdir()
     fake_git = bin_path / "git"
     fake_git.write_text(
-        "#!/bin/bash\n"
-        f"printf 'worktree %s\\0' {shlex.quote(str(sibling))}\n"
-        "exit 1\n"
+        f"#!/bin/bash\nprintf 'worktree %s\\0' {shlex.quote(str(sibling))}\nexit 1\n"
     )
     fake_git.chmod(0o755)
 
