@@ -3840,3 +3840,11 @@ because GitHub Actions is out of minutes. `AGENTS.md`, `CLAUDE.md`,
 the `.codex/agents/` definitions, and the backlog now state 1000. Tests, docs,
 lockfiles, and generated files still do not count. The gates print
 `LINES n/150` and do not fail on the count; that display is unchanged.
+
+## 2026-10-07 — The 1000-line cap reaches the hook and OpenCode
+
+The owner confirmed the 1000-line pull request cap on 2026-10-07. The cap
+change from 2026-10-06 did not reach `.claude/hooks/check-pr-size.sh`, which
+still denied a pull request above 150 code lines, or the `.opencode/agents/`
+definitions. Both now state 1000, and the `.claude/README.md` hook table
+matches. #407 changes the gates label to `LINES n/1000`.

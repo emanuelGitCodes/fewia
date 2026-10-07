@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook for Bash, filtered to the pull request create command.
-# Rule: a pull request MUST NOT add more than 150 lines of code.
+# Rule: a pull request MUST NOT add more than 1000 lines of code.
 # Tests, documentation, lockfiles, and generated files do not count.
 set -euo pipefail
 
@@ -9,10 +9,10 @@ cmd="$(jq -r '.tool_input.command // empty' <<<"$input")"
 grep -Eq 'gh\s+pr\s+create\b' <<<"$cmd" || exit 0
 . "$(dirname "$0")/pr-checkout.sh"
 
-cap=150
+cap=1000
 merge="$(git -C "$dir" merge-base "$base" HEAD 2>/dev/null || true)"
 if [ -z "$merge" ]; then
-  jq -n --arg b "$base" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("Cannot resolve the base ref " + $b + ", so the 150-line cap cannot be checked. Fetch it or pass --base.")}}'
+  jq -n --arg b "$base" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("Cannot resolve the base ref " + $b + ", so the 1000-line cap cannot be checked. Fetch it or pass --base.")}}'
   exit 0
 fi
 # The pull request carries HEAD, so measure the committed diff.
@@ -29,4 +29,4 @@ if [ "$lines" -gt "$cap" ]; then
   jq -n --arg n "$lines" --arg c "$cap" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("This branch adds " + $n + " code lines. The cap is " + $c + ". Split it into a stack (stacked-prs skill).")}}'
   exit 0
 fi
-jq -n --arg n "$lines" --arg b "$base" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:("PR size check: " + $n + " added code lines against " + $b + " (cap 150).")}}'
+jq -n --arg n "$lines" --arg b "$base" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:("PR size check: " + $n + " added code lines against " + $b + " (cap 1000).")}}'

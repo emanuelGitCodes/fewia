@@ -38,5 +38,5 @@ Implement only assigned security fixes. Other requests stay read-only
 audits. Routing areas are not blanket write permission.
 Preserve other edits.
 
-Keep each code PR within 150 added source lines.
+Keep each code PR within 1000 added source lines.
 A separate Codex or Grok agent independently verifies the result.
