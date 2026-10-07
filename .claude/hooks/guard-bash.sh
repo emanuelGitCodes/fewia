@@ -2,6 +2,7 @@
 # PreToolUse hook for Bash.
 # Deny: skipping gitleaks, deleting supervisor checkpoint dirs, force pushes,
 # and pushes to main. Ask: every other external write (push, PR, merge).
+# Under Codex (FEWIA_HOOK_HOST=codex), deny instead of ask.
 set -euo pipefail
 
 cmd="$(jq -r '.tool_input.command // empty')"
@@ -11,7 +12,10 @@ deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
+# Codex hooks cannot ask, so under Codex an external write is denied and
+# the user runs it.
 ask() {
+  [ "${FEWIA_HOOK_HOST:-}" = codex ] && deny "$1 Codex hooks cannot ask: give the command to the user to run."
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
   exit 0
 }

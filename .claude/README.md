@@ -11,7 +11,7 @@ test it.
 | `../CLAUDE.md` | Memory | Every session start | yes |
 | `settings.json` | Settings, hooks, permissions | Session start, and on change | yes |
 | `settings.local.json` | Personal overrides | After `settings.json` | no |
-| `hooks/*.sh` | Hook scripts | On the event named in `settings.json` | yes |
+| `hooks/*.sh`, `hooks/edit-targets.py` | Hook scripts, shared with Codex through `.codex/hooks.json` | On the event named in `settings.json` or `.codex/hooks.json` | yes |
 | `agents/*.md` | Subagent definitions | When the senior spawns one | yes |
 | `skills/<name>/SKILL.md` | Skills, also slash commands | When invoked, or when the task matches | yes |
 | `loop/<slug>.md` | Feature-loop ledgers | Read by the `feature-loop` skill | no |
@@ -52,15 +52,15 @@ A hook receives one JSON object on stdin. It answers on stdout.
 
 | Script | Event | Matcher | Rule it enforces |
 |---|---|---|---|
-| `guard-senior-edits.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit` | The senior MUST NOT write code. Every repository path is denied except prose, `wiki/`, `docs/`, and agent config. |
-| `guard-bash.sh` | `PreToolUse` | `Bash` | Deny a gitleaks skip, supervisor dir deletion, force push, push to main. Ask on push, PR, merge. |
+| `guard-senior-edits.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit`; Codex `apply_patch` | The senior MUST NOT write code. Every path in a checkout of the repository is denied except prose, `wiki/`, `docs/`, and agent config. A writer with `FEWIA_WRITER=1` is allowed. |
+| `guard-bash.sh` | `PreToolUse` | `Bash` | Deny a gitleaks skip, supervisor dir deletion, force push, push to main. Ask on push, PR, merge; deny them under Codex. |
 | `check-pr-size.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A PR MUST NOT add more than 150 code lines. |
 | `check-pr-done.sh` | `PreToolUse` | `Bash`, only `gh pr create` | HEAD needs a clean gates record and an `APPROVE` review in `.fewia-supervisor-*`. |
 | `check-agents-pr.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A `.claude/agents/` change ships alone and links a wiki page. |
-| `guard-wiki-log.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit` on `wiki/log.md` | The log is append-only. |
+| `guard-wiki-log.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit`; Codex `apply_patch`; on `wiki/log.md` | The log is append-only. |
 | `session-context.sh` | `SessionStart` | all | Report the branch, the open loop ledgers, and the worktree count. |
 | `stop-wiki-reminder.sh` | `Stop` | all | Remind when a branch is ahead of main with no log entry. Never blocks. |
-| `lint-prose.sh` | `PostToolUse` | `Edit\|Write` on `.md` | Flag house-style violations. Never blocks. |
+| `lint-prose.sh` | `PostToolUse` | `Edit\|Write`; Codex `apply_patch`; on `.md` | Flag house-style violations. Never blocks. |
 
 The three `gh pr create` hooks share `pr-checkout.sh`. It reads a leading
 `cd <dir> &&` to find the checkout and the `--base` flag to find the
@@ -70,6 +70,30 @@ parent branch. Open a stacked pull request with both.
 blocked command trips it. Write such text with the Write tool instead.
 `guard-senior-edits.sh` does not see file writes made with a shell
 command. The rule in `CLAUDE.md` still binds the senior there.
+
+The edit hooks read their target files through `edit-targets.py`. It
+reads `tool_input.file_path` from Claude Code and Grok. It reads the
+`*** Add File:`, `*** Update File:`, `*** Delete File:`, and
+`*** Move to:` lines of a Codex `apply_patch` patch, relative to the
+session `cwd`.
+
+### Codex
+
+`.codex/hooks.json` runs the same scripts for an interactive Codex
+session. Each command calls `codex-hook.sh <script>`. The wrapper sets
+`CLAUDE_PROJECT_DIR` to the git root and `FEWIA_HOOK_HOST=codex`, then
+runs `.claude/hooks/<script>`. Keep one copy of each script, in
+`.claude/hooks/`.
+
+- Codex runs a project hook only after the user trusts it. Run `/hooks`
+  in an interactive Codex session in the main checkout. A changed hook
+  needs trust again.
+- In a linked worktree, Codex 0.159 runs the main checkout's
+  `.codex/hooks.json`. Keep the main checkout on a branch that has it.
+- Codex hooks cannot ask. `guard-bash.sh` denies an external write under
+  Codex, and the user runs the command.
+- `dev_supervisor` starts Codex writers and reviews with
+  `--ignore-user-config`. Project hooks do not load there.
 
 ### Test a hook
 
@@ -94,8 +118,11 @@ echo '{}' | CLAUDE_PROJECT_DIR="$PWD" .claude/hooks/session-context.sh
 2. Pipe-test it as above.
 3. Register it in `settings.json` under the event name. Use
    `"$CLAUDE_PROJECT_DIR"/.claude/hooks/<name>.sh` as the command.
-4. Validate the file: `jq -e .hooks .claude/settings.json`.
-5. Claude Code reloads `settings.json` on change. A hook on
+4. Register it in `.codex/hooks.json` with the command
+   `"$(git rev-parse --show-toplevel)/.claude/hooks/codex-hook.sh" <name>.sh`.
+   Codex reports a file edit as `apply_patch`.
+5. Validate the files: `jq -e .hooks .claude/settings.json .codex/hooks.json`.
+6. Claude Code reloads `settings.json` on change. A hook on
    `SessionStart` fires at the next session.
 
 ### Turn hooks off for one session
