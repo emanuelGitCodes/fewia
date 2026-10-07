@@ -121,10 +121,11 @@ uv run pytest tests/test_job_leases.py tests/test_job_leases_postgres.py -q
 
 `backend/app/worker.py` runs one worker for one job kind. Compose starts
 two: `worker` (`--kind agent`) and `sync-worker` (`--kind sync`). Each uses
-the local Floci endpoint. Run one by hand from `backend/`:
+`http://floci:4566` inside Compose. From the host, Compose publishes Floci
+on port 4567 (`FLOCI_HOST_PORT`). Run one worker by hand from `backend/`:
 
 ```bash
-uv run python -m app.worker --endpoint http://127.0.0.1:4566 --kind agent
+uv run python -m app.worker --endpoint http://127.0.0.1:4567 --kind agent
 ```
 
 `--transport aws` selects real SQS. SIGINT or SIGTERM stops the loop after
