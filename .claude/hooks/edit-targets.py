@@ -1,21 +1,13 @@
 """Print the files that one edit tool call writes, as a JSON array.
 
-Read the hook input on stdin. A Claude Code or Grok edit names one file in
-`tool_input.file_path` or `tool_input.notebook_path`, relative to the
-project root. A Codex `apply_patch` call holds a patch in
-`tool_input.command`; its paths are relative to the session `cwd`.
-
-Each item is {"path", "op", "appends"}. `op` is the tool name, or `add`,
-`update`, `delete`, `move_from`, or `move_to` for a patch. `appends` is
-true for an update that only adds lines after the end of the file.
-
-With `--relative ROOT`, print only the paths inside a checkout of the
-repository instead. The checkouts are ROOT and every worktree that
-`git worktree list` reports. Each path is resolved with symbolic links and
-made relative to the deepest checkout that holds it.
+Input is the hook JSON on stdin: `tool_input.file_path` or `notebook_path`
+(relative to the project root), or a Codex `apply_patch` patch in
+`tool_input.command` (relative to the session `cwd`). Each item is
+{"path", "op", "appends"}; `appends` is true for an update that only adds
+lines after the end of the file. With `--relative ROOT`, print the paths
+inside a checkout (ROOT or a `git worktree list` entry) instead, resolved
+and relative to the deepest checkout that holds each one.
 """
-
-from __future__ import annotations
 
 import json
 import os
