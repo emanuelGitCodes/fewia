@@ -13,7 +13,7 @@ exercised every merged subsystem on the local stack. Its follow-up loop
 merged #384 to #390 the same day. Its findings merged as E1 to E4 in #392
 to #395. The fresh benchmark of 2026-10-05 (#398) measured the fixes. Its
 eight failed slots are the work items in Part 2, Tier G. #399 and #408
-closed two of the three failing scenarios. #401 to #417 added the agent
+address two of the three failing scenarios. Only G3 measures them. #401 to #417 added the agent
 hooks under [decision 0020](../wiki/decisions/0020-shared-hooks-for-every-agent-cli.md).
 The [final record](../wiki/phases/backlog-final-20261003.md)
 and the [hosting snapshot](../wiki/phases/hosting-preparation-20261003.md) are
