@@ -3776,6 +3776,7 @@ worktree, because `guard-senior-edits.sh` treated those paths as outside the
 repository. The hook now reads the checkouts from `git worktree list`, including
 the main checkout. It resolves the path with symbolic links, and the deepest
 checkout that holds the path sets the path that the allow list judges. A path in
-no checkout, such as the scratchpad, is still allowed. Ten new cases in
-`tests/supervisor/test_edit_guard.py` build a real repository with two
-worktrees.
+no checkout, such as the scratchpad, is still allowed. The hook reads the
+worktree list with NUL separators, so a worktree path with a newline cannot
+escape the match. Twelve new cases in `tests/supervisor/test_edit_guard.py`
+build a real repository with three worktrees.
