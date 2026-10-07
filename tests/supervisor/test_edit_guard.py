@@ -16,7 +16,7 @@ def assert_edit_guard_decision(
     extra_path: Path | None = None,
     patch: str | None = None,
     cwd: Path | None = None,
-    reason: str | None = None,
+    reason: str | tuple[str, ...] | None = None,
 ) -> None:
     hook = Path(__file__).resolve().parents[2] / ".claude/hooks/guard-senior-edits.sh"
     environment = os.environ.copy()
@@ -54,7 +54,12 @@ def assert_edit_guard_decision(
         output = json.loads(result.stdout)
         assert output["hookSpecificOutput"]["permissionDecision"] == "deny"
         if reason is not None:
-            assert reason in output["hookSpecificOutput"]["permissionDecisionReason"]
+            reasons = (reason,) if isinstance(reason, str) else reason
+            for expected_reason in reasons:
+                assert (
+                    expected_reason
+                    in output["hookSpecificOutput"]["permissionDecisionReason"]
+                )
 
 
 @pytest.mark.parametrize(
@@ -215,6 +220,21 @@ def test_edit_guard_ignores_failed_git_listing(tmp_path: Path) -> None:
             "backend/a.py",
         ),
         (
+            "*** Update File: backend/a.py\n@@\n-old\n+new\n"
+            "*** Update File: frontend/b.ts\n@@\n-old\n+new\n",
+            ".",
+            None,
+            "deny",
+            ("backend/a.py", "frontend/b.ts"),
+        ),
+        (
+            "*** Update File: backend/a.py\n*** Move to: docs/a.md\n@@\n-old\n+new\n",
+            ".",
+            None,
+            "deny",
+            "backend/a.py",
+        ),
+        (
             "*** Add File: notes.py\n+pass\n",
             "../outside-edit-guard",
             None,
@@ -229,7 +249,16 @@ def test_edit_guard_ignores_failed_git_listing(tmp_path: Path) -> None:
             None,
         ),
     ],
-    ids=["code", "prose", "backend-cwd", "move", "outside", "writer"],
+    ids=[
+        "code",
+        "prose",
+        "backend-cwd",
+        "move",
+        "two-code-paths",
+        "move-source",
+        "outside",
+        "writer",
+    ],
 )
 def test_edit_guard_apply_patch(
     tmp_path: Path,
@@ -237,8 +266,11 @@ def test_edit_guard_apply_patch(
     cwd_suffix: str,
     writer: str | None,
     expected: str,
-    reason: str | None,
+    reason: str | tuple[str, ...] | None,
 ) -> None:
+    log = tmp_path / "wiki/log.md"
+    log.parent.mkdir()
+    log.write_text("# Log\n\nentry\n")
     assert_edit_guard_decision(
         tmp_path,
         "",
