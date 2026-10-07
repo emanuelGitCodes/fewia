@@ -261,7 +261,9 @@ owner decision below.
 | PR | Change | Closes |
 |---|---|---|
 | #401 | The `.claude/` map and the first three hooks: senior edit guard, Bash guard, pull request size | decision 0020 start |
-| #403 | The wiki log guard and the prose linter | none |
+| #402 | The pull request hooks: size, done, and agents checks | stack under #405 |
+| #403 | The wiki log guard and the prose linter | stack under #405 |
+| #404 | The gates, wiki-log, and worktree-cleanup skills | stack under #406 |
 | #405 | The pull request hooks fail closed, read the base branch, and measure `HEAD` | none |
 | #406 | The pull request cap is 1000 code lines in the backlog, the hook, and the OpenCode agents | cap change |
 | #407 | The gates print `LINES n/1000` | followups-20261006 item 02 |
@@ -274,11 +276,13 @@ owner decision below.
 | #415 | Decision 0020 and the merged hook fixes in the wiki | none |
 | #416 | `runbooks/durable-jobs.md` describes the running worker and the lease rule | runbook gap |
 | #417 | The pull request hooks read the checkout from the hook input `cwd` | worktree pull request denial |
-| #418 | The wiki records G2 option B and the gates label | none |
+| #418 | The wiki records G2 option B and the gates label; replaces the closed #409 | none |
 | #419 | `AGENTS.md` states the writer ladder rule instead of a default order | writer order conflict |
 
-GitHub Actions did not run on #401 to #419. Each merge rests on the local
-gates and the review command.
+#402, #403, and #404 merged through their stack parents, so `main` holds no
+merge commit for them. #409 closed without a merge. GitHub Actions did not
+run on #401 to #419. Each merge rests on the local gates and the review
+command.
 
 Dropped by owner decision: item 10, sanitized model text per observed turn,
 because the evidence rule forbids model prose; item 05, a model-drafted paper,
