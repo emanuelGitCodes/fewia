@@ -157,10 +157,10 @@ lease, and a 120-second visibility timeout.
 | The job is terminal or exhausted | No claim | Acknowledged |
 | Another worker holds an active lease | No claim | Visibility extended 120 seconds |
 | Heartbeat, every 15 seconds | `renew_lease` | Visibility extended 120 seconds after the renewal commits |
-| `renew_lease` fails | The worker stops (`LeaseLost`) | Not acknowledged; it returns after the timeout |
+| `renew_lease` fails | The worker drops the job (`lease_lost`) and takes the next message | Not acknowledged or extended; it returns when its current timeout ends |
 | `RetryableJobError` | Lease runs out | Visibility extended 120 seconds; not acknowledged |
-| `JobFailure` or another exception | Renewal, then `finish_job` with an error code | Acknowledged |
-| Success | `finish_job` commits the result | Acknowledged after the commit |
+| `JobFailure` or another exception | Renewal, then `finish_job` with an error code | Acknowledged; if the renewal or `finish_job` fails, handled as `lease_lost` |
+| Success | `finish_job` commits the result | Acknowledged after the commit; if `finish_job` fails, handled as `lease_lost` |
 
 A redelivered message for a finished job is acknowledged without a new run,
 so duplicate delivery is safe. After three receives, SQS moves the message
