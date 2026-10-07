@@ -25,6 +25,7 @@ chronological record lives in [log.md](log.md).
 - [0017 — Forty-meal sample catalog](decisions/0017-forty-meal-catalog.md)
 - [0018 — Retain legacy data for now](decisions/0018-retain-legacy-data.md)
 - [0019 — Invitation-only hosted demo](decisions/0019-invitation-only-hosting.md)
+- [0020 — One hook set for every agent CLI](decisions/0020-shared-hooks-for-every-agent-cli.md)
 
 ## Phases
 
@@ -85,3 +86,4 @@ D4 remains paused. Live Instacart stays parked.
 ## Development operations
 
 - [Development writer supervisor](../docs/DEV_SUPERVISOR.md)
+- [Agent hooks for Claude Code, Grok, and Codex](../.claude/README.md#hooks)
