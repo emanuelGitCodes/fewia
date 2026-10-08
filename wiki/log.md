@@ -3885,3 +3885,27 @@ code. The order is the supervisor's built-in `DEFAULTS` in
 `--only --model MODEL --effort LEVEL` with a ladder rung, that Spark does not
 write code, and that writers do not rely on the built-in order. The graph
 update found the conflict. The code default is unchanged.
+
+## 2026-10-08 — Preserve the pantry verification scripts
+
+The two temporary pantry probes now live in [eval/probes](../eval/probes/README.md).
+The canonical probe runs three repeats per selected case. The phrase probe
+runs four separate wording checks. The README records the commands, original
+file hashes, model settings, result formats, and limits.
+
+The scripts retain their original syntax trees after formatting. The
+application, corpus, expected outcomes, and stored evidence did not change.
+This work does not report a new live evaluation or certify a release.
+
+Offline checks passed: Ruff lint, Ruff formatting, strict mypy on 162 source
+files, both CLI help commands, and both syntax-tree comparisons. The initial
+format check found quote formatting in both scripts; the formatter corrected
+it. An initial Ruff cache write was blocked by the sandbox; the successful
+checks used a temporary cache. No model calls ran for these checks.
+
+The work uses tier S. Luna xhigh preserved the scripts. Sol low is assigned
+the independent review. Writer usage at this checkpoint was 426837 input and
+12961 output tokens over 134.871 seconds. Input includes cached tokens.
+Review and coordinator usage are excluded from this checkpoint total.
+The user authorized a commit and PR; this entry does not record publication
+or a merge.
