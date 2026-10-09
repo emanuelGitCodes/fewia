@@ -60,6 +60,8 @@ A hook receives one JSON object on stdin. It answers on stdout.
 | `guard-wiki-log.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit`; Codex `apply_patch`; on `wiki/log.md` | The log is append-only. |
 | `session-context.sh` | `SessionStart` | all | Report the branch, the open loop ledgers, and the worktree count. |
 | `stop-wiki-reminder.sh` | `Stop` | all | Remind when a branch is ahead of main with no log entry. Never blocks. |
+| `record-usage.sh` | `Stop` | all | Append the session's new token counts to the usage ledger as `coordinate`. Never blocks. |
+| `record-usage.sh` | `SubagentStop` | all | Append the subagent's token counts as `junior` with its agent type. Never blocks. |
 | `lint-prose.sh` | `PostToolUse` | `Edit\|Write`; Codex `apply_patch`; on `.md` | Flag house-style violations. Never blocks. |
 
 The three `gh pr create` hooks share `pr-checkout.sh`. It finds the
