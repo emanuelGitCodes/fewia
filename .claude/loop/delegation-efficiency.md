@@ -51,14 +51,14 @@ long command has a timeout; review model != writer model; effort by tier.
 
 | ID | Title | Owner | Tier | Base | Branch | Owned files | Depends | State |
 |---|---|---|---|---|---|---|---|---|
-| 01 | Decision 0014 + canonical docs/DELEGATION.md | senior (prose) | S | main | claude/delegation-efficiency-01 | docs/DELEGATION.md, wiki/decisions/0014-*.md, wiki/index.md | — | blocked |
+| 01 | Decision 0014 + canonical docs/DELEGATION.md | senior (prose) | S | main | claude/delegation-efficiency-01 | docs/DELEGATION.md, wiki/decisions/0014-*.md, wiki/index.md | — | merged #174 |
 | 02 | Writers edit files only; --task file check; lease release on pre-spawn error | aws-infra junior (dev tooling) | M | 01 | -02 | dev_supervisor/__main__.py, dev_supervisor/lease.py, tests/supervisor/* | 01 | merged |
-| 03 | Wire usage ledger (--work-item, --phase, usage summary) | aws-infra | M | 02 | -03 | dev_supervisor/__main__.py, dev_supervisor/usage.py, tests/supervisor/* | 02 | queued |
-| 04 | dev_supervisor.review command | aws-infra | M (L if >150) | 03 | -04 | dev_supervisor/review.py (new), tests/supervisor/test_review.py | 03 | blocked |
-| 05 | dev_supervisor.gates command + line counter | aws-infra | M, may split 05a/05b | 03 | -05 | dev_supervisor/gates.py (new), tests/supervisor/test_gates.py, .gitignore | 03 | in_progress |
-| 06 | Adapters: AGENTS.md, CLAUDE.md slim, TEAM.md, DEV_SUPERVISOR.md, tech-lead/code-reviewer TOML, OpenCode skill + adapters, Claude skill slim | senior (prose/config) | S | 04+05 | -06 | listed files | 04, 05 | blocked |
-| 07 | .claude/agents adapters (own PR per repo rule) | senior (config) | S | 06 | -07 | .claude/agents/*.md | 06 | blocked |
-| 08 | Wiki log entries | senior | S | 07 | -08 | wiki/log.md | 07 | queued |
+| 03 | Wire usage ledger (--work-item, --phase, usage summary) | aws-infra | M | 02 | -03 | dev_supervisor/__main__.py, dev_supervisor/usage.py, tests/supervisor/* | 02 | merged #172, #173 |
+| 04 | dev_supervisor.review command | aws-infra | M (L if >150) | 03 | -04 | dev_supervisor/review.py (new), tests/supervisor/test_review.py | 03 | merged #169, #171 |
+| 05 | dev_supervisor.gates command + line counter | aws-infra | M, may split 05a/05b | 03 | -05 | dev_supervisor/gates.py (new), tests/supervisor/test_gates.py, .gitignore | 03 | merged #167, #170 |
+| 06 | Adapters: AGENTS.md, CLAUDE.md slim, TEAM.md, DEV_SUPERVISOR.md, tech-lead/code-reviewer TOML, OpenCode skill + adapters, Claude skill slim | senior (prose/config) | S | 04+05 | -06 | listed files | 04, 05 | merged #175 |
+| 07 | .claude/agents adapters (own PR per repo rule) | senior (config) | S | 06 | -07 | .claude/agents/*.md | 06 | merged #176 |
+| 08 | Wiki log entries | senior | S | 07 | -08 | wiki/log.md | 07 | merged #180 |
 | 09 | Pilot: Phase 1 follow-ups via new tiers; measure vs baseline | loop | S/M | main after merge | debt-followups-* | ruff.toml + dev_supervisor long lines; audit.yml --no-deps; conftest skip counter | 01–08 merged | measured (limited documentation pilot) |
 
 Routing addition: dev_supervisor/ and dev tooling -> aws-infra (add to TEAM.md in item 06).
@@ -89,6 +89,7 @@ Routing addition: dev_supervisor/ and dev tooling -> aws-infra (add to TEAM.md i
 - Codex restored (user check). Prose stack reviewed with dev_supervisor.review (Luna): r1 REQUEST_CHANGES (tier S review before commit), r2 REQUEST_CHANGES (repair loop), r3 model APPROVE; tool reported BLOCKED because the model bolded the verdict inline -> review.py parser bug (item 04b, tier S).
 - Review token cost via the tool: 309k input (medium, whole prose stack), 151k and 183k input (low). Output ~1-2k.
 - 2026-10-03 State reconciliation: 01, 04, 06, and 07 blocked after their recorded review tools returned BLOCKED; 02 merged at #166; 03, 08, and 09 queued with no item-specific work event; 05 in_progress.
+- 2026-10-08 State reconciliation against GitHub: every item merged. 01 #174, 02 #166, 03 #172 and #173, 04 #169 and #171, 05 #167 and #170, 06 #175, 07 #176, 08 #180, 09 #331 (pilot). The 2026-10-03 reconciliation read stale review events, not the pull request state. Loop closed.
 - 2026-10-03 — Tier S documentation pilot measured for item 09. See [pilot evidence](../../wiki/artifacts/backlog-resume-20261003/tier-s-pilot.json). The pilot measures routing and usage for two documentation items; it does not compare equal work to Phase 1.
 
 ### Tier S documentation pilot

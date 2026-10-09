@@ -120,8 +120,9 @@ owner decision below.
 - **F04 option (G2).** Option A aligns the gold with the #388 conflict rule.
   Option B passes the earlier plan's ingredient ids into follow-up context.
   The owner picks one before a writer starts.
-- **Refusal-override loop lever.** The failure analysis proposed a loop change
-  that overrides a model refusal. The owner has not accepted it.
+- **Refusal-override loop lever.** Rejected by the owner on 2026-10-08. The
+  chat loop MUST NOT force a planner call after a model refusal. The model
+  selects the tools. G1 and G2 cover the affected slots.
 
 ## Part 3. Merged work record
 
@@ -240,9 +241,9 @@ Every grocery estimate MUST show this exact notice:
    FAILS. Eight slots failed: A02 three times, F04 three times, and F02
    twice.
 4. Done: G1 (#399). F02 passes 5/5 in targeted live checks.
-5. Owner: decide the F04 option (G2) and the A02 gold alignment. Restore
-   GitHub Actions billing. Turn on secret scanning. Decide the
-   refusal-override lever.
+5. Owner: decide the A02 gold alignment. Restore GitHub Actions billing.
+   Turn on secret scanning. The F04 option (option B, #408) and the
+   refusal-override lever (rejected) are decided.
 6. G2: build the chosen F04 option. Option B is a tier M code item. Option A
    is prose and gold only.
 7. G3: the owner renews the Bedrock session, then the fresh batch runs. The
