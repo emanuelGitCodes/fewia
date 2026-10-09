@@ -11,6 +11,7 @@ from dev_supervisor.usage import (
     COUNTS,
     GROK_PROVENANCE,
     LEDGER,
+    import_claude,
     ledger_path,
     main,
     parse_grok_usage,
@@ -549,6 +550,84 @@ def test_claude_import(
     assert rows[1]["work_item"] is None
     assert rows[1]["cursor"] == "new-2"
     assert f"cap-1 {phase} runs=1 elapsed_s=0 input=21 output=10" in cli()
+
+
+@pytest.mark.parametrize("metadata_uuid", [None, 42])
+def test_claude_import_metadata_last_line(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    metadata_uuid: int | None,
+) -> None:
+    path = tmp_path / LEDGER
+    source = Path(__file__).parent / "fixtures" / "claude-transcript-session.jsonl"
+    transcript = tmp_path / "transcript.jsonl"
+    metadata: dict[str, object] = {"type": "last-prompt", "prompt": "hi"}
+    if metadata_uuid is not None:
+        metadata["uuid"] = metadata_uuid
+    transcript.write_text(
+        source.read_text().splitlines()[1] + "\n" + json.dumps(metadata) + "\n"
+    )
+
+    import_claude(path, transcript, "coordinate", "cap-1", None)
+    captured = capsys.readouterr()
+    assert captured.out == "imported coordinate messages=1 input=15 output=4\n"
+    assert captured.err == ""
+    row = json.loads(path.read_text())
+    assert row["cursor"] == "s1"
+
+    import_claude(path, transcript, "coordinate", "cap-1", None)
+    captured = capsys.readouterr()
+    assert captured.out == "No new messages.\n"
+    assert captured.err == ""
+    assert len(path.read_text().splitlines()) == 1
+
+
+def test_claude_import_stale_cursor(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = tmp_path / LEDGER
+    source = Path(__file__).parent / "fixtures" / "claude-transcript-session.jsonl"
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(source.read_text())
+    path.write_text(
+        json.dumps({"transcript": str(transcript), "cursor": "missing"}) + "\n"
+    )
+
+    import_claude(path, transcript, "coordinate", "cap-1", None)
+    captured = capsys.readouterr()
+    assert captured.err == "cursor not found; importing from the start\n"
+    assert captured.out == "imported coordinate messages=2 input=21 output=10\n"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert len(rows) == 2
+    assert rows[0]["cursor"] == "missing"
+    assert rows[1]["cursor"] == "s4"
+    assert rows[1]["messages"] == 2
+    assert [rows[1][key] for key in COUNTS] == [21, 3, 10, 2]
+
+    import_claude(path, transcript, "coordinate", "cap-1", None)
+    captured = capsys.readouterr()
+    assert captured.out == "No new messages.\n"
+    assert captured.err == ""
+    assert len(path.read_text().splitlines()) == 2
+
+
+def test_claude_import_without_string_uuid(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    path = tmp_path / LEDGER
+    source = Path(__file__).parent / "fixtures" / "claude-transcript-session.jsonl"
+    transcript = tmp_path / "transcript.jsonl"
+    event = json.loads(source.read_text().splitlines()[1])
+    event.pop("uuid")
+    transcript.write_text(json.dumps(event) + "\n")
+
+    import_claude(path, transcript, "coordinate", "cap-1", None)
+    captured = capsys.readouterr()
+    assert captured.out == "No new messages.\n"
+    assert captured.err == ""
+    assert not path.exists()
 
 
 @pytest.mark.parametrize(

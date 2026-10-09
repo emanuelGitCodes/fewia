@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import IO, Any
 from uuid import uuid4
@@ -271,6 +272,10 @@ def import_claude(
             continue
         if isinstance(event, dict):
             events.append(event)
+    uuids = [event["uuid"] for event in events if isinstance(event.get("uuid"), str)]
+    if not uuids:
+        print("No new messages.")
+        return
     with _ledger_file(path) as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
         cursor = None
@@ -280,14 +285,19 @@ def import_claude(
             except ValueError:
                 continue
             if isinstance(row, dict) and row.get("transcript") == str(transcript):
-                cursor = row.get("cursor")
+                stored_cursor = row.get("cursor")
+                cursor = stored_cursor if isinstance(stored_cursor, str) else None
+        if cursor is not None and cursor not in uuids:
+            print("cursor not found; importing from the start", file=sys.stderr)
+            cursor = None
         active = cursor is None
         seen: set[str] = set()
         totals: dict[str, int | None] | None = None
         model = None
         for event in events:
             if not active:
-                active = event.get("uuid") == cursor
+                event_uuid = event.get("uuid")
+                active = isinstance(event_uuid, str) and event_uuid == cursor
                 continue
             message = event.get("message")
             if event.get("type") != "assistant" or not isinstance(message, dict):
@@ -327,7 +337,7 @@ def import_claude(
             "provenance": "claude.transcript",
             "coverage": coverage(totals, "claude.transcript"),
             "transcript": str(transcript),
-            "cursor": events[-1].get("uuid"),
+            "cursor": uuids[-1],
             "messages": len(seen),
             "agent_type": agent,
         }
