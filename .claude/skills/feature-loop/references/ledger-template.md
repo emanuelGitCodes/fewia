@@ -22,6 +22,11 @@ States: `queued`, `released`, `in_progress`, `review`, `repair`,
 | ID | Junior agent | Worktree | Head SHA | Writer model |
 |---|---|---|---|---|
 
+## Usage
+
+| Item | Phase | Runs | Input | Output | Time s |
+|---|---|---|---|---|---|
+
 ## Events
 
 - <date> <item> <event>

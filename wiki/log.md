@@ -3885,3 +3885,38 @@ code. The order is the supervisor's built-in `DEFAULTS` in
 `--only --model MODEL --effort LEVEL` with a ladder rung, that Spark does not
 write code, and that writers do not rely on the built-in order. The graph
 update found the conflict. The code default is unchanged.
+
+## 2026-10-08 — Every model run in one usage ledger (#422, usage-coverage)
+
+Loop `usage-coverage` closes the gap that the delegation-efficiency review
+found: the coordinator session and the Claude subagents had no token record.
+`dev_supervisor.usage --claude-transcript PATH --phase coordinate|junior`
+imports a Claude Code transcript into `.fewia-supervisor-usage.jsonl` (#422).
+One count per message id. A cursor per transcript stops a second import from
+counting twice. The `Stop` and `SubagentStop` hooks in `record-usage.sh`
+import the session and each subagent after every turn. The marker file
+`.fewia-supervisor-work-item` attributes hook rows to the current work item.
+`docs/DELEGATION.md` states the phases and the marker rule.
+
+Backfill of the 32 session and 102 subagent transcripts on the owner's
+machine, attributed to no work item:
+
+| Provider and phase | Rows | Input tokens | Cached | Output tokens |
+|---|---|---|---|---|
+| claude coordinate | 31 | 1,077,853,317 | 1,064,996,201 | 2,487,040 |
+| claude junior | 102 | 304,229,214 | 287,670,325 | 154,966 |
+| codex implement, repair, review | 809 | 193,185,119 | 166,311,424 | 3,387,872 |
+| grok implement, repair, review | 136 | 37,250,290 | 31,952,000 | 852,511 |
+
+The coordinator sessions hold 4.7 times the input tokens of every Codex and
+Grok run together. 98.8 percent of the coordinator input is cache reads.
+The output side is the reverse: writers and reviews produce 4.2 million
+output tokens against 2.5 million for the coordinator. One session transcript
+held no countable message and wrote no row. The tier S pilot in the
+delegation-efficiency ledger excluded coordinator tokens, so it measured the
+smaller side.
+
+Item 02 review (gpt-6.1-sol low) noted a missing hook test for a failing
+import; open follow-up. Loop usage: item 01 writer 238,911 and repair
+257,546 input; two reviews 163,872 input. Item 02 writer and one review.
+No subagents.
