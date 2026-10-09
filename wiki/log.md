@@ -3886,6 +3886,42 @@ code. The order is the supervisor's built-in `DEFAULTS` in
 write code, and that writers do not rely on the built-in order. The graph
 update found the conflict. The code default is unchanged.
 
+## 2026-10-08 — Preserve the pantry verification scripts
+
+The two temporary pantry probes now live in [eval/probes](../eval/probes/README.md).
+The canonical probe runs three repeats per selected case. The phrase probe
+runs four separate wording checks. The README records the commands, original
+file hashes, model settings, result formats, and limits.
+
+The scripts retain their original syntax trees after formatting. The
+application, corpus, expected outcomes, and stored evidence did not change.
+This work does not report a new live evaluation or certify a release.
+
+Offline checks passed: Ruff lint, Ruff formatting, strict mypy on 162 source
+files, both CLI help commands, and both syntax-tree comparisons. The initial
+format check found quote formatting in both scripts; the formatter corrected
+it. An initial Ruff cache write was blocked by the sandbox; the successful
+checks used a temporary cache. No model calls ran for these checks.
+
+The work uses tier S. Luna xhigh preserved the scripts. Sol low is assigned
+the independent review. Writer usage at this checkpoint was 426837 input and
+12961 output tokens over 134.871 seconds. Input includes cached tokens.
+Review and coordinator usage are excluded from this checkpoint total.
+The user authorized a commit and PR; this entry does not record publication
+or a merge.
+
+## 2026-10-08 — Refusal-override lever rejected; delegation-efficiency closed
+
+The owner rejected the refusal-override loop lever from the 2026-10-04 failure
+analysis. The chat loop MUST NOT force a planner call after a model refusal.
+The model selects the tools, and the application tools own arithmetic and
+validation. G1 (#399) and G2 (#408) address the slots that the lever targeted.
+The A02 gold alignment stays the one open owner decision for the benchmark.
+
+The `delegation-efficiency` ledger now records every item as merged: #166,
+#167, #169 to #176, #180, and the #331 pilot. The 2026-10-03 reconciliation
+had read stale review events instead of the pull request state.
+
 ## 2026-10-08 — Every model run in one usage ledger (#422, usage-coverage)
 
 Loop `usage-coverage` closes the gap that the delegation-efficiency review
