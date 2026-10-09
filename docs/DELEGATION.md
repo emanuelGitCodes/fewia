@@ -186,10 +186,30 @@ Reading per role:
 
 ## Measure
 
-`dev_supervisor` records writer and review tokens in one ledger per
-repository. `dev_supervisor.usage` prints the totals. The coordinator adds
-subagent tokens from its own tool, then records one line per work item in
-the loop ledger and one total per loop in `wiki/log.md`.
+`dev_supervisor` records every model run in one ledger per repository,
+`.fewia-supervisor-usage.jsonl` in the git common directory:
+
+| Phase | Source | Recorded by |
+|---|---|---|
+| `implement`, `repair` | The writer run | `dev_supervisor` |
+| `review` | The review run | `dev_supervisor.review` |
+| `coordinate` | The Claude Code session transcript | The `Stop` hook `record-usage.sh` |
+| `junior` | A Claude Code subagent transcript, with its agent type | The `SubagentStop` hook `record-usage.sh` |
+
+The hooks import a transcript with
+`dev_supervisor.usage --claude-transcript PATH --phase PHASE`. A cursor per
+transcript stops a second import from counting a message twice.
+
+The coordinator MUST run `dev_supervisor.usage --set-work-item ID` before
+the first writer run of a work item and `--clear-work-item` after the
+item is verified. A hook row written while the marker is set carries that
+work item. A row written with no marker carries `null`, and the summary
+groups it under `-`.
+
+`dev_supervisor.usage --work-item ID` prints one line per phase. The
+coordinator records those lines in the loop ledger and one total per loop
+in `wiki/log.md`. The Grok CLI keeps its own transcript format, and a Grok
+coordinator session is not recorded.
 
 ## Retro: how the agents learn
 

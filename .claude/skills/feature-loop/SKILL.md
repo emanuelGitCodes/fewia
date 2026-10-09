@@ -77,9 +77,12 @@ that the review verdict names the head SHA.
 
 ## Measure
 
-Each subagent notification reports `subagent_tokens`. Record that number per
-item in the ledger. Add `dev_supervisor.usage --work-item <item>` for the
-writer and review tokens. Record the loop total in `wiki/log.md`.
+Run `dev_supervisor.usage --set-work-item <slug>-NN` before the first
+writer run of an item and `--clear-work-item` after the item is verified.
+The `Stop` and `SubagentStop` hooks then attribute the session and every
+subagent to that item. `dev_supervisor.usage --work-item <slug>-NN` prints
+the writer, review, coordinate, and junior lines. Record them per item in
+the ledger and the loop total in `wiki/log.md`.
 
 ## Publish
 
