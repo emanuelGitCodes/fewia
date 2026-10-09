@@ -8,9 +8,10 @@ import re
 import subprocess
 from pathlib import Path
 from typing import IO, Any
+from uuid import uuid4
 
 LEDGER = ".fewia-supervisor-usage.jsonl"
-PHASES = frozenset({"implement", "review", "repair"})
+PHASES = frozenset({"implement", "review", "repair", "coordinate", "junior"})
 WORK_ITEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
 COUNTS = ("input_tokens", "cached_tokens", "output_tokens", "reasoning_tokens")
 CODEX_PROVENANCE = "codex.turn.completed"
@@ -31,7 +32,9 @@ def work_item_id(value: str) -> str:
 
 def phase_name(value: str) -> str:
     if value not in PHASES:
-        raise ValueError("Phase MUST be implement, review, or repair")
+        raise ValueError(
+            "Phase MUST be implement, review, repair, coordinate, or junior"
+        )
     return value
 
 
@@ -257,11 +260,103 @@ def summarize(rows: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def import_claude(
+    path: Path, transcript: Path, phase: str, item: str | None, agent: str | None
+) -> None:
+    events: list[dict[str, Any]] = []
+    for line in transcript.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    with _ledger_file(path) as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        cursor = None
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and row.get("transcript") == str(transcript):
+                cursor = row.get("cursor")
+        active = cursor is None
+        seen: set[str] = set()
+        totals: dict[str, int | None] | None = None
+        model = None
+        for event in events:
+            if not active:
+                active = event.get("uuid") == cursor
+                continue
+            message = event.get("message")
+            if event.get("type") != "assistant" or not isinstance(message, dict):
+                continue
+            raw = message.get("usage")
+            ident = message.get("id")
+            if not isinstance(raw, dict) or not isinstance(ident, str) or ident in seen:
+                continue
+            seen.add(ident)
+            details = raw.get("output_tokens_details", {})
+            usage = {
+                **dict.fromkeys(
+                    ("cache_read_input_tokens", "cache_creation_input_tokens")
+                ),
+                **raw,
+                "reasoning_tokens": details.get("thinking_tokens", 0)
+                if isinstance(details, dict)
+                else None,
+            }
+            counts = parse_grok_usage({"type": "end", "usage": usage})
+            assert counts is not None
+            totals = add_counts(totals, counts)
+            model = message.get("model")
+        if totals is None:
+            print("No new messages.")
+            return
+        row = {
+            "id": str(uuid4()),
+            "work_item": item,
+            "phase": phase,
+            "provider": "claude",
+            "model": model,
+            "effort": None,
+            "outcome": "completed",
+            "elapsed_ms": 0,
+            **totals,
+            "provenance": "claude.transcript",
+            "coverage": coverage(totals, "claude.transcript"),
+            "transcript": str(transcript),
+            "cursor": events[-1].get("uuid"),
+            "messages": len(seen),
+            "agent_type": agent,
+        }
+        handle.write(json.dumps(row, separators=(",", ":")) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    print(
+        f"imported {phase} messages={len(seen)} "
+        f"input={totals['input_tokens']} output={totals['output_tokens']}"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--work-item")
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--claude-transcript", type=Path)
+    modes.add_argument("--set-work-item")
+    modes.add_argument("--clear-work-item", action="store_true")
+    parser.add_argument("--phase", choices=("coordinate", "junior"))
+    parser.add_argument("--agent-type")
     args = parser.parse_args()
+    if args.claude_transcript is not None and args.phase is None:
+        parser.error("--phase MUST accompany --claude-transcript")
+    if args.claude_transcript is None and (args.phase or args.agent_type):
+        parser.error("--phase and --agent-type MUST accompany --claude-transcript")
+    if (args.set_work_item is not None or args.clear_work_item) and args.work_item:
+        parser.error("Work item modes MUST NOT use --work-item")
     item: str | None = None
     if args.work_item is not None:
         try:
@@ -269,6 +364,28 @@ def main() -> None:
         except ValueError as error:
             parser.error(str(error))
     path = ledger_path(args.cwd.resolve())
+    marker = path.parent / ".fewia-supervisor-work-item"
+    try:
+        if args.set_work_item is not None:
+            marker.write_text(work_item_id(args.set_work_item) + "\n", encoding="utf-8")
+            return
+        if args.clear_work_item:
+            marker.unlink(missing_ok=True)
+            return
+        if args.claude_transcript is not None:
+            if item is None and marker.is_file():
+                stored = marker.read_text(encoding="utf-8").strip()
+                item = work_item_id(stored) if stored else None
+            import_claude(
+                path,
+                args.claude_transcript.resolve(),
+                args.phase,
+                item,
+                args.agent_type,
+            )
+            return
+    except ValueError as error:
+        parser.error(str(error))
     rows: list[dict[str, Any]] = []
     if path.is_file():
         for line in path.read_text(encoding="utf-8").splitlines():

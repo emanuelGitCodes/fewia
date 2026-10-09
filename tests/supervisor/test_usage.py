@@ -497,3 +497,73 @@ def test_usage_cli_no_rows(
     monkeypatch.setattr(sys, "argv", ["usage", "--cwd", str(repo)])
     main()
     assert capsys.readouterr().out == "No usage recorded.\n"
+
+
+@pytest.mark.parametrize("kind,phase", [("session", "coordinate"), ("agent", "junior")])
+def test_claude_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    kind: str,
+    phase: str,
+) -> None:
+    path = tmp_path / LEDGER
+    monkeypatch.setattr("dev_supervisor.usage.ledger_path", lambda cwd: path)
+    source = Path(__file__).parent / "fixtures" / f"claude-transcript-{kind}.jsonl"
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(source.read_text())
+
+    def cli(*args: str) -> str:
+        monkeypatch.setattr(sys, "argv", ["usage", *args])
+        main()
+        return capsys.readouterr().out
+
+    cli("--set-work-item", "cap-1")
+    marker = tmp_path / ".fewia-supervisor-work-item"
+    assert marker.read_text().strip() == "cap-1"
+    args = ("--claude-transcript", str(transcript), "--phase", phase)
+    assert cli(*args, "--agent-type", "infra") == (
+        f"imported {phase} messages=2 input=21 output=10\n"
+    )
+    row = json.loads(path.read_text())
+    assert [row[key] for key in COUNTS] == [21, 3, 10, 2]
+    assert row["work_item"] == "cap-1"
+    assert row["model"] == "claude-b"
+    assert row["cursor"] == ("s4" if kind == "session" else "a4")
+    assert row["transcript"] == str(transcript.resolve())
+    assert row["agent_type"] == "infra"
+    assert row["coverage"] == "complete"
+    assert row["provenance"] == "claude.transcript"
+    assert cli(*args) == "No new messages.\n"
+    assert len(path.read_text().splitlines()) == 1
+    for n in (1, 2):
+        event = json.loads(source.read_text().splitlines()[-2])
+        event["uuid"] = event["message"]["id"] = f"new-{n}"
+        transcript.write_text(transcript.read_text() + json.dumps(event) + "\n")
+    cli("--clear-work-item")
+    assert not marker.exists()
+    assert cli(*args) == f"imported {phase} messages=2 input=12 output=12\n"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert len(rows) == 2
+    assert [rows[1][key] for key in COUNTS] == [12, 2, 12, 0]
+    assert rows[1]["work_item"] is None
+    assert rows[1]["cursor"] == "new-2"
+    assert f"cap-1 {phase} runs=1 elapsed_s=0 input=21 output=10" in cli()
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--set-work-item", "../bad"],
+        ["--claude-transcript", "unused", "--phase", "implement"],
+        ["--claude-transcript", "unused"],
+        ["--set-work-item", "cap-1", "--clear-work-item"],
+        ["--clear-work-item", "--work-item", "cap-1"],
+        ["--phase", "coordinate"],
+    ],
+)
+def test_claude_cli_invalid(args: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["usage", *args])
+    with pytest.raises(SystemExit) as error:
+        main()
+    assert error.value.code == 2

@@ -1,0 +1,6 @@
+{"type":"user","uuid":"a0"}
+{"type":"assistant","uuid":"a1","message":{"id":"n1","model":"claude-a","usage":{"input_tokens":10,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4,"output_tokens_details":{"thinking_tokens":2}}}}
+{"type":"assistant","uuid":"a2","message":{"id":"n1","model":"claude-a","usage":{"input_tokens":10,"cache_read_input_tokens":2,"cache_creation_input_tokens":3,"output_tokens":4,"output_tokens_details":{"thinking_tokens":2}}}}
+not json
+{"type":"assistant","uuid":"a3","message":{"id":"n2","model":"claude-b","usage":{"input_tokens":5,"cache_read_input_tokens":1,"cache_creation_input_tokens":0,"output_tokens":6}}}
+{"type":"system","uuid":"a4"}
