@@ -3909,3 +3909,15 @@ the independent review. Writer usage at this checkpoint was 426837 input and
 Review and coordinator usage are excluded from this checkpoint total.
 The user authorized a commit and PR; this entry does not record publication
 or a merge.
+
+## 2026-10-08 — Refusal-override lever rejected; delegation-efficiency closed
+
+The owner rejected the refusal-override loop lever from the 2026-10-04 failure
+analysis. The chat loop MUST NOT force a planner call after a model refusal.
+The model selects the tools, and the application tools own arithmetic and
+validation. G1 (#399) and G2 (#408) address the slots that the lever targeted.
+The A02 gold alignment stays the one open owner decision for the benchmark.
+
+The `delegation-efficiency` ledger now records every item as merged: #166,
+#167, #169 to #176, #180, and the #331 pilot. The 2026-10-03 reconciliation
+had read stale review events instead of the pull request state.

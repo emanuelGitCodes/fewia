@@ -182,8 +182,9 @@ owner decision below.
   conflict. The live model clarified once and planned twice. A gold rewrite
   changes the evidence contract, so the owner decides. While A02 fails, the
   task result cannot exceed 30/33.
-- **Refusal-override loop lever.** The failure analysis proposed a loop change
-  that overrides a model refusal. The owner has not accepted it.
+- **Refusal-override loop lever.** Rejected by the owner on 2026-10-08. The
+  chat loop MUST NOT force a planner call after a model refusal. The model
+  selects the tools. G1 and G2 cover the affected slots.
 
 ## Part 3. Merged work record
 
@@ -337,7 +338,7 @@ Every grocery estimate MUST show this exact notice:
 5. Done: G2 option B (#408) and the agent hooks under decision 0020 (#401 to
    #417).
 6. Owner: decide the A02 gold alignment. Restore GitHub Actions billing. Turn
-   on secret scanning. Decide the refusal-override lever. Add `gpt-6-astra`
+   on secret scanning. Add `gpt-6-astra`
    to the writer ladder if it writes code.
 7. G3: the owner renews the Bedrock session, then the fresh batch runs. The
    reachable result is 30/33 while A02 fails, so the 90% target needs the A02
