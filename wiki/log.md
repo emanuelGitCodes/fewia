@@ -3981,3 +3981,24 @@ live in the loop ledger: an inherited advisor-off variable cannot be
 removed for a run with `--advisor`, a recovered retry still sets the
 failure reason, `permission_denials` is not recorded, and a missing
 `claude` binary exits 1 without a record.
+
+## 2026-10-12 — Claude-only delegation merged (#427, #431, #429, #430)
+
+Addendum to the entry above. The stack merged into `main` at `a018285`
+in this order: #427 (writer provider), #431 (review provider; GitHub
+closed #428 when its base branch was deleted, and #431 replaced it),
+#429 (rulebook and settings), #430 (agents). The user merged from a
+terminal; the auto-mode classifier blocks `gh pr merge` for the senior.
+CI did not run on any merge: GitHub Actions billing on the repository
+was failing. The gates passed locally on every head.
+
+| Item | Phase | Model | Runs | Time s | Input | Output |
+|---|---|---|---|---|---|---|
+| 03 prose and settings | review | claude-opus-5-5 low | 3 | 114 | 407,110 | 10,158 |
+| 04 agents | review | claude-opus-5-5 low | 3 | 66 | 107,291 | 4,833 |
+
+Item 03 needed three review rounds. Round two found that the decision
+stated the review effort by tier while the code maps it by complexity
+class. Each fix moved item 04's base, so item 04 was rebased and
+reviewed again twice. Finish a prose review before opening the next
+worktree on it.
