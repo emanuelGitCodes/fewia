@@ -1,6 +1,9 @@
 # Grocery bot agent team
 
 Default coding delegation uses [the CLI supervisor](../docs/DEV_SUPERVISOR.md).
+A Claude Code session uses the Claude Code ladder in
+[docs/DELEGATION.md](../docs/DELEGATION.md) (decision 0021). The rules
+below bind Codex and OpenCode sessions.
 The coordinator picks the writer by difficulty from
 [Writer selection](../docs/DELEGATION.md#writer-selection): Luna `xhigh` for
 simple work, and Grok `low` or `medium` or Sol `medium` or `high` for harder work. Every writer run passes
@@ -69,12 +72,12 @@ Writers and juniors MUST NOT merge; a coordinator merges only with explicit
 user authorization for that stack. Other publication follows user authorization. Preserve old migrations
 and data; do not delete branches or worktrees as routine cleanup.
 
-The selected CLI writer writes code. A separate Codex or Grok agent in the
+The selected CLI writer writes code. A separate review model in the
 `code-reviewer` role supplies independent verification with targeted context
 and read-only ownership. Record the reviewed revision, commands, failure
 cases, and remaining limits. Return defects to the owning writer, then rerun
 review after repair. Claude Code MAY hold the coordinator seat under decision
-0013. Claude Code is never a writer or the independent reviewer. Codex and
+0013. The Claude Code session is never a writer or the independent reviewer. Codex and
 Grok sessions do not depend on it. Do not request Claude authentication.
 
 Run `python -m dev_supervisor.gates` for code changes, plus relevant

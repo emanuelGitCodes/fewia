@@ -9,6 +9,12 @@ argument-hint: "<feature description> | resume <slug>"
 The rulebook is [docs/DELEGATION.md](../../../docs/DELEGATION.md). Follow it
 step by step. This skill adds only the Claude Code mechanics.
 
+## Advisor
+
+Consult the advisor at three moments: before you show the design to the
+user, after the same gate or review finding fails twice, and before you
+mark an item `verified`. Do not consult it elsewhere.
+
 ## Start or resume
 
 - New feature: pick a kebab-case slug. Copy
@@ -23,11 +29,13 @@ Update the ledger after each state change.
 ## Writer model
 
 Pick the writer and the effort for each item from
-[Writer selection](../../../docs/DELEGATION.md#writer-selection). The
-ladder is Luna `xhigh`, Grok `low`, Grok `medium`, Sol `medium`, and Sol
-`high`. Pick the lowest rung that fits the item. Pass
-`--only --model MODEL --effort LEVEL` on every writer run. Record the model
-and the effort in the ledger. Do not spawn the Sonnet juniors in
+[Writer selection](../../../docs/DELEGATION.md#claude-code-sessions). The
+ladder is Sonnet `low`, Sonnet `medium`, Sonnet `high`, and Sonnet `high`
+with `--advisor claude-opus-5-5`. Pick the lowest rung that fits the item.
+Pass `--only --model claude-sonnet-5-5 --effort LEVEL` on every writer run.
+Record the model and the effort in the ledger. The review command takes
+`--writer-model claude-sonnet-5-5`; `--provider auto` then picks Opus. Do
+not spawn the Sonnet juniors in
 `.claude/agents/` unless the user asks. At tier M and tier L, drive the
 writer yourself with the tier S steps in place of the junior. The review
 command runs at every tier. Do not spawn `code-reviewer`.

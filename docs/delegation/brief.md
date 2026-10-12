@@ -6,7 +6,7 @@ The coordinator fills this template for each work item. Keep it to about
 ```text
 ITEM: <slug>-NN — <title>
 ROLE: <role>   TIER: S | M | L   COMPLEXITY: <class>
-WRITER MODEL: default order | --model <id> | --only --model <id>
+WRITER MODEL: --only --model <id> --effort <level> [--advisor <id>]
 BASE BRANCH: <branch>   WORK BRANCH: <branch>
 
 GOAL: <two to four sentences>

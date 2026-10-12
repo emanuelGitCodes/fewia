@@ -20,6 +20,23 @@ These sources bind every agent, including this session:
 This file overrides the global "Code delegation" rule. Writers run through
 `dev_supervisor`, not through a plain `codex exec`.
 
+## Models
+
+Decision [0021](wiki/decisions/0021-claude-only-delegation.md) binds a
+Claude Code session to Claude models only.
+
+- The session model is `opusplan`: Opus plans, Sonnet executes.
+  `.claude/settings.json` sets it, the advisor, the effort per model, and
+  the auto-compact window.
+- The advisor is Fable. The senior MUST consult it before it commits to a
+  design, after the same gate or review finding fails twice, and before it
+  marks an item `verified`. It SHOULD NOT consult it elsewhere, because
+  each consult reads the whole transcript.
+- Writers are `claude-sonnet-5-5` through `dev_supervisor`. The review
+  model is `claude-opus-5-5` through `dev_supervisor.review`. The `Explore`
+  agent runs on Haiku.
+- Escalate by hand with `/model fable`. Return with `/model opusplan`.
+
 ## Start work
 
 Run `/feature-loop <feature>` for a feature, a phase, or a multi-item task.

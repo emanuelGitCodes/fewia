@@ -3,6 +3,9 @@
 Development writers use the CLI supervisor in `docs/DEV_SUPERVISOR.md`.
 Every writer run MUST pass `--only --model MODEL --effort LEVEL`. The model
 and effort MUST be a rung of the writer ladder in `docs/DELEGATION.md`.
+A Claude Code session uses the Claude Code ladder (decision 0021):
+`claude-sonnet-5-5` writes and `claude-opus-5-5` reviews. A Codex or
+OpenCode session uses the Codex ladder (decision 0015).
 Codex Spark MUST NOT write code. The supervisor's built-in order (Grok 4.6,
 Codex Spark, then Luna) applies only when no model is named. Writers MUST NOT
 rely on it.
@@ -19,7 +22,7 @@ The supervisor requires `--complexity`.
 An explicit `--effort` override MUST stay within the model ceiling.
 Explicit task model or effort requests override automatic selection when
 supported. Model-only requests forbid substitution.
-A separate Codex or Grok agent verifies independently.
+A separate review model verifies independently.
 Claude Code MAY hold the coordinator seat (decision 0013). It never writes code
 and is never the independent reviewer. These rules bind all writers.
 
@@ -28,8 +31,9 @@ and is never the independent reviewer. These rules bind all writers.
 Every coordinator follows [docs/DELEGATION.md](docs/DELEGATION.md), whatever
 the tool. The coordinator picks tier S, M, or L for each work item.
 
-- Writers edit files only. A Grok writer MUST NOT run shell commands. A
-  Codex writer MAY run read-only shell commands to read and search files.
+- Writers edit files only. A Claude writer has no shell tool. A Grok
+  writer MUST NOT run shell commands. A Codex writer MAY run read-only
+  shell commands to read and search files.
   No writer runs tests, package managers, git commands, or commands that
   write files.
 - Juniors follow `docs/delegation/junior.md`. Briefs follow

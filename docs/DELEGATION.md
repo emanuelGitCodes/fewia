@@ -21,10 +21,12 @@ exist.
   and publishes. The coordinator never writes application code.
 - **Junior.** One role subagent per work item. It drives the writer, runs
   the gates, and reports. It follows [delegation/junior.md](delegation/junior.md).
-- **Writer.** A Grok or Codex CLI that `dev_supervisor` starts. The writer
-  edits files only. It runs no checks.
-- **Review model.** A separate Codex model that `dev_supervisor.review`
-  starts read-only. It is the independent reviewer. When Codex is
+- **Writer.** A CLI that `dev_supervisor` starts: headless Claude Code in a
+  Claude Code session, Grok or Codex in a Codex or OpenCode session. The
+  writer edits files only. It runs no checks.
+- **Review model.** A separate model that `dev_supervisor.review` starts
+  read-only: Claude Opus in a Claude Code session, Codex in a Codex or
+  OpenCode session. It is the independent reviewer. When Codex is
   unavailable, a separate read-only Grok session reviews the diff instead,
   and the coordinator records the deviation.
 - **Tier L probes.** The coordinator runs probes and mutation checks and
@@ -46,9 +48,40 @@ When the tier is unclear, the coordinator SHOULD pick the higher tier.
 
 ## Writer selection
 
-The coordinator picks one writer model and one effort per work item.
-Decision [0015](../wiki/decisions/0015-writer-routing-by-difficulty.md)
-records the rule.
+The coordinator picks one writer model and one effort per work item. The
+ladder depends on the coordinator tool. Decision
+[0021](../wiki/decisions/0021-claude-only-delegation.md) records the Claude
+Code ladder. Decision
+[0015](../wiki/decisions/0015-writer-routing-by-difficulty.md) records the
+Codex and OpenCode ladder.
+
+### Claude Code sessions
+
+Sonnet writes the code. Opus reviews it. Pick the lowest rung that fits
+the work item.
+
+| Rung | Writer | Effort | Advisor | Use it for | `--complexity` |
+|---|---|---|---|---|---|
+| 1 | `claude-sonnet-5-5` | `low` | none | Configuration or one narrow change, no new contract | `simple` |
+| 2 | `claude-sonnet-5-5` | `medium` | none | Standard work that the brief fully specifies | `standard` |
+| 3 | `claude-sonnet-5-5` | `high` | none | Ambiguous or cross-cutting work, a new contract, or debugging | `complex` |
+| 4 | `claude-sonnet-5-5` | `high` | `claude-opus-5-5` | Security, test-gate work, or the hardest cross-system work | `complex` or harder |
+
+- Every writer run MUST pass `--only --model claude-sonnet-5-5 --effort LEVEL`.
+- Rung 4 adds `--advisor claude-opus-5-5`. Every other rung runs with the
+  advisor off.
+- Opus does not write code on this ladder. The review model MUST differ
+  from the writer model, and Opus is the review model.
+- Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
+  `stalled`): Sonnet goes to `claude-opus-5-5` at `medium`, once. When that
+  run also returns a provider outcome, the coordinator marks the item
+  `blocked` and escalates to the user. A failed task does not trigger
+  fallback.
+- A repair keeps the same writer. After two repair rounds with no
+  progress, the coordinator MAY move the item up one rung. The ledger
+  records each change.
+
+### Codex and OpenCode sessions
 
 The writers form one ladder. The score is the Artificial Analysis
 Intelligence Index v4.3.2. Pick the lowest rung that fits the work item.
@@ -118,19 +151,21 @@ Run every command from the item worktree root.
 
 ```bash
 # Writer: edits files only. Pick the model and effort from "Writer selection".
+# A Codex or OpenCode session names a rung of its own ladder instead.
 uv run --project backend python -m dev_supervisor \
   --task "$BRIEF_FILE" --role backend-dev --cwd "$PWD" \
-  --complexity standard --only --model grok-4.6 --effort medium \
+  --complexity standard --only --model claude-sonnet-5-5 --effort medium \
   --write-file backend/app/example.py \
   --work-item fewia-42 --phase implement
 
 # Gates: selects checks from the changed paths and records them by SHA.
 uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 
-# Review: independent, read-only, time-capped, short output.
+# Review: independent, read-only, time-capped, short output. A Claude
+# writer model selects the claude provider and Opus as the review model.
 uv run --project backend python -m dev_supervisor.review --cwd "$PWD" \
   --base main --brief "$BRIEF_FILE" --complexity standard \
-  --writer-model grok-4.6 --work-item fewia-42
+  --writer-model claude-sonnet-5-5 --work-item fewia-42
 
 # Usage: token and time totals per work item.
 uv run --project backend python -m dev_supervisor.usage --work-item fewia-42
@@ -160,6 +195,9 @@ Reading per role:
 
 ## Rules that prevent known waste
 
+- A Claude writer has no shell tool. It reads with Read, Glob, and Grep
+  and edits its owned files with Edit and Write. An edit outside the owned
+  files is denied and the run continues.
 - A Grok writer MUST NOT run commands. Grok has file permissions only, and
   a command ends its run as `task_failed`.
 - A Codex writer MAY run read-only shell commands to read and search
