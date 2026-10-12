@@ -9,7 +9,7 @@ test it.
 | Path | Type | Loaded when | Committed |
 |---|---|---|---|
 | `../CLAUDE.md` | Memory | Every session start | yes |
-| `settings.json` | Settings, hooks, permissions | Session start, and on change | yes |
+| `settings.json` | Settings, model, advisor, hooks, permissions | Session start, and on change | yes |
 | `settings.local.json` | Personal overrides | After `settings.json` | no |
 | `hooks/*.sh`, `hooks/edit-targets.py` | Hook scripts, shared with Codex through `.codex/hooks.json` | On the event named in `settings.json` or `.codex/hooks.json` | yes |
 | `agents/*.md` | Subagent definitions | When the senior spawns one | yes |
@@ -77,7 +77,10 @@ The input `cwd` still names the worktree, so the hooks check the worktree.
 `guard-bash.sh` reads the whole command text. A heredoc that quotes a
 blocked command trips it. Write such text with the Write tool instead.
 `guard-senior-edits.sh` does not see file writes made with a shell
-command. The rule in `CLAUDE.md` still binds the senior there.
+command. The rule in `CLAUDE.md` still binds the senior there. A Claude
+writer runs `claude -p --safe-mode`, so no project hook runs inside it;
+its file scope comes from the `Edit(//path)` rules that `dev_supervisor`
+passes.
 
 The edit hooks read their target files through `edit-targets.py`. It
 reads `tool_input.file_path` from Claude Code and Grok. It reads the

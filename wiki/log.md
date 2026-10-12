@@ -3956,3 +3956,28 @@ Item 02 review (gpt-6.1-sol low) noted a missing hook test for a failing
 import; open follow-up. Loop usage: item 01 writer 238,911 and repair
 257,546 input; two reviews 163,872 input. Item 02 writer and one review.
 No subagents.
+
+## 2026-10-12 — Claude-only delegation for Claude Code sessions (claude-pipeline)
+
+Decision [0021](decisions/0021-claude-only-delegation.md) moves Claude Code
+sessions to Claude models only. `dev_supervisor` gains a `claude` writer
+provider and `dev_supervisor.review` a `claude` review provider. Sonnet
+writes, Opus reviews, Haiku reads, Fable advises. Codex and OpenCode
+sessions keep the decision 0015 ladder.
+
+| Item | Phase | Model | Time s | Input | Cached | Output |
+|---|---|---|---|---|---|---|
+| 01 writer provider | implement (hand-run bootstrap) | claude-sonnet-5-5 high | 215 | 1,902,947 | 1,798,859 | 33,573 |
+| 01 | repair | claude-sonnet-5-5 high | 19 | 47,913 | 37,068 | 2,718 |
+| 01 | review (hand-run) | claude-opus-5-5 high | 99 | 162,965 | 116,856 | 9,374 |
+| 02 review provider | implement | claude-sonnet-5-5 high | 100 | 583,894 | 529,673 | 15,600 |
+| 02 | review | claude-opus-5-5 high | 56 | 146,593 | — | 5,353 |
+
+Item 01 ran its writer and review by hand with the decision 0021 argv,
+because the provider did not exist yet. Its repair and every later run
+went through the supervisor. Each item passed the gates, eight mutation
+probes, and an Opus review with no blocking finding. Review follow-ups
+live in the loop ledger: an inherited advisor-off variable cannot be
+removed for a run with `--advisor`, a recovered retry still sets the
+failure reason, `permission_denials` is not recorded, and a missing
+`claude` binary exits 1 without a record.

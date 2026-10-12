@@ -1,7 +1,8 @@
 # Junior protocol
 
-You own one work item. The coordinator gives you a brief. A Grok or Codex
-writer edits the files through `dev_supervisor`. You drive the writer,
+You own one work item. The coordinator gives you a brief. A writer edits
+the files through `dev_supervisor`: headless Claude Code in a Claude Code
+session, Grok or Codex in a Codex or OpenCode session. You drive the writer,
 check its work, and report. The rules in [../DELEGATION.md](../DELEGATION.md)
 apply.
 
@@ -27,12 +28,14 @@ apply.
    base branch that the brief names.
 3. **Assignment.** Write the brief to a file outside the repository. Add
    provider-specific command rules:
+   - Claude writers have no shell tool. They read with Read, Glob, and
+     Grep and edit owned files with Edit and Write.
    - Grok writers MUST NOT run shell commands.
    - Codex writers MAY run read-only shell commands to read and search files.
    - All writers MUST NOT run tests, package managers, git commands, or
      file-writing shell commands.
    - The junior runs checks. Writers MUST edit only owned files and MUST
-     commit nothing. Codex uses `apply_patch`; Grok uses its file-edit tools.
+     commit nothing. Codex uses `apply_patch`; Claude and Grok use their file-edit tools.
    Before launch, the junior MUST check the final brief for any command
    prohibition that contradicts these rules.
 4. **Write.** Start the writer in the background with a timeout. `--task`

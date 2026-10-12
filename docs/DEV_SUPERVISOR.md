@@ -5,15 +5,15 @@ Run from the repository root with Python 3.12:
 ```bash
 uv run --project backend python -m dev_supervisor \
   --task /private/tmp/assignment.txt --role backend-dev --cwd "$PWD" \
-  --complexity standard --only --model grok-4.6 --effort medium \
+  --complexity standard --only --model claude-sonnet-5-5 --effort medium \
   --write-file dev_supervisor/policy.py \
   --work-item fewia-42 --phase implement
 ```
 
 `--task` takes a file path. The supervisor rejects inline text and a missing
 role file before it takes the lease. Writers MUST edit only assigned files.
-Grok writers MUST NOT run shell commands. Codex writers MAY run read-only shell
-commands to read and search files. All writers MUST NOT run tests, package
+Claude writers have no shell tool. Grok writers MUST NOT run shell commands.
+Codex writers MAY run read-only shell commands to read and search files. All writers MUST NOT run tests, package
 managers, git commands, or shell commands that write files. The coordinator
 or junior runs every check. The loop, the tiers, and the budgets live in
 [DELEGATION.md](DELEGATION.md).
@@ -65,6 +65,35 @@ The supervisor skips incompatible fallback models.
 | 1 | `~/.grok/bin/grok` | `grok-4.6` | ceiling `medium` |
 | 2 | `codex exec` | `gpt-5.3-codex-spark` | CLI model default |
 | 3 | `codex exec` | `gpt-6-luna` | ceiling `max` |
+
+The Claude models are outside the default order. A run MUST name one with
+`--only --model`:
+
+| CLI | Model | Effort capability |
+|---|---|---|
+| `claude -p` | `claude-sonnet-5-5` | ceiling `max` |
+| `claude -p` | `claude-opus-5-5` | ceiling `max` |
+
+The `claude` provider starts the writer as:
+
+```text
+claude -p --safe-mode --model MODEL --effort LEVEL
+  --output-format stream-json --verbose --no-session-persistence
+  --tools Read,Edit,Write,Glob,Grep --permission-mode default
+  --permission-prompts none --max-turns 30
+  [--advisor ADVISOR] [--max-budget-usd N]
+  --allowedTools "Edit(//ABS/OWNED/FILE)" ... "Edit(//ABS/progress.md)"
+```
+
+The prompt arrives on stdin. `--safe-mode` keeps the project `CLAUDE.md`,
+hooks, skills, and custom agents out of the writer. An `Edit(//path)` rule
+covers `Write` on the same path. An owned path MUST NOT contain a space or
+a gitignore pattern character. `--advisor MODEL` accepts `claude-sonnet-5-5`,
+`claude-opus-5-5`, or `claude-fable-5-1`. `--max-budget-usd N` caps the
+run by the CLI cost estimate. The supervisor rejects both flags for any
+other provider. Without `--advisor` the writer runs with
+`CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`. The `result` event of the stream
+carries the usage; the ledger records it with provenance `claude.result`.
 
 Grok 4.6 uses `low` for simple tasks.
 Grok 4.6 uses `medium` for every harder automatic tier.
@@ -144,9 +173,9 @@ settings. Return proposed external actions to the coordinator. These are
 worker instructions, not an OS security boundary. CLI permission controls
 remain active. Never replay uncertain external actions.
 
-A separate Codex or Grok agent independently reviews the current diff and runs
-the required tests. Assign read-only ownership, targeted context, acceptance
-criteria, and concrete failure cases. Reviewers MUST NOT repair reviewed code.
+A separate review model independently reviews the current diff. The
+coordinator runs the required tests. Assign read-only ownership, targeted
+context, acceptance criteria, and concrete failure cases. Reviewers MUST NOT repair reviewed code.
 Return findings to the owning writer, then rerun affected checks and review.
 The coordinator records reviewer identity, tested revision, commands, outcomes,
 and unverified scope. A writer cannot certify its own independent review.
@@ -179,15 +208,19 @@ These commands serve every coordinator tool.
 | Command | Purpose |
 |---|---|
 | `python -m dev_supervisor.gates --cwd PATH --base REF [--reuse]` | Runs only the checks for the changed paths. Prints one line per check, `LINES n/150`, and `RESULT`. Records the result under `.fewia-supervisor-gates/<sha>.json`. |
-| `python -m dev_supervisor.review --cwd PATH --base REF --brief FILE --complexity C --writer-model M` | Runs a read-only Codex review with a model other than the writer, a time cap, and short output. Exits 0, 1, or 2 for `APPROVE`, `REQUEST_CHANGES`, or `BLOCKED`. |
+| `python -m dev_supervisor.review --cwd PATH --base REF --brief FILE --complexity C --writer-model M` | Runs a read-only review with a model other than the writer, a time cap, and short output. `--provider auto` picks `claude` for a Claude writer model and `codex` otherwise. Exits 0, 1, or 2 for `APPROVE`, `REQUEST_CHANGES`, or `BLOCKED`. |
 | `python -m dev_supervisor.usage [--work-item ID]` | Prints token and time totals per work item and phase from the shared ledger. |
 
 The usage ledger lives at `<git common dir>/fewia-supervisor-usage.jsonl`, so
 every worktree writes to one file. Grok runs report `unsupported` token
 coverage.
 
-When Codex is unavailable, run the review as a separate read-only Grok
-session with the diff in the prompt, and record the deviation.
+The `claude` review provider runs `claude-opus-5-5` by default, or
+`claude-fable-5-1` for an Opus writer, with `--tools Read,Glob,Grep`, the
+diff in the prompt, and the advisor off. The report is the `result` text of
+the stream. When Codex is unavailable in a Codex session, run the review as
+a separate read-only Grok session with the diff in the prompt, and record
+the deviation.
 
 ## Verification and rollout
 
