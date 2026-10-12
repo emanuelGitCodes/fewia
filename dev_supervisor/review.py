@@ -10,15 +10,19 @@ import tempfile
 import time
 import tomllib
 import uuid
+from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, Any, cast
 
+from dev_supervisor.policy import MODELS
 from dev_supervisor.process import stop
 from dev_supervisor.usage import (
+    CLAUDE_PROVENANCE,
     CODEX_PROVENANCE,
     GROK_PROVENANCE,
     add_counts,
     ledger_path,
+    parse_claude_usage,
     parse_codex_usage,
     parse_grok_usage,
     write_usage,
@@ -27,6 +31,9 @@ from dev_supervisor.usage import (
 REVIEW_DEFAULT = {"grok-4.6": "gpt-6-luna", "gpt-5.3-codex-spark": "gpt-6-luna"}
 REVIEW_DEFAULT["gpt-6-luna"] = "gpt-6.1-sol"
 REVIEW_DEFAULT["gpt-6.1-sol"] = "gpt-6-luna"
+REVIEW_DEFAULT["claude-sonnet-5-5"] = "claude-opus-5-5"
+REVIEW_DEFAULT["claude-opus-5-5"] = "claude-fable-5-1"
+CLAUDE_REVIEW_DEFAULT = "claude-opus-5-5"
 GROK_MODEL = "grok-4.6"
 DIFF_LIMIT = 3000
 EFFORT = {"simple": "low", "standard": "medium", "complex": "high"}
@@ -40,6 +47,10 @@ GUARD, FORMAT = (
     "VERDICT: BLOCKED.",
 )
 NO_SHELL = "Do not run shell commands; the diff is below"
+ADVERSARIAL = (
+    "Assume the change is wrong until the diff proves otherwise. Report one line "
+    "per finding: file:line, severity, and the concrete failure scenario."
+)
 VERDICT_PAT = re.compile(
     r"[*_`~]*VERDICT[*_`~]*\s*:\s*[*_`~]*(APPROVE|REQUEST_CHANGES|BLOCKED)[*_`~]*"
 )
@@ -56,9 +67,12 @@ def grok_effort(complexity: str) -> str:
     return "medium"
 
 
-def choose_provider(requested: str) -> str:
+def choose_provider(requested: str, writer_model: str) -> str:
     if requested != "auto":
         return requested
+    writer = MODELS.get(writer_model)
+    if writer is not None and writer.provider == "claude":
+        return "claude"
     if "CODEX_SANDBOX" in os.environ:
         return "grok"
     return "codex"
@@ -81,6 +95,14 @@ def first_error(raw: bytes) -> str:
             if line.strip() and not plain:
                 plain = line.strip()[:200]
             continue
+        if (
+            isinstance(event, dict)
+            and event.get("type") == "result"
+            and event.get("is_error") is True
+        ):
+            subtype = event.get("subtype")
+            if isinstance(subtype, str):
+                return f"claude {subtype}"
         if isinstance(event, dict) and event.get("type") in ("error", "turn.failed"):
             msg = event.get("message")
             if isinstance(msg, str) and msg:
@@ -168,12 +190,19 @@ def fallback_reason(raw: bytes) -> str | None:
 
 
 def run_codex(
-    args: list[str], cwd: Path, stdin: IO[bytes], timeout: float
+    args: list[str],
+    cwd: Path,
+    stdin: IO[bytes],
+    timeout: float,
+    *,
+    env: Mapping[str, str] | None = None,
 ) -> tuple[bytes, bool, int]:
     started = time.monotonic()
     opts: dict[str, Any] = {"cwd": cwd, "stdin": stdin, "stdout": subprocess.PIPE}
     opts["stderr"] = subprocess.STDOUT
     opts["start_new_session"] = True
+    if env is not None:
+        opts["env"] = env
     process = subprocess.Popen(args, **opts)
     try:
         stdout, _ = process.communicate(timeout=timeout)
@@ -215,6 +244,36 @@ def grok_report(raw: bytes) -> tuple[str, dict[str, int | None] | None]:
     return "".join(chunks), totals
 
 
+def run_claude(
+    args: list[str], cwd: Path, stdin: IO[bytes], timeout: float
+) -> tuple[bytes, bool, int]:
+    env = {**os.environ, "CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1"}
+    return run_codex(args, cwd, stdin, timeout, env=env)
+
+
+def claude_report(raw: bytes) -> tuple[str, dict[str, int | None] | None]:
+    final: dict[str, Any] | None = None
+    for line in raw.decode(errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "result":
+            final = cast(dict[str, Any], event)
+    if final is None:
+        return "", None
+    text = final.get("result")
+    return (text if isinstance(text, str) else ""), parse_claude_usage(final)
+
+
+def claude_command(model: str, effort: str) -> list[str]:
+    cmd = ["claude", "-p", "--safe-mode", "--model", model, "--effort", effort]
+    cmd += ["--output-format", "stream-json", "--verbose", "--no-session-persistence"]
+    cmd += ["--tools", "Read,Glob,Grep", "--permission-mode", "default"]
+    cmd += ["--permission-prompts", "none", "--max-turns", "20"]
+    return cmd
+
+
 def grok_command(cwd: Path, prompt: Path, effort: str) -> list[str]:
     cmd = [str(Path.home() / ".grok/bin/grok"), "--model", GROK_MODEL]
     cmd += ["--reasoning-effort", effort, "--cwd", str(cwd)]
@@ -235,7 +294,8 @@ def main() -> None:
     for opt in ("--model", "--work-item", "--gates-file"):
         parser.add_argument(opt)
     parser.add_argument("--timeout", type=float, default=900)
-    parser.add_argument("--provider", choices=("auto", "codex", "grok"), default="auto")
+    providers = ("auto", "codex", "grok", "claude")
+    parser.add_argument("--provider", choices=providers, default="auto")
     args = parser.parse_args()
     cwd = Path(args.cwd).resolve()
 
@@ -252,10 +312,16 @@ def main() -> None:
     if args.model is not None and args.model == args.writer_model:
         print("Review model MUST NOT equal writer model", file=sys.stderr)
         raise SystemExit(2)
-    provider = choose_provider(args.provider)
+    provider = choose_provider(args.provider, args.writer_model)
     if provider == "grok":
         model = GROK_MODEL
         effort = grok_effort(args.complexity)
+    elif provider == "claude":
+        default = REVIEW_DEFAULT.get(args.writer_model, CLAUDE_REVIEW_DEFAULT)
+        if not default.startswith("claude-"):
+            default = CLAUDE_REVIEW_DEFAULT
+        model = args.model or default
+        effort = EFFORT[args.complexity]
     else:
         model = args.model or REVIEW_DEFAULT.get(args.writer_model, "gpt-6-luna")
         effort = EFFORT[args.complexity]
@@ -272,7 +338,9 @@ def main() -> None:
     if gates is not None:
         parts.append("Gates:\n" + gates)
     parts.append(FORMAT)
-    if provider == "grok":
+    if provider == "claude":
+        parts.append(ADVERSARIAL)
+    if provider in ("grok", "claude"):
         parts.append(NO_SHELL)
         parts.append(truncate_diff(git("diff", f"{args.base}...{sha}")))
     dest = root / ".fewia-supervisor-reviews" / f"{sha}-{model}.md"
@@ -342,6 +410,18 @@ def main() -> None:
         text, totals = grok_report(raw)
         if text.strip():
             dest.write_text(text)
+    if provider == "claude":
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompt_path = Path(tmp_dir) / "prompt.txt"
+            prompt_path.write_text("\n".join(parts))
+            with prompt_path.open("rb") as source:
+                claude_cmd = claude_command(model, effort)
+                raw, timed_out, elapsed_ms = run_claude(
+                    claude_cmd, cwd, source, args.timeout
+                )
+        text, totals = claude_report(raw)
+        if text.strip():
+            dest.write_text(text)
     if not dest.exists() or dest.stat().st_size == 0:
         reason = "timed out" if timed_out else "produced no output"
         err = first_error(raw)
@@ -364,7 +444,9 @@ def main() -> None:
     print(json.dumps(body))
     meta: dict[str, Any] = {"provenance": "none"}
     if totals is not None:
-        provenance = GROK_PROVENANCE if provider == "grok" else CODEX_PROVENANCE
+        provenance = {"grok": GROK_PROVENANCE, "claude": CLAUDE_PROVENANCE}.get(
+            provider, CODEX_PROVENANCE
+        )
         meta = {"provenance": provenance, **totals}
     rec = [ledger_path(cwd), str(uuid.uuid4()), args.work_item, "review", provider]
     write_usage(*cast(Any, rec + [model, effort, outcome, meta, elapsed_ms]))
