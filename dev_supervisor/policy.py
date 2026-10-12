@@ -197,10 +197,10 @@ def command(
             args += ["--max-budget-usd", f"{budget:.2f}"]
         rules: list[str] = []
         for path in files or []:
-            rendered = str(_rule_path(path))
-            if " " in rendered:
+            text = str(_rule_path(path))
+            if " " in text:
                 raise ValueError("Write path MUST stay a relative worktree file")
-            rules.append(f"Edit(/{rendered})")
+            rules.append(f"Edit(/{text})")
         return args + ["--allowedTools", *rules]
     if spec.provider == "grok":
         args = [

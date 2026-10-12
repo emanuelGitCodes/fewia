@@ -626,6 +626,7 @@ def test_execute_passes_claude_argv_and_environment(
         environment: Mapping[str, str] | None = None,
     ) -> str:
         calls.append((args, environment))
+        owned.write_text("changed\n")
         return "completed"
 
     with patch("dev_supervisor.__main__.attempt", runner):
