@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, Any
 
@@ -164,6 +165,266 @@ def install_grok(
 
     monkeypatch.setattr(review, "run_grok", fake)
     return seen
+
+
+CLAUDE_RESULT: dict[str, Any] = {
+    "type": "result",
+    "subtype": "success",
+    "is_error": False,
+    "num_turns": 1,
+    "result": "notes\nVERDICT: APPROVE\n",
+    "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 4404,
+        "cache_read_input_tokens": 544,
+        "output_tokens": 4,
+        "output_tokens_details": {"thinking_tokens": 0},
+    },
+}
+
+
+def claude_stream(result: str | None) -> bytes:
+    events: list[dict[str, Any]] = [
+        {"type": "system", "subtype": "init"},
+        {"type": "assistant", "message": {"content": []}},
+    ]
+    if result is not None:
+        events.append({**CLAUDE_RESULT, "result": result})
+    return grok_stream(*events)
+
+
+def install_claude(monkeypatch: pytest.MonkeyPatch, stdout: bytes) -> dict[str, object]:
+    seen: dict[str, object] = {"calls": 0}
+
+    def fake(
+        args: list[str],
+        cwd: Path,
+        stdin: IO[bytes],
+        timeout: float,
+        *,
+        env: Mapping[str, str] | None = None,
+    ) -> tuple[bytes, bool, int]:
+        seen["calls"] = int(seen["calls"]) + 1
+        seen["args"] = args
+        seen["cwd"] = cwd
+        seen["prompt"] = stdin.read().decode()
+        seen["env"] = env
+        return stdout, False, 4
+
+    monkeypatch.setattr(review, "run_codex", fake)
+    return seen
+
+
+def test_choose_provider_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert review.choose_provider("codex", "claude-sonnet-5-5") == "codex"
+    assert review.choose_provider("grok", "gpt-6-luna") == "grok"
+    assert review.choose_provider("claude", "grok-4.6") == "claude"
+    assert review.choose_provider("auto", "claude-sonnet-5-5") == "claude"
+    assert review.choose_provider("auto", "claude-opus-5-5") == "claude"
+    assert review.choose_provider("auto", "gpt-6-luna") == "codex"
+    assert review.choose_provider("auto", "unknown-writer") == "codex"
+    monkeypatch.setenv("CODEX_SANDBOX", "1")
+    assert review.choose_provider("auto", "gpt-6-luna") == "grok"
+    assert review.choose_provider("auto", "claude-opus-5-5") == "claude"
+
+
+def test_claude_review_defaults() -> None:
+    assert review.CLAUDE_REVIEW_DEFAULT == "claude-opus-5-5"
+    assert review.REVIEW_DEFAULT["claude-sonnet-5-5"] == "claude-opus-5-5"
+    assert review.REVIEW_DEFAULT["claude-opus-5-5"] == "claude-fable-5-1"
+
+
+def test_claude_command_shape() -> None:
+    assert review.claude_command("claude-opus-5-5", "medium") == [
+        "claude",
+        "-p",
+        "--safe-mode",
+        "--model",
+        "claude-opus-5-5",
+        "--effort",
+        "medium",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--no-session-persistence",
+        "--tools",
+        "Read,Glob,Grep",
+        "--permission-mode",
+        "default",
+        "--permission-prompts",
+        "none",
+        "--max-turns",
+        "20",
+    ]
+
+
+def test_claude_report_real_shaped_stream() -> None:
+    text, totals = review.claude_report(claude_stream("OK\nVERDICT: APPROVE\n"))
+    assert text == "OK\nVERDICT: APPROVE\n"
+    assert totals == {
+        "input_tokens": 4950,
+        "cached_tokens": 544,
+        "output_tokens": 4,
+        "reasoning_tokens": 0,
+    }
+
+
+def test_claude_report_uses_last_result_event() -> None:
+    raw = claude_stream("first") + claude_stream("second")
+    assert review.claude_report(raw)[0] == "second"
+
+
+def test_claude_report_without_result_event() -> None:
+    raw = claude_stream(None) + b"not-json\n"
+    assert review.claude_report(raw) == ("", None)
+
+
+def test_claude_report_non_str_result() -> None:
+    event = {**CLAUDE_RESULT, "result": 12}
+    text, totals = review.claude_report(grok_stream(event))
+    assert text == ""
+    assert totals is not None and totals["output_tokens"] == 4
+
+
+def test_first_error_claude_error_result() -> None:
+    event = {"type": "result", "subtype": "error_max_turns", "is_error": True}
+    assert review.first_error(grok_stream(event)) == "claude error_max_turns"
+    ok = {"type": "result", "subtype": "success", "is_error": False}
+    assert review.first_error(grok_stream(ok)) == ""
+
+
+@pytest.mark.parametrize(
+    ("result", "verdict", "code"),
+    [
+        ("notes\nVERDICT: APPROVE\n", "APPROVE", 0),
+        ("fix\nVERDICT: REQUEST_CHANGES\n", "REQUEST_CHANGES", 1),
+    ],
+)
+def test_claude_review_end_to_end(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    result: str,
+    verdict: str,
+    code: int,
+) -> None:
+    root = make_repo(tmp_path)
+    refuse_grok(monkeypatch)
+    real = review.git_text
+
+    def fake_git(cwd: Path, *flags: str) -> str:
+        if flags and flags[0] == "diff":
+            return "diff --git a/keep.txt b/keep.txt\n+changed\n"
+        return real(cwd, *flags)
+
+    monkeypatch.setattr(review, "git_text", fake_git)
+    seen = install_claude(monkeypatch, claude_stream(result))
+    extra = ["--work-item", "cl-1"]
+    assert run_main(monkeypatch, argv(root, extra, writer="claude-sonnet-5-5")) == code
+    data = summary(capsys.readouterr().out)
+    assert data["provider"] == "claude"
+    assert data["model"] == "claude-opus-5-5"
+    assert data["effort"] == "medium"
+    assert data["verdict"] == verdict
+    assert data["attempted_providers"] == ["claude"]
+    assert data["fallback_reason"] is None
+    dest = Path(str(data["saved"]))
+    assert dest.name == f"{sha_of(root)}-claude-opus-5-5.md"
+    assert dest.read_text() == result
+    assert seen["calls"] == 1
+    env = seen["env"]
+    assert isinstance(env, dict)
+    assert env["CLAUDE_CODE_DISABLE_ADVISOR_TOOL"] == "1"
+    prompt = str(seen["prompt"])
+    assert "+changed" in prompt
+    assert review.NO_SHELL in prompt
+    assert review.ADVERSARIAL in prompt
+    assert prompt.index("End the review with exactly one line") < prompt.index(
+        review.ADVERSARIAL
+    )
+    assert prompt.index(review.ADVERSARIAL) < prompt.index(review.NO_SHELL)
+    assert prompt.index(review.NO_SHELL) < prompt.index("diff --git")
+    args = seen["args"]
+    assert isinstance(args, list)
+    assert args == review.claude_command("claude-opus-5-5", "medium")
+    row = json.loads(ledger_path(root).read_text().splitlines()[0])
+    assert row["provider"] == "claude"
+    assert row["phase"] == "review"
+    assert row["work_item"] == "cl-1"
+    assert row["model"] == "claude-opus-5-5"
+    assert row["effort"] == "medium"
+    assert row["outcome"] == "completed"
+    assert row["provenance"] == "claude.result"
+    assert row["coverage"] == "complete"
+    assert row["input_tokens"] == 4950
+
+
+def test_claude_review_no_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = make_repo(tmp_path)
+    refuse_grok(monkeypatch)
+    install_claude(monkeypatch, claude_stream(None))
+    code = run_main(monkeypatch, argv(root, ["--provider", "claude"]))
+    assert code == 2
+    data = summary(capsys.readouterr().out)
+    assert data["provider"] == "claude"
+    assert data["model"] == "claude-opus-5-5"
+    dest = Path(str(data["saved"]))
+    assert dest.read_text() == "No review report. claude produced no output.\n"
+    row = json.loads(ledger_path(root).read_text().splitlines()[0])
+    assert row["provider"] == "claude"
+    assert row["outcome"] == "task_failed"
+    assert row["provenance"] == "none"
+
+
+@pytest.mark.parametrize(
+    ("extra", "writer", "model"),
+    [
+        (["--provider", "claude"], "grok-4.6", "claude-opus-5-5"),
+        ([], "claude-opus-5-5", "claude-fable-5-1"),
+        (["--model", "claude-sonnet-5-5"], "claude-opus-5-5", "claude-sonnet-5-5"),
+    ],
+)
+def test_claude_review_model_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    extra: list[str],
+    writer: str,
+    model: str,
+) -> None:
+    root = make_repo(tmp_path)
+    refuse_grok(monkeypatch)
+    seen = install_claude(monkeypatch, claude_stream("VERDICT: APPROVE\n"))
+    assert run_main(monkeypatch, argv(root, extra, writer=writer)) == 0
+    assert summary(capsys.readouterr().out)["model"] == model
+    args = seen["args"]
+    assert isinstance(args, list)
+    assert args[args.index("--model") + 1] == model
+
+
+def test_run_codex_passes_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeProc:
+        def communicate(self, timeout: float | None = None) -> tuple[bytes, None]:
+            return b"", None
+
+    def popen(*args: object, **kwargs: object) -> FakeProc:
+        captured.update(kwargs)
+        return FakeProc()
+
+    monkeypatch.setattr(review.subprocess, "Popen", popen)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("ok\n")
+    with prompt.open("rb") as source:
+        review.run_codex(["codex"], tmp_path, source, 1.0)
+        assert "env" not in captured
+        review.run_codex(["claude"], tmp_path, source, 1.0, env={"A": "1"})
+    assert captured["env"] == {"A": "1"}
 
 
 @pytest.mark.parametrize(
