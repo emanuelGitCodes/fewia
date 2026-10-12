@@ -70,8 +70,9 @@ the work item.
 - Every writer run MUST pass `--only --model claude-sonnet-5-5 --effort LEVEL`.
 - Rung 4 adds `--advisor claude-opus-5-5`. Every other rung runs with the
   advisor off.
-- Opus does not write code on this ladder. The review model MUST differ
-  from the writer model, and Opus is the review model.
+- Opus writes code only as the one-time fallback below. The review model
+  MUST differ from the writer model: Opus reviews a Sonnet writer, and
+  Fable reviews an Opus writer.
 - Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
   `stalled`): Sonnet goes to `claude-opus-5-5` at `medium`, once. The
   coordinator starts that run by hand, because `--only` runs one model.

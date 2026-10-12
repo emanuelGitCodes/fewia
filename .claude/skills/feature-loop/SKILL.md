@@ -11,9 +11,10 @@ step by step. This skill adds only the Claude Code mechanics.
 
 ## Advisor
 
-Consult the advisor at three moments: before you show the design to the
-user, after the same gate or review finding fails twice, and before you
-mark an item `verified`. Do not consult it elsewhere.
+`CLAUDE.md` names the three advisor moments: before you commit to a
+design, after the same gate or review finding fails twice, and before you
+mark an item `verified`. The design consult comes before you show the
+design to the user. You SHOULD NOT consult it elsewhere.
 
 ## Start or resume
 

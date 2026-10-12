@@ -34,7 +34,7 @@ Claude Code session to Claude models only.
   each consult reads the whole transcript.
 - Writers are `claude-sonnet-5-5` through `dev_supervisor`. The review
   model is `claude-opus-5-5` through `dev_supervisor.review`. The `Explore`
-  agent runs on Haiku.
+  agent in `.claude/agents/` runs on Haiku.
 - Escalate by hand with `/model fable`. Return with `/model opusplan`.
 
 ## Start work

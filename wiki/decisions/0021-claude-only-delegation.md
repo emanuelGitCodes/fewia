@@ -49,16 +49,18 @@ The writers form one ladder. Pick the lowest rung that fits the item.
 - Every writer run MUST pass `--only --model claude-sonnet-5-5 --effort LEVEL`.
 - Rung 4 adds `--advisor claude-opus-5-5`. Every other rung runs with the
   advisor off.
-- Opus does not write code on this ladder. The review model MUST differ
-  from the writer model, and Opus is the review model.
+- Opus writes code only as the one-time fallback below. The review model
+  MUST differ from the writer model: Opus reviews a Sonnet writer, and
+  Fable reviews an Opus writer.
 - Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`,
   or `stalled`): Sonnet goes to `claude-opus-5-5` at `medium`, once. Opus
   has no fallback; the coordinator marks the item `blocked`.
 
 ## Review model
 
-The review model is `claude-opus-5-5` at `low` for tier S, `medium` for
-tier M, and `high` for tier L. The review prompt tells the model to assume
+The review model is `claude-opus-5-5`. Its effort follows `--complexity`:
+`low` for `simple`, `medium` for `standard`, and `high` for `complex`,
+`exceptional`, and `maximum`. The tiers map to those classes. The review prompt tells the model to assume
 the change is wrong and to report one line per finding. The verdict
 contract, the record under `.fewia-supervisor-reviews/`, and the exit codes
 do not change. When the writer is Opus by explicit request, the review model
@@ -86,8 +88,9 @@ covers `Write` on the same path; a path with a gitignore pattern character
 is rejected before launch. An edit outside the owned files is denied and
 the writer is told not to retry it.
 
-`dev_supervisor.review` starts the reviewer with the same shape and
-`--tools Read,Glob,Grep --max-turns 20`. The diff is in the prompt, so the
+`dev_supervisor.review` starts the reviewer with the same leading flags,
+then `--tools Read,Glob,Grep --max-turns 20`. It passes no advisor,
+budget, or allowed-tools flags. The diff is in the prompt, so the
 reviewer needs no shell. The report is the `result` text of the final
 stream event.
 
@@ -127,7 +130,8 @@ executor and advisor pair before it sends a request.
 - `.claude/settings.json` sets `model`, `advisorModel`, `modelSettings`,
   and `autoCompactWindow`. The desktop app model menu MAY override `model`.
 - `.claude/agents/` gains `Explore.md`. The junior files name the Sonnet
-  writer. That change ships as its own pull request.
+  writer. That change ships as its own pull request, after this page,
+  so `Explore` runs on Haiku only once that pull request merges.
 - `docs/DELEGATION.md`, `docs/DEV_SUPERVISOR.md`, `CLAUDE.md`,
   `AGENTS.md`, and the `feature-loop` skill carry the new ladder.
 - The first loop after this decision records its tokens per phase in
