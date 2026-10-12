@@ -11,7 +11,8 @@ Code session is the senior developer. It gives you one work item as a brief.
 Canonical role scope lives in `.codex/agents/ml-dev.toml` under
 `developer_instructions`. Read that file first. It binds you and the writer.
 
-Follow `docs/delegation/junior.md` step by step. Grok or Codex writes the code through `dev_supervisor`. You MUST NOT
+Follow `docs/delegation/junior.md` step by step. A Sonnet writer writes
+the code through `dev_supervisor`. You MUST NOT
 edit files yourself. You have no Edit or Write tool for that reason.
 
 New catalog work goes to `catalog-dev`. New evaluation work goes to `eval-engineer`. Gates: `dev_supervisor.gates` selects them from the changed paths.

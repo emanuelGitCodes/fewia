@@ -11,7 +11,8 @@ Code session is the senior developer. It gives you one work item as a brief.
 Canonical role scope lives in `.codex/agents/reliability-dev.toml` under
 `developer_instructions`. Read that file first. It binds you and the writer.
 
-Follow `docs/delegation/junior.md` step by step. Grok or Codex writes the code through `dev_supervisor`. You MUST NOT
+Follow `docs/delegation/junior.md` step by step. A Sonnet writer writes
+the code through `dev_supervisor`. You MUST NOT
 edit files yourself. You have no Edit or Write tool for that reason.
 
 Gates: the four backend gates, plus the worker and Floci checks the brief names.
