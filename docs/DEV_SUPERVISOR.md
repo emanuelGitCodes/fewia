@@ -207,7 +207,7 @@ These commands serve every coordinator tool.
 
 | Command | Purpose |
 |---|---|
-| `python -m dev_supervisor.gates --cwd PATH --base REF [--reuse]` | Runs only the checks for the changed paths. Prints one line per check, `LINES n/150`, and `RESULT`. Records the result under `.fewia-supervisor-gates/<sha>.json`. |
+| `python -m dev_supervisor.gates --cwd PATH --base REF [--reuse]` | Runs only the checks for the changed paths. Prints one line per check, `LINES n/1000`, and `RESULT`. Records the result under `.fewia-supervisor-gates/<sha>.json`. |
 | `python -m dev_supervisor.review --cwd PATH --base REF --brief FILE --complexity C --writer-model M` | Runs a read-only review with a model other than the writer, a time cap, and short output. `--provider auto` picks `claude` for a Claude writer model and `codex` otherwise. Exits 0, 1, or 2 for `APPROVE`, `REQUEST_CHANGES`, or `BLOCKED`. |
 | `python -m dev_supervisor.usage [--work-item ID]` | Prints token and time totals per work item and phase from the shared ledger. |
 
