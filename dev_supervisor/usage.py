@@ -17,6 +17,7 @@ WORK_ITEM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$")
 COUNTS = ("input_tokens", "cached_tokens", "output_tokens", "reasoning_tokens")
 CODEX_PROVENANCE = "codex.turn.completed"
 GROK_PROVENANCE = "grok.end"
+CLAUDE_PROVENANCE = "claude.result"
 CODEX_KEYS = {
     "input_tokens": "input_tokens",
     "cached_tokens": "cached_input_tokens",
@@ -65,12 +66,7 @@ def parse_codex_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
     }
 
 
-def parse_grok_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
-    if event.get("type") != "end":
-        return None
-    raw = event.get("usage")
-    if not isinstance(raw, dict):
-        return dict.fromkeys(COUNTS)
+def _cache_counts(raw: dict[str, Any], reasoning: object) -> dict[str, int | None]:
     cache_read = (
         0
         if "cache_read_input_tokens" not in raw
@@ -92,10 +88,28 @@ def parse_grok_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
         "output_tokens": token(raw["output_tokens"])
         if "output_tokens" in raw
         else None,
-        "reasoning_tokens": (
-            token(raw["reasoning_tokens"]) if "reasoning_tokens" in raw else None
-        ),
+        "reasoning_tokens": token(reasoning),
     }
+
+
+def parse_grok_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
+    if event.get("type") != "end":
+        return None
+    raw = event.get("usage")
+    if not isinstance(raw, dict):
+        return dict.fromkeys(COUNTS)
+    return _cache_counts(raw, raw.get("reasoning_tokens"))
+
+
+def parse_claude_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
+    if event.get("type") != "result":
+        return None
+    raw = event.get("usage")
+    if not isinstance(raw, dict):
+        return dict.fromkeys(COUNTS)
+    details = raw.get("output_tokens_details")
+    thinking = details.get("thinking_tokens") if isinstance(details, dict) else None
+    return _cache_counts(raw, thinking)
 
 
 def add_counts(
@@ -165,7 +179,8 @@ def write_usage(
         parsed = source == GROK_PROVENANCE
         provenance = GROK_PROVENANCE if parsed else "unsupported"
     else:
-        parsed = source == CODEX_PROVENANCE
+        expected = CLAUDE_PROVENANCE if provider == "claude" else CODEX_PROVENANCE
+        parsed = source == expected
         if isinstance(source, str):
             provenance = str(source)
         else:
@@ -308,18 +323,10 @@ def import_claude(
                 continue
             seen.add(ident)
             details = raw.get("output_tokens_details", {})
-            usage = {
-                **dict.fromkeys(
-                    ("cache_read_input_tokens", "cache_creation_input_tokens")
-                ),
-                **raw,
-                "reasoning_tokens": details.get("thinking_tokens", 0)
-                if isinstance(details, dict)
-                else None,
-            }
-            counts = parse_grok_usage({"type": "end", "usage": usage})
-            assert counts is not None
-            totals = add_counts(totals, counts)
+            thinking = (
+                details.get("thinking_tokens", 0) if isinstance(details, dict) else None
+            )
+            totals = add_counts(totals, _cache_counts(raw, thinking))
             model = message.get("model")
         if totals is None:
             print("No new messages.")

@@ -5,9 +5,11 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from dev_supervisor.usage import (
+    CLAUDE_PROVENANCE,
     CODEX_PROVENANCE,
     GROK_PROVENANCE,
     add_counts,
+    parse_claude_usage,
     parse_codex_usage,
     parse_grok_usage,
 )
@@ -24,6 +26,28 @@ CODES = {
     "service_unavailable": "unavailable",
     "FS_PERMISSION_DENIED": "permission",
 }
+CLAUDE_CODES = {
+    "rate_limit": "rate_limit",
+    "overloaded": "unavailable",
+    "server_error": "unavailable",
+    "model_not_found": "unavailable",
+    "authentication_failed": "unavailable",
+    "oauth_org_not_allowed": "unavailable",
+    "billing_error": "quota",
+    "account_on_hold": "quota",
+}
+
+
+def _content(event: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return []
+    return [
+        block
+        for block in content
+        if isinstance(block, dict) and block.get("type") == kind
+    ]
 
 
 @dataclass
@@ -53,7 +77,26 @@ class Events:
         if grok is not None:
             self.tokens = add_counts(self.tokens, grok)
             self.provenance = GROK_PROVENANCE
+        claude = parse_claude_usage(cast(dict[str, Any], event))
+        if claude is not None:
+            self.tokens = add_counts(self.tokens, claude)
+            self.provenance = CLAUDE_PROVENANCE
         kind = event.get("type")
+        if kind == "result":
+            if event.get("subtype") == "success" and event.get("is_error") is False:
+                self.complete = True
+                self.failure, self.saw_error = "unknown", False
+            else:
+                self.saw_error = True
+        elif kind == "system" and event.get("subtype") == "api_retry":
+            self.saw_error = True
+            self.failure = CLAUDE_CODES.get(str(event.get("error")), "unknown")
+        elif kind == "assistant":
+            for block in _content(event, "tool_use"):
+                self.active_tools.add(str(block.get("id", "unknown")))
+        elif kind == "user":
+            for block in _content(event, "tool_result"):
+                self.active_tools.discard(str(block.get("tool_use_id", "unknown")))
         if kind in {"error", "turn.failed"}:
             self.saw_error = True
             error = event.get("error", event)

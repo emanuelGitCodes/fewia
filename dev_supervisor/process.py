@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections.abc import Mapping
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,7 @@ def attempt(
     token: str,
     idle: float = 180,
     limit: float = 3600,
+    environment: Mapping[str, str] | None = None,
 ) -> str:
     events = Events()
     started = last = time.monotonic()
@@ -90,14 +92,15 @@ def attempt(
         }
 
     publish(state_dir, snapshot("launching", None))
-    environment = os.environ.copy()
-    environment["FEWIA_WRITER"] = "1"
+    child_env = os.environ.copy()
+    child_env["FEWIA_WRITER"] = "1"
+    child_env.update(environment or {})
     with prompt.open("rb") as source:
         try:
             process = subprocess.Popen(
                 args,
                 cwd=cwd,
-                env=environment,
+                env=child_env,
                 stdin=source,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

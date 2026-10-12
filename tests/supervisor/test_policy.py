@@ -3,10 +3,12 @@ from pathlib import Path
 import pytest
 
 from dev_supervisor.policy import (
+    ADVISORS,
     COMPLEXITY,
     MODELS,
     Model,
     command,
+    environment,
     load_registry,
     order,
     resolve_effort,
@@ -189,6 +191,112 @@ def test_write_paths_authorize_exact_grok_rules(tmp_path: Path) -> None:
     (inner / "escape").symlink_to(outside)
     with pytest.raises(ValueError):
         writes(inner, ["escape"])
+
+
+CLAUDE = MODELS["claude-sonnet-5-5"]
+CLAUDE_HEAD = [
+    "claude",
+    "-p",
+    "--safe-mode",
+    "--model",
+    "claude-sonnet-5-5",
+    "--effort",
+    "medium",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--no-session-persistence",
+    "--tools",
+    "Read,Edit,Write,Glob,Grep",
+    "--permission-mode",
+    "default",
+    "--permission-prompts",
+    "none",
+    "--max-turns",
+    "30",
+]
+
+
+def test_claude_models_and_advisors() -> None:
+    assert list(MODELS)[-2:] == ["claude-sonnet-5-5", "claude-opus-5-5"]
+    assert MODELS["claude-sonnet-5-5"] == Model("claude", "max")
+    assert MODELS["claude-opus-5-5"] == Model("claude", "max")
+    assert order(None, False, MODELS) == [
+        "grok-4.6",
+        "gpt-5.3-codex-spark",
+        "gpt-6-luna",
+    ]
+    assert ADVISORS == ("claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1")
+
+
+def test_claude_argv_shape_and_rules(tmp_path: Path) -> None:
+    target = tmp_path / "app.py"
+    target.write_text("x = 1\n")
+    args = command(
+        "claude-sonnet-5-5",
+        CLAUDE,
+        tmp_path,
+        tmp_path / "p",
+        writes(tmp_path, ["app.py"]),
+    )
+    assert args == [*CLAUDE_HEAD, "--allowedTools", f"Edit(/{target.resolve()})"]
+    assert args[-1].startswith("Edit(//")
+    prompt = tmp_path / "p"
+    default = command("claude-sonnet-5-5", CLAUDE, tmp_path, prompt)
+    assert default[default.index("--effort") + 1] == "medium"
+    high = command("claude-sonnet-5-5", CLAUDE, tmp_path, prompt, effort="high")
+    assert high[high.index("--effort") + 1] == "high"
+
+
+def test_claude_rejects_path_with_space(tmp_path: Path) -> None:
+    spaced = tmp_path / "has space" / "app.py"
+    spaced.parent.mkdir()
+    spaced.write_text("x = 1\n")
+    with pytest.raises(ValueError, match="Write path MUST stay a relative"):
+        command("claude-sonnet-5-5", CLAUDE, tmp_path, tmp_path / "p", [spaced])
+
+
+def test_claude_advisor_and_budget(tmp_path: Path) -> None:
+    target = tmp_path / "app.py"
+    target.write_text("x = 1\n")
+    args = command(
+        "claude-sonnet-5-5",
+        CLAUDE,
+        tmp_path,
+        tmp_path / "p",
+        [target],
+        None,
+        "claude-fable-5-1",
+        3,
+    )
+    assert args == [
+        *CLAUDE_HEAD,
+        "--advisor",
+        "claude-fable-5-1",
+        "--max-budget-usd",
+        "3.00",
+        "--allowedTools",
+        f"Edit(/{target.resolve()})",
+    ]
+    prompt = tmp_path / "p"
+    with pytest.raises(ValueError, match="Unknown advisor"):
+        command("claude-sonnet-5-5", CLAUDE, tmp_path, prompt, advisor="gpt-6-luna")
+
+
+def test_advisor_and_budget_reject_other_providers(tmp_path: Path) -> None:
+    for name in ("grok-4.6", "gpt-6-luna"):
+        spec = MODELS[name]
+        with pytest.raises(ValueError):
+            command(name, spec, tmp_path, tmp_path / "p", advisor="claude-opus-5-5")
+        with pytest.raises(ValueError):
+            command(name, spec, tmp_path, tmp_path / "p", budget=1.0)
+
+
+def test_environment_disables_advisor_tool_without_advisor() -> None:
+    assert environment(CLAUDE, None) == {"CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1"}
+    assert environment(CLAUDE, "claude-opus-5-5") == {}
+    assert environment(MODELS["grok-4.6"], None) == {}
+    assert environment(MODELS["gpt-6-luna"], None) == {}
 
 
 def test_resolved_write_paths_reject_rule_metacharacters(tmp_path: Path) -> None:

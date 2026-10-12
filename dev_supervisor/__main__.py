@@ -12,12 +12,14 @@ from typing import Any
 
 from dev_supervisor.lease import lease
 from dev_supervisor.policy import (
+    ADVISORS,
     COMPLEXITY,
     EFFORTS,
     MODELS,
     RETRYABLE,
     Model,
     command,
+    environment,
     load_registry,
     order,
     resolve_effort,
@@ -46,7 +48,7 @@ record the checks you would run as remaining work in progress.md.
 Update progress.md after each completed edit and before changing work stages.
 Record edits made, remaining work, and uncertain operations. On handoff read
 the owned files first. Do not repeat an uncertain external action. A separate
-Codex or Grok agent independently verifies the result.
+review model independently verifies the result.
 """
 
 _SHELL_FORBIDDEN = (
@@ -134,6 +136,8 @@ def execute(
     files: list[Path] | None = None,
     work_item: str | None = None,
     phase: str | None = None,
+    advisor: str | None = None,
+    budget: float | None = None,
 ) -> str:
     instructions = tomllib.loads((cwd / ".codex/agents" / f"{role}.toml").read_text())
     assignment = task.read_text()
@@ -179,6 +183,8 @@ def execute(
                 prompt,
                 [*(files or []), progress],
                 resolved,
+                advisor,
+                budget,
             ),
             cwd,
             prompt,
@@ -186,6 +192,7 @@ def execute(
             token,
             idle,
             limit,
+            environment=environment(models[name], advisor),
         )
         if (
             result == "completed"
@@ -226,6 +233,8 @@ def dispatch(
     files: list[Path] | None = None,
     work_item: str | None = None,
     phase: str | None = None,
+    advisor: str | None = None,
+    budget: float | None = None,
 ) -> str:
     with lease(git_dir, cwd) as state:
         print(f"Private checkpoint directory: {state}", flush=True)
@@ -244,6 +253,8 @@ def dispatch(
                 files,
                 work_item,
                 phase,
+                advisor,
+                budget,
             )
         except Exception:  # noqa: BLE001
             if not (state / "status.json").exists():
@@ -251,6 +262,13 @@ def dispatch(
             raise
         print(result, flush=True)
         return result
+
+
+def _positive_float(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number")
+    return value
 
 
 def main() -> None:
@@ -268,6 +286,8 @@ def main() -> None:
     parser.add_argument("--write-file", action="append", default=[], metavar="PATH")
     parser.add_argument("--work-item")
     parser.add_argument("--phase", choices=("implement", "repair"))
+    parser.add_argument("--advisor", choices=ADVISORS)
+    parser.add_argument("--max-budget-usd", type=_positive_float)
     args = parser.parse_args()
     cwd = args.cwd.resolve()
     if not all(
@@ -296,9 +316,22 @@ def main() -> None:
             models = load_registry(tomllib.loads(args.registry.read_text()))
         authorized = writes(cwd, args.write_file)
         sequence = order(args.model, args.only, models, args.effort)
+        if (args.advisor or args.max_budget_usd) and any(
+            models[name].provider != "claude" for name in sequence
+        ):
+            parser.error("--advisor and --max-budget-usd require a claude model")
         for name in sequence:
             resolved = resolve_effort(args.complexity, models[name], args.effort)
-            command(name, models[name], cwd, Path("unused"), authorized, resolved)
+            command(
+                name,
+                models[name],
+                cwd,
+                Path("unused"),
+                authorized,
+                resolved,
+                args.advisor,
+                args.max_budget_usd,
+            )
     except (ValueError, TypeError) as error:
         parser.error(str(error))
     branch = subprocess.check_output(
@@ -329,6 +362,8 @@ def main() -> None:
         authorized,
         work_item,
         phase,
+        args.advisor,
+        args.max_budget_usd,
     )
     raise SystemExit(0 if result == "completed" else 1)
 

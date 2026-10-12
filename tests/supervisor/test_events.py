@@ -3,7 +3,25 @@ import json
 import pytest
 
 from dev_supervisor.events import Events
-from dev_supervisor.usage import CODEX_PROVENANCE, GROK_PROVENANCE
+from dev_supervisor.usage import CLAUDE_PROVENANCE, CODEX_PROVENANCE, GROK_PROVENANCE
+
+CLAUDE_SUCCESS = json.dumps(
+    {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "num_turns": 1,
+        "result": "OK",
+        "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 4404,
+            "cache_read_input_tokens": 544,
+            "output_tokens": 4,
+            "output_tokens_details": {"thinking_tokens": 0},
+        },
+        "permission_denials": [],
+    }
+)
 
 
 def test_tool_failure_is_not_provider_failure() -> None:
@@ -151,6 +169,116 @@ def test_feed_grok_end_records_tokens() -> None:
         "reasoning_tokens": 21,
     }
     assert state.provenance == GROK_PROVENANCE
+
+
+def test_claude_success_records_tokens_and_provenance() -> None:
+    state = Events()
+    state.feed(CLAUDE_SUCCESS)
+    assert state.complete
+    assert state.outcome(0) == "completed"
+    assert state.tokens == {
+        "input_tokens": 4950,
+        "cached_tokens": 544,
+        "output_tokens": 4,
+        "reasoning_tokens": 0,
+    }
+    assert state.provenance == CLAUDE_PROVENANCE
+
+
+def test_claude_max_turns_is_task_failure() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":30}'
+    )
+    assert state.saw_error
+    assert not state.complete
+    assert state.outcome(0) == "task_failed"
+    assert state.outcome(1) == "task_failed"
+
+
+def test_claude_error_result_with_success_subtype_is_failure() -> None:
+    state = Events()
+    state.feed('{"type":"result","subtype":"success","is_error":true}')
+    assert state.outcome(0) == "task_failed"
+
+
+def test_claude_retry_then_error_result_reports_rate_limit() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"system","subtype":"api_retry","error":"rate_limit","attempt":1}'
+    )
+    assert state.saw_error
+    state.feed('{"type":"result","subtype":"error_during_execution","is_error":true}')
+    assert state.outcome(1) == "rate_limit"
+
+
+def test_claude_retry_then_success_completes() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"system","subtype":"api_retry","error":"overloaded","attempt":1}'
+    )
+    assert state.failure == "unavailable"
+    state.feed(CLAUDE_SUCCESS)
+    assert state.failure == "unknown"
+    assert not state.saw_error
+    assert state.outcome(0) == "completed"
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        ("rate_limit", "rate_limit"),
+        ("overloaded", "unavailable"),
+        ("server_error", "unavailable"),
+        ("model_not_found", "unavailable"),
+        ("authentication_failed", "unavailable"),
+        ("oauth_org_not_allowed", "unavailable"),
+        ("billing_error", "quota"),
+        ("account_on_hold", "quota"),
+        ("something_new", "unknown"),
+    ],
+)
+def test_claude_retry_codes(code: str, expected: str) -> None:
+    state = Events()
+    state.feed(json.dumps({"type": "system", "subtype": "api_retry", "error": code}))
+    assert state.failure == expected
+    assert state.saw_error
+
+
+def test_claude_system_events_other_than_retry_are_ignored() -> None:
+    state = Events()
+    state.feed('{"type":"system","subtype":"init","error":"rate_limit"}')
+    assert state.failure == "unknown"
+    assert not state.saw_error
+
+
+def test_claude_tool_lifecycle() -> None:
+    state = Events()
+    state.feed(
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"hi"},'
+        '{"type":"tool_use","id":"toolu_1","name":"Edit","input":{}},'
+        '{"type":"tool_use","id":"toolu_2","name":"Read","input":{}}]}}'
+    )
+    assert state.active_tools == {"toolu_1", "toolu_2"}
+    state.feed(
+        '{"type":"user","message":{"content":[{"type":"tool_result",'
+        '"tool_use_id":"toolu_1"}]}}'
+    )
+    assert state.active_tools == {"toolu_2"}
+    state.feed(
+        '{"type":"user","message":{"content":[{"type":"tool_result",'
+        '"tool_use_id":"toolu_2"}]}}'
+    )
+    assert not state.active_tools
+
+
+def test_claude_malformed_content_is_ignored() -> None:
+    state = Events()
+    state.feed('{"type":"assistant","message":"text"}')
+    state.feed('{"type":"assistant","message":{"content":"text"}}')
+    state.feed('{"type":"user","message":{"content":[1,{"type":"tool_result"}]}}')
+    assert not state.active_tools
+    assert state.outcome(0) == "task_failed"
 
 
 def test_feed_grok_usage_event_adds_nothing() -> None:
