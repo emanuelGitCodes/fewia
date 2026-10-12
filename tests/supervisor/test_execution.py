@@ -2,16 +2,22 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from dev_supervisor.__main__ import GUARD, dispatch, execute, main
+from dev_supervisor.__main__ import GUARD, _prompt_guard, dispatch, execute, main
 from dev_supervisor.lease import lease
 from dev_supervisor.policy import MODELS, order
 from dev_supervisor.process import attempt
-from dev_supervisor.usage import CODEX_PROVENANCE, GROK_PROVENANCE, ledger_path
+from dev_supervisor.usage import (
+    CLAUDE_PROVENANCE,
+    CODEX_PROVENANCE,
+    GROK_PROVENANCE,
+    ledger_path,
+)
 
 
 def setup(tmp_path: Path) -> Path:
@@ -39,6 +45,7 @@ def test_fallback_keeps_worktree_and_checkpoint(tmp_path: Path) -> None:
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         assert cwd == tmp_path
         seen.append(args[args.index("--model") + 1])
@@ -98,6 +105,7 @@ def test_explicit_medium_execute_skips_spark(tmp_path: Path) -> None:
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         assert cwd == tmp_path
         seen.append(args[args.index("--model") + 1])
@@ -361,6 +369,7 @@ def test_writer_prompt_omits_version_control_command_names(tmp_path: Path) -> No
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         captured.append(prompt.read_text())
         return "completed"
@@ -509,6 +518,7 @@ def test_execute_writes_ledger_row_per_attempt(tmp_path: Path) -> None:
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         tokens.append(token)
         (state / "usage.json").write_text(
@@ -585,3 +595,159 @@ def test_ledger_write_failure_keeps_outcome(
             == "completed"
         )
     assert "warning: usage ledger write failed" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "advisor, budget, expected_env",
+    [
+        (None, None, {"CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1"}),
+        ("claude-opus-5-5", 2.5, {}),
+    ],
+)
+def test_execute_passes_claude_argv_and_environment(
+    tmp_path: Path,
+    advisor: str | None,
+    budget: float | None,
+    expected_env: dict[str, str],
+) -> None:
+    task = setup(tmp_path)
+    owned = tmp_path / "owned.py"
+    owned.write_text("pass\n")
+    calls: list[tuple[list[str], Mapping[str, str] | None]] = []
+
+    def runner(
+        args: list[str],
+        cwd: Path,
+        prompt: Path,
+        state: Path,
+        token: str,
+        idle: float,
+        limit: float,
+        environment: Mapping[str, str] | None = None,
+    ) -> str:
+        calls.append((args, environment))
+        owned.write_text("changed\n")
+        return "completed"
+
+    with patch("dev_supervisor.__main__.attempt", runner):
+        assert (
+            execute(
+                tmp_path,
+                task,
+                "backend-dev",
+                tmp_path,
+                MODELS,
+                order("claude-sonnet-5-5", True, MODELS),
+                1,
+                2,
+                "standard",
+                None,
+                [owned],
+                None,
+                None,
+                advisor,
+                budget,
+            )
+            == "completed"
+        )
+    ((args, environment),) = calls
+    assert args[:7] == [
+        "claude",
+        "-p",
+        "--safe-mode",
+        "--model",
+        "claude-sonnet-5-5",
+        "--effort",
+        "medium",
+    ]
+    rules = args[args.index("--allowedTools") + 1 :]
+    assert rules == [
+        f"Edit(/{owned.resolve()})",
+        f"Edit(/{(tmp_path / 'progress.md').resolve()})",
+    ]
+    assert ("--advisor" in args) == (advisor is not None)
+    assert ("--max-budget-usd" in args) == (budget is not None)
+    if budget is not None:
+        assert args[args.index("--max-budget-usd") + 1] == "2.50"
+    assert environment == expected_env
+
+
+def test_claude_prompt_guard_forbids_shell() -> None:
+    text = " ".join(_prompt_guard("claude").split())
+    assert "You MUST NOT run shell commands, tests, package managers" in text
+    assert "You MAY run read-only shell commands" not in text
+    assert text.endswith("A separate review model independently verifies the result.")
+
+
+PROBED_RESULT = {
+    "type": "result",
+    "subtype": "success",
+    "is_error": False,
+    "num_turns": 1,
+    "result": "OK",
+    "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 4404,
+        "cache_read_input_tokens": 544,
+        "output_tokens": 4,
+        "output_tokens_details": {"thinking_tokens": 0},
+    },
+    "permission_denials": [],
+}
+
+
+def _fake_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, owned: Path, edit: bool
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    script = bin_dir / "claude"
+    script.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "sys.stdin.read()\n"
+        "Path('advisor-env.txt').write_text(\n"
+        "    os.environ.get('CLAUDE_CODE_DISABLE_ADVISOR_TOOL', 'unset'))\n"
+        f"if {edit!r}:\n"
+        f"    Path({str(owned)!r}).write_text('value = 2\\n')\n"
+        f"print(json.dumps({PROBED_RESULT!r}))\n"
+    )
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+
+@pytest.mark.parametrize("edit, outcome", [(True, "completed"), (False, "no_edits")])
+def test_claude_end_to_end_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edit: bool, outcome: str
+) -> None:
+    task = _git_setup(tmp_path)
+    owned = tmp_path / "owned.py"
+    owned.write_text("pass\n")
+    _fake_claude(tmp_path, monkeypatch, owned, edit)
+    execute(
+        tmp_path,
+        task,
+        "backend-dev",
+        tmp_path,
+        MODELS,
+        order("claude-sonnet-5-5", True, MODELS),
+        5,
+        30,
+        "standard",
+        None,
+        [owned],
+        "cap-1",
+        "implement",
+    )
+    assert (tmp_path / "advisor-env.txt").read_text() == "1"
+    row = json.loads(ledger_path(tmp_path).read_text().splitlines()[0])
+    assert row["provider"] == "claude"
+    assert row["model"] == "claude-sonnet-5-5"
+    assert row["outcome"] == outcome
+    assert row["provenance"] == CLAUDE_PROVENANCE
+    assert row["coverage"] == "complete"
+    assert row["input_tokens"] == 4950
+    assert row["cached_tokens"] == 544
+    assert row["output_tokens"] == 4
+    assert row["reasoning_tokens"] == 0

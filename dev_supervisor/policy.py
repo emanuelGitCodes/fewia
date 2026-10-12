@@ -53,7 +53,10 @@ MODELS = {
     "gpt-5.3-codex-spark": Model("codex"),
     "gpt-6-luna": Model("codex", "max"),
     "gpt-6.1-sol": Model("codex", "max"),
+    "claude-sonnet-5-5": Model("claude", "max"),
+    "claude-opus-5-5": Model("claude", "max"),
 }
+ADVISORS = ("claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1")
 DEFAULTS = tuple(MODELS)[:3]
 RETRYABLE = {"unavailable", "quota", "rate_limit", "stalled"}
 _REGISTRY_FIELDS = frozenset({"provider", "ceiling"})
@@ -146,6 +149,12 @@ def order(
     return compatible
 
 
+def environment(spec: Model, advisor: str | None) -> dict[str, str]:
+    if spec.provider == "claude" and advisor is None:
+        return {"CLAUDE_CODE_DISABLE_ADVISOR_TOOL": "1"}
+    return {}
+
+
 def command(
     model: str,
     spec: Model,
@@ -153,7 +162,46 @@ def command(
     prompt: Path,
     files: list[Path] | None = None,
     effort: str | None = None,
+    advisor: str | None = None,
+    budget: float | None = None,
 ) -> list[str]:
+    if (advisor is not None or budget is not None) and spec.provider != "claude":
+        raise ValueError("Advisor and budget require the claude provider")
+    if advisor is not None and advisor not in ADVISORS:
+        raise ValueError("Unknown advisor")
+    if spec.provider == "claude":
+        args = [
+            "claude",
+            "-p",
+            "--safe-mode",
+            "--model",
+            model,
+            "--effort",
+            effort or "medium",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--no-session-persistence",
+            "--tools",
+            "Read,Edit,Write,Glob,Grep",
+            "--permission-mode",
+            "default",
+            "--permission-prompts",
+            "none",
+            "--max-turns",
+            "30",
+        ]
+        if advisor is not None:
+            args += ["--advisor", advisor]
+        if budget is not None:
+            args += ["--max-budget-usd", f"{budget:.2f}"]
+        rules: list[str] = []
+        for path in files or []:
+            text = str(_rule_path(path))
+            if " " in text:
+                raise ValueError("Write path MUST stay a relative worktree file")
+            rules.append(f"Edit(/{text})")
+        return args + ["--allowedTools", *rules]
     if spec.provider == "grok":
         args = [
             str(Path.home() / ".grok/bin/grok"),

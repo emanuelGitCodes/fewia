@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dev_supervisor.usage import (
+    CLAUDE_PROVENANCE,
     CODEX_PROVENANCE,
     COUNTS,
     GROK_PROVENANCE,
@@ -14,6 +15,7 @@ from dev_supervisor.usage import (
     import_claude,
     ledger_path,
     main,
+    parse_claude_usage,
     parse_grok_usage,
     phase_name,
     summarize,
@@ -487,6 +489,113 @@ def test_write_usage_grok_empty_meta_unsupported(tmp_path: Path) -> None:
     assert row["reasoning_tokens"] is None
     assert row["provenance"] == "unsupported"
     assert row["coverage"] == "unsupported"
+
+
+CLAUDE_RESULT = {
+    "type": "result",
+    "subtype": "success",
+    "is_error": False,
+    "num_turns": 1,
+    "result": "OK",
+    "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 4404,
+        "cache_read_input_tokens": 544,
+        "output_tokens": 4,
+        "output_tokens_details": {"thinking_tokens": 0},
+    },
+    "permission_denials": [],
+}
+
+
+def test_parse_claude_usage_probed_result_event() -> None:
+    assert parse_claude_usage(CLAUDE_RESULT) == {
+        "input_tokens": 4950,
+        "cached_tokens": 544,
+        "output_tokens": 4,
+        "reasoning_tokens": 0,
+    }
+
+
+def test_parse_claude_usage_ignores_other_events() -> None:
+    assert parse_claude_usage({"type": "assistant", "usage": {}}) is None
+    assert parse_claude_usage({"type": "end"}) is None
+
+
+def test_parse_claude_usage_missing_usage() -> None:
+    empty = dict.fromkeys(COUNTS)
+    assert parse_claude_usage({"type": "result"}) == empty
+    assert parse_claude_usage({"type": "result", "usage": None}) == empty
+    assert parse_claude_usage({"type": "result", "usage": 1}) == empty
+
+
+def test_parse_claude_usage_missing_fields() -> None:
+    usage = {"input_tokens": 7, "output_tokens": 3}
+    assert parse_claude_usage({"type": "result", "usage": usage}) == {
+        "input_tokens": 7,
+        "cached_tokens": 0,
+        "output_tokens": 3,
+        "reasoning_tokens": None,
+    }
+    no_input = {"type": "result", "usage": {"output_tokens": 3}}
+    assert parse_claude_usage(no_input) == {
+        "input_tokens": None,
+        "cached_tokens": 0,
+        "output_tokens": 3,
+        "reasoning_tokens": None,
+    }
+
+
+def test_write_usage_claude_parsed_row(tmp_path: Path) -> None:
+    path = tmp_path / LEDGER
+    write_usage(
+        path,
+        "a1",
+        "cap-1",
+        "implement",
+        "claude",
+        "claude-sonnet-5-5",
+        "medium",
+        "completed",
+        {
+            "provenance": CLAUDE_PROVENANCE,
+            "input_tokens": 4950,
+            "cached_tokens": 544,
+            "output_tokens": 4,
+            "reasoning_tokens": 0,
+        },
+        9,
+    )
+    row = json.loads(path.read_text().splitlines()[0])
+    assert row["provider"] == "claude"
+    assert [row[key] for key in COUNTS] == [4950, 544, 4, 0]
+    assert row["provenance"] == CLAUDE_PROVENANCE
+    assert row["coverage"] == "complete"
+
+
+@pytest.mark.parametrize(
+    "meta", [{}, {"provenance": CODEX_PROVENANCE, "input_tokens": 1}]
+)
+def test_write_usage_claude_unparsed_row(
+    tmp_path: Path, meta: dict[str, object]
+) -> None:
+    path = tmp_path / LEDGER
+    write_usage(
+        path,
+        "a1",
+        "cap-1",
+        "implement",
+        "claude",
+        "claude-sonnet-5-5",
+        "medium",
+        "completed",
+        meta,
+        1,
+    )
+    row = json.loads(path.read_text().splitlines()[0])
+    assert [row[key] for key in COUNTS] == [None] * 4
+    assert row["provenance"] == meta.get("provenance", "none")
+    assert row["coverage"] == "unknown"
 
 
 def test_usage_cli_no_rows(

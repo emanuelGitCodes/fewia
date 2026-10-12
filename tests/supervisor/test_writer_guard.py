@@ -1,4 +1,5 @@
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,6 +30,7 @@ def test_codex_prompt_allows_readonly_shell(tmp_path: Path) -> None:
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         captured.append(prompt.read_text())
         return "completed"
@@ -92,6 +94,7 @@ def test_completed_without_owned_edits_is_no_edits_and_retries(
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         seen.append(args[args.index("--model") + 1])
         if len(seen) == 2:
@@ -133,6 +136,7 @@ def test_completed_with_owned_edits_stays_completed(tmp_path: Path) -> None:
         token: str,
         idle: float,
         limit: float,
+        environment: Mapping[str, str] | None = None,
     ) -> str:
         owned.write_text("changed\n")
         return "completed"

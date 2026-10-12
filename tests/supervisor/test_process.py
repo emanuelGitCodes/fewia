@@ -58,6 +58,40 @@ def test_writer_environment_overrides_parent_marker(
     assert os.environ["FEWIA_WRITER"] == "0"
 
 
+def test_environment_argument_applies_over_inherited(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEWIA_TEST_INHERITED", "parent-value")
+    monkeypatch.setenv("FEWIA_TEST_OVERRIDDEN", "parent-value")
+    monkeypatch.setenv("FEWIA_WRITER", "0")
+    script = (
+        "import json, os; from pathlib import Path; "
+        "Path('environment.json').write_text(json.dumps({"
+        "'added': os.environ.get('FEWIA_TEST_ADDED'), "
+        "'inherited': os.environ.get('FEWIA_TEST_INHERITED'), "
+        "'overridden': os.environ.get('FEWIA_TEST_OVERRIDDEN'), "
+        "'writer': os.environ.get('FEWIA_WRITER')}))"
+    )
+    prompt = tmp_path / "prompt"
+    prompt.write_text("task")
+    attempt(
+        [sys.executable, "-c", script],
+        tmp_path,
+        prompt,
+        tmp_path,
+        "unique",
+        environment={"FEWIA_TEST_ADDED": "1", "FEWIA_TEST_OVERRIDDEN": "child"},
+    )
+    assert json.loads((tmp_path / "environment.json").read_text()) == {
+        "added": "1",
+        "inherited": "parent-value",
+        "overridden": "child",
+        "writer": "1",
+    }
+    assert "FEWIA_TEST_ADDED" not in os.environ
+    assert os.environ["FEWIA_TEST_OVERRIDDEN"] == "parent-value"
+
+
 def test_missing_and_failed(tmp_path: Path) -> None:
     assert run(tmp_path, "raise SystemExit(1)") == "task_failed"
     assert run(tmp_path, "print('quota_exceeded')") == "task_failed"
