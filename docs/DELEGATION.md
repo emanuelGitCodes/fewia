@@ -73,8 +73,9 @@ the work item.
 - Opus does not write code on this ladder. The review model MUST differ
   from the writer model, and Opus is the review model.
 - Fallback on a provider outcome (`unavailable`, `quota`, `rate_limit`, or
-  `stalled`): Sonnet goes to `claude-opus-5-5` at `medium`, once. When that
-  run also returns a provider outcome, the coordinator marks the item
+  `stalled`): Sonnet goes to `claude-opus-5-5` at `medium`, once. The
+  coordinator starts that run by hand, because `--only` runs one model.
+  When it also returns a provider outcome, the coordinator marks the item
   `blocked` and escalates to the user. A failed task does not trigger
   fallback.
 - A repair keeps the same writer. After two repair rounds with no

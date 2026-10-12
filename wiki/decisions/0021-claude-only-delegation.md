@@ -73,9 +73,11 @@ claude -p --safe-mode --model claude-sonnet-5-5 --effort LEVEL
   --output-format stream-json --verbose --no-session-persistence
   --tools Read,Edit,Write,Glob,Grep --permission-mode default
   --permission-prompts none --max-turns 30
-  --allowedTools "Edit(//ABS/OWNED/FILE)" ... "Edit(//ABS/progress.md)"
   [--advisor claude-opus-5-5] [--max-budget-usd N]
+  --allowedTools "Edit(//ABS/OWNED/FILE)" ... "Edit(//ABS/progress.md)"
 ```
+
+The `--allowedTools` list is variadic, so it MUST come last.
 
 The prompt arrives on stdin. `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1` is set
 unless `--advisor` is given. `--safe-mode` keeps the project `CLAUDE.md`,

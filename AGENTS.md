@@ -23,8 +23,9 @@ An explicit `--effort` override MUST stay within the model ceiling.
 Explicit task model or effort requests override automatic selection when
 supported. Model-only requests forbid substitution.
 A separate review model verifies independently.
-Claude Code MAY hold the coordinator seat (decision 0013). It never writes code
-and is never the independent reviewer. These rules bind all writers.
+Claude Code MAY hold the coordinator seat (decision 0013). The Claude Code
+session never writes code and is never the independent reviewer. These
+rules bind all writers.
 
 ## Delegation
 
