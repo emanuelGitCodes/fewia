@@ -7,6 +7,7 @@ colors:
   ledger-green: "#20553d"
   sage-slate: "#456357"
   pale-sage-rule: "#aabbb2"
+  control-line: "#7d9488"
   sage-wash: "#f1f5ef"
   brick-red: "#8a1f1f"
   ochre-rule: "#8a5a12"
@@ -149,8 +150,11 @@ A single-hue green palette on white, with red and ochre reserved for problems.
 - **Forest Ink** (`forest-ink`): body text and headings.
 - **Sage Slate** (`sage-slate`): secondary text, status lines, notices, and
   the disabled primary button.
-- **Pale Sage Rule** (`pale-sage-rule`): panel borders, list dividers, the
-  header and footer rules, and control borders.
+- **Pale Sage Rule** (`pale-sage-rule`): panel borders, list dividers, and
+  the header and footer rules. It is decorative.
+- **Control Line** (`control-line`): the 1 px border of inputs, selects, the
+  chat textarea, and secondary buttons. It meets 3:1 on Paper White for
+  WCAG 1.4.11.
 - **Sage Wash** (`sage-wash`): chat messages, status boxes, and the empty
   conversation card.
 
@@ -230,8 +234,8 @@ Plain and steady.
 - **Shape:** gently rounded (6 px), at least 44 px tall and 44 px wide.
 - **Primary:** Ledger Green fill with Paper White text. Use one primary
   button per area: build estimate, rebuild estimate, send, or retry.
-- **Secondary:** Paper White fill, Ledger Green 600-weight text, Pale Sage
-  Rule border. Use for example prompts and other optional actions.
+- **Secondary:** Paper White fill, Ledger Green 600-weight text, Control
+  Line border. Use for example prompts and other optional actions.
 - **Focus:** a 3 px Ledger Green outline, offset 3 px.
 - **Disabled:** every control drops to 65% opacity with a not-allowed
   cursor. The primary also turns Sage Slate, so it renders Sage Slate at
@@ -241,7 +245,7 @@ Plain and steady.
 
 ### Inputs / Fields
 
-- **Style:** Paper White fill, 1 px Pale Sage Rule border, 6 px corners,
+- **Style:** Paper White fill, 1 px Control Line border, 6 px corners,
   at least 44 px tall. The chat textarea is at least 8rem tall.
 - **Labels:** always visible, 600 weight, above or beside the field.
 - **Focus:** the shared 3 px Ledger Green outline.
@@ -260,6 +264,20 @@ Plain and steady.
 Each message is a Sage Wash block with 6 px corners. The first line names
 the speaker in Ledger Green at 600 weight. The message text follows in
 Forest Ink.
+
+### Live Status
+
+Each async job has one live region that is always in the DOM. The grocery
+job's region is the second child of the estimate panel. The chat job's
+region sits under the chat heading. When a visible paragraph already shows
+the same message, the region uses the `.visually-hidden` utility. Visible
+status paragraphs MUST NOT carry `role="status"` a second time.
+
+### Focus After an Action
+
+An action that starts a job moves focus to a stable target before its
+trigger is disabled. Grocery actions focus the estimate heading. Chat Send
+keeps focus in the message field, which is read-only while the job runs.
 
 ### Estimate Ledger
 

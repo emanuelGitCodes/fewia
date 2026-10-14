@@ -4029,3 +4029,20 @@ system. The P1 findings are:
 
 The owner chose the harden batch first: a control-border token, focus
 management, and one status region per job.
+
+The `impeccable-harden` loop then built the three items. Each passed the
+gates and an Opus review, and each is a pull request.
+
+| Item | Change | Lines | Review | PR |
+|---|---|---|---|---|
+| 01 | `--control-line` (#7d9488, 3.25:1) for control borders | 3 | APPROVE `d66c6b3` | #435 |
+| 02 | Focus moves to a stable target after Build, Rebuild, the examples, Send, and handoff Confirm | 41 | APPROVE `9cb9dfe` | #436 |
+| 03 | One always-mounted live region per job; `.visually-hidden` utility | 31 | APPROVE `54dd2f2` | #437, stacked on #436 |
+
+The Claude writer runs with `--max-turns 30` (`dev_supervisor/policy.py`).
+A brief with about ten owned files ended `task_failed` before the writer
+finished reading. Two writer runs per branch, each with half the files,
+completed three times. `.conversation-status` carries box styling, so an
+always-mounted live region needs the visually hidden utility. No browser
+or screen-reader run verified the items. A rerun of `/impeccable audit`
+after the merges can confirm them.
