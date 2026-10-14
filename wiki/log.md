@@ -4002,3 +4002,17 @@ stated the review effort by tier while the code maps it by complexity
 class. Each fix moved item 04's base, so item 04 was rebased and
 reviewed again twice. Finish a prose review before opening the next
 worktree on it.
+
+## 2026-10-14 — Auto-compact window raised to 1M tokens (#433)
+
+`.claude/settings.json` sets `autoCompactWindow` to `1000000`. The
+previous value was `140000`, from decision 0021. Claude Code sessions
+now compact at 1M tokens. A longer session costs more per turn and per
+advisor consult. The "Context guard" row of
+[decision 0021](decisions/0021-claude-only-delegation.md) states the new
+value. The gates passed on `73e1251` with no gates for these paths.
+`claude-fable-5-1` reviewed the head and returned APPROVE, because the
+coordinator on Opus wrote the change. The first gates record was not
+clean: the untracked `.codex/agents/Explore.toml` made the tree dirty.
+The gates ran again with that file moved aside. #433 is open and not
+merged.
