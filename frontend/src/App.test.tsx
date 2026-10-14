@@ -516,6 +516,56 @@ describe("App", () => {
     failed.unmount();
   });
 
+  it("moves focus to the estimate heading on Build, then keeps it after the result renders", () => {
+    const submitForm = vi.fn(async () => undefined);
+    const renderer = mount(demoState({ submitForm }));
+    const build = buttonNamed(renderer.container, "Build my estimate");
+    build.focus();
+    act(() => {
+      fireEvent.click(build);
+    });
+    const heading = screen.getByRole("heading", { level: 2, name: "Grocery estimate" });
+    expect(submitForm).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(heading);
+    vi.mocked(useGroceryDemo).mockReturnValue(demoState({ submitForm, job: succeededJob }));
+    renderer.rerender(createElement(App));
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 2, name: "Grocery estimate" }),
+    );
+    expect(childText(renderer.container)).toContain("$17.03");
+    renderer.unmount();
+  });
+
+  it("moves focus to the estimate heading on Rebuild", () => {
+    const submitForm = vi.fn(async () => undefined);
+    const renderer = mount(demoState({ dirty: true, job: succeededJob, submitForm }));
+    const rebuild = buttonNamed(renderer.container, "Rebuild estimate");
+    rebuild.focus();
+    act(() => {
+      fireEvent.click(rebuild);
+    });
+    expect(submitForm).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 2, name: "Previous estimate" }),
+    );
+    renderer.unmount();
+  });
+
+  it("moves focus to the estimate heading on an example", () => {
+    const example = vi.fn();
+    const renderer = mount(demoState({ example }));
+    const button = buttonNamed(renderer.container, "Bean tacos for two");
+    button.focus();
+    act(() => {
+      fireEvent.click(button);
+    });
+    expect(example).toHaveBeenCalledWith("beans");
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 2, name: "Grocery estimate" }),
+    );
+    renderer.unmount();
+  });
+
   it("disables a failed new request when the catalog is blocked", () => {
     const newRequest = vi.fn();
     const renderer = mount(

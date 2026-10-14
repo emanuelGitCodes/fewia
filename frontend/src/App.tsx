@@ -3,7 +3,7 @@ import { SAMPLE_ESTIMATE_NOTICE, sourceLabel } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
 import { TemplatePicker } from "./TemplatePicker";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
-import { Conversation } from "./Conversation";
+import { Conversation, type ExampleKind } from "./Conversation";
 import { Estimate } from "./Estimate";
 import { HandoffControls } from "./HandoffControls";
 import { formatDollars } from "./money";
@@ -45,6 +45,9 @@ export default function App(): JSX.Element {
     result.plan.accepted &&
     result.plan.total_cents !== null &&
     result.plan.lines.some((line) => !line.from_pantry);
+  const focusEstimate = (): void => {
+    document.getElementById("estimate-heading")?.focus();
+  };
   useEffect(() => {
     handoff.clear();
     // handoff.clear is stable via useCallback; the handoff object itself is
@@ -71,7 +74,10 @@ export default function App(): JSX.Element {
             freshRequestsDisabled={blocked || chat.pending}
             recipes={demo.config?.recipes ?? []}
             ingredients={demo.config?.ingredients ?? []}
-            onExample={demo.example}
+            onExample={(kind: ExampleKind) => {
+              focusEstimate();
+              demo.example(kind);
+            }}
             onRetry={demo.retry}
             onNewRequest={demo.newRequest}
           >
@@ -94,6 +100,7 @@ export default function App(): JSX.Element {
                 className="budget-form"
                 onSubmit={(event) => {
                   event.preventDefault();
+                  focusEstimate();
                   void demo.submitForm();
                 }}
               >
@@ -144,7 +151,10 @@ export default function App(): JSX.Element {
               recipes={demo.config?.recipes ?? []}
               ingredients={demo.config?.ingredients ?? []}
               onPantryToggle={demo.togglePantry}
-              onRebuild={demo.submitForm}
+              onRebuild={() => {
+                focusEstimate();
+                return demo.submitForm();
+              }}
               rebuildDisabled={blocked || busy}
             />
             {chat.instacartConfigured ? (

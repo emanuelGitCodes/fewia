@@ -113,7 +113,9 @@ export function Estimate({
   if (result === null) {
     return (
       <section className="estimate-panel" aria-labelledby="estimate-heading">
-        <h2 id="estimate-heading">Grocery estimate</h2>
+        <h2 id="estimate-heading" tabIndex={-1}>
+          Grocery estimate
+        </h2>
         <p className="estimate-status" role="status" aria-live="polite">
           {statusText(job, pending, recipes, ingredients)}
         </p>
@@ -123,7 +125,9 @@ export function Estimate({
   const warnings = [...new Set([...result.plan.warnings, ...result.budget.warnings])];
   return (
     <section className="estimate-panel" aria-labelledby="estimate-heading">
-      <h2 id="estimate-heading">{dirty ? "Previous estimate" : "Grocery estimate"}</h2>
+      <h2 id="estimate-heading" tabIndex={-1}>
+        {dirty ? "Previous estimate" : "Grocery estimate"}
+      </h2>
       {dirty ? (
         <p className="estimate-dirty" role="status">
           Rebuild the request to apply request changes.
