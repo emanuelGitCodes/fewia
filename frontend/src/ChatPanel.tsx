@@ -67,21 +67,16 @@ export function ChatPanel({
   const formLocked = inputDisabled || pending;
   const retryLocked = !hasRequest || disabled || pending;
   const canSend = !formLocked && !freshSendDisabled && text.trim().length > 0;
+  const shownError = error !== null && !pending ? visibleError(error) : null;
   const note = configurationPending ? CHECKING : !configured ? UNAVAILABLE : null;
   return (
     <section className="panel conversation-panel" aria-labelledby="chat-heading">
       <h2 id="chat-heading">Meal chat</h2>
       {note !== null ? <p className="panel-note">{note}</p> : null}
-      {pending ? (
-        <p className="conversation-status" role="status" aria-live="polite">
-          {PENDING}
-        </p>
-      ) : null}
-      {error !== null && !pending ? (
-        <p className="conversation-error" role="status">
-          {visibleError(error)}
-        </p>
-      ) : null}
+      <p className="conversation-status" role="status" aria-live="polite">
+        {pending ? PENDING : shownError ?? ""}
+      </p>
+      {shownError !== null ? <p className="conversation-error">{shownError}</p> : null}
       {messages.length === 0 ? (
         <div className="conversation-empty">
           <p className="empty-title">No messages yet</p>

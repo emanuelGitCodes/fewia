@@ -128,14 +128,13 @@ describe("ChatPanel", () => {
     expect(buttonNamed(rendered.container, "Send").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Retry the same request").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Start a new conversation").disabled).toBe(true);
-    const live = within(rendered.container).queryAllByRole("status").filter(
-      (node) => node.getAttribute("aria-live") === "polite",
-    );
+    const live = within(rendered.container).getAllByRole("status");
     expect(live).toHaveLength(1);
     const status = live[0];
     if (status === undefined) {
       throw new Error("missing live status");
     }
+    expect(status.getAttribute("aria-live")).toBe("polite");
     expect(renderedText(status)).toBe("Your request is in progress.");
     expect(renderedText(rendered.container)).not.toContain("queue");
     expect(renderedText(rendered.container)).not.toContain("job");
