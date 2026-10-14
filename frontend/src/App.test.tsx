@@ -594,11 +594,19 @@ describe("App", () => {
         },
       }),
     );
-    const status = within(screen.getByRole("region", { name: "Your conversation" })).getByRole(
-      "status",
-    );
-    expect(childText(status)).toBe(
+    const region = screen.getByRole("region", { name: "Your conversation" });
+    const status = region.querySelector<HTMLElement>(".conversation-status");
+    expect(status).not.toBeNull();
+    expect(childText(status as HTMLElement)).toBe(
       "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
+    );
+    expect(within(region).queryAllByRole("status")).toHaveLength(0);
+    const panel = renderer.container.querySelector<HTMLElement>("section.estimate-panel");
+    expect(panel).not.toBeNull();
+    const panelStatuses = within(panel as HTMLElement).getAllByRole("status");
+    expect(panelStatuses).toHaveLength(1);
+    expect(childText(panelStatuses[0])).toContain(
+      "Lentil soup needs black beans, which is excluded.",
     );
     renderer.unmount();
   });
