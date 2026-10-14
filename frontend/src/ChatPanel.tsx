@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { useRef, type JSX } from "react";
 import { BUDGET_ERROR, TEXT_ERROR } from "./chatConversationModel";
 
 export type ChatPanelRole = "user" | "assistant";
@@ -62,7 +62,9 @@ export function ChatPanel({
   disabled,
   freshSendDisabled = false,
 }: ChatPanelProps): JSX.Element {
-  const formLocked = disabled || pending || !configured || configurationPending;
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputDisabled = disabled || !configured || configurationPending;
+  const formLocked = inputDisabled || pending;
   const retryLocked = !hasRequest || disabled || pending;
   const canSend = !formLocked && !freshSendDisabled && text.trim().length > 0;
   const note = configurationPending ? CHECKING : !configured ? UNAVAILABLE : null;
@@ -101,6 +103,7 @@ export function ChatPanel({
           onSubmit={(event) => {
             event.preventDefault();
             if (canSend) {
+              inputRef.current?.focus();
               onSend();
             }
           }}
@@ -108,9 +111,11 @@ export function ChatPanel({
           <label htmlFor="chat-message">Message</label>
           <textarea
             id="chat-message"
+            ref={inputRef}
             maxLength={MAX_LENGTH}
             value={text}
-            disabled={formLocked}
+            disabled={inputDisabled}
+            readOnly={pending}
             rows={6}
             onChange={(event) => {
               onChange(event.target.value);

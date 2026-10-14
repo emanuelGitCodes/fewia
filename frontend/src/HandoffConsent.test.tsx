@@ -77,6 +77,15 @@ describe("HandoffConsent", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("does not focus a trigger that is disabled when the dialog closes", () => {
+    const { trigger } = mount();
+    const dialog = screen.getByRole("dialog");
+    (trigger as HTMLButtonElement).disabled = true;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).not.toBe(trigger);
+  });
+
   it("confirms once and closes even if the same control is clicked again", () => {
     const { onConfirm } = mount();
     const button = screen.getByRole("button", { name: "Confirm shopping list" });

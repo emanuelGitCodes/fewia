@@ -14,7 +14,8 @@ export function HandoffConsent({ onCancel, onConfirm }: HandoffConsentProps): JS
     dialog?.showModal();
     return () => {
       dialog?.close();
-      if (trigger instanceof HTMLElement && trigger.isConnected) {
+      const triggerDisabled = trigger instanceof HTMLButtonElement && trigger.disabled;
+      if (trigger instanceof HTMLElement && trigger.isConnected && !triggerDisabled) {
         trigger.focus();
       }
     };

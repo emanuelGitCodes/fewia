@@ -123,7 +123,8 @@ describe("ChatPanel", () => {
 
   it("disables the pending form and exposes live progress status", () => {
     const { rendered, onSend } = mount({ text: "Bean tacos for two", pending: true });
-    expect(messageInput(rendered.container).disabled).toBe(true);
+    expect(messageInput(rendered.container).disabled).toBe(false);
+    expect(messageInput(rendered.container).readOnly).toBe(true);
     expect(buttonNamed(rendered.container, "Send").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Retry the same request").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Start a new conversation").disabled).toBe(true);
@@ -140,6 +141,46 @@ describe("ChatPanel", () => {
     expect(renderedText(rendered.container)).not.toContain("job");
     submit(rendered.container);
     expect(onSend).not.toHaveBeenCalled();
+    rendered.unmount();
+  });
+
+  it("focuses the textarea on send and keeps it focused and read-only while pending", () => {
+    const { rendered, onSend } = mount({ text: "Bean tacos for two" });
+    const textarea = messageInput(rendered.container);
+    expect(document.activeElement).not.toBe(textarea);
+    onSend.mockImplementation(() => {
+      expect(document.activeElement).toBe(textarea);
+    });
+    submit(rendered.container);
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(textarea);
+    rendered.rerender(
+      createElement(ChatPanel, {
+        messages: [],
+        text: "Bean tacos for two",
+        onChange: vi.fn(),
+        onSend,
+        onRetry: vi.fn(),
+        onNewConversation: vi.fn(),
+        pending: true,
+        error: null,
+        configured: true,
+        configurationPending: false,
+        hasRequest: false,
+        disabled: false,
+      }),
+    );
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.readOnly).toBe(true);
+    expect(textarea.disabled).toBe(false);
+    rendered.unmount();
+  });
+
+  it("keeps the textarea disabled, not read-only, when not configured", () => {
+    const { rendered } = mount({ configured: false });
+    const textarea = messageInput(rendered.container);
+    expect(textarea.disabled).toBe(true);
+    expect(textarea.readOnly).toBe(false);
     rendered.unmount();
   });
 

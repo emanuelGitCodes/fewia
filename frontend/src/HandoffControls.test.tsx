@@ -93,6 +93,20 @@ describe("HandoffControls", () => {
     rendered.unmount();
   });
 
+  it("moves focus to the heading on Confirm and back to the trigger on Cancel", () => {
+    const { rendered } = mount({ canStart: true });
+    const heading = rendered.container.querySelector<HTMLElement>("#handoff-heading");
+    expect(heading?.tabIndex).toBe(-1);
+    const start = buttonNamed(rendered.container, "Create shopping list");
+    fireEvent.click(start);
+    fireEvent.click(buttonNamed(rendered.container, "Cancel"));
+    expect(document.activeElement).toBe(start);
+    fireEvent.click(start);
+    fireEvent.click(buttonNamed(rendered.container, "Confirm shopping list"));
+    expect(document.activeElement).toBe(heading);
+    rendered.unmount();
+  });
+
   it.each(["blocked", "pending", "existing handoff"])(
     "closes consent when creation becomes invalid: %s",
     (reason) => {
