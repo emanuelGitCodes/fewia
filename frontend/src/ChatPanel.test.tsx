@@ -222,6 +222,20 @@ describe("ChatPanel", () => {
     rendered.unmount();
   });
 
+  it("keeps one live node and shows the error once visibly", () => {
+    const { rendered } = mount({ hasRequest: true, error: TIMEOUT });
+    const live = within(rendered.container).getAllByRole("status");
+    expect(live).toHaveLength(1);
+    expect(live[0]?.className).toBe("visually-hidden");
+    expect(rendered.container.querySelectorAll(".conversation-error")).toHaveLength(1);
+    expect(rendered.container.querySelectorAll(".conversation-status")).toHaveLength(0);
+    rendered.unmount();
+    const idle = mount();
+    expect(within(idle.rendered.container).getAllByRole("status")).toHaveLength(1);
+    expect(idle.rendered.container.querySelectorAll(".conversation-status")).toHaveLength(0);
+    idle.rendered.unmount();
+  });
+
   it("shows timeout may-continue wording and hides unknown secret text", () => {
     const timeout = mount({ hasRequest: true, error: TIMEOUT });
     expect(renderedText(timeout.rendered.container)).toContain(TIMEOUT);

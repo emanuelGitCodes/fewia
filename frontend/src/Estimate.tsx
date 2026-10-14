@@ -118,7 +118,11 @@ export function Estimate({
       ? statusText(job, pending, recipes, ingredients)
       : `${dirty ? `${DIRTY_SENTENCE} ` : ""}${planWording(result)}`;
   const statusNode = (
-    <p className="estimate-status" role="status" aria-live="polite">
+    <p
+      className={result === null ? "estimate-status" : "visually-hidden"}
+      role="status"
+      aria-live="polite"
+    >
       {status}
     </p>
   );
@@ -152,6 +156,7 @@ export function Estimate({
           Rebuild estimate
         </button>
       ) : null}
+      <p className="estimate-plan-state">{planWording(result)}</p>
       <p className="estimate-total">{formatDollars(result.plan.total_cents)}</p>
       {result.supermarket_estimate !== undefined ? (
         <>

@@ -461,9 +461,23 @@ describe("Estimate", () => {
       const rendered = mount(state);
       expect(within(rendered.container).getAllByRole("status")).toHaveLength(1);
       const second = rendered.container.querySelector(".estimate-panel")?.children[1];
-      expect(second?.className).toBe("estimate-status");
+      expect(second?.className).toBe(state.job?.status === "succeeded" ? "visually-hidden" : "estimate-status");
       rendered.unmount();
     }
+  });
+
+  it("shows the dirty sentence once outside the hidden status node", () => {
+    const rendered = mount({ job: succeeded(), dirty: true, onRebuild: vi.fn() });
+    const status = within(rendered.container).getByRole("status");
+    expect(status.className).toBe("visually-hidden");
+    const dirty = rendered.container.querySelectorAll(".estimate-dirty");
+    expect(dirty).toHaveLength(1);
+    const sentence = "Rebuild the request to apply request changes.";
+    const outside = Array.from(rendered.container.querySelectorAll("p"))
+      .filter((node) => node !== status && (node.textContent ?? "").includes(sentence));
+    expect(outside).toHaveLength(1);
+    expect(rendered.container.querySelectorAll(".estimate-plan-state")).toHaveLength(1);
+    rendered.unmount();
   });
 
   it("keeps the same status node from queued to succeeded", () => {

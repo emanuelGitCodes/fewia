@@ -73,9 +73,10 @@ export function ChatPanel({
     <section className="panel conversation-panel" aria-labelledby="chat-heading">
       <h2 id="chat-heading">Meal chat</h2>
       {note !== null ? <p className="panel-note">{note}</p> : null}
-      <p className="conversation-status" role="status" aria-live="polite">
+      <p className="visually-hidden" role="status" aria-live="polite">
         {pending ? PENDING : shownError ?? ""}
       </p>
+      {pending ? <p className="conversation-status">{PENDING}</p> : null}
       {shownError !== null ? <p className="conversation-error">{shownError}</p> : null}
       {messages.length === 0 ? (
         <div className="conversation-empty">
