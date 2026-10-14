@@ -458,6 +458,7 @@ describe("Estimate", () => {
       { job: succeeded(), dirty: true, onRebuild: vi.fn() },
     ];
     for (const state of states) {
+      if (state === undefined) throw new Error("state must be defined");
       const rendered = mount(state);
       expect(within(rendered.container).getAllByRole("status")).toHaveLength(1);
       const second = rendered.container.querySelector(".estimate-panel")?.children[1];
