@@ -4002,3 +4002,30 @@ stated the review effort by tier while the code maps it by complexity
 class. Each fix moved item 04's base, so item 04 was rebased and
 reviewed again twice. Finish a prose review before opening the next
 worktree on it.
+
+## 2026-10-14 — Impeccable design context and first frontend review
+
+The owner chose [Impeccable](https://impeccable.style/) to style the
+frontend. `PRODUCT.md` gains the Impeccable sections: Users, Product
+Purpose, Positioning, Product Principles, and Accessibility & Inclusion.
+The primary user is a budget shopper. The interface MUST meet WCAG 2.2 AA.
+`DESIGN.md` records the incumbent visual system, "The Market Ledger", from
+the shipped CSS.
+
+The first `critique` and `audit` ran read-only on `main` through the local
+Compose stack. The design review scored 23/40 and the technical audit
+14/20. The detector reported two `side-tab` warnings; both are false
+positives, because `DESIGN.md` makes the 3 px notice rule part of the
+system. The P1 findings are:
+
+| Finding | Evidence |
+|---|---|
+| The over-budget state shows no gap figure | `Estimate.tsx`, PRODUCT.md principle 1 |
+| The unavailable chat leads the stacked layout | `chat.css` grid order, WCAG 1.3.2 |
+| The estimate ledger wraps in the narrowest column | `chat.css`, `estimate.css` |
+| Control borders are 2.01:1 | `#aabbb2` on `#ffffff`, WCAG 1.4.11 |
+| Focus drops to `<body>` after Build and Rebuild | WCAG 2.4.3 |
+| Estimate lines overlap at 200% text on 375 px | WCAG 1.4.4 |
+
+The owner chose the harden batch first: a control-border token, focus
+management, and one status region per job.

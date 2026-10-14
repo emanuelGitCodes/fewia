@@ -12,11 +12,40 @@ The accepted project uses React and TypeScript, FastAPI, PostgreSQL, and local
 Floci services. Real model calls use Amazon Bedrock. The shared scope lives in
 [the project context](.codex/project-context.md).
 
-## Users and purpose
+## Users
+
+The primary user is a budget shopper. This person plans a few meals each
+week on a tight grocery budget. The CAP 6938 instructor and graders use the
+same application, but the design serves the shopper's task first.
+
+## Product Purpose
 
 The first release serves one local demo user who plans one to three meals
 within a declared grocery budget. Each meal supports one to eight servings.
 The user can declare pantry ingredients, exclusions, and a dietary preference.
+Success is a plan that fits the money that remains this month, with every
+price labeled as an estimate.
+
+## Positioning
+
+FEWIA keeps the arithmetic honest. The model interprets the request, asks
+questions, and selects tools. Application code calculates the budget and the
+prices. The application labels every estimate. It never lowers servings or
+omits ingredients to fit the budget.
+
+## Product Principles
+
+- Show the real number. When a plan does not fit, say so and show the gap.
+- Label every estimate and its source. Do not imply a verified retailer price.
+- The user stays in control of the pantry, the servings, and the budget.
+- Keep the agent's work visible: queued, running, clarification, and failure
+  states are plain to see.
+
+## Accessibility & Inclusion
+
+The interface MUST meet WCAG 2.2 AA. This covers contrast, keyboard focus,
+visible labels, target sizes, and reduced motion. The layout MUST work at a
+375 px viewport width without horizontal scroll.
 
 ## Operating context
 
