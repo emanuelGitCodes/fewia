@@ -48,9 +48,18 @@ typography:
     fontSize: "16px"
     fontWeight: 600
     lineHeight: 1.5
+  empty-title:
+    fontFamily: "Lora, serif"
+    fontSize: "1.35rem"
+    fontWeight: 400
   note:
     fontFamily: "Source Sans 3, sans-serif"
     fontSize: "0.9rem"
+    fontWeight: 400
+    lineHeight: 1.5
+  estimate-note:
+    fontFamily: "Source Sans 3, sans-serif"
+    fontSize: "0.92rem"
     fontWeight: 400
     lineHeight: 1.5
 rounded:
@@ -173,7 +182,9 @@ humanist sans carries every task, label, and figure.
 - **Title** (600, 1.15rem, 1.2): subsection titles and the overlay total.
 - **Body** (400, 16px, 1.5): messages, status lines, and line items.
 - **Label** (600, 16px, 1.5): form labels, legends, and line-item names.
-- **Note** (400, 0.9rem, 1.5): the estimate and nutrition notices.
+- **Empty title** (Lora 400, 1.35rem, Ledger Green): empty-state titles.
+- **Note** (400, 0.9rem, 1.5): the nutrition notices.
+- **Estimate note** (400, 0.92rem, 1.5): the sample-price notice under an estimate.
 
 ### Named Rules
 
@@ -202,7 +213,7 @@ with a 45% black backdrop.
 ### Named Rules
 
 **The Ruled Paper Rule.** Use a 1 px rule or the Sage Wash fill to separate
-content. Do not add a shadow, a gradient, or a second fill color.
+content. A surface MUST NOT use a shadow, a gradient, or a second fill color.
 
 ## Shapes
 
@@ -222,8 +233,11 @@ Plain and steady.
 - **Secondary:** Paper White fill, Ledger Green 600-weight text, Pale Sage
   Rule border. Use for example prompts and other optional actions.
 - **Focus:** a 3 px Ledger Green outline, offset 3 px.
-- **Disabled:** the primary turns Sage Slate; other controls drop to 65%
-  opacity with a not-allowed cursor.
+- **Disabled:** every control drops to 65% opacity with a not-allowed
+  cursor. The primary also turns Sage Slate, so it renders Sage Slate at
+  65% opacity.
+- **Known drift:** the consent dialog buttons use a 2 px focus outline and
+  both use the primary style.
 
 ### Inputs / Fields
 
