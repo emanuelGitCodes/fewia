@@ -4,6 +4,7 @@
   --accent: #20553d;
   --muted: #456357;
   --line: #aabbb2;
+  --control-line: #7d9488;
   --message: #f1f5ef;
   font-family: "Source Sans 3", sans-serif;
   color: var(--ink);
