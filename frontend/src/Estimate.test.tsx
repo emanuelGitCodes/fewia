@@ -448,6 +448,60 @@ describe("Estimate", () => {
     withResult.unmount();
   });
 
+  it("renders exactly one status node in every state", () => {
+    const states: Array<Parameters<typeof mount>[0]> = [
+      {},
+      { job: { id: "job-1", status: "queued", result: null, error_code: null } },
+      { job: { id: "job-1", status: "running", result: null, error_code: null } },
+      { job: { id: "job-1", status: "failed", result: null, error_code: "tool" } },
+      { job: succeeded() },
+      { job: succeeded(), dirty: true, onRebuild: vi.fn() },
+    ];
+    for (const state of states) {
+      const rendered = mount(state);
+      expect(within(rendered.container).getAllByRole("status")).toHaveLength(1);
+      const second = rendered.container.querySelector(".estimate-panel")?.children[1];
+      expect(second?.className).toBe("estimate-status");
+      rendered.unmount();
+    }
+  });
+
+  it("keeps the same status node from queued to succeeded", () => {
+    const rendered = mount({
+      job: { id: "job-1", status: "queued", result: null, error_code: null },
+    });
+    const node = within(rendered.container).getByRole("status");
+    expect(node.textContent).toBe("The grocery request is queued.");
+    const props = {
+      pending: false,
+      dirty: false,
+      pantry: [],
+      recipes: [],
+      onPantryToggle: (): void => {},
+    };
+    rendered.rerender(
+      createElement(Estimate, {
+        ...props,
+        job: { id: "job-1", status: "running", result: null, error_code: null },
+      }),
+    );
+    expect(within(rendered.container).getByRole("status")).toBe(node);
+    expect(node.textContent).toBe("The grocery request is running.");
+    rendered.rerender(createElement(Estimate, { ...props, job: succeeded() }));
+    expect(within(rendered.container).getByRole("status")).toBe(node);
+    expect(node.textContent).toBe("This estimate is within the plan budget.");
+    rendered.unmount();
+  });
+
+  it("puts the dirty sentence first in the status text", () => {
+    const rendered = mount({ job: succeeded(), dirty: true });
+    expect(within(rendered.container).getByRole("status").textContent).toBe(
+      "Rebuild the request to apply request changes. This estimate is within the plan budget.",
+    );
+    expect(rendered.container.querySelector(".estimate-dirty")?.getAttribute("role")).toBeNull();
+    rendered.unmount();
+  });
+
   it("omits per-line Spoonacular text when supermarket_estimate is absent", () => {
     const rendered = mount({ job: succeeded() });
     const text = renderedText(rendered.container);
