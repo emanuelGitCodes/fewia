@@ -18,6 +18,12 @@ The first release serves one local demo user who plans one to three meals
 within a declared grocery budget. Each meal supports one to eight servings.
 The user can declare pantry ingredients, exclusions, and a dietary preference.
 
+The visual prototype targets adults aged 18 to 25. Its first task is to
+choose a meal for tonight and read its grocery cost and nutrition facts.
+The user approved the Familiar and Pantry Edit combination. The prototype
+uses self-contained demo data at `/prototype`; the existing application
+stays at `/`.
+
 ## Operating context
 
 The application runs locally through Docker Compose. The default spending

@@ -60,8 +60,10 @@ They are design hypotheses, not findings from user research.
 ## Boundaries
 
 The mock images contain illustrative food photography. The user selected
-a combination of Familiar and Pantry Edit. The revised screen awaits user
-feedback. The application and data contracts remain unchanged.
+a combination of Familiar and Pantry Edit, then approved a self-contained
+working prototype. The [prototype plan](tonight-prototype-plan.md) records
+the accepted implementation scope. The existing application's contracts
+remain unchanged.
 
 Prototype checks cover desktop and mobile layout, keyboard access, serving
 labels, cost meaning, and nutrition units. FEWIA gates and independent
@@ -95,5 +97,6 @@ One bottom navigation area replaces the duplicated navigation. The pantry
 field lists its ingredients once. A single nutrition row replaces nested
 panels. The sample price, serving count, and nutrition values stay the same.
 
-This selection does not approve application implementation. The revised
-image is a static design artifact. Browser checks remain open.
+The combined image remains the static reference for the approved prototype.
+The [run guide](tonight-prototype.md) describes the working route and its
+demo-data boundaries.

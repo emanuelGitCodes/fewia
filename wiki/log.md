@@ -4035,3 +4035,54 @@ are saved in the [prompt record](../docs/design/tonight-mock-prompts.md).
 The originals remain unchanged. The revised screen awaits user feedback.
 No application code changed. Responsive behavior and accessibility
 remain unverified.
+
+## 2026-10-15 — Working Tonight prototype
+
+The user approved a working Familiar and Pantry Edit prototype on
+`codex/impeccable-young-adult-mocks` and selected self-contained demo data.
+The [run guide](../docs/design/tonight-prototype.md) describes `/prototype`.
+The existing application stays at `/`.
+
+The prototype supports three meals, one to eight servings, explicit pantry
+changes, whole-package grocery costs, per-serving demo nutrition, shopping
+checks, and plan-cap validation. State resets on reload. No backend or
+provider requests are part of this route.
+
+A Luna junior ran Grok 4.6 at medium through the supervisor. Foundation
+commit `20da5d8` holds the data and calculations. Interface commit `a018a0c`
+holds the route, components, and styles. Repairs `519b49b` and `6c34842`
+improve layout, focus, and mobile navigation. A future publication needs
+a stack: foundation first, then interface and repairs. No PR was opened.
+
+The source gates passed lint, frontend tests, and production build.
+Intermediate gate line counts included untracked image bytes and browser
+logs, so those aggregate counts do not describe a proposed PR.
+The initial dependency install reported 11 high-severity audit findings.
+No dependency manifest or lockfile changed.
+
+Browser checks passed meal selection, package boundaries, pantry pricing,
+checklist resets, zero/invalid budgets, the all-at-home state, serving bounds,
+reduced motion, and focus/scroll behavior. The route made no backend requests.
+No console warnings or errors were observed. Widths 320, 390, and 1440
+were checked for overflow. Desktop and mobile screenshots remain local
+under `.impeccable/review/`.
+
+The Impeccable detector returned `[]`. The independent visual reviewer
+first returned `fix` for mobile navigation overlap and task visibility.
+The verdict pass marked both fixes resolved and returned `ship` at that
+scope. The primary action ends at about675px; navigation starts at780px
+in the 390x844 capture. All three shipping photos have prompt provenance.
+
+Recorded writer use for `tonight-prototype-01`: one implementation run
+and three repair runs, 3,156,035 input tokens, 102,877 output tokens,
+and 1,636.171 seconds. These are supervisor writer totals. They exclude
+native coordinator/junior use, image generation, documentation, and review.
+The separate code review and final committed gate record follow this entry.
+
+The design record writer used Luna at xhigh for `DESIGN.md` and the local
+`.impeccable/design.json` sidecar. Its recorded use was 429,851 input tokens,
+18,449 output tokens, and 172.771 seconds. Writer totals across code and
+documentation are 3,585,886 input tokens and 121,326 output tokens.
+The final independent reviewer is Sol at medium, distinct from both writers.
+The supervisor stores its verdict and the committed gate record under
+`.fewia-supervisor-reviews/` and `.fewia-supervisor-gates/`.
