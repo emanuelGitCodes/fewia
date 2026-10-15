@@ -35,4 +35,25 @@ Use a clean white surface, deep forest-green buttons, restrained pale-green sele
 
 Aim for excellent conventional product craft: aligned sections, sensible spacing, visible controls, accessible contrast, ample touch targets and a complete first screen. Do not add testimonials, prices per serving, cooking time, fitness scores, mascots, badges, gradients or a marketing hero. If alternative meals appear, use only the exact names Egg fried rice and Chickpea curry.
 
+## Familiar and Pantry Edit combination
 
+The user selected a combination of Familiar and Pantry Edit. The built-in
+image tool used both original images as references. The revised mock is
+`tonight-mocks/familiar-pantry.png`. The combined direction is selected;
+the exact revised screen still awaits user feedback.
+
+### Initial combination prompt
+
+Use case: ui-mockup. Combine these two FEWIA mobile app mockups into one refined, finished screen. Reference 1, Familiar, supplies the forest-green palette, approachable food photography and familiar controls. Reference 2, Pantry Edit, supplies the clean grotesque typography, quiet separators, compact photo-and-facts layout and restrained hierarchy. Preserve the product facts. Render edge to edge at a 390 by 844 portrait viewport in high resolution, crisp readable text, no phone frame.
+
+This is a simple dinner chooser for adults 18–25: pick a meal, understand groceries to buy, read nutrition. One compact FEWIA header, then “What sounds good?” and three meal choices: “Bean tacos”, “Egg fried rice”, “Chickpea curry”. Bean tacos is selected with pale sage fill and a dark-green border.
+
+The main detail uses Pantry Edit's compact composition: appetizing taco photograph beside clear meal facts, with “Bean tacos”, a standard “2 servings” stepper, and prominent “Groceries to buy” / “$8.06”. Under the price, legible “Whole packages · Sample estimate”. The photo shows only corn tortillas, black beans, diced onion and red salsa; no cilantro, lime, cheese or extra garnishes.
+
+One editable pantry line says “At home: oil, salt, cumin”. Below, a single unboxed nutrition strip labeled “Nutrition per serving”: “379 kcal”, “14.5 g Protein”, “55.8 g Carbs”, “13.7 g Fat”. Strong forest-green “See shopping list” button. Small but readable “Illustrative example”. Only one navigation area: bottom tabs Tonight, Pantry, Budget.
+
+Use near-white surfaces and green selection, generous clear spacing, dark readable secondary labels and conventional touch targets. Remove duplicated top navigation, duplicated pantry text, decorative icon bubbles and nested cards. Keep all key facts visible together. This is a working food-app concept, never a marketing poster.
+
+### Correction prompt
+
+Make one precise text correction to this FEWIA mockup. Above the pantry edit field, replace the line 'At home: oil, salt, cumin' with the label 'Already at home'. Keep the editable field below reading 'oil, salt, cumin' with its pencil icon. This removes the repeated ingredient list. Preserve everything else exactly: layout, colors, typography, photos, all cost and nutrition numbers, serving control, buttons, navigation and portrait dimensions.

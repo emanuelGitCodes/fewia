@@ -4020,3 +4020,18 @@ through `dev_supervisor`. It returned `no_edits`. The coordinator
 presented the images inline. No comparison page or application code
 changed. Provider calls, responsive behavior, and accessibility were
 not tested. Prompt metadata is present in all four PNG files.
+
+## 2026-10-15 — Familiar and Pantry Edit combination
+
+The user selected a combination of Familiar and Pantry Edit.
+The [revised mock](../docs/design/tonight-mocks/familiar-pantry.png)
+uses green controls, clean type, and a compact meal-and-cost layout.
+The image has one navigation area and one pantry ingredient field.
+Its price and nutrition values match the original examples.
+
+The built-in image tool generated the combination from both references.
+A second image edit removed repeated pantry text. The exact prompts
+are saved in the [prompt record](../docs/design/tonight-mock-prompts.md).
+The originals remain unchanged. The revised screen awaits user feedback.
+No application code changed. Responsive behavior and accessibility
+remain unverified.

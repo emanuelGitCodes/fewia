@@ -59,9 +59,9 @@ They are design hypotheses, not findings from user research.
 
 ## Boundaries
 
-The mock images contain illustrative food photography. No direction is
-approved yet. The application and data contracts remain unchanged.
-The next step is a user-selected direction for a responsive prototype.
+The mock images contain illustrative food photography. The user selected
+a combination of Familiar and Pantry Edit. The revised screen awaits user
+feedback. The application and data contracts remain unchanged.
 
 Prototype checks cover desktop and mobile layout, keyboard access, serving
 labels, cost meaning, and nutrition units. FEWIA gates and independent
@@ -69,6 +69,7 @@ review apply to any later implementation.
 
 ## Review files
 
+- [Familiar and Pantry Edit combination](tonight-mocks/familiar-pantry.png)
 - [Corner Market](tonight-mocks/corner-market.png)
 - [Shared Table](tonight-mocks/shared-table.png)
 - [Pantry Edit](tonight-mocks/pantry-edit.png)
@@ -84,3 +85,15 @@ Fine-print contrast and touch targets need browser verification.
 
 The comparison-page writer returned `no_edits`. The images were presented
 inline. No comparison page or application code was created.
+
+## Selected combination
+
+The revised mock keeps Familiar's forest-green palette, pale-green
+selection, food photography, and standard controls. Pantry Edit supplies
+clean type, fine separators, and the compact photo-and-facts layout.
+One bottom navigation area replaces the duplicated navigation. The pantry
+field lists its ingredients once. A single nutrition row replaces nested
+panels. The sample price, serving count, and nutrition values stay the same.
+
+This selection does not approve application implementation. The revised
+image is a static design artifact. Browser checks remain open.
