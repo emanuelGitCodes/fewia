@@ -31,21 +31,22 @@
   letter-spacing: -0.03em;
 }
 .tonight-prototype h1 {
-  margin: 1.15rem 0 0.7rem;
-  font-size: 1.8rem;
+  margin: 0.55rem 0 0.45rem;
+  font-size: 1.55rem;
   line-height: 1.2;
 }
 .tonight-prototype h2 {
-  margin: 0 0 0.7rem;
-  font-size: 1.45rem;
+  margin: 0 0 0.45rem;
+  font-size: 1.3rem;
   line-height: 1.2;
 }
 .tonight-canvas {
   width: min(100%, 1000px);
   flex: 1;
   min-width: 0;
+  min-height: 0;
   margin: 0 auto;
-  padding: 0.9rem 1rem 5.75rem;
+  padding: 0.7rem 1rem 1rem;
 }
 .tonight-header {
   display: flex;
@@ -68,14 +69,14 @@
 .tonight-meals {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 .tonight-meal {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.4rem;
+  gap: 0.25rem;
+  padding: 0.3rem;
   border: 1px solid var(--tonight-line);
   border-radius: 12px;
   background: var(--tonight-white);
@@ -91,7 +92,6 @@
   background: var(--tonight-select);
 }
 .tonight-meal span {
-  min-height: 2.4em;
   font-size: 0.95rem;
   line-height: 1.2;
 }
@@ -103,7 +103,7 @@
   background: var(--tonight-select);
 }
 .tonight-thumb {
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
 }
 .tonight-photo {
   position: relative;
@@ -136,9 +136,9 @@
 .tonight-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: 0.9rem;
+  gap: 0.7rem;
   align-items: stretch;
-  margin-top: 1.15rem;
+  margin-top: 0.7rem;
 }
 .tonight-facts {
   min-width: 0;
@@ -147,7 +147,7 @@
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
   align-items: center;
-  margin: 0 0 0.85rem;
+  margin: 0 0 0.5rem;
   border: 1px solid var(--tonight-line);
   border-radius: 12px;
 }
@@ -173,7 +173,7 @@
   color: var(--tonight-muted);
 }
 .tonight-kicker {
-  margin: 0.85rem 0 0.2rem;
+  margin: 0.45rem 0 0.15rem;
   font-size: 0.95rem;
 }
 .tonight-price {
@@ -199,33 +199,39 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   min-width: 0;
-  margin-top: 0.35rem;
-  padding: 0.55rem 0.65rem;
+  min-height: 2.75rem;
+  margin-top: 0.2rem;
+  padding: 0.35rem 0.65rem;
   border: 1px solid var(--tonight-line);
   border-radius: 12px;
-}
-.tonight-pantry-row p {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-.tonight-pantry-row button {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border: 0;
-  background: transparent;
+  background: var(--tonight-white);
   color: var(--tonight-ink);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
+.tonight-pantry-row span {
+  flex: 1;
+  min-width: 0;
+}
 .tonight-nutrition {
-  margin-top: 1.35rem;
+  margin-top: 0.8rem;
+}
+.tonight-nutrition-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.55rem;
+}
+.tonight-nutrition h2 {
+  margin: 0;
 }
 .tonight-nutrition-note {
-  margin: 0 0 0.7rem;
+  margin: 0;
   font-size: 0.95rem;
 }
 .tonight-macros {
@@ -265,8 +271,8 @@
 .tonight-primary {
   justify-content: center;
   width: 100%;
-  min-height: 3.1rem;
-  margin-top: 1.35rem;
+  min-height: 2.75rem;
+  margin-top: 0.8rem;
   border: 0;
   border-radius: 12px;
   background: var(--tonight-green);
@@ -326,8 +332,8 @@
   color: var(--tonight-error);
 }
 .tonight-footer {
-  margin-top: 1.6rem;
-  padding-top: 0.8rem;
+  margin-top: 1rem;
+  padding-top: 0.7rem;
   border-top: 1px solid var(--tonight-line);
 }
 .tonight-footer a {
@@ -335,8 +341,7 @@
   text-underline-offset: 0.18em;
 }
 .tonight-nav {
-  position: sticky;
-  bottom: 0;
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   border-top: 1px solid var(--tonight-line);
@@ -362,6 +367,16 @@
 .tonight-icon {
   display: block;
 }
+@media (max-width: 719px) {
+  .tonight-prototype {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .tonight-canvas {
+    overflow: auto;
+  }
+}
 @media (max-width: 359px) {
   .tonight-hero,
   .tonight-macros {
@@ -382,19 +397,55 @@
   }
 }
 @media (min-width: 720px) {
+  .tonight-prototype h1 {
+    margin: 1.15rem 0 0.7rem;
+    font-size: 1.8rem;
+  }
+  .tonight-prototype h2 {
+    margin: 0 0 0.7rem;
+    font-size: 1.45rem;
+  }
   .tonight-canvas {
     padding: 1.25rem 1.5rem 1.5rem;
+  }
+  .tonight-meals {
+    gap: 0.55rem;
+  }
+  .tonight-meal {
+    gap: 0.4rem;
+    padding: 0.4rem;
   }
   .tonight-hero {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
     gap: 1.4rem;
+    margin-top: 1.15rem;
   }
   .tonight-thumb {
     aspect-ratio: auto;
     height: 7.5rem;
   }
-  .tonight-nav {
-    position: static;
+  .tonight-stepper {
+    margin: 0 0 0.85rem;
+  }
+  .tonight-kicker {
+    margin: 0.85rem 0 0.2rem;
+  }
+  .tonight-nutrition {
+    margin-top: 1.35rem;
+  }
+  .tonight-nutrition h2 {
+    margin: 0;
+  }
+  .tonight-nutrition-head {
+    margin-bottom: 0.7rem;
+  }
+  .tonight-primary {
+    min-height: 3.1rem;
+    margin-top: 1.35rem;
+  }
+  .tonight-footer {
+    margin-top: 1.6rem;
+    padding-top: 0.8rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

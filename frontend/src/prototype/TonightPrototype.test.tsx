@@ -57,6 +57,7 @@ describe("TonightPrototype", () => {
     expect(text).toContain("13.7 g");
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("img", { name: "Bean tacos" })).toBeTruthy();
+    expect(textOf(buttonNamed("Edit pantry"))).toMatch(/\d+ at home/);
     expect(screen.getByRole("link", { name: "Existing app" }).getAttribute("href")).toBe("/");
   });
 
@@ -211,13 +212,19 @@ describe("TonightPrototype", () => {
   });
 
   it("moves focus with the view and keeps budget typing", () => {
-    mount();
+    const root = mount();
+    const canvas = root.querySelector(".tonight-canvas");
+    if (!(canvas instanceof HTMLElement)) {
+      throw new Error("Missing tonight canvas");
+    }
     const tonightHeading = screen.getByRole("heading", { name: "What sounds good?" });
     expect(document.activeElement).not.toBe(tonightHeading);
+    canvas.scrollTop = 48;
     act(() => {
       fireEvent.click(buttonNamed("Pantry"));
     });
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Pantry" }));
+    expect(canvas.scrollTop).toBe(0);
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
     const oil = screen.getByLabelText("olive oil");
     act(() => {
@@ -229,6 +236,7 @@ describe("TonightPrototype", () => {
       fireEvent.click(buttonNamed("Budget"));
     });
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Budget" }));
+    expect(canvas.scrollTop).toBe(0);
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
     const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
     act(() => {
@@ -248,13 +256,16 @@ describe("TonightPrototype", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { name: "What sounds good?" }),
     );
+    expect(canvas.scrollTop).toBe(0);
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+    canvas.scrollTop = 48;
     act(() => {
       fireEvent.click(buttonNamed("See shopping list"));
     });
     expect(document.activeElement).toBe(
       screen.getByRole("heading", { name: "Shopping list" }),
     );
+    expect(canvas.scrollTop).toBe(0);
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
   });
 });

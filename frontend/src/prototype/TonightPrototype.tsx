@@ -24,6 +24,7 @@ import "./tonight.css";
 export function TonightPrototype(): JSX.Element {
   const [state, setState] = useState<PrototypeState>(initialState);
   const previousView = useRef(state.view);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const lines = groceryLines(state);
   const costCents = groceryCost(lines);
@@ -36,11 +37,15 @@ export function TonightPrototype(): JSX.Element {
     if (heading instanceof HTMLElement) {
       heading.focus({ preventScroll: true });
     }
+    const canvas = canvasRef.current;
+    if (canvas !== null) {
+      canvas.scrollTop = 0;
+    }
     window.scrollTo(0, 0);
   }, [state.view]);
   return (
     <div className="tonight-prototype">
-      <div className="tonight-canvas">
+      <div className="tonight-canvas" ref={canvasRef}>
         <header className="tonight-header">
           <p className="tonight-wordmark">FEWIA</p>
           <p className="tonight-demo">{DEMO_NOTICE}</p>

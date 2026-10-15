@@ -132,17 +132,17 @@ export function TonightPanel(props: {
           <p className="tonight-price" role="status">{cost}</p>
           <p className="tonight-package">Whole packages · Sample estimate</p>
           <p className="tonight-kicker">Already at home</p>
-          <div className="tonight-pantry-row">
-            <p>{home.length === 0 ? "None marked" : home.join(", ")}</p>
-            <button type="button" aria-label="Edit pantry" onClick={props.onEditPantry}>
-              <GeometryIcon name="pencil" />
-            </button>
-          </div>
+          <button type="button" className="tonight-pantry-row" aria-label="Edit pantry" onClick={props.onEditPantry}>
+            <span>{home.length === 0 ? "None marked" : `${String(home.length)} at home`}</span>
+            <GeometryIcon name="pencil" />
+          </button>
         </div>
       </div>
       <section className="tonight-nutrition" aria-labelledby="nutrition-heading">
-        <h2 id="nutrition-heading">Nutrition per serving</h2>
-        <p className="tonight-nutrition-note">{NUTRITION_DEMO_LABEL}</p>
+        <div className="tonight-nutrition-head">
+          <h2 id="nutrition-heading">Nutrition per serving</h2>
+          <p className="tonight-nutrition-note">{NUTRITION_DEMO_LABEL}</p>
+        </div>
         <div className="tonight-macros">
           {macros.map(([value, label]) => (
             <div key={label}>
