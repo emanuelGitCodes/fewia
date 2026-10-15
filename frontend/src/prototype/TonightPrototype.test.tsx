@@ -2,7 +2,7 @@
 
 import { createElement } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import { PANTRY_IDS, SERVING_ERROR } from "./prototypeData";
 import { TonightPrototype } from "./TonightPrototype";
@@ -31,7 +31,14 @@ function checkRemainingPantry(): void {
   }
 }
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("TonightPrototype", () => {
   it("renders the initial taco plan at $8.06", () => {
@@ -201,5 +208,53 @@ describe("TonightPrototype", () => {
         name: "Tonight",
       }).getAttribute("aria-current"),
     ).toBe("page");
+  });
+
+  it("moves focus with the view and keeps budget typing", () => {
+    mount();
+    const tonightHeading = screen.getByRole("heading", { name: "What sounds good?" });
+    expect(document.activeElement).not.toBe(tonightHeading);
+    act(() => {
+      fireEvent.click(buttonNamed("Pantry"));
+    });
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Pantry" }));
+    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+    const oil = screen.getByLabelText("olive oil");
+    act(() => {
+      oil.focus();
+      fireEvent.click(oil);
+    });
+    expect(document.activeElement).toBe(oil);
+    act(() => {
+      fireEvent.click(buttonNamed("Budget"));
+    });
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Budget" }));
+    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+    const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
+    act(() => {
+      input.focus();
+      fireEvent.change(input, { target: { value: "12" } });
+    });
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("12");
+    act(() => {
+      fireEvent.change(input, { target: { value: "12.5" } });
+    });
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("12.5");
+    act(() => {
+      fireEvent.click(buttonNamed("Tonight"));
+    });
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "What sounds good?" }),
+    );
+    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+    act(() => {
+      fireEvent.click(buttonNamed("See shopping list"));
+    });
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "Shopping list" }),
+    );
+    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
   });
 });

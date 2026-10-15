@@ -93,7 +93,7 @@ export function TonightPanel(props: {
   ];
   return (
     <section className="tonight-home" aria-labelledby="tonight-heading">
-      <h1 id="tonight-heading">What sounds good?</h1>
+      <h1 id="tonight-heading" tabIndex={-1}>What sounds good?</h1>
       <div className="tonight-meals" role="group" aria-label="Meal choices">
         {RECIPE_ORDER.map((id) => {
           const choice = RECIPES[id];
@@ -130,8 +130,7 @@ export function TonightPanel(props: {
           ) : null}
           <p className="tonight-kicker">Groceries to buy</p>
           <p className="tonight-price" role="status">{cost}</p>
-          <p className="tonight-package">Whole packages</p>
-          <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
+          <p className="tonight-package">Whole packages · Sample estimate</p>
           <p className="tonight-kicker">Already at home</p>
           <div className="tonight-pantry-row">
             <p>{home.length === 0 ? "None marked" : home.join(", ")}</p>
@@ -157,6 +156,7 @@ export function TonightPanel(props: {
         <span>See shopping list</span>
         <GeometryIcon name="arrow" />
       </button>
+      <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
     </section>
   );
 }
@@ -169,7 +169,7 @@ export function PantryPanel(props: {
   return (
     <section className="tonight-page" aria-labelledby="pantry-heading">
       <BackTonight onBack={props.onBack} />
-      <h1 id="pantry-heading">Pantry</h1>
+      <h1 id="pantry-heading" tabIndex={-1}>Pantry</h1>
       <p>Mark ingredients you already have.</p>
       <ul className="tonight-check-list">
         {PANTRY_IDS.map((id) => {
@@ -204,7 +204,7 @@ export function ShoppingPanel(props: {
   return (
     <section className="tonight-page" aria-labelledby="shopping-heading">
       <BackTonight onBack={props.onBack} />
-      <h1 id="shopping-heading">Shopping list</h1>
+      <h1 id="shopping-heading" tabIndex={-1}>Shopping list</h1>
       {needed.length === 0 ? (
         <p role="status">Nothing to buy. Every ingredient is marked at home.</p>
       ) : (
@@ -251,7 +251,7 @@ export function BudgetPanel(props: {
     : `This meal is over the ${cap} plan cap.`;
   return (
     <section className="tonight-page" aria-labelledby="budget-heading">
-      <h1 id="budget-heading">Budget</h1>
+      <h1 id="budget-heading" tabIndex={-1}>Budget</h1>
       <label htmlFor="plan-cap">Plan cap</label>
       <input
         id="plan-cap"

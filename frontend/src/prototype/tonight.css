@@ -32,7 +32,7 @@
 }
 .tonight-prototype h1 {
   margin: 1.15rem 0 0.7rem;
-  font-size: 1.7rem;
+  font-size: 1.8rem;
   line-height: 1.2;
 }
 .tonight-prototype h2 {
@@ -56,7 +56,7 @@
 .tonight-wordmark {
   margin: 0;
   color: var(--tonight-green);
-  font-size: 1.35rem;
+  font-size: 1.75rem;
   font-weight: 600;
   letter-spacing: -0.03em;
 }
@@ -106,7 +106,9 @@
   aspect-ratio: 1;
 }
 .tonight-photo {
-  aspect-ratio: 4 / 5;
+  position: relative;
+  min-height: 0;
+  height: 100%;
 }
 .tonight-thumb img,
 .tonight-photo img {
@@ -115,6 +117,11 @@
   height: 100%;
   object-fit: cover;
   animation: tonight-fade 220ms ease-out;
+}
+.tonight-photo img,
+.tonight-photo .tonight-photo-fallback {
+  position: absolute;
+  inset: 0;
 }
 .tonight-photo-fallback {
   display: flex;
@@ -130,7 +137,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   gap: 0.9rem;
-  align-items: start;
+  align-items: stretch;
   margin-top: 1.15rem;
 }
 .tonight-facts {
@@ -171,7 +178,7 @@
 }
 .tonight-price {
   margin: 0;
-  font-size: 2rem;
+  font-size: 2.5rem;
   font-weight: 600;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -184,6 +191,9 @@
   margin: 0.55rem 0 0;
   font-size: 0.95rem;
   line-height: 1.4;
+}
+.tonight-home > .tonight-notice {
+  margin-top: 0.85rem;
 }
 .tonight-pantry-row {
   display: flex;
@@ -368,21 +378,23 @@
   }
   .tonight-photo {
     aspect-ratio: 4 / 3;
+    height: auto;
   }
 }
 @media (min-width: 720px) {
   .tonight-canvas {
-    padding: 1.25rem 1.5rem 6rem;
+    padding: 1.25rem 1.5rem 1.5rem;
   }
   .tonight-hero {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
     gap: 1.4rem;
   }
-  .tonight-photo {
-    aspect-ratio: 4 / 3;
+  .tonight-thumb {
+    aspect-ratio: auto;
+    height: 7.5rem;
   }
-  .tonight-wordmark {
-    font-size: 1.5rem;
+  .tonight-nav {
+    position: static;
   }
 }
 @media (prefers-reduced-motion: reduce) {

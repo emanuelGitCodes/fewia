@@ -1,4 +1,4 @@
-import { useState, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import { DEMO_NOTICE } from "./prototypeData";
 import {
   groceryCost,
@@ -23,8 +23,21 @@ import "./tonight.css";
 
 export function TonightPrototype(): JSX.Element {
   const [state, setState] = useState<PrototypeState>(initialState);
+  const previousView = useRef(state.view);
+  const mainRef = useRef<HTMLElement>(null);
   const lines = groceryLines(state);
   const costCents = groceryCost(lines);
+  useEffect(() => {
+    if (previousView.current === state.view) {
+      return;
+    }
+    previousView.current = state.view;
+    const heading = mainRef.current?.querySelector("h1");
+    if (heading instanceof HTMLElement) {
+      heading.focus({ preventScroll: true });
+    }
+    window.scrollTo(0, 0);
+  }, [state.view]);
   return (
     <div className="tonight-prototype">
       <div className="tonight-canvas">
@@ -32,7 +45,7 @@ export function TonightPrototype(): JSX.Element {
           <p className="tonight-wordmark">FEWIA</p>
           <p className="tonight-demo">{DEMO_NOTICE}</p>
         </header>
-        <main>
+        <main ref={mainRef}>
           {state.view === "tonight" ? (
             <TonightPanel
               state={state}
