@@ -4,5 +4,9 @@ import "@fontsource/source-sans-3/600.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { TonightPrototype } from "./prototype/TonightPrototype";
 import "./styles.css";
-createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);
+const prototype = window.location.pathname.replace(/\/+$/, "") === "/prototype";
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>{prototype ? <TonightPrototype /> : <App />}</StrictMode>,
+);

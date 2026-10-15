@@ -1,0 +1,401 @@
+.tonight-prototype {
+  --tonight-green: #165641;
+  --tonight-select: #edf6ed;
+  --tonight-ink: #17221e;
+  --tonight-muted: #3a4d46;
+  --tonight-line: #dce4df;
+  --tonight-white: #ffffff;
+  --tonight-error: #8b2e1f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font-family: "Source Sans 3", sans-serif;
+  font-weight: 400;
+}
+.tonight-prototype ::selection {
+  color: var(--tonight-white);
+  background: var(--tonight-green);
+}
+.tonight-prototype :focus-visible {
+  outline: 3px solid var(--tonight-green);
+  outline-offset: 3px;
+}
+.tonight-prototype h1,
+.tonight-prototype h2 {
+  margin: 0;
+  color: var(--tonight-ink);
+  font-family: "Source Sans 3", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.tonight-prototype h1 {
+  margin: 1.15rem 0 0.7rem;
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+.tonight-prototype h2 {
+  margin: 0 0 0.7rem;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+.tonight-canvas {
+  width: min(100%, 1000px);
+  flex: 1;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 0.9rem 1rem 5.75rem;
+}
+.tonight-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.tonight-wordmark {
+  margin: 0;
+  color: var(--tonight-green);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.tonight-demo {
+  margin: 0;
+  color: var(--tonight-muted);
+  font-size: 0.95rem;
+}
+.tonight-meals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.tonight-meal {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.tonight-meal:hover,
+.tonight-meal.is-selected {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-meal span {
+  min-height: 2.4em;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+.tonight-thumb,
+.tonight-photo {
+  overflow: hidden;
+  min-width: 0;
+  border-radius: 10px;
+  background: var(--tonight-select);
+}
+.tonight-thumb {
+  aspect-ratio: 1;
+}
+.tonight-photo {
+  aspect-ratio: 4 / 5;
+}
+.tonight-thumb img,
+.tonight-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: tonight-fade 220ms ease-out;
+}
+.tonight-photo-fallback {
+  display: flex;
+  min-height: 6rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  color: var(--tonight-ink);
+  font-weight: 600;
+  text-align: center;
+}
+.tonight-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+  margin-top: 1.15rem;
+}
+.tonight-facts {
+  min-width: 0;
+}
+.tonight-stepper {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+  align-items: center;
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+}
+.tonight-stepper button {
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-ink);
+  font: inherit;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+.tonight-stepper p {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+}
+.tonight-kicker,
+.tonight-package,
+.tonight-nutrition-note,
+.tonight-line-meta,
+.tonight-notice {
+  color: var(--tonight-muted);
+}
+.tonight-kicker {
+  margin: 0.85rem 0 0.2rem;
+  font-size: 0.95rem;
+}
+.tonight-price {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.tonight-package {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+}
+.tonight-notice {
+  margin: 0.55rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.tonight-pantry-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+}
+.tonight-pantry-row p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.tonight-pantry-row button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-ink);
+  cursor: pointer;
+}
+.tonight-nutrition {
+  margin-top: 1.35rem;
+}
+.tonight-nutrition-note {
+  margin: 0 0 0.7rem;
+  font-size: 0.95rem;
+}
+.tonight-macros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tonight-macros div {
+  min-width: 0;
+  padding: 0 0.55rem;
+  border-left: 1px solid var(--tonight-line);
+  text-align: center;
+}
+.tonight-macros div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.tonight-macros p {
+  margin: 0;
+}
+.tonight-macros p:first-child {
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tonight-macros p:last-child {
+  color: var(--tonight-muted);
+  font-size: 0.9rem;
+}
+.tonight-primary,
+.tonight-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: inherit;
+  cursor: pointer;
+}
+.tonight-primary {
+  justify-content: center;
+  width: 100%;
+  min-height: 3.1rem;
+  margin-top: 1.35rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tonight-green);
+  color: var(--tonight-white);
+  font-weight: 600;
+}
+.tonight-primary:hover {
+  background: #124a37;
+}
+.tonight-back {
+  margin: 0.2rem 0 0;
+  padding: 0.35rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-ink);
+  font-weight: 600;
+}
+.tonight-page label {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+.tonight-page input[type="text"] {
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0.35rem 0 0.7rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  caret-color: var(--tonight-green);
+}
+.tonight-page input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.2rem;
+  accent-color: var(--tonight-green);
+}
+.tonight-check-list {
+  margin: 0.9rem 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-check-list li {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--tonight-line);
+}
+.tonight-line-meta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.95rem;
+}
+.tonight-error {
+  margin: 0.45rem 0;
+  color: var(--tonight-error);
+}
+.tonight-footer {
+  margin-top: 1.6rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--tonight-line);
+}
+.tonight-footer a {
+  color: var(--tonight-muted);
+  text-underline-offset: 0.18em;
+}
+.tonight-nav {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--tonight-line);
+  background: var(--tonight-white);
+}
+.tonight-nav button {
+  display: flex;
+  min-height: 3.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tonight-nav button[aria-current="page"] {
+  color: var(--tonight-green);
+}
+.tonight-icon {
+  display: block;
+}
+@media (max-width: 359px) {
+  .tonight-hero,
+  .tonight-macros {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tonight-macros div {
+    padding: 0.45rem 0;
+    border-left: 0;
+    border-top: 1px solid var(--tonight-line);
+    text-align: left;
+  }
+  .tonight-macros div:first-child {
+    border-top: 0;
+  }
+  .tonight-photo {
+    aspect-ratio: 4 / 3;
+  }
+}
+@media (min-width: 720px) {
+  .tonight-canvas {
+    padding: 1.25rem 1.5rem 6rem;
+  }
+  .tonight-hero {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+    gap: 1.4rem;
+  }
+  .tonight-photo {
+    aspect-ratio: 4 / 3;
+  }
+  .tonight-wordmark {
+    font-size: 1.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tonight-thumb img,
+  .tonight-photo img {
+    animation: none;
+  }
+}
+@keyframes tonight-fade {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
