@@ -47,6 +47,12 @@ The interface MUST meet WCAG 2.2 AA. This covers contrast, keyboard focus,
 visible labels, target sizes, and reduced motion. The layout MUST work at a
 375 px viewport width without horizontal scroll.
 
+The visual prototype targets adults aged 18 to 25. Its first task is to
+choose a meal for tonight and read its grocery cost and nutrition facts.
+The user approved the Familiar and Pantry Edit combination. The prototype
+uses self-contained demo data at `/prototype`; the existing application
+stays at `/`.
+
 ## Operating context
 
 The application runs locally through Docker Compose. The default spending
