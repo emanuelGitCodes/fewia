@@ -63,12 +63,12 @@ components:
 
 **Creative North Star: "The Familiar Table"**
 
-The Tonight prototype puts one meal choice beside its grocery estimate and nutrition facts. Familiar supplies the forest-green actions and pale-sage selection. Pantry Edit supplies Source Sans 3 and the compact, direct layout.
+The Tonight prototype puts a plan of one to three meals on one page with its grocery total, plan cap, nutrition, and combined shopping list. Familiar supplies the forest-green actions and pale-sage selection. Pantry Edit supplies Source Sans 3 and the compact, direct layout.
 
-This system applies only to `/prototype`. It does not restyle the existing `/` application. The page keeps the chosen meal, package-based grocery estimate, and declared pantry context together, then gives pantry, budget, and shopping tasks their own views.
+This system applies only to `/prototype`. It does not restyle the existing `/` application. The Plan page keeps the meal cards, the package-based estimate, the budget fit, and the shopping list together. The Pantry view is the only other view.
 
 **Key Characteristics:**
-- One selected meal with its image and facts together.
+- One card per planned meal, with its image, servings, and ingredients together.
 - Green controls on white, with sage for selected meal choices.
 - One bottom navigation area on compact screens.
 - Fine borders carry separation; surfaces stay flat.
@@ -109,9 +109,9 @@ The palette uses forest green for action and active states, with quiet green neu
 
 ## Layout
 
-The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, the compact hero, and nutrition values adapt their columns to text size. Below 360px, the hero and nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
+The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, meal cards, and nutrition values adapt their columns to text size. Below 360px, the nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
 
-The selected meal's image and facts update together. Users adjust servings from one to eight. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change the nutrition panel. The shopping checklist, budget feedback, and all-items-at-home state use the same compact canvas.
+Each meal card holds its image, servings stepper, per-serving nutrition, and a collapsed ingredient list. Users adjust servings from one to eight per meal. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change nutrition. On compact screens, a pinned bar at the top of the canvas shows the total and the fit line, and `scroll-padding-top` keeps focused controls below it. From 720px, the Plan page uses two columns: meals on the left, and a sticky summary and shopping list on the right. The sticky bottom navigation reserves `--tonight-nav-height` (4.5rem) through `scroll-padding-bottom` and the side column's maximum height.
 
 ## Elevation & Depth
 
@@ -142,9 +142,9 @@ Controls and meal-choice cards use gently rounded 12px corners. Meal photos and 
 - **Error:** Error text uses the error color; budget input exposes its invalid state.
 
 ### Navigation
-- **Style:** Three equal-width items in a white bottom row with a top divider. Each item has a 22px icon above a semibold label and a 3.5rem minimum height.
+- **Style:** Two equal-width items, Plan and Pantry, in a white bottom row with a top divider. Each item has a 22px icon above a semibold label and a 3.5rem minimum height. From 720px, the row is sticky at the bottom of the window and centered to the canvas width.
 - **States:** Inactive labels and icons use muted green. The current section has an underline and inset bar as well as forest green.
-- **Behavior:** The Tonight item remains current while the shopping list is open.
+- **Behavior:** The navigation follows the canvas in the DOM, so its visual position and its tab order agree.
 
 ### Meal Selection
 Meal choices pair an image with a name. Selection adds an inset bar and underlined label, plus a green outline and pale-sage surface. The underline remains visible in forced-color mode. The meal image fades in over 220ms with ease-out timing; reduced-motion preference disables that fade.
@@ -153,7 +153,7 @@ Meal choices pair an image with a name. Selection adds an inset bar and underlin
 
 ### Do:
 - **Do** keep these tokens and components scoped to `/prototype`.
-- **Do** keep the selected meal image beside the facts it describes.
+- **Do** keep each meal image beside the facts it describes.
 - **Do** use one bottom navigation area on compact screens.
 
 ### Don't:

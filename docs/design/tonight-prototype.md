@@ -16,16 +16,18 @@ The existing application stays at `/` and still needs its backend.
 
 ## Try the flow
 
-1. Choose bean tacos, egg fried rice, or chickpea curry.
-2. Adjust the serving count from one to eight.
-3. Mark ingredients in Pantry, then return to Tonight.
-4. Read the grocery estimate and nutrition per serving.
-5. Open the shopping list and check items as needed.
-6. Set a plan cap in Budget and read whether the meal fits.
+1. Add up to three meals with the picker. Type in "Find a meal" to filter it.
+2. Set each meal's servings from one to eight on its card.
+3. Open a card's Ingredients and mark items already at home. The Pantry
+   view changes the same list.
+4. Set the plan cap in the summary and read the amount left or over.
+5. Read the plan nutrition total and each card's per-serving values.
+6. Check items on the combined shopping list. Each item names the meals
+   that use it.
 
 State resets when the page reloads. Checking a shopping item does not
-change the grocery total. Changing a meal, servings, or pantry clears
-the checklist so old checks cannot apply to a different list.
+change the grocery total. A check stays while its item needs the same
+package count. A change that alters that count drops the check.
 
 ## Data boundaries
 
@@ -40,9 +42,13 @@ They are static copies, not a fresh USDA response or verified cooking
 results. The photos are generated illustrations. No purchases or
 reservations occur.
 
-The initial taco example has two servings and a $40 plan cap. Olive oil,
-salt, and ground cumin start in the pantry. Remaining packages cost $8.06.
-Four servings require a second bean package and cost $9.35.
+The initial plan is bean tacos with two servings and a $40 plan cap. Olive
+oil, salt, and ground cumin start in the pantry. Remaining packages cost
+$8.06. Four servings require a second bean package and cost $9.35.
+
+The plan sums each ingredient across its meals before it rounds to whole
+packages. Egg fried rice and chickpea curry at two servings each cost
+$17.91 together. Priced one meal at a time, they cost $22.08.
 
 ## Files
 
