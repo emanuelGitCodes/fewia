@@ -4186,3 +4186,23 @@ Grok 4.6 at medium with standard complexity. Sol at medium supplies the
 independent review. Gates and review results are keyed by commit SHA in
 their supervisor folders. Native coordinator, junior, and graph-agent usage
 is unavailable. No push, pull request, merge, or deployment is in scope.
+
+## 2026-10-16 — Tonight prototype evaluation
+
+The evaluation of `codex/impeccable-young-adult-mocks` at `c8217ee` found
+one defect and one improvement. The ledger is
+`.claude/loop/young-adult-mocks-eval.md`.
+
+- Defect: the prototype nutrition values differed from the USDA values in
+  the real app. Bean-taco fat showed 13.7 g; the source screenshot and the
+  real app show 12.3 g. Egg fried rice and chickpea curry had no source.
+  The prototype now shows 379/14.5/55.8/12.3, 590/22.4/76.7/20.6, and
+  750/18.8/102.2/31.2 (kcal, protein, carbohydrate, and fat in grams).
+- Improvement: `main.tsx` loads the prototype with `React.lazy`. The build
+  emits a separate 12 kB chunk.
+- The mock images and `docs/design/tonight-mock-prompts.md` keep 13.7 g,
+  because they record the exact generation inputs.
+- The branch adds 2148 lines by the gate count. This exceeds the 1000-line
+  definition of done. The fix does not change that.
+
+A Sonnet writer made the fix through `dev_supervisor`. Opus reviewed it.

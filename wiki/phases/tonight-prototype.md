@@ -56,6 +56,8 @@ State resets when the page reloads.
 
 Grocery cost uses whole packages in integer cents.
 Nutrition stays per serving. Servings and pantry leave nutrition unchanged.
+Nutrition values are static copies of the USDA per-serving values that
+`backend/app/services/meal_nutrition.py` computes. The real app shows the same values.
 Every estimate shows this notice:
 
 > Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
@@ -64,7 +66,7 @@ Every estimate shows this notice:
 
 | Path | Role |
 | --- | --- |
-| `frontend/src/main.tsx` | Renders `TonightPrototype` on `/prototype`. |
+| `frontend/src/main.tsx` | Loads `TonightPrototype` lazily on `/prototype`. |
 | `frontend/src/prototype/prototypeData.ts` | Demo catalog, recipes, notices, and serving bounds. |
 | `frontend/src/prototype/prototypeModel.ts` | Servings, pantry, whole-package cost, and budget draft. |
 | `frontend/src/prototype/TonightPrototype.tsx` | Local state, view shell, and view-change focus. |
