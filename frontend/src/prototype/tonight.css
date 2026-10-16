@@ -159,6 +159,44 @@
 .tonight-facts {
   min-width: 0;
 }
+.tonight-plan-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-plan-card {
+  display: grid;
+  grid-template-columns: minmax(0, 6rem) minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.6rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+}
+.tonight-plan-card-body {
+  min-width: 0;
+}
+.tonight-plan-card .tonight-package {
+  margin: 0 0 0.4rem;
+}
+.tonight-plan-remove {
+  min-height: 44px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.tonight-plan-remove:hover {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
 .tonight-stepper {
   display: flex;
   flex-wrap: wrap;
