@@ -55,6 +55,9 @@ export function TonightPrototype(): JSX.Element {
               onShiftServings={(id, delta) => {
                 setState((current) => shiftMealServings(current, id, delta));
               }}
+              onTogglePantry={(id) => {
+                setState((current) => togglePlanPantry(current, id));
+              }}
               onToggleChecked={(id) => {
                 setState((current) => togglePlanChecked(current, id));
               }}
