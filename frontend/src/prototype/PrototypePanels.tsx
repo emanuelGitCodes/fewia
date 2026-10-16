@@ -84,6 +84,7 @@ export function TonightPanel(props: {
   const recipe = RECIPES[props.state.recipeId];
   const cost = formatDollars(groceryCost(props.lines));
   const home = atHomeNames(props.state);
+  const pantryStatus = home.length === 0 ? "None marked" : `${String(home.length)} at home`;
   const servingsLabel = `${String(props.state.servings)} ${props.state.servings === 1 ? "serving" : "servings"}`;
   const macros: ReadonlyArray<readonly [string, string]> = [
     [formatMacro(recipe.nutrition.energyKcal), "kcal"],
@@ -120,7 +121,7 @@ export function TonightPanel(props: {
             <button type="button" aria-label="Decrease servings" onClick={() => { props.onShiftServings(-1); }}>
               −
             </button>
-            <p role="status">{servingsLabel}</p>
+            <div className="tonight-servings" role="status">{servingsLabel}</div>
             <button type="button" aria-label="Increase servings" onClick={() => { props.onShiftServings(1); }}>
               +
             </button>
@@ -132,8 +133,13 @@ export function TonightPanel(props: {
           <p className="tonight-price" role="status">{cost}</p>
           <p className="tonight-package">Whole packages · Sample estimate</p>
           <p className="tonight-kicker">Already at home</p>
-          <button type="button" className="tonight-pantry-row" aria-label="Edit pantry" onClick={props.onEditPantry}>
-            <span>{home.length === 0 ? "None marked" : `${String(home.length)} at home`}</span>
+          <button
+            type="button"
+            className="tonight-pantry-row"
+            aria-label={`${pantryStatus}, Edit pantry`}
+            onClick={props.onEditPantry}
+          >
+            <span>{pantryStatus}</span>
             <GeometryIcon name="pencil" />
           </button>
         </div>

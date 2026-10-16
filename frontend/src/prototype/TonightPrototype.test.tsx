@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
-import { PANTRY_IDS, SERVING_ERROR } from "./prototypeData";
+import { INITIAL_PANTRY, PANTRY_IDS, SERVING_ERROR } from "./prototypeData";
 import { TonightPrototype } from "./TonightPrototype";
 
 function textOf(node: HTMLElement): string {
@@ -19,13 +19,27 @@ function mount(): HTMLElement {
   return render(createElement(TonightPrototype)).container;
 }
 
+function pantryBox(id: string): HTMLInputElement {
+  const box = document.getElementById(`pantry-${id}`);
+  if (!(box instanceof HTMLInputElement)) {
+    throw new Error(`Missing pantry control: ${id}`);
+  }
+  return box;
+}
+
 function checkRemainingPantry(): void {
   for (const id of PANTRY_IDS) {
-    const box = document.getElementById(`pantry-${id}`);
-    if (!(box instanceof HTMLInputElement)) {
-      throw new Error(`Missing pantry control: ${id}`);
-    }
+    const box = pantryBox(id);
     if (!box.checked) {
+      fireEvent.click(box);
+    }
+  }
+}
+
+function clearMealPantry(): void {
+  for (const id of INITIAL_PANTRY) {
+    const box = pantryBox(id);
+    if (box.checked) {
       fireEvent.click(box);
     }
   }
@@ -57,14 +71,14 @@ describe("TonightPrototype", () => {
     expect(text).toContain("13.7 g");
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("img", { name: "Bean tacos" })).toBeTruthy();
-    expect(textOf(buttonNamed("Edit pantry"))).toMatch(/\d+ at home/);
+    expect(textOf(buttonNamed("3 at home, Edit pantry"))).toMatch(/3 at home/);
     expect(screen.getByRole("link", { name: "Existing app" }).getAttribute("href")).toBe("/");
   });
 
   it("adds $5.99 when olive oil leaves the pantry", () => {
     mount();
     act(() => {
-      fireEvent.click(buttonNamed("Edit pantry"));
+      fireEvent.click(buttonNamed("3 at home, Edit pantry"));
     });
     act(() => {
       fireEvent.click(screen.getByLabelText("olive oil"));
@@ -267,5 +281,46 @@ describe("TonightPrototype", () => {
     );
     expect(canvas.scrollTop).toBe(0);
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
+  });
+
+  it("includes pantry status and edit action in the control name", () => {
+    mount();
+    const withItems = buttonNamed("3 at home, Edit pantry");
+    expect(textOf(withItems)).toContain("3 at home");
+    expect(withItems.getAttribute("aria-label")).toBe("3 at home, Edit pantry");
+    act(() => {
+      fireEvent.click(withItems);
+    });
+    act(() => {
+      clearMealPantry();
+    });
+    act(() => {
+      fireEvent.click(buttonNamed("Back to tonight"));
+    });
+    const empty = buttonNamed("None marked, Edit pantry");
+    expect(textOf(empty)).toContain("None marked");
+    expect(empty.getAttribute("aria-label")).toBe("None marked, Edit pantry");
+  });
+
+  it("exposes selected meal and current section as semantic state", () => {
+    mount();
+    expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
+    expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("false");
+    expect(buttonNamed("Chickpea curry").getAttribute("aria-pressed")).toBe("false");
+    const nav = within(screen.getByRole("navigation", { name: "Prototype sections" }));
+    expect(nav.getByRole("button", { name: "Tonight" }).getAttribute("aria-current")).toBe("page");
+    expect(nav.getByRole("button", { name: "Pantry" }).hasAttribute("aria-current")).toBe(false);
+    expect(nav.getByRole("button", { name: "Budget" }).hasAttribute("aria-current")).toBe(false);
+    act(() => {
+      fireEvent.click(buttonNamed("Chickpea curry"));
+    });
+    expect(buttonNamed("Chickpea curry").getAttribute("aria-pressed")).toBe("true");
+    expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("false");
+    expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("false");
+    act(() => {
+      fireEvent.click(buttonNamed("Pantry"));
+    });
+    expect(nav.getByRole("button", { name: "Pantry" }).getAttribute("aria-current")).toBe("page");
+    expect(nav.getByRole("button", { name: "Tonight" }).hasAttribute("aria-current")).toBe(false);
   });
 });

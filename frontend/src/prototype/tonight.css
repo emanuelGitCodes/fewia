@@ -4,6 +4,7 @@
   --tonight-ink: #17221e;
   --tonight-muted: #3a4d46;
   --tonight-line: #dce4df;
+  --tonight-control-border: #5c6f67;
   --tonight-white: #ffffff;
   --tonight-error: #8b2e1f;
   min-height: 100vh;
@@ -13,6 +14,7 @@
   color: var(--tonight-ink);
   font-family: "Source Sans 3", sans-serif;
   font-weight: 400;
+  overflow-wrap: anywhere;
 }
 .tonight-prototype ::selection {
   color: var(--tonight-white);
@@ -50,6 +52,7 @@
 }
 .tonight-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
   gap: 0.75rem;
@@ -68,7 +71,7 @@
 }
 .tonight-meals {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.7rem), 1fr));
   gap: 0.4rem;
 }
 .tonight-meal {
@@ -77,7 +80,7 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.3rem;
-  border: 1px solid var(--tonight-line);
+  border: 2px solid var(--tonight-line);
   border-radius: 12px;
   background: var(--tonight-white);
   color: var(--tonight-ink);
@@ -86,14 +89,24 @@
   text-align: left;
   cursor: pointer;
 }
-.tonight-meal:hover,
+.tonight-meal:hover {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
 .tonight-meal.is-selected {
   border-color: var(--tonight-green);
   background: var(--tonight-select);
+  box-shadow: inset 0 -0.35rem 0 var(--tonight-green);
+}
+.tonight-meal.is-selected span {
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
 }
 .tonight-meal span {
   font-size: 0.95rem;
   line-height: 1.2;
+  min-width: 0;
 }
 .tonight-thumb,
 .tonight-photo {
@@ -107,8 +120,11 @@
 }
 .tonight-photo {
   position: relative;
-  min-height: 0;
-  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  min-height: 6rem;
+  aspect-ratio: 4 / 3;
+  height: auto;
 }
 .tonight-thumb img,
 .tonight-photo img {
@@ -135,7 +151,7 @@
 }
 .tonight-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.75rem), 1fr));
   gap: 0.7rem;
   align-items: stretch;
   margin-top: 0.7rem;
@@ -144,15 +160,19 @@
   min-width: 0;
 }
 .tonight-stepper {
-  display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
   margin: 0 0 0.5rem;
-  border: 1px solid var(--tonight-line);
+  border: 1px solid var(--tonight-control-border);
   border-radius: 12px;
 }
 .tonight-stepper button {
-  min-height: 2.75rem;
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 44px;
   border: 0;
   background: transparent;
   color: var(--tonight-ink);
@@ -160,7 +180,9 @@
   font-size: 1.35rem;
   cursor: pointer;
 }
-.tonight-stepper p {
+.tonight-servings {
+  flex: 1 1 4rem;
+  min-width: 0;
   margin: 0;
   text-align: center;
   font-weight: 600;
@@ -181,6 +203,7 @@
   font-size: 2.5rem;
   font-weight: 600;
   letter-spacing: -0.03em;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
 .tonight-package {
@@ -204,7 +227,7 @@
   min-height: 2.75rem;
   margin-top: 0.2rem;
   padding: 0.35rem 0.65rem;
-  border: 1px solid var(--tonight-line);
+  border: 1px solid var(--tonight-control-border);
   border-radius: 12px;
   background: var(--tonight-white);
   color: var(--tonight-ink);
@@ -236,7 +259,8 @@
 }
 .tonight-macros {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.1rem), 1fr));
+  row-gap: 0.65rem;
 }
 .tonight-macros div {
   min-width: 0;
@@ -263,6 +287,7 @@
 .tonight-primary,
 .tonight-back {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   font: inherit;
@@ -292,6 +317,7 @@
 }
 .tonight-page label {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.7rem;
   align-items: flex-start;
   min-width: 0;
@@ -301,7 +327,7 @@
   min-height: 2.75rem;
   margin: 0.35rem 0 0.7rem;
   padding: 0.45rem 0.7rem;
-  border: 1px solid var(--tonight-line);
+  border: 1px solid var(--tonight-control-border);
   border-radius: 12px;
   background: var(--tonight-white);
   color: var(--tonight-ink);
@@ -344,25 +370,37 @@
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.3rem 0.4rem 0.5rem;
   border-top: 1px solid var(--tonight-line);
   background: var(--tonight-white);
 }
 .tonight-nav button {
   display: flex;
   min-height: 3.5rem;
+  min-width: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.15rem;
+  padding: 0.2rem 0.25rem;
   border: 0;
   background: transparent;
   color: var(--tonight-muted);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.tonight-nav button:focus-visible {
+  outline-offset: -3px;
+  z-index: 1;
 }
 .tonight-nav button[aria-current="page"] {
   color: var(--tonight-green);
+  box-shadow: inset 0 0.2rem 0 var(--tonight-green);
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
 }
 .tonight-icon {
   display: block;
@@ -419,6 +457,11 @@
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
     gap: 1.4rem;
     margin-top: 1.15rem;
+  }
+  .tonight-photo {
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 0;
   }
   .tonight-thumb {
     aspect-ratio: auto;
