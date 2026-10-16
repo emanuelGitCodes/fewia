@@ -73,33 +73,40 @@ export function PlanPanel(props: {
   };
   return (
     <section className="tonight-home" aria-labelledby="plan-heading">
+      <p className="tonight-pinned" aria-hidden="true">
+        {`${cost} · ${fitLine(costCents, props.state.budgetCents)}`}
+      </p>
       <h1 id="plan-heading" ref={headingRef} tabIndex={-1}>Your plan</h1>
-      <MealPicker meals={meals} onToggle={toggleMeal} />
-      <MealCards
-        meals={meals}
-        servingsError={props.state.servingsError}
-        onShiftServings={props.onShiftServings}
-        pantry={props.state.pantry}
-        onTogglePantry={props.onTogglePantry}
-        onRemove={(id) => { toggleMeal(id, true); }}
-      />
-      <PlanSummary state={props.state} lines={props.lines} onBudgetChange={props.onBudgetChange} />
-      <PlanShoppingList
-        lines={props.lines}
-        checked={props.state.checked}
-        onToggle={props.onToggleChecked}
-        pantryRow={
-          <button
-            type="button"
-            className="tonight-pantry-row"
-            aria-label={`${pantryStatus}, Edit pantry`}
-            onClick={props.onEditPantry}
-          >
-            <span>{pantryStatus}</span>
-            <GeometryIcon name="pencil" />
-          </button>
-        }
-      />
+      <div className="tonight-plan-main">
+        <MealPicker meals={meals} onToggle={toggleMeal} />
+        <MealCards
+          meals={meals}
+          servingsError={props.state.servingsError}
+          onShiftServings={props.onShiftServings}
+          pantry={props.state.pantry}
+          onTogglePantry={props.onTogglePantry}
+          onRemove={(id) => { toggleMeal(id, true); }}
+        />
+      </div>
+      <div className="tonight-plan-side">
+        <PlanSummary state={props.state} lines={props.lines} onBudgetChange={props.onBudgetChange} />
+        <PlanShoppingList
+          lines={props.lines}
+          checked={props.state.checked}
+          onToggle={props.onToggleChecked}
+          pantryRow={
+            <button
+              type="button"
+              className="tonight-pantry-row"
+              aria-label={`${pantryStatus}, Edit pantry`}
+              onClick={props.onEditPantry}
+            >
+              <span>{pantryStatus}</span>
+              <GeometryIcon name="pencil" />
+            </button>
+          }
+        />
+      </div>
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
       {/* One atomic status announces meals, servings, cost, fit, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">

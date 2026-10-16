@@ -23,24 +23,42 @@ export function MealPicker(props: {
   meals: PlannedMeal[];
   onToggle: (id: RecipeId, planned: boolean) => void;
 }): JSX.Element {
+  const [filter, setFilter] = useState("");
+  const needle = filter.trim().toLowerCase();
+  const visible = RECIPE_ORDER.filter((id) => RECIPES[id].name.toLowerCase().includes(needle));
   return (
-    <div className="tonight-meals" role="group" aria-label="Meal choices">
-      {RECIPE_ORDER.map((id) => {
-        const planned = props.meals.some((meal) => meal.recipeId === id);
-        return (
-          <button
-            key={id}
-            type="button"
-            className={planned ? "tonight-meal is-selected" : "tonight-meal"}
-            aria-pressed={planned}
-            onClick={() => { props.onToggle(id, planned); }}
-          >
-            <MealPhoto src={RECIPES[id].image} alt="" className="tonight-thumb" />
-            <span>{RECIPES[id].name}</span>
-          </button>
-        );
-      })}
-    </div>
+    <>
+      <label htmlFor="meal-filter" className="tonight-filter-label">Find a meal</label>
+      <input
+        id="meal-filter"
+        type="search"
+        className="tonight-filter"
+        autoComplete="off"
+        value={filter}
+        onChange={(event) => { setFilter(event.target.value); }}
+      />
+      {visible.length === 0 ? (
+        <p>No meals match.</p>
+      ) : (
+        <div className="tonight-meals" role="group" aria-label="Meal choices">
+          {visible.map((id) => {
+            const planned = props.meals.some((meal) => meal.recipeId === id);
+            return (
+              <button
+                key={id}
+                type="button"
+                className={planned ? "tonight-meal is-selected" : "tonight-meal"}
+                aria-pressed={planned}
+                onClick={() => { props.onToggle(id, planned); }}
+              >
+                <MealPhoto src={RECIPES[id].image} alt="" className="tonight-thumb" />
+                <span>{RECIPES[id].name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
