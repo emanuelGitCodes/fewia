@@ -24,6 +24,8 @@ export type EstimateProps = {
   rebuildDisabled?: boolean;
 };
 
+const DIRTY_SENTENCE = "Rebuild the request to apply request changes.";
+
 function isIncomplete(result: GroceryJobResult): boolean {
   return result.plan.total_cents === null || result.plan.lines.some((line) => line.cost_cents === null);
 }
@@ -110,15 +112,27 @@ export function Estimate({
   rebuildDisabled = false,
 }: EstimateProps): JSX.Element {
   const result = job?.status === "succeeded" ? job.result : null;
+  const heading = result !== null && dirty ? "Previous estimate" : "Grocery estimate";
+  const status =
+    result === null
+      ? statusText(job, pending, recipes, ingredients)
+      : `${dirty ? `${DIRTY_SENTENCE} ` : ""}${planWording(result)}`;
+  const statusNode = (
+    <p
+      className={result === null ? "estimate-status" : "visually-hidden"}
+      role="status"
+      aria-live="polite"
+    >
+      {status}
+    </p>
+  );
   if (result === null) {
     return (
       <section className="estimate-panel" aria-labelledby="estimate-heading">
         <h2 id="estimate-heading" tabIndex={-1}>
-          Grocery estimate
+          {heading}
         </h2>
-        <p className="estimate-status" role="status" aria-live="polite">
-          {statusText(job, pending, recipes, ingredients)}
-        </p>
+        {statusNode}
       </section>
     );
   }
@@ -126,13 +140,10 @@ export function Estimate({
   return (
     <section className="estimate-panel" aria-labelledby="estimate-heading">
       <h2 id="estimate-heading" tabIndex={-1}>
-        {dirty ? "Previous estimate" : "Grocery estimate"}
+        {heading}
       </h2>
-      {dirty ? (
-        <p className="estimate-dirty" role="status">
-          Rebuild the request to apply request changes.
-        </p>
-      ) : null}
+      {statusNode}
+      {dirty ? <p className="estimate-dirty">{DIRTY_SENTENCE}</p> : null}
       {dirty && onRebuild !== undefined ? (
         <button
           type="button"
@@ -145,9 +156,7 @@ export function Estimate({
           Rebuild estimate
         </button>
       ) : null}
-      <p className="estimate-plan-state" role="status" aria-live="polite">
-        {planWording(result)}
-      </p>
+      <p className="estimate-plan-state">{planWording(result)}</p>
       <p className="estimate-total">{formatDollars(result.plan.total_cents)}</p>
       {result.supermarket_estimate !== undefined ? (
         <>
@@ -181,7 +190,7 @@ export function Estimate({
         <Nutrition nutrition={result.meal_nutrition} recipes={recipes} />
       ) : null}
       {warnings.map((warning, index) => (
-        <p key={`${index}-${warning}`} className="estimate-warning" role="status">
+        <p key={`${index}-${warning}`} className="estimate-warning">
           {warning}
         </p>
       ))}

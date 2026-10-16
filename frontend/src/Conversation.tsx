@@ -114,9 +114,7 @@ export function Conversation({
         </button>
       </div>
       {status !== null && error === null ? (
-        <p className="conversation-status" role="status" aria-live="polite">
-          {status}
-        </p>
+        <p className="conversation-status">{status}</p>
       ) : null}
       {error !== null ? (
         <p className="conversation-error" role="status">

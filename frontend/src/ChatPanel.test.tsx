@@ -128,14 +128,13 @@ describe("ChatPanel", () => {
     expect(buttonNamed(rendered.container, "Send").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Retry the same request").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Start a new conversation").disabled).toBe(true);
-    const live = within(rendered.container).queryAllByRole("status").filter(
-      (node) => node.getAttribute("aria-live") === "polite",
-    );
+    const live = within(rendered.container).getAllByRole("status");
     expect(live).toHaveLength(1);
     const status = live[0];
     if (status === undefined) {
       throw new Error("missing live status");
     }
+    expect(status.getAttribute("aria-live")).toBe("polite");
     expect(renderedText(status)).toBe("Your request is in progress.");
     expect(renderedText(rendered.container)).not.toContain("queue");
     expect(renderedText(rendered.container)).not.toContain("job");
@@ -221,6 +220,20 @@ describe("ChatPanel", () => {
     expect(onNewConversation).toHaveBeenCalledTimes(1);
     expect(onSend).not.toHaveBeenCalled();
     rendered.unmount();
+  });
+
+  it("keeps one live node and shows the error once visibly", () => {
+    const { rendered } = mount({ hasRequest: true, error: TIMEOUT });
+    const live = within(rendered.container).getAllByRole("status");
+    expect(live).toHaveLength(1);
+    expect(live[0]?.className).toBe("visually-hidden");
+    expect(rendered.container.querySelectorAll(".conversation-error")).toHaveLength(1);
+    expect(rendered.container.querySelectorAll(".conversation-status")).toHaveLength(0);
+    rendered.unmount();
+    const idle = mount();
+    expect(within(idle.rendered.container).getAllByRole("status")).toHaveLength(1);
+    expect(idle.rendered.container.querySelectorAll(".conversation-status")).toHaveLength(0);
+    idle.rendered.unmount();
   });
 
   it("shows timeout may-continue wording and hides unknown secret text", () => {

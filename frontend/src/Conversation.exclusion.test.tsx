@@ -97,8 +97,9 @@ describe("Conversation exclusion error", () => {
   it("keeps the success status and omits the error paragraph", () => {
     renderConversation(succeededJob, null);
     expect(document.querySelector(".conversation-error")).toBeNull();
-    const statusNode = screen.getByRole("status");
-    expect(statusNode.className).toBe("conversation-status");
-    expect(statusNode.textContent).toBe("The estimate is within the plan budget.");
+    expect(screen.queryByRole("status")).toBeNull();
+    const statusNode = document.querySelector(".conversation-status");
+    expect(statusNode?.textContent).toBe("The estimate is within the plan budget.");
+    expect(statusNode?.hasAttribute("aria-live")).toBe(false);
   });
 });
