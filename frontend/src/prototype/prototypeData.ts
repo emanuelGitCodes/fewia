@@ -19,7 +19,9 @@ export type Recipe = {
   id: RecipeId;
   name: string;
   image: string;
+  // Each pair is an ingredient id and a per-serving quantity.
   ingredients: ReadonlyArray<readonly [string, number]>;
+  // Nutrition stays per serving. Servings and pantry do not change it.
   nutrition: Nutrition;
 };
 
@@ -39,6 +41,7 @@ export const RECIPE_ORDER: readonly RecipeId[] = [
   "chickpea_curry",
 ];
 
+// packageQuantity is the catalog package size in the ingredient unit.
 const ROWS: ReadonlyArray<readonly [string, string, Unit, number, number]> = [
   ["black_beans", "black beans", "g", 425, 129],
   ["tortillas", "corn tortillas", "each", 8, 299],
@@ -72,6 +75,7 @@ function meal(
   return { id, name, image: `/prototype/${file}`, ingredients, nutrition };
 }
 
+// Recipe quantities use the same unit as packageQuantity.
 export const RECIPES: Record<RecipeId, Recipe> = {
   bean_tacos: meal(
     "bean_tacos",

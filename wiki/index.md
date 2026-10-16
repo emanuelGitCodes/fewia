@@ -48,6 +48,7 @@ chronological record lives in [log.md](log.md).
 - [Hosting preparation — accepted private access, published source, bounded CI and CLI usage](phases/hosting-preparation-20261003.md)
 - [Backlog final record — published PRs 322-381, integration evidence, and Graphify archive](phases/backlog-final-20261003.md)
 - [Integrity check — merged main exercised end to end, findings, and backlog state](phases/integrity-20261004.md)
+- [Tonight prototype — Familiar and Pantry Edit local demo](phases/tonight-prototype.md)
 
 The grocery checkpoint is the active product record. Phases 0 through 3 remain historical.
 
@@ -83,6 +84,12 @@ D5 source, preflight CLI, and runbook are published. Live deployment still await
 No AWS resources, users, or invitations have been created by this run.
 The owner MUST confirm every mutating AWS step first. No merge authorization exists.
 D4 remains paused. Live Instacart stays parked.
+
+## Tonight prototype
+
+- [Phase record](phases/tonight-prototype.md)
+- [WCAG 2.2 AA audit](../docs/design/tonight-wcag-audit.md)
+- [VoiceOver audit](../docs/design/tonight-voiceover-audit.md)
 
 ## Development operations
 

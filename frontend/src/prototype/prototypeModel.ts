@@ -17,11 +17,16 @@ export type PrototypeState = {
   recipeId: RecipeId;
   servings: number;
   pantry: string[];
+  // Shopping checks apply only to the current grocery list.
   checked: string[];
   view: PrototypeView;
+  // budgetInput is the raw draft.
   budgetInput: string;
+  // budgetCents is the last valid cap.
   budgetCents: number;
+  // budgetError stays until the draft is valid.
   budgetError: string | null;
+  // servingsError is transient. A view change clears it.
   servingsError: string | null;
 };
 export type GroceryLine = {
@@ -30,6 +35,7 @@ export type GroceryLine = {
   unit: "g" | "each";
   quantity: number;
   packages: number;
+  // costCents is the integer-cent cost of whole packages.
   costCents: number;
   fromPantry: boolean;
 };
@@ -50,6 +56,7 @@ export function initialState(): PrototypeState {
   };
 }
 
+// The count rounds up to whole catalog packages.
 export function packageCount(totalQuantity: number, packageQuantity: number): number {
   if (totalQuantity <= 0) {
     return 0;
@@ -62,6 +69,7 @@ export function groceryLines(state: PrototypeState): GroceryLine[] {
     const item = requireIngredient(ingredientId);
     const fromPantry = state.pantry.includes(ingredientId);
     const quantity = perServing * state.servings;
+    // Pantry coverage needs zero packages.
     const packages = fromPantry ? 0 : packageCount(quantity, item.packageQuantity);
     return {
       ingredientId,
@@ -96,6 +104,7 @@ export function withRecipe(state: PrototypeState, recipeId: RecipeId): Prototype
   if (recipeId === state.recipeId) {
     return state;
   }
+  // A new meal list invalidates shopping checks.
   return { ...state, recipeId, checked: [], servingsError: null };
 }
 
@@ -104,6 +113,7 @@ export function shiftServings(state: PrototypeState, delta: number): PrototypeSt
   if (!Number.isSafeInteger(servings) || servings < MIN_SERVINGS || servings > MAX_SERVINGS) {
     return { ...state, servingsError: SERVING_ERROR };
   }
+  // A serving change invalidates shopping checks.
   return { ...state, servings, servingsError: null, checked: [] };
 }
 
@@ -111,6 +121,7 @@ export function togglePantry(state: PrototypeState, ingredientId: string): Proto
   const pantry = state.pantry.includes(ingredientId)
     ? state.pantry.filter((id) => id !== ingredientId)
     : [...state.pantry, ingredientId];
+  // A pantry change invalidates shopping checks.
   return { ...state, pantry, checked: [] };
 }
 
@@ -125,10 +136,13 @@ export function withView(state: PrototypeState, view: PrototypeView): PrototypeS
   if (view === state.view) {
     return state;
   }
+  // A view change clears the transient serving error.
   return { ...state, view, servingsError: null };
 }
 
 export function withBudgetInput(state: PrototypeState, budgetInput: string): PrototypeState {
+  // The raw draft updates on every change.
+  // budgetCents updates only when the draft is valid.
   try {
     const budgetCents = parseDollars(budgetInput);
     if (budgetCents === null) {

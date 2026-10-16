@@ -48,10 +48,14 @@ Four servings require a second bean package and cost $9.35.
 - `frontend/public/prototype/` contains the generated food images and provenance.
 - [Approved direction and scope](tonight-prototype-plan.md)
 - [Image generation prompts](tonight-asset-prompts.md)
+- [Phase record](../../wiki/phases/tonight-prototype.md)
+- [WCAG 2.2 AA audit](tonight-wcag-audit.md)
+- [VoiceOver audit](tonight-voiceover-audit.md)
 
 ## Verification scope
 
 Frontend gates cover lint, unit and interaction tests, and the production
 build. Browser checks cover the demo route and its controls. Live backend,
 provider behavior, production hosting, and cross-browser coverage are outside
-this prototype's verification scope.
+this prototype's verification scope. Browser and VoiceOver testing remain
+paused. The phase record links the existing audits.

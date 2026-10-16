@@ -117,6 +117,7 @@ export function TonightPanel(props: {
         <MealPhoto src={recipe.image} alt={recipe.name} className="tonight-photo" />
         <div className="tonight-facts">
           <h2>{recipe.name}</h2>
+          {/* Visible serving and price text stay outside live regions. */}
           <div className="tonight-stepper" role="group" aria-label="Servings">
             <button type="button" aria-label="Decrease servings" onClick={() => { props.onShiftServings(-1); }}>
               −
@@ -149,6 +150,7 @@ export function TonightPanel(props: {
           <h2 id="nutrition-heading">Nutrition per serving</h2>
           <p className="tonight-nutrition-note">{NUTRITION_DEMO_LABEL}</p>
         </div>
+        {/* Nutrition values stay per serving. Servings and pantry leave them unchanged. */}
         <div className="tonight-macros">
           {macros.map(([value, label]) => (
             <div key={label}>
@@ -163,6 +165,7 @@ export function TonightPanel(props: {
         <GeometryIcon name="arrow" />
       </button>
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
+      {/* One atomic status announces meal, servings, cost, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
         {`${recipe.name}, ${servingsLabel}. Groceries to buy ${cost}. Whole packages · Sample estimate.`}
       </div>

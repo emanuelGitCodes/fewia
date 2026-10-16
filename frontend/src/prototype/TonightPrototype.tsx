@@ -29,6 +29,7 @@ export function TonightPrototype(): JSX.Element {
   const lines = groceryLines(state);
   const costCents = groceryCost(lines);
   useEffect(() => {
+    // Focus moves only when the view changes.
     if (previousView.current === state.view) {
       return;
     }
