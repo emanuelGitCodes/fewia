@@ -7,7 +7,8 @@ import {
   type RecipeId,
 } from "./prototypeData";
 import { MealCards, MealPicker } from "./PlanMeals";
-import { budgetGap, planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
+import { PlanShoppingList, PlanSummary, fitLine } from "./PlanSummary";
+import { planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
 
 export type IconName = "fork" | "jar" | "bars" | "pencil" | "arrow" | "back";
 
@@ -51,11 +52,13 @@ export function PlanPanel(props: {
   lines: PlanLine[];
   onToggleMeal: (id: RecipeId, planned: boolean) => void;
   onShiftServings: (id: RecipeId, delta: number) => void;
+  onToggleChecked: (id: string) => void;
+  onBudgetChange: (value: string) => void;
   onEditPantry: () => void;
-  onSeeShopping: () => void;
 }): JSX.Element {
   const { meals } = props.state;
-  const cost = formatDollars(planCost(props.lines));
+  const costCents = planCost(props.lines);
+  const cost = formatDollars(costCents);
   const home = props.lines.filter((line) => line.fromPantry).length;
   const pantryStatus = home === 0 ? "None marked" : `${String(home)} at home`;
   const totalServings = meals.reduce((sum, meal) => sum + meal.servings, 0);
@@ -79,27 +82,27 @@ export function PlanPanel(props: {
         onShiftServings={props.onShiftServings}
         onRemove={(id) => { toggleMeal(id, true); }}
       />
-      <p className="tonight-kicker">Groceries to buy</p>
-      <p className="tonight-price">{cost}</p>
-      <p className="tonight-package">Whole packages · Sample estimate</p>
-      <p className="tonight-kicker">Already at home</p>
-      <button
-        type="button"
-        className="tonight-pantry-row"
-        aria-label={`${pantryStatus}, Edit pantry`}
-        onClick={props.onEditPantry}
-      >
-        <span>{pantryStatus}</span>
-        <GeometryIcon name="pencil" />
-      </button>
-      <button type="button" className="tonight-primary" onClick={props.onSeeShopping}>
-        <span>See shopping list</span>
-        <GeometryIcon name="arrow" />
-      </button>
+      <PlanSummary state={props.state} lines={props.lines} onBudgetChange={props.onBudgetChange} />
+      <PlanShoppingList
+        lines={props.lines}
+        checked={props.state.checked}
+        onToggle={props.onToggleChecked}
+        pantryRow={
+          <button
+            type="button"
+            className="tonight-pantry-row"
+            aria-label={`${pantryStatus}, Edit pantry`}
+            onClick={props.onEditPantry}
+          >
+            <span>{pantryStatus}</span>
+            <GeometryIcon name="pencil" />
+          </button>
+        }
+      />
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
-      {/* One atomic status announces meals, servings, cost, and the estimate qualifier. */}
+      {/* One atomic status announces meals, servings, cost, fit, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
-        {`${mealCount}, ${servingCount}. Groceries to buy ${cost}. Whole packages · Sample estimate.`}
+        {`${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fitLine(costCents, props.state.budgetCents)} Whole packages · Sample estimate.`}
       </div>
     </section>
   );
@@ -137,106 +140,18 @@ export function PantryPanel(props: {
   );
 }
 
-export function ShoppingPanel(props: {
-  lines: PlanLine[];
-  checked: string[];
-  onToggle: (id: string) => void;
-  onBack: () => void;
-}): JSX.Element {
-  const needed = props.lines.filter((line) => !line.fromPantry);
-  const total = formatDollars(planCost(props.lines));
-  return (
-    <section className="tonight-page" aria-labelledby="shopping-heading">
-      <BackToPlan onBack={props.onBack} />
-      <h1 id="shopping-heading" tabIndex={-1}>Shopping list</h1>
-      {needed.length === 0 ? (
-        <p role="status">Nothing to buy. Every ingredient is marked at home.</p>
-      ) : (
-        <ul className="tonight-check-list">
-          {needed.map((line) => {
-            const inputId = `shop-${line.ingredientId}`;
-            const packs = `${String(line.packages)} ${line.packages === 1 ? "package" : "packages"}`;
-            return (
-              <li key={line.ingredientId}>
-                <label htmlFor={inputId}>
-                  <input
-                    id={inputId}
-                    type="checkbox"
-                    checked={props.checked.includes(line.ingredientId)}
-                    onChange={() => { props.onToggle(line.ingredientId); }}
-                  />
-                  <span>
-                    <span>{line.name}</span>
-                    <span className="tonight-line-meta">{`${packs} · ${formatDollars(line.costCents)}`}</span>
-                  </span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <p className="tonight-price" role="status">{`Total ${total}`}</p>
-      <p className="tonight-package">Whole packages</p>
-      <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
-    </section>
-  );
-}
-
-export function BudgetPanel(props: {
-  budgetInput: string;
-  budgetCents: number;
-  budgetError: string | null;
-  costCents: number;
-  onChange: (value: string) => void;
-}): JSX.Element {
-  const cost = formatDollars(props.costCents);
-  const cap = formatDollars(props.budgetCents);
-  const { fits } = budgetGap(props.costCents, props.budgetCents);
-  const status = fits
-    ? `This plan fits the ${cap} plan cap.`
-    : `This plan is over the ${cap} plan cap.`;
-  return (
-    <section className="tonight-page" aria-labelledby="budget-heading">
-      <h1 id="budget-heading" tabIndex={-1}>Budget</h1>
-      <label htmlFor="plan-cap">Plan cap</label>
-      <input
-        id="plan-cap"
-        type="text"
-        inputMode="decimal"
-        autoComplete="off"
-        value={props.budgetInput}
-        aria-invalid={props.budgetError !== null}
-        aria-describedby={props.budgetError !== null ? "budget-error" : "budget-status"}
-        onChange={(event) => { props.onChange(event.target.value); }}
-      />
-      {props.budgetError !== null ? (
-        <p id="budget-error" className="tonight-error" role="alert">{props.budgetError}</p>
-      ) : null}
-      <p>{`Groceries to buy ${cost}`}</p>
-      <p id="budget-status" role="status">{status}</p>
-      <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
-    </section>
-  );
-}
-
 export function PrototypeNav(props: {
   view: PlanView;
-  onNav: (view: "plan" | "pantry" | "budget") => void;
+  onNav: (view: PlanView) => void;
 }): JSX.Element {
   const items: ReadonlyArray<{
-    view: "plan" | "pantry" | "budget";
+    view: PlanView;
     icon: IconName;
     label: string;
     current: boolean;
   }> = [
-    {
-      view: "plan",
-      icon: "fork",
-      label: "Plan",
-      current: props.view === "plan" || props.view === "shopping",
-    },
+    { view: "plan", icon: "fork", label: "Plan", current: props.view === "plan" },
     { view: "pantry", icon: "jar", label: "Pantry", current: props.view === "pantry" },
-    { view: "budget", icon: "bars", label: "Budget", current: props.view === "budget" },
   ];
   return (
     <nav className="tonight-nav" aria-label="Prototype sections">
