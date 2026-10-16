@@ -127,8 +127,10 @@ test("manual form: meal limits, then a submitted estimate", async ({ page }) => 
   await expect(page.getByLabel("Recipe 2", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Remove meal 1", exact: true })).toBeDisabled();
   await expect(add).toBeEnabled();
-  await page.getByLabel("Recipe 1", { exact: true }).selectOption("bean_tacos");
-  await page.getByLabel("Servings 1", { exact: true }).selectOption("2");
+  await page.getByLabel("Recipe 1", { exact: true }).selectOption("lentil_soup");
+  await page.getByLabel("Servings 1", { exact: true }).selectOption("3");
   await page.getByRole("button", { name: "Build my estimate" }).click();
-  await expectEstimate(page, "$17.03");
+  await expectEstimate(page, "$14.73");
+  const nutrition = estimatePanel(page).getByRole("region", { name: "Estimated nutrition" });
+  await expect(nutrition.getByText("Plan total 1230 kcal", { exact: false })).toBeVisible();
 });

@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   forbidOnly: Boolean(process.env.CI),
-  reporter: [["list"], ["html", { open: "never" }]],
+  reporter: "list",
   expect: { timeout: 15_000 },
   use: {
     baseURL: process.env.FEWIA_E2E_BASE_URL ?? "http://127.0.0.1:5173",

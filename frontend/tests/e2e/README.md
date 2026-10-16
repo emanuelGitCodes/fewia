@@ -14,11 +14,14 @@ docker compose up -d
 docker compose ps
 ```
 
-Wait until `docker compose ps` shows every service as `running`. Services that
-define a health check MUST show `healthy`. If a service is not healthy, read its
+Wait until `postgres`, `floci`, and `api` show `healthy`, and `web`,
+`worker`, and `sync-worker` show `running`. The `bootstrap` service is a
+one-shot job. It exits with code 0 after it runs the migrations, so
+`docker compose ps` does not list it. If a service is not healthy, read its
 logs with `docker compose logs <service>` before you run the tests.
 
-The frontend MUST answer at `http://127.0.0.1:5173`.
+The suite uses `http://127.0.0.1:5173` by default. If you set
+`WEB_HOST_PORT` for the stack, set `FEWIA_E2E_BASE_URL` to the same port.
 
 ## Install Chromium
 
