@@ -573,6 +573,7 @@
   }
   .tonight-canvas {
     overflow: auto;
+    scroll-padding-top: 3.5rem;
   }
   .tonight-pinned {
     position: sticky;
@@ -605,6 +606,12 @@
   }
 }
 @media (min-width: 720px) {
+  .tonight-prototype {
+    --tonight-nav-height: 4.5rem;
+  }
+  html:has(.tonight-prototype) {
+    scroll-padding-bottom: 4.5rem;
+  }
   .tonight-prototype h1 {
     margin: 1.15rem 0 0.7rem;
     font-size: 1.8rem;
@@ -667,10 +674,11 @@
     position: sticky;
     top: 1rem;
     align-self: start;
-    max-height: calc(100vh - 2rem);
+    max-height: calc(100vh - 2rem - var(--tonight-nav-height));
     overflow: auto;
-    padding: 0 0.3rem;
-    margin: 0 -0.3rem;
+    scroll-padding-bottom: 0.5rem;
+    padding: 0.4rem;
+    margin: 0 -0.4rem;
   }
   .tonight-plan-side > :first-child {
     margin-top: 0;
