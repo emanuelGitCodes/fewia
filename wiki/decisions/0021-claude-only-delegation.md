@@ -28,7 +28,7 @@ never writes code and is still never the independent reviewer
 | Write code | Sonnet 5.5 | By rung | `dev_supervisor` starts `claude -p` as a writer. |
 | Judge the diff | Opus 5.5 | By tier | `dev_supervisor.review` starts `claude -p` read-only. |
 | Escalate by hand | Fable 5.1 | `high` | `/model fable`, then `/model opusplan` when done. |
-| Context guard | — | — | `autoCompactWindow` is 140000 tokens for every model. |
+| Context guard | — | — | `autoCompactWindow` is 1000000 tokens for every model. |
 
 The coordinator MUST consult the advisor at three moments and SHOULD NOT
 consult it elsewhere: before it commits to a design, after the same gate or
@@ -136,3 +136,15 @@ executor and advisor pair before it sends a request.
   `AGENTS.md`, and the `feature-loop` skill carry the new ladder.
 - The first loop after this decision records its tokens per phase in
   `wiki/log.md` against the backfill baseline.
+
+## Amendment 2026-10-16: context window
+
+The owner sets `autoCompactWindow` to 1000000 tokens for every session. The
+140000-token guard compacted long coordinator sessions too early. Each
+compaction drops verbatim tool output that the coordinator then reads again.
+
+- A Claude Code session compacts at 1000000 tokens, not at 140000.
+- An advisor consult reads the whole transcript, so a long session makes
+  each consult cost more. The three consult moments above stay the only
+  ones.
+- A model with a window below 1000000 tokens compacts at its own limit.
