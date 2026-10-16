@@ -4229,3 +4229,23 @@ The evaluation records these items and does not change them:
 
 The Opus review returned REQUEST_CHANGES on `1bb4c38` for an unbacked doc
 claim. It returned APPROVE on `a68c5d1` and `9c284ab`.
+
+## 2026-10-16 — Tonight test tighten
+
+This entry closes the last two items of the previous entry.
+
+- The meal-switch test reads the kcal value from the "Nutrition per serving"
+  region and asserts `590` and `750` exactly.
+- `frontend/src/rootView.tsx` holds the root selection. `main.tsx` renders
+  `selectRoot(window.location.pathname)`. Behavior does not change. The
+  build still emits `TonightPrototype-*.js` as a separate 12.15 kB chunk.
+- `frontend/src/rootView.test.tsx` checks that `/prototype` renders nothing
+  first and then resolves the lazy component. It also checks `/prototype/`
+  and `/`.
+- The synchronous check holds only in the first test of that file. Later
+  tests get the cached module. Vitest isolates modules per test file.
+
+A Sonnet writer made the change through `dev_supervisor` in one implement
+run and one repair run. The gates passed with 23 lines. The Opus review
+returned APPROVE on `cbdb560`. Usage: implement 48017 input and 3002 output
+tokens, repair 26219 and 886, review 21337 and 1358.
