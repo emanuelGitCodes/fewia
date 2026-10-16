@@ -1,4 +1,4 @@
-import { useRef, type JSX } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import { formatDollars } from "../money";
 import {
   ESTIMATE_NOTICE,
@@ -6,7 +6,7 @@ import {
   requireIngredient,
   type RecipeId,
 } from "./prototypeData";
-import { MealCards, MealPicker } from "./PlanMeals";
+import { MealCards, MealPicker, filterMeals } from "./PlanMeals";
 import { PlanShoppingList, PlanSummary, fitLine } from "./PlanSummary";
 import { planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
 
@@ -64,6 +64,27 @@ export function PlanPanel(props: {
   const mealCount = `${String(meals.length)} ${meals.length === 1 ? "meal" : "meals"}`;
   const servingCount = `${String(totalServings)} ${totalServings === 1 ? "serving" : "servings"}`;
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const pinnedRef = useRef<HTMLParagraphElement>(null);
+  const [filter, setFilter] = useState("");
+  const noMatch = filterMeals(filter).length === 0;
+  // The pinned bar can wrap at large text sizes, so the canvas scroll padding follows its height (WCAG 2.4.11).
+  useEffect(() => {
+    const pinned = pinnedRef.current;
+    const canvas = pinned?.closest(".tonight-canvas");
+    if (pinned === null || !(canvas instanceof HTMLElement)) {
+      return undefined;
+    }
+    const measure = (): void => {
+      canvas.style.setProperty("--tonight-pinned-height", `${String(pinned.offsetHeight)}px`);
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(pinned);
+    return () => {
+      observer?.disconnect();
+      canvas.style.removeProperty("--tonight-pinned-height");
+    };
+  }, []);
   // A removed card button unmounts, so focus moves to the heading (WCAG 2.4.3).
   const toggleMeal = (id: RecipeId, planned: boolean): void => {
     if (planned) {
@@ -73,12 +94,12 @@ export function PlanPanel(props: {
   };
   return (
     <section className="tonight-home" aria-labelledby="plan-heading">
-      <p className="tonight-pinned" aria-hidden="true">
+      <p className="tonight-pinned" aria-hidden="true" ref={pinnedRef}>
         {`${cost} · ${fitLine(costCents, props.state.budgetCents)}`}
       </p>
       <h1 id="plan-heading" ref={headingRef} tabIndex={-1}>Your plan</h1>
       <div className="tonight-plan-main">
-        <MealPicker meals={meals} onToggle={toggleMeal} />
+        <MealPicker meals={meals} filter={filter} onFilterChange={setFilter} onToggle={toggleMeal} />
         <MealCards
           meals={meals}
           servingsError={props.state.servingsError}
@@ -110,7 +131,7 @@ export function PlanPanel(props: {
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
       {/* One atomic status announces meals, servings, cost, fit, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
-        {`${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fitLine(costCents, props.state.budgetCents)} Whole packages · Sample estimate.`}
+        {`${noMatch ? "No meals match. " : ""}${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fitLine(costCents, props.state.budgetCents)} Whole packages · Sample estimate.`}
       </div>
     </section>
   );

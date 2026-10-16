@@ -570,6 +570,71 @@ describe("TonightPrototype", () => {
     expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
+  describe("pinned bar height", () => {
+    const PROPERTY = "--tonight-pinned-height";
+    const original = Object.getOwnPropertyDescriptor(globalThis, "ResizeObserver");
+
+    function restoreObserver(): void {
+      if (original === undefined) {
+        Reflect.deleteProperty(globalThis, "ResizeObserver");
+      } else {
+        Object.defineProperty(globalThis, "ResizeObserver", original);
+      }
+    }
+
+    function canvasOf(root: HTMLElement): HTMLElement {
+      const canvas = root.querySelector(".tonight-canvas");
+      if (!(canvas instanceof HTMLElement)) {
+        throw new Error("Missing tonight canvas");
+      }
+      return canvas;
+    }
+
+    afterEach(restoreObserver);
+
+    it("sets the property, observes the pinned bar, and cleans up on unmount", () => {
+      const observed: Element[] = [];
+      const callbacks: ResizeObserverCallback[] = [];
+      const disconnect = vi.fn();
+      class StubObserver {
+        constructor(callback: ResizeObserverCallback) {
+          callbacks.push(callback);
+        }
+        observe(target: Element): void {
+          observed.push(target);
+        }
+        unobserve(): void {}
+        disconnect = disconnect;
+      }
+      Object.defineProperty(globalThis, "ResizeObserver", {
+        value: StubObserver,
+        configurable: true,
+        writable: true,
+      });
+      const view = render(createElement(TonightPrototype));
+      const canvas = canvasOf(view.container);
+      const pinned = view.container.querySelector(".tonight-pinned");
+      expect(canvas.style.getPropertyValue(PROPERTY)).toBe("0px");
+      expect(callbacks).toHaveLength(1);
+      expect(observed).toEqual([pinned]);
+      Object.defineProperty(pinned, "offsetHeight", { value: 56, configurable: true });
+      act(() => {
+        callbacks[0]([], {} as ResizeObserver);
+      });
+      expect(canvas.style.getPropertyValue(PROPERTY)).toBe("56px");
+      view.unmount();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(canvas.style.getPropertyValue(PROPERTY)).toBe("");
+    });
+
+    it("renders and sets the property once without ResizeObserver", () => {
+      Reflect.deleteProperty(globalThis, "ResizeObserver");
+      const view = render(createElement(TonightPrototype));
+      expect(screen.getByRole("heading", { name: "Your plan" })).toBeTruthy();
+      expect(canvasOf(view.container).style.getPropertyValue(PROPERTY)).toBe("0px");
+    });
+  });
+
   describe("Find a meal filter", () => {
     function filterInput(): HTMLInputElement {
       return screen.getByLabelText("Find a meal") as HTMLInputElement;
@@ -617,6 +682,24 @@ describe("TonightPrototype", () => {
       typeFilter("");
       expect(screen.queryByText("No meals match.")).toBeNull();
       expect(tileNames()).toHaveLength(3);
+    });
+
+    it("announces an empty result in the one status and drops it when cleared", () => {
+      mount();
+      typeFilter("zzz");
+      expect(statusText().startsWith("No meals match. ")).toBe(true);
+      expect(statusText()).toBe(
+        "No meals match. 1 meal, 2 servings. Groceries to buy $8.06. $31.94 left under the $40.00 plan cap. Whole packages · Sample estimate.",
+      );
+      typeFilter("");
+      expect(statusText()).not.toContain("No meals match.");
+    });
+
+    it("keeps one status element while the filter matches nothing", () => {
+      mount();
+      typeFilter("zzz");
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
     });
 
     it("keeps the card and total of a planned meal whose tile is hidden", () => {

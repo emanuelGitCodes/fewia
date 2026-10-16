@@ -19,13 +19,18 @@ export function MealPhoto(props: { src: string; alt: string; className: string }
   );
 }
 
+export function filterMeals(filter: string): RecipeId[] {
+  const needle = filter.trim().toLowerCase();
+  return RECIPE_ORDER.filter((id) => RECIPES[id].name.toLowerCase().includes(needle));
+}
+
 export function MealPicker(props: {
   meals: PlannedMeal[];
+  filter: string;
+  onFilterChange: (value: string) => void;
   onToggle: (id: RecipeId, planned: boolean) => void;
 }): JSX.Element {
-  const [filter, setFilter] = useState("");
-  const needle = filter.trim().toLowerCase();
-  const visible = RECIPE_ORDER.filter((id) => RECIPES[id].name.toLowerCase().includes(needle));
+  const visible = filterMeals(props.filter);
   return (
     <>
       <label htmlFor="meal-filter" className="tonight-filter-label">Find a meal</label>
@@ -34,8 +39,8 @@ export function MealPicker(props: {
         type="search"
         className="tonight-filter"
         autoComplete="off"
-        value={filter}
-        onChange={(event) => { setFilter(event.target.value); }}
+        value={props.filter}
+        onChange={(event) => { props.onFilterChange(event.target.value); }}
       />
       {visible.length === 0 ? (
         <p>No meals match.</p>
