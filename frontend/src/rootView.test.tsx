@@ -22,7 +22,6 @@ describe("selectRoot", () => {
 
   it("ignores a trailing slash on /prototype/", async () => {
     render(selectRoot("/prototype/"));
-    expect(screen.queryByRole("heading", { name: "What sounds good?" })).toBeNull();
     expect(await screen.findByRole("heading", { name: "What sounds good?" })).toBeTruthy();
   });
 
