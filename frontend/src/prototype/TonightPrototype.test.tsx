@@ -13,6 +13,7 @@ import {
 import { TonightPrototype } from "./TonightPrototype";
 
 const AMOUNT_ERROR = "Enter a non-negative dollar amount with at most two decimal places.";
+const FIT_INITIAL = "$31.94 left under the $40.00 plan cap.";
 const TACO_MACROS = "379 kcal · 14.5 g protein · 55.8 g carbs · 12.3 g fat per serving";
 const RICE_MACROS = "590 kcal · 22.4 g protein · 76.7 g carbs · 20.6 g fat per serving";
 
@@ -52,6 +53,18 @@ function statusText(): string {
   const statuses = screen.getAllByRole("status");
   expect(statuses).toHaveLength(1);
   return textOf(statuses[0]);
+}
+
+function summaryText(): string {
+  return textOf(screen.getByRole("region", { name: "Plan summary" }));
+}
+
+function shoppingSection(): HTMLElement {
+  return screen.getByRole("region", { name: "Shopping list" });
+}
+
+function navButtons(): HTMLElement[] {
+  return within(screen.getByRole("navigation", { name: "Prototype sections" })).getAllByRole("button");
 }
 
 function pantryBox(id: string): HTMLInputElement {
@@ -200,8 +213,7 @@ describe("TonightPrototype", () => {
     click("Plan");
     expect(mainText()).toContain("$0.00");
     expect(textOf(card("Bean tacos"))).toContain(TACO_MACROS);
-    click("See shopping list");
-    expect(mainText()).toContain("Nothing to buy. Every ingredient is marked at home.");
+    expect(textOf(shoppingSection())).toContain("Nothing to buy. Every ingredient is marked at home.");
   });
 
   it("shows a serving bound message at 1 and 8", () => {
@@ -231,33 +243,32 @@ describe("TonightPrototype", () => {
 
   it("edits the plan cap without replacing the last valid budget", () => {
     mount();
-    click("Budget");
     const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
     expect(
       within(screen.getByRole("navigation", { name: "Prototype sections" })).getByRole("button", {
-        name: "Budget",
+        name: "Plan",
       }).getAttribute("aria-current"),
     ).toBe("page");
+    expect(summaryText()).toContain(FIT_INITIAL);
     act(() => {
       fireEvent.change(input, { target: { value: "12.345" } });
     });
     expect(mainText()).toContain(AMOUNT_ERROR);
-    expect(mainText()).toContain("This plan fits the $40.00 plan cap.");
+    expect(summaryText()).toContain(FIT_INITIAL);
     act(() => {
       fireEvent.change(input, { target: { value: "0" } });
     });
-    expect(mainText()).toContain("This plan is over the $0.00 plan cap.");
+    expect(summaryText()).toContain("$8.06 over the $0.00 plan cap.");
     act(() => {
       fireEvent.change(input, { target: { value: "5" } });
     });
-    expect(mainText()).toContain("This plan is over the $5.00 plan cap.");
+    expect(summaryText()).toContain("$3.06 over the $5.00 plan cap.");
     expect(mainText()).toContain(SAMPLE_ESTIMATE_NOTICE);
   });
 
   it("checks shopping items without changing cost and clears stale checks", () => {
     mount();
-    click("See shopping list");
-    expect(mainText()).toContain("Total $8.06");
+    expect(summaryText()).toContain("$8.06");
     const salsa = screen.getByLabelText(/salsa/) as HTMLInputElement;
     const onion = screen.getByLabelText(/onion/) as HTMLInputElement;
     act(() => {
@@ -266,17 +277,14 @@ describe("TonightPrototype", () => {
     });
     expect(salsa.checked).toBe(true);
     expect(onion.checked).toBe(true);
-    expect(mainText()).toContain("Total $8.06");
-    click("Back to plan");
+    expect(summaryText()).toContain("$8.06");
+    expect(summaryText()).toContain(FIT_INITIAL);
     click("Egg fried rice");
-    click("See shopping list");
     expect((screen.getByLabelText(/salsa/) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByLabelText(/onion/) as HTMLInputElement).checked).toBe(true);
-    click("Back to plan");
     // Tacos at 8 servings plus rice at 8 servings need 480 g of onion, two packages.
     clickTimes("Increase servings for Bean tacos", 6);
     clickTimes("Increase servings for Egg fried rice", 6);
-    click("See shopping list");
     expect((screen.getByLabelText(/salsa/) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByLabelText(/onion/) as HTMLInputElement).checked).toBe(false);
     expect(
@@ -305,8 +313,9 @@ describe("TonightPrototype", () => {
       fireEvent.click(oil);
     });
     expect(document.activeElement).toBe(oil);
-    click("Budget");
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Budget" }));
+    canvas.scrollTop = 48;
+    click("Plan");
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
     expect(canvas.scrollTop).toBe(0);
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
     const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
@@ -321,15 +330,6 @@ describe("TonightPrototype", () => {
     });
     expect(document.activeElement).toBe(input);
     expect(input.value).toBe("12.5");
-    click("Plan");
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
-    expect(canvas.scrollTop).toBe(0);
-    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
-    canvas.scrollTop = 48;
-    click("See shopping list");
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Shopping list" }));
-    expect(canvas.scrollTop).toBe(0);
-    expect(window.scrollTo).toHaveBeenLastCalledWith(0, 0);
   });
 
   it("includes pantry status and edit action in the control name", () => {
@@ -355,7 +355,7 @@ describe("TonightPrototype", () => {
     const nav = within(screen.getByRole("navigation", { name: "Prototype sections" }));
     expect(nav.getByRole("button", { name: "Plan" }).getAttribute("aria-current")).toBe("page");
     expect(nav.getByRole("button", { name: "Pantry" }).hasAttribute("aria-current")).toBe(false);
-    expect(nav.getByRole("button", { name: "Budget" }).hasAttribute("aria-current")).toBe(false);
+    expect(navButtons().map((button) => textOf(button))).toEqual(["Plan", "Pantry"]);
     click("Chickpea curry");
     expect(buttonNamed("Chickpea curry").getAttribute("aria-pressed")).toBe("true");
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
@@ -368,23 +368,23 @@ describe("TonightPrototype", () => {
   it("keeps one Plan estimate status for recipe and serving changes", () => {
     mount();
     expect(statusText()).toBe(
-      "1 meal, 2 servings. Groceries to buy $8.06. Whole packages · Sample estimate.",
+      "1 meal, 2 servings. Groceries to buy $8.06. $31.94 left under the $40.00 plan cap. Whole packages · Sample estimate.",
     );
     click("Egg fried rice");
     expect(statusText()).toBe(
-      "2 meals, 4 servings. Groceries to buy $18.41. Whole packages · Sample estimate.",
+      "2 meals, 4 servings. Groceries to buy $18.41. $21.59 left under the $40.00 plan cap. Whole packages · Sample estimate.",
     );
     click("Egg fried rice");
     expect(statusText()).toBe(
-      "1 meal, 2 servings. Groceries to buy $8.06. Whole packages · Sample estimate.",
+      "1 meal, 2 servings. Groceries to buy $8.06. $31.94 left under the $40.00 plan cap. Whole packages · Sample estimate.",
     );
     click("Increase servings for Bean tacos");
     expect(statusText()).toBe(
-      "1 meal, 3 servings. Groceries to buy $8.06. Whole packages · Sample estimate.",
+      "1 meal, 3 servings. Groceries to buy $8.06. $31.94 left under the $40.00 plan cap. Whole packages · Sample estimate.",
     );
     click("Increase servings for Bean tacos");
     expect(statusText()).toBe(
-      "1 meal, 4 servings. Groceries to buy $9.35. Whole packages · Sample estimate.",
+      "1 meal, 4 servings. Groceries to buy $9.35. $30.65 left under the $40.00 plan cap. Whole packages · Sample estimate.",
     );
   });
 
@@ -392,7 +392,7 @@ describe("TonightPrototype", () => {
     mount();
     click("Decrease servings for Bean tacos");
     const boundText =
-      "1 meal, 1 serving. Groceries to buy $8.06. Whole packages · Sample estimate.";
+      "1 meal, 1 serving. Groceries to buy $8.06. $31.94 left under the $40.00 plan cap. Whole packages · Sample estimate.";
     expect(statusText()).toBe(boundText);
     click("Decrease servings for Bean tacos");
     expect(statusText()).toBe(boundText);
@@ -418,9 +418,58 @@ describe("TonightPrototype", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
   });
 
-  it("keeps an invalid plan cap linked after leaving Budget", () => {
+  it("shows the fit line and plan total nutrition", () => {
     mount();
-    click("Budget");
+    const fit = screen.getByText(FIT_INITIAL);
+    expect(fit.getAttribute("role")).toBeNull();
+    const total = within(screen.getByRole("region", { name: "Plan summary" }));
+    const expected: ReadonlyArray<readonly [string, string]> = [
+      ["758", "kcal"],
+      ["29", "g protein"],
+      ["111.6", "g carbs"],
+      ["24.6", "g fat"],
+    ];
+    for (const [value, label] of expected) {
+      expect(textOf(total.getByText(value).parentElement as HTMLElement)).toBe(`${value}${label}`);
+    }
+    expect(total.getByText("Demo estimates")).toBeTruthy();
+  });
+
+  it("shows the lines that each ingredient is used in", () => {
+    mount();
+    click("Egg fried rice");
+    expect(
+      screen.getByText("1 package · $1.29 · Used in Bean tacos, Egg fried rice"),
+    ).toBeTruthy();
+  });
+
+  it("has exactly one status element on the Plan page", () => {
+    mount();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByText(FIT_INITIAL).getAttribute("role")).toBeNull();
+  });
+
+  it("reports an empty plan in the status and the shopping list", () => {
+    mount();
+    click("Remove Bean tacos");
+    expect(statusText()).toBe(
+      "0 meals, 0 servings. Groceries to buy $0.00. $40.00 left under the $40.00 plan cap. Whole packages · Sample estimate.",
+    );
+    expect(textOf(shoppingSection())).toContain("Nothing to buy. Every ingredient is marked at home.");
+  });
+
+  it("lists the at-home ingredient names", () => {
+    mount();
+    const names = within(shoppingSection()).getByText(
+      (_, element) =>
+        element?.tagName === "P" &&
+        ["olive oil", "salt", "ground cumin"].every((name) => textOf(element as HTMLElement).includes(name)),
+    );
+    expect(textOf(names)).not.toContain("salsa");
+  });
+
+  it("keeps an invalid plan cap linked after visiting Pantry", () => {
+    mount();
     const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
     act(() => {
       fireEvent.change(input, { target: { value: "12.345" } });
@@ -428,14 +477,14 @@ describe("TonightPrototype", () => {
     expect(input.getAttribute("aria-invalid")).toBe("true");
     expect(input.getAttribute("aria-describedby")).toBe("budget-error");
     expect(textOf(screen.getByRole("alert"))).toBe(AMOUNT_ERROR);
+    click("Pantry");
     click("Plan");
-    click("Budget");
     const returned = screen.getByLabelText("Plan cap") as HTMLInputElement;
     expect(returned.value).toBe("12.345");
     expect(returned.getAttribute("aria-invalid")).toBe("true");
     expect(returned.getAttribute("aria-describedby")).toBe("budget-error");
     expect(textOf(screen.getByRole("alert"))).toBe(AMOUNT_ERROR);
     expect(returned.getAttribute("aria-describedby")).toBe(screen.getByRole("alert").id);
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Budget" }));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
   });
 });

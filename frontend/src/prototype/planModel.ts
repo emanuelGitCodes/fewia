@@ -15,7 +15,7 @@ import {
 import { packageCount, withBudgetInput } from "./prototypeModel";
 
 export type PlannedMeal = { recipeId: RecipeId; servings: number };
-export type PlanView = "plan" | "pantry" | "shopping" | "budget";
+export type PlanView = "plan" | "pantry";
 export type PlanState = {
   meals: PlannedMeal[];
   pantry: string[];

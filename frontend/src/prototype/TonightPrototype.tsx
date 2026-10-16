@@ -3,7 +3,6 @@ import { DEMO_NOTICE } from "./prototypeData";
 import {
   addMeal,
   initialPlanState,
-  planCost,
   planLines,
   removeMeal,
   shiftMealServings,
@@ -13,13 +12,7 @@ import {
   withPlanView,
   type PlanState,
 } from "./planModel";
-import {
-  BudgetPanel,
-  PantryPanel,
-  PlanPanel,
-  PrototypeNav,
-  ShoppingPanel,
-} from "./PrototypePanels";
+import { PantryPanel, PlanPanel, PrototypeNav } from "./PrototypePanels";
 import "./tonight.css";
 
 export function TonightPrototype(): JSX.Element {
@@ -28,7 +21,6 @@ export function TonightPrototype(): JSX.Element {
   const canvasRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const lines = planLines(state);
-  const costCents = planCost(lines);
   useEffect(() => {
     // Focus moves only when the view changes.
     if (previousView.current === state.view) {
@@ -63,11 +55,14 @@ export function TonightPrototype(): JSX.Element {
               onShiftServings={(id, delta) => {
                 setState((current) => shiftMealServings(current, id, delta));
               }}
+              onToggleChecked={(id) => {
+                setState((current) => togglePlanChecked(current, id));
+              }}
+              onBudgetChange={(value) => {
+                setState((current) => withPlanBudgetInput(current, value));
+              }}
               onEditPantry={() => {
                 setState((current) => withPlanView(current, "pantry"));
-              }}
-              onSeeShopping={() => {
-                setState((current) => withPlanView(current, "shopping"));
               }}
             />
           ) : null}
@@ -79,29 +74,6 @@ export function TonightPrototype(): JSX.Element {
               }}
               onBack={() => {
                 setState((current) => withPlanView(current, "plan"));
-              }}
-            />
-          ) : null}
-          {state.view === "shopping" ? (
-            <ShoppingPanel
-              lines={lines}
-              checked={state.checked}
-              onToggle={(id) => {
-                setState((current) => togglePlanChecked(current, id));
-              }}
-              onBack={() => {
-                setState((current) => withPlanView(current, "plan"));
-              }}
-            />
-          ) : null}
-          {state.view === "budget" ? (
-            <BudgetPanel
-              budgetInput={state.budgetInput}
-              budgetCents={state.budgetCents}
-              budgetError={state.budgetError}
-              costCents={costCents}
-              onChange={(value) => {
-                setState((current) => withPlanBudgetInput(current, value));
               }}
             />
           ) : null}

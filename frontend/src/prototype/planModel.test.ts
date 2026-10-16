@@ -151,7 +151,7 @@ describe("shiftMealServings", () => {
     const ok = shiftMealServings(failed, "bean_tacos", 1);
     expect(ok.servingsError).toBeNull();
     expect(ok.meals[0]?.servings).toBe(2);
-    expect(withPlanView(failed, "budget").servingsError).toBeNull();
+    expect(withPlanView(failed, "pantry").servingsError).toBeNull();
   });
 });
 
