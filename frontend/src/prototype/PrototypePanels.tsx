@@ -1,24 +1,13 @@
-import { useEffect, useState, type JSX } from "react";
+import { useRef, type JSX } from "react";
 import { formatDollars } from "../money";
 import {
   ESTIMATE_NOTICE,
-  NUTRITION_DEMO_LABEL,
   PANTRY_IDS,
-  RECIPE_ORDER,
-  RECIPES,
   requireIngredient,
   type RecipeId,
 } from "./prototypeData";
-import {
-  atHomeNames,
-  formatMacro,
-  groceryCost,
-  mealFits,
-  shoppingLines,
-  type GroceryLine,
-  type PrototypeState,
-  type PrototypeView,
-} from "./prototypeModel";
+import { MealCards, MealPicker } from "./PlanMeals";
+import { budgetGap, planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
 
 export type IconName = "fork" | "jar" | "bars" | "pencil" | "arrow" | "back";
 
@@ -48,126 +37,69 @@ export function GeometryIcon(props: { name: IconName }): JSX.Element {
   );
 }
 
-function MealPhoto(props: { src: string; alt: string; className: string }): JSX.Element {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    setFailed(false);
-  }, [props.src]);
-  return (
-    <div className={props.className}>
-      {failed ? (
-        <span className="tonight-photo-fallback">{props.alt}</span>
-      ) : (
-        <img src={props.src} alt={props.alt} onError={() => { setFailed(true); }} />
-      )}
-    </div>
-  );
-}
-
-function BackTonight(props: { onBack: () => void }): JSX.Element {
+function BackToPlan(props: { onBack: () => void }): JSX.Element {
   return (
     <button type="button" className="tonight-back" onClick={props.onBack}>
       <GeometryIcon name="back" />
-      Back to tonight
+      Back to plan
     </button>
   );
 }
 
-export function TonightPanel(props: {
-  state: PrototypeState;
-  lines: GroceryLine[];
-  onSelect: (id: RecipeId) => void;
-  onShiftServings: (delta: number) => void;
+export function PlanPanel(props: {
+  state: PlanState;
+  lines: PlanLine[];
+  onToggleMeal: (id: RecipeId, planned: boolean) => void;
+  onShiftServings: (id: RecipeId, delta: number) => void;
   onEditPantry: () => void;
   onSeeShopping: () => void;
 }): JSX.Element {
-  const recipe = RECIPES[props.state.recipeId];
-  const cost = formatDollars(groceryCost(props.lines));
-  const home = atHomeNames(props.state);
-  const pantryStatus = home.length === 0 ? "None marked" : `${String(home.length)} at home`;
-  const servingsLabel = `${String(props.state.servings)} ${props.state.servings === 1 ? "serving" : "servings"}`;
-  const macros: ReadonlyArray<readonly [string, string]> = [
-    [formatMacro(recipe.nutrition.energyKcal), "kcal"],
-    [`${formatMacro(recipe.nutrition.proteinG)} g`, "Protein"],
-    [`${formatMacro(recipe.nutrition.carbsG)} g`, "Carbs"],
-    [`${formatMacro(recipe.nutrition.fatG)} g`, "Fat"],
-  ];
+  const { meals } = props.state;
+  const cost = formatDollars(planCost(props.lines));
+  const home = props.lines.filter((line) => line.fromPantry).length;
+  const pantryStatus = home === 0 ? "None marked" : `${String(home)} at home`;
+  const totalServings = meals.reduce((sum, meal) => sum + meal.servings, 0);
+  const mealCount = `${String(meals.length)} ${meals.length === 1 ? "meal" : "meals"}`;
+  const servingCount = `${String(totalServings)} ${totalServings === 1 ? "serving" : "servings"}`;
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // A removed card button unmounts, so focus moves to the heading (WCAG 2.4.3).
+  const toggleMeal = (id: RecipeId, planned: boolean): void => {
+    if (planned) {
+      headingRef.current?.focus({ preventScroll: false });
+    }
+    props.onToggleMeal(id, planned);
+  };
   return (
-    <section className="tonight-home" aria-labelledby="tonight-heading">
-      <h1 id="tonight-heading" tabIndex={-1}>What sounds good?</h1>
-      <div className="tonight-meals" role="group" aria-label="Meal choices">
-        {RECIPE_ORDER.map((id) => {
-          const choice = RECIPES[id];
-          const selected = id === props.state.recipeId;
-          return (
-            <button
-              key={id}
-              type="button"
-              className={selected ? "tonight-meal is-selected" : "tonight-meal"}
-              aria-pressed={selected}
-              onClick={() => { props.onSelect(id); }}
-            >
-              <MealPhoto src={choice.image} alt="" className="tonight-thumb" />
-              <span>{choice.name}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="tonight-hero">
-        <MealPhoto src={recipe.image} alt={recipe.name} className="tonight-photo" />
-        <div className="tonight-facts">
-          <h2>{recipe.name}</h2>
-          {/* Visible serving and price text stay outside live regions. */}
-          <div className="tonight-stepper" role="group" aria-label="Servings">
-            <button type="button" aria-label="Decrease servings" onClick={() => { props.onShiftServings(-1); }}>
-              −
-            </button>
-            <div className="tonight-servings">{servingsLabel}</div>
-            <button type="button" aria-label="Increase servings" onClick={() => { props.onShiftServings(1); }}>
-              +
-            </button>
-          </div>
-          {props.state.servingsError !== null ? (
-            <p className="tonight-error" role="alert">{props.state.servingsError}</p>
-          ) : null}
-          <p className="tonight-kicker">Groceries to buy</p>
-          <p className="tonight-price">{cost}</p>
-          <p className="tonight-package">Whole packages · Sample estimate</p>
-          <p className="tonight-kicker">Already at home</p>
-          <button
-            type="button"
-            className="tonight-pantry-row"
-            aria-label={`${pantryStatus}, Edit pantry`}
-            onClick={props.onEditPantry}
-          >
-            <span>{pantryStatus}</span>
-            <GeometryIcon name="pencil" />
-          </button>
-        </div>
-      </div>
-      <section className="tonight-nutrition" aria-labelledby="nutrition-heading">
-        <div className="tonight-nutrition-head">
-          <h2 id="nutrition-heading">Nutrition per serving</h2>
-          <p className="tonight-nutrition-note">{NUTRITION_DEMO_LABEL}</p>
-        </div>
-        {/* Nutrition values stay per serving. Servings and pantry leave them unchanged. */}
-        <div className="tonight-macros">
-          {macros.map(([value, label]) => (
-            <div key={label}>
-              <p>{value}</p>
-              <p>{label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+    <section className="tonight-home" aria-labelledby="plan-heading">
+      <h1 id="plan-heading" ref={headingRef} tabIndex={-1}>Your plan</h1>
+      <MealPicker meals={meals} onToggle={toggleMeal} />
+      <MealCards
+        meals={meals}
+        servingsError={props.state.servingsError}
+        onShiftServings={props.onShiftServings}
+        onRemove={(id) => { toggleMeal(id, true); }}
+      />
+      <p className="tonight-kicker">Groceries to buy</p>
+      <p className="tonight-price">{cost}</p>
+      <p className="tonight-package">Whole packages · Sample estimate</p>
+      <p className="tonight-kicker">Already at home</p>
+      <button
+        type="button"
+        className="tonight-pantry-row"
+        aria-label={`${pantryStatus}, Edit pantry`}
+        onClick={props.onEditPantry}
+      >
+        <span>{pantryStatus}</span>
+        <GeometryIcon name="pencil" />
+      </button>
       <button type="button" className="tonight-primary" onClick={props.onSeeShopping}>
         <span>See shopping list</span>
         <GeometryIcon name="arrow" />
       </button>
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
-      {/* One atomic status announces meal, servings, cost, and the estimate qualifier. */}
+      {/* One atomic status announces meals, servings, cost, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
-        {`${recipe.name}, ${servingsLabel}. Groceries to buy ${cost}. Whole packages · Sample estimate.`}
+        {`${mealCount}, ${servingCount}. Groceries to buy ${cost}. Whole packages · Sample estimate.`}
       </div>
     </section>
   );
@@ -180,7 +112,7 @@ export function PantryPanel(props: {
 }): JSX.Element {
   return (
     <section className="tonight-page" aria-labelledby="pantry-heading">
-      <BackTonight onBack={props.onBack} />
+      <BackToPlan onBack={props.onBack} />
       <h1 id="pantry-heading" tabIndex={-1}>Pantry</h1>
       <p>Mark ingredients you already have.</p>
       <ul className="tonight-check-list">
@@ -206,16 +138,16 @@ export function PantryPanel(props: {
 }
 
 export function ShoppingPanel(props: {
-  lines: GroceryLine[];
+  lines: PlanLine[];
   checked: string[];
   onToggle: (id: string) => void;
   onBack: () => void;
 }): JSX.Element {
-  const needed = shoppingLines(props.lines);
-  const total = formatDollars(groceryCost(props.lines));
+  const needed = props.lines.filter((line) => !line.fromPantry);
+  const total = formatDollars(planCost(props.lines));
   return (
     <section className="tonight-page" aria-labelledby="shopping-heading">
-      <BackTonight onBack={props.onBack} />
+      <BackToPlan onBack={props.onBack} />
       <h1 id="shopping-heading" tabIndex={-1}>Shopping list</h1>
       {needed.length === 0 ? (
         <p role="status">Nothing to buy. Every ingredient is marked at home.</p>
@@ -251,16 +183,18 @@ export function ShoppingPanel(props: {
 }
 
 export function BudgetPanel(props: {
-  state: PrototypeState;
+  budgetInput: string;
+  budgetCents: number;
+  budgetError: string | null;
   costCents: number;
   onChange: (value: string) => void;
 }): JSX.Element {
   const cost = formatDollars(props.costCents);
-  const cap = formatDollars(props.state.budgetCents);
-  const fits = mealFits(props.costCents, props.state.budgetCents);
+  const cap = formatDollars(props.budgetCents);
+  const { fits } = budgetGap(props.costCents, props.budgetCents);
   const status = fits
-    ? `This meal fits the ${cap} plan cap.`
-    : `This meal is over the ${cap} plan cap.`;
+    ? `This plan fits the ${cap} plan cap.`
+    : `This plan is over the ${cap} plan cap.`;
   return (
     <section className="tonight-page" aria-labelledby="budget-heading">
       <h1 id="budget-heading" tabIndex={-1}>Budget</h1>
@@ -270,13 +204,13 @@ export function BudgetPanel(props: {
         type="text"
         inputMode="decimal"
         autoComplete="off"
-        value={props.state.budgetInput}
-        aria-invalid={props.state.budgetError !== null}
-        aria-describedby={props.state.budgetError !== null ? "budget-error" : "budget-status"}
+        value={props.budgetInput}
+        aria-invalid={props.budgetError !== null}
+        aria-describedby={props.budgetError !== null ? "budget-error" : "budget-status"}
         onChange={(event) => { props.onChange(event.target.value); }}
       />
-      {props.state.budgetError !== null ? (
-        <p id="budget-error" className="tonight-error" role="alert">{props.state.budgetError}</p>
+      {props.budgetError !== null ? (
+        <p id="budget-error" className="tonight-error" role="alert">{props.budgetError}</p>
       ) : null}
       <p>{`Groceries to buy ${cost}`}</p>
       <p id="budget-status" role="status">{status}</p>
@@ -286,20 +220,20 @@ export function BudgetPanel(props: {
 }
 
 export function PrototypeNav(props: {
-  view: PrototypeView;
-  onNav: (view: "tonight" | "pantry" | "budget") => void;
+  view: PlanView;
+  onNav: (view: "plan" | "pantry" | "budget") => void;
 }): JSX.Element {
   const items: ReadonlyArray<{
-    view: "tonight" | "pantry" | "budget";
+    view: "plan" | "pantry" | "budget";
     icon: IconName;
     label: string;
     current: boolean;
   }> = [
     {
-      view: "tonight",
+      view: "plan",
       icon: "fork",
-      label: "Tonight",
-      current: props.view === "tonight" || props.view === "shopping",
+      label: "Plan",
+      current: props.view === "plan" || props.view === "shopping",
     },
     { view: "pantry", icon: "jar", label: "Pantry", current: props.view === "pantry" },
     { view: "budget", icon: "bars", label: "Budget", current: props.view === "budget" },

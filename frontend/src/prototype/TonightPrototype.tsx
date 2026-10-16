@@ -1,33 +1,34 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import { DEMO_NOTICE } from "./prototypeData";
 import {
-  groceryCost,
-  groceryLines,
-  initialState,
-  shiftServings,
-  toggleChecked,
-  togglePantry,
-  withBudgetInput,
-  withRecipe,
-  withView,
-  type PrototypeState,
-} from "./prototypeModel";
+  addMeal,
+  initialPlanState,
+  planCost,
+  planLines,
+  removeMeal,
+  shiftMealServings,
+  togglePlanChecked,
+  togglePlanPantry,
+  withPlanBudgetInput,
+  withPlanView,
+  type PlanState,
+} from "./planModel";
 import {
   BudgetPanel,
   PantryPanel,
+  PlanPanel,
   PrototypeNav,
   ShoppingPanel,
-  TonightPanel,
 } from "./PrototypePanels";
 import "./tonight.css";
 
 export function TonightPrototype(): JSX.Element {
-  const [state, setState] = useState<PrototypeState>(initialState);
+  const [state, setState] = useState<PlanState>(initialPlanState);
   const previousView = useRef(state.view);
   const canvasRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
-  const lines = groceryLines(state);
-  const costCents = groceryCost(lines);
+  const lines = planLines(state);
+  const costCents = planCost(lines);
   useEffect(() => {
     // Focus moves only when the view changes.
     if (previousView.current === state.view) {
@@ -52,21 +53,21 @@ export function TonightPrototype(): JSX.Element {
           <p className="tonight-demo">{DEMO_NOTICE}</p>
         </header>
         <main ref={mainRef}>
-          {state.view === "tonight" ? (
-            <TonightPanel
+          {state.view === "plan" ? (
+            <PlanPanel
               state={state}
               lines={lines}
-              onSelect={(id) => {
-                setState((current) => withRecipe(current, id));
+              onToggleMeal={(id, planned) => {
+                setState((current) => (planned ? removeMeal(current, id) : addMeal(current, id)));
               }}
-              onShiftServings={(delta) => {
-                setState((current) => shiftServings(current, delta));
+              onShiftServings={(id, delta) => {
+                setState((current) => shiftMealServings(current, id, delta));
               }}
               onEditPantry={() => {
-                setState((current) => withView(current, "pantry"));
+                setState((current) => withPlanView(current, "pantry"));
               }}
               onSeeShopping={() => {
-                setState((current) => withView(current, "shopping"));
+                setState((current) => withPlanView(current, "shopping"));
               }}
             />
           ) : null}
@@ -74,10 +75,10 @@ export function TonightPrototype(): JSX.Element {
             <PantryPanel
               pantry={state.pantry}
               onToggle={(id) => {
-                setState((current) => togglePantry(current, id));
+                setState((current) => togglePlanPantry(current, id));
               }}
               onBack={() => {
-                setState((current) => withView(current, "tonight"));
+                setState((current) => withPlanView(current, "plan"));
               }}
             />
           ) : null}
@@ -86,19 +87,21 @@ export function TonightPrototype(): JSX.Element {
               lines={lines}
               checked={state.checked}
               onToggle={(id) => {
-                setState((current) => toggleChecked(current, id));
+                setState((current) => togglePlanChecked(current, id));
               }}
               onBack={() => {
-                setState((current) => withView(current, "tonight"));
+                setState((current) => withPlanView(current, "plan"));
               }}
             />
           ) : null}
           {state.view === "budget" ? (
             <BudgetPanel
-              state={state}
+              budgetInput={state.budgetInput}
+              budgetCents={state.budgetCents}
+              budgetError={state.budgetError}
               costCents={costCents}
               onChange={(value) => {
-                setState((current) => withBudgetInput(current, value));
+                setState((current) => withPlanBudgetInput(current, value));
               }}
             />
           ) : null}
@@ -110,7 +113,7 @@ export function TonightPrototype(): JSX.Element {
       <PrototypeNav
         view={state.view}
         onNav={(view) => {
-          setState((current) => withView(current, view));
+          setState((current) => withPlanView(current, view));
         }}
       />
     </div>
