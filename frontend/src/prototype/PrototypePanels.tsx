@@ -121,7 +121,7 @@ export function TonightPanel(props: {
             <button type="button" aria-label="Decrease servings" onClick={() => { props.onShiftServings(-1); }}>
               −
             </button>
-            <div className="tonight-servings" role="status">{servingsLabel}</div>
+            <div className="tonight-servings">{servingsLabel}</div>
             <button type="button" aria-label="Increase servings" onClick={() => { props.onShiftServings(1); }}>
               +
             </button>
@@ -130,7 +130,7 @@ export function TonightPanel(props: {
             <p className="tonight-error" role="alert">{props.state.servingsError}</p>
           ) : null}
           <p className="tonight-kicker">Groceries to buy</p>
-          <p className="tonight-price" role="status">{cost}</p>
+          <p className="tonight-price">{cost}</p>
           <p className="tonight-package">Whole packages · Sample estimate</p>
           <p className="tonight-kicker">Already at home</p>
           <button
@@ -163,6 +163,9 @@ export function TonightPanel(props: {
         <GeometryIcon name="arrow" />
       </button>
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
+      <div className="tonight-estimate-status" role="status" aria-atomic="true">
+        {`${recipe.name}, ${servingsLabel}. Groceries to buy ${cost}. Whole packages · Sample estimate.`}
+      </div>
     </section>
   );
 }

@@ -323,4 +323,69 @@ describe("TonightPrototype", () => {
     expect(nav.getByRole("button", { name: "Pantry" }).getAttribute("aria-current")).toBe("page");
     expect(nav.getByRole("button", { name: "Tonight" }).hasAttribute("aria-current")).toBe(false);
   });
+
+  it("keeps one Tonight estimate status for recipe and serving changes", () => {
+    mount();
+    const initial = screen.getAllByRole("status");
+    expect(initial).toHaveLength(1);
+    expect(textOf(initial[0])).toBe(
+      "Bean tacos, 2 servings. Groceries to buy $8.06. Whole packages · Sample estimate.",
+    );
+    act(() => {
+      fireEvent.click(buttonNamed("Egg fried rice"));
+    });
+    const rice = screen.getAllByRole("status");
+    expect(rice).toHaveLength(1);
+    expect(textOf(rice[0])).toBe(
+      "Egg fried rice, 2 servings. Groceries to buy $11.64. Whole packages · Sample estimate.",
+    );
+    expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("true");
+    const beforeRepeat = textOf(rice[0]);
+    act(() => {
+      fireEvent.click(buttonNamed("Egg fried rice"));
+    });
+    const unchanged = screen.getAllByRole("status");
+    expect(unchanged).toHaveLength(1);
+    expect(textOf(unchanged[0])).toBe(beforeRepeat);
+    expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("true");
+    act(() => {
+      fireEvent.click(buttonNamed("Bean tacos"));
+    });
+    act(() => {
+      fireEvent.click(buttonNamed("Increase servings"));
+    });
+    const sameCost = screen.getAllByRole("status");
+    expect(sameCost).toHaveLength(1);
+    expect(textOf(sameCost[0])).toBe(
+      "Bean tacos, 3 servings. Groceries to buy $8.06. Whole packages · Sample estimate.",
+    );
+    act(() => {
+      fireEvent.click(buttonNamed("Increase servings"));
+    });
+    const packed = screen.getAllByRole("status");
+    expect(packed).toHaveLength(1);
+    expect(textOf(packed[0])).toBe(
+      "Bean tacos, 4 servings. Groceries to buy $9.35. Whole packages · Sample estimate.",
+    );
+  });
+
+  it("keeps the estimate status still when a serving bound is rejected", () => {
+    mount();
+    act(() => {
+      fireEvent.click(buttonNamed("Decrease servings"));
+    });
+    const atBound = screen.getAllByRole("status");
+    expect(atBound).toHaveLength(1);
+    const boundText =
+      "Bean tacos, 1 serving. Groceries to buy $8.06. Whole packages · Sample estimate.";
+    expect(textOf(atBound[0])).toBe(boundText);
+    act(() => {
+      fireEvent.click(buttonNamed("Decrease servings"));
+    });
+    const rejected = screen.getAllByRole("status");
+    expect(rejected).toHaveLength(1);
+    expect(textOf(rejected[0])).toBe(boundText);
+    expect(textOf(screen.getByRole("alert"))).toBe(SERVING_ERROR);
+    expect(textOf(screen.getByRole("main"))).toContain("1 serving");
+  });
 });
