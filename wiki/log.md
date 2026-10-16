@@ -4155,3 +4155,34 @@ implementation and one repair. Recorded writer use is 772,241 input tokens,
 26,047 output tokens, and 540.616 seconds. Native coordinator and junior use
 is unknown and excluded. Sol at medium is the independent review model.
 The review and final gate records are keyed by SHA in their supervisor folders.
+
+## 2026-10-16 — Tonight prototype documentation and graph
+
+The user requested code comments, a wiki record, and a graph update for the
+prototype work. The [phase record](phases/tonight-prototype.md) links the
+approved design, demo contracts, source map, image provenance, implementation
+commits, and accessibility evidence. The run guide and wiki index link it.
+Code comments explain package units, integer-cent costs, budget drafts,
+shopping-check resets, view focus, and the atomic meal status.
+This work changes comments and documentation. It adds no runtime behavior.
+
+The accessibility limits remain explicit: 36 criteria checked, 18 not
+applicable, and one partial. The 46 axe scans belong to the earlier WCAG
+repair. VoiceOver testing remains paused after the interrupted repetition.
+VoiceOver was stopped. The scripting-control setting reset is unconfirmed.
+No browser or VoiceOver test ran for this documentation work.
+
+This worktree had no graph. The refresh starts from the verified graph in
+the main checkout at `24804fb2c9643a116adeaa9f28af94c0987eb7db`.
+That seed has 10,338 nodes and 31,751 edges. Changed files are extracted from
+this branch. The main checkout graph stays unchanged. The refresh preserves
+valid log facts whose source text is unchanged. It replaces facts whose
+source text changed. Generated graph files stay local under `graphify-out/`.
+The [refresh snapshot](artifacts/tonight-prototype-graph-20261016.json)
+records the source hashes, counts, exclusions, diagnostics, and local paths.
+
+A Luna junior runs the Tier M writer through the supervisor. The writer is
+Grok 4.6 at medium with standard complexity. Sol at medium supplies the
+independent review. Gates and review results are keyed by commit SHA in
+their supervisor folders. Native coordinator, junior, and graph-agent usage
+is unavailable. No push, pull request, merge, or deployment is in scope.
