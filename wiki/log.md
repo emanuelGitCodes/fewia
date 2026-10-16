@@ -4003,6 +4003,50 @@ class. Each fix moved item 04's base, so item 04 was rebased and
 reviewed again twice. Finish a prose review before opening the next
 worktree on it.
 
+## 2026-10-14 — Impeccable design context and first frontend review
+
+The owner chose [Impeccable](https://impeccable.style/) to style the
+frontend. `PRODUCT.md` gains the Impeccable sections: Users, Product
+Purpose, Positioning, Product Principles, and Accessibility & Inclusion.
+The primary user is a budget shopper. The interface MUST meet WCAG 2.2 AA.
+`DESIGN.md` records the incumbent visual system, "The Market Ledger", from
+the shipped CSS.
+
+The first `critique` and `audit` ran read-only on `main` through the local
+Compose stack. The design review scored 23/40 and the technical audit
+14/20. The detector reported two `side-tab` warnings; both are false
+positives, because `DESIGN.md` makes the 3 px notice rule part of the
+system. The P1 findings are:
+
+| Finding | Evidence |
+|---|---|
+| The over-budget state shows no gap figure | `Estimate.tsx`, PRODUCT.md principle 1 |
+| The unavailable chat leads the stacked layout | `chat.css` grid order, WCAG 1.3.2 |
+| The estimate ledger wraps in the narrowest column | `chat.css`, `estimate.css` |
+| Control borders are 2.01:1 | `#aabbb2` on `#ffffff`, WCAG 1.4.11 |
+| Focus drops to `<body>` after Build and Rebuild | WCAG 2.4.3 |
+| Estimate lines overlap at 200% text on 375 px | WCAG 1.4.4 |
+
+The owner chose the harden batch first: a control-border token, focus
+management, and one status region per job.
+
+The `impeccable-harden` loop then built the three items. Each passed the
+gates and an Opus review, and each is a pull request.
+
+| Item | Change | Lines | Review | PR |
+|---|---|---|---|---|
+| 01 | `--control-line` (#7d9488, 3.25:1) for control borders | 3 | APPROVE `d66c6b3` | #435 |
+| 02 | Focus moves to a stable target after Build, Rebuild, the examples, Send, and handoff Confirm | 41 | APPROVE `9cb9dfe` | #436 |
+| 03 | One always-mounted live region per job; `.visually-hidden` utility | 31 | APPROVE `54dd2f2` | #437, stacked on #436 |
+
+The Claude writer runs with `--max-turns 30` (`dev_supervisor/policy.py`).
+A brief with about ten owned files ended `task_failed` before the writer
+finished reading. Two writer runs per branch, each with half the files,
+completed three times. `.conversation-status` carries box styling, so an
+always-mounted live region needs the visually hidden utility. No browser
+or screen-reader run verified the items. A rerun of `/impeccable audit`
+after the merges can confirm them.
+
 ## 2026-10-16 — Auto-compact window set to 1M
 
 - The owner asked for a 1000000-token context window in every session.
