@@ -15,6 +15,11 @@ function buttonNamed(name: string): HTMLButtonElement {
   return screen.getByRole("button", { name }) as HTMLButtonElement;
 }
 
+function kcalValue(): string {
+  const region = screen.getByRole("region", { name: "Nutrition per serving" });
+  return within(region).getByText("kcal").previousElementSibling?.textContent ?? "";
+}
+
 function mount(): HTMLElement {
   return render(createElement(TonightPrototype)).container;
 }
@@ -68,7 +73,7 @@ describe("TonightPrototype", () => {
     expect(text).toContain("379");
     expect(text).toContain("14.5 g");
     expect(text).toContain("55.8 g");
-    expect(text).toContain("13.7 g");
+    expect(text).toContain("12.3 g");
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("img", { name: "Bean tacos" })).toBeTruthy();
     expect(textOf(buttonNamed("3 at home, Edit pantry"))).toMatch(/3 at home/);
@@ -154,20 +159,20 @@ describe("TonightPrototype", () => {
     expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("img", { name: "Egg fried rice" })).toBeTruthy();
     expect(rice).toContain("$11.64");
-    expect(rice).toContain("520");
-    expect(rice).toContain("21 g");
-    expect(rice).toContain("63 g");
-    expect(rice).toContain("20 g");
+    expect(kcalValue()).toBe("590");
+    expect(rice).toContain("22.4 g");
+    expect(rice).toContain("76.7 g");
+    expect(rice).toContain("20.6 g");
     act(() => {
       fireEvent.click(buttonNamed("Chickpea curry"));
     });
     const curry = textOf(screen.getByRole("main"));
     expect(screen.getByRole("img", { name: "Chickpea curry" })).toBeTruthy();
     expect(curry).toContain("$10.44");
-    expect(curry).toContain("610");
-    expect(curry).toContain("18 g");
-    expect(curry).toContain("78 g");
-    expect(curry).toContain("25 g");
+    expect(kcalValue()).toBe("750");
+    expect(curry).toContain("18.8 g");
+    expect(curry).toContain("102.2 g");
+    expect(curry).toContain("31.2 g");
   });
 
   it("edits the plan cap without replacing the last valid budget", () => {

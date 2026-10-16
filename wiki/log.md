@@ -4186,3 +4186,66 @@ Grok 4.6 at medium with standard complexity. Sol at medium supplies the
 independent review. Gates and review results are keyed by commit SHA in
 their supervisor folders. Native coordinator, junior, and graph-agent usage
 is unavailable. No push, pull request, merge, or deployment is in scope.
+
+## 2026-10-16 — Tonight prototype evaluation
+
+The evaluation of `codex/impeccable-young-adult-mocks` at `c8217ee` found
+one defect and one improvement. The ledger is
+`.claude/loop/young-adult-mocks-eval.md`.
+
+- Defect: the prototype nutrition values differed from the USDA values in
+  the real app. Bean-taco fat showed 13.7 g; the source screenshot and the
+  real app show 12.3 g. Egg fried rice and chickpea curry had no source.
+  The prototype now shows 379/14.5/55.8/12.3, 590/22.4/76.7/20.6, and
+  750/18.8/102.2/31.2 (kcal, protein, carbohydrate, and fat in grams).
+- Improvement: `main.tsx` loads the prototype with `React.lazy`. The build
+  emits a separate 12 kB chunk.
+- The mock images and `docs/design/tonight-mock-prompts.md` keep 13.7 g,
+  because they record the exact generation inputs.
+- The branch adds 2148 lines by the gate count. This exceeds the 1000-line
+  definition of done. The fix does not change that.
+
+A Sonnet writer made the fix through `dev_supervisor`. Opus reviewed it.
+
+## 2026-10-16 — Tonight prototype evaluation: follow-up
+
+This entry adds to the previous entry. The build emits
+`TonightPrototype-*.js` as a 12.15 kB chunk. The 2148 added lines also
+exceed the 150-line pull request rule. Publication needs the planned stack.
+
+The evaluation records these items and does not change them:
+
+- `togglePantry` clears all shopping checks, also for lines that the
+  change does not touch. A code comment states this as intent.
+- `BudgetPanel` shows the status for the last valid cap while the draft is
+  invalid. The design doc states this as intent.
+- `MealPhoto` resets `failed` in an effect. A stale fallback can show for
+  one render after `src` changes.
+- The empty shopping view has two `role="status"` regions.
+- `.tonight-primary:hover` uses the literal `#124a37`, not a token.
+- No test covers the lazy branch of `main.tsx`.
+- The `toContain("590")` and `toContain("750")` assertions match any
+  digits in the page text.
+
+The Opus review returned REQUEST_CHANGES on `1bb4c38` for an unbacked doc
+claim. It returned APPROVE on `a68c5d1` and `9c284ab`.
+
+## 2026-10-16 — Tonight test tighten
+
+This entry closes the last two items of the previous entry.
+
+- The meal-switch test reads the kcal value from the "Nutrition per serving"
+  region and asserts `590` and `750` exactly.
+- `frontend/src/rootView.tsx` holds the root selection. `main.tsx` renders
+  `selectRoot(window.location.pathname)`. Behavior does not change. The
+  build still emits `TonightPrototype-*.js` as a separate 12.15 kB chunk.
+- `frontend/src/rootView.test.tsx` checks that `/prototype` renders nothing
+  first and then resolves the lazy component. It also checks `/prototype/`
+  and `/`.
+- The synchronous check holds only in the first test of that file. Later
+  tests get the cached module. Vitest isolates modules per test file.
+
+A Sonnet writer made the change through `dev_supervisor` in one implement
+run and one repair run. The gates passed with 23 lines. The Opus review
+returned APPROVE on `cbdb560`. Usage: implement 48017 input and 3002 output
+tokens, repair 26219 and 886, review 21337 and 1358.

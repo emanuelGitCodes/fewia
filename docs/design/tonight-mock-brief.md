@@ -14,9 +14,11 @@ All concepts use bean tacos for two servings. Oil, salt, and cumin are
 already at home. The remaining sample packages total $8.06: black beans
 $1.29, onion $1.29, salsa $2.49, and corn tortillas $2.99.
 
-Illustrative nutrition per serving is 379 kcal, 14.5 g protein, 55.8 g
-carbohydrate, and 13.7 g fat. These figures come from the saved mobile
-estimate in `wiki/artifacts/backlog-resume-20261003/browser/mobile-estimate.png`.
+Nutrition per serving is 379 kcal, 14.5 g protein, 55.8 g carbohydrate,
+and 12.3 g fat. These figures come from the saved mobile estimate in
+`wiki/artifacts/backlog-resume-20261003/browser/mobile-estimate.png`.
+The generated mock images and `tonight-mock-prompts.md` show 13.7 g fat.
+That value is a transcription error. The prototype shows 12.3 g.
 They are design examples, not a fresh provider response. The first action
 is to view the shopping list. The screen offers another meal choice.
 
