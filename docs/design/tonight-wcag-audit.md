@@ -8,8 +8,10 @@ The repaired source is committed as `741c491`.
 
 This record evaluates the 55 Level A and AA criteria in
 [WCAG 2.2](https://www.w3.org/TR/WCAG22/).
-It does not claim complete conformance. Actual screen-reader speech remains
-unverified. An accessibility-tree inspection is not a screen-reader test.
+It does not claim complete conformance. A later
+[VoiceOver audit](tonight-voiceover-audit.md) adds actual Chrome/macOS speech
+evidence and two repairs. An accessibility-tree inspection alone is not a
+screen-reader test.
 
 ## Method
 
@@ -109,13 +111,15 @@ within this prototype. `N/A` means the relevant content or behavior is absent.
 | 3.3.4 Error Prevention, Legal, Financial, Data | AA | N/A | No transaction, legal commitment, stored user data, or submitted test response. |
 | 3.3.7 Redundant Entry | A | Checked | Pantry, servings, and budget persist between prototype views. The process does not require re-entry. |
 | 3.3.8 Accessible Authentication, Minimum | AA | N/A | No authentication. |
-| 4.1.2 Name, Role, Value | A | Partial | Native controls, pressed/current states, and names are exposed. Screen-reader interaction remains untested. |
-| 4.1.3 Status Messages | AA | Partial | Status nodes expose polite, atomic updates; errors use alerts. Spoken updates remain untested. |
+| 4.1.2 Name, Role, Value | A | Checked | VoiceOver in Chrome reads meal selection, pantry/shopping checkbox names and states, and budget labels, values, invalid state, and descriptions. See the VoiceOver audit for scope. |
+| 4.1.3 Status Messages | AA | Partial | VoiceOver verifies contextual meal updates, serving alerts, and budget validation/recovery. The stale serving-error repair has a passing heading-return check; an extra full-sequence repetition was interrupted and remains pending. |
 
 ## Verification limits
 
-No VoiceOver, NVDA, or JAWS speech test has been completed. No physical
-mobile device, Safari, Firefox, OS magnifier, or speech-input tool was tested.
+VoiceOver speech was tested in Chrome on macOS 27.0.1. The follow-up record
+contains the captured phrases, repairs, and interrupted repetition. NVDA and
+JAWS were not tested. No physical mobile device, Safari, Firefox, OS magnifier,
+or speech-input tool was tested.
 The audit does not cover the existing application or live backend services.
 Generated food images and nutrition fixtures remain demo content.
 

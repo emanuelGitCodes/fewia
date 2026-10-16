@@ -4122,3 +4122,36 @@ and two repair runs. Recorded writer use is 1,086,634 input tokens,
 coordinator and junior use and the independent review. Sol at medium is
 the separate review model. Its verdict and the final committed gates are
 stored in `.fewia-supervisor-reviews/` and `.fewia-supervisor-gates/`.
+
+## 2026-10-16 — Tonight prototype VoiceOver follow-up
+
+The user requested actual VoiceOver testing and screen-reader repairs on
+`codex/impeccable-young-adult-mocks`. The
+[VoiceOver record](../docs/design/tonight-voiceover-audit.md) separates captured
+speech from browser accessibility-tree evidence. Chrome 155 and macOS 27.0.1
+supplied the test environment. The user approved temporary scripting control.
+
+Commit `22d3560` replaces competing serving and price statuses with one
+contextual meal announcement. VoiceOver now reads the meal, servings, cost,
+and sample-estimate qualifier, including the previously failing package
+boundary. Commit `f20eef9` clears a transient serving error on a real view
+change. A return to Tonight then announced its heading without the old alert.
+
+Pantry and shopping labels, checkbox states, empty shopping content, serving
+bounds, budget errors and recovery, headings, and landmarks have actual
+VoiceOver evidence. An extra limit-error navigation repetition was interrupted
+by an authentication screen. Automatic approval review blocked browser access;
+the user paused browser testing. That repetition remains incomplete.
+The WCAG record now has 36 checked criteria, 18 not applicable, and one partial.
+It does not claim complete conformance.
+
+Focused UI tests pass 15/15. Source gates pass frontend lint, the full test
+suite, and build. Both source commits passed gitleaks. The work adds 21 source
+lines against `4537776`; branch-wide gate counts include the original
+prototype and generated audit evidence. No push, PR, merge, or deployment ran.
+
+A Luna junior ran Grok 4.6 at medium through the supervisor for one
+implementation and one repair. Recorded writer use is 772,241 input tokens,
+26,047 output tokens, and 540.616 seconds. Native coordinator and junior use
+is unknown and excluded. Sol at medium is the independent review model.
+The review and final gate records are keyed by SHA in their supervisor folders.
