@@ -1,0 +1,692 @@
+.tonight-prototype {
+  --tonight-green: #165641;
+  --tonight-select: #edf6ed;
+  --tonight-ink: #17221e;
+  --tonight-muted: #3a4d46;
+  --tonight-line: #dce4df;
+  --tonight-control-border: #5c6f67;
+  --tonight-white: #ffffff;
+  --tonight-error: #8b2e1f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font-family: "Source Sans 3", sans-serif;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.tonight-prototype ::selection {
+  color: var(--tonight-white);
+  background: var(--tonight-green);
+}
+.tonight-prototype :focus-visible {
+  outline: 3px solid var(--tonight-green);
+  outline-offset: 3px;
+}
+.tonight-prototype h1,
+.tonight-prototype h2 {
+  margin: 0;
+  color: var(--tonight-ink);
+  font-family: "Source Sans 3", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.tonight-prototype h1 {
+  margin: 0.55rem 0 0.45rem;
+  font-size: 1.55rem;
+  line-height: 1.2;
+}
+.tonight-prototype h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1.3rem;
+  line-height: 1.2;
+}
+.tonight-canvas {
+  width: min(100%, 1000px);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0.7rem 1rem 1rem;
+}
+.tonight-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.tonight-wordmark {
+  margin: 0;
+  color: var(--tonight-green);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.tonight-demo {
+  margin: 0;
+  color: var(--tonight-muted);
+  font-size: 0.95rem;
+}
+.tonight-meals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.7rem), 1fr));
+  gap: 0.4rem;
+}
+.tonight-meal {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  border: 2px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.tonight-meal:hover {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-meal.is-selected {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+  box-shadow: inset 0 -0.35rem 0 var(--tonight-green);
+}
+.tonight-meal.is-selected span {
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
+}
+.tonight-meal span {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  min-width: 0;
+}
+.tonight-thumb,
+.tonight-photo {
+  overflow: hidden;
+  min-width: 0;
+  border-radius: 10px;
+  background: var(--tonight-select);
+}
+.tonight-thumb {
+  aspect-ratio: 4 / 3;
+}
+.tonight-photo {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: 6rem;
+  aspect-ratio: 4 / 3;
+  height: auto;
+}
+.tonight-thumb img,
+.tonight-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: tonight-fade 220ms ease-out;
+}
+.tonight-photo img,
+.tonight-photo .tonight-photo-fallback {
+  position: absolute;
+  inset: 0;
+}
+.tonight-photo-fallback {
+  display: flex;
+  min-height: 6rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  color: var(--tonight-ink);
+  font-weight: 600;
+  text-align: center;
+}
+.tonight-plan-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-plan-card {
+  display: grid;
+  grid-template-columns: minmax(0, 6rem) minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.6rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+}
+.tonight-plan-card-body {
+  min-width: 0;
+}
+.tonight-plan-card .tonight-package {
+  margin: 0 0 0.4rem;
+}
+.tonight-plan-ingredients {
+  margin: 0 0 0.5rem;
+}
+.tonight-plan-ingredients summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--tonight-ink);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.tonight-plan-ingredients summary::-webkit-details-marker {
+  display: none;
+}
+.tonight-plan-ingredients summary::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.6rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms ease-out;
+}
+.tonight-plan-ingredients[open] > summary::before {
+  transform: rotate(45deg);
+}
+.tonight-filter-label {
+  display: block;
+  margin: 0.2rem 0 0.25rem;
+}
+.tonight-filter {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  caret-color: var(--tonight-green);
+}
+.tonight-pinned {
+  display: none;
+}
+.tonight-plan-ingredients fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tonight-plan-ingredients legend {
+  padding: 0;
+  color: var(--tonight-muted);
+  font-size: 0.95rem;
+}
+.tonight-plan-ingredient {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 44px;
+  border-bottom: 1px solid var(--tonight-line);
+}
+.tonight-plan-ingredient input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--tonight-green);
+}
+.tonight-plan-ingredient label {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0;
+}
+.tonight-plan-qty {
+  color: var(--tonight-muted);
+  font-size: 0.95rem;
+}
+.tonight-plan-remove {
+  min-height: 44px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.tonight-plan-remove:hover {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  margin: 0 0 0.5rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+}
+.tonight-stepper button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-ink);
+  font: inherit;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+.tonight-servings {
+  flex: 1 1 4rem;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+}
+.tonight-prototype .tonight-estimate-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.tonight-kicker,
+.tonight-package,
+.tonight-nutrition-note,
+.tonight-line-meta,
+.tonight-notice {
+  color: var(--tonight-muted);
+}
+.tonight-kicker {
+  margin: 0.45rem 0 0.15rem;
+  font-size: 0.95rem;
+}
+.tonight-price {
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.tonight-package {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+}
+.tonight-notice {
+  margin: 0.55rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.tonight-home > .tonight-notice {
+  margin-top: 0.85rem;
+}
+.tonight-pantry-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  margin-top: 0.2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tonight-pantry-row span {
+  flex: 1;
+  min-width: 0;
+}
+.tonight-nutrition-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.55rem;
+}
+.tonight-nutrition-note {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.tonight-macros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.1rem), 1fr));
+  row-gap: 0.65rem;
+}
+.tonight-macros div {
+  min-width: 0;
+  padding: 0 0.55rem;
+  border-left: 1px solid var(--tonight-line);
+  text-align: center;
+}
+.tonight-macros div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.tonight-macros p {
+  margin: 0;
+}
+.tonight-macros p:first-child {
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tonight-macros p:last-child {
+  color: var(--tonight-muted);
+  font-size: 0.9rem;
+}
+.tonight-back {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font: inherit;
+  cursor: pointer;
+}
+.tonight-back {
+  margin: 0.2rem 0 0;
+  padding: 0.35rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-ink);
+  font-weight: 600;
+}
+.tonight-page label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+.tonight-page input[type="text"] {
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0.35rem 0 0.7rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  caret-color: var(--tonight-green);
+}
+.tonight-page input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.2rem;
+  accent-color: var(--tonight-green);
+}
+.tonight-check-list {
+  margin: 0.9rem 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-check-list li {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--tonight-line);
+}
+.tonight-line-meta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.95rem;
+}
+.tonight-error {
+  margin: 0.45rem 0;
+  color: var(--tonight-error);
+}
+.tonight-summary,
+.tonight-shopping {
+  margin-top: 1.1rem;
+}
+.tonight-summary h2,
+.tonight-shopping h2 {
+  margin: 0 0 0.4rem;
+}
+.tonight-summary h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.tonight-summary label {
+  display: block;
+  margin-top: 0.7rem;
+}
+.tonight-summary input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  caret-color: var(--tonight-green);
+}
+.tonight-summary .tonight-nutrition-head {
+  margin-top: 0.8rem;
+}
+.tonight-shopping label {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+.tonight-shopping input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.2rem;
+  accent-color: var(--tonight-green);
+}
+.tonight-footer {
+  margin-top: 1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--tonight-line);
+}
+.tonight-footer a {
+  color: var(--tonight-muted);
+  text-underline-offset: 0.18em;
+}
+.tonight-nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.3rem 0.4rem 0.5rem;
+  border-top: 1px solid var(--tonight-line);
+  background: var(--tonight-white);
+}
+.tonight-nav button {
+  display: flex;
+  min-height: 3.5rem;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--tonight-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.tonight-nav button:focus-visible {
+  outline-offset: -3px;
+  z-index: 1;
+}
+.tonight-nav button[aria-current="page"] {
+  color: var(--tonight-green);
+  box-shadow: inset 0 0.2rem 0 var(--tonight-green);
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
+}
+.tonight-icon {
+  display: block;
+}
+@media (max-width: 719px) {
+  .tonight-prototype {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .tonight-canvas {
+    overflow: auto;
+    scroll-padding-top: calc(var(--tonight-pinned-height, 3.5rem) + 0.5rem);
+  }
+  .tonight-pinned {
+    position: sticky;
+    top: -0.7rem;
+    z-index: 2;
+    display: block;
+    margin: 0 -1rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--tonight-line);
+    background: var(--tonight-white);
+    font-weight: 600;
+  }
+}
+@media (max-width: 359px) {
+  .tonight-macros {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tonight-macros div {
+    padding: 0.45rem 0;
+    border-left: 0;
+    border-top: 1px solid var(--tonight-line);
+    text-align: left;
+  }
+  .tonight-macros div:first-child {
+    border-top: 0;
+  }
+  .tonight-photo {
+    aspect-ratio: 4 / 3;
+    height: auto;
+  }
+}
+@media (min-width: 720px) {
+  .tonight-prototype {
+    --tonight-nav-height: 4.5rem;
+  }
+  html:has(.tonight-prototype) {
+    scroll-padding-bottom: 4.5rem;
+  }
+  .tonight-prototype h1 {
+    margin: 1.15rem 0 0.7rem;
+    font-size: 1.8rem;
+  }
+  .tonight-prototype h2 {
+    margin: 0 0 0.7rem;
+    font-size: 1.45rem;
+  }
+  .tonight-canvas {
+    padding: 1.25rem 1.5rem 1.5rem;
+  }
+  .tonight-meals {
+    gap: 0.55rem;
+  }
+  .tonight-meal {
+    gap: 0.4rem;
+    padding: 0.4rem;
+  }
+  .tonight-photo {
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 0;
+  }
+  .tonight-thumb {
+    aspect-ratio: auto;
+    height: 7.5rem;
+  }
+  .tonight-stepper {
+    margin: 0 0 0.85rem;
+  }
+  .tonight-kicker {
+    margin: 0.85rem 0 0.2rem;
+  }
+  .tonight-nutrition-head {
+    margin-bottom: 0.7rem;
+  }
+  .tonight-footer {
+    margin-top: 1.6rem;
+    padding-top: 0.8rem;
+  }
+  .tonight-home {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .tonight-home > h1,
+  .tonight-home > .tonight-notice {
+    grid-column: 1 / -1;
+  }
+  .tonight-plan-main,
+  .tonight-plan-side {
+    min-width: 0;
+  }
+  .tonight-plan-side {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem - var(--tonight-nav-height));
+    overflow: auto;
+    scroll-padding-bottom: 0.5rem;
+    padding: 0.4rem;
+    margin: 0 -0.4rem;
+  }
+  .tonight-plan-side > :first-child {
+    margin-top: 0;
+  }
+  .tonight-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    width: min(100%, 1000px);
+    box-sizing: border-box;
+    margin: 0 auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tonight-plan-ingredients summary::before {
+    transition: none;
+  }
+  .tonight-thumb img,
+  .tonight-photo img {
+    animation: none;
+  }
+}
+@keyframes tonight-fade {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
