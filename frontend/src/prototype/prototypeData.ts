@@ -75,7 +75,8 @@ function meal(
   return { id, name, image: `/prototype/${file}`, ingredients, nutrition };
 }
 
-// Recipe quantities use the same unit as packageQuantity.
+// Recipe quantities use the same unit as packageQuantity. The nutrition values
+// are per serving from the USDA values in backend/app/services/meal_nutrition.py.
 export const RECIPES: Record<RecipeId, Recipe> = {
   bean_tacos: meal(
     "bean_tacos",
@@ -90,7 +91,7 @@ export const RECIPES: Record<RecipeId, Recipe> = {
       ["olive_oil", 10],
       ["salt", 1],
     ],
-    { energyKcal: 379, proteinG: 14.5, carbsG: 55.8, fatG: 13.7 },
+    { energyKcal: 379, proteinG: 14.5, carbsG: 55.8, fatG: 12.3 },
   ),
   egg_fried_rice: meal(
     "egg_fried_rice",
@@ -105,7 +106,7 @@ export const RECIPES: Record<RecipeId, Recipe> = {
       ["garlic", 5],
       ["olive_oil", 10],
     ],
-    { energyKcal: 520, proteinG: 21, carbsG: 63, fatG: 20 },
+    { energyKcal: 590, proteinG: 22.4, carbsG: 76.7, fatG: 20.6 },
   ),
   chickpea_curry: meal(
     "chickpea_curry",
@@ -121,7 +122,7 @@ export const RECIPES: Record<RecipeId, Recipe> = {
       ["olive_oil", 10],
       ["salt", 1],
     ],
-    { energyKcal: 610, proteinG: 18, carbsG: 78, fatG: 25 },
+    { energyKcal: 750, proteinG: 18.8, carbsG: 102.2, fatG: 31.2 },
   ),
 };
 
