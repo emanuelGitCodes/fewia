@@ -148,7 +148,8 @@ One headed-browser screenshot attempt timed out. A fresh headless browser
 completed the final captures and probes. This tooling failure is not a product
 pass or failure. The in-app browser supplied separate visual evidence.
 
-The focused UI tests pass 11/11. The committed frontend gates report:
+The focused UI tests pass 11/11. Gates on source commit `741c491`, before
+adding the generated evidence file, report:
 
 ```text
 SKIP frontend:npm-ci node_modules present
@@ -159,8 +160,11 @@ LINES 1239/1000
 RESULT PASS
 ```
 
-The line count covers the complete prototype branch against `main`.
-This repair adds 66 source lines against `bcf3d1d`, excluding tests.
+The 1239 line count covers the prototype source against `main`.
+After adding the evidence, the same gates pass with `LINES 2108/1000`.
+That mechanical count includes 869 lines of generated `results.json`.
+Generated evidence is excluded from the repository's source-line cap.
+This repair adds 66 source lines against `bcf3d1d`, excluding tests and evidence.
 No pull request was opened. Publication still needs the planned prototype stack.
 
 ## Captured flow
