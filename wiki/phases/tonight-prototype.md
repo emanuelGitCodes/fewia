@@ -57,7 +57,7 @@ State resets when the page reloads.
 Grocery cost uses whole packages in integer cents.
 Nutrition stays per serving. Servings and pantry leave nutrition unchanged.
 Nutrition values are static copies of the USDA per-serving values that
-`backend/app/services/meal_nutrition.py` computes. The real app shows the same values.
+`backend/app/services/meal_nutrition.py` computes.
 Every estimate shows this notice:
 
 > Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.

@@ -37,8 +37,8 @@ or a verified retailer quote. Pantry ingredients remain in nutrition.
 Nutrition values per serving mirror the USDA values that
 `backend/app/services/meal_nutrition.py` computes for the same recipes.
 They are static copies, not a fresh USDA response or verified cooking
-results. The photos are generated
-illustrations. No purchases or reservations occur.
+results. The photos are generated illustrations. No purchases or
+reservations occur.
 
 The initial taco example has two servings and a $40 plan cap. Olive oil,
 salt, and ground cumin start in the pantry. Remaining packages cost $8.06.
