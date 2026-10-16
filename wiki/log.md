@@ -4086,3 +4086,39 @@ documentation are 3,585,886 input tokens and 121,326 output tokens.
 The final independent reviewer is Sol at medium, distinct from both writers.
 The supervisor stores its verdict and the committed gate record under
 `.fewia-supervisor-reviews/` and `.fewia-supervisor-gates/`.
+
+## 2026-10-16 — Tonight prototype accessibility audit
+
+The user requested a WCAG 2.2 AA audit and fixes on the prototype branch.
+The [audit record](../docs/design/tonight-wcag-audit.md) covers all 55 Level A
+and AA criteria: 35 checked, 18 not applicable, and two partially verified.
+The partial criteria retain a screen-reader interaction and speech gap.
+No complete conformance claim is made.
+
+Commit `741c491` fixes the pantry label-name mismatch, a low-contrast input
+border, color-only selection cues, and text clipping at 200% size.
+A repair introduced a meal-photo overlap. Visual inspection caught it;
+the final photo stays within its grid column. The control border now has
+5.35:1 contrast on white. The normal mobile stepper stays on one row.
+
+The user approved separate local Playwright and axe checks. Chromium 155
+and axe-core 4.14.0 passed 40 view, width, and text-setting combinations.
+Six additional scans cover meal and edge states. All 46 scans report zero
+violations. The final geometry checks report no text overflow or photo overlap.
+Forward and reverse keyboard checks, error recovery, pointer cancellation,
+forced colors, reduced motion, and empty shopping checks passed.
+Six inspected screenshots and a sanitized results file are committed with
+the audit record. One headed capture timed out; a fresh headless browser
+completed the final checks. The in-app browser supplied separate evidence.
+
+Focused UI tests pass 11/11. The committed gates pass frontend lint, the
+full test suite, and production build. This repair adds 66 source lines
+against `bcf3d1d`. The complete prototype still needs a stack before a PR.
+No PR, push, merge, or deployment was requested or performed.
+
+A Luna junior ran Grok 4.6 at medium through the supervisor: one implementation
+and two repair runs. Recorded writer use is 1,086,634 input tokens,
+51,694 output tokens, and 1,058.273 seconds. These totals exclude native
+coordinator and junior use and the independent review. Sol at medium is
+the separate review model. Its verdict and the final committed gates are
+stored in `.fewia-supervisor-reviews/` and `.fewia-supervisor-gates/`.

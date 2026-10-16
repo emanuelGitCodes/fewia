@@ -8,6 +8,7 @@ colors:
   ink: "#17221e"
   muted-green: "#3a4d46"
   divider: "#dce4df"
+  control-border: "#5c6f67"
   white: "#ffffff"
   error: "#8b2e1f"
 typography:
@@ -84,7 +85,8 @@ The palette uses forest green for action and active states, with quiet green neu
 ### Neutral
 - **Ink:** Headings and primary text.
 - **Muted Green:** Supporting text and inactive navigation.
-- **Divider:** Borders and separators.
+- **Divider:** Decorative separators.
+- **Control Border:** Input, serving, and pantry boundaries with 5.35:1 contrast on white.
 - **White:** Main and control surfaces.
 
 ### Status
@@ -107,13 +109,13 @@ The palette uses forest green for action and active states, with quiet green neu
 
 ## Layout
 
-The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding, scrolls within a 100dvh app frame, and leaves the three-item navigation at the bottom. At 720px, the page uses 1.5rem inline padding, wider gaps, taller meal thumbnails, and a wider image-and-facts split. The meal choices stay in three columns. Below 360px, the hero and nutrition values stack into one column. Navigation remains a single bottom row rather than duplicating at the top.
+The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, the compact hero, and nutrition values adapt their columns to text size. Below 360px, the hero and nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
 
 The selected meal's image and facts update together. Users adjust servings from one to eight. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change the nutrition panel. The shopping checklist, budget feedback, and all-items-at-home state use the same compact canvas.
 
 ## Elevation & Depth
 
-The prototype uses no shadows. White surfaces and fine borders define groups; pale sage and a green outline show the selected meal. Keyboard focus uses a visible green outline with a 3px stroke and 3px offset.
+White surfaces and fine borders define groups. Selected items use inset bars and underlined labels, with green and pale sage as additional cues. Keyboard focus uses a green outline with a 3px stroke and 3px offset. Navigation draws the focus outline inside each button to keep it within the viewport.
 
 ## Shapes
 
@@ -130,22 +132,22 @@ Controls and meal-choice cards use gently rounded 12px corners. Meal photos and 
 ### Cards / Containers
 - **Corner Style:** Meal choices use 12px corners; their images use 10px corners.
 - **Background:** White at rest; pale sage on the selected meal choice.
-- **Shadow Strategy:** No shadows; borders and selected color show grouping and state.
-- **Border:** One-pixel divider at rest; forest green on hover or selection.
+- **Selection:** An inset bar and underlined label identify the selected meal without color alone.
+- **Border:** Two-pixel divider at rest; forest green on hover or selection.
 - **Internal Padding:** Meal choices use 0.3rem on compact screens and 0.4rem from 720px.
 
 ### Inputs / Fields
-- **Style:** White text field with a one-pixel divider border, 12px corners, and 2.75rem minimum height.
+- **Style:** White text field with a one-pixel control border, 12px corners, and 2.75rem minimum height.
 - **Focus:** Green caret and the shared 3px green focus outline with a 3px offset.
 - **Error:** Error text uses the error color; budget input exposes its invalid state.
 
 ### Navigation
 - **Style:** Three equal-width items in a white bottom row with a top divider. Each item has a 22px icon above a semibold label and a 3.5rem minimum height.
-- **States:** Inactive labels and icons use muted green; the current section uses forest green.
+- **States:** Inactive labels and icons use muted green. The current section has an underline and inset bar as well as forest green.
 - **Behavior:** The Tonight item remains current while the shopping list is open.
 
 ### Meal Selection
-Meal choices pair a 4:3 image with a name. Selection adds the green outline and pale-sage surface. The meal image fades in over 220ms with ease-out timing; reduced-motion preference disables that fade.
+Meal choices pair an image with a name. Selection adds an inset bar and underlined label, plus a green outline and pale-sage surface. The underline remains visible in forced-color mode. The meal image fades in over 220ms with ease-out timing; reduced-motion preference disables that fade.
 
 ## Do's and Don'ts
 
