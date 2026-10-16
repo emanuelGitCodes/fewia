@@ -140,7 +140,9 @@ export function withView(state: PrototypeState, view: PrototypeView): PrototypeS
   return { ...state, view, servingsError: null };
 }
 
-export function withBudgetInput(state: PrototypeState, budgetInput: string): PrototypeState {
+export function withBudgetInput<
+  T extends { budgetInput: string; budgetCents: number; budgetError: string | null },
+>(state: T, budgetInput: string): T {
   // The raw draft updates on every change.
   // budgetCents updates only when the draft is valid.
   try {
