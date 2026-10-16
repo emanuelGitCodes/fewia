@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
+    "test:e2e": "tsc -p tsconfig.e2e.json && playwright test",
     "lint": "eslint ."
   },
   "dependencies": {
