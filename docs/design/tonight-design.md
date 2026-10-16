@@ -3,7 +3,6 @@ name: FEWIA Tonight
 description: The local Tonight prototype's green meal-planning design system.
 colors:
   forest-green: "#165641"
-  forest-green-hover: "#124a37"
   pale-sage: "#edf6ed"
   ink: "#17221e"
   muted-green: "#3a4d46"
@@ -39,15 +38,11 @@ spacing:
   canvas-mobile-inline: "1rem"
   canvas-desktop-inline: "1.5rem"
 components:
-  button-primary:
-    backgroundColor: "{colors.forest-green}"
-    textColor: "{colors.white}"
-    typography: "{typography.label}"
+  button-secondary:
+    backgroundColor: "{colors.white}"
+    textColor: "{colors.ink}"
     rounded: "{rounded.control}"
-    height: "2.75rem"
-    width: "100%"
-  button-primary-hover:
-    backgroundColor: "{colors.forest-green-hover}"
+    height: "44px"
   input-text:
     backgroundColor: "{colors.white}"
     textColor: "{colors.ink}"
@@ -63,7 +58,7 @@ components:
 
 **Creative North Star: "The Familiar Table"**
 
-The Tonight prototype puts a plan of one to three meals on one page with its grocery total, plan cap, nutrition, and combined shopping list. Familiar supplies the forest-green actions and pale-sage selection. Pantry Edit supplies Source Sans 3 and the compact, direct layout.
+The Tonight prototype puts a plan of one to three meals on one page with its grocery total, plan cap, nutrition, and combined shopping list. Familiar supplies the forest-green selection and focus color and the pale-sage selection surface. Pantry Edit supplies Source Sans 3 and the compact, direct layout.
 
 This system applies only to `/prototype`. It does not restyle the existing `/` application. The Plan page keeps the meal cards, the package-based estimate, the budget fit, and the shopping list together. The Pantry view is the only other view.
 
@@ -75,11 +70,10 @@ This system applies only to `/prototype`. It does not restyle the existing `/` a
 
 ## Colors
 
-The palette uses forest green for action and active states, with quiet green neutrals on white.
+The palette uses forest green for selected, hover, and active states, with quiet green neutrals on white.
 
 ### Primary
-- **Forest Green:** Primary actions, selected outlines, keyboard focus, and the active navigation item.
-- **Forest Green Hover:** The primary action's hover state.
+- **Forest Green:** Selected outlines, hover borders, keyboard focus, and the active navigation item.
 - **Pale Sage:** Selected meal-choice surfaces and image fallback surfaces.
 
 ### Neutral
@@ -104,14 +98,14 @@ The palette uses forest green for action and active states, with quiet green neu
 - **Headline** (600, 1.55rem mobile / 1.8rem at 720px, 1.2 line-height): The page heading.
 - **Title** (600, 1.3rem mobile / 1.45rem at 720px, 1.2 line-height): Meal and section headings.
 - **Body** (400, inherited size): Instructions and supporting text.
-- **Label** (600): Meal choices, primary action, and navigation labels.
+- **Label** (600): Meal choices and navigation labels.
 - **Price** (600, 2.5rem, -0.03em letter spacing): The grocery estimate.
 
 ## Layout
 
 The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, meal cards, and nutrition values adapt their columns to text size. Below 360px, the nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
 
-Each meal card holds its image, servings stepper, per-serving nutrition, and a collapsed ingredient list. Users adjust servings from one to eight per meal. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change nutrition. On compact screens, a pinned bar at the top of the canvas shows the total and the fit line. The canvas `scroll-padding-top` keeps focused controls below it. From 720px, the Plan page uses two columns: meals on the left, and a sticky summary and shopping list on the right. The sticky bottom navigation is 4.5rem tall. The window `scroll-padding-bottom` and the side column's maximum height (through `--tonight-nav-height`) both reserve that height. Change both values together.
+Each meal card holds its image, servings stepper, per-serving nutrition, and a collapsed ingredient list. Users adjust servings from one to eight per meal. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change nutrition. On compact screens, a pinned bar at the top of the canvas shows the total and the fit line. The canvas `scroll-padding-top` reads the measured bar height from `--tonight-pinned-height`, so focused controls stay below the bar when it wraps. From 720px, the Plan page uses two columns: meals on the left, and a sticky summary and shopping list on the right. The sticky bottom navigation is 4.5rem tall. The window `scroll-padding-bottom` and the side column's maximum height (through `--tonight-nav-height`) both reserve that height. Change both values together.
 
 ## Elevation & Depth
 
@@ -125,8 +119,10 @@ Controls and meal-choice cards use gently rounded 12px corners. Meal photos and 
 
 ### Buttons
 - **Shape:** Rounded control corners (12px).
-- **Hover / Focus:** Hover darkens the green. Keyboard focus uses the shared 3px green outline with a 3px offset. No button transition is defined.
-- **Secondary / Ghost:** Back and stepper controls use transparent backgrounds with ink text.
+- **Primary:** The Plan page has no primary button. Each action belongs to a meal choice, a meal card, or the navigation.
+- **Hover / Focus:** Hover gives the Remove button a forest-green border and a pale-sage surface. Keyboard focus uses the shared 3px green outline with a 3px offset. No button transition is defined.
+- **Secondary:** The Remove button has a white surface, a one-pixel control border, ink text, and a 44px minimum height.
+- **Ghost:** Back and stepper controls use transparent backgrounds with ink text.
 
 ### Cards / Containers
 - **Corner Style:** Meal choices use 12px corners; their images use 10px corners.

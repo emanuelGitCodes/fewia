@@ -52,7 +52,7 @@ and layout. This user-selected combination replaces grounded candidate
 five from seed `79386d0c`.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with
-the finish review, the verdict, DESIGN.md, and every shipping raster
+the finish review, the verdict, [the design system](tonight-design.md), and every shipping raster
 carrying its provenance.
 
 ## Implementation

@@ -3,8 +3,10 @@
 This page indexes the approved local prototype on
 `codex/impeccable-young-adult-mocks`. The recorded baseline is `b30858e`.
 The Plan page stack `claude/tonight-plan-page-01` to `-06` builds on that
-branch. The existing `/` application, providers, retailer data, and
-deployment stay outside this record.
+branch. The stack `claude/tonight-to-main-01` to `-05` brings the branch
+into `main`. The [Main stack](#main-stack) section records it. The existing
+`/` application, providers, retailer data, and deployment stay outside this
+record.
 
 ## Audience and task
 
@@ -23,7 +25,8 @@ screen width.
 
 The [direction plan](../../docs/design/tonight-prototype-plan.md) states the
 contract. The [mock brief](../../docs/design/tonight-mock-brief.md) records
-the static concepts. [DESIGN.md](../../DESIGN.md) holds the prototype tokens.
+the static concepts. The [prototype design system](../../docs/design/tonight-design.md)
+holds the prototype tokens. The root `DESIGN.md` describes the `/` application.
 [PRODUCT.md](../../PRODUCT.md) names the 18 to 25 audience and `/prototype`.
 
 ## Route and local run
@@ -85,6 +88,8 @@ On phones, a pinned bar shows the total and the fit line while the page
 scrolls. From 720 px, the meals sit in the left column, and the summary
 and the shopping list sit in a sticky right column.
 One hidden atomic status is the only `role="status"` region on the Plan page.
+When the name filter hides every meal, the status text starts with
+"No meals match.".
 The serving error and the plan cap error use `role="alert"`.
 Every estimate shows this notice:
 
@@ -125,9 +130,38 @@ code item through `dev_supervisor`, and the Opus review approved its head.
 | 05 | `11ff7d5` | Pinned bar, two columns, and name filter | 163 | APPROVE, round 3 |
 
 The frontend suite grew from 521 to 561 tests.
-Open items: the filter's empty result is not announced (4.1.3), and the
-phone scroll padding can be too small at 320 px with 200% text (2.4.11).
-No screen-reader run covers the Plan page.
+The [Main stack](#main-stack) fixes the two open items of this stack: the
+unannounced empty filter result (4.1.3) and the phone scroll padding at
+320 px with 200% text (2.4.11). No screen-reader run covers the Plan page.
+
+## Main stack
+
+The stack brings `codex/impeccable-young-adult-mocks` at `f81188d` into
+`main`. Item 01 stacks on `main` at `43c46a7`, and each item stacks on the
+item before it. Each item copies its files from `f81188d` in its first
+commit. Fixes follow in later commits. A Sonnet writer made each code fix
+through `dev_supervisor`, and the Opus review approved each code head.
+
+| Item | Code head | Work | Gate lines | Review |
+| --- | --- | --- | --- | --- |
+| 01 | `cc6fc30` | Plan model and sample data | 366 | APPROVE, round 1 |
+| 02 | `f7a2fa4` | Styles and meal photos; drop `.tonight-primary`; pinned scroll padding variable | 704 | APPROVE, round 1 |
+| 03 | `f4fbc59` | Plan page UI and `/prototype` route; empty filter status; pinned bar measure; nginx route | 596 | APPROVE, round 2 |
+| 04 | — | Design docs, audits, evidence, this phase page, and `PRODUCT.md` | 869 | prose |
+| 05 | — | Wiki log, index, and graph artifact | 166 | prose |
+
+The styles come before the UI, because `TonightPrototype.tsx` imports
+`tonight.css` and the two together exceed 1000 lines. The repository
+counter counts `.json` files, so `results.json` and the graph artifact
+count as code lines.
+
+`main` already holds a root `DESIGN.md` for the `/` application. The
+prototype design system is `docs/design/tonight-design.md`.
+
+The `frontend/public/prototype/` folder made the Compose nginx answer
+`/prototype` with a redirect to the container port and `/prototype/` with
+`403`. Item 03 rewrites both paths to `index.html`. The Playwright suite
+passed 16 of 16 on the item 03 head against the Compose stack.
 
 ## Image and prompt provenance
 
@@ -151,8 +185,7 @@ These SHAs come from the Tonight entries in [log.md](../log.md).
 | `b30858e` | Recorded baseline for this index. |
 
 The independent review for `b30858e` is `APPROVE`. Its gates `PASS`.
-A future publication still needs the planned two-PR stack.
-No pull request, push, merge, or deploy is part of this record.
+The [Main stack](#main-stack) publishes the branch to `main`.
 
 ## WCAG record and photo repair
 
@@ -177,7 +210,8 @@ screen-reader findings.
 On the last edge sequence, a heading return succeeded once.
 Authentication then interrupted the repeat of that sequence.
 VoiceOver was stopped. Scripting permission reset is unconfirmed.
-Browser and VoiceOver testing remain paused.
+No VoiceOver run covers the Plan page. Browser checks of the Plan page
+are in [Scope and remaining checks](#scope-and-remaining-checks).
 
 ## Scope and remaining checks
 
@@ -185,7 +219,12 @@ The prototype route uses local demo data in the React app.
 The prototype route MUST NOT call Bedrock, Plaid, Instacart, PostgreSQL, SQS, or S3.
 Provider credentials MUST NOT appear in frontend source.
 
-VoiceOver testing remains paused. The coordinator checked the Plan page
-layout and focus in a browser at 375 px and 1200 x 850. This page records
-existing audits. The coordinator owns graph refresh, `wiki/log.md`, and any
-evidence snapshot.
+No VoiceOver run covers the Plan page. The coordinator checked the Plan
+page layout and focus in a browser at 375 px and 1200 x 850. In the main
+stack, a Playwright script checked the pinned bar at 320 px with 200% text:
+the scroll padding follows the 177 px bar, and no focused control is fully
+hidden. At that size, the "Remove" button text wraps one letter per line.
+This page records existing audits. The coordinator owns graph refresh,
+`wiki/log.md`, and any evidence snapshot. The graph snapshot
+`wiki/artifacts/tonight-prototype-graph-20261016.json` predates the main
+stack, so its testing status is out of date.

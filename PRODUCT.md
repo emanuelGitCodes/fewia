@@ -18,6 +18,13 @@ The primary user is a budget shopper. This person plans a few meals each
 week on a tight grocery budget. The CAP 6938 instructor and graders use the
 same application, but the design serves the shopper's task first.
 
+The visual prototype targets adults aged 18 to 25. On its Plan page, the
+user plans one to three meals and reads the grocery cost, the budget fit,
+and the nutrition facts. The user approved the Familiar and Pantry Edit
+combination. The prototype uses self-contained demo data at `/prototype`;
+the existing application stays at `/`. The prototype's design system is
+[docs/design/tonight-design.md](docs/design/tonight-design.md).
+
 ## Product Purpose
 
 The first release serves one local demo user who plans one to three meals
@@ -46,12 +53,6 @@ omits ingredients to fit the budget.
 The interface MUST meet WCAG 2.2 AA. This covers contrast, keyboard focus,
 visible labels, target sizes, and reduced motion. The layout MUST work at a
 375 px viewport width without horizontal scroll.
-
-The visual prototype targets adults aged 18 to 25. Its first task is to
-choose a meal for tonight and read its grocery cost and nutrition facts.
-The user approved the Familiar and Pantry Edit combination. The prototype
-uses self-contained demo data at `/prototype`; the existing application
-stays at `/`.
 
 ## Operating context
 

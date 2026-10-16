@@ -13,6 +13,8 @@ npm run dev -- --port 5317 --strictPort
 
 Open `http://127.0.0.1:5317/prototype`.
 The existing application stays at `/` and still needs its backend.
+The Compose web image also serves the prototype at
+`http://127.0.0.1:5173/prototype`.
 
 ## Try the flow
 
@@ -54,6 +56,7 @@ $17.91 together. Priced one meal at a time, they cost $22.08.
 
 - `frontend/src/prototype/` contains the UI, fixtures, calculations, and tests.
 - `frontend/public/prototype/` contains the generated food images and provenance.
+- [Design system](tonight-design.md)
 - [Approved direction and scope](tonight-prototype-plan.md)
 - [Image generation prompts](tonight-asset-prompts.md)
 - [Phase record](../../wiki/phases/tonight-prototype.md)
@@ -65,5 +68,5 @@ $17.91 together. Priced one meal at a time, they cost $22.08.
 Frontend gates cover lint, unit and interaction tests, and the production
 build. Browser checks cover the demo route and its controls. Live backend,
 provider behavior, production hosting, and cross-browser coverage are outside
-this prototype's verification scope. VoiceOver testing remains paused. The
-phase record links the existing audits and the Plan page browser checks.
+this prototype's verification scope. No VoiceOver run covers the Plan page.
+The phase record links the existing audits and the Plan page browser checks.
