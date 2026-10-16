@@ -65,5 +65,5 @@ $17.91 together. Priced one meal at a time, they cost $22.08.
 Frontend gates cover lint, unit and interaction tests, and the production
 build. Browser checks cover the demo route and its controls. Live backend,
 provider behavior, production hosting, and cross-browser coverage are outside
-this prototype's verification scope. Browser and VoiceOver testing remain
-paused. The phase record links the existing audits.
+this prototype's verification scope. VoiceOver testing remains paused. The
+phase record links the existing audits and the Plan page browser checks.

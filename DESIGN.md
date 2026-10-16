@@ -111,7 +111,7 @@ The palette uses forest green for action and active states, with quiet green neu
 
 The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, meal cards, and nutrition values adapt their columns to text size. Below 360px, the nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
 
-Each meal card holds its image, servings stepper, per-serving nutrition, and a collapsed ingredient list. Users adjust servings from one to eight per meal. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change nutrition. On compact screens, a pinned bar at the top of the canvas shows the total and the fit line, and `scroll-padding-top` keeps focused controls below it. From 720px, the Plan page uses two columns: meals on the left, and a sticky summary and shopping list on the right. The sticky bottom navigation reserves `--tonight-nav-height` (4.5rem) through `scroll-padding-bottom` and the side column's maximum height.
+Each meal card holds its image, servings stepper, per-serving nutrition, and a collapsed ingredient list. Users adjust servings from one to eight per meal. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change nutrition. On compact screens, a pinned bar at the top of the canvas shows the total and the fit line. The canvas `scroll-padding-top` keeps focused controls below it. From 720px, the Plan page uses two columns: meals on the left, and a sticky summary and shopping list on the right. The sticky bottom navigation is 4.5rem tall. The window `scroll-padding-bottom` and the side column's maximum height (through `--tonight-nav-height`) both reserve that height. Change both values together.
 
 ## Elevation & Depth
 
@@ -125,7 +125,6 @@ Controls and meal-choice cards use gently rounded 12px corners. Meal photos and 
 
 ### Buttons
 - **Shape:** Rounded control corners (12px).
-- **Primary:** Forest green with white text; full width and at least 2.75rem tall.
 - **Hover / Focus:** Hover darkens the green. Keyboard focus uses the shared 3px green outline with a 3px offset. No button transition is defined.
 - **Secondary / Ghost:** Back and stepper controls use transparent backgrounds with ink text.
 

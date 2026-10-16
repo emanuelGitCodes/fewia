@@ -84,7 +84,8 @@ Nutrition values are static copies of the USDA per-serving values that
 On phones, a pinned bar shows the total and the fit line while the page
 scrolls. From 720 px, the meals sit in the left column, and the summary
 and the shopping list sit in a sticky right column.
-One hidden atomic status is the only live region on the Plan page.
+One hidden atomic status is the only `role="status"` region on the Plan page.
+The serving error and the plan cap error use `role="alert"`.
 Every estimate shows this notice:
 
 > Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
@@ -184,6 +185,7 @@ The prototype route uses local demo data in the React app.
 The prototype route MUST NOT call Bedrock, Plaid, Instacart, PostgreSQL, SQS, or S3.
 Provider credentials MUST NOT appear in frontend source.
 
-Browser and VoiceOver testing remain paused. This page records existing
-audits. The coordinator owns graph refresh, `wiki/log.md`, and any
+VoiceOver testing remains paused. The coordinator checked the Plan page
+layout and focus in a browser at 375 px and 1200 x 850. This page records
+existing audits. The coordinator owns graph refresh, `wiki/log.md`, and any
 evidence snapshot.
