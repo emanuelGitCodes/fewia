@@ -22,7 +22,7 @@
   padding: 0.6rem 0.75rem;
   color: var(--ink);
   background: var(--background);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 6px;
 }
 
