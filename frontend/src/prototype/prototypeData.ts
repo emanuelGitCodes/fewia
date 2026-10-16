@@ -32,6 +32,7 @@ export const SERVING_ERROR = "Each meal uses 1 to 8 servings.";
 export const MIN_SERVINGS = 1;
 export const MAX_SERVINGS = 8;
 export const INITIAL_SERVINGS = 2;
+export const MAX_MEALS = 3;
 export const INITIAL_BUDGET_INPUT = "40";
 export const INITIAL_BUDGET_CENTS = 4000;
 export const INITIAL_PANTRY: readonly string[] = ["olive_oil", "salt", "cumin"];
