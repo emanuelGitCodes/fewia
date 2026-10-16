@@ -42,8 +42,9 @@ docker compose up -d
 ```
 
 The base stack needs no `.env` file and no provider credentials. The
-`bootstrap` service runs the migrations, seeds the demo data, and
-provisions the Floci resources. It then exits with code 0. `api`, `worker`, and `sync-worker` start after it completes.
+`bootstrap` service runs the migrations, seeds the demo user, and
+provisions the Floci resources. It then exits with code 0. `api`,
+`worker`, and `sync-worker` start after it completes.
 
 Check that each service is up and that `api` is healthy:
 
