@@ -17,27 +17,22 @@ export { expect };
 export const CHAT_ANSWER = "Here is a plan that fits your budget.";
 
 const OVERLAY_MARKUP_CENTS = 37;
-// Used only when the live job result carries no evidence revision. The UI
-// requires 64 lowercase hex characters for a chat plan.
+// A grocery job result has no evidence fields, so the fake chat result carries
+// no evidence ID and a fixed placeholder revision. The UI requires 64 lowercase
+// hex characters for a chat plan.
 const PLACEHOLDER_REVISION = "0".repeat(64);
 const CHAT_JOBS_PATH = "/api/grocery/chat/jobs";
 const CHAT_JOB_PATH = /^\/api\/grocery\/chat\/jobs\/([^/]+)$/;
 
-type CapturedResult = GroceryJobResult & {
-  request?: GroceryRequest;
-  evidence_id?: string | null;
-  evidence_revision_id?: string;
-};
-
 type GroceryJobWire = {
   id: string;
   status: string;
-  result: CapturedResult | null;
+  result: GroceryJobResult | null;
 };
 
 export type GroceryCapture = {
   id: string;
-  result: CapturedResult;
+  result: GroceryJobResult;
   request: GroceryRequest | null;
 };
 
@@ -49,6 +44,9 @@ export type AppliedOverlay = {
 
 export type GroceryTap = {
   overlay: boolean;
+  // Ingredient ID of a pantry line that the fake overlay lists on purpose. The
+  // real overlay never lists one, so this checks that the page ignores it.
+  pantryLine: string | null;
   latest: () => GroceryCapture;
   latestOverlay: () => AppliedOverlay;
 };
@@ -58,6 +56,8 @@ export type ChatOutcome = "failed" | "succeeded";
 export type ChatPost = {
   body: ChatJobCreate;
   key: string | null;
+  // The job ID the fake returned, or null when it answered 409.
+  jobId: string | null;
 };
 
 export type ChatFake = {
@@ -85,17 +85,22 @@ async function horizontalOverflow(page: Page): Promise<number> {
   return width - viewport.width;
 }
 
-function overlayFor(result: CapturedResult): AppliedOverlay {
+// Like `supermarket_overlay.py`, the total skips pantry lines. The fake lists
+// the one pantry line named by `pantryLine`, which that service never does.
+function overlayFor(result: GroceryJobResult, pantryLine: string | null): AppliedOverlay {
   const lines = result.plan.lines
-    .filter((line) => !line.from_pantry)
+    .filter((line) => !line.from_pantry || line.ingredient_id === pantryLine)
     .map((line) => ({
       ingredient_id: line.ingredient_id,
       cents: (line.cost_cents ?? 0) + OVERLAY_MARKUP_CENTS,
+      pantry: line.from_pantry,
     }));
   return {
-    total_cents: lines.reduce((sum, line) => sum + line.cents, 0),
+    total_cents: lines
+      .filter((line) => !line.pantry)
+      .reduce((sum, line) => sum + line.cents, 0),
     notice: SPOONACULAR_COST_NOTICE,
-    lines,
+    lines: lines.map(({ ingredient_id, cents }) => ({ ingredient_id, cents })),
   };
 }
 
@@ -117,6 +122,7 @@ async function installGroceryTap(page: Page): Promise<GroceryTap> {
   let applied: AppliedOverlay | null = null;
   const tap: GroceryTap = {
     overlay: false,
+    pantryLine: null,
     latest: () => {
       if (captured === null) {
         throw new Error("No succeeded grocery job reached the page yet.");
@@ -154,7 +160,7 @@ async function installGroceryTap(page: Page): Promise<GroceryTap> {
     }
     captured = { id: job.id, result: structuredClone(job.result), request: posted };
     if (tap.overlay) {
-      applied = overlayFor(job.result);
+      applied = overlayFor(job.result, tap.pantryLine);
       job.result.supermarket_estimate = applied;
     }
     await route.fulfill({ response, json: job });
@@ -163,11 +169,11 @@ async function installGroceryTap(page: Page): Promise<GroceryTap> {
 }
 
 // The chat result reuses the plan, budget, nutrition, and spending source that
-// the live grocery job returned, so no plan fixture is written by hand.
+// the live grocery job returned, so no plan fixture is written by hand. The
+// request comes from the captured POST body, because the job result has none.
 function chatResultFrom(capture: GroceryCapture): ChatResult {
-  const { result } = capture;
-  const request = result.request ?? capture.request;
-  if (request === null || request === undefined) {
+  const { result, request } = capture;
+  if (request === null) {
     throw new Error("The grocery request was not captured.");
   }
   return {
@@ -177,8 +183,8 @@ function chatResultFrom(capture: GroceryCapture): ChatResult {
     budget: result.budget,
     request,
     meal_nutrition: result.meal_nutrition ?? null,
-    evidence_id: result.evidence_id ?? null,
-    evidence_revision_id: result.evidence_revision_id ?? PLACEHOLDER_REVISION,
+    evidence_id: null,
+    evidence_revision_id: PLACEHOLDER_REVISION,
     spending_source: result.spending_source as SpendingSource,
     tool_trace: [],
     model_turns: 1,
@@ -190,6 +196,7 @@ function chatResultFrom(capture: GroceryCapture): ChatResult {
 async function installChatFake(page: Page, grocery: GroceryTap): Promise<ChatFake> {
   const finished = new Map<string, ChatJobWire>();
   const ids: string[] = [];
+  const byKey = new Map<string, { id: string; body: string }>();
   let polls = 0;
   const fake: ChatFake = {
     posts: [],
@@ -213,12 +220,34 @@ async function installChatFake(page: Page, grocery: GroceryTap): Promise<ChatFak
     const method = request.method();
     const path = new URL(request.url()).pathname;
     if (method === "POST" && path === CHAT_JOBS_PATH) {
-      fake.posts.push({
-        body: request.postDataJSON() as ChatJobCreate,
-        key: request.headers()["idempotency-key"] ?? null,
-      });
-      const id = `fake-chat-${fake.posts.length}`;
+      const body = request.postDataJSON() as ChatJobCreate;
+      const key = request.headers()["idempotency-key"] ?? null;
+      const serialized = JSON.stringify(body);
+      const post: ChatPost = { body, key, jobId: null };
+      fake.posts.push(post);
+      if (key === null) {
+        fake.unexpected.push(`${method} ${path} without an Idempotency-Key`);
+        await route.fulfill({ status: 422, json: { detail: "missing key" } });
+        return;
+      }
+      // Like `create_chat_job`: the same key with an equal body returns the
+      // existing job, and the same key with a different body is a conflict.
+      const stored = byKey.get(key);
+      if (stored !== undefined) {
+        if (stored.body !== serialized) {
+          await route.fulfill({ status: 409, json: { detail: "conflict" } });
+          return;
+        }
+        post.jobId = stored.id;
+        await route.fulfill({
+          json: { job_id: stored.id, status: finished.get(stored.id)?.status ?? "queued" },
+        });
+        return;
+      }
+      const id = `fake-chat-${ids.length + 1}`;
       ids.push(id);
+      byKey.set(key, { id, body: serialized });
+      post.jobId = id;
       await route.fulfill({ json: { job_id: id, status: "queued" } });
       return;
     }

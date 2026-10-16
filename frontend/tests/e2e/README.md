@@ -64,7 +64,9 @@ horizontal overflow.
 - Overlay: with a Spoonacular overlay on the live grocery response, the sample
   total stays "$17.03". The page also shows the average supermarket estimate,
   the Spoonacular notice, the sample notice, and one "Spoonacular avg" row for
-  each purchased line. A pantry line has no Spoonacular row after a rebuild.
+  each purchased line. After a rebuild, the fake overlay lists the olive-oil
+  pantry line on purpose, and the page shows no Spoonacular row for it. The
+  overlay total skips that line.
 - Chat success: a held chat request shows one status node with "Your request
   is in progress." The Message box keeps focus, stays enabled, and is
   read-only. The page polls the job. The release shows the answer. The posted
@@ -72,7 +74,9 @@ horizontal overflow.
   cents, and a plan cap of 4000 cents.
 - Chat failure: a failed chat job shows "The chat request failed. Retry checks
   the same request." The keyboard retry sends a second POST with the same
-  `Idempotency-Key` and an equal body.
+  `Idempotency-Key` and an equal body. The fake returns the same failed job, as
+  the API does, so both POSTs get one job ID and the page shows the failed
+  status again.
 
 ## Files
 
@@ -91,8 +95,12 @@ The base Compose stack turns off Bedrock chat and the Spoonacular overlay.
 - The `chat_configured` flag in `GET /api/grocery/providers`. The real
   response is fetched and every other field stays unchanged.
 - The `/api/grocery/chat/jobs` endpoints. Any other `/api/grocery/chat/**`
-  request fails the test. The chat result reuses the plan, budget, nutrition,
-  and spending source of the real grocery job.
+  request fails the test. The fake follows `create_chat_job`: the same
+  `Idempotency-Key` with an equal body returns the existing job, and the same
+  key with a different body returns 409. The chat result reuses the plan,
+  budget, nutrition, and spending source of the real grocery job. Its request
+  is the captured grocery POST body. It has no evidence ID and a placeholder
+  revision of 64 zeros, because a grocery job result holds neither.
 - The `supermarket_estimate` field on a succeeded grocery job.
 
 The suite makes no real Bedrock or Spoonacular call. It does not cover the

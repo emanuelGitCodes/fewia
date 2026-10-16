@@ -77,19 +77,28 @@ test("overlay: Spoonacular averages sit beside the sample-catalog total", async 
   const pantryId = (await pantry.getAttribute("id"))?.replace(/^pantry-/, "");
   expect(pantryId, "olive oil ingredient id").toBeTruthy();
   await pantry.check();
+  // The fake overlay lists the olive-oil pantry line on purpose, so the page
+  // must hide it. The overlay total still skips it, as the backend does.
+  groceryTap.pantryLine = pantryId ?? null;
   await page.getByRole("button", { name: "Rebuild estimate" }).click();
   await expectEstimate(page, "$11.04");
   const rebuilt = groceryTap.latest();
   const rebuiltOverlay = groceryTap.latestOverlay();
   const oliveOil = rebuilt.result.plan.lines.find((line) => line.ingredient_id === pantryId);
   expect(oliveOil?.from_pantry, "olive oil is now a pantry line").toBe(true);
-  expect(rebuiltOverlay.lines.map((entry) => entry.ingredient_id)).not.toContain(pantryId);
+  expect(
+    rebuiltOverlay.lines.map((entry) => entry.ingredient_id),
+    "the fake overlay lists the pantry line",
+  ).toContain(pantryId);
+  const purchased = rebuiltOverlay.lines.filter((entry) => entry.ingredient_id !== pantryId);
+  expect(purchased.length, "purchased lines after the rebuild").toBeGreaterThan(0);
+  expect(rebuiltOverlay.total_cents, "overlay total skips the pantry line").toBe(
+    purchased.reduce((sum, entry) => sum + entry.cents, 0),
+  );
   const oliveOilRow = estimate.locator(".estimate-line").filter({ has: pantry });
   await expect(oliveOilRow).toHaveCount(1);
   await expect(oliveOilRow.locator(".estimate-line-spoonacular")).toHaveCount(0);
-  await expect(estimate.locator(".estimate-line-spoonacular")).toHaveCount(
-    rebuiltOverlay.lines.length,
-  );
+  await expect(estimate.locator(".estimate-line-spoonacular")).toHaveCount(purchased.length);
   await expect(estimate.locator(".estimate-overlay-total")).toHaveText(
     dollars(rebuiltOverlay.total_cents),
   );
@@ -133,7 +142,7 @@ test("chat: a held request shows progress, then the answer", async ({
   });
 });
 
-test("chat: a failed request is retried with the same key and body", async ({ page, chat }) => {
+test("chat: a retry with the same key returns the same failed job", async ({ page, chat }) => {
   await buildBeanTacos(page);
   const panel = chatPanel(page);
   const message = panel.getByLabel("Message", { exact: true });
@@ -149,18 +158,20 @@ test("chat: a failed request is retried with the same key and body", async ({ pa
   await expect(panel.locator(".conversation-error")).toHaveText(CHAT_FAILED);
   const retry = panel.getByRole("button", { name: "Retry the same request", exact: true });
   await expect(retry).toBeEnabled();
+  const pollsBeforeRetry = chat.polls();
   await retry.focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => chat.posts.length).toBe(2);
-  await expect(status).toHaveText(CHAT_PENDING);
+  await expect.poll(() => chat.polls()).toBeGreaterThan(pollsBeforeRetry);
 
   const [first, second] = chat.posts;
   expect(first?.key, "Idempotency-Key header").toBeTruthy();
   expect(second?.key, "retry reuses the Idempotency-Key").toBe(first?.key);
   expect(second?.body, "retry sends an equal body").toEqual(first?.body);
+  expect(first?.jobId, "first POST job ID").toBeTruthy();
+  expect(second?.jobId, "retry returns the same job").toBe(first?.jobId);
 
-  chat.finish("succeeded");
-  await expect(panel.getByRole("list", { name: "Messages" })).toContainText(CHAT_ANSWER);
-  await expect(status).toHaveText("");
-  await expect(panel.locator(".conversation-error")).toHaveCount(0);
+  await expect(status).toHaveText(CHAT_FAILED);
+  await expect(panel.locator(".conversation-error")).toHaveText(CHAT_FAILED);
+  await expect(panel.getByRole("list", { name: "Messages" })).not.toContainText(CHAT_ANSWER);
 });
