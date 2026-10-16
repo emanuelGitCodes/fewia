@@ -103,6 +103,7 @@ export function PlanShoppingList(props: {
           })}
         </ul>
       )}
+      <p className="tonight-kicker">Already at home</p>
       {props.pantryRow}
       {home.length > 0 ? <p className="tonight-line-meta">{home.join(", ")}</p> : null}
     </section>

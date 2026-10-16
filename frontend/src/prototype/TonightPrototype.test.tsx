@@ -558,4 +558,102 @@ describe("TonightPrototype", () => {
     expect(returned.getAttribute("aria-describedby")).toBe(screen.getByRole("alert").id);
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
   });
+
+  it("pins a hidden total bar that follows the plan", () => {
+    mount();
+    const bar = screen.getByText(`$8.06 · ${FIT_INITIAL}`);
+    expect(bar.getAttribute("aria-hidden")).toBe("true");
+    click("Egg fried rice");
+    const updated = screen.getByText("$18.41 · $21.59 left under the $40.00 plan cap.");
+    expect(updated.getAttribute("aria-hidden")).toBe("true");
+    expect(updated.getAttribute("role")).toBeNull();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+  });
+
+  describe("Find a meal filter", () => {
+    function filterInput(): HTMLInputElement {
+      return screen.getByLabelText("Find a meal") as HTMLInputElement;
+    }
+
+    function typeFilter(value: string): void {
+      act(() => {
+        fireEvent.change(filterInput(), { target: { value } });
+      });
+    }
+
+    function tileNames(): string[] {
+      const group = screen.queryByRole("group", { name: "Meal choices" });
+      if (group === null) {
+        return [];
+      }
+      return within(group)
+        .getAllByRole("button")
+        .map((button) => textOf(button));
+    }
+
+    it("starts with three tiles", () => {
+      mount();
+      expect(tileNames()).toEqual(["Bean tacos", "Egg fried rice", "Chickpea curry"]);
+    });
+
+    it("narrows to Egg fried rice for rice, in any case", () => {
+      mount();
+      typeFilter("rice");
+      expect(tileNames()).toEqual(["Egg fried rice"]);
+      typeFilter("RICE");
+      expect(tileNames()).toEqual(["Egg fried rice"]);
+    });
+
+    it("shows a message and no tiles when nothing matches", () => {
+      mount();
+      typeFilter("zzz");
+      expect(screen.getByText("No meals match.")).toBeTruthy();
+      expect(tileNames()).toEqual([]);
+    });
+
+    it("restores all three tiles when cleared", () => {
+      mount();
+      typeFilter("zzz");
+      typeFilter("");
+      expect(screen.queryByText("No meals match.")).toBeNull();
+      expect(tileNames()).toHaveLength(3);
+    });
+
+    it("keeps the card and total of a planned meal whose tile is hidden", () => {
+      mount();
+      typeFilter("rice");
+      expect(screen.queryByRole("button", { name: "Bean tacos" })).toBeNull();
+      expect(textOf(card("Bean tacos"))).toContain("2 servings");
+      expect(summaryText()).toContain("$8.06");
+      expect(statusText()).toContain("Groceries to buy $8.06.");
+    });
+  });
+
+  it("labels the at-home group in the shopping list before the pantry row", () => {
+    mount();
+    const section = shoppingSection();
+    const label = within(section).getByText("Already at home");
+    const row = within(section).getByRole("button", { name: "3 at home, Edit pantry" });
+    expect(label.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("places the picker and cards in main and the summary and list in side", () => {
+    const root = mount();
+    const main = root.querySelector(".tonight-plan-main");
+    const side = root.querySelector(".tonight-plan-side");
+    if (!(main instanceof HTMLElement) || !(side instanceof HTMLElement)) {
+      throw new Error("Missing plan layout wrappers");
+    }
+    expect(within(main).getByLabelText("Find a meal")).toBeTruthy();
+    expect(within(main).getByRole("group", { name: "Meal choices" })).toBeTruthy();
+    expect(within(main).getByRole("article", { name: "Bean tacos" })).toBeTruthy();
+    expect(within(main).queryByRole("region", { name: "Plan summary" })).toBeNull();
+    expect(within(main).queryByRole("region", { name: "Shopping list" })).toBeNull();
+    expect(within(side).getByRole("region", { name: "Plan summary" })).toBe(
+      screen.getByRole("region", { name: "Plan summary" }),
+    );
+    expect(within(side).getByRole("region", { name: "Shopping list" })).toBe(shoppingSection());
+    expect(within(side).queryByRole("article")).toBeNull();
+    expect(within(side).queryByLabelText("Find a meal")).toBeNull();
+  });
 });

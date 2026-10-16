@@ -184,6 +184,40 @@
   font-weight: 600;
   cursor: pointer;
 }
+.tonight-plan-ingredients summary::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.6rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms ease-out;
+}
+.tonight-plan-ingredients[open] > summary::before {
+  transform: rotate(45deg);
+}
+.tonight-filter-label {
+  display: block;
+  margin: 0.2rem 0 0.25rem;
+}
+.tonight-filter {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  caret-color: var(--tonight-green);
+}
+.tonight-pinned {
+  display: none;
+}
 .tonight-plan-ingredients fieldset {
   min-width: 0;
   margin: 0;
@@ -536,6 +570,17 @@
   .tonight-canvas {
     overflow: auto;
   }
+  .tonight-pinned {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: block;
+    margin: 0 -1rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--tonight-line);
+    background: var(--tonight-white);
+    font-weight: 600;
+  }
 }
 @media (max-width: 359px) {
   .tonight-macros {
@@ -600,8 +645,43 @@
     margin-top: 1.6rem;
     padding-top: 0.8rem;
   }
+  .tonight-home {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .tonight-home > h1,
+  .tonight-home > .tonight-notice {
+    grid-column: 1 / -1;
+  }
+  .tonight-plan-main,
+  .tonight-plan-side {
+    min-width: 0;
+  }
+  .tonight-plan-side {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+  }
+  .tonight-plan-side > :first-child {
+    margin-top: 0;
+  }
+  .tonight-nav {
+    order: -1;
+    width: min(100%, 1000px);
+    box-sizing: border-box;
+    margin: 0 auto;
+    border-top: 0;
+    border-bottom: 1px solid var(--tonight-line);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
+  .tonight-plan-ingredients summary::before {
+    transition: none;
+  }
   .tonight-thumb img,
   .tonight-photo img {
     animation: none;
