@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from "react";
-import { RECIPE_ORDER, RECIPES, type RecipeId } from "./prototypeData";
+import { RECIPE_ORDER, RECIPES, requireIngredient, type RecipeId } from "./prototypeData";
 import { formatMacro } from "./prototypeModel";
 import type { PlannedMeal } from "./planModel";
 
@@ -48,6 +48,8 @@ export function MealCards(props: {
   meals: PlannedMeal[];
   servingsError: { recipeId: RecipeId; message: string } | null;
   onShiftServings: (id: RecipeId, delta: number) => void;
+  pantry: string[];
+  onTogglePantry: (ingredientId: string) => void;
   onRemove: (id: RecipeId) => void;
 }): JSX.Element {
   if (props.meals.length === 0) {
@@ -89,6 +91,32 @@ export function MealCards(props: {
                   <p className="tonight-error" role="alert">{props.servingsError.message}</p>
                 ) : null}
                 <p className="tonight-package">{macros}</p>
+                <details className="tonight-plan-ingredients">
+                  <summary>{`Ingredients (${String(recipe.ingredients.length)})`}</summary>
+                  <fieldset>
+                    <legend>Already at home</legend>
+                    {recipe.ingredients.map(([ingredientId, perServing]) => {
+                      const item = requireIngredient(ingredientId);
+                      const inputId = `home-${recipeId}-${ingredientId}`;
+                      const quantity = perServing * servings;
+                      const amount =
+                        item.unit === "g" ? `${String(quantity)} g` : `× ${String(quantity)}`;
+                      return (
+                        <div key={ingredientId} className="tonight-plan-ingredient">
+                          <input
+                            id={inputId}
+                            type="checkbox"
+                            checked={props.pantry.includes(ingredientId)}
+                            onChange={() => { props.onTogglePantry(ingredientId); }}
+                          />
+                          <label htmlFor={inputId}>
+                            {item.name} <span className="tonight-plan-qty">{amount}</span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </fieldset>
+                </details>
                 <button
                   type="button"
                   className="tonight-plan-remove"

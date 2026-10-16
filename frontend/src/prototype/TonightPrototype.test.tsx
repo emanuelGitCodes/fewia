@@ -269,8 +269,10 @@ describe("TonightPrototype", () => {
   it("checks shopping items without changing cost and clears stale checks", () => {
     mount();
     expect(summaryText()).toContain("$8.06");
-    const salsa = screen.getByLabelText(/salsa/) as HTMLInputElement;
-    const onion = screen.getByLabelText(/onion/) as HTMLInputElement;
+    const shopBox = (name: RegExp) =>
+      within(shoppingSection()).getByLabelText(name) as HTMLInputElement;
+    const salsa = shopBox(/salsa/);
+    const onion = shopBox(/onion/);
     act(() => {
       fireEvent.click(salsa);
       fireEvent.click(onion);
@@ -280,13 +282,13 @@ describe("TonightPrototype", () => {
     expect(summaryText()).toContain("$8.06");
     expect(summaryText()).toContain(FIT_INITIAL);
     click("Egg fried rice");
-    expect((screen.getByLabelText(/salsa/) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText(/onion/) as HTMLInputElement).checked).toBe(true);
+    expect(shopBox(/salsa/).checked).toBe(true);
+    expect(shopBox(/onion/).checked).toBe(true);
     // Tacos at 8 servings plus rice at 8 servings need 480 g of onion, two packages.
     clickTimes("Increase servings for Bean tacos", 6);
     clickTimes("Increase servings for Egg fried rice", 6);
-    expect((screen.getByLabelText(/salsa/) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText(/onion/) as HTMLInputElement).checked).toBe(false);
+    expect(shopBox(/salsa/).checked).toBe(true);
+    expect(shopBox(/onion/).checked).toBe(false);
     expect(
       within(screen.getByRole("navigation", { name: "Prototype sections" })).getByRole("button", {
         name: "Plan",
@@ -460,12 +462,81 @@ describe("TonightPrototype", () => {
 
   it("lists the at-home ingredient names", () => {
     mount();
-    const names = within(shoppingSection()).getByText(
-      (_, element) =>
-        element?.tagName === "P" &&
-        ["olive oil", "salt", "ground cumin"].every((name) => textOf(element as HTMLElement).includes(name)),
-    );
+    const names = within(shoppingSection()).getByText("ground cumin, olive oil, salt");
     expect(textOf(names)).not.toContain("salsa");
+  });
+
+  it("shows the Plan total heading in the summary", () => {
+    mount();
+    expect(
+      within(screen.getByRole("region", { name: "Plan summary" })).getByRole("heading", {
+        name: "Plan total",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("starts olive oil, salt, and ground cumin checked on the tacos card", () => {
+    mount();
+    const tacos = within(card("Bean tacos"));
+    for (const name of ["olive oil", "salt", "ground cumin"]) {
+      expect((tacos.getByLabelText(new RegExp(`^${name}`)) as HTMLInputElement).checked).toBe(true);
+    }
+    expect((tacos.getByLabelText(/^salsa/) as HTMLInputElement).checked).toBe(false);
+    expect(textOf(tacos.getByText(/^black beans/).closest("label") as HTMLElement)).toContain("240 g");
+    expect(textOf(tacos.getByText(/^corn tortillas/).closest("label") as HTMLElement)).toContain("× 4");
+  });
+
+  it("moves onion off the shopping list when checked on a card", () => {
+    mount();
+    click("Egg fried rice");
+    expect(mainText()).toContain("$18.41");
+    act(() => {
+      fireEvent.click(within(card("Bean tacos")).getByText(/^Ingredients/));
+    });
+    const onion = within(card("Bean tacos")).getByLabelText(/^onion/) as HTMLInputElement;
+    expect(onion.checked).toBe(false);
+    act(() => {
+      fireEvent.click(onion);
+    });
+    expect(onion.checked).toBe(true);
+    expect(within(shoppingSection()).queryByLabelText(/onion/)).toBeNull();
+    expect((within(card("Egg fried rice")).getByLabelText(/^onion/) as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect(summaryText()).toContain("$17.12");
+  });
+
+  it("adds olive oil to the shopping list when unchecked on a card", () => {
+    mount();
+    const oil = within(card("Bean tacos")).getByLabelText(/^olive oil/) as HTMLInputElement;
+    expect(within(shoppingSection()).queryByLabelText(/olive oil/)).toBeNull();
+    act(() => {
+      fireEvent.click(oil);
+    });
+    expect(oil.checked).toBe(false);
+    expect(within(shoppingSection()).getByLabelText(/olive oil/)).toBeTruthy();
+    expect(summaryText()).toContain("$14.05");
+    expect(mainText()).toContain("$14.05");
+  });
+
+  it("keeps focus on the card checkbox after a toggle", () => {
+    mount();
+    const oil = within(card("Bean tacos")).getByLabelText(/^olive oil/) as HTMLInputElement;
+    act(() => {
+      oil.focus();
+      fireEvent.click(oil);
+    });
+    expect(document.activeElement).toBe(oil);
+  });
+
+  it("reads $0.00 left when the cost equals the cap", () => {
+    mount();
+    const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
+    act(() => {
+      fireEvent.change(input, { target: { value: "8.06" } });
+    });
+    expect(summaryText()).toContain("$0.00 left under the $8.06 plan cap.");
+    expect(screen.getByText("$0.00 left under the $8.06 plan cap.")).toBeTruthy();
   });
 
   it("keeps an invalid plan cap linked after visiting Pantry", () => {

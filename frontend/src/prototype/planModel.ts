@@ -138,6 +138,9 @@ export function addMeal(state: PlanState, recipeId: RecipeId): PlanState {
 }
 
 export function removeMeal(state: PlanState, recipeId: RecipeId): PlanState {
+  if (!state.meals.some((m) => m.recipeId === recipeId)) {
+    return state;
+  }
   return withMeals(
     state,
     state.meals.filter((m) => m.recipeId !== recipeId),

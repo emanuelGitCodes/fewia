@@ -19,7 +19,6 @@ import {
   type PlanState,
   type PlannedMeal,
 } from "./planModel";
-import { initialState, withBudgetInput } from "./prototypeModel";
 
 function planOf(meals: PlannedMeal[]): PlanState {
   return { ...initialPlanState(), meals };
@@ -194,11 +193,31 @@ describe("budget input", () => {
     });
   });
 
-  it("still works on the single-meal state", () => {
-    expect(withBudgetInput(initialState(), "25")).toMatchObject({
-      budgetInput: "25",
-      budgetCents: 2500,
-      budgetError: null,
+  it("sets budgetError and keeps budgetCents for an invalid amount", () => {
+    const next = withPlanBudgetInput(initialPlanState(), "12.345");
+    expect(next.budgetCents).toBe(4000);
+    expect(next.budgetInput).toBe("12.345");
+    expect(next.budgetError).not.toBeNull();
+  });
+});
+
+describe("unchanged state", () => {
+  it("returns the same object when removing an unplanned recipe", () => {
+    const state = initialPlanState();
+    expect(removeMeal(state, "egg_fried_rice")).toBe(state);
+  });
+
+  it("returns the same object for the current view", () => {
+    const state = initialPlanState();
+    expect(withPlanView(state, "plan")).toBe(state);
+  });
+
+  it("reports zero nutrition for an empty plan", () => {
+    expect(planNutrition(planOf([]))).toEqual({
+      energyKcal: 0,
+      proteinG: 0,
+      carbsG: 0,
+      fatG: 0,
     });
   });
 });

@@ -10,7 +10,7 @@ import { MealCards, MealPicker } from "./PlanMeals";
 import { PlanShoppingList, PlanSummary, fitLine } from "./PlanSummary";
 import { planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
 
-export type IconName = "fork" | "jar" | "bars" | "pencil" | "arrow" | "back";
+export type IconName = "fork" | "jar" | "pencil" | "back";
 
 const PATHS: Record<IconName, readonly string[]> = {
   fork: [
@@ -20,9 +20,7 @@ const PATHS: Record<IconName, readonly string[]> = {
     "M17 4c2.4 1.6 2.6 6.2 0 8.4",
   ],
   jar: ["M8 8h8v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V8z", "M9 8V6h6v2M8 8h8M10 4.5h4"],
-  bars: ["M6 18V11M12 18V6M18 18v-5"],
   pencil: ["M4 20l1.3-4.6L16.6 4.1a1.6 1.6 0 0 1 2.3 2.3L7.6 17.7 4 20z"],
-  arrow: ["M5 12h14M13 6l6 6-6 6"],
   back: ["M19 12H5M11 6l-6 6 6 6"],
 };
 
@@ -52,6 +50,7 @@ export function PlanPanel(props: {
   lines: PlanLine[];
   onToggleMeal: (id: RecipeId, planned: boolean) => void;
   onShiftServings: (id: RecipeId, delta: number) => void;
+  onTogglePantry: (ingredientId: string) => void;
   onToggleChecked: (id: string) => void;
   onBudgetChange: (value: string) => void;
   onEditPantry: () => void;
@@ -80,6 +79,8 @@ export function PlanPanel(props: {
         meals={meals}
         servingsError={props.state.servingsError}
         onShiftServings={props.onShiftServings}
+        pantry={props.state.pantry}
+        onTogglePantry={props.onTogglePantry}
         onRemove={(id) => { toggleMeal(id, true); }}
       />
       <PlanSummary state={props.state} lines={props.lines} onBudgetChange={props.onBudgetChange} />
