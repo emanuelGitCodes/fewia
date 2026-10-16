@@ -4002,3 +4002,9 @@ stated the review effort by tier while the code maps it by complexity
 class. Each fix moved item 04's base, so item 04 was rebased and
 reviewed again twice. Finish a prose review before opening the next
 worktree on it.
+
+## 2026-10-16 — Auto-compact window set to 1M
+
+- The owner asked for a 1000000-token context window in every session.
+- `.claude/settings.json` sets `autoCompactWindow` to 1000000.
+- [0021](decisions/0021-claude-only-delegation.md) records the amendment.
