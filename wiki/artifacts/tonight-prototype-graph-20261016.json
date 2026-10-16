@@ -1,0 +1,166 @@
+{
+  "date": "2026-10-16",
+  "branch": "codex/impeccable-young-adult-mocks",
+  "scope": "Tonight prototype, comments, design records, and accessibility evidence",
+  "source_base_commit": "365329017a88c87e5d09a4100fc4471d35173e66",
+  "source_state": "Source base plus the appended wiki/log.md entry; hashes identify extracted content.",
+  "graphify_version": "0.9.73",
+  "seed": {
+    "checkout": "/Users/emanuelcortes/GitHub/fewia",
+    "commit": "24804fb2c9643a116adeaa9f28af94c0987eb7db",
+    "branch": "claude/impeccable-all",
+    "graph_sha256": "2efa364d4b60bdf967a86e64be64e2a1f0b62fe8da9f42144598f9fbb2542a9c",
+    "nodes": 10338,
+    "edges": 31751,
+    "communities": 594
+  },
+  "result": {
+    "nodes": 10542,
+    "edges": 32366,
+    "communities": 380,
+    "changed_files": {
+      "code": 23,
+      "document": 12,
+      "paper": 0,
+      "image": 14,
+      "video": 0
+    },
+    "semantic_nodes": 209,
+    "semantic_edges": 304
+  },
+  "retention": {
+    "unchanged_log_semantic_nodes_retained": 11,
+    "obsolete_log_semantic_node_replaced": "wiki_log_auto_compact_raise",
+    "removed_nodes_by_changed_source": {
+      "wiki/log.md": 101,
+      "PRODUCT.md": 15,
+      "DESIGN.md": 23
+    },
+    "removed_unchanged_source_nodes": 0,
+    "forced_export": false
+  },
+  "diagnostics": {
+    "baseline": {
+      "node_count": 10338,
+      "raw_edge_count": 31751,
+      "dangling_endpoint_edges": 0,
+      "missing_endpoint_edges": 0,
+      "self_loop_edges": 54,
+      "exact_duplicate_edges": 0,
+      "undirected_same_endpoint_collapsed_edges": 0
+    },
+    "result": {
+      "node_count": 10542,
+      "raw_edge_count": 32366,
+      "dangling_endpoint_edges": 0,
+      "missing_endpoint_edges": 0,
+      "self_loop_edges": 54,
+      "exact_duplicate_edges": 0,
+      "undirected_same_endpoint_collapsed_edges": 0
+    }
+  },
+  "deleted_files": [
+    ".claude/launch.json"
+  ],
+  "sensitive_exclusions": [
+    "/Users/emanuelcortes/.codex/worktrees/5ca8/fewia/.github/workflows/secrets.yml",
+    "/Users/emanuelcortes/.codex/worktrees/5ca8/fewia/infra/rds/us-east-1-bundle.pem"
+  ],
+  "limits": [
+    "The graph is an incremental branch refresh, not a fresh extraction of every unchanged file.",
+    "Inherited self-loops remain. Graph integrity does not prove product or accessibility correctness.",
+    "The unchanged paper was not re-extracted; pypdf is unavailable.",
+    "JSON evidence and provenance parse correctly but yield no structural entities.",
+    "The 46 axe scans belong to 741c491. WCAG results remain 36 checked, 18 N/A, and one partial.",
+    "Browser and VoiceOver tests remain paused. The last repetition and scripting reset are unconfirmed."
+  ],
+  "zero_entity_json_inputs": [
+    "docs/design/tonight-wcag-evidence/results.json",
+    "frontend/public/prototype/bean-tacos.webp.json",
+    "frontend/public/prototype/chickpea-curry.webp.json",
+    "frontend/public/prototype/egg-fried-rice.webp.json"
+  ],
+  "outputs": [
+    "graphify-out/graph.json",
+    "graphify-out/graph.html",
+    "graphify-out/GRAPH_REPORT.md",
+    "graphify-out/health.json",
+    "graphify-out/GRAPH_HEALTH.md",
+    "graphify-out/manifest.json"
+  ],
+  "output_storage": "Generated graph outputs are local and ignored by Git. This snapshot is committed.",
+  "visualization": "Community-level HTML; full node detail remains in graph.json.",
+  "writer": {
+    "model": "grok-4.6",
+    "effort": "medium",
+    "complexity": "standard",
+    "runs": 1,
+    "commit": "365329017a88c87e5d09a4100fc4471d35173e66",
+    "input_tokens": 1713070,
+    "output_tokens": 23230,
+    "elapsed_seconds": 563.387
+  },
+  "other_usage": {
+    "coordinator": null,
+    "junior": null,
+    "semantic_agents": null,
+    "status": "unavailable"
+  },
+  "verification": {
+    "runtime_equivalence": "Comment-stripped TypeScript output matches b30858e in four files.",
+    "source_gates": "3653290: lint PASS, tests PASS, build PASS, npm-ci SKIP; RESULT PASS.",
+    "source_gate_lines": "2148/1000 (whole branch; includes prior prototype and evidence)",
+    "final_gates_and_review": "Commit-keyed records under .fewia-supervisor-gates and .fewia-supervisor-reviews."
+  },
+  "source_sha256": {
+    "docs/design/tonight-wcag-evidence/results.json": "6a6dfc1c49285c8062e704d3ae6dbaf79e9a2ff8f80f70e1460ec8bec34bfd02",
+    "frontend/public/prototype/bean-tacos.webp.json": "2cf8776e98e264ab8870c5519e10181b8e3634d351229f5d0818899e97c4c4fa",
+    "frontend/public/prototype/chickpea-curry.webp.json": "b0178a0b20c3b090a1e4067cd5ab032218121632e065b427b39a0bf8ec325c35",
+    "frontend/public/prototype/egg-fried-rice.webp.json": "3b256cb06ac4590183bf468a4eb055f134f65987323826eac32969f8a2a72d97",
+    "frontend/src/App.test.tsx": "faafb5a0df3bc9b9c497b4beb2c5719e3afe3907ef5fde9c5452dcf2e2b17056",
+    "frontend/src/App.tsx": "fb7878c8e41965f93ecf1a6b507b384fffc75e8ac52fa6654aaddd85a517d6ee",
+    "frontend/src/ChatPanel.test.tsx": "59649b09869fa3fa77accf04c781aee86e544e6f32991396d9d8eb6a041e1cb5",
+    "frontend/src/ChatPanel.tsx": "721167eb98d3fb2e7c4b06327536f5662efdbde7a691d029f09393cff54d38e6",
+    "frontend/src/Conversation.exclusion.test.tsx": "1b6b362697c511d6021948f69ed6fc8b7474f9ce4fff18e8f33457d8a212c481",
+    "frontend/src/Conversation.tsx": "1df09aaf92c4b5c26699cece5a1f28e2dbcc5725dff4d2507ba4fa1b2d4fb8f4",
+    "frontend/src/Estimate.test.tsx": "173aff834666df85dc726dceed996a701a6f4c988424210004bce8636ea42e9a",
+    "frontend/src/Estimate.tsx": "5c7e0f22458040e5a04a07f22ffd3f93c69d1ee79d9a57817a175bf02bbec77d",
+    "frontend/src/HandoffConsent.test.tsx": "3e7ae3235a5c4ca2c16e2c6d02f50684c4f135922500b455b0ab6ca3a41b7f89",
+    "frontend/src/HandoffConsent.tsx": "02405a0c8e0abb6883536a1f20737451f94de56989a9598c8657cef406f8b29d",
+    "frontend/src/HandoffControls.test.tsx": "3743e7652032822ad7ff020eac1b607d307ea14ce3212a68532bf89a2706079f",
+    "frontend/src/HandoffControls.tsx": "6ba6e874060153f6e8f75f7b8cd96a24d2c32cc18a40fc92eed954d5654dc698",
+    "frontend/src/main.tsx": "552e4b6313e6093c5c882cca423c7aba3a5ff42a510c99abffc9866de45daf9e",
+    "frontend/src/prototype/PrototypePanels.tsx": "3e8d81caccccb6cc62c1bde1c102a094a131c52fc28cf46a5390ab4155944a2f",
+    "frontend/src/prototype/TonightPrototype.test.tsx": "d5e9eb8265d9e6edf526eee0b0caaa7806cce8aeb765c80df699222559248167",
+    "frontend/src/prototype/TonightPrototype.tsx": "01e0d26875f7495f7d403b149a3e81dea0bf97e7ff433b633c8722e59faa842d",
+    "frontend/src/prototype/prototypeData.ts": "102e8906e828aaa2a5d91fe7021fe56e34e36b7df188397dbd852ff16fcd928f",
+    "frontend/src/prototype/prototypeModel.test.ts": "b7f4be5462780ec1c3010faecaf4e0192b09a3a102fa47aac3c283ec8a94cf1a",
+    "frontend/src/prototype/prototypeModel.ts": "a462195f62495d626a4dc8e4d2b8243e25843230dba291e0e3f3af5a2ec2f29e",
+    "DESIGN.md": "6e749b850e58c244a7ad3a5b0d59c11d533a1f7859e96cef550c88fdc0c080b1",
+    "PRODUCT.md": "1c3c6c9b3a8c46882a6ba812428c6de7e96dd084b942d51d100ab356b3b05f0b",
+    "docs/design/tonight-asset-prompts.md": "41df131118089bb550f60ded585cd410a48cc4cf8370e740d23f676f9f2438d8",
+    "docs/design/tonight-mock-brief.md": "a75b0398caf3bb83fed7ef9fde95fc557ff500e503fafe9fe1fedae241d2af6d",
+    "docs/design/tonight-mock-prompts.md": "69000e698dbe0bbadb4e6087b70639ff23ee4161d1ad91567851c6ce8df20ac0",
+    "docs/design/tonight-prototype-plan.md": "2ab7792ad38f12850af9239d91dec46ea03cc5038629ee77f94a3d1fc46cfe12",
+    "docs/design/tonight-prototype.md": "bbd47f88e682525aeeb38470806b446391742abf3024efcd2c8cbc6cacbc634d",
+    "docs/design/tonight-voiceover-audit.md": "fcf89c5783df0e205ca16ed00461204dad4470e6539c755723c5b9591703212e",
+    "docs/design/tonight-wcag-audit.md": "b4f3b18685b853392a0af8928c63b35ac4662348df0c5f946f9813f09442521d",
+    "wiki/index.md": "8968189acabb46bc13f1dad57c7d7435d240ed0bcb9cd78f031e07eedcfa3e54",
+    "wiki/log.md": "05e2b32d402fe14dc1e9124fa62231f90c1f10ea9b19d523e961c21a1dbb7e26",
+    "wiki/phases/tonight-prototype.md": "ee8719ce68007b819081ba21210da25870cd1275d151edff3cefd4b4baae1ce3",
+    "docs/design/tonight-mocks/corner-market.png": "05575a3dc85a4b441092c7e4d7e24eac8b61ef96145b2deb911c5d33bfbec7f0",
+    "docs/design/tonight-mocks/familiar-pantry.png": "e2507604745490470c0a92573beffa7242488a97f27960113c526f52930a533a",
+    "docs/design/tonight-mocks/familiar.png": "3750af260c4e9b985b36c7f09bae23efd971a3d48479f086edc1f30eb9b27923",
+    "docs/design/tonight-mocks/pantry-edit.png": "b0767b01fbf5ba71bf3ddf32932c0ecd85e883a628b4adc9490e6c6ee46ea7cf",
+    "docs/design/tonight-mocks/shared-table.png": "c9290aa7786dd49e1a5e95357f2516ef6662fd9e5518eacad0d9b95815d1c343",
+    "docs/design/tonight-wcag-evidence/01-tonight.png": "6098084d69581ccf8e005d78716e1c95be69c0edaefd8e58fb734c3b9bd7b146",
+    "docs/design/tonight-wcag-evidence/02-pantry.png": "328976b16e45160d2cdf0333750c11b77aa9af047069925bf04045bf474ea373",
+    "docs/design/tonight-wcag-evidence/03-shopping.png": "1d3d41f0179ab856a4f9718fb2016781e01d4f2cd516b4ba7d79a82f35d4919a",
+    "docs/design/tonight-wcag-evidence/04-budget-error.png": "da1881f5dcb35050e48e4a2e9000da2fbba2ae7bde566a0d95956691a8d5e5dc",
+    "docs/design/tonight-wcag-evidence/05-text-200.png": "0770b1bf71e0248959885e0f673176ba1957e30d8754649594700b53ac50d51e",
+    "docs/design/tonight-wcag-evidence/06-forced-colors.png": "036f13b206ec5abb552d02a4a4be23a204d875d7b08f1603967131e7353177bc",
+    "frontend/public/prototype/bean-tacos.webp": "66c04d1240932d32dc0f596a7c11d9e057796da700f45a52f9f4e16d99c3977e",
+    "frontend/public/prototype/chickpea-curry.webp": "7becbc54eae2f1b6b48bdbc4c5bc1b08b9cdec95f3825a3f6306c01707bc2c05",
+    "frontend/public/prototype/egg-fried-rice.webp": "0bab1a8bde3e6bd6b2775b338a8eaea53b2ec3da376dbd6f8c480e4ba4d7d1b6"
+  }
+}
