@@ -401,7 +401,6 @@
   color: var(--tonight-muted);
   font-size: 0.9rem;
 }
-.tonight-primary,
 .tonight-back {
   display: inline-flex;
   flex-wrap: wrap;
@@ -409,20 +408,6 @@
   gap: 0.5rem;
   font: inherit;
   cursor: pointer;
-}
-.tonight-primary {
-  justify-content: center;
-  width: 100%;
-  min-height: 2.75rem;
-  margin-top: 0.8rem;
-  border: 0;
-  border-radius: 12px;
-  background: var(--tonight-green);
-  color: var(--tonight-white);
-  font-weight: 600;
-}
-.tonight-primary:hover {
-  background: #124a37;
 }
 .tonight-back {
   margin: 0.2rem 0 0;
@@ -573,7 +558,7 @@
   }
   .tonight-canvas {
     overflow: auto;
-    scroll-padding-top: 3.5rem;
+    scroll-padding-top: calc(var(--tonight-pinned-height, 3.5rem) + 0.5rem);
   }
   .tonight-pinned {
     position: sticky;
@@ -647,10 +632,6 @@
   }
   .tonight-nutrition-head {
     margin-bottom: 0.7rem;
-  }
-  .tonight-primary {
-    min-height: 3.1rem;
-    margin-top: 1.35rem;
   }
   .tonight-footer {
     margin-top: 1.6rem;
