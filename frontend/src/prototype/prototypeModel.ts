@@ -122,7 +122,10 @@ export function toggleChecked(state: PrototypeState, ingredientId: string): Prot
 }
 
 export function withView(state: PrototypeState, view: PrototypeView): PrototypeState {
-  return { ...state, view };
+  if (view === state.view) {
+    return state;
+  }
+  return { ...state, view, servingsError: null };
 }
 
 export function withBudgetInput(state: PrototypeState, budgetInput: string): PrototypeState {

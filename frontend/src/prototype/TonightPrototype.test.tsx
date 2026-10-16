@@ -388,4 +388,67 @@ describe("TonightPrototype", () => {
     expect(textOf(screen.getByRole("alert"))).toBe(SERVING_ERROR);
     expect(textOf(screen.getByRole("main"))).toContain("1 serving");
   });
+
+  it("clears a rejected serving alert after leaving Tonight", () => {
+    mount();
+    for (let step = 0; step < 6; step += 1) {
+      act(() => {
+        fireEvent.click(buttonNamed("Increase servings"));
+      });
+    }
+    expect(textOf(screen.getByRole("main"))).toContain("8 servings");
+    act(() => {
+      fireEvent.click(buttonNamed("Increase servings"));
+    });
+    expect(textOf(screen.getByRole("alert"))).toBe(SERVING_ERROR);
+    act(() => {
+      fireEvent.click(buttonNamed("Tonight"));
+    });
+    expect(textOf(screen.getByRole("alert"))).toBe(SERVING_ERROR);
+    expect(textOf(screen.getByRole("main"))).toContain("8 servings");
+    act(() => {
+      fireEvent.click(buttonNamed("Pantry"));
+    });
+    act(() => {
+      fireEvent.click(buttonNamed("Tonight"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(textOf(screen.getByRole("main"))).toContain("8 servings");
+    expect(textOf(screen.getByRole("main"))).not.toContain(SERVING_ERROR);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "What sounds good?" }),
+    );
+  });
+
+  it("keeps an invalid plan cap linked after leaving Budget", () => {
+    mount();
+    act(() => {
+      fireEvent.click(buttonNamed("Budget"));
+    });
+    const input = screen.getByLabelText("Plan cap") as HTMLInputElement;
+    act(() => {
+      fireEvent.change(input, { target: { value: "12.345" } });
+    });
+    const amountError =
+      "Enter a non-negative dollar amount with at most two decimal places.";
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-describedby")).toBe("budget-error");
+    expect(textOf(screen.getByRole("alert"))).toBe(amountError);
+    act(() => {
+      fireEvent.click(buttonNamed("Tonight"));
+    });
+    act(() => {
+      fireEvent.click(buttonNamed("Budget"));
+    });
+    const returned = screen.getByLabelText("Plan cap") as HTMLInputElement;
+    expect(returned.value).toBe("12.345");
+    expect(returned.getAttribute("aria-invalid")).toBe("true");
+    expect(returned.getAttribute("aria-describedby")).toBe("budget-error");
+    expect(textOf(screen.getByRole("alert"))).toBe(amountError);
+    expect(returned.getAttribute("aria-describedby")).toBe(
+      screen.getByRole("alert").id,
+    );
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Budget" }));
+  });
 });
