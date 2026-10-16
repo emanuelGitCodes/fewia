@@ -4206,3 +4206,26 @@ one defect and one improvement. The ledger is
   definition of done. The fix does not change that.
 
 A Sonnet writer made the fix through `dev_supervisor`. Opus reviewed it.
+
+## 2026-10-16 — Tonight prototype evaluation: follow-up
+
+This entry adds to the previous entry. The build emits
+`TonightPrototype-*.js` as a 12.15 kB chunk. The 2148 added lines also
+exceed the 150-line pull request rule. Publication needs the planned stack.
+
+The evaluation records these items and does not change them:
+
+- `togglePantry` clears all shopping checks, also for lines that the
+  change does not touch. A code comment states this as intent.
+- `BudgetPanel` shows the status for the last valid cap while the draft is
+  invalid. The design doc states this as intent.
+- `MealPhoto` resets `failed` in an effect. A stale fallback can show for
+  one render after `src` changes.
+- The empty shopping view has two `role="status"` regions.
+- `.tonight-primary:hover` uses the literal `#124a37`, not a token.
+- No test covers the lazy branch of `main.tsx`.
+- The `toContain("590")` and `toContain("750")` assertions match any
+  digits in the page text.
+
+The Opus review returned REQUEST_CHANGES on `1bb4c38` for an unbacked doc
+claim. It returned APPROVE on `a68c5d1` and `9c284ab`.
