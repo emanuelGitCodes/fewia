@@ -4046,3 +4046,9 @@ completed three times. `.conversation-status` carries box styling, so an
 always-mounted live region needs the visually hidden utility. No browser
 or screen-reader run verified the items. A rerun of `/impeccable audit`
 after the merges can confirm them.
+
+## 2026-10-16 — Auto-compact window set to 1M
+
+- The owner asked for a 1000000-token context window in every session.
+- `.claude/settings.json` sets `autoCompactWindow` to 1000000.
+- [0021](decisions/0021-claude-only-delegation.md) records the amendment.
