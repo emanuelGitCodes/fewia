@@ -4052,3 +4052,23 @@ after the merges can confirm them.
 - The owner asked for a 1000000-token context window in every session.
 - `.claude/settings.json` sets `autoCompactWindow` to 1000000.
 - [0021](decisions/0021-claude-only-delegation.md) records the amendment.
+
+## 2026-10-16 — Stranded skills recovered from #404
+
+An audit of unmerged branches found that the `gates`, `wiki-log`, and
+`worktree-cleanup` skills never reached `main`.
+
+- #403 merged `claude/claude-config-03` into `claude/claude-config-02`
+  at 2026-10-06T00:24:59Z as `ff83288`.
+- #404 merged `claude/claude-config-04` into `claude/claude-config-03`
+  at 00:25:13Z as `3d368fc`. That branch was already merged, so the
+  skills stayed on it.
+- #405 merged `claude/claude-config-02` into `main` at 00:25:25Z as
+  `6d5c268`. It carried #403 and not #404.
+- The branch `claude/recover-claude-config-03-skills` copies the seven
+  files from `3d368fc` and fixes three stale references.
+- The `gates` skill now reads `LINES n/1000` and states no fixed test
+  count. The `wiki-log` skill cites `docs/FEATURE_BACKLOG.md` for the
+  evidence rule, not decision 0014.
+- A stack merges into its parent branches child first, or bottom-up
+  with a retarget before each merge.
