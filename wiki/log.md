@@ -4047,6 +4047,90 @@ always-mounted live region needs the visually hidden utility. No browser
 or screen-reader run verified the items. A rerun of `/impeccable audit`
 after the merges can confirm them.
 
+## 2026-10-15 — Tonight meal design exploration
+
+Created `codex/impeccable-young-adult-mocks` from `5f56a04`.
+The user selected a quick meal for tonight as the first screen.
+The audience is adults aged 18 to 25. The screen shows grocery cost
+and nutrition facts beside the selected meal.
+
+The [design brief](../docs/design/tonight-mock-brief.md) links four static
+mock images and their exact prompts. Impeccable informed the directions.
+The built-in image tool generated the images. Their figures and photos
+are illustrative. No direction is approved at this point.
+
+The tier S comparison-metadata attempt used `gpt-6-luna` at `xhigh`
+through `dev_supervisor`. It returned `no_edits`. The coordinator
+presented the images inline. No comparison page or application code
+changed. Provider calls, responsive behavior, and accessibility were
+not tested. Prompt metadata is present in all four PNG files.
+
+## 2026-10-15 — Familiar and Pantry Edit combination
+
+The user selected a combination of Familiar and Pantry Edit.
+The [revised mock](../docs/design/tonight-mocks/familiar-pantry.png)
+uses green controls, clean type, and a compact meal-and-cost layout.
+The image has one navigation area and one pantry ingredient field.
+Its price and nutrition values match the original examples.
+
+The built-in image tool generated the combination from both references.
+A second image edit removed repeated pantry text. The exact prompts
+are saved in the [prompt record](../docs/design/tonight-mock-prompts.md).
+The originals remain unchanged. The revised screen awaits user feedback.
+No application code changed. Responsive behavior and accessibility
+remain unverified.
+
+## 2026-10-15 — Working Tonight prototype
+
+The user approved a working Familiar and Pantry Edit prototype on
+`codex/impeccable-young-adult-mocks` and selected self-contained demo data.
+The [run guide](../docs/design/tonight-prototype.md) describes `/prototype`.
+The existing application stays at `/`.
+
+The prototype supports three meals, one to eight servings, explicit pantry
+changes, whole-package grocery costs, per-serving demo nutrition, shopping
+checks, and plan-cap validation. State resets on reload. No backend or
+provider requests are part of this route.
+
+A Luna junior ran Grok 4.6 at medium through the supervisor. Foundation
+commit `20da5d8` holds the data and calculations. Interface commit `a018a0c`
+holds the route, components, and styles. Repairs `519b49b` and `6c34842`
+improve layout, focus, and mobile navigation. A future publication needs
+a stack: foundation first, then interface and repairs. No PR was opened.
+
+The source gates passed lint, frontend tests, and production build.
+Intermediate gate line counts included untracked image bytes and browser
+logs, so those aggregate counts do not describe a proposed PR.
+The initial dependency install reported 11 high-severity audit findings.
+No dependency manifest or lockfile changed.
+
+Browser checks passed meal selection, package boundaries, pantry pricing,
+checklist resets, zero/invalid budgets, the all-at-home state, serving bounds,
+reduced motion, and focus/scroll behavior. The route made no backend requests.
+No console warnings or errors were observed. Widths 320, 390, and 1440
+were checked for overflow. Desktop and mobile screenshots remain local
+under `.impeccable/review/`.
+
+The Impeccable detector returned `[]`. The independent visual reviewer
+first returned `fix` for mobile navigation overlap and task visibility.
+The verdict pass marked both fixes resolved and returned `ship` at that
+scope. The primary action ends at about675px; navigation starts at780px
+in the 390x844 capture. All three shipping photos have prompt provenance.
+
+Recorded writer use for `tonight-prototype-01`: one implementation run
+and three repair runs, 3,156,035 input tokens, 102,877 output tokens,
+and 1,636.171 seconds. These are supervisor writer totals. They exclude
+native coordinator/junior use, image generation, documentation, and review.
+The separate code review and final committed gate record follow this entry.
+
+The design record writer used Luna at xhigh for `DESIGN.md` and the local
+`.impeccable/design.json` sidecar. Its recorded use was 429,851 input tokens,
+18,449 output tokens, and 172.771 seconds. Writer totals across code and
+documentation are 3,585,886 input tokens and 121,326 output tokens.
+The final independent reviewer is Sol at medium, distinct from both writers.
+The supervisor stores its verdict and the committed gate record under
+`.fewia-supervisor-reviews/` and `.fewia-supervisor-gates/`.
+
 ## 2026-10-16 — Auto-compact window set to 1M
 
 - The owner asked for a 1000000-token context window in every session.
@@ -4072,3 +4156,236 @@ An audit of unmerged branches found that the `gates`, `wiki-log`, and
   evidence rule, not decision 0014.
 - A stack merges into its parent branches child first, or bottom-up
   with a retarget before each merge.
+
+## 2026-10-16 — Tonight prototype accessibility audit
+
+The user requested a WCAG 2.2 AA audit and fixes on the prototype branch.
+The [audit record](../docs/design/tonight-wcag-audit.md) covers all 55 Level A
+and AA criteria: 35 checked, 18 not applicable, and two partially verified.
+The partial criteria retain a screen-reader interaction and speech gap.
+No complete conformance claim is made.
+
+Commit `741c491` fixes the pantry label-name mismatch, a low-contrast input
+border, color-only selection cues, and text clipping at 200% size.
+A repair introduced a meal-photo overlap. Visual inspection caught it;
+the final photo stays within its grid column. The control border now has
+5.35:1 contrast on white. The normal mobile stepper stays on one row.
+
+The user approved separate local Playwright and axe checks. Chromium 155
+and axe-core 4.14.0 passed 40 view, width, and text-setting combinations.
+Six additional scans cover meal and edge states. All 46 scans report zero
+violations. The final geometry checks report no text overflow or photo overlap.
+Forward and reverse keyboard checks, error recovery, pointer cancellation,
+forced colors, reduced motion, and empty shopping checks passed.
+Six inspected screenshots and a sanitized results file are committed with
+the audit record. One headed capture timed out; a fresh headless browser
+completed the final checks. The in-app browser supplied separate evidence.
+
+Focused UI tests pass 11/11. The committed gates pass frontend lint, the
+full test suite, and production build. This repair adds 66 source lines
+against `bcf3d1d`. The complete prototype still needs a stack before a PR.
+No PR, push, merge, or deployment was requested or performed.
+
+A Luna junior ran Grok 4.6 at medium through the supervisor: one implementation
+and two repair runs. Recorded writer use is 1,086,634 input tokens,
+51,694 output tokens, and 1,058.273 seconds. These totals exclude native
+coordinator and junior use and the independent review. Sol at medium is
+the separate review model. Its verdict and the final committed gates are
+stored in `.fewia-supervisor-reviews/` and `.fewia-supervisor-gates/`.
+
+## 2026-10-16 — Tonight prototype VoiceOver follow-up
+
+The user requested actual VoiceOver testing and screen-reader repairs on
+`codex/impeccable-young-adult-mocks`. The
+[VoiceOver record](../docs/design/tonight-voiceover-audit.md) separates captured
+speech from browser accessibility-tree evidence. Chrome 155 and macOS 27.0.1
+supplied the test environment. The user approved temporary scripting control.
+
+Commit `22d3560` replaces competing serving and price statuses with one
+contextual meal announcement. VoiceOver now reads the meal, servings, cost,
+and sample-estimate qualifier, including the previously failing package
+boundary. Commit `f20eef9` clears a transient serving error on a real view
+change. A return to Tonight then announced its heading without the old alert.
+
+Pantry and shopping labels, checkbox states, empty shopping content, serving
+bounds, budget errors and recovery, headings, and landmarks have actual
+VoiceOver evidence. An extra limit-error navigation repetition was interrupted
+by an authentication screen. Automatic approval review blocked browser access;
+the user paused browser testing. That repetition remains incomplete.
+The WCAG record now has 36 checked criteria, 18 not applicable, and one partial.
+It does not claim complete conformance.
+
+Focused UI tests pass 15/15. Source gates pass frontend lint, the full test
+suite, and build. Both source commits passed gitleaks. The work adds 21 source
+lines against `4537776`; branch-wide gate counts include the original
+prototype and generated audit evidence. No push, PR, merge, or deployment ran.
+
+A Luna junior ran Grok 4.6 at medium through the supervisor for one
+implementation and one repair. Recorded writer use is 772,241 input tokens,
+26,047 output tokens, and 540.616 seconds. Native coordinator and junior use
+is unknown and excluded. Sol at medium is the independent review model.
+The review and final gate records are keyed by SHA in their supervisor folders.
+
+## 2026-10-16 — Tonight prototype documentation and graph
+
+The user requested code comments, a wiki record, and a graph update for the
+prototype work. The [phase record](phases/tonight-prototype.md) links the
+approved design, demo contracts, source map, image provenance, implementation
+commits, and accessibility evidence. The run guide and wiki index link it.
+Code comments explain package units, integer-cent costs, budget drafts,
+shopping-check resets, view focus, and the atomic meal status.
+This work changes comments and documentation. It adds no runtime behavior.
+
+The accessibility limits remain explicit: 36 criteria checked, 18 not
+applicable, and one partial. The 46 axe scans belong to the earlier WCAG
+repair. VoiceOver testing remains paused after the interrupted repetition.
+VoiceOver was stopped. The scripting-control setting reset is unconfirmed.
+No browser or VoiceOver test ran for this documentation work.
+
+This worktree had no graph. The refresh starts from the verified graph in
+the main checkout at `24804fb2c9643a116adeaa9f28af94c0987eb7db`.
+That seed has 10,338 nodes and 31,751 edges. Changed files are extracted from
+this branch. The main checkout graph stays unchanged. The refresh preserves
+valid log facts whose source text is unchanged. It replaces facts whose
+source text changed. Generated graph files stay local under `graphify-out/`.
+The [refresh snapshot](artifacts/tonight-prototype-graph-20261016.json)
+records the source hashes, counts, exclusions, diagnostics, and local paths.
+
+A Luna junior runs the Tier M writer through the supervisor. The writer is
+Grok 4.6 at medium with standard complexity. Sol at medium supplies the
+independent review. Gates and review results are keyed by commit SHA in
+their supervisor folders. Native coordinator, junior, and graph-agent usage
+is unavailable. No push, pull request, merge, or deployment is in scope.
+
+## 2026-10-16 — Tonight prototype evaluation
+
+The evaluation of `codex/impeccable-young-adult-mocks` at `c8217ee` found
+one defect and one improvement. The ledger is
+`.claude/loop/young-adult-mocks-eval.md`.
+
+- Defect: the prototype nutrition values differed from the USDA values in
+  the real app. Bean-taco fat showed 13.7 g; the source screenshot and the
+  real app show 12.3 g. Egg fried rice and chickpea curry had no source.
+  The prototype now shows 379/14.5/55.8/12.3, 590/22.4/76.7/20.6, and
+  750/18.8/102.2/31.2 (kcal, protein, carbohydrate, and fat in grams).
+- Improvement: `main.tsx` loads the prototype with `React.lazy`. The build
+  emits a separate 12 kB chunk.
+- The mock images and `docs/design/tonight-mock-prompts.md` keep 13.7 g,
+  because they record the exact generation inputs.
+- The branch adds 2148 lines by the gate count. This exceeds the 1000-line
+  definition of done. The fix does not change that.
+
+A Sonnet writer made the fix through `dev_supervisor`. Opus reviewed it.
+
+## 2026-10-16 — Tonight prototype evaluation: follow-up
+
+This entry adds to the previous entry. The build emits
+`TonightPrototype-*.js` as a 12.15 kB chunk. The 2148 added lines also
+exceed the 150-line pull request rule. Publication needs the planned stack.
+
+The evaluation records these items and does not change them:
+
+- `togglePantry` clears all shopping checks, also for lines that the
+  change does not touch. A code comment states this as intent.
+- `BudgetPanel` shows the status for the last valid cap while the draft is
+  invalid. The design doc states this as intent.
+- `MealPhoto` resets `failed` in an effect. A stale fallback can show for
+  one render after `src` changes.
+- The empty shopping view has two `role="status"` regions.
+- `.tonight-primary:hover` uses the literal `#124a37`, not a token.
+- No test covers the lazy branch of `main.tsx`.
+- The `toContain("590")` and `toContain("750")` assertions match any
+  digits in the page text.
+
+The Opus review returned REQUEST_CHANGES on `1bb4c38` for an unbacked doc
+claim. It returned APPROVE on `a68c5d1` and `9c284ab`.
+
+## 2026-10-16 — Tonight test tighten
+
+This entry closes the last two items of the previous entry.
+
+- The meal-switch test reads the kcal value from the "Nutrition per serving"
+  region and asserts `590` and `750` exactly.
+- `frontend/src/rootView.tsx` holds the root selection. `main.tsx` renders
+  `selectRoot(window.location.pathname)`. Behavior does not change. The
+  build still emits `TonightPrototype-*.js` as a separate 12.15 kB chunk.
+- `frontend/src/rootView.test.tsx` checks that `/prototype` renders nothing
+  first and then resolves the lazy component. It also checks `/prototype/`
+  and `/`.
+- The synchronous check holds only in the first test of that file. Later
+  tests get the cached module. Vitest isolates modules per test file.
+
+A Sonnet writer made the change through `dev_supervisor` in one implement
+run and one repair run. The gates passed with 23 lines. The Opus review
+returned APPROVE on `cbdb560`. Usage: implement 48017 input and 3002 output
+tokens, repair 26219 and 886, review 21337 and 1358.
+
+## 2026-10-16 — Tonight Plan page
+
+The owner asked for one page that shows every planned meal, its servings,
+and each grocery item. The loop `tonight-plan-page` replaced the single-meal
+Tonight screen on `/prototype` with a Plan page. The stack is
+`claude/tonight-plan-page-01` to `-06`. Item 01 stacks on
+`codex/impeccable-young-adult-mocks` at `07aec4f`.
+
+| Item | Head | Work | Gate lines | Review |
+| --- | --- | --- | --- | --- |
+| 01 | `779cc4a` | Multi-meal plan model | 217 | APPROVE, round 1 |
+| 02 | `b0dcd44` | Plan page with meal picker and meal cards | 249 | APPROVE, round 1 |
+| 03 | `b322530` | Summary and combined shopping list | 190 | APPROVE, round 1 |
+| 04 | `141ff8d` | Ingredient "Already at home" toggles and cleanup | 84 | APPROVE, round 1 |
+| 05 | `11ff7d5` | Pinned bar, two columns, and name filter | 163 | APPROVE, round 3 |
+| 06 | this item | Wiki, phase page, run guide, and DESIGN.md | prose | Fable review |
+
+- The plan sums each ingredient across the meals before it rounds to whole
+  packages. Egg fried rice and chickpea curry at 2 servings each cost $17.91
+  together and $22.08 apart.
+- There is no per-meal dollar cost. Shared packages make per-meal costs sum
+  to more than the total.
+- An ingredient toggle on a card marks the item at home in the one global
+  pantry. The item stays in the nutrition. This is the owner's choice.
+- The frontend suite grew from 521 to 561 tests. Each gate run passed lint,
+  test, and build.
+- Item 05 needed three review rounds. Round 1 found a missing WebKit marker
+  rule. The coordinator then changed the desktop nav from `order: -1` to a
+  sticky bottom row, to keep the visual order and the tab order equal.
+  Round 2 found that the sticky edges covered focused controls. The
+  coordinator's contract change caused that, not the writer.
+- The coordinator checked each item from 02 in a real browser at 375 px and,
+  for item 05, at 1200 x 850.
+
+Not verified: a screen-reader run, the WebKit marker in Safari, and 320 px
+with 200% text. Open items: the filter's empty result is not announced
+(4.1.3), and the phone scroll padding can be too small at 200% text (2.4.11).
+
+Usage, all items: writer 1,715,142 input and 92,716 output tokens over 13
+runs. Review 800,708 input and 37,631 output tokens over 7 runs. The
+coordinator transcript recorded 39,938,400 input and 79,421 output tokens.
+Correction: the coordinator output total is 79,419 tokens.
+
+## 2026-10-16 — Tonight prototype stack to main
+
+A five-item stack brings `codex/impeccable-young-adult-mocks` at `f81188d`
+into `main` at `43c46a7`. Each item copies its files from `f81188d`, so no
+commit from #446 to #451 is replayed. The
+[phase page](phases/tonight-prototype.md#main-stack) holds the item table.
+
+- Order: model, styles and photos, UI and route, design docs, wiki. The
+  styles come before the UI, because the UI imports the stylesheet and the
+  two together exceed 1000 lines.
+- `main` already had a root `DESIGN.md` for the `/` application, so the
+  prototype design system moved to `docs/design/tonight-design.md`.
+- This log keeps every `main` entry unchanged and orders all entries by
+  date.
+- Fixes: the empty filter result now leads the one atomic status (4.1.3).
+  The canvas scroll padding follows the measured pinned bar (2.4.11). The
+  unused `.tonight-primary` rules are gone. The design system no longer
+  names a primary button. The phase page no longer says browser testing is
+  paused.
+- The coordinator found that nginx answered `/prototype` with a redirect to
+  the container port and `/prototype/` with `403`. Item 03 rewrites both
+  paths to `index.html`.
+- The Playwright suite passed 16 of 16 on the item 03 head.
+
+Not verified: a screen-reader run and Safari. At 320 px with 200% text, the
+"Remove" button text wraps one letter per line.
