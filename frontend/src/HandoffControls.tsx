@@ -42,6 +42,14 @@ export function HandoffControls({
 }: HandoffControlsProps): JSX.Element {
   const [consentOpen, setConsentOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const confirmedRef = useRef(false);
+  useEffect(() => {
+    if (!consentOpen && confirmedRef.current) {
+      confirmedRef.current = false;
+      headingRef.current?.focus();
+    }
+  }, [consentOpen]);
   useEffect(() => {
     if (!canStart || pending || view !== null) {
       setConsentOpen(false);
@@ -57,7 +65,9 @@ export function HandoffControls({
   const status = pending ? IN_PROGRESS : view === null ? null : stateStatus(view.state);
   return (
     <section className="handoff-controls" aria-labelledby="handoff-heading">
-      <h2 id="handoff-heading">Shopping list</h2>
+      <h2 id="handoff-heading" ref={headingRef} tabIndex={-1}>
+        Shopping list
+      </h2>
       {view === null && canStart ? (
         <button
           ref={triggerRef}
@@ -78,6 +88,7 @@ export function HandoffControls({
           onCancel={() => setConsentOpen(false)}
           onConfirm={() => {
             if (canStart && !pending && view === null) {
+              confirmedRef.current = true;
               onStart();
             }
           }}

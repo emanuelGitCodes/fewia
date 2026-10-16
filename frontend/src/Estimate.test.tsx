@@ -437,6 +437,17 @@ describe("Estimate", () => {
     rendered.unmount();
   });
 
+  it("makes the heading programmatically focusable with and without a result", () => {
+    const empty = mount();
+    expect(empty.container.querySelector("h2#estimate-heading")?.getAttribute("tabindex")).toBe("-1");
+    empty.unmount();
+    const withResult = mount({ job: succeeded() });
+    expect(
+      withResult.container.querySelector("h2#estimate-heading")?.getAttribute("tabindex"),
+    ).toBe("-1");
+    withResult.unmount();
+  });
+
   it("omits per-line Spoonacular text when supermarket_estimate is absent", () => {
     const rendered = mount({ job: succeeded() });
     const text = renderedText(rendered.container);
