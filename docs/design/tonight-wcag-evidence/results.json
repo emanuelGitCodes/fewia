@@ -1,0 +1,869 @@
+{
+  "date": "2026-10-16",
+  "source_commit": "741c491",
+  "route": "/prototype",
+  "browser": "Chromium 155.0.8059.84",
+  "axe": "4.14.0",
+  "screen_reader_speech_tested": false,
+  "baseline": [
+    {
+      "case": "before-1280-tonight",
+      "violations": [
+        "label-content-name-mismatch"
+      ],
+      "text_overflow": []
+    },
+    {
+      "case": "before-1280-pantry",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-1280-shopping",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-1280-budget-invalid",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-390-tonight",
+      "violations": [
+        "label-content-name-mismatch"
+      ],
+      "text_overflow": []
+    },
+    {
+      "case": "before-390-pantry",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-390-shopping",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-390-budget-invalid",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-320-tonight",
+      "violations": [
+        "label-content-name-mismatch"
+      ],
+      "text_overflow": []
+    },
+    {
+      "case": "before-320-pantry",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-320-shopping",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-320-budget-invalid",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-spacing-tonight",
+      "violations": [
+        "label-content-name-mismatch"
+      ],
+      "text_overflow": []
+    },
+    {
+      "case": "before-spacing-pantry",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-spacing-budget",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-text200-tonight",
+      "violations": [],
+      "text_overflow": [
+        {
+          "text": "Chickpea curry",
+          "client": 98,
+          "scroll": 130
+        },
+        {
+          "text": "Chickpea curry",
+          "client": 79,
+          "scroll": 120
+        },
+        {
+          "text": "$8.06",
+          "client": 148,
+          "scroll": 174
+        },
+        {
+          "text": "3 at home",
+          "client": 67,
+          "scroll": 77
+        },
+        {
+          "text": "14.5 g",
+          "client": 45,
+          "scroll": 67
+        },
+        {
+          "text": "Protein",
+          "client": 45,
+          "scroll": 88
+        },
+        {
+          "text": "55.8 g",
+          "client": 45,
+          "scroll": 67
+        },
+        {
+          "text": "Carbs",
+          "client": 45,
+          "scroll": 69
+        },
+        {
+          "text": "13.7 g",
+          "client": 45,
+          "scroll": 67
+        }
+      ]
+    },
+    {
+      "case": "before-text200-pantry",
+      "violations": [],
+      "text_overflow": []
+    },
+    {
+      "case": "before-text200-budget",
+      "violations": [],
+      "text_overflow": []
+    }
+  ],
+  "final_matrix": [
+    {
+      "case": "after-1280-tonight",
+      "width": 1280,
+      "height": 900,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-1280-pantry",
+      "width": 1280,
+      "height": 900,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-1280-shopping",
+      "width": 1280,
+      "height": 900,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-1280-budget-invalid",
+      "width": 1280,
+      "height": 900,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-tonight",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-pantry",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-shopping",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-budget-invalid",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-tonight",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-pantry",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-shopping",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-budget-invalid",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-520-tonight",
+      "width": 520,
+      "height": 844,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-520-pantry",
+      "width": 520,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-520-shopping",
+      "width": 520,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-520-budget-invalid",
+      "width": 520,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-719-tonight",
+      "width": 719,
+      "height": 844,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-719-pantry",
+      "width": 719,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-719-shopping",
+      "width": 719,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-719-budget-invalid",
+      "width": 719,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-844-tonight",
+      "width": 844,
+      "height": 390,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-844-pantry",
+      "width": 844,
+      "height": 390,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-844-shopping",
+      "width": 844,
+      "height": 390,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-844-budget-invalid",
+      "width": 844,
+      "height": 390,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-spacing-tonight",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-spacing-pantry",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-spacing-budget",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-spacing-shopping",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-text200-tonight",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-text200-pantry",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-text200-budget",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-320-text200-shopping",
+      "width": 320,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-spacing-tonight",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [
+        {
+          "id": "color-contrast",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ]
+          ]
+        },
+        {
+          "id": "label-content-name-mismatch",
+          "targets": [
+            [
+              "button[aria-label=\"Decrease servings\"]"
+            ],
+            [
+              "button[aria-label=\"Increase servings\"]"
+            ]
+          ]
+        }
+      ],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-spacing-pantry",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-spacing-budget",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-spacing-shopping",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-text200-tonight",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-text200-pantry",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-text200-budget",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    },
+    {
+      "case": "after-390-text200-shopping",
+      "width": 390,
+      "height": 844,
+      "violations": [],
+      "manual_review": [],
+      "text_overflow": [],
+      "photo_overlap": false
+    }
+  ],
+  "keyboard": [
+    {
+      "view": "Tonight",
+      "forward_steps": 12,
+      "reverse_steps": 12,
+      "failures": []
+    },
+    {
+      "view": "Pantry",
+      "forward_steps": 21,
+      "reverse_steps": 21,
+      "failures": []
+    },
+    {
+      "view": "Budget",
+      "forward_steps": 6,
+      "reverse_steps": 6,
+      "failures": []
+    },
+    {
+      "view": "Shopping",
+      "forward_steps": 10,
+      "reverse_steps": 10,
+      "failures": []
+    },
+    {
+      "action": "select meal with Space",
+      "pressed": "true"
+    },
+    {
+      "action": "increase with Enter",
+      "text": "\u2212\n3 servings\n+"
+    },
+    {
+      "action": "navigate and checkbox keyboard",
+      "pantryFocus": {
+        "tag": "H1",
+        "name": "Pantry",
+        "focusVisible": true,
+        "outline": "solid 3px",
+        "visible": true
+      },
+      "checked": true
+    },
+    {
+      "action": "budget error",
+      "focus": {
+        "tag": "INPUT",
+        "name": "Plan cap",
+        "focusVisible": true,
+        "outline": "solid 3px",
+        "visible": true
+      },
+      "error": "Enter a non-negative dollar amount with at most two decimal places.",
+      "invalid": "true"
+    },
+    {
+      "action": "budget recovery",
+      "alerts": 0,
+      "status": "This meal is over the $0.00 plan cap."
+    }
+  ],
+  "edge_checks": [
+    {
+      "label": "Bean tacos",
+      "violations": [],
+      "incomplete": [
+        "color-contrast",
+        "label-content-name-mismatch"
+      ]
+    },
+    {
+      "label": "Egg fried rice",
+      "violations": [],
+      "incomplete": [
+        "color-contrast",
+        "label-content-name-mismatch"
+      ]
+    },
+    {
+      "label": "Chickpea curry",
+      "violations": [],
+      "incomplete": [
+        "color-contrast",
+        "label-content-name-mismatch"
+      ]
+    },
+    {
+      "label": "all pantry",
+      "cost": "$0.00",
+      "pantryName": "8 at home, Edit pantry"
+    },
+    {
+      "label": "empty shopping",
+      "violations": [],
+      "incomplete": []
+    },
+    {
+      "label": "empty content",
+      "text": "Back to tonight\nShopping list\n\nNothing to buy. Every ingredient is marked at home.\n\nTotal $0.00\n\nWhole packages\n\nEstimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified."
+    },
+    {
+      "label": "zero budget",
+      "violations": [],
+      "incomplete": []
+    },
+    {
+      "label": "maximum budget at200%",
+      "overflow": []
+    },
+    {
+      "label": "forced colors and reduced motion",
+      "styles": {
+        "selectedDecoration": "underline",
+        "selectedButtonDecoration": "none",
+        "navDecoration": "underline",
+        "imageAnimation": "none"
+      }
+    },
+    {
+      "label": "forced colors",
+      "violations": [],
+      "incomplete": [
+        "color-contrast",
+        "label-content-name-mismatch"
+      ]
+    },
+    {
+      "label": "pointer cancellation",
+      "unchanged": true
+    },
+    {
+      "label": "AX live regions",
+      "nodes": [
+        {
+          "role": "status",
+          "properties": [
+            {
+              "name": "live",
+              "value": {
+                "type": "token",
+                "value": "polite"
+              }
+            },
+            {
+              "name": "atomic",
+              "value": {
+                "type": "boolean",
+                "value": true
+              }
+            },
+            {
+              "name": "relevant",
+              "value": {
+                "type": "tokenList",
+                "value": "additions text"
+              }
+            }
+          ]
+        },
+        {
+          "role": "status",
+          "properties": [
+            {
+              "name": "live",
+              "value": {
+                "type": "token",
+                "value": "polite"
+              }
+            },
+            {
+              "name": "atomic",
+              "value": {
+                "type": "boolean",
+                "value": true
+              }
+            },
+            {
+              "name": "relevant",
+              "value": {
+                "type": "tokenList",
+                "value": "additions text"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "page errors",
+      "errors": []
+    }
+  ]
+}
