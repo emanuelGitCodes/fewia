@@ -4249,3 +4249,46 @@ A Sonnet writer made the change through `dev_supervisor` in one implement
 run and one repair run. The gates passed with 23 lines. The Opus review
 returned APPROVE on `cbdb560`. Usage: implement 48017 input and 3002 output
 tokens, repair 26219 and 886, review 21337 and 1358.
+
+## 2026-10-16 — Tonight Plan page
+
+The owner asked for one page that shows every planned meal, its servings,
+and each grocery item. The loop `tonight-plan-page` replaced the single-meal
+Tonight screen on `/prototype` with a Plan page. The stack is
+`claude/tonight-plan-page-01` to `-06`. Item 01 stacks on
+`codex/impeccable-young-adult-mocks` at `07aec4f`.
+
+| Item | Head | Work | Gate lines | Review |
+| --- | --- | --- | --- | --- |
+| 01 | `779cc4a` | Multi-meal plan model | 217 | APPROVE, round 1 |
+| 02 | `b0dcd44` | Plan page with meal picker and meal cards | 249 | APPROVE, round 1 |
+| 03 | `b322530` | Summary and combined shopping list | 190 | APPROVE, round 1 |
+| 04 | `141ff8d` | Ingredient "Already at home" toggles and cleanup | 84 | APPROVE, round 1 |
+| 05 | `11ff7d5` | Pinned bar, two columns, and name filter | 163 | APPROVE, round 3 |
+| 06 | this item | Wiki, phase page, run guide, and DESIGN.md | prose | Fable review |
+
+- The plan sums each ingredient across the meals before it rounds to whole
+  packages. Egg fried rice and chickpea curry at 2 servings each cost $17.91
+  together and $22.08 apart.
+- There is no per-meal dollar cost. Shared packages make per-meal costs sum
+  to more than the total.
+- An ingredient toggle on a card marks the item at home in the one global
+  pantry. The item stays in the nutrition. This is the owner's choice.
+- The frontend suite grew from 521 to 561 tests. Each gate run passed lint,
+  test, and build.
+- Item 05 needed three review rounds. Round 1 found a missing WebKit marker
+  rule. The coordinator then changed the desktop nav from `order: -1` to a
+  sticky bottom row, to keep the visual order and the tab order equal.
+  Round 2 found that the sticky edges covered focused controls. The
+  coordinator's contract change caused that, not the writer.
+- The coordinator checked each item from 02 in a real browser at 375 px and,
+  for item 05, at 1200 x 850.
+
+Not verified: a screen-reader run, the WebKit marker in Safari, and 320 px
+with 200% text. Open items: the filter's empty result is not announced
+(4.1.3), and the phone scroll padding can be too small at 200% text (2.4.11).
+
+Usage, all items: writer 1,715,142 input and 92,716 output tokens over 13
+runs. Review 800,708 input and 37,631 output tokens over 7 runs. The
+coordinator transcript recorded 39,938,400 input and 79,421 output tokens.
+Correction: the coordinator output total is 79,419 tokens.
