@@ -4362,3 +4362,30 @@ Usage, all items: writer 1,715,142 input and 92,716 output tokens over 13
 runs. Review 800,708 input and 37,631 output tokens over 7 runs. The
 coordinator transcript recorded 39,938,400 input and 79,421 output tokens.
 Correction: the coordinator output total is 79,419 tokens.
+
+## 2026-10-16 — Tonight prototype stack to main
+
+A five-item stack brings `codex/impeccable-young-adult-mocks` at `f81188d`
+into `main` at `43c46a7`. Each item copies its files from `f81188d`, so no
+commit from #446 to #451 is replayed. The
+[phase page](phases/tonight-prototype.md#main-stack) holds the item table.
+
+- Order: model, styles and photos, UI and route, design docs, wiki. The
+  styles come before the UI, because the UI imports the stylesheet and the
+  two together exceed 1000 lines.
+- `main` already had a root `DESIGN.md` for the `/` application, so the
+  prototype design system moved to `docs/design/tonight-design.md`.
+- This log keeps every `main` entry unchanged and orders all entries by
+  date.
+- Fixes: the empty filter result now leads the one atomic status (4.1.3).
+  The canvas scroll padding follows the measured pinned bar (2.4.11). The
+  unused `.tonight-primary` rules are gone. The design system no longer
+  names a primary button. The phase page no longer says browser testing is
+  paused.
+- The coordinator found that nginx answered `/prototype` with a redirect to
+  the container port and `/prototype/` with `403`. Item 03 rewrites both
+  paths to `index.html`.
+- The Playwright suite passed 16 of 16 on the item 03 head.
+
+Not verified: a screen-reader run and Safari. At 320 px with 200% text, the
+"Remove" button text wraps one letter per line.
