@@ -1,43 +1,11 @@
-import { expect, test as base, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./fakes";
 
 const SAMPLE_NOTICE =
   "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
 const WITHIN_BUDGET = "This estimate is within the plan budget.";
 const DIRTY_SENTENCE = "Rebuild the request to apply request changes.";
 const REBUILD_GUIDANCE = "Rebuild your estimate to use these changes in chat";
-
-async function horizontalOverflow(page: Page): Promise<number> {
-  const viewport = page.viewportSize();
-  if (viewport === null) {
-    throw new Error("The test project MUST set a viewport.");
-  }
-  const width = await page.evaluate(() =>
-    Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-  );
-  return width - viewport.width;
-}
-
-// Every test records console errors and uncaught page errors, and checks for
-// horizontal overflow in the final page state.
-const test = base.extend<{ guard: undefined }>({
-  guard: [
-    async ({ page }, provide) => {
-      const errors: string[] = [];
-      page.on("console", (message) => {
-        if (message.type() === "error") {
-          errors.push(`console: ${message.text()}`);
-        }
-      });
-      page.on("pageerror", (error) => {
-        errors.push(`pageerror: ${error.message}`);
-      });
-      await provide(undefined);
-      expect(errors, "console and page errors").toEqual([]);
-      expect(await horizontalOverflow(page), "horizontal overflow in px").toBeLessThanOrEqual(0);
-    },
-    { auto: true },
-  ],
-});
 
 test.describe.configure({ timeout: 60_000 });
 
