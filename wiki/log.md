@@ -4389,3 +4389,16 @@ commit from #446 to #451 is replayed. The
 
 Not verified: a screen-reader run and Safari. At 320 px with 200% text, the
 "Remove" button text wraps one letter per line.
+
+## 2026-10-19 — Feature map
+
+#457 adds [docs/FEATURE_MAP.md](../docs/FEATURE_MAP.md). It records every
+built feature on `main` at `285b1f3d`, the layer that owns it, the five
+request paths and the two parts no path reaches, the data model, the
+providers, the evaluation harness, the workflow, the open work, and a
+file index. The senior wrote the prose. The Opus review returned
+`REQUEST_CHANGES` three times and `APPROVE` on `7fa44036`. The rounds
+corrected the status of four tooling rows, the Plaid decision citation,
+a table count, and open-work rows that named files absent from `main`.
+The gates found no checks for a prose-only diff. The merge commit is
+`f4c6d61e`.
