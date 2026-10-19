@@ -93,5 +93,6 @@ D4 remains paused. Live Instacart stays parked.
 
 ## Development operations
 
+- [Feature map](../docs/FEATURE_MAP.md)
 - [Development writer supervisor](../docs/DEV_SUPERVISOR.md)
 - [Agent hooks for Claude Code, Grok, and Codex](../.claude/README.md#hooks)
