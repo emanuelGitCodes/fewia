@@ -339,7 +339,7 @@
   line-height: 1.4;
 }
 .tonight-home > .tonight-notice {
-  margin-top: 0.85rem;
+  margin-top: 1.25rem;
 }
 .tonight-pantry-row {
   display: flex;
@@ -644,15 +644,11 @@
     margin-top: 1.6rem;
     padding-top: 0.8rem;
   }
-  .tonight-home {
+  .tonight-plan-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     column-gap: 1.5rem;
     align-items: start;
-  }
-  .tonight-home > h1,
-  .tonight-home > .tonight-notice {
-    grid-column: 1 / -1;
   }
   .tonight-plan-main,
   .tonight-plan-side {

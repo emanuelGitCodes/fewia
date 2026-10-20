@@ -739,4 +739,19 @@ describe("TonightPrototype", () => {
     expect(within(side).queryByRole("article")).toBeNull();
     expect(within(side).queryByLabelText("Find a meal")).toBeNull();
   });
+
+  it("keeps the estimate notice outside the grid that holds main and side", () => {
+    const root = mount();
+    const main = root.querySelector(".tonight-plan-main");
+    const side = root.querySelector(".tonight-plan-side");
+    const grid = root.querySelector(".tonight-plan-grid");
+    if (!(main instanceof HTMLElement) || !(side instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
+      throw new Error("Missing plan layout wrappers");
+    }
+    expect(main.parentElement).toBe(grid);
+    expect(side.parentElement).toBe(grid);
+    const notice = screen.getByText(/^Estimated from the demo price catalog/);
+    expect(grid.contains(notice)).toBe(false);
+    expect(grid.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
