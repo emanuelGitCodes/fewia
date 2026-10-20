@@ -7,6 +7,8 @@ import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import {
   INITIAL_PANTRY,
   PANTRY_IDS,
+  RECIPES,
+  RECIPE_ORDER,
   SERVING_ERROR,
   requireIngredient,
 } from "./prototypeData";
@@ -21,8 +23,15 @@ function textOf(node: HTMLElement): string {
   return node.textContent ?? "";
 }
 
+// A picker tile's accessible name is the recipe name plus its diet labels, so
+// a bare recipe name matches the start of the name.
+function pickerName(name: string): string | RegExp {
+  const isRecipe = RECIPE_ORDER.some((id) => RECIPES[id].name === name);
+  return isRecipe ? new RegExp(`^${name}`) : name;
+}
+
 function buttonNamed(name: string): HTMLButtonElement {
-  return screen.getByRole("button", { name }) as HTMLButtonElement;
+  return screen.getByRole("button", { name: pickerName(name) }) as HTMLButtonElement;
 }
 
 function click(name: string): void {
@@ -653,20 +662,34 @@ describe("TonightPrototype", () => {
       }
       return within(group)
         .getAllByRole("button")
-        .map((button) => textOf(button));
+        .map((button) => button.querySelector(".tonight-meal > span")?.textContent ?? "");
     }
 
-    it("starts with three tiles", () => {
+    it("starts with ten tiles", () => {
       mount();
-      expect(tileNames()).toEqual(["Bean tacos", "Egg fried rice", "Chickpea curry"]);
+      expect(tileNames()).toEqual(RECIPE_ORDER.map((id) => RECIPES[id].name));
+      expect(within(screen.getByRole("group", { name: "Meal choices" })).getAllByRole("button")).toHaveLength(10);
     });
 
-    it("narrows to Egg fried rice for rice, in any case", () => {
+    it("narrows to the rice meals for rice, in any case", () => {
       mount();
       typeFilter("rice");
-      expect(tileNames()).toEqual(["Egg fried rice"]);
+      expect(tileNames()).toEqual(["Egg fried rice", "Lemon salmon and rice"]);
       typeFilter("RICE");
-      expect(tileNames()).toEqual(["Egg fried rice"]);
+      expect(tileNames()).toEqual(["Egg fried rice", "Lemon salmon and rice"]);
+    });
+
+    it("matches diet labels", () => {
+      mount();
+      typeFilter("keto");
+      expect(tileNames()).toEqual(["Garlic chicken and broccoli", "Spinach mushroom omelette"]);
+    });
+
+    it("shows the diets on a plan card and no image on a tile without a photo", () => {
+      mount();
+      click("Tofu stir-fry");
+      expect(textOf(card("Tofu stir-fry"))).toContain("Vegan");
+      expect(buttonNamed("Tofu stir-fry").querySelector("img")).toBeNull();
     });
 
     it("shows a message and no tiles when nothing matches", () => {
@@ -676,12 +699,12 @@ describe("TonightPrototype", () => {
       expect(tileNames()).toEqual([]);
     });
 
-    it("restores all three tiles when cleared", () => {
+    it("restores all ten tiles when cleared", () => {
       mount();
       typeFilter("zzz");
       typeFilter("");
       expect(screen.queryByText("No meals match.")).toBeNull();
-      expect(tileNames()).toHaveLength(3);
+      expect(tileNames()).toHaveLength(10);
     });
 
     it("announces an empty result in the one status and drops it when cleared", () => {
@@ -705,7 +728,7 @@ describe("TonightPrototype", () => {
     it("keeps the card and total of a planned meal whose tile is hidden", () => {
       mount();
       typeFilter("rice");
-      expect(screen.queryByRole("button", { name: "Bean tacos" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Bean tacos/ })).toBeNull();
       expect(textOf(card("Bean tacos"))).toContain("2 servings");
       expect(summaryText()).toContain("$8.06");
       expect(statusText()).toContain("Groceries to buy $8.06.");

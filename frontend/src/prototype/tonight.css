@@ -108,6 +108,19 @@
   line-height: 1.2;
   min-width: 0;
 }
+.tonight-meal .tonight-meal-diets,
+.tonight-meal.is-selected .tonight-meal-diets {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--tonight-muted);
+  line-height: 1.2;
+  text-decoration: none;
+}
+.tonight-diets {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: var(--tonight-muted);
+}
 .tonight-thumb,
 .tonight-photo {
   overflow: hidden;

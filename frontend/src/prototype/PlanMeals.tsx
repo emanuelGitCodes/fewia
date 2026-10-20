@@ -1,13 +1,27 @@
 import { useEffect, useState, type JSX } from "react";
-import { RECIPE_ORDER, RECIPES, requireIngredient, type RecipeId } from "./prototypeData";
+import {
+  DIET_LABELS,
+  RECIPE_ORDER,
+  RECIPES,
+  requireIngredient,
+  type Recipe,
+  type RecipeId,
+} from "./prototypeData";
 import { formatMacro } from "./prototypeModel";
 import type { PlannedMeal } from "./planModel";
 
-export function MealPhoto(props: { src: string; alt: string; className: string }): JSX.Element {
+export function MealPhoto(props: {
+  src: string | null;
+  alt: string;
+  className: string;
+}): JSX.Element {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     setFailed(false);
   }, [props.src]);
+  if (props.src === null) {
+    return <div className={props.className} />;
+  }
   return (
     <div className={props.className}>
       {failed ? (
@@ -19,9 +33,19 @@ export function MealPhoto(props: { src: string; alt: string; className: string }
   );
 }
 
+function dietText(recipe: Recipe): string {
+  return recipe.diets.map((d) => DIET_LABELS[d]).join(" · ");
+}
+
 export function filterMeals(filter: string): RecipeId[] {
   const needle = filter.trim().toLowerCase();
-  return RECIPE_ORDER.filter((id) => RECIPES[id].name.toLowerCase().includes(needle));
+  return RECIPE_ORDER.filter((id) => {
+    const recipe = RECIPES[id];
+    return (
+      recipe.name.toLowerCase().includes(needle) ||
+      recipe.diets.some((d) => DIET_LABELS[d].toLowerCase().includes(needle))
+    );
+  });
 }
 
 export function MealPicker(props: {
@@ -58,6 +82,9 @@ export function MealPicker(props: {
               >
                 <MealPhoto src={RECIPES[id].image} alt="" className="tonight-thumb" />
                 <span>{RECIPES[id].name}</span>
+                {RECIPES[id].diets.length > 0 ? (
+                  <span className="tonight-meal-diets">{dietText(RECIPES[id])}</span>
+                ) : null}
               </button>
             );
           })}
@@ -91,6 +118,9 @@ export function MealCards(props: {
               <MealPhoto src={recipe.image} alt="" className="tonight-thumb" />
               <div className="tonight-plan-card-body">
                 <h2 id={nameId}>{recipe.name}</h2>
+                {recipe.diets.length > 0 ? (
+                  <p className="tonight-diets">{dietText(recipe)}</p>
+                ) : null}
                 <div className="tonight-stepper" role="group" aria-label={`Servings for ${recipe.name}`}>
                   <button
                     type="button"
