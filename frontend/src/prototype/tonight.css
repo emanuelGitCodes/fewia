@@ -69,6 +69,37 @@
   color: var(--tonight-muted);
   font-size: 0.95rem;
 }
+.tonight-carousel {
+  position: relative;
+}
+.tonight-carousel-btn {
+  position: absolute;
+  top: calc(50% - 1.4rem);
+  z-index: 1;
+  display: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 999px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  cursor: pointer;
+}
+.tonight-carousel-prev {
+  left: 0.25rem;
+}
+.tonight-carousel-next {
+  right: 0.25rem;
+}
+.tonight-carousel-btn:hover {
+  border-color: var(--tonight-green);
+  color: var(--tonight-green);
+}
+.tonight-carousel-btn:disabled {
+  visibility: hidden;
+}
 .tonight-meals {
   display: grid;
   grid-auto-flow: column;
@@ -638,6 +669,9 @@
   }
   .tonight-canvas {
     padding: 1.25rem 1.5rem 1.5rem;
+  }
+  .tonight-carousel-btn {
+    display: grid;
   }
   .tonight-meals {
     grid-auto-columns: 8.5rem;

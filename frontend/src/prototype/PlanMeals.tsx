@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import {
   DIET_LABELS,
   RECIPE_ORDER,
@@ -55,6 +55,53 @@ export function MealPicker(props: {
   onToggle: (id: RecipeId, planned: boolean) => void;
 }): JSX.Element {
   const visible = filterMeals(props.filter);
+  const visibleKey = visible.join(",");
+  const mealsRef = useRef<HTMLDivElement>(null);
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+
+  const updateArrows = useCallback(() => {
+    const el = mealsRef.current;
+    if (el === null) {
+      setCanPrev(false);
+      setCanNext(false);
+      return;
+    }
+    setCanPrev(el.scrollLeft > 1);
+    setCanNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    updateArrows();
+    const el = mealsRef.current;
+    if (el === null) {
+      return undefined;
+    }
+    el.addEventListener("scroll", updateArrows);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateArrows);
+    observer?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateArrows);
+      observer?.disconnect();
+    };
+  }, [visibleKey, updateArrows]);
+
+  const scrollMeals = (dir: -1 | 1): void => {
+    const el = mealsRef.current;
+    if (el === null) {
+      return;
+    }
+    const step = Math.max(el.clientWidth * 0.8, 1);
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    if (typeof el.scrollBy === "function") {
+      el.scrollBy({ left: dir * step, behavior: reduced ? "auto" : "smooth" });
+    } else {
+      el.scrollLeft += dir * step;
+    }
+    updateArrows();
+  };
+
   return (
     <>
       <label htmlFor="meal-filter" className="tonight-filter-label">Find a meal</label>
@@ -69,25 +116,73 @@ export function MealPicker(props: {
       {visible.length === 0 ? (
         <p>No meals match.</p>
       ) : (
-        <div className="tonight-meals" role="group" aria-label="Meal choices">
-          {visible.map((id) => {
-            const planned = props.meals.some((meal) => meal.recipeId === id);
-            return (
-              <button
-                key={id}
-                type="button"
-                className={planned ? "tonight-meal is-selected" : "tonight-meal"}
-                aria-pressed={planned}
-                onClick={() => { props.onToggle(id, planned); }}
-              >
-                <MealPhoto src={RECIPES[id].image} alt="" className="tonight-thumb" />
-                <span>{RECIPES[id].name}</span>
-                {RECIPES[id].diets.length > 0 ? (
-                  <span className="tonight-meal-diets">{dietText(RECIPES[id])}</span>
-                ) : null}
-              </button>
-            );
-          })}
+        <div className="tonight-carousel">
+          <button
+            type="button"
+            className="tonight-carousel-btn tonight-carousel-prev"
+            aria-label="Show previous meals"
+            disabled={!canPrev}
+            onClick={() => { scrollMeals(-1); }}
+          >
+            <svg
+              className="tonight-icon"
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              aria-hidden="true"
+              focusable="false"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+          </button>
+          <div ref={mealsRef} className="tonight-meals" role="group" aria-label="Meal choices">
+            {visible.map((id) => {
+              const planned = props.meals.some((meal) => meal.recipeId === id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={planned ? "tonight-meal is-selected" : "tonight-meal"}
+                  aria-pressed={planned}
+                  onClick={() => { props.onToggle(id, planned); }}
+                >
+                  <MealPhoto src={RECIPES[id].image} alt="" className="tonight-thumb" />
+                  <span>{RECIPES[id].name}</span>
+                  {RECIPES[id].diets.length > 0 ? (
+                    <span className="tonight-meal-diets">{dietText(RECIPES[id])}</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="tonight-carousel-btn tonight-carousel-next"
+            aria-label="Show next meals"
+            disabled={!canNext}
+            onClick={() => { scrollMeals(1); }}
+          >
+            <svg
+              className="tonight-icon"
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              aria-hidden="true"
+              focusable="false"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
         </div>
       )}
     </>

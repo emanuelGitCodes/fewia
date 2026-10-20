@@ -778,3 +778,61 @@ describe("TonightPrototype", () => {
     expect(grid.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe("meal carousel arrows", () => {
+  function metrics(scrollWidth: number, clientWidth: number, scrollLeft: number): HTMLElement {
+    mount();
+    const el = screen.getByRole("group", { name: "Meal choices" });
+    Object.defineProperty(el, "scrollWidth", { configurable: true, value: scrollWidth });
+    Object.defineProperty(el, "clientWidth", { configurable: true, value: clientWidth });
+    Object.defineProperty(el, "scrollLeft", { configurable: true, writable: true, value: scrollLeft });
+    act(() => {
+      fireEvent.scroll(el);
+    });
+    return el;
+  }
+
+  function prev(): HTMLButtonElement {
+    return screen.getByRole("button", { name: "Show previous meals" }) as HTMLButtonElement;
+  }
+
+  function next(): HTMLButtonElement {
+    return screen.getByRole("button", { name: "Show next meals" }) as HTMLButtonElement;
+  }
+
+  it("disables previous and enables next at the start", () => {
+    metrics(1000, 400, 0);
+    expect(prev().disabled).toBe(true);
+    expect(next().disabled).toBe(false);
+  });
+
+  it("moves forward and enables previous when next is clicked", () => {
+    const el = metrics(1000, 400, 0);
+    act(() => {
+      fireEvent.click(next());
+    });
+    expect(el.scrollLeft).toBeGreaterThan(0);
+    expect(prev().disabled).toBe(false);
+  });
+
+  it("disables next at the right end", () => {
+    metrics(1000, 400, 600);
+    expect(prev().disabled).toBe(false);
+    expect(next().disabled).toBe(true);
+  });
+
+  it("disables both when nothing overflows", () => {
+    metrics(400, 400, 0);
+    expect(prev().disabled).toBe(true);
+    expect(next().disabled).toBe(true);
+  });
+
+  it("removes both buttons when no meal matches", () => {
+    metrics(1000, 400, 0);
+    act(() => {
+      fireEvent.change(screen.getByLabelText("Find a meal"), { target: { value: "zzz" } });
+    });
+    expect(screen.queryByRole("button", { name: "Show previous meals" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show next meals" })).toBeNull();
+  });
+});
