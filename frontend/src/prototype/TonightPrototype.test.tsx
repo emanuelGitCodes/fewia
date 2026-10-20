@@ -602,18 +602,25 @@ describe("TonightPrototype", () => {
     afterEach(restoreObserver);
 
     it("sets the property, observes the pinned bar, and cleans up on unmount", () => {
-      const observed: Element[] = [];
-      const callbacks: ResizeObserverCallback[] = [];
-      const disconnect = vi.fn();
+      interface Instance {
+        callback: ResizeObserverCallback;
+        observed: Element[];
+        disconnects: number;
+      }
+      const instances: Instance[] = [];
       class StubObserver {
+        private readonly instance: Instance;
         constructor(callback: ResizeObserverCallback) {
-          callbacks.push(callback);
+          this.instance = { callback, observed: [], disconnects: 0 };
+          instances.push(this.instance);
         }
         observe(target: Element): void {
-          observed.push(target);
+          this.instance.observed.push(target);
         }
         unobserve(): void {}
-        disconnect = disconnect;
+        disconnect(): void {
+          this.instance.disconnects += 1;
+        }
       }
       Object.defineProperty(globalThis, "ResizeObserver", {
         value: StubObserver,
@@ -623,16 +630,19 @@ describe("TonightPrototype", () => {
       const view = render(createElement(TonightPrototype));
       const canvas = canvasOf(view.container);
       const pinned = view.container.querySelector(".tonight-pinned");
+      expect(pinned).not.toBeNull();
       expect(canvas.style.getPropertyValue(PROPERTY)).toBe("0px");
-      expect(callbacks).toHaveLength(1);
-      expect(observed).toEqual([pinned]);
+      const pinnedInstances = instances.filter((i) => i.observed.includes(pinned as Element));
+      expect(pinnedInstances).toHaveLength(1);
+      const instance = pinnedInstances[0];
+      expect(instance.observed).toEqual([pinned]);
       Object.defineProperty(pinned, "offsetHeight", { value: 56, configurable: true });
       act(() => {
-        callbacks[0]([], {} as ResizeObserver);
+        instance.callback([], {} as ResizeObserver);
       });
       expect(canvas.style.getPropertyValue(PROPERTY)).toBe("56px");
       view.unmount();
-      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(instance.disconnects).toBe(1);
       expect(canvas.style.getPropertyValue(PROPERTY)).toBe("");
     });
 
@@ -822,9 +832,118 @@ describe("meal carousel arrows", () => {
   });
 
   it("disables both when nothing overflows", () => {
-    metrics(400, 400, 0);
+    const el = metrics(1000, 400, 0);
+    expect(next().disabled).toBe(false);
+    Object.defineProperty(el, "scrollWidth", { configurable: true, value: 400 });
+    act(() => {
+      fireEvent.scroll(el);
+    });
     expect(prev().disabled).toBe(true);
     expect(next().disabled).toBe(true);
+  });
+
+  describe("resize observer", () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "ResizeObserver");
+
+    afterEach(() => {
+      if (original === undefined) {
+        Reflect.deleteProperty(globalThis, "ResizeObserver");
+      } else {
+        Object.defineProperty(globalThis, "ResizeObserver", original);
+      }
+    });
+
+    it("re-measures on resize and disconnects on unmount", () => {
+      interface Instance {
+        callback: ResizeObserverCallback;
+        observed: Element[];
+        disconnects: number;
+      }
+      const instances: Instance[] = [];
+      class StubObserver {
+        private readonly instance: Instance;
+        constructor(callback: ResizeObserverCallback) {
+          this.instance = { callback, observed: [], disconnects: 0 };
+          instances.push(this.instance);
+        }
+        observe(target: Element): void {
+          this.instance.observed.push(target);
+        }
+        unobserve(): void {}
+        disconnect(): void {
+          this.instance.disconnects += 1;
+        }
+      }
+      Object.defineProperty(globalThis, "ResizeObserver", {
+        value: StubObserver,
+        configurable: true,
+        writable: true,
+      });
+      const view = render(createElement(TonightPrototype));
+      const el = screen.getByRole("group", { name: "Meal choices" });
+      expect(el.classList.contains("tonight-meals")).toBe(true);
+      const meals = instances.filter((i) => i.observed.includes(el));
+      expect(meals).toHaveLength(1);
+      const instance = meals[0];
+      expect(next().disabled).toBe(true);
+      Object.defineProperty(el, "scrollWidth", { configurable: true, value: 1000 });
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: 400 });
+      act(() => {
+        instance.callback([], {} as ResizeObserver);
+      });
+      expect(next().disabled).toBe(false);
+      view.unmount();
+      expect(instance.disconnects).toBe(1);
+    });
+  });
+
+  describe("reduced motion", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia");
+
+    afterEach(() => {
+      if (originalMatchMedia === undefined) {
+        Reflect.deleteProperty(window, "matchMedia");
+      } else {
+        Object.defineProperty(window, "matchMedia", originalMatchMedia);
+      }
+    });
+
+    function stubMatchMedia(reduce: boolean): void {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches: reduce && query === "(prefers-reduced-motion: reduce)",
+          media: query,
+        }),
+      });
+    }
+
+    function clickNext(): ReturnType<typeof vi.fn> {
+      const el = metrics(1000, 400, 0);
+      const scrollBy = vi.fn((options: ScrollToOptions) => {
+        el.scrollLeft += options.left ?? 0;
+      });
+      Object.defineProperty(el, "scrollBy", { configurable: true, value: scrollBy });
+      act(() => {
+        fireEvent.click(next());
+      });
+      return scrollBy;
+    }
+
+    it("scrolls instantly when reduced motion is preferred", () => {
+      stubMatchMedia(true);
+      const scrollBy = clickNext();
+      expect(scrollBy).toHaveBeenCalledTimes(1);
+      expect(scrollBy).toHaveBeenCalledWith({ left: 320, behavior: "auto" });
+    });
+
+    it("scrolls smoothly otherwise", () => {
+      stubMatchMedia(false);
+      const scrollBy = clickNext();
+      expect(scrollBy).toHaveBeenCalledTimes(1);
+      expect(scrollBy).toHaveBeenCalledWith({ left: 320, behavior: "smooth" });
+    });
   });
 
   it("removes both buttons when no meal matches", () => {
