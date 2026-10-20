@@ -590,6 +590,13 @@
     height: auto;
   }
 }
+.tonight-plan-side {
+  background: var(--tonight-select);
+  border: 1px solid var(--tonight-line);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
 @media (min-width: 720px) {
   .tonight-prototype {
     --tonight-nav-height: 4.5rem;
@@ -658,8 +665,8 @@
     max-height: calc(100vh - 2rem - var(--tonight-nav-height));
     overflow: auto;
     scroll-padding-bottom: 0.5rem;
-    padding: 0.4rem;
-    margin: 0 -0.4rem;
+    padding: 1rem;
+    margin: 0;
   }
   .tonight-plan-side > :first-child {
     margin-top: 0;
