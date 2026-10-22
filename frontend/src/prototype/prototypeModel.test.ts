@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
+import { DIET_LABELS, INGREDIENTS, RECIPES, RECIPE_ORDER, type Diet } from "./prototypeData";
 import { formatMacro, packageCount, withBudgetInput } from "./prototypeModel";
 
 const AMOUNT_ERROR = "Enter a non-negative dollar amount with at most two decimal places.";
@@ -40,5 +41,32 @@ describe("formatMacro", () => {
     expect(formatMacro(379)).toBe("379");
     expect(formatMacro(14.5)).toBe("14.5");
     expect(formatMacro(12.34)).toBe("12.3");
+  });
+});
+
+describe("prototype recipes", () => {
+  it("lists ten unique recipe ids that all have entries", () => {
+    expect(RECIPE_ORDER).toHaveLength(10);
+    expect(new Set(RECIPE_ORDER).size).toBe(10);
+    for (const id of RECIPE_ORDER) {
+      expect(RECIPES[id]).toBeDefined();
+    }
+  });
+
+  it("uses only catalog ingredients", () => {
+    for (const id of RECIPE_ORDER) {
+      for (const [ingredientId] of RECIPES[id].ingredients) {
+        expect(INGREDIENTS[ingredientId]).toBeDefined();
+      }
+    }
+  });
+
+  it("gives every recipe a diet and covers all five diets", () => {
+    for (const id of RECIPE_ORDER) {
+      expect(RECIPES[id].diets.length).toBeGreaterThan(0);
+    }
+    for (const diet of Object.keys(DIET_LABELS) as Diet[]) {
+      expect(RECIPE_ORDER.some((id) => RECIPES[id].diets.includes(diet))).toBe(true);
+    }
   });
 });

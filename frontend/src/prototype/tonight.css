@@ -69,12 +69,54 @@
   color: var(--tonight-muted);
   font-size: 0.95rem;
 }
+.tonight-carousel {
+  position: relative;
+}
+.tonight-carousel-btn {
+  position: absolute;
+  top: calc(50% - 1.4rem);
+  z-index: 1;
+  display: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 999px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  cursor: pointer;
+}
+.tonight-carousel-prev {
+  left: 0.25rem;
+}
+.tonight-carousel-next {
+  right: 0.25rem;
+}
+.tonight-carousel-btn:hover {
+  border-color: var(--tonight-green);
+  color: var(--tonight-green);
+}
+.tonight-carousel-btn:disabled {
+  visibility: hidden;
+}
 .tonight-meals {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.7rem), 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: 7.5rem;
   gap: 0.4rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0.25rem;
+  padding: 0.25rem 0.25rem 0.6rem;
+  margin: 0 -0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tonight-control-border) transparent;
 }
 .tonight-meal {
+  scroll-snap-align: start;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -107,6 +149,19 @@
   font-size: 0.95rem;
   line-height: 1.2;
   min-width: 0;
+}
+.tonight-meal .tonight-meal-diets,
+.tonight-meal.is-selected .tonight-meal-diets {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--tonight-muted);
+  line-height: 1.2;
+  text-decoration: none;
+}
+.tonight-diets {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.9rem;
+  color: var(--tonight-muted);
 }
 .tonight-thumb,
 .tonight-photo {
@@ -339,7 +394,7 @@
   line-height: 1.4;
 }
 .tonight-home > .tonight-notice {
-  margin-top: 0.85rem;
+  margin-top: 1.25rem;
 }
 .tonight-pantry-row {
   display: flex;
@@ -590,6 +645,13 @@
     height: auto;
   }
 }
+.tonight-plan-side {
+  background: var(--tonight-select);
+  border: 1px solid var(--tonight-line);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
 @media (min-width: 720px) {
   .tonight-prototype {
     --tonight-nav-height: 4.5rem;
@@ -608,7 +670,11 @@
   .tonight-canvas {
     padding: 1.25rem 1.5rem 1.5rem;
   }
+  .tonight-carousel-btn {
+    display: grid;
+  }
   .tonight-meals {
+    grid-auto-columns: 8.5rem;
     gap: 0.55rem;
   }
   .tonight-meal {
@@ -637,15 +703,11 @@
     margin-top: 1.6rem;
     padding-top: 0.8rem;
   }
-  .tonight-home {
+  .tonight-plan-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     column-gap: 1.5rem;
     align-items: start;
-  }
-  .tonight-home > h1,
-  .tonight-home > .tonight-notice {
-    grid-column: 1 / -1;
   }
   .tonight-plan-main,
   .tonight-plan-side {
@@ -658,8 +720,8 @@
     max-height: calc(100vh - 2rem - var(--tonight-nav-height));
     overflow: auto;
     scroll-padding-bottom: 0.5rem;
-    padding: 0.4rem;
-    margin: 0 -0.4rem;
+    padding: 1rem;
+    margin: 0;
   }
   .tonight-plan-side > :first-child {
     margin-top: 0;
@@ -674,6 +736,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .tonight-meals {
+    scroll-behavior: auto;
+  }
   .tonight-plan-ingredients summary::before {
     transition: none;
   }
