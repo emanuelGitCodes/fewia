@@ -7,6 +7,8 @@ import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import {
   INITIAL_PANTRY,
   PANTRY_IDS,
+  RECIPES,
+  RECIPE_ORDER,
   SERVING_ERROR,
   requireIngredient,
 } from "./prototypeData";
@@ -21,8 +23,15 @@ function textOf(node: HTMLElement): string {
   return node.textContent ?? "";
 }
 
+// A picker tile's accessible name is the recipe name plus its diet labels, so
+// a bare recipe name matches the start of the name.
+function pickerName(name: string): string | RegExp {
+  const isRecipe = RECIPE_ORDER.some((id) => RECIPES[id].name === name);
+  return isRecipe ? new RegExp(`^${name}`) : name;
+}
+
 function buttonNamed(name: string): HTMLButtonElement {
-  return screen.getByRole("button", { name }) as HTMLButtonElement;
+  return screen.getByRole("button", { name: pickerName(name) }) as HTMLButtonElement;
 }
 
 function click(name: string): void {
@@ -593,18 +602,25 @@ describe("TonightPrototype", () => {
     afterEach(restoreObserver);
 
     it("sets the property, observes the pinned bar, and cleans up on unmount", () => {
-      const observed: Element[] = [];
-      const callbacks: ResizeObserverCallback[] = [];
-      const disconnect = vi.fn();
+      interface Instance {
+        callback: ResizeObserverCallback;
+        observed: Element[];
+        disconnects: number;
+      }
+      const instances: Instance[] = [];
       class StubObserver {
+        private readonly instance: Instance;
         constructor(callback: ResizeObserverCallback) {
-          callbacks.push(callback);
+          this.instance = { callback, observed: [], disconnects: 0 };
+          instances.push(this.instance);
         }
         observe(target: Element): void {
-          observed.push(target);
+          this.instance.observed.push(target);
         }
         unobserve(): void {}
-        disconnect = disconnect;
+        disconnect(): void {
+          this.instance.disconnects += 1;
+        }
       }
       Object.defineProperty(globalThis, "ResizeObserver", {
         value: StubObserver,
@@ -614,16 +630,19 @@ describe("TonightPrototype", () => {
       const view = render(createElement(TonightPrototype));
       const canvas = canvasOf(view.container);
       const pinned = view.container.querySelector(".tonight-pinned");
+      expect(pinned).not.toBeNull();
       expect(canvas.style.getPropertyValue(PROPERTY)).toBe("0px");
-      expect(callbacks).toHaveLength(1);
-      expect(observed).toEqual([pinned]);
+      const pinnedInstances = instances.filter((i) => i.observed.includes(pinned as Element));
+      expect(pinnedInstances).toHaveLength(1);
+      const instance = pinnedInstances[0];
+      expect(instance.observed).toEqual([pinned]);
       Object.defineProperty(pinned, "offsetHeight", { value: 56, configurable: true });
       act(() => {
-        callbacks[0]([], {} as ResizeObserver);
+        instance.callback([], {} as ResizeObserver);
       });
       expect(canvas.style.getPropertyValue(PROPERTY)).toBe("56px");
       view.unmount();
-      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(instance.disconnects).toBe(1);
       expect(canvas.style.getPropertyValue(PROPERTY)).toBe("");
     });
 
@@ -653,20 +672,34 @@ describe("TonightPrototype", () => {
       }
       return within(group)
         .getAllByRole("button")
-        .map((button) => textOf(button));
+        .map((button) => button.querySelector(".tonight-meal > span")?.textContent ?? "");
     }
 
-    it("starts with three tiles", () => {
+    it("starts with ten tiles", () => {
       mount();
-      expect(tileNames()).toEqual(["Bean tacos", "Egg fried rice", "Chickpea curry"]);
+      expect(tileNames()).toEqual(RECIPE_ORDER.map((id) => RECIPES[id].name));
+      expect(within(screen.getByRole("group", { name: "Meal choices" })).getAllByRole("button")).toHaveLength(10);
     });
 
-    it("narrows to Egg fried rice for rice, in any case", () => {
+    it("narrows to the rice meals for rice, in any case", () => {
       mount();
       typeFilter("rice");
-      expect(tileNames()).toEqual(["Egg fried rice"]);
+      expect(tileNames()).toEqual(["Egg fried rice", "Lemon salmon and rice"]);
       typeFilter("RICE");
-      expect(tileNames()).toEqual(["Egg fried rice"]);
+      expect(tileNames()).toEqual(["Egg fried rice", "Lemon salmon and rice"]);
+    });
+
+    it("matches diet labels", () => {
+      mount();
+      typeFilter("keto");
+      expect(tileNames()).toEqual(["Garlic chicken and broccoli", "Spinach mushroom omelette"]);
+    });
+
+    it("shows the diets on a plan card and no image on a tile without a photo", () => {
+      mount();
+      click("Tofu stir-fry");
+      expect(textOf(card("Tofu stir-fry"))).toContain("Vegan");
+      expect(buttonNamed("Tofu stir-fry").querySelector("img")).toBeNull();
     });
 
     it("shows a message and no tiles when nothing matches", () => {
@@ -676,12 +709,12 @@ describe("TonightPrototype", () => {
       expect(tileNames()).toEqual([]);
     });
 
-    it("restores all three tiles when cleared", () => {
+    it("restores all ten tiles when cleared", () => {
       mount();
       typeFilter("zzz");
       typeFilter("");
       expect(screen.queryByText("No meals match.")).toBeNull();
-      expect(tileNames()).toHaveLength(3);
+      expect(tileNames()).toHaveLength(10);
     });
 
     it("announces an empty result in the one status and drops it when cleared", () => {
@@ -705,7 +738,7 @@ describe("TonightPrototype", () => {
     it("keeps the card and total of a planned meal whose tile is hidden", () => {
       mount();
       typeFilter("rice");
-      expect(screen.queryByRole("button", { name: "Bean tacos" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Bean tacos/ })).toBeNull();
       expect(textOf(card("Bean tacos"))).toContain("2 servings");
       expect(summaryText()).toContain("$8.06");
       expect(statusText()).toContain("Groceries to buy $8.06.");
@@ -738,5 +771,187 @@ describe("TonightPrototype", () => {
     expect(within(side).getByRole("region", { name: "Shopping list" })).toBe(shoppingSection());
     expect(within(side).queryByRole("article")).toBeNull();
     expect(within(side).queryByLabelText("Find a meal")).toBeNull();
+  });
+
+  it("keeps the estimate notice outside the grid that holds main and side", () => {
+    const root = mount();
+    const main = root.querySelector(".tonight-plan-main");
+    const side = root.querySelector(".tonight-plan-side");
+    const grid = root.querySelector(".tonight-plan-grid");
+    if (!(main instanceof HTMLElement) || !(side instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
+      throw new Error("Missing plan layout wrappers");
+    }
+    expect(main.parentElement).toBe(grid);
+    expect(side.parentElement).toBe(grid);
+    const notice = screen.getByText(/^Estimated from the demo price catalog/);
+    expect(grid.contains(notice)).toBe(false);
+    expect(grid.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("meal carousel arrows", () => {
+  function metrics(scrollWidth: number, clientWidth: number, scrollLeft: number): HTMLElement {
+    mount();
+    const el = screen.getByRole("group", { name: "Meal choices" });
+    Object.defineProperty(el, "scrollWidth", { configurable: true, value: scrollWidth });
+    Object.defineProperty(el, "clientWidth", { configurable: true, value: clientWidth });
+    Object.defineProperty(el, "scrollLeft", { configurable: true, writable: true, value: scrollLeft });
+    act(() => {
+      fireEvent.scroll(el);
+    });
+    return el;
+  }
+
+  function prev(): HTMLButtonElement {
+    return screen.getByRole("button", { name: "Show previous meals" }) as HTMLButtonElement;
+  }
+
+  function next(): HTMLButtonElement {
+    return screen.getByRole("button", { name: "Show next meals" }) as HTMLButtonElement;
+  }
+
+  it("disables previous and enables next at the start", () => {
+    metrics(1000, 400, 0);
+    expect(prev().disabled).toBe(true);
+    expect(next().disabled).toBe(false);
+  });
+
+  it("moves forward and enables previous when next is clicked", () => {
+    const el = metrics(1000, 400, 0);
+    act(() => {
+      fireEvent.click(next());
+    });
+    expect(el.scrollLeft).toBeGreaterThan(0);
+    expect(prev().disabled).toBe(false);
+  });
+
+  it("disables next at the right end", () => {
+    metrics(1000, 400, 600);
+    expect(prev().disabled).toBe(false);
+    expect(next().disabled).toBe(true);
+  });
+
+  it("disables both when nothing overflows", () => {
+    const el = metrics(1000, 400, 0);
+    expect(next().disabled).toBe(false);
+    Object.defineProperty(el, "scrollWidth", { configurable: true, value: 400 });
+    act(() => {
+      fireEvent.scroll(el);
+    });
+    expect(prev().disabled).toBe(true);
+    expect(next().disabled).toBe(true);
+  });
+
+  describe("resize observer", () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "ResizeObserver");
+
+    afterEach(() => {
+      if (original === undefined) {
+        Reflect.deleteProperty(globalThis, "ResizeObserver");
+      } else {
+        Object.defineProperty(globalThis, "ResizeObserver", original);
+      }
+    });
+
+    it("re-measures on resize and disconnects on unmount", () => {
+      interface Instance {
+        callback: ResizeObserverCallback;
+        observed: Element[];
+        disconnects: number;
+      }
+      const instances: Instance[] = [];
+      class StubObserver {
+        private readonly instance: Instance;
+        constructor(callback: ResizeObserverCallback) {
+          this.instance = { callback, observed: [], disconnects: 0 };
+          instances.push(this.instance);
+        }
+        observe(target: Element): void {
+          this.instance.observed.push(target);
+        }
+        unobserve(): void {}
+        disconnect(): void {
+          this.instance.disconnects += 1;
+        }
+      }
+      Object.defineProperty(globalThis, "ResizeObserver", {
+        value: StubObserver,
+        configurable: true,
+        writable: true,
+      });
+      const view = render(createElement(TonightPrototype));
+      const el = screen.getByRole("group", { name: "Meal choices" });
+      expect(el.classList.contains("tonight-meals")).toBe(true);
+      const meals = instances.filter((i) => i.observed.includes(el));
+      expect(meals).toHaveLength(1);
+      const instance = meals[0];
+      expect(next().disabled).toBe(true);
+      Object.defineProperty(el, "scrollWidth", { configurable: true, value: 1000 });
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: 400 });
+      act(() => {
+        instance.callback([], {} as ResizeObserver);
+      });
+      expect(next().disabled).toBe(false);
+      view.unmount();
+      expect(instance.disconnects).toBe(1);
+    });
+  });
+
+  describe("reduced motion", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia");
+
+    afterEach(() => {
+      if (originalMatchMedia === undefined) {
+        Reflect.deleteProperty(window, "matchMedia");
+      } else {
+        Object.defineProperty(window, "matchMedia", originalMatchMedia);
+      }
+    });
+
+    function stubMatchMedia(reduce: boolean): void {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches: reduce && query === "(prefers-reduced-motion: reduce)",
+          media: query,
+        }),
+      });
+    }
+
+    function clickNext(): ReturnType<typeof vi.fn> {
+      const el = metrics(1000, 400, 0);
+      const scrollBy = vi.fn((options: ScrollToOptions) => {
+        el.scrollLeft += options.left ?? 0;
+      });
+      Object.defineProperty(el, "scrollBy", { configurable: true, value: scrollBy });
+      act(() => {
+        fireEvent.click(next());
+      });
+      return scrollBy;
+    }
+
+    it("scrolls instantly when reduced motion is preferred", () => {
+      stubMatchMedia(true);
+      const scrollBy = clickNext();
+      expect(scrollBy).toHaveBeenCalledTimes(1);
+      expect(scrollBy).toHaveBeenCalledWith({ left: 320, behavior: "auto" });
+    });
+
+    it("scrolls smoothly otherwise", () => {
+      stubMatchMedia(false);
+      const scrollBy = clickNext();
+      expect(scrollBy).toHaveBeenCalledTimes(1);
+      expect(scrollBy).toHaveBeenCalledWith({ left: 320, behavior: "smooth" });
+    });
+  });
+
+  it("removes both buttons when no meal matches", () => {
+    metrics(1000, 400, 0);
+    act(() => {
+      fireEvent.change(screen.getByLabelText("Find a meal"), { target: { value: "zzz" } });
+    });
+    expect(screen.queryByRole("button", { name: "Show previous meals" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show next meals" })).toBeNull();
   });
 });
