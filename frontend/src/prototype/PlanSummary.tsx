@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { formatDollars } from "../money";
 import { NUTRITION_DEMO_LABEL, RECIPES } from "./prototypeData";
 import { formatMacro } from "./prototypeModel";
-import { budgetGap, planCost, planNutrition, type PlanLine, type PlanState } from "./planModel";
+import { budgetGap, planCost, planIncomplete, planNutrition, type PlanLine, type PlanState } from "./planModel";
 
 export function fitLine(costCents: number, budgetCents: number): string {
   const { fits, gapCents } = budgetGap(costCents, budgetCents);
@@ -12,14 +12,26 @@ export function fitLine(costCents: number, budgetCents: number): string {
     : `${formatDollars(gapCents)} over the ${cap} plan cap.`;
 }
 
+// One text for the summary, the pinned bar, and the status, so they never disagree.
+export function planFitLine(lines: PlanLine[], budgetCents: number): string {
+  if (planIncomplete(lines)) {
+    return `Some prices are missing, so the fit under the ${formatDollars(budgetCents)} plan cap is unknown.`;
+  }
+  return fitLine(planCost(lines), budgetCents);
+}
+
+export function planTotalLabel(lines: PlanLine[]): string {
+  const total = formatDollars(planCost(lines));
+  return planIncomplete(lines) ? `${total} (incomplete)` : total;
+}
+
 export function PlanSummary(props: {
   state: PlanState;
   lines: PlanLine[];
   onBudgetChange: (value: string) => void;
 }): JSX.Element {
   const { state } = props;
-  const costCents = planCost(props.lines);
-  const n = planNutrition(state);
+  const n =planNutrition(state);
   const macros: ReadonlyArray<readonly [number, string]> = [
     [n.energyKcal, "kcal"],
     [n.proteinG, "g protein"],
@@ -30,7 +42,7 @@ export function PlanSummary(props: {
     <section className="tonight-summary" aria-labelledby="summary-heading">
       <h2 id="summary-heading">Plan summary</h2>
       <p className="tonight-kicker">Groceries to buy</p>
-      <p className="tonight-price">{formatDollars(costCents)}</p>
+      <p className="tonight-price">{planTotalLabel(props.lines)}</p>
       <p className="tonight-package">Whole packages · Sample estimate</p>
       <label htmlFor="plan-cap">Plan cap</label>
       <input
@@ -46,7 +58,7 @@ export function PlanSummary(props: {
       {state.budgetError !== null ? (
         <p id="budget-error" className="tonight-error" role="alert">{state.budgetError}</p>
       ) : null}
-      <p id="budget-status">{fitLine(costCents, state.budgetCents)}</p>
+      <p id="budget-status">{planFitLine(props.lines, state.budgetCents)}</p>
       <div className="tonight-nutrition-head">
         <h3>Plan total</h3>
         <p className="tonight-nutrition-note">{NUTRITION_DEMO_LABEL}</p>
@@ -82,6 +94,7 @@ export function PlanShoppingList(props: {
             const inputId = `shop-${line.ingredientId}`;
             const packs = `${String(line.packages)} ${line.packages === 1 ? "package" : "packages"}`;
             const usedIn = line.usedIn.map((id) => RECIPES[id].name).join(", ");
+            const price = line.unpriced ? "No sample price" : formatDollars(line.costCents);
             return (
               <li key={line.ingredientId}>
                 <label htmlFor={inputId}>
@@ -94,7 +107,7 @@ export function PlanShoppingList(props: {
                   <span>
                     <span>{line.name}</span>
                     <span className="tonight-line-meta">
-                      {`${packs} · ${formatDollars(line.costCents)} · Used in ${usedIn}`}
+                      {`${packs} · ${price} · Used in ${usedIn}`}
                     </span>
                   </span>
                 </label>

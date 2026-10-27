@@ -799,6 +799,34 @@ describe("TonightPrototype", () => {
     expect(grid.contains(notice)).toBe(false);
     expect(grid.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  describe("an ingredient without a sample price", () => {
+    const beans = requireIngredient("black_beans");
+    const original = beans.priceCents;
+
+    beforeEach(() => {
+      beans.priceCents = null;
+    });
+
+    afterEach(() => {
+      beans.priceCents = original;
+    });
+
+    it("shows no price, marks the total incomplete, and says the fit is unknown", () => {
+      mount();
+      const line = within(shoppingSection()).getByLabelText(/black beans/);
+      const meta = textOf(line.closest("label") as HTMLElement);
+      expect(meta).toContain("No sample price");
+      expect(meta).not.toContain("$0.00");
+      expect(summaryText()).toContain("(incomplete)");
+      expect(mainText()).toContain("Some ingredients have no sample price, so the total is incomplete.");
+      const unknown = "Some prices are missing, so the fit under the $40.00 plan cap is unknown.";
+      expect(screen.getByText(unknown)).toBeTruthy();
+      expect(summaryText()).not.toContain("left under");
+      expect(statusText()).toContain(unknown);
+      expect(statusText()).toContain("(incomplete)");
+    });
+  });
 });
 
 describe("meal carousel arrows", () => {

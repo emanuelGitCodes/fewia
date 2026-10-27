@@ -1,8 +1,8 @@
 """Export the backend catalog as JSON for the /prototype page.
 
 Run from the repository root:
-uv run --project backend python -m app.prototype_catalog_export \
-    --out frontend/src/prototype/catalog.generated.json
+cd backend && uv run python -m app.prototype_catalog_export \
+    --out ../frontend/src/prototype/catalog.generated.json
 """
 
 import argparse

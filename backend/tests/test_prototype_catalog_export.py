@@ -20,8 +20,8 @@ GENERATED = (
     / "catalog.generated.json"
 )
 REGENERATE = (
-    "uv run --project backend python -m app.prototype_catalog_export "
-    "--out frontend/src/prototype/catalog.generated.json"
+    "cd backend && uv run python -m app.prototype_catalog_export "
+    "--out ../frontend/src/prototype/catalog.generated.json"
 )
 
 
@@ -32,10 +32,10 @@ def test_checked_in_json_matches_the_backend_catalog() -> None:
 
 
 def test_a_changed_price_is_detected_as_drift() -> None:
-    drifted = json.loads(GENERATED.read_text(encoding="utf-8"))
+    drifted = build_catalog()
     drifted["ingredients"][0]["priceCents"] += 1
     text = json.dumps(drifted, indent=2, ensure_ascii=False) + "\n"
-    assert text != render_catalog()
+    assert text != GENERATED.read_text(encoding="utf-8")
 
 
 def test_exports_forty_recipes_in_supported_order() -> None:
@@ -75,7 +75,8 @@ def test_vegan_recipes_list_both_diets() -> None:
 def test_recipe_names_follow_the_rule() -> None:
     assert recipe_name("bean_tacos") == "Bean tacos"
     for recipe in build_catalog()["recipes"]:
-        assert recipe["name"] == recipe["id"].replace("_", " ").capitalize()
+        spaced = recipe["id"].replace("_", " ")
+        assert recipe["name"] == spaced[0].upper() + spaced[1:]
         assert recipe["name"][0].isupper()
 
 
