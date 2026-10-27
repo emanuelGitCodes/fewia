@@ -72,7 +72,9 @@ export function PlanChat(props: {
     }
     if (announced.current !== job.id) {
       announced.current = job.id;
-      onReply?.();
+      if (job.result.status !== "limit" && job.result.status !== "incomplete") {
+        onReply?.();
+      }
     }
   }, [job, onReply]);
 
@@ -82,7 +84,7 @@ export function PlanChat(props: {
     }
   }, [props.open]);
 
-  const on =providers.capabilities?.chat_configured === true;
+  const on = providers.capabilities?.chat_configured === true;
   const pending = chat.pending;
   const validation = chat.error === TEXT_ERROR || chat.error === BUDGET_ERROR;
   const current = job === null ? undefined : replies.get(job.id);
@@ -117,12 +119,17 @@ export function PlanChat(props: {
       setAgain(true);
     }
   };
+  const chatSend = chat.send;
+  const draft = chat.message;
   useEffect(() => {
-    if (again) {
+    if (again && draft === lastUser) {
       setAgain(false);
-      send();
+      if (canSend) {
+        inputRef.current?.focus();
+        chatSend();
+      }
     }
-  });
+  }, [again, draft, lastUser, canSend, chatSend]);
   const retry = (): void => {
     inputRef.current?.focus();
     chat.retry();
@@ -175,7 +182,7 @@ export function PlanChat(props: {
       <p className="tonight-ask-status" role="status" aria-live="polite">
         {status}
       </p>
-      {failed && unanswered ? (
+      {failed && unanswered && chat.message.length === 0 ? (
         <button
           type="button"
           className="tonight-ask-btn"

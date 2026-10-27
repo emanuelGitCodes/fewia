@@ -760,7 +760,7 @@
     --tonight-nav-height: 4.5rem;
   }
   html:has(.tonight-prototype) {
-    scroll-padding-bottom: calc(4.5rem + 3.75rem);
+    scroll-padding-bottom: calc(var(--tonight-nav-height) + var(--tonight-dock-height));
   }
   .tonight-prototype h1 {
     margin: 1.15rem 0 0.7rem;

@@ -310,7 +310,6 @@ describe("PlanChat", () => {
     mount();
     await submitText("Cheap dinner");
     expect(jobState.clear).toHaveBeenCalledTimes(1);
-    type("Something else");
     const again = screen.getByRole("button", { name: "Ask again" });
     again.focus();
     await act(async () => {
@@ -323,6 +322,34 @@ describe("PlanChat", () => {
     expect(jobState.clear).toHaveBeenCalledTimes(2);
     expect(document.activeElement).toBe(box());
   });
+
+  it("hides Ask again while the draft is not empty and keeps the failure line", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "limit", "Internal turn limit text.");
+    });
+    mount();
+    await submitText("Cheap dinner");
+    expect(screen.getByRole("button", { name: "Ask again" })).toBeTruthy();
+    type("Something else");
+    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe(FAILED_LINE);
+    expect(box().value).toBe("Something else");
+    type("");
+    expect(screen.getByRole("button", { name: "Ask again" })).toBeTruthy();
+  });
+
+  it.each(["limit", "incomplete"] as const)(
+    "does not tell the shell about a %s result",
+    async (status) => {
+      jobState.submit.mockImplementation(async () => {
+        jobState.job = chatJob("job-1", status, "Internal turn limit text.");
+      });
+      const onReply = vi.fn();
+      mount(initialPlanState(), { onReply });
+      await submitText("Cheap dinner");
+      expect(onReply).not.toHaveBeenCalled();
+    },
+  );
 
   it("shows the Hide chat button only when a sheet can be closed", () => {
     const onHide = vi.fn();

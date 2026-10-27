@@ -1193,6 +1193,34 @@ describe("Ask FEWIA dock and sheet", () => {
     expect(document.activeElement).toBe(dock());
   });
 
+  it("scrolls the pinned total to the top of the canvas when the sheet opens below 720 px", () => {
+    stubWidth(375);
+    const root = mount();
+    const canvas = root.querySelector(".tonight-canvas");
+    const pinned = root.querySelector(".tonight-pinned");
+    if (!(canvas instanceof HTMLElement) || !(pinned instanceof HTMLElement)) {
+      throw new Error("Missing canvas or pinned bar.");
+    }
+    canvas.scrollTop = 0;
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({ top: 10 } as DOMRect);
+    vi.spyOn(pinned, "getBoundingClientRect").mockReturnValue({ top: 130 } as DOMRect);
+    openSheet();
+    expect(canvas.scrollTop).toBe(120);
+  });
+
+  it("does not scroll the canvas when the sheet opens from 720 px", () => {
+    stubWidth(900);
+    const root = mount();
+    const canvas = root.querySelector(".tonight-canvas");
+    const pinned = root.querySelector(".tonight-pinned");
+    if (!(canvas instanceof HTMLElement) || !(pinned instanceof HTMLElement)) {
+      throw new Error("Missing canvas or pinned bar.");
+    }
+    vi.spyOn(pinned, "getBoundingClientRect").mockReturnValue({ top: 130 } as DOMRect);
+    openSheet();
+    expect(canvas.scrollTop).toBe(0);
+  });
+
   it("closes the sheet on Escape and returns focus to the dock", () => {
     stubWidth(375);
     mount();
