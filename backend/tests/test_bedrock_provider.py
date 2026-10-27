@@ -1,7 +1,9 @@
+import json
 from typing import cast
 
 import pytest
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.agent.provider import LLMUnavailable
 from app.providers import bedrock
@@ -396,6 +398,164 @@ def test_provider_error_is_static_and_hides_original_text(
 
     assert str(error.value) == ""
     assert "secret-provider-detail" not in str(error.value)
+
+
+_USER_MESSAGES = [{"role": "user", "content": [{"text": "ok"}]}]
+
+
+def failure_line(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
+    lines = capsys.readouterr().err.splitlines()
+    assert len(lines) == 1
+    return cast(dict[str, object], json.loads(lines[0]))
+
+
+def client_error(code: str, status: int, message: str = "msg") -> ClientError:
+    return ClientError(
+        {
+            "Error": {"Code": code, "Message": message},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
+        "Converse",
+    )
+
+
+def test_logs_client_error_code_and_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(monkeypatch, client_error("ExpiredTokenException", 403))
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    assert failure_line(capsys) == {
+        "event": "bedrock_converse_failed",
+        "reason": "client_error",
+        "exception": "ClientError",
+        "error_code": "ExpiredTokenException",
+        "http_status": 403,
+        "stop_reason": None,
+    }
+
+
+def test_logs_plain_exception_without_code_or_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(monkeypatch, RuntimeError("boom"))
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "client_error"
+    assert line["exception"] == "RuntimeError"
+    assert line["error_code"] is None
+    assert line["http_status"] is None
+
+
+@pytest.mark.parametrize(
+    "bad_response",
+    [
+        "text",
+        {"Error": "x", "ResponseMetadata": []},
+        {"Error": {"Code": 5}, "ResponseMetadata": {"HTTPStatusCode": "403"}},
+    ],
+)
+def test_malformed_exception_response_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    bad_response: object,
+) -> None:
+    error = RuntimeError("boom")
+    error.response = bad_response  # type: ignore[attr-defined]
+    instance, _, _ = provider(monkeypatch, error)
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["error_code"] is None
+    assert line["http_status"] is None
+
+
+@pytest.mark.parametrize("bad_response", ["nope", {"stopReason": "end_turn"}])
+def test_logs_unexpected_response(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    bad_response: object,
+) -> None:
+    instance, _, _ = provider(monkeypatch, bad_response)
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "unexpected_response"
+    assert line["exception"] is None
+
+
+def test_logs_unsupported_stop_reason(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(
+        monkeypatch, {"stopReason": "invented", "output": response()["output"]}
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "unsupported_stop_reason"
+    assert line["stop_reason"] == "invented"
+
+
+def test_overlong_stop_reason_is_not_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(
+        monkeypatch, {"stopReason": "x" * 65, "output": response()["output"]}
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    assert failure_line(capsys)["stop_reason"] is None
+
+
+def test_logs_invalid_message(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(
+        monkeypatch,
+        {"stopReason": "end_turn", "output": {"message": {"role": "user"}}},
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "invalid_message"
+    assert line["stop_reason"] == "end_turn"
+
+
+def test_failure_line_has_no_secrets_or_content(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    arn = "arn:aws:bedrock:us-east-1:123456789012:inference-profile/secret"
+    message = f"Invalid request for account 123456789012 and {arn}"
+    instance, _, _ = provider(
+        monkeypatch,
+        client_error("ValidationException", 400, message),
+        model_id="secret-model-id",
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("secret-system-prompt", _USER_MESSAGES, [])
+
+    err = capsys.readouterr().err
+    for secret in (message, arn, "123456789012", "secret-model-id", "us-east-1"):
+        assert secret not in err
+    assert "secret-system-prompt" not in err
+    assert json.loads(err)["error_code"] == "ValidationException"
 
 
 def test_rejects_invalid_model_region_and_messages(

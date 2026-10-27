@@ -1,3 +1,5 @@
+import json
+import sys
 from collections.abc import Mapping
 from typing import NotRequired, Protocol, TypedDict, Unpack, cast
 
@@ -69,6 +71,47 @@ def _is_luna_us_model(model_id: str) -> bool:
 
 def _is_nova2_us_model(model_id: str) -> bool:
     return _is_us_profile(model_id, _NOVA2_US_MODEL_ID)
+
+
+def _log_failure(
+    reason: str, exc: Exception | None = None, stop_reason: object = None
+) -> None:
+    exception: str | None = None
+    error_code: str | None = None
+    http_status: int | None = None
+    if exc is not None:
+        exception = type(exc).__name__
+        detail = getattr(exc, "response", None)
+        if isinstance(detail, Mapping):
+            error = detail.get("Error")
+            code = error.get("Code") if isinstance(error, Mapping) else None
+            if isinstance(code, str):
+                error_code = code
+            metadata = detail.get("ResponseMetadata")
+            status = (
+                metadata.get("HTTPStatusCode")
+                if isinstance(metadata, Mapping)
+                else None
+            )
+            if isinstance(status, int) and not isinstance(status, bool):
+                http_status = status
+    logged_stop = (
+        stop_reason if isinstance(stop_reason, str) and len(stop_reason) <= 64 else None
+    )
+    print(
+        json.dumps(
+            {
+                "event": "bedrock_converse_failed",
+                "reason": reason,
+                "exception": exception,
+                "error_code": error_code,
+                "http_status": http_status,
+                "stop_reason": logged_stop,
+            },
+            sort_keys=True,
+        ),
+        file=sys.stderr,
+    )
 
 
 class BedrockConverseProvider:
@@ -145,19 +188,25 @@ class BedrockConverseProvider:
             request["toolConfig"] = {"tools": tools}
         try:
             response = self._client.converse(**request)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            _log_failure("client_error", exc=exc)
             raise LLMUnavailable from None
         if not isinstance(response, dict):
+            _log_failure("unexpected_response")
             raise LLMUnavailable
         stop_reason = response.get("stopReason")
         output = response.get("output")
+        if not isinstance(output, dict):
+            _log_failure("unexpected_response", stop_reason=stop_reason)
+            raise LLMUnavailable
         if (
             not isinstance(stop_reason, str)
             or stop_reason not in _SUPPORTED_STOP_REASONS
-            or not isinstance(output, dict)
         ):
+            _log_failure("unsupported_stop_reason", stop_reason=stop_reason)
             raise LLMUnavailable
         message = output.get("message")
         if not _valid_message(message, "assistant"):
+            _log_failure("invalid_message", stop_reason=stop_reason)
             raise LLMUnavailable
         return response
