@@ -8,6 +8,7 @@ import {
   MIN_SERVINGS,
   RECIPES,
   SERVING_ERROR,
+  isKnownRecipe,
   requireIngredient,
   type Nutrition,
   type RecipeId,
@@ -141,11 +142,65 @@ function withMeals(state: PlanState, meals: PlannedMeal[]): PlanState {
   };
 }
 
-export function addMeal(state: PlanState, recipeId: RecipeId): PlanState {
-  if (state.meals.length >= MAX_MEALS || state.meals.some((m) => m.recipeId === recipeId)) {
+function clampServings(servings: number): number {
+  if (!Number.isFinite(servings)) {
+    return INITIAL_SERVINGS;
+  }
+  return Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, Math.round(servings)));
+}
+
+export function addMeal(
+  state: PlanState,
+  recipeId: RecipeId,
+  servings: number = INITIAL_SERVINGS,
+): PlanState {
+  if (
+    !isKnownRecipe(recipeId) ||
+    state.meals.length >= MAX_MEALS ||
+    state.meals.some((m) => m.recipeId === recipeId)
+  ) {
     return state;
   }
-  return withMeals(state, [...state.meals, { recipeId, servings: INITIAL_SERVINGS }]);
+  return withMeals(state, [...state.meals, { recipeId, servings: clampServings(servings) }]);
+}
+
+export type AddPreview = {
+  recipeId: string;
+  servings: number;
+  inPlan: boolean;
+  blocked: "unknown_recipe" | "plan_full" | null;
+  deltaCents: number;
+  lines: PlanLine[];
+  sharedIngredientNames: string[];
+};
+
+// Prices an add without changing the plan. Check membership before reading RECIPES.
+export function previewAdd(state: PlanState, recipeId: string, servings: number): AddPreview {
+  const lines = planLines(state);
+  const base = { recipeId, servings, lines, sharedIngredientNames: [] };
+  if (!isKnownRecipe(recipeId)) {
+    return { ...base, inPlan: false, blocked: "unknown_recipe", deltaCents: 0 };
+  }
+  if (state.meals.some((m) => m.recipeId === recipeId)) {
+    const without = planLines({ ...state, meals: state.meals.filter((m) => m.recipeId !== recipeId) });
+    return { ...base, inPlan: true, blocked: null, deltaCents: planCost(lines) - planCost(without) };
+  }
+  if (state.meals.length >= MAX_MEALS) {
+    return { ...base, inPlan: false, blocked: "plan_full", deltaCents: 0 };
+  }
+  const after = planLines(addMeal(state, recipeId, servings));
+  const bought = new Set(lines.filter((line) => !line.fromPantry).map((line) => line.ingredientId));
+  const sharedIngredientNames = RECIPES[recipeId].ingredients
+    .filter(([ingredientId]) => bought.has(ingredientId))
+    .map(([ingredientId]) => requireIngredient(ingredientId).name);
+  return {
+    ...base,
+    lines: after,
+    inPlan: false,
+    blocked: null,
+    deltaCents: planCost(after) - planCost(lines),
+    sharedIngredientNames,
+  };
 }
 
 export function removeMeal(state: PlanState, recipeId: RecipeId): PlanState {

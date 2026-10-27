@@ -93,6 +93,11 @@ for (const recipe of CATALOG.recipes) {
   };
 }
 
+// RECIPES is a plain object, so an inherited key such as "constructor" is not a recipe.
+export function isKnownRecipe(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(RECIPES, id);
+}
+
 export function requireIngredient(id: string): Ingredient {
   const item = INGREDIENTS[id];
   if (item === undefined) {

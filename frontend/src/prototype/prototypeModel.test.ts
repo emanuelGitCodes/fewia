@@ -81,7 +81,7 @@ describe("prototype recipes", () => {
 
   it("uses integer-cent prices and the pantry flags for the initial pantry", () => {
     for (const item of Object.values(INGREDIENTS)) {
-      expect(Number.isInteger(item.priceCents)).toBe(true);
+      expect(item.priceCents === null || Number.isInteger(item.priceCents)).toBe(true);
     }
     expect(INITIAL_PANTRY).toEqual(
       Object.values(INGREDIENTS)

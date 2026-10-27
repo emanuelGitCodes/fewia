@@ -31,7 +31,7 @@ export function PlanSummary(props: {
   onBudgetChange: (value: string) => void;
 }): JSX.Element {
   const { state } = props;
-  const n =planNutrition(state);
+  const n = planNutrition(state);
   const macros: ReadonlyArray<readonly [number, string]> = [
     [n.energyKcal, "kcal"],
     [n.proteinG, "g protein"],

@@ -158,6 +158,100 @@
   line-height: 1.2;
   text-decoration: none;
 }
+.tonight-idea-card {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  gap: 0.25rem 0.7rem;
+  padding: 0.55rem;
+  border: 2px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+}
+.tonight-idea-card .tonight-thumb {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+.tonight-idea-card > h3,
+.tonight-idea-card > .tonight-diets,
+.tonight-idea-card > .tonight-idea-facts,
+.tonight-idea-card > .tonight-idea-delta {
+  grid-column: 2;
+  margin: 0;
+}
+.tonight-idea-card h3 {
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+.tonight-idea-facts {
+  font-size: 0.88rem;
+  line-height: 1.3;
+  color: var(--tonight-muted);
+}
+.tonight-idea-delta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.45rem;
+  font-size: 0.92rem;
+}
+.tonight-idea-delta strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.tonight-idea-over {
+  color: var(--tonight-error);
+  font-weight: 600;
+}
+.tonight-idea-why {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--tonight-muted);
+}
+.tonight-idea-btn {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.3rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tonight-idea-btn:hover:not(:disabled) {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-idea-btn:focus-visible {
+  outline: 3px solid var(--tonight-green);
+  outline-offset: 2px;
+}
+.tonight-idea-btn:disabled {
+  color: var(--tonight-muted);
+  cursor: not-allowed;
+}
+.tonight-idea-card.is-selected {
+  padding-bottom: 0.9rem;
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+  box-shadow: inset 0 -0.35rem 0 var(--tonight-green);
+}
+.tonight-idea-card.is-selected h3 {
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
+}
+.tonight-idea-card.is-selected .tonight-idea-btn {
+  border-color: var(--tonight-green);
+  background: var(--tonight-white);
+  color: var(--tonight-green);
+}
 .tonight-diets {
   margin: 0.15rem 0 0.4rem;
   font-size: 0.9rem;

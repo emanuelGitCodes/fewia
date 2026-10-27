@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { INGREDIENTS, SERVING_ERROR, requireIngredient } from "./prototypeData";
+import { INGREDIENTS, RECIPES, SERVING_ERROR, requireIngredient } from "./prototypeData";
 import {
   addMeal,
   budgetGap,
@@ -10,6 +10,7 @@ import {
   planIncomplete,
   planLines,
   planNutrition,
+  previewAdd,
   removeMeal,
   retainChecks,
   shiftMealServings,
@@ -163,6 +164,75 @@ describe("meal list", () => {
     expect(empty.meals).toEqual([]);
     expect(planLines(empty)).toEqual([]);
     expect(planCost(planLines(empty))).toBe(0);
+  });
+});
+
+describe("addMeal servings and unknown recipes", () => {
+  it("clamps servings into 1 to 8", () => {
+    expect(addMeal(initialPlanState(), "egg_fried_rice", 0).meals[1]?.servings).toBe(1);
+    expect(addMeal(initialPlanState(), "egg_fried_rice", 99).meals[1]?.servings).toBe(8);
+    expect(addMeal(initialPlanState(), "egg_fried_rice", 5).meals[1]?.servings).toBe(5);
+  });
+
+  it("ignores an unknown recipe", () => {
+    const state = initialPlanState();
+    expect(addMeal(state, "nope")).toBe(state);
+    expect(addMeal(state, "constructor")).toBe(state);
+  });
+});
+
+describe("previewAdd", () => {
+  it("prices a normal add like a real addMeal", () => {
+    const state = initialPlanState();
+    const preview = previewAdd(state, "chickpea_curry", 2);
+    const real = planCost(planLines(addMeal(state, "chickpea_curry", 2))) - planCost(planLines(state));
+    expect(preview).toMatchObject({ inPlan: false, blocked: null, servings: 2 });
+    expect(preview.deltaCents).toBe(real);
+    expect(preview.lines).toEqual(planLines(addMeal(state, "chickpea_curry", 2)));
+  });
+
+  it("blocks an unknown recipe without throwing", () => {
+    const state = initialPlanState();
+    const preview = previewAdd(state, "nope", 2);
+    expect(preview).toMatchObject({ blocked: "unknown_recipe", deltaCents: 0, inPlan: false });
+    expect(preview.lines).toEqual(planLines(state));
+    expect(preview.sharedIngredientNames).toEqual([]);
+  });
+
+  it("reports the saving of a meal already in the plan", () => {
+    const state = planOf([TACOS, RICE]);
+    const preview = previewAdd(state, "egg_fried_rice", 2);
+    const without = planCost(planLines(planOf([TACOS])));
+    expect(preview).toMatchObject({ inPlan: true, blocked: null, sharedIngredientNames: [] });
+    expect(preview.deltaCents).toBe(planCost(planLines(state)) - without);
+    expect(preview.lines).toEqual(planLines(state));
+  });
+
+  it("blocks a new meal when the plan is full", () => {
+    const state = planOf([TACOS, RICE, CURRY]);
+    const preview = previewAdd(state, "lentil_soup", 2);
+    expect(preview).toMatchObject({ inPlan: false, blocked: "plan_full", deltaCents: 0 });
+    expect(preview.lines).toEqual(planLines(state));
+  });
+
+  it("names ingredients the plan already buys, in recipe order", () => {
+    const preview = previewAdd(planOf([RICE]), "chickpea_curry", 2);
+    const names = preview.sharedIngredientNames;
+    const rice = requireIngredient("rice").name;
+    const garlic = requireIngredient("garlic").name;
+    expect(names).toContain(rice);
+    expect(names).toContain(garlic);
+    const recipeOrder = RECIPES.chickpea_curry.ingredients.map(([id]) => requireIngredient(id).name);
+    expect(names.map((n) => recipeOrder.indexOf(n))).toEqual(
+      names.map((n) => recipeOrder.indexOf(n)).sort((a, b) => a - b),
+    );
+  });
+
+  it("leaves out pantry ingredients from shared names", () => {
+    const preview = previewAdd(initialPlanState(), "egg_fried_rice", 2);
+    for (const id of initialPlanState().pantry) {
+      expect(preview.sharedIngredientNames).not.toContain(requireIngredient(id).name);
+    }
   });
 });
 
