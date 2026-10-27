@@ -103,9 +103,19 @@ The palette uses forest green for selected, hover, and active states, with quiet
 
 ## Layout
 
-The canvas is centered and capped at 1000px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, meal cards, and nutrition values adapt their columns to text size. Below 360px, the nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
+The canvas is centered and capped at 1000px; from 1180px the cap is 1360px. On compact screens, it uses 1rem inline padding and scrolls within a 100dvh frame. Navigation stays below the canvas. At 720px, the canvas uses 1.5rem inline padding, wider gaps, and taller meal thumbnails. Meal choices, meal cards, and nutrition values adapt their columns to text size. Below 360px, the nutrition values stack. Long text wraps without truncation. Navigation remains a single bottom row.
 
 Each meal card holds its image, servings stepper, per-serving nutrition, and a collapsed ingredient list. Users adjust servings from one to eight per meal. Pantry choices change which whole packages FEWIA includes in the estimate; they do not change nutrition. On compact screens, a pinned bar at the top of the canvas shows the total and the fit line. The canvas `scroll-padding-top` reads the measured bar height from `--tonight-pinned-height`, so focused controls stay below the bar when it wraps. From 720px, the Plan page uses two columns: meals on the left, and a sticky summary and shopping list on the right. The sticky bottom navigation is 4.5rem tall. The window `scroll-padding-bottom` and the side column's maximum height (through `--tonight-nav-height`) both reserve that height. Change both values together.
+
+### Ask FEWIA placement
+
+The "Ask FEWIA" panel is one `aside` in the shell, after `main` and before the footer. It shows on the Plan and Pantry views. Its placement follows the width:
+
+- **1180px and wider:** a persistent, sticky third column, 23rem wide and the full height between the top and the navigation. The canvas cap grows to 1360px, the nutrition grid minimum is 4.4rem, and there is no dock bar.
+- **720px to 1179px:** a dock bar sits above the navigation and reads "Ask FEWIA for a meal idea". It opens the panel as a sheet over the meals column; the Plan summary stays visible. The side column's maximum height and `scroll-padding-bottom` subtract `--tonight-dock-height` as well as `--tonight-nav-height`.
+- **Below 720px:** the dock bar sits between the canvas and the navigation. The open sheet starts below the pinned total bar, using `--tonight-pinned-height`, so the total stays visible.
+
+`--tonight-dock-height` is 3.75rem (the dock bar height). It is 0 from 1180px, where there is no dock. The dock button has `aria-expanded` and `aria-controls`. Opening the sheet focuses the textarea. "Hide chat" and Escape close it and return focus to the dock button. While the sheet is open, the content it covers is `inert`: the whole plan below 720px, the meals column from 720px to 1179px. A reply that arrives while the sheet is closed shows "1 new reply" as text in the dock bar; opening the sheet clears it. Reduced motion removes the sheet slide. At large text sizes the idea card puts its photo above the text.
 
 ## Elevation & Depth
 

@@ -26,8 +26,13 @@ function replyLine(count: number): string {
 export function PlanChat(props: {
   state: PlanState;
   onToggleIdea: (recipeId: string, servings: number, inPlan: boolean) => void;
+  id?: string;
+  // True while the panel is an open sheet; opening moves focus into it.
+  open?: boolean;
+  onHide?: () => void;
+  onReply?: () => void;
 }): JSX.Element {
-  const { state } = props;
+  const { state, onReply } = props;
   const uid = useId();
   const headingId = `${uid}-heading`;
   const inputId = `${uid}-input`;
@@ -36,6 +41,9 @@ export function PlanChat(props: {
   const budget = chatBudget(state);
   const chat = useChatConversation(budget, null, { composeMessage });
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hideRef = useRef<HTMLButtonElement>(null);
+  const announced = useRef<string | null>(null);
+  const [again, setAgain] = useState(false);
   const stateRef = useRef(state);
   stateRef.current = state;
   // Ideas are fixed when the job succeeds, against the plan at that moment.
@@ -58,7 +66,23 @@ export function PlanChat(props: {
     });
   }, [job]);
 
-  const on = providers.capabilities?.chat_configured === true;
+  useEffect(() => {
+    if (job === null || job.status !== "succeeded" || job.result === null) {
+      return;
+    }
+    if (announced.current !== job.id) {
+      announced.current = job.id;
+      onReply?.();
+    }
+  }, [job, onReply]);
+
+  useEffect(() => {
+    if (props.open === true) {
+      (inputRef.current ?? hideRef.current)?.focus();
+    }
+  }, [props.open]);
+
+  const on =providers.capabilities?.chat_configured === true;
   const pending = chat.pending;
   const validation = chat.error === TEXT_ERROR || chat.error === BUDGET_ERROR;
   const current = job === null ? undefined : replies.get(job.id);
@@ -85,6 +109,24 @@ export function PlanChat(props: {
       chat.send();
     }
   };
+  // The failed turn is gone, so "Ask again" puts its text back and sends a fresh request.
+  const lastUser = [...chat.messages].reverse().find((turn) => turn.role === "user")?.content ?? null;
+  const askAgain = (): void => {
+    if (lastUser !== null) {
+      chat.setMessage(lastUser);
+      setAgain(true);
+    }
+  };
+  useEffect(() => {
+    if (again) {
+      setAgain(false);
+      send();
+    }
+  });
+  const retry = (): void => {
+    inputRef.current?.focus();
+    chat.retry();
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
@@ -102,7 +144,7 @@ export function PlanChat(props: {
   const empty = chat.messages.length === 0;
 
   return (
-    <aside className="tonight-ask" aria-labelledby={headingId}>
+    <aside id={props.id} className="tonight-ask" aria-labelledby={headingId}>
       <div className="tonight-ask-head">
         <div>
           <h2 id={headingId}>Ask FEWIA</h2>
@@ -112,22 +154,39 @@ export function PlanChat(props: {
             </p>
           ) : null}
         </div>
-        {on ? (
-          <button type="button" className="tonight-ask-btn" onClick={startChat}>
-            New chat
-          </button>
-        ) : null}
+        <div className="tonight-ask-actions">
+          {on ? (
+            <button type="button" className="tonight-ask-btn" onClick={startChat}>
+              New chat
+            </button>
+          ) : null}
+          {props.onHide !== undefined ? (
+            <button
+              type="button"
+              className="tonight-ask-btn tonight-ask-hide"
+              ref={hideRef}
+              onClick={props.onHide}
+            >
+              Hide chat
+            </button>
+          ) : null}
+        </div>
       </div>
       <p className="tonight-ask-status" role="status" aria-live="polite">
         {status}
       </p>
-      {failed ? (
+      {failed && unanswered ? (
         <button
           type="button"
           className="tonight-ask-btn"
-          disabled={!chat.hasRequest}
-          onClick={chat.retry}
+          disabled={lastUser === null || budget === null}
+          onClick={askAgain}
         >
+          Ask again
+        </button>
+      ) : null}
+      {failed && !unanswered ? (
+        <button type="button" className="tonight-ask-btn" disabled={!chat.hasRequest} onClick={retry}>
           Retry
         </button>
       ) : null}
@@ -200,7 +259,7 @@ export function PlanChat(props: {
               id={inputId}
               ref={inputRef}
               rows={2}
-              maxLength={MAX_MESSAGE_LENGTH}
+              maxLength={Math.max(MAX_MESSAGE_LENGTH - planChatPrefix(state).length, 0)}
               value={chat.message}
               readOnly={pending}
               aria-describedby={`${inputId}-hint`}

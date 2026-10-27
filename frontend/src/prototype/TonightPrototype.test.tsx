@@ -1119,12 +1119,175 @@ describe("Ask FEWIA on the prototype", () => {
     expect(summaryText()).toBe(before);
   });
 
-  it("hides the chat on the Pantry page and keeps it when the user returns", () => {
+  it("shows the chat on the Pantry page and keeps the draft across views", () => {
     mount();
     fireEvent.change(screen.getByLabelText("Ask for a meal"), { target: { value: "Draft" } });
     click("Pantry");
-    expect(screen.queryByRole("complementary", { name: "Ask FEWIA" })).toBeNull();
+    expect(screen.getByRole("complementary", { name: "Ask FEWIA" })).toBeTruthy();
+    expect((screen.getByLabelText("Ask for a meal") as HTMLTextAreaElement).value).toBe("Draft");
     click("Plan");
     expect((screen.getByLabelText("Ask for a meal") as HTMLTextAreaElement).value).toBe("Draft");
+  });
+});
+
+describe("Ask FEWIA dock and sheet", () => {
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia");
+
+  afterEach(() => {
+    if (originalMatchMedia === undefined) {
+      Reflect.deleteProperty(window, "matchMedia");
+    } else {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia);
+    }
+  });
+
+  function stubWidth(width: number): void {
+    const limits: Record<string, number> = {
+      "(max-width: 1179px)": 1179,
+      "(max-width: 719px)": 719,
+    };
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({ matches: width <= (limits[query] ?? -1), media: query }),
+    });
+  }
+
+  function dock(): HTMLElement {
+    return screen.getByRole("button", { name: "Ask FEWIA for a meal idea" });
+  }
+
+  function aside(): HTMLElement {
+    return screen.getByRole("complementary", { name: "Ask FEWIA" });
+  }
+
+  function openSheet(): void {
+    act(() => {
+      fireEvent.click(dock());
+    });
+  }
+
+  async function askWhile(text: string): Promise<void> {
+    const input = screen.getByLabelText("Ask for a meal");
+    fireEvent.change(input, { target: { value: text } });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+  }
+
+  it("opens and closes the sheet from the dock and returns focus to the dock", () => {
+    stubWidth(900);
+    const root = mount();
+    expect(dock().getAttribute("aria-expanded")).toBe("false");
+    expect(dock().getAttribute("aria-controls")).toBe(aside().id);
+    expect(root.querySelector(".is-ask-open")).toBeNull();
+    openSheet();
+    expect(dock().getAttribute("aria-expanded")).toBe("true");
+    expect(root.querySelector(".is-ask-open")).not.toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText("Ask for a meal"));
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Hide chat" }));
+    });
+    expect(dock().getAttribute("aria-expanded")).toBe("false");
+    expect(root.querySelector(".is-ask-open")).toBeNull();
+    expect(document.activeElement).toBe(dock());
+  });
+
+  it("closes the sheet on Escape and returns focus to the dock", () => {
+    stubWidth(375);
+    mount();
+    openSheet();
+    const input = screen.getByLabelText("Ask for a meal");
+    expect(document.activeElement).toBe(input);
+    act(() => {
+      fireEvent.keyDown(input, { key: "Escape" });
+    });
+    expect(dock().getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(dock());
+  });
+
+  it("makes the whole plan inert below 720 px while the sheet is open", () => {
+    stubWidth(375);
+    const root = mount();
+    const header = root.querySelector("header");
+    const footer = root.querySelector("footer");
+    const main = screen.getByRole("main");
+    expect(header?.hasAttribute("inert")).toBe(false);
+    openSheet();
+    expect(header?.hasAttribute("inert")).toBe(true);
+    expect(main.hasAttribute("inert")).toBe(true);
+    expect(footer?.hasAttribute("inert")).toBe(true);
+    expect(aside().hasAttribute("inert")).toBe(false);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Hide chat" }));
+    });
+    expect(header?.hasAttribute("inert")).toBe(false);
+    expect(main.hasAttribute("inert")).toBe(false);
+    expect(footer?.hasAttribute("inert")).toBe(false);
+  });
+
+  it("makes only the meals column inert from 720 to 1179 px", () => {
+    stubWidth(900);
+    const root = mount();
+    const meals = root.querySelector(".tonight-plan-main");
+    const side = root.querySelector(".tonight-plan-side");
+    openSheet();
+    expect(meals?.hasAttribute("inert")).toBe(true);
+    expect(side?.hasAttribute("inert")).toBe(false);
+    expect(screen.getByRole("main").hasAttribute("inert")).toBe(false);
+    expect(screen.getByRole("region", { name: "Plan summary" })).toBeTruthy();
+    act(() => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    expect(meals?.hasAttribute("inert")).toBe(false);
+  });
+
+  it("shows 1 new reply when a reply arrives while closed and clears it on open", async () => {
+    stubWidth(900);
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = plannedChatJob();
+    });
+    mount();
+    expect(screen.queryByText("1 new reply")).toBeNull();
+    await askWhile("Something with chickpeas");
+    expect(screen.getByText("1 new reply")).toBeTruthy();
+    openSheet();
+    expect(screen.queryByText("1 new reply")).toBeNull();
+  });
+
+  it("does not flag a reply that arrives while the sheet is open", async () => {
+    stubWidth(900);
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = plannedChatJob();
+    });
+    mount();
+    openSheet();
+    await askWhile("Something with chickpeas");
+    act(() => {
+      fireEvent.keyDown(document, { key: "Escape" });
+    });
+    expect(screen.queryByText("1 new reply")).toBeNull();
+  });
+
+  it("shows the panel on the Pantry view and closes the sheet when the nav changes view", () => {
+    stubWidth(900);
+    mount();
+    openSheet();
+    click("Pantry");
+    expect(dock().getAttribute("aria-expanded")).toBe("false");
+    expect(aside()).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Pantry" }));
+    openSheet();
+    expect(document.activeElement).toBe(screen.getByLabelText("Ask for a meal"));
+    expect(screen.getByRole("main").hasAttribute("inert")).toBe(true);
+  });
+
+  it("has no dock bar and no inert content from 1180 px", () => {
+    stubWidth(1280);
+    const root = mount();
+    expect(screen.queryByRole("button", { name: "Ask FEWIA for a meal idea" })).toBeNull();
+    expect(aside()).toBeTruthy();
+    expect(root.querySelector("[inert]")).toBeNull();
+    expect(screen.getByRole("region", { name: "Plan summary" })).toBeTruthy();
   });
 });

@@ -14,12 +14,12 @@ function servingsText(servings: number): string {
 
 // The chat request carries no plan, so the client states the plan in the message text.
 export function planChatPrefix(state: PlanState): string {
-  if (state.meals.length === 0) {
-    return "My current plan: no meals.\n\n";
-  }
-  const meals = state.meals
-    .map((meal) => `${RECIPES[meal.recipeId].name}, ${servingsText(meal.servings)}`)
-    .join("; ");
+  const meals =
+    state.meals.length === 0
+      ? "no meals"
+      : state.meals
+          .map((meal) => `${RECIPES[meal.recipeId].name}, ${servingsText(meal.servings)}`)
+          .join("; ");
   const pantry = state.pantry
     .filter((id) => Object.prototype.hasOwnProperty.call(INGREDIENTS, id))
     .map((id) => INGREDIENTS[id].name);

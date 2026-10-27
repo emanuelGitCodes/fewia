@@ -56,9 +56,15 @@ describe("planChatPrefix", () => {
     expect(planChatPrefix(state)).toContain("Pantry: none.");
   });
 
-  it("reports no meals", () => {
+  it("reports no meals but still states the pantry and the plan cap", () => {
     const state = removeMeal(initialPlanState(), "bean_tacos");
-    expect(planChatPrefix(state)).toBe("My current plan: no meals.\n\n");
+    const prefix = planChatPrefix(state);
+    expect(prefix.startsWith("My current plan: no meals. Pantry: ")).toBe(true);
+    expect(prefix).toContain("olive oil");
+    expect(prefix.endsWith(" Plan cap: $40.00.\n\n")).toBe(true);
+    expect(planChatPrefix({ ...state, pantry: [] })).toBe(
+      "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n",
+    );
   });
 
   it("follows the pantry toggle", () => {

@@ -1,7 +1,9 @@
 /** @vitest-environment jsdom */
 
+import type { ComponentProps } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_MESSAGE_LENGTH } from "../chatConversationModel";
 import type { ChatJob, ChatJobCreate, ChatResult } from "../chatTypes";
 import { useChatJob } from "../useChatJob";
 import { useProviderCapabilities } from "../useProviderCapabilities";
@@ -72,9 +74,12 @@ function setProviders(configured: boolean, failed = false): void {
   });
 }
 
-function mount(state: PlanState = initialPlanState()) {
+function mount(
+  state: PlanState = initialPlanState(),
+  extra: Partial<ComponentProps<typeof PlanChat>> = {},
+) {
   const onToggleIdea = vi.fn();
-  const view = render(<PlanChat state={state} onToggleIdea={onToggleIdea} />);
+  const view = render(<PlanChat state={state} onToggleIdea={onToggleIdea} {...extra} />);
   return { ...view, onToggleIdea };
 }
 
@@ -203,10 +208,20 @@ describe("PlanChat", () => {
   it("adds a line on Shift+Enter without sending", async () => {
     mount();
     type("Cheap dinner");
+    let notPrevented = false;
     await act(async () => {
-      fireEvent.keyDown(box(), { key: "Enter", shiftKey: true });
+      notPrevented = fireEvent.keyDown(box(), { key: "Enter", shiftKey: true });
     });
+    // fireEvent returns false when a handler called preventDefault.
+    expect(notPrevented).toBe(true);
     expect(jobState.submit).not.toHaveBeenCalled();
+  });
+
+  it("limits the textarea by the room left after the plan prefix", () => {
+    const state = initialPlanState();
+    mount(state);
+    expect(box().maxLength).toBe(MAX_MESSAGE_LENGTH - planChatPrefix(state).length);
+    expect(box().maxLength).toBeLessThan(MAX_MESSAGE_LENGTH);
   });
 
   it("does not send an empty message", async () => {
@@ -262,15 +277,19 @@ describe("PlanChat", () => {
     mount();
     await submitText("Cheap dinner");
     expect(screen.getByRole("status").textContent).toBe(FAILED_LINE);
+    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
+    const retry = screen.getByRole("button", { name: "Retry" });
+    retry.focus();
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      fireEvent.click(retry);
     });
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     expect(submitted(1)).toEqual(submitted(0));
+    expect(document.activeElement).toBe(box());
   });
 
   it.each(["limit", "incomplete"] as const)(
-    "shows the failure line and Retry for a %s result and hides its answer",
+    "shows the failure line and Ask again for a %s result and hides its answer",
     async (status) => {
       jobState.submit.mockImplementation(async () => {
         jobState.job = chatJob("job-1", status, "Internal turn limit text.");
@@ -279,9 +298,61 @@ describe("PlanChat", () => {
       await submitText("Cheap dinner");
       expect(screen.getByRole("status").textContent).toBe(FAILED_LINE);
       expect(screen.queryByText("Internal turn limit text.")).toBeNull();
-      expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Ask again" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     },
   );
+
+  it("sends the last user text as a fresh request on Ask again and focuses the textarea", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "limit", "Internal turn limit text.");
+    });
+    mount();
+    await submitText("Cheap dinner");
+    expect(jobState.clear).toHaveBeenCalledTimes(1);
+    type("Something else");
+    const again = screen.getByRole("button", { name: "Ask again" });
+    again.focus();
+    await act(async () => {
+      fireEvent.click(again);
+    });
+    expect(jobState.submit).toHaveBeenCalledTimes(2);
+    expect(submitted(1).message).toBe(submitted(0).message);
+    expect(submitted(1).message.endsWith("Cheap dinner")).toBe(true);
+    // A fresh request clears the finished job; retry() would not.
+    expect(jobState.clear).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(box());
+  });
+
+  it("shows the Hide chat button only when a sheet can be closed", () => {
+    const onHide = vi.fn();
+    const view = mount();
+    expect(screen.queryByRole("button", { name: "Hide chat" })).toBeNull();
+    view.unmount();
+    mount(initialPlanState(), { onHide });
+    fireEvent.click(screen.getByRole("button", { name: "Hide chat" }));
+    expect(onHide).toHaveBeenCalledTimes(1);
+  });
+
+  it("focuses the textarea when the sheet opens and takes the given id", () => {
+    const state = initialPlanState();
+    const view = render(<PlanChat state={state} onToggleIdea={vi.fn()} id="ask-panel" open={false} />);
+    expect(document.activeElement).not.toBe(box());
+    view.rerender(<PlanChat state={state} onToggleIdea={vi.fn()} id="ask-panel" open />);
+    expect(document.activeElement).toBe(box());
+    expect(screen.getByRole("complementary", { name: "Ask FEWIA" }).id).toBe("ask-panel");
+  });
+
+  it("tells the shell once when a reply arrives", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "clarification", "Which meals should I plan?");
+    });
+    const onReply = vi.fn();
+    mount(initialPlanState(), { onReply });
+    expect(onReply).not.toHaveBeenCalled();
+    await submitText("Plan dinner");
+    expect(onReply).toHaveBeenCalledTimes(1);
+  });
 
   it("clears the transcript on New chat", async () => {
     jobState.submit.mockImplementation(async () => {
