@@ -1,12 +1,13 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { SERVING_ERROR } from "./prototypeData";
+import { INGREDIENTS, SERVING_ERROR, requireIngredient } from "./prototypeData";
 import {
   addMeal,
   budgetGap,
   initialPlanState,
   planCost,
+  planIncomplete,
   planLines,
   planNutrition,
   removeMeal,
@@ -45,7 +46,8 @@ describe("planLines", () => {
 
   it("buys a shared package once across rice and curry", () => {
     const state = planOf([RICE, CURRY]);
-    expect(planCost(planLines(state))).toBe(1791);
+    // Curry powder is a pantry item in the backend catalog, so it costs nothing.
+    expect(planCost(planLines(state))).toBe(1542);
     const rice = lineOf(state, "rice");
     expect(rice.quantity).toBe(300);
     expect(rice.packages).toBe(1);
@@ -57,7 +59,8 @@ describe("planLines", () => {
   it("prices three meals and keeps first-appearance order", () => {
     const state = planOf([TACOS, RICE, CURRY]);
     const lines = planLines(state);
-    expect(planCost(lines)).toBe(2468);
+    expect(planCost(lines)).toBe(2219);
+    expect(lineOf(state, "curry_powder")).toMatchObject({ fromPantry: true, costCents: 0 });
     expect(lineOf(state, "onion")).toMatchObject({ quantity: 200, packages: 1 });
     expect(lines.map((l) => l.ingredientId)).toEqual([
       "black_beans",
@@ -89,6 +92,34 @@ describe("planLines", () => {
       { recipeId: "egg_fried_rice", servings: 8 },
     ]);
     expect(lineOf(state, "onion")).toMatchObject({ quantity: 480, packages: 2 });
+  });
+});
+
+describe("an ingredient without a sample price", () => {
+  it("shows no price for the line and marks the total incomplete", () => {
+    const salsa = requireIngredient("salsa");
+    INGREDIENTS.salsa = { ...salsa, priceCents: null };
+    try {
+      const lines = planLines(initialPlanState());
+      const line = lines.find((l) => l.ingredientId === "salsa");
+      expect(line).toMatchObject({ packages: 1, costCents: 0, unpriced: true });
+      expect(planCost(lines)).toBe(806 - 249);
+      expect(planIncomplete(lines)).toBe(true);
+    } finally {
+      INGREDIENTS.salsa = salsa;
+    }
+    expect(planIncomplete(planLines(initialPlanState()))).toBe(false);
+  });
+
+  it("does not mark a pantry line incomplete", () => {
+    const salsa = requireIngredient("salsa");
+    INGREDIENTS.salsa = { ...salsa, priceCents: null };
+    try {
+      const state = togglePlanPantry(initialPlanState(), "salsa");
+      expect(planIncomplete(planLines(state))).toBe(false);
+    } finally {
+      INGREDIENTS.salsa = salsa;
+    }
   });
 });
 

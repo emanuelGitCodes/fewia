@@ -36,6 +36,8 @@ export type PlanLine = {
   quantity: number;
   packages: number;
   costCents: number;
+  // True when a bought line has no sample price. Its costCents is 0.
+  unpriced: boolean;
   fromPantry: boolean;
   usedIn: RecipeId[];
 };
@@ -67,6 +69,7 @@ export function planLines(state: PlanState): PlanLine[] {
           quantity: perServing * servings,
           packages: 0,
           costCents: 0,
+          unpriced: false,
           fromPantry: state.pantry.includes(ingredientId),
           usedIn: [recipeId],
         });
@@ -80,12 +83,20 @@ export function planLines(state: PlanState): PlanLine[] {
   return [...byId.values()].map((line) => {
     const item = requireIngredient(line.ingredientId);
     const packages = line.fromPantry ? 0 : packageCount(line.quantity, item.packageQuantity);
-    return { ...line, packages, costCents: packages * item.priceCents };
+    if (item.priceCents === null) {
+      return { ...line, packages, costCents: 0, unpriced: packages > 0 };
+    }
+    return { ...line, packages, costCents: packages * item.priceCents, unpriced: false };
   });
 }
 
 export function planCost(lines: PlanLine[]): number {
   return lines.reduce((sum, line) => sum + line.costCents, 0);
+}
+
+// The total leaves out every unpriced line, so it is a lower bound.
+export function planIncomplete(lines: PlanLine[]): boolean {
+  return lines.some((line) => line.unpriced);
 }
 
 export function planNutrition(state: PlanState): Nutrition {

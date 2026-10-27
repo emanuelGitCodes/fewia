@@ -137,12 +137,13 @@ describe("TonightPrototype", () => {
     expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("adds all three meals at 2 servings for $24.68", () => {
+  it("adds all three meals at 2 servings for $22.19", () => {
     mount();
     click("Egg fried rice");
     click("Chickpea curry");
     expect(screen.getAllByRole("article")).toHaveLength(3);
-    expect(mainText()).toContain("$24.68");
+    // Curry powder is a pantry item in the backend catalog, so it costs nothing.
+    expect(mainText()).toContain("$22.19");
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
     expect(buttonNamed("Egg fried rice").getAttribute("aria-pressed")).toBe("true");
     expect(buttonNamed("Chickpea curry").getAttribute("aria-pressed")).toBe("true");
@@ -675,31 +676,42 @@ describe("TonightPrototype", () => {
         .map((button) => button.querySelector(".tonight-meal > span")?.textContent ?? "");
     }
 
-    it("starts with ten tiles", () => {
+    const riceMeals = RECIPE_ORDER.filter((id) => RECIPES[id].name.toLowerCase().includes("rice")).map(
+      (id) => RECIPES[id].name,
+    );
+
+    it("starts with forty tiles", () => {
       mount();
       expect(tileNames()).toEqual(RECIPE_ORDER.map((id) => RECIPES[id].name));
-      expect(within(screen.getByRole("group", { name: "Meal choices" })).getAllByRole("button")).toHaveLength(10);
+      expect(within(screen.getByRole("group", { name: "Meal choices" })).getAllByRole("button")).toHaveLength(40);
     });
 
     it("narrows to the rice meals for rice, in any case", () => {
       mount();
       typeFilter("rice");
-      expect(tileNames()).toEqual(["Egg fried rice", "Lemon salmon and rice"]);
+      expect(riceMeals).toContain("Egg fried rice");
+      expect(riceMeals.length).toBeLessThan(40);
+      expect(tileNames()).toEqual(riceMeals);
       typeFilter("RICE");
-      expect(tileNames()).toEqual(["Egg fried rice", "Lemon salmon and rice"]);
+      expect(tileNames()).toEqual(riceMeals);
     });
 
     it("matches diet labels", () => {
       mount();
-      typeFilter("keto");
-      expect(tileNames()).toEqual(["Garlic chicken and broccoli", "Spinach mushroom omelette"]);
+      typeFilter("vegan");
+      const vegan = RECIPE_ORDER.filter((id) => RECIPES[id].diets.includes("vegan")).map(
+        (id) => RECIPES[id].name,
+      );
+      expect(vegan).toContain("Bean tacos");
+      expect(vegan).not.toContain("Egg fried rice");
+      expect(tileNames()).toEqual(vegan);
     });
 
     it("shows the diets on a plan card and no image on a tile without a photo", () => {
       mount();
-      click("Tofu stir-fry");
-      expect(textOf(card("Tofu stir-fry"))).toContain("Vegan");
-      expect(buttonNamed("Tofu stir-fry").querySelector("img")).toBeNull();
+      click("Vegetable stir fry");
+      expect(textOf(card("Vegetable stir fry"))).toContain("Vegan");
+      expect(buttonNamed("Vegetable stir fry").querySelector("img")).toBeNull();
     });
 
     it("shows a message and no tiles when nothing matches", () => {
@@ -709,12 +721,12 @@ describe("TonightPrototype", () => {
       expect(tileNames()).toEqual([]);
     });
 
-    it("restores all ten tiles when cleared", () => {
+    it("restores all forty tiles when cleared", () => {
       mount();
       typeFilter("zzz");
       typeFilter("");
       expect(screen.queryByText("No meals match.")).toBeNull();
-      expect(tileNames()).toHaveLength(10);
+      expect(tileNames()).toHaveLength(40);
     });
 
     it("announces an empty result in the one status and drops it when cleared", () => {

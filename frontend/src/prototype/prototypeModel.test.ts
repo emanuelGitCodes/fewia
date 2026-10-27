@@ -1,7 +1,14 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { DIET_LABELS, INGREDIENTS, RECIPES, RECIPE_ORDER, type Diet } from "./prototypeData";
+import {
+  DIET_LABELS,
+  INGREDIENTS,
+  INITIAL_PANTRY,
+  RECIPES,
+  RECIPE_ORDER,
+  type Diet,
+} from "./prototypeData";
 import { formatMacro, packageCount, withBudgetInput } from "./prototypeModel";
 
 const AMOUNT_ERROR = "Enter a non-negative dollar amount with at most two decimal places.";
@@ -45,9 +52,9 @@ describe("formatMacro", () => {
 });
 
 describe("prototype recipes", () => {
-  it("lists ten unique recipe ids that all have entries", () => {
-    expect(RECIPE_ORDER).toHaveLength(10);
-    expect(new Set(RECIPE_ORDER).size).toBe(10);
+  it("lists forty unique recipe ids that all have entries", () => {
+    expect(RECIPE_ORDER).toHaveLength(40);
+    expect(new Set(RECIPE_ORDER).size).toBe(40);
     for (const id of RECIPE_ORDER) {
       expect(RECIPES[id]).toBeDefined();
     }
@@ -61,12 +68,31 @@ describe("prototype recipes", () => {
     }
   });
 
-  it("gives every recipe a diet and covers all five diets", () => {
-    for (const id of RECIPE_ORDER) {
-      expect(RECIPES[id].diets.length).toBeGreaterThan(0);
-    }
+  it("covers both diets and lists vegan recipes as vegetarian too", () => {
     for (const diet of Object.keys(DIET_LABELS) as Diet[]) {
       expect(RECIPE_ORDER.some((id) => RECIPES[id].diets.includes(diet))).toBe(true);
     }
+    for (const id of RECIPE_ORDER) {
+      if (RECIPES[id].diets.includes("vegan")) {
+        expect(RECIPES[id].diets).toContain("vegetarian");
+      }
+    }
+  });
+
+  it("uses integer-cent prices and the pantry flags for the initial pantry", () => {
+    for (const item of Object.values(INGREDIENTS)) {
+      expect(Number.isInteger(item.priceCents)).toBe(true);
+    }
+    expect(INITIAL_PANTRY).toEqual(
+      Object.values(INGREDIENTS)
+        .filter((item) => item.isPantry)
+        .map((item) => item.id),
+    );
+  });
+
+  it("keeps photos for three recipes only", () => {
+    const withPhoto = RECIPE_ORDER.filter((id) => RECIPES[id].image !== null).sort();
+    expect(withPhoto).toEqual(["bean_tacos", "chickpea_curry", "egg_fried_rice"]);
+    expect(RECIPES.bean_tacos.image).toBe("/prototype/bean-tacos.webp");
   });
 });

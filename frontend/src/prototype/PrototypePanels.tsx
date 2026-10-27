@@ -8,7 +8,7 @@ import {
 } from "./prototypeData";
 import { MealCards, MealPicker, filterMeals } from "./PlanMeals";
 import { PlanShoppingList, PlanSummary, fitLine } from "./PlanSummary";
-import { planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
+import { planCost, planIncomplete, type PlanLine, type PlanState, type PlanView } from "./planModel";
 
 export type IconName = "fork" | "jar" | "pencil" | "back";
 
@@ -57,7 +57,8 @@ export function PlanPanel(props: {
 }): JSX.Element {
   const { meals } = props.state;
   const costCents = planCost(props.lines);
-  const cost = formatDollars(costCents);
+  const incomplete = planIncomplete(props.lines);
+  const cost = incomplete ? `${formatDollars(costCents)} (incomplete)` : formatDollars(costCents);
   const home = props.lines.filter((line) => line.fromPantry).length;
   const pantryStatus = home === 0 ? "None marked" : `${String(home)} at home`;
   const totalServings = meals.reduce((sum, meal) => sum + meal.servings, 0);
@@ -130,6 +131,11 @@ export function PlanPanel(props: {
           />
         </div>
       </div>
+      {incomplete ? (
+        <p className="tonight-notice">
+          Some ingredients have no sample price, so the total is incomplete.
+        </p>
+      ) : null}
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
       {/* One atomic status announces meals, servings, cost, fit, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
