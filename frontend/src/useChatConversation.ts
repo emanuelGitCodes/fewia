@@ -26,6 +26,7 @@ export type ChatTurn = {
 export function useChatConversation(
   budget: ChatBudget | null,
   manualJobId: string | null = null,
+  options?: { composeMessage?: (text: string) => string },
 ): {
   message: string;
   setMessage: (value: string) => void;
@@ -55,6 +56,7 @@ export function useChatConversation(
   const convGenRef = useRef(0);
   const sendConvGenRef = useRef(0);
   manualRef.current = manualJobId;
+  const composeMessage = options?.composeMessage;
 
   useEffect(() => {
     if (manualJobId === seenManualRef.current) {
@@ -93,12 +95,18 @@ export function useChatConversation(
       setLocalError(BUDGET_ERROR);
       return;
     }
-    if (message.trim().length === 0 || message.length > MAX_MESSAGE_LENGTH) {
+    const text = message.trim();
+    const composed = composeMessage === undefined ? text : composeMessage(text);
+    if (
+      text.length === 0 ||
+      message.length > MAX_MESSAGE_LENGTH ||
+      composed.length > MAX_MESSAGE_LENGTH
+    ) {
       setLocalError(TEXT_ERROR);
       return;
     }
     const body: ChatJobCreate = {
-      message: message.trim(),
+      message: composed,
       monthly_limit_cents: budget.monthly_limit_cents,
       plan_cap_cents: budget.plan_cap_cents,
       previous_job_id: parentRef.current ?? manualRef.current,
@@ -127,12 +135,12 @@ export function useChatConversation(
     const turnId = `user-${userSeq.current}`;
     setLastBody(copyJobBody(body));
     setMessages((current) =>
-      keepLatestTurns([...current, { id: turnId, role: "user", content: body.message }]),
+      keepLatestTurns([...current, { id: turnId, role: "user", content: text }]),
     );
     void submit(copyJobBody(body)).finally(() => {
       endDispatch(busyRef, dispatchGenRef, gen);
     });
-  }, [budget, clear, job, lastBody, message, pending, submit]);
+  }, [budget, clear, composeMessage, job, lastBody, message, pending, submit]);
 
   const retry = useCallback((): void => {
     if (busyRef.current || pending || lastBody === null) {

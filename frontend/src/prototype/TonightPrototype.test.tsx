@@ -12,7 +12,58 @@ import {
   SERVING_ERROR,
   requireIngredient,
 } from "./prototypeData";
+import type { ChatJob, ChatJobCreate, ChatResult } from "../chatTypes";
+import { useChatJob } from "../useChatJob";
+import { useProviderCapabilities } from "../useProviderCapabilities";
 import { TonightPrototype } from "./TonightPrototype";
+
+vi.mock("../useChatJob", () => ({ useChatJob: vi.fn() }));
+vi.mock("../useProviderCapabilities", () => ({ useProviderCapabilities: vi.fn() }));
+
+const jobState: {
+  job: ChatJob | null;
+  submit: ReturnType<typeof vi.fn<(body: ChatJobCreate) => Promise<void>>>;
+} = { job: null, submit: vi.fn(async (_body: ChatJobCreate) => undefined) };
+
+function setChatConfigured(configured: boolean): void {
+  vi.mocked(useProviderCapabilities).mockReturnValue({
+    capabilities: {
+      chat_configured: configured,
+      plaid_configured: false,
+      instacart_configured: false,
+      spending_source: "manual",
+    },
+    pending: false,
+    error: null,
+    retry: vi.fn(),
+  });
+}
+
+function plannedChatJob(): ChatJob {
+  const result = {
+    status: "planned",
+    answer: "Chickpea curry fits your plan.",
+    plan: null,
+    budget: null,
+    request: {
+      meals: [{ recipe_id: "chickpea_curry", servings: 2 }],
+      budget_period: "2026-09-01",
+      plan_cap_cents: null,
+      pantry_ingredients: [],
+      ingredient_exclusions: [],
+      diet: "omnivore",
+    },
+    meal_nutrition: null,
+    evidence_id: null,
+    evidence_revision_id: null,
+    spending_source: "fixture",
+    tool_trace: [],
+    model_turns: 1,
+    planner_revisions: 0,
+    usage: null,
+  } as ChatResult;
+  return { id: "job-1", status: "succeeded", result, error_code: null };
+}
 
 const AMOUNT_ERROR = "Enter a non-negative dollar amount with at most two decimal places.";
 const FIT_INITIAL = "$31.94 left under the $40.00 plan cap.";
@@ -58,8 +109,13 @@ function mainText(): string {
   return textOf(screen.getByRole("main"));
 }
 
+// The Ask FEWIA aside has its own status region, so plan statuses are read inside main.
+function planStatuses(): HTMLElement[] {
+  return within(screen.getByRole("main")).getAllByRole("status");
+}
+
 function statusText(): string {
-  const statuses = screen.getAllByRole("status");
+  const statuses = planStatuses();
   expect(statuses).toHaveLength(1);
   return textOf(statuses[0]);
 }
@@ -100,6 +156,18 @@ function clearMealPantry(): void {
 
 beforeEach(() => {
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+  jobState.job = null;
+  jobState.submit = vi.fn(async (_body: ChatJobCreate) => undefined);
+  vi.mocked(useChatJob).mockImplementation(() => ({
+    job: jobState.job,
+    error: null,
+    pending: false,
+    submit: jobState.submit,
+    clear: () => {
+      jobState.job = null;
+    },
+  }));
+  setChatConfigured(true);
 });
 
 afterEach(() => {
@@ -426,7 +494,7 @@ describe("TonightPrototype", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(textOf(card("Bean tacos"))).toContain("8 servings");
     expect(mainText()).not.toContain(SERVING_ERROR);
-    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(planStatuses()).toHaveLength(1);
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
   });
 
@@ -455,9 +523,10 @@ describe("TonightPrototype", () => {
     ).toBeTruthy();
   });
 
-  it("has exactly one status element on the Plan page", () => {
+  it("has exactly one plan status element and one chat status element", () => {
     mount();
-    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(planStatuses()).toHaveLength(1);
+    expect(screen.getAllByRole("status")).toHaveLength(2);
     expect(screen.getByText(FIT_INITIAL).getAttribute("role")).toBeNull();
   });
 
@@ -577,7 +646,7 @@ describe("TonightPrototype", () => {
     const updated = screen.getByText("$18.41 · $21.59 left under the $40.00 plan cap.");
     expect(updated.getAttribute("aria-hidden")).toBe("true");
     expect(updated.getAttribute("role")).toBeNull();
-    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(planStatuses()).toHaveLength(1);
   });
 
   describe("pinned bar height", () => {
@@ -743,7 +812,7 @@ describe("TonightPrototype", () => {
     it("keeps one status element while the filter matches nothing", () => {
       mount();
       typeFilter("zzz");
-      expect(screen.getAllByRole("status")).toHaveLength(1);
+      expect(planStatuses()).toHaveLength(1);
       expect(screen.queryAllByRole("alert")).toHaveLength(0);
     });
 
@@ -993,5 +1062,69 @@ describe("meal carousel arrows", () => {
     });
     expect(screen.queryByRole("button", { name: "Show previous meals" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Show next meals" })).toBeNull();
+  });
+});
+
+describe("Ask FEWIA on the prototype", () => {
+  async function ask(text: string): Promise<void> {
+    const input = screen.getByLabelText("Ask for a meal");
+    fireEvent.change(input, { target: { value: text } });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+  }
+
+  it("places the aside after main and before the footer", () => {
+    mount();
+    const aside = screen.getByRole("complementary", { name: "Ask FEWIA" });
+    const main = screen.getByRole("main");
+    const footer = screen.getByRole("contentinfo");
+    expect(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(aside.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(main).queryByRole("complementary")).toBeNull();
+  });
+
+  it("shows one line and keeps the plan working when chat is off", () => {
+    setChatConfigured(false);
+    mount();
+    expect(screen.getByText("Ask FEWIA is off. The plan still works.")).toBeTruthy();
+    click("Egg fried rice");
+    expect(summaryText()).toContain("$18.41");
+  });
+
+  it("adds a chat idea to the plan, changes the total, and removes it again", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = plannedChatJob();
+    });
+    mount();
+    const before = summaryText();
+    expect(before).toContain("$8.06");
+    await ask("Something with chickpeas");
+    expect(jobState.submit).toHaveBeenCalledTimes(1);
+    expect(jobState.submit.mock.calls[0]?.[0].message).toMatch(
+      /^My current plan: Bean tacos, 2 servings\. Pantry: .+ Plan cap: \$40\.00\.\n\nSomething with chickpeas$/,
+    );
+    const add = screen.getByRole("button", { name: /^Add Chickpea curry, 2 servings/ });
+    expect(add.getAttribute("aria-pressed")).toBe("false");
+    act(() => {
+      fireEvent.click(add);
+    });
+    expect(within(screen.getByRole("main")).getByRole("article", { name: "Chickpea curry" })).toBeTruthy();
+    expect(summaryText()).not.toBe(before);
+    const remove = screen.getByRole("button", { name: "Remove Chickpea curry from plan" });
+    expect(remove.getAttribute("aria-pressed")).toBe("true");
+    act(() => {
+      fireEvent.click(remove);
+    });
+    expect(summaryText()).toBe(before);
+  });
+
+  it("hides the chat on the Pantry page and keeps it when the user returns", () => {
+    mount();
+    fireEvent.change(screen.getByLabelText("Ask for a meal"), { target: { value: "Draft" } });
+    click("Pantry");
+    expect(screen.queryByRole("complementary", { name: "Ask FEWIA" })).toBeNull();
+    click("Plan");
+    expect((screen.getByLabelText("Ask for a meal") as HTMLTextAreaElement).value).toBe("Draft");
   });
 });

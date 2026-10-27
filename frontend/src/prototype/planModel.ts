@@ -175,15 +175,23 @@ export type AddPreview = {
 };
 
 // Prices an add without changing the plan. Check membership before reading RECIPES.
+// servings is the plan's own value for a planned meal, else the value addMeal uses.
 export function previewAdd(state: PlanState, recipeId: string, servings: number): AddPreview {
   const lines = planLines(state);
-  const base = { recipeId, servings, lines, sharedIngredientNames: [] };
+  const base = { recipeId, servings: clampServings(servings), lines, sharedIngredientNames: [] };
   if (!isKnownRecipe(recipeId)) {
     return { ...base, inPlan: false, blocked: "unknown_recipe", deltaCents: 0 };
   }
-  if (state.meals.some((m) => m.recipeId === recipeId)) {
+  const planned = state.meals.find((m) => m.recipeId === recipeId);
+  if (planned !== undefined) {
     const without = planLines({ ...state, meals: state.meals.filter((m) => m.recipeId !== recipeId) });
-    return { ...base, inPlan: true, blocked: null, deltaCents: planCost(lines) - planCost(without) };
+    return {
+      ...base,
+      servings: planned.servings,
+      inPlan: true,
+      blocked: null,
+      deltaCents: planCost(lines) - planCost(without),
+    };
   }
   if (state.meals.length >= MAX_MEALS) {
     return { ...base, inPlan: false, blocked: "plan_full", deltaCents: 0 };

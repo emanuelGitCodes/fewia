@@ -22,6 +22,57 @@ describe("ChatIdeaCard", () => {
     expect(container.firstChild).toBeNull();
   });
 
+  it("renders nothing for an inherited object key", () => {
+    const { container } = renderCard(initialPlanState(), "constructor");
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("still offers Remove when the plan is full and holds the meal", () => {
+    let state = initialPlanState();
+    state = addMeal(state, "egg_fried_rice");
+    state = addMeal(state, "lentil_soup");
+    const { onToggle } = renderCard(state, "lentil_soup");
+    const button = screen.getByRole("button", { name: "Remove Lentil soup from plan" });
+    expect(button.hasAttribute("disabled")).toBe(false);
+    expect(screen.queryByText("Remove a meal to add this one.")).toBeNull();
+    act(() => {
+      fireEvent.click(button);
+    });
+    expect(onToggle).toHaveBeenCalledWith("lentil_soup", 2, true);
+  });
+
+  it("shows and passes on the plan's servings for a planned meal, not the prop", () => {
+    const state = addMeal(initialPlanState(), "chickpea_curry", 4);
+    const { onToggle } = renderCard(state, "chickpea_curry", 2);
+    expect(screen.getByText(/^4 servings · /)).toBeTruthy();
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Remove Chickpea curry from plan" }));
+    });
+    expect(onToggle).toHaveBeenCalledWith("chickpea_curry", 4, true);
+  });
+
+  it("clamps the servings for a meal that is not planned", () => {
+    const { onToggle } = renderCard(initialPlanState(), "chickpea_curry", 20);
+    expect(screen.getByText(/^8 servings · /)).toBeTruthy();
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /^Add Chickpea curry, 8 servings/ }));
+    });
+    expect(onToggle).toHaveBeenCalledWith("chickpea_curry", 8, false);
+  });
+
+  it("gives two cards for the same meal distinct ids", () => {
+    const state = initialPlanState();
+    const { container } = render(
+      <>
+        <ChatIdeaCard recipeId="chickpea_curry" servings={2} state={state} onToggle={vi.fn()} />
+        <ChatIdeaCard recipeId="chickpea_curry" servings={2} state={state} onToggle={vi.fn()} />
+      </>,
+    );
+    const ids = [...container.querySelectorAll("h3")].map((heading) => heading.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it("shows the facts, the price change, and the fit line for a new meal", () => {
     const state = initialPlanState();
     const delta = formatDollars(previewAdd(state, "chickpea_curry", 2).deltaCents);

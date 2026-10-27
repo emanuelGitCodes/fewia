@@ -667,6 +667,39 @@ describe("useChatConversation", () => {
     expect(submitted(jobState, 0).previous_job_id).toBe(null);
   });
 
+  it("composes the request message and keeps the typed text in the user turn", async () => {
+    const { result } = renderHook(() =>
+      useChatConversation(budget, null, { composeMessage: (text) => `PLAN. ${text}` }),
+    );
+    act(() => {
+      result.current.setMessage("  Add tofu.  ");
+    });
+    await sendAndSettle(result);
+    expect(submitted(jobState, 0)).toEqual({
+      message: "PLAN. Add tofu.",
+      monthly_limit_cents: 20000,
+      plan_cap_cents: null,
+      previous_job_id: null,
+    });
+    expect(result.current.messages).toEqual([{ id: "user-1", role: "user", content: "Add tofu." }]);
+  });
+
+  it("rejects a composed message over the limit without submitting", async () => {
+    const { result } = renderHook(() =>
+      useChatConversation(budget, null, {
+        composeMessage: (text) => `${"x".repeat(3990)}${text}`,
+      }),
+    );
+    act(() => {
+      result.current.setMessage("a".repeat(20));
+    });
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(TEXT_ERROR);
+    expect(jobState.submit).not.toHaveBeenCalled();
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.hasRequest).toBe(false);
+  });
+
   it("sends the first request with a saved manual job as parent", async () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");

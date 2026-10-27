@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import { useId, type JSX } from "react";
 import { formatDollars } from "../money";
 import { MealPhoto } from "./PlanMeals";
 import { planCost, planIncomplete, previewAdd, type PlanState } from "./planModel";
@@ -20,17 +20,20 @@ export function ChatIdeaCard(props: {
   state: PlanState;
   onToggle: (recipeId: string, servings: number, inPlan: boolean) => void;
 }): JSX.Element | null {
-  const { recipeId, servings, state } = props;
+  const { recipeId, state } = props;
+  const uid = useId();
   if (!isKnownRecipe(recipeId)) {
     return null;
   }
   const recipe = RECIPES[recipeId];
-  const preview = previewAdd(state, recipeId, servings);
+  const preview = previewAdd(state, recipeId, props.servings);
   const { inPlan } = preview;
+  // The preview holds the servings the plan shows or addMeal would use.
+  const servings = preview.servings;
   const full = preview.blocked === "plan_full";
   const over = !planIncomplete(preview.lines) && planCost(preview.lines) > state.budgetCents;
-  const nameId = `idea-${recipeId}`;
-  const noteId = `idea-note-${recipeId}`;
+  const nameId = `${uid}-name`;
+  const noteId = `${uid}-note`;
   const diets = recipe.diets.map((d) => DIET_LABELS[d]).join(" · ");
   const count = `${String(servings)} ${servings === 1 ? "serving" : "servings"}`;
   const delta = `${preview.deltaCents < 0 ? "−" : "+"}${formatDollars(Math.abs(preview.deltaCents))}`;

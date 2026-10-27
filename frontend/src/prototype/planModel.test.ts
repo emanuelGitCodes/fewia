@@ -208,6 +208,25 @@ describe("previewAdd", () => {
     expect(preview.lines).toEqual(planLines(state));
   });
 
+  it("reports the plan's own servings for a planned meal", () => {
+    const state = planOf([TACOS, { recipeId: "egg_fried_rice", servings: 5 }]);
+    expect(previewAdd(state, "egg_fried_rice", 2).servings).toBe(5);
+  });
+
+  it("reports the servings addMeal would use for a new meal", () => {
+    const state = initialPlanState();
+    expect(previewAdd(state, "chickpea_curry", 20).servings).toBe(8);
+    expect(previewAdd(state, "chickpea_curry", 0).servings).toBe(1);
+    expect(previewAdd(state, "chickpea_curry", Number.NaN).servings).toBe(2);
+    const added = addMeal(state, "chickpea_curry", 20).meals.find((m) => m.recipeId === "chickpea_curry");
+    expect(added?.servings).toBe(8);
+  });
+
+  it("reports a planned meal in a full plan as in the plan", () => {
+    const state = planOf([TACOS, RICE, CURRY]);
+    expect(previewAdd(state, "chickpea_curry", 2)).toMatchObject({ inPlan: true, blocked: null });
+  });
+
   it("blocks a new meal when the plan is full", () => {
     const state = planOf([TACOS, RICE, CURRY]);
     const preview = previewAdd(state, "lentil_soup", 2);

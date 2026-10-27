@@ -12,6 +12,7 @@ import {
   withPlanView,
   type PlanState,
 } from "./planModel";
+import { PlanChat } from "./PlanChat";
 import { PantryPanel, PlanPanel, PrototypeNav } from "./PrototypePanels";
 import "./tonight.css";
 
@@ -81,6 +82,16 @@ export function TonightPrototype(): JSX.Element {
             />
           ) : null}
         </main>
+        <div hidden={state.view !== "plan"}>
+          <PlanChat
+            state={state}
+            onToggleIdea={(id, servings, inPlan) => {
+              setState((current) =>
+                inPlan ? removeMeal(current, id) : addMeal(current, id, servings),
+              );
+            }}
+          />
+        </div>
         <footer className="tonight-footer">
           <a href="/">Existing app</a>
         </footer>
