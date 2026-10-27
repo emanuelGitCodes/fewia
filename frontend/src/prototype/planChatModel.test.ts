@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatJob, ChatResult } from "../chatTypes";
-import { chatBudget, ideasFromJob, planChatPrefix } from "./planChat";
+import { chatBudget, ideasFromJob, planChatPrefix } from "./planChatModel";
 import { addMeal, initialPlanState, removeMeal, togglePlanPantry, withPlanBudgetInput } from "./planModel";
 
 function jobWith(

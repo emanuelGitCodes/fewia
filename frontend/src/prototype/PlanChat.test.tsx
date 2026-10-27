@@ -6,7 +6,7 @@ import type { ChatJob, ChatJobCreate, ChatResult } from "../chatTypes";
 import { useChatJob } from "../useChatJob";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import { FAILED_LINE, OFF_LINE, PlanChat } from "./PlanChat";
-import { planChatPrefix } from "./planChat";
+import { planChatPrefix } from "./planChatModel";
 import { initialPlanState, withPlanBudgetInput, type PlanState } from "./planModel";
 
 vi.mock("../useChatJob", () => ({ useChatJob: vi.fn() }));

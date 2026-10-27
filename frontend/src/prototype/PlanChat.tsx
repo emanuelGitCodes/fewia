@@ -3,7 +3,7 @@ import { BUDGET_ERROR, MAX_MESSAGE_LENGTH, TEXT_ERROR } from "../chatConversatio
 import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import { ChatIdeaCard } from "./ChatIdeaCard";
-import { chatBudget, ideasFromJob, planChatPrefix, type ChatIdea } from "./planChat";
+import { chatBudget, ideasFromJob, planChatPrefix, type ChatIdea } from "./planChatModel";
 import type { PlanState } from "./planModel";
 
 export const OFF_LINE = "Ask FEWIA is off. The plan still works.";
