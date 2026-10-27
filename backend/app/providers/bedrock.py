@@ -85,7 +85,7 @@ def _log_failure(
         if isinstance(detail, Mapping):
             error = detail.get("Error")
             code = error.get("Code") if isinstance(error, Mapping) else None
-            if isinstance(code, str):
+            if isinstance(code, str) and len(code) <= 64:
                 error_code = code
             metadata = detail.get("ResponseMetadata")
             status = (

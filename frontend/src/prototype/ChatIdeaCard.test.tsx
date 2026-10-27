@@ -133,10 +133,13 @@ describe("ChatIdeaCard", () => {
     let state = initialPlanState();
     state = addMeal(state, "egg_fried_rice");
     state = addMeal(state, "lentil_soup");
-    const { onToggle } = renderCard(state);
+    const { onToggle, container } = renderCard(state);
     const button = screen.getByRole("button", { name: "Plan has 3 meals" });
     expect(button.hasAttribute("disabled")).toBe(true);
     expect(screen.getByText("Remove a meal to add this one.")).toBeTruthy();
+    expect(container.querySelector(".tonight-idea-delta")).toBeNull();
+    expect(screen.queryByText(/^[+−]\$/)).toBeNull();
+    expect(screen.queryByText(/plan cap/)).toBeNull();
     act(() => {
       fireEvent.click(button);
     });

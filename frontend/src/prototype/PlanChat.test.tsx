@@ -3,6 +3,7 @@
 import type { ComponentProps } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import { MAX_MESSAGE_LENGTH } from "../chatConversationModel";
 import type { ChatJob, ChatJobCreate, ChatResult } from "../chatTypes";
 import { useChatJob } from "../useChatJob";
@@ -252,7 +253,10 @@ describe("PlanChat", () => {
     await submitText("Something with chickpeas");
     expect(screen.getByText("Chickpea curry fits.")).toBeTruthy();
     expect(screen.getAllByRole("article")).toHaveLength(1);
-    expect(screen.getByText("Price changes are sample estimates.")).toBeTruthy();
+    const notice = screen.getByText(SAMPLE_ESTIMATE_NOTICE);
+    expect(notice.textContent).toBe(SAMPLE_ESTIMATE_NOTICE);
+    expect(notice.closest("aside")).not.toBeNull();
+    expect(screen.queryByText("Price changes are sample estimates.")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("FEWIA replied with 1 meal idea.");
     fireEvent.click(screen.getByRole("button", { name: /^Add Chickpea curry, 2 servings/ }));
     expect(onToggleIdea).toHaveBeenCalledWith("chickpea_curry", 2, false);
@@ -266,7 +270,7 @@ describe("PlanChat", () => {
     await submitText("Plan dinner");
     expect(screen.getByText("Which meals should I plan?")).toBeTruthy();
     expect(screen.queryByRole("article")).toBeNull();
-    expect(screen.queryByText("Price changes are sample estimates.")).toBeNull();
+    expect(screen.queryByText(SAMPLE_ESTIMATE_NOTICE)).toBeNull();
   });
 
   it("shows the failure line and Retry for a failed request, and retries the same body", async () => {

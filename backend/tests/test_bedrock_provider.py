@@ -437,6 +437,19 @@ def test_logs_client_error_code_and_status(
     }
 
 
+def test_overlong_error_code_is_not_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(monkeypatch, client_error("x" * 65, 400))
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["error_code"] is None
+    assert line["http_status"] == 400
+
+
 def test_logs_plain_exception_without_code_or_status(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

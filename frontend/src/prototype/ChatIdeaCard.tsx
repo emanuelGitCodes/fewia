@@ -52,12 +52,14 @@ export function ChatIdeaCard(props: {
       <p className="tonight-idea-facts">
         {`${count} · ${formatMacro(recipe.nutrition.proteinG)} g protein each`}
       </p>
-      <p className="tonight-idea-delta">
-        <strong>{delta}</strong>
-        <span className={over ? "tonight-idea-over" : undefined}>
-          {planFitLine(preview.lines, state.budgetCents)}
-        </span>
-      </p>
+      {full ? null : (
+        <p className="tonight-idea-delta">
+          <strong>{delta}</strong>
+          <span className={over ? "tonight-idea-over" : undefined}>
+            {planFitLine(preview.lines, state.budgetCents)}
+          </span>
+        </p>
+      )}
       {preview.sharedIngredientNames.length > 0 ? (
         <p className="tonight-idea-why">
           {`Shares ${joinNames(preview.sharedIngredientNames)} with your plan.`}

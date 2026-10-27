@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type JSX, type KeyboardEvent } from "react";
+import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import { BUDGET_ERROR, MAX_MESSAGE_LENGTH, TEXT_ERROR } from "../chatConversationModel";
 import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
@@ -260,7 +261,7 @@ export function PlanChat(props: {
                         </li>
                       ))}
                     </ul>
-                    <p className="tonight-ask-est">Price changes are sample estimates.</p>
+                    <p className="tonight-ask-est">{SAMPLE_ESTIMATE_NOTICE}</p>
                   </>
                 ) : null}
               </li>
