@@ -323,6 +323,39 @@ describe("PlanChat", () => {
     expect(document.activeElement).toBe(box());
   });
 
+  it("shows the question once after Ask again gets a planned answer", async () => {
+    let calls = 0;
+    jobState.submit.mockImplementation(async () => {
+      calls += 1;
+      jobState.job =
+        calls === 1
+          ? chatJob("job-1", "limit", "Internal turn limit text.")
+          : chatJob("job-2", "planned", "Try tacos.");
+    });
+    mount();
+    await submitText("Cheap dinner");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Ask again" }));
+    });
+    expect(jobState.submit).toHaveBeenCalledTimes(2);
+    const log = screen.getByRole("list", { name: "Messages" });
+    const asked = Array.from(log.querySelectorAll(".is-user")).filter((turn) =>
+      (turn.textContent ?? "").includes("Cheap dinner"),
+    );
+    expect(asked).toHaveLength(1);
+    expect(screen.getByText("Try tacos.")).toBeTruthy();
+  });
+
+  it("keeps Ask again when the draft differs only by a trailing space", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "limit", "Internal turn limit text.");
+    });
+    mount();
+    await submitText("Cheap dinner");
+    type("Cheap dinner ");
+    expect(screen.getByRole("button", { name: "Ask again" })).toBeTruthy();
+  });
+
   it("hides Ask again while the draft is not empty and keeps the failure line", async () => {
     jobState.submit.mockImplementation(async () => {
       jobState.job = chatJob("job-1", "limit", "Internal turn limit text.");

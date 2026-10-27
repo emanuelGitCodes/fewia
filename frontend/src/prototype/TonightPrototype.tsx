@@ -54,6 +54,12 @@ export function TonightPrototype(): JSX.Element {
   const sheetLayout = useMediaQuery(SHEET_QUERY, true);
   const phone = useMediaQuery(PHONE_QUERY, false);
   const sheetOpen = askOpen && sheetLayout;
+  useEffect(() => {
+    // Widening past 1180 px and narrowing back must not reopen the sheet.
+    if (!sheetLayout) {
+      setAskOpen(false);
+    }
+  }, [sheetLayout]);
   const wasOpen = useRef(false);
   const restoreFocus = useRef(false);
   const lines = planLines(state);

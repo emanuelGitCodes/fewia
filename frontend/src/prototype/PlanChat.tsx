@@ -114,8 +114,18 @@ export function PlanChat(props: {
   // "Ask again" puts the last user text back in the draft and sends a fresh request.
   const lastUserTurn = [...chat.messages].reverse().find((turn) => turn.role === "user");
   const lastUser = lastUserTurn?.content ?? null;
-  // The user turn before an unanswered reply is hidden so Ask again does not repeat it.
-  const hiddenTurnId = unanswered ? (lastUserTurn?.id ?? null) : null;
+  // A user turn is hidden when the next turn is an unanswered reply, or when it is the last user turn
+  // of an unanswered job, so Ask again does not repeat the question.
+  const hiddenTurnIds = new Set<string>();
+  chat.messages.forEach((turn, index) => {
+    const next = chat.messages[index + 1];
+    if (turn.role === "user" && next?.role === "assistant" && replies.get(next.id)?.answered === false) {
+      hiddenTurnIds.add(turn.id);
+    }
+  });
+  if (unanswered && lastUserTurn !== undefined) {
+    hiddenTurnIds.add(lastUserTurn.id);
+  }
   const askAgain = (): void => {
     if (lastUser !== null) {
       chat.setMessage(lastUser);
@@ -185,7 +195,7 @@ export function PlanChat(props: {
       <p className="tonight-ask-status" role="status" aria-live="polite">
         {status}
       </p>
-      {failed && unanswered && (chat.message.trim().length === 0 || chat.message === lastUser) ? (
+      {failed && unanswered && (chat.message.trim().length === 0 || chat.message.trim() === lastUser) ? (
         <button
           type="button"
           className="tonight-ask-btn"
@@ -228,7 +238,7 @@ export function PlanChat(props: {
             if (turn.role === "assistant" && reply?.answered === false) {
               return null;
             }
-            if (turn.id === hiddenTurnId) {
+            if (hiddenTurnIds.has(turn.id)) {
               return null;
             }
             const ideas = reply?.ideas ?? [];

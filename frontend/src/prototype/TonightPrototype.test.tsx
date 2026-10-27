@@ -1310,6 +1310,43 @@ describe("Ask FEWIA dock and sheet", () => {
     expect(screen.getByRole("main").hasAttribute("inert")).toBe(true);
   });
 
+  it("does not reopen the sheet after widening past 1180 px and narrowing back", () => {
+    const limits: Record<string, number> = {
+      "(max-width: 1179px)": 1179,
+      "(max-width: 719px)": 719,
+    };
+    let width = 900;
+    const listeners = new Set<() => void>();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        get matches() {
+          return width <= (limits[query] ?? -1);
+        },
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }),
+    });
+    const resize = (next: number): void => {
+      width = next;
+      act(() => {
+        listeners.forEach((listener) => {
+          listener();
+        });
+      });
+    };
+    mount();
+    openSheet();
+    expect(dock().getAttribute("aria-expanded")).toBe("true");
+    resize(1280);
+    expect(screen.queryByRole("button", { name: "Ask FEWIA for a meal idea" })).toBeNull();
+    resize(900);
+    expect(dock().getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
   it("has no dock bar and no inert content from 1180 px", () => {
     stubWidth(1280);
     const root = mount();
