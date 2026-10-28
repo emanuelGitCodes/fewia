@@ -67,8 +67,14 @@ type CatalogJson = {
     ingredients: Array<[string, number]>;
     nutrition: Nutrition;
   }>;
+  searchTerms: Record<string, { target: Diet | Tag; note: string | null }>;
 };
 const CATALOG = catalogJson as unknown as CatalogJson;
+
+// Search terms come from the backend, with the tag rules they point at.
+export const CATALOG_SEARCH_TERMS: Readonly<
+  Record<string, { target: Diet | Tag; note: string | null }>
+> = CATALOG.searchTerms;
 
 export const ESTIMATE_NOTICE = SAMPLE_ESTIMATE_NOTICE;
 export const DEMO_NOTICE = "Demo data";

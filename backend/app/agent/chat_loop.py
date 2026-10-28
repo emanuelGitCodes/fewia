@@ -18,9 +18,30 @@ from app.agent.provider import LLMProvider
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS, SEARCH_TERMS
 
 MAX_MODEL_TURNS = 8
 MAX_PLANNER_REVISIONS = 3
+
+
+def _label_pairs() -> str:
+    pairs = []
+    for rid, tags in MEAL_TAGS.items():
+        pairs.append(f"{rid}:{','.join((*MEAL_DIETS[rid], *tags))}")
+    return ", ".join(pairs)
+
+
+def _term_rules() -> str:
+    terms_by_target: dict[str, list[str]] = {}
+    for term, (target, _note) in SEARCH_TERMS.items():
+        terms_by_target.setdefault(target, []).append(term)
+    return "".join(
+        f"When the user asks for {', '.join(terms)}, "
+        f"offer catalog meals tagged {target}. "
+        for target, terms in terms_by_target.items()
+    )
+
+
 SYSTEM_PROMPT = (
     "You plan grocery meals. Catalog IDs are authoritative: "
     f"{', '.join(SUPPORTED_RECIPE_IDS)}. "
@@ -77,7 +98,17 @@ SYSTEM_PROMPT = (
     "You MUST NOT invent aliases or mappings. "
     "You MUST NOT translate a restriction group such as nightshades into catalog IDs. "
     "The tool rejects unknown terms and asks the user. "
-    "Ask the user before you choose an alternative."
+    "Ask the user before you choose an alternative. "
+    "Catalog meal labels are id:labels pairs: "
+    f"{_label_pairs()}. "
+    "high_protein means 30 g or more protein per serving. "
+    "lower_carb means 30 g or less carbohydrate per serving. "
+    f"{_term_rules()}"
+    "No meal in this catalog is keto. No meal is strictly carnivore. "
+    "gluten_free_ingredients describes the ingredients only. "
+    "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe. "
+    "When the user asks for a meal type, name up to three catalog meals "
+    "with that tag and ask which one to plan."
 )
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."

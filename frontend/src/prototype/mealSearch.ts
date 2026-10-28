@@ -1,4 +1,5 @@
 import {
+  CATALOG_SEARCH_TERMS,
   INGREDIENTS,
   RECIPE_ORDER,
   RECIPES,
@@ -10,26 +11,13 @@ import {
 
 type SearchTerm = { target: Diet | Tag; note?: string };
 
-const KETO_NOTE =
-  "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving.";
-const CARNIVORE_NOTE = "No meal is strictly carnivore. These meals include chicken.";
-
-export const SEARCH_TERMS: Readonly<Record<string, SearchTerm>> = {
-  keto: { target: "lower_carb", note: KETO_NOTE },
-  "low carb": { target: "lower_carb", note: KETO_NOTE },
-  lowcarb: { target: "lower_carb", note: KETO_NOTE },
-  "low-carb": { target: "lower_carb", note: KETO_NOTE },
-  carnivore: { target: "chicken", note: CARNIVORE_NOTE },
-  meat: { target: "chicken", note: CARNIVORE_NOTE },
-  gf: { target: "gluten_free_ingredients" },
-  "gluten free": { target: "gluten_free_ingredients" },
-  "gluten-free": { target: "gluten_free_ingredients" },
-  celiac: { target: "gluten_free_ingredients" },
-  "plant based": { target: "vegan" },
-  "plant-based": { target: "vegan" },
-  veggie: { target: "vegetarian" },
-  protein: { target: "high_protein" },
-};
+// The backend owns the terms. A null note in the JSON means the term has no note.
+export const SEARCH_TERMS: Readonly<Record<string, SearchTerm>> = Object.fromEntries(
+  Object.entries(CATALOG_SEARCH_TERMS).map(([term, { target, note }]) => [
+    term,
+    note === null ? { target } : { target, note },
+  ]),
+);
 
 function normalize(filter: string): string {
   return filter.toLowerCase().trim().replace(/\s+/g, " ");

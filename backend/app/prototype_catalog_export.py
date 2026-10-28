@@ -11,8 +11,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES, Recipe
+from app.domain.catalog import CATALOG_VERSION, INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
+from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS, SEARCH_TERMS
 from app.services.meal_nutrition import meal_nutrition
 
 
@@ -21,53 +22,17 @@ def recipe_name(recipe_id: str) -> str:
     return text[:1].upper() + text[1:]
 
 
-def _diets(recipe: Recipe) -> list[str]:
-    items = [INGREDIENTS[ingredient_id] for ingredient_id, _ in recipe.ingredients]
-    diets: list[str] = []
-    if all(item.vegan for item in items):
-        diets.append("vegan")
-    if all(item.vegetarian for item in items):
-        diets.append("vegetarian")
-    return diets
-
-
-HIGH_PROTEIN_G = 30
-LOWER_CARB_G = 30
-PROTEIN_TAGS = (
-    ("chicken", "chicken_breast"),
-    ("egg", "eggs"),
-    ("beans", "black_beans"),
-    ("lentils", "lentils"),
-    ("chickpeas", "chickpeas"),
-)
-# Oats and oat milk count as gluten ingredients.
-GLUTEN_INGREDIENT_IDS = frozenset({"pasta", "soy_sauce", "oats", "oat_milk"})
-
-
-def _tags(recipe: Recipe, nutrition: dict[str, Any]) -> list[str]:
-    ids = {ingredient_id for ingredient_id, _ in recipe.ingredients}
-    tags = [tag for tag, ingredient_id in PROTEIN_TAGS if ingredient_id in ids]
-    if nutrition["proteinG"] >= HIGH_PROTEIN_G:
-        tags.append("high_protein")
-    if nutrition["carbsG"] <= LOWER_CARB_G:
-        tags.append("lower_carb")
-    if not ids & GLUTEN_INGREDIENT_IDS:
-        tags.append("gluten_free_ingredients")
-    return tags
-
-
 def _recipe_entry(recipe_id: str) -> dict[str, Any]:
     recipe = RECIPES[recipe_id]
-    nutrition = _nutrition(recipe_id)
     return {
         "id": recipe_id,
         "name": recipe_name(recipe_id),
-        "diets": _diets(recipe),
-        "tags": _tags(recipe, nutrition),
+        "diets": list(MEAL_DIETS[recipe_id]),
+        "tags": list(MEAL_TAGS[recipe_id]),
         "ingredients": [
             [ingredient_id, quantity] for ingredient_id, quantity in recipe.ingredients
         ],
-        "nutrition": nutrition,
+        "nutrition": _nutrition(recipe_id),
     }
 
 
@@ -103,6 +68,10 @@ def build_catalog() -> dict[str, Any]:
             for item in INGREDIENTS.values()
         ],
         "recipes": [_recipe_entry(recipe_id) for recipe_id in SUPPORTED_RECIPE_IDS],
+        "searchTerms": {
+            term: {"target": target, "note": note}
+            for term, (target, note) in SEARCH_TERMS.items()
+        },
     }
 
 

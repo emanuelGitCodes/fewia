@@ -36,6 +36,7 @@ from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
+from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -932,6 +933,57 @@ def test_system_prompt_requires_restriction_clarification() -> None:
     )
     assert "The tool rejects unknown terms and asks the user." in SYSTEM_PROMPT
     assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
+
+
+def test_system_prompt_lists_every_recipe_label_pair() -> None:
+    assert "Catalog meal labels are id:labels pairs: " in SYSTEM_PROMPT
+    assert len(MEAL_TAGS) == len(SUPPORTED_RECIPE_IDS)
+    assert list(MEAL_DIETS) == list(SUPPORTED_RECIPE_IDS)
+    for recipe_id, tags in MEAL_TAGS.items():
+        diets = MEAL_DIETS[recipe_id]
+        labels = (*diets, *tags)
+        assert labels, recipe_id
+        assert f"{recipe_id}:{','.join(labels)}" in SYSTEM_PROMPT
+        assert f"{recipe_id}:," not in SYSTEM_PROMPT
+        assert f"{recipe_id}:, " not in SYSTEM_PROMPT
+    assert "bean_tacos:vegan,vegetarian,beans,gluten_free_ingredients" in SYSTEM_PROMPT
+
+
+def test_system_prompt_states_tag_thresholds_and_terms() -> None:
+    assert "high_protein means 30 g or more protein per serving." in SYSTEM_PROMPT
+    assert "lower_carb means 30 g or less carbohydrate per serving." in SYSTEM_PROMPT
+    assert (
+        "When the user asks for keto, low carb, lowcarb, low-carb, "
+        "offer catalog meals tagged lower_carb."
+    ) in SYSTEM_PROMPT
+    assert (
+        "When the user asks for carnivore, meat, offer catalog meals tagged chicken."
+    ) in SYSTEM_PROMPT
+    assert (
+        "When the user asks for gf, gluten free, gluten-free, celiac, "
+        "offer catalog meals tagged gluten_free_ingredients."
+    ) in SYSTEM_PROMPT
+    assert "tagged vegan." in SYSTEM_PROMPT
+    assert "tagged vegetarian." in SYSTEM_PROMPT
+    assert (
+        "When the user asks for protein, offer catalog meals tagged high_protein."
+        in (SYSTEM_PROMPT)
+    )
+
+
+def test_system_prompt_states_the_honest_tag_caveats() -> None:
+    assert (
+        "No meal in this catalog is keto. No meal is strictly carnivore."
+        in SYSTEM_PROMPT
+    )
+    assert (
+        "gluten_free_ingredients describes the ingredients only. "
+        "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe."
+    ) in SYSTEM_PROMPT
+    assert (
+        "When the user asks for a meal type, name up to three catalog meals "
+        "with that tag and ask which one to plan."
+    ) in SYSTEM_PROMPT
 
 
 def test_unknown_restrictions_use_tool_clarification() -> None:

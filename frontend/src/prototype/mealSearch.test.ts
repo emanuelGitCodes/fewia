@@ -2,7 +2,14 @@
 
 import { describe, expect, it } from "vitest";
 import { SEARCH_TERMS, filterMeals, searchNote } from "./mealSearch";
-import { INGREDIENTS, RECIPE_ORDER, RECIPES, mealLabels, type RecipeId } from "./prototypeData";
+import {
+  CATALOG_SEARCH_TERMS,
+  INGREDIENTS,
+  RECIPE_ORDER,
+  RECIPES,
+  mealLabels,
+  type RecipeId,
+} from "./prototypeData";
 
 function withTag(tag: string): RecipeId[] {
   return RECIPE_ORDER.filter((id) => (RECIPES[id].tags as readonly string[]).includes(tag));
@@ -28,6 +35,15 @@ describe("SEARCH_TERMS", () => {
       }
     });
   }
+
+  it("is read from the backend search terms in their order", () => {
+    expect(Object.keys(SEARCH_TERMS)).toEqual(Object.keys(CATALOG_SEARCH_TERMS));
+    expect(Object.keys(SEARCH_TERMS)).toHaveLength(14);
+    for (const [term, { target, note }] of Object.entries(CATALOG_SEARCH_TERMS)) {
+      expect(SEARCH_TERMS[term].target).toBe(target);
+      expect(SEARCH_TERMS[term].note).toBe(note ?? undefined);
+    }
+  });
 
   it("returns the exact counts for keto and meat", () => {
     expect(filterMeals("keto")).toHaveLength(8);

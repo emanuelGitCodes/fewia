@@ -2004,5 +2004,63 @@
         "fatG": 11.7
       }
     }
-  ]
+  ],
+  "searchTerms": {
+    "keto": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "low carb": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "lowcarb": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "low-carb": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "carnivore": {
+      "target": "chicken",
+      "note": "No meal is strictly carnivore. These meals include chicken."
+    },
+    "meat": {
+      "target": "chicken",
+      "note": "No meal is strictly carnivore. These meals include chicken."
+    },
+    "gf": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "gluten free": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "gluten-free": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "celiac": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "plant based": {
+      "target": "vegan",
+      "note": null
+    },
+    "plant-based": {
+      "target": "vegan",
+      "note": null
+    },
+    "veggie": {
+      "target": "vegetarian",
+      "note": null
+    },
+    "protein": {
+      "target": "high_protein",
+      "note": null
+    }
+  }
 }

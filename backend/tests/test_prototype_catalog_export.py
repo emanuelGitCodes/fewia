@@ -5,6 +5,7 @@ import pytest
 
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE, MEAL_TAGS, SEARCH_TERMS
 from app.prototype_catalog_export import (
     build_catalog,
     main,
@@ -151,6 +152,23 @@ def test_tag_rules_and_order() -> None:
         assert ("lower_carb" in tags) == (recipe["nutrition"]["carbsG"] <= 30)
         gluten = ids & {"pasta", "soy_sauce", "oats", "oat_milk"}
         assert ("gluten_free_ingredients" in tags) == (not gluten)
+
+
+def test_tags_come_from_meal_tags() -> None:
+    for recipe in build_catalog()["recipes"]:
+        assert recipe["tags"] == list(MEAL_TAGS[recipe["id"]])
+
+
+def test_search_terms_follow_recipes_in_search_terms_order() -> None:
+    catalog = build_catalog()
+    assert list(catalog) == ["catalogVersion", "ingredients", "recipes", "searchTerms"]
+    terms = catalog["searchTerms"]
+    assert list(terms) == list(SEARCH_TERMS)
+    for term, (target, note) in SEARCH_TERMS.items():
+        assert terms[term] == {"target": target, "note": note}
+    assert terms["keto"] == {"target": "lower_carb", "note": KETO_NOTE}
+    assert terms["gf"] == {"target": "gluten_free_ingredients", "note": None}
+    assert terms["meat"] == {"target": "chicken", "note": CARNIVORE_NOTE}
 
 
 def test_every_recipe_has_a_diet_or_tag_label() -> None:
