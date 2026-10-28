@@ -1,4 +1,4 @@
-"""Meal tags and search terms shared by the chat agent, the catalog export, and /prototype."""
+"""Meal tags and search terms for the agent, the catalog export, and /prototype."""
 
 from datetime import date
 
@@ -27,7 +27,10 @@ TAG_ORDER = (
     "lower_carb",
     "gluten_free_ingredients",
 )
-KETO_NOTE = "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+KETO_NOTE = (
+    "No meal in this catalog is keto. "
+    "These meals have 30 g of carbs or less per serving."
+)
 CARNIVORE_NOTE = "No meal is strictly carnivore. These meals include chicken."
 # Term to target diet or tag, and an optional note.
 SEARCH_TERMS: dict[str, tuple[str, str | None]] = {
