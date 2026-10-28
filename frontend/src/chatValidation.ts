@@ -44,6 +44,16 @@ function isUsage(value: unknown): value is ChatUsage {
     isSafeInteger(value.outputTokens) && value.outputTokens >= 0
   );
 }
+function copyUsage(value: ChatUsage): ChatUsage {
+  const result: ChatUsage = { inputTokens: value.inputTokens, outputTokens: value.outputTokens };
+  for (const key of ["cacheReadInputTokens", "cacheWriteInputTokens"] as const) {
+    const count = value[key];
+    if (isSafeInteger(count) && count >= 0) {
+      result[key] = count;
+    }
+  }
+  return result;
+}
 function copyTrace(value: unknown): ChatToolTrace | null {
   if (
     !isRecord(value) || !isNonemptyString(value.tool) ||
@@ -158,9 +168,7 @@ export function parseChatResult(value: unknown): ChatResult {
     tool_trace: traces,
     model_turns: value.model_turns,
     planner_revisions: value.planner_revisions,
-    usage: value.usage === null ? null : {
-      inputTokens: value.usage.inputTokens, outputTokens: value.usage.outputTokens,
-    },
+    usage: value.usage === null ? null : copyUsage(value.usage),
     ...(overlay === undefined ? {} : { supermarket_estimate: overlay }),
   };
 }

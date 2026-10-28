@@ -22,6 +22,8 @@ export type ChatToolOutcome = "success" | "error";
 export type ChatUsage = {
   inputTokens: number;
   outputTokens: number;
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
 };
 
 export type ChatToolTrace = {

@@ -179,6 +179,35 @@ describe("parseChatResult", () => {
     expectShapeError(candidate({ budget: budget({ stale: 1 }) }));
   });
 
+  it("copies valid cache counts and omits absent fields and unknown metadata", () => {
+    const usage = {
+      inputTokens: 11, outputTokens: 7, cacheReadInputTokens: 0, cacheWriteInputTokens: 9,
+    };
+    const input = candidate({ usage: { ...usage, reasoningContent: "hidden", totalTokens: 18 } });
+    const parsed = parseChatResult(input);
+    expect(parsed.usage).toEqual(usage);
+    expect(parsed.usage).not.toBe(input.usage);
+    if (parsed.usage !== null) {
+      parsed.usage.cacheWriteInputTokens = 99;
+    }
+    expect((input.usage as typeof usage).cacheWriteInputTokens).toBe(9);
+    expect(parseChatResult(candidate()).usage).toEqual({ inputTokens: 11, outputTokens: 7 });
+    expect(parseChatResult(candidate({ usage: null })).usage).toBeNull();
+  });
+
+  it.each(["cacheReadInputTokens", "cacheWriteInputTokens"] as const)(
+    "omits invalid optional %s without fabricating zero", (key) => {
+      const other = key === "cacheReadInputTokens" ? "cacheWriteInputTokens" : "cacheReadInputTokens";
+      for (const invalid of [undefined, null, true, false, -1, 1.5, "1", NaN, Infinity,
+        Number.MAX_SAFE_INTEGER + 1, {}, []]) {
+        const usage = { inputTokens: 11, outputTokens: 7, [key]: invalid, [other]: 0 };
+        expect(parseChatResult(candidate({ usage })).usage).toEqual({
+          inputTokens: 11, outputTokens: 7, [other]: 0,
+        });
+      }
+    },
+  );
+
   it("accepts three meals and eight servings and rejects those limits", () => {
     const meals = [
       { recipe_id: "bean_tacos", servings: 8 },

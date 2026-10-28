@@ -413,6 +413,32 @@ def test_read_usage_invalid_returns_none_without_zero(response: object) -> None:
     assert read_usage(response) is None
 
 
+def test_read_usage_copies_cache_counts_and_drops_unrelated_fields() -> None:
+    counts = {
+        "inputTokens": 3,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 7,
+    }
+    response = {"usage": {**counts, "totalTokens": 15, "reasoningContent": "hidden"}}
+    result = read_usage(response)
+    assert result == counts
+    response["usage"]["cacheWriteInputTokens"] = 99
+    assert result == counts
+
+
+@pytest.mark.parametrize("key", ["cacheReadInputTokens", "cacheWriteInputTokens"])
+@pytest.mark.parametrize("value", [None, True, False, -1, 1.5, 1.0, "2", [], {}])
+def test_invalid_cache_count_stays_unknown(key: str, value: object) -> None:
+    other = (
+        "cacheWriteInputTokens"
+        if key == "cacheReadInputTokens"
+        else "cacheReadInputTokens"
+    )
+    expected = {"inputTokens": 3, "outputTokens": 5, other: 0}
+    assert read_usage({"usage": {**expected, key: value}}) == expected
+
+
 def test_plan_cap_zero_none_and_positive_stay_explicit() -> None:
     none_messages = build_messages("ok", budget(available_cents=10_000), PERIOD)
     none_payload = _context(none_messages)

@@ -94,6 +94,9 @@ def observe_model_turn(
                         history=history or None,
                         record_evidence=record,
                         plan_cap_cents=context.plan_cap_cents,
+                        observe_terminal_tool_results=(
+                            capture.observe_terminal_tool_results
+                        ),
                     )
                 )
                 if result.get("status") == "limit":

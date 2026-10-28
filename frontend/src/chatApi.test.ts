@@ -161,6 +161,20 @@ describe("chatApi", () => {
     await expect(fetchChatJob(succeededJob.id)).resolves.toEqual(succeededJob);
   });
 
+  it("preserves cache counts on a result from one model turn", async () => {
+    const usage = {
+      inputTokens: 11, outputTokens: 7, cacheReadInputTokens: 9, cacheWriteInputTokens: 0,
+    };
+    const job = {
+      ...succeededJob,
+      result: { ...result, model_turns: 1, usage },
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(job)));
+    const parsed = await fetchChatJob(job.id);
+    expect(parsed).toEqual(job);
+    expect(parsed.result?.usage).not.toBe(usage);
+  });
+
   it("throws HTTP_ERROR for failed and network fetches and hides raw payloads", async () => {
     vi.stubGlobal(
       "fetch",

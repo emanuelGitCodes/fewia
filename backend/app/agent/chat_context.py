@@ -165,4 +165,25 @@ def read_usage(response: object) -> dict[str, int] | None:
         or output_tokens < 0
     ):
         return None
-    return {"inputTokens": input_tokens, "outputTokens": output_tokens}
+    result = {"inputTokens": input_tokens, "outputTokens": output_tokens}
+    for key in ("cacheReadInputTokens", "cacheWriteInputTokens"):
+        value = usage.get(key)
+        if _exact_int(value) and value >= 0:
+            result[key] = value
+    return result
+
+
+def sum_usage(
+    total: dict[str, int] | None, response: object, *, first: bool
+) -> dict[str, int] | None:
+    part = read_usage(response)
+    if total is None or part is None:
+        return None
+    result = {
+        "inputTokens": total["inputTokens"] + part["inputTokens"],
+        "outputTokens": total["outputTokens"] + part["outputTokens"],
+    }
+    for key in ("cacheReadInputTokens", "cacheWriteInputTokens"):
+        if key in part and (first or key in total):
+            result[key] = total.get(key, 0) + part[key]
+    return result

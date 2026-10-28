@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from copy import deepcopy
 from datetime import date
 
 from app.agent import chat_messages as msgs
@@ -10,7 +11,7 @@ from app.agent.budget_tool import (
     budget_tool_spec,
 )
 from app.agent.chat_answer import render_public_answer
-from app.agent.chat_context import build_messages, read_usage
+from app.agent.chat_context import build_messages, sum_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.chat_refusal import parse_refusal
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
@@ -162,16 +163,6 @@ def _tool_error_payload(block: dict[str, object]) -> dict[str, object] | None:
     return payload
 
 
-def _sum_usage(total: dict[str, int] | None, response: object) -> dict[str, int] | None:
-    part = read_usage(response)
-    if total is None or part is None:
-        return None
-    return {
-        "inputTokens": total["inputTokens"] + part["inputTokens"],
-        "outputTokens": total["outputTokens"] + part["outputTokens"],
-    }
-
-
 def run_chat(
     provider: LLMProvider,
     message: str,
@@ -186,6 +177,8 @@ def run_chat(
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
     plan_cap_cents: int | None = None,
+    observe_terminal_tool_results: Callable[[list[dict[str, object]]], None]
+    | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -206,10 +199,14 @@ def run_chat(
     revisions = 0
     turns = 0
     usage: dict[str, int] | None = {"inputTokens": 0, "outputTokens": 0}
+    tools = [planner_tool_spec(), budget_tool_spec()]
+    pending_results: list[dict[str, object]] | None = None
 
     def out(
         status: str, answer: str, plan: dict[str, object] | None
     ) -> dict[str, object]:
+        if pending_results is not None and observe_terminal_tool_results is not None:
+            observe_terminal_tool_results(pending_results)
         result = msgs.build_chat_result(
             status, answer, plan, spending_source, trace, turns, revisions
         )
@@ -218,12 +215,13 @@ def run_chat(
 
     while turns < MAX_MODEL_TURNS:
         heartbeat()
+        pending_results = None
         raw: dict[str, object] | None
         try:
             raw = provider.converse(
                 SYSTEM_PROMPT,
                 list(messages),
-                [planner_tool_spec(), budget_tool_spec()],
+                deepcopy(tools),
             )
         except Exception:  # noqa: BLE001
             raw = None
@@ -231,7 +229,7 @@ def run_chat(
             raise ChatUnavailable(_UNAVAILABLE)
         heartbeat()
         turns += 1
-        usage = _sum_usage(usage, raw)
+        usage = sum_usage(usage, raw, first=turns == 1)
         stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)
         if stop != "tool_use":
             kept = sanitized.get("content")
@@ -253,11 +251,19 @@ def run_chat(
             raise msgs.ChatProtocolError("assistant message is invalid")
         messages.append(_tool_use_history(calls))
         blocks: list[dict[str, object]] = []
+        batch_ok = True
+        planner_limit = False
         for call in calls:
             heartbeat()
             if call.name == TOOL_NAME:
                 if revisions >= MAX_PLANNER_REVISIONS:
-                    return out("limit", _LIMIT, None)
+                    planner_limit = True
+                    blocks.append(
+                        msgs.tool_result_block(
+                            call.tool_use_id, {"error": _LIMIT}, success=False
+                        )
+                    )
+                    continue
                 revisions += 1
             payload, block = dispatch(
                 call,
@@ -269,7 +275,16 @@ def run_chat(
                 record_evidence=record_evidence,
             )
             error = _tool_error_payload(block)
-            if call.name == BUDGET_TOOL_NAME and error is None:
+            tool_result = block.get("toolResult")
+            success = (
+                payload is not None
+                and isinstance(tool_result, dict)
+                and tool_result.get("status") == "success"
+            )
+            batch_ok = batch_ok and success
+            if call.name == TOOL_NAME and _end_status(payload) != "planned":
+                batch_ok = False
+            if call.name == BUDGET_TOOL_NAME and success:
                 summary_ok = True
             else:
                 candidate = payload
@@ -277,4 +292,20 @@ def run_chat(
                 summary_ok = False
             blocks.append(block)
         messages.append({"role": "user", "content": blocks})
+        pending_results = blocks
+        if planner_limit:
+            return out("limit", _LIMIT, None)
+        if batch_ok and candidate is not None and _end_status(candidate) == "planned":
+            return out("planned", render_public_answer(candidate), candidate)
+        if (
+            batch_ok
+            and summary_ok
+            and candidate is None
+            and last_error is None
+            and all(call.name == BUDGET_TOOL_NAME for call in calls)
+        ):
+            answer = budget_summary_answer(
+                budget, period, spending_source=spending_source
+            )
+            return out("clarification", answer, None)
     return out("limit", _LIMIT, None)

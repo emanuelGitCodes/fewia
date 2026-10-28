@@ -140,7 +140,7 @@ def test_handler_routes_plan_and_chat(
     assert isinstance(chat_revision, str)
     assert load_evidence(factory, 1, chat_revision) is not None
     assert count_rows(factory) == 2
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     assert "supermarket_estimate" not in plan_result
     assert "supermarket_estimate" not in chat_result
 

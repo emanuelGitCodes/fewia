@@ -119,7 +119,7 @@ def context(messages: list[dict[str, object]]) -> dict[str, object]:
 
 def test_multiturn_pantry_servings_and_saved_evidence() -> None:
     first, second = request(pantry=True), request(servings=4)
-    provider = ScriptedProvider([tool(first), reply(), tool(second), reply()])
+    provider = ScriptedProvider([tool(first), tool(second)])
     observation = observe(
         case(["Use my pantry.", "Remove pantry; serve four."]), provider
     )
@@ -130,9 +130,10 @@ def test_multiturn_pantry_servings_and_saved_evidence() -> None:
         "deterministic_fake_provider",
     ]
     first_result = cast(dict[str, object], turns(observation)[0]["result"])
-    assert context(provider.messages[2])["previous_request"] == first_result["request"]
+    assert len(provider.messages) == 2
+    assert context(provider.messages[1])["previous_request"] == first_result["request"]
     assert context(provider.messages[0])["previous_ingredient_ids"] is None
-    assert context(provider.messages[2])["previous_ingredient_ids"] == (
+    assert context(provider.messages[1])["previous_ingredient_ids"] == (
         plan_ingredient_ids(first_result["plan"])
     )
     snapshots = cast(list[dict[str, object]], observation["snapshots"])
@@ -145,8 +146,8 @@ def test_multiturn_pantry_servings_and_saved_evidence() -> None:
         assert planned_request["meals"] == payload["meals"]
         assert planned_request["pantry_ingredients"] == payload["pantry_ingredients"]
         assert turn["calls"] == [{"tool": "plan_groceries", "input": payload}]
-        assert turn["provider_calls"] == 2
-        assert turn["usage"] == {"inputTokens": 24, "outputTokens": 12}
+        assert turn["provider_calls"] == 1
+        assert turn["usage"] == {"inputTokens": 13, "outputTokens": 5}
         assert turn["tool_results"]
         saved = [
             entry
@@ -171,14 +172,15 @@ def test_egg_plan_ids_reach_vegan_followup() -> None:
     )
     payload = request()
     payload["meals"] = [{"recipe_id": recipe["id"], "servings": 2}]
-    provider = ScriptedProvider([tool(payload), reply(), reply()])
+    provider = ScriptedProvider([tool(payload), reply()])
     observation = observe(case(["Plan burritos.", "Make them vegan."]), provider)
     assert observation["status"] == "completed"
     first_result = cast(dict[str, object], turns(observation)[0]["result"])
     ids = plan_ingredient_ids(first_result["plan"])
     assert ids is not None and "eggs" in ids
     assert context(provider.messages[0])["previous_ingredient_ids"] is None
-    assert context(provider.messages[2])["previous_ingredient_ids"] == ids
+    assert len(provider.messages) == 2
+    assert context(provider.messages[1])["previous_ingredient_ids"] == ids
 
 
 def test_wrong_gold_does_not_change_calls_or_public_results() -> None:
@@ -195,16 +197,16 @@ def test_wrong_gold_does_not_change_calls_or_public_results() -> None:
 
 
 def test_partial_failure_retains_calls_and_saved_evidence() -> None:
-    provider = ScriptedProvider(
-        [reply(), tool(request()), RuntimeError("PRIVATE_ERROR")]
-    )
+    payload = request()
+    payload["plan_cap_cents"] = 1
+    provider = ScriptedProvider([reply(), tool(payload), RuntimeError("PRIVATE_ERROR")])
     observation = observe(case(["Discuss a meal.", "Plan it."]), provider)
     assert observation["status"] == "partial"
     assert observation["reason"] == "provider_unavailable"
     failed = turns(observation)[1]
     assert failed["status"] == "failed"
     assert failed["result"] is None
-    assert failed["calls"] == [{"tool": "plan_groceries", "input": request()}]
+    assert failed["calls"] == [{"tool": "plan_groceries", "input": payload}]
     assert failed["provider_calls"] == 2
     assert failed["usage"] is None
     assert failed["tool_results"]
@@ -235,7 +237,6 @@ def test_server_context_and_history_pairs_carry_previous_request() -> None:
     provider = ScriptedProvider(
         [
             tool(request()),
-            reply(),
             reply('{"refusal":"purchase"}'),
             reply(),
             reply(),
@@ -253,7 +254,8 @@ def test_server_context_and_history_pairs_carry_previous_request() -> None:
     )
     assert ids
     assert cast(dict[str, object], turns(observation)[1]["result"])["request"] is None
-    for index in range(2, 6):
+    assert len(turns(observation)) == len(provider.messages) == 5
+    for index in range(1, 5):
         current = context(provider.messages[index])
         assert current["previous_request"] == previous
         assert current["previous_ingredient_ids"] == ids
@@ -312,11 +314,16 @@ def test_incomplete_public_result_is_partial(status: str) -> None:
 
 def test_processing_limit_is_partial(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(chat_loop, "MAX_MODEL_TURNS", 1)
-    observation = observe(case(), ScriptedProvider([tool(request())]))
+    payload = request()
+    payload["plan_cap_cents"] = 1
+    observation = observe(case(), ScriptedProvider([tool(payload)]))
     assert observation["status"] == "partial"
     assert observation["reason"] == "limit"
-    assert turns(observation)[0]["calls"]
-    assert observation["snapshots"]
+    assert turns(observation)[0]["provider_calls"] == 1
+    assert turns(observation)[0]["calls"] == [
+        {"tool": "plan_groceries", "input": payload}
+    ]
+    assert len(cast(list[object], observation["snapshots"])) == 1
 
 
 def test_incomplete_capture_cannot_certify_no_leak(
@@ -641,13 +648,13 @@ def test_real_helper_fields_and_caller_case_are_preserved(
     cast(dict[str, object], source["inputs"])["followup_diet"] = "FUTURE_DIET"
     source["expected"] = {"answer": "GOLD_ANSWER"}
     before = deepcopy(source)
-    provider = ScriptedProvider([tool(request()), reply(), reply()])
+    provider = ScriptedProvider([tool(request()), reply()])
     observation = observe(source, provider)
     assert source == before
     assert turns(observation) == recorded
     assert len(wrappers) == 2
     assert wrappers[0] is wrappers[1]
-    assert [turn["provider_calls"] for turn in recorded] == [2, 1]
+    assert [turn["provider_calls"] for turn in recorded] == [1, 1]
     first_messages = dumps(provider.messages[0])
     for hidden in ("FUTURE_DIET", "Keep this plan.", "GOLD_ANSWER", "expected"):
         assert hidden not in first_messages
@@ -861,12 +868,11 @@ def test_unexportable_snapshot_retains_prior_actual_evidence(
     source["fixture_behavior"] = {
         "provider_fixture": {"secret_marker": "SYNTHETIC_SENTINEL"}
     }
-    provider = ScriptedProvider(
-        [tool(request()), reply(), tool(request(servings=4)), reply()]
-    )
+    provider = ScriptedProvider([tool(request()), tool(request(servings=4))])
     observation = observe(source, provider)
     assert observation["status"] == ("failed" if leak else "partial")
     assert observation["reason"] == ("secret_leak" if leak else "evidence_failed")
+    assert len(turns(observation)) == len(provider.messages) == 2
     assert all(turn["status"] == "completed" for turn in turns(observation))
     saved = cast(list[dict[str, object]], observation["snapshots"])
     assert len(saved) == 1

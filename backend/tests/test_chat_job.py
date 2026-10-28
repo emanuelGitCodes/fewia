@@ -134,7 +134,6 @@ def _planner_then_final() -> list[dict[str, object] | BaseException]:
             ],
             "tool_use",
         ),
-        _reply([{"text": "Here is a labeled estimate."}], "end_turn"),
     ]
 
 
@@ -155,7 +154,7 @@ def _patch_save(
     monkeypatch.setattr(chat_job_module, "save_plan_evidence", fake_save)
 
 
-def test_chat_job_plan_then_final_and_followup(
+def test_chat_job_terminal_plan_and_followup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
@@ -169,6 +168,7 @@ def test_chat_job_plan_then_final_and_followup(
     )
 
     assert result["status"] == "planned"
+    assert len(provider.requests) == 1
     assert result["answer"] == render_public_answer(expected)
     assert "Here is a labeled estimate." not in result["answer"]
     assert result["plan"] == expected["plan"]
@@ -203,6 +203,7 @@ def test_chat_job_plan_then_final_and_followup(
         factory=FACTORY,
     )
     assert follow["status"] == "planned"
+    assert len(follow_provider.requests) == 1
     first_messages = follow_provider.requests[0]["messages"]
     assert isinstance(first_messages, list)
     assert first_messages[0]["role"] == "user"
@@ -211,23 +212,22 @@ def test_chat_job_plan_then_final_and_followup(
     assert json.loads(content[0]["text"])["previous_ingredient_ids"] == ingredient_ids
 
 
-def test_chat_job_stores_snapshot_before_next_model_call(
+def test_chat_job_stores_snapshot_before_return(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
     saved: list[dict[str, object]] = []
     _patch_save(monkeypatch, saved)
 
-    def require_store() -> None:
-        assert saved
-
-    provider = FakeLLM(_planner_then_final(), before_next=require_store)
+    provider = FakeLLM(_planner_then_final())
     result = chat_job_module.chat_job(
         chat_payload(), lambda: None, provider=provider, factory=FACTORY
     )
     assert result["status"] == "planned"
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     assert len(saved) == 1
+    assert saved[0]["planning"] == expected_planning()
+    assert result["evidence_revision_id"] == _REV
 
 
 def test_chat_job_clarification_has_no_plan(
@@ -422,7 +422,7 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
         factory=FACTORY,
     )
     assert result["status"] == "planned"
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     for request in provider.requests:
         messages = request["messages"]
         assert isinstance(messages, list)

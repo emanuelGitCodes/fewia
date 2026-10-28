@@ -215,6 +215,59 @@ def test_observes_only_latest_message_results_and_copies_payload() -> None:
     assert "changed" not in json.dumps(capture.tool_results)
 
 
+def test_terminal_observation_matches_next_call_without_billing() -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    blocks = [
+        tool_result_block(
+            "one", {"value": marker, "reasoningContent": "PRIVATE"}, success=True
+        ),
+        tool_result_block("two", {"error": "invalid request"}, success=False),
+    ]
+    before = deepcopy(blocks)
+    provider = ScriptedProvider([])
+    terminal = CaptureProvider(provider, markers=(marker,))
+    next_call = CaptureProvider(ScriptedProvider([response()]), markers=(marker,))
+    next_call.converse("system", [{"role": "user", "content": blocks}], [])
+    terminal.observe_terminal_tool_results(blocks)
+    assert terminal.tool_results == next_call.tool_results
+    assert [item["toolUseId"] for item in terminal.tool_results] == ["one", "two"]
+    assert [item["status"] for item in terminal.tool_results] == ["success", "error"]
+    assert terminal.leakage is next_call.leakage is True
+    assert terminal.capture_incomplete is next_call.capture_incomplete is False
+    assert terminal.provider_calls == 0
+    assert terminal.usage == {"inputTokens": 0, "outputTokens": 0}
+    assert terminal.elapsed_seconds == 0.0
+    assert terminal.calls == []
+    assert provider.received is None
+    assert blocks == before
+    assert marker not in json.dumps(terminal.tool_results)
+    assert "PRIVATE" not in json.dumps(terminal.tool_results)
+
+
+@pytest.mark.parametrize("leaks", [False, True])
+def test_terminal_scan_limit_keeps_known_leaks(leaks: bool) -> None:
+    marker = "SYNTHETIC_SENTINEL_42"
+    nested: object = []
+    for _ in range(getrecursionlimit() + 10):
+        nested = [nested]
+    blocks = [
+        tool_result_block(
+            "one",
+            {"visible": marker if leaks else "safe", "nested": nested},
+            success=True,
+        )
+    ]
+    capture = CaptureProvider(ScriptedProvider([]), markers=(marker,))
+    capture.observe_terminal_tool_results(blocks)
+    assert capture.capture_incomplete is True
+    assert capture.leakage is leaks
+    assert capture.tool_results == [
+        {"toolUseId": "one", "status": "success", "content": "[invalid]"}
+    ]
+    assert capture.provider_calls == 0
+    assert marker not in json.dumps(capture.tool_results)
+
+
 @pytest.mark.parametrize("tool_id", ["", " whitespace", True, 12, None])
 def test_invalid_tool_ids_remain_application_visible(tool_id: object) -> None:
     original = response([tool(tool_id, {})])
@@ -319,6 +372,59 @@ def test_usage_accumulates_and_stays_unknown_after_failure() -> None:
         capture.converse("system", [], [])
     capture.converse("system", [], [])
     assert capture.usage is None
+
+
+def test_cache_usage_accumulates_without_mutating_provider_usage() -> None:
+    first = {
+        "inputTokens": 3,
+        "outputTokens": 4,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 5,
+    }
+    second = {
+        "inputTokens": 6,
+        "outputTokens": 7,
+        "cacheReadInputTokens": 8,
+        "cacheWriteInputTokens": 0,
+    }
+    capture = CaptureProvider(
+        ScriptedProvider([response(usage=first), response(usage=second)])
+    )
+    capture.converse("system", [], [])
+    assert capture.usage == first
+    capture.converse("system", [], [])
+    assert capture.usage == {
+        "inputTokens": 9,
+        "outputTokens": 11,
+        "cacheReadInputTokens": 8,
+        "cacheWriteInputTokens": 5,
+    }
+    assert first["cacheReadInputTokens"] == 0
+    assert second["cacheReadInputTokens"] == 8
+
+
+@pytest.mark.parametrize("key", ["cacheReadInputTokens", "cacheWriteInputTokens"])
+@pytest.mark.parametrize("missing_at", [0, 1, 2])
+@pytest.mark.parametrize("value", [None, True, False, -1, 1.0, "1", [], {}, "absent"])
+def test_partial_cache_usage_stays_unknown(
+    key: str, missing_at: int, value: object
+) -> None:
+    counts = {
+        "inputTokens": 3,
+        "outputTokens": 4,
+        "cacheReadInputTokens": 5,
+        "cacheWriteInputTokens": 6,
+    }
+    replies = [response(usage=dict(counts)) for _ in range(3)]
+    partial = {**counts, key: value}
+    if value == "absent":
+        partial.pop(key)
+    replies[missing_at]["usage"] = partial
+    capture = CaptureProvider(ScriptedProvider(list(replies)))
+    for _ in replies:
+        capture.converse("system", [], [])
+    expected = {name: count * 3 for name, count in counts.items() if name != key}
+    assert capture.usage == expected
 
 
 @pytest.mark.parametrize("value", ["x" * 65536, "\x00" * 12000, float("nan"), object()])

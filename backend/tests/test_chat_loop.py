@@ -305,10 +305,10 @@ def _run(
     return result, provider
 
 
-def test_planner_then_final_keeps_evidence_and_usage() -> None:
+def test_accepted_plan_finishes_without_final_and_keeps_evidence_and_usage() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     result, provider = _run(_planner_then_final())
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert "Here is a labeled estimate." not in result["answer"]
@@ -317,9 +317,9 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert result["request"] == expected["request"]
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["evidence_revision_id"] is None
-    assert result["model_turns"] == 2
+    assert result["model_turns"] == 1
     assert result["planner_revisions"] == 1
-    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
     assert result["tool_trace"] == [_success_trace("call-1", expected["evidence_id"])]
     _assert_public(result)
     first = provider.requests[0]
@@ -333,6 +333,14 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert "cross-contact" in SYSTEM_PROMPT
     assert "secrets" in SYSTEM_PROMPT
     assert first["tools"] == _chat_tools()
+
+
+def test_nonterminal_plan_result_keeps_server_money_fields() -> None:
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
+    result, provider = _run(_planner_then_final(payload=args))
+    assert result["status"] == "needs_revision"
+    assert len(provider.requests) == 2
     second_messages = provider.requests[1]["messages"]
     assert isinstance(second_messages, list)
     tool_user = second_messages[-1]
@@ -438,17 +446,11 @@ def test_three_planner_calls_in_one_turn_keep_last_valid() -> None:
     result, provider = _run(replies)
     assert result["status"] == "planned"
     assert result["planner_revisions"] == 3
-    assert result["model_turns"] == 2
+    assert result["model_turns"] == 1
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["plan"] == expected["plan"]
-    assert len(provider.requests) == 2
-    nested = provider.requests[1]["messages"]
-    assert isinstance(nested, list)
-    user_blocks = nested[-1]["content"]
-    assert isinstance(user_blocks, list)
-    assert len(user_blocks) == 3
-    assert user_blocks[0]["toolResult"]["toolUseId"] == "a"
-    assert user_blocks[2]["toolResult"]["toolUseId"] == "c"
+    assert len(provider.requests) == 1
+    assert [entry["tool_use_id"] for entry in result["tool_trace"]] == ["a", "b", "c"]
 
 
 def test_parser_rejects_more_than_three_calls() -> None:
@@ -506,7 +508,10 @@ def test_eighth_turn_may_finish_with_text() -> None:
 
 def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block(f"p-{index}")], "tool_use")
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
         for index in range(MAX_PLANNER_REVISIONS + 1)
     ]
     result, provider = _run(replies)
@@ -522,14 +527,17 @@ def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
     assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
 
 
-def test_three_planner_revisions_then_final_is_planned() -> None:
+def test_third_planner_revision_can_finish_after_corrections() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block(f"p-{index}")], "tool_use")
-        for index in range(MAX_PLANNER_REVISIONS)
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
+        for index in range(MAX_PLANNER_REVISIONS - 1)
     ]
-    replies.append(_reply([_text_block("ready")], "end_turn"))
+    replies.append(_reply([_tool_block("accepted")], "tool_use"))
     result, provider = _run(replies)
-    assert len(provider.requests) == MAX_PLANNER_REVISIONS + 1
+    assert len(provider.requests) == MAX_PLANNER_REVISIONS
     assert result["status"] == "planned"
     assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
     assert result["plan"] is not None
@@ -628,7 +636,7 @@ def test_invalid_then_valid_keeps_last_candidate() -> None:
 )
 def test_incomplete_stops_drop_plan(stop: str) -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"),
         _reply([_text_block("truncated plan")], stop),
     ]
     result, provider = _run(replies)
@@ -644,7 +652,7 @@ def test_incomplete_stops_drop_plan(stop: str) -> None:
 
 def test_blank_end_turn_is_incomplete_and_drops_plan() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"),
         _reply([_text_block("   ")], "end_turn"),
     ]
     result, _provider = _run(replies)
@@ -654,20 +662,21 @@ def test_blank_end_turn_is_incomplete_and_drops_plan() -> None:
 
 def test_reasoning_is_stripped_from_next_request_and_result() -> None:
     hidden = {"text": "hidden plan"}
+    args = plan_args(plan_cap_cents=100)
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [
                 {"reasoningContent": hidden},
                 _text_block("public", reasoning=hidden),
-                _tool_block("call-1", reasoning=hidden),
+                _tool_block("call-1", payload=args, reasoning=hidden),
             ],
             "tool_use",
         ),
         _reply([_text_block("ready", reasoning=hidden)], "end_turn"),
     ]
     result, provider = _run(replies)
-    expected = execute_plan(plan_args(), budget(), PERIOD)
-    assert result["status"] == "planned"
+    expected = execute_plan(args, budget(), PERIOD)
+    assert result["status"] == "needs_revision"
     assert result["answer"] == render_public_answer(expected)
     assert "ready" not in result["answer"]
     dumped_result = json.dumps(result)
@@ -686,7 +695,7 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
             "toolUse": {
                 "toolUseId": "call-1",
                 "name": TOOL_NAME,
-                "input": plan_args(),
+                "input": args,
             }
         }
     ]
@@ -697,8 +706,10 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
 
 def test_tool_use_history_keeps_validated_calls_only() -> None:
     hidden = {"text": "hidden plan"}
-    first = plan_args()
-    second = plan_args(meals=[{"recipe_id": "bean_tacos", "servings": 2}])
+    first = plan_args(plan_cap_cents=100)
+    second = plan_args(
+        meals=[{"recipe_id": "bean_tacos", "servings": 2}], plan_cap_cents=100
+    )
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [
@@ -714,7 +725,7 @@ def test_tool_use_history_keeps_validated_calls_only() -> None:
     ]
     result, provider = _run(replies)
     expected = execute_plan(second, budget(), PERIOD)
-    assert result["status"] == "planned"
+    assert result["status"] == "needs_revision"
     assert result["answer"] == render_public_answer(expected)
     assert "Here is a labeled estimate." not in result["answer"]
     assert len(provider.requests) == 2
@@ -773,7 +784,10 @@ def test_duplicate_ids_raise_protocol_error() -> None:
 def test_duplicate_ids_across_turns_raise_protocol_error() -> None:
     provider = FakeLLM(
         [
-            _reply([_tool_block("same")], "tool_use"),
+            _reply(
+                [_tool_block("same", payload=plan_args(plan_cap_cents=100))],
+                "tool_use",
+            ),
             _reply([_tool_block("same")], "tool_use"),
         ]
     )
@@ -838,21 +852,21 @@ def test_heartbeat_loss_before_tool_propagates() -> None:
 def test_usage_is_none_when_one_response_is_unknown() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("ok")],
+            [_tool_block("ok", payload=plan_args(plan_cap_cents=100))],
             "tool_use",
             usage={"inputTokens": 4, "outputTokens": 5},
         ),
         _reply([_text_block("done")], "end_turn", omit_usage=True),
     ]
     result, _provider = _run(replies)
-    assert result["status"] == "planned"
+    assert result["status"] == "needs_revision"
     assert result["usage"] is None
 
 
 def test_usage_sums_only_when_every_response_is_valid() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("ok")],
+            [_tool_block("ok", payload=plan_args(plan_cap_cents=100))],
             "tool_use",
             usage={"inputTokens": 4, "outputTokens": 5, "totalTokens": 9},
         ),
@@ -870,7 +884,7 @@ def test_usage_sums_only_when_every_response_is_valid() -> None:
 def test_zero_token_counts_are_valid_usage() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("ok")],
+            [_tool_block("ok", payload=plan_args(plan_cap_cents=100))],
             "tool_use",
             usage={"inputTokens": 0, "outputTokens": 0},
         ),
@@ -880,7 +894,8 @@ def test_zero_token_counts_are_valid_usage() -> None:
             usage={"inputTokens": 0, "outputTokens": 0},
         ),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
     assert result["usage"] == {"inputTokens": 0, "outputTokens": 0}
 
 
@@ -1051,7 +1066,7 @@ def test_needs_revision_keeps_uncapped_plan() -> None:
     assert plan["accepted"] is False
 
 
-def test_record_evidence_runs_before_next_provider_turn() -> None:
+def test_record_evidence_runs_before_terminal_return() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     seen: list[dict[str, object]] = []
 
@@ -1068,6 +1083,21 @@ def test_record_evidence_runs_before_next_provider_turn() -> None:
     assert result["tool_trace"] == [
         _success_trace("call-1", expected["evidence_id"], revision_id=_REV)
     ]
+    assert len(provider.requests) == 1
+
+
+def test_nonterminal_evidence_reaches_next_provider_turn() -> None:
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
+    seen: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        seen.append(dict(payload))
+        return _REV
+
+    result, provider = _run(_planner_then_final(payload=args), record_evidence=record)
+    assert result["status"] == "needs_revision"
+    assert result["evidence_revision_id"] == _REV
     assert len(provider.requests) == 2
     second_messages = provider.requests[1]["messages"]
     assert isinstance(second_messages, list)
@@ -1118,16 +1148,17 @@ def test_repeated_revision_id_two_revisions_stay_ordered() -> None:
     def record(payload: dict[str, object]) -> str:
         return _REV
 
-    expected = execute_plan(plan_args(), budget(), PERIOD)
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("a"), _tool_block("b")],
+            [_tool_block("a", payload=args), _tool_block("b", payload=args)],
             "tool_use",
         ),
         _reply([_text_block("done")], "end_turn"),
     ]
     result, provider = _run(replies, record_evidence=record)
-    assert result["status"] == "planned"
+    assert result["status"] == "needs_revision"
     assert result["evidence_revision_id"] == _REV
     assert result["planner_revisions"] == 2
     assert result["tool_trace"] == [
@@ -1199,7 +1230,8 @@ def test_adversarial_final_text_cannot_override_validated_plan() -> None:
             "end_turn",
         ),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
     answer = result["answer"]
     assert result["status"] == "planned"
     assert result["plan"] == expected["plan"]
@@ -1274,8 +1306,9 @@ def test_exclusion_then_unsupported_tool_is_generic_clarification() -> None:
     _assert_public(result)
 
 
-def test_malformed_later_error_clears_exclusion_conflict(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("first_accepted", [False, True])
+def test_malformed_later_error_clears_candidate_or_exclusion_conflict(
+    monkeypatch: pytest.MonkeyPatch, first_accepted: bool
 ) -> None:
     real_dispatch = loop.dispatch
     excluded = plan_args(
@@ -1314,14 +1347,15 @@ def test_malformed_later_error_clears_exclusion_conflict(
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [
-                _tool_block("ex", payload=excluded),
-                _tool_block("later", name="lookup", payload={}),
+                _tool_block("ex", payload=plan_args() if first_accepted else excluded),
+                _budget_block("later"),
             ],
             "tool_use",
         ),
         _reply([_text_block("Need a meal choice.")], "end_turn"),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
     assert result["status"] == "clarification"
     assert result["answer"] == CLARIFICATION
     assert result["plan"] is None
@@ -1338,7 +1372,10 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
         return _REV
 
     limit_replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block(f"p-{index}")], "tool_use")
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
         for index in range(MAX_PLANNER_REVISIONS + 1)
     ]
     limit_result, _limit_provider = _run(limit_replies, record_evidence=record)
@@ -1347,7 +1384,7 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
     assert limit_result["evidence_id"] is None
     assert limit_result["evidence_revision_id"] is None
     incomplete_replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"),
         _reply([_text_block("truncated plan")], "max_tokens"),
     ]
     incomplete, _provider = _run(incomplete_replies, record_evidence=record)
@@ -1371,7 +1408,7 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         available_cents=10_000,
     )
     assert result["status"] == "planned"
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     first_prompt = provider.requests[0]["system"]
     assert first_prompt == SYSTEM_PROMPT
     assert "MUST preserve that cap or lower it" in SYSTEM_PROMPT
@@ -1438,9 +1475,10 @@ def test_structured_refusal_without_tool_use(reason: str, answer: str) -> None:
 
 
 def test_structured_refusal_after_plan_clears_public_fields() -> None:
-    expected = execute_plan(plan_args(), budget(), PERIOD)
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("call-1")], "tool_use"),
+        _reply([_tool_block("call-1", payload=args)], "tool_use"),
         _reply([_text_block('{"refusal":"purchase"}')], "end_turn"),
     ]
     result, _provider = _run(replies)
@@ -1599,7 +1637,7 @@ def test_buy_beans_again_replans_without_pantry() -> None:
     assert plan["total_cents"] == 1703
     assert result["answer"] == render_public_answer(expected)
     assert result["planner_revisions"] == 1
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     _assert_public(result)
 
 
@@ -1621,7 +1659,6 @@ def test_a04_url_order_message_still_renders_purchase_refusal() -> None:
 
 def test_summary_only_uses_budget_answer_without_plan() -> None:
     expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
-    summary = execute_budget_summary({}, budget(), PERIOD, spending_source="fixture")
     seen: list[dict[str, object]] = []
 
     def record(payload: dict[str, object]) -> str:
@@ -1643,27 +1680,22 @@ def test_summary_only_uses_budget_answer_without_plan() -> None:
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 0
-    assert result["model_turns"] == 2
+    assert result["model_turns"] == 1
+    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
     assert result["tool_trace"] == [_budget_trace("s1")]
     assert seen == []
-    second_messages = provider.requests[1]["messages"]
-    assert isinstance(second_messages, list)
-    tool_user = second_messages[-1]
-    content = tool_user["content"]
-    assert isinstance(content, list)
-    json_body = content[0]["toolResult"]["content"][0]["json"]
-    assert json_body == summary
+    assert len(provider.requests) == 1
     _assert_public(result)
 
 
 def test_plan_then_summary_keeps_plan() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("p1")], "tool_use"),
-        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_tool_block("p1"), _budget_block("s1")], "tool_use"),
         _reply([_text_block("Here is the budget and the plan.")], "end_turn"),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert "Here is the budget" not in result["answer"]
@@ -1679,11 +1711,11 @@ def test_plan_then_summary_keeps_plan() -> None:
 def test_summary_then_plan_returns_plan() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
-        _reply([_tool_block("p1")], "tool_use"),
+        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
         _reply([_text_block("done")], "end_turn"),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert result["plan"] == expected["plan"]
@@ -1698,9 +1730,11 @@ def test_summary_then_plan_returns_plan() -> None:
 def test_invalid_summary_after_plan_clears_candidate() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("p1")], "tool_use"),
         _reply(
-            [_budget_block("s1", payload={"cap": 1, "identity": _SECRET})],
+            [
+                _tool_block("p1"),
+                _budget_block("s1", payload={"cap": 1, "identity": _SECRET}),
+            ],
             "tool_use",
         ),
         _reply([_text_block("The earlier plan is still valid.")], "end_turn"),
@@ -1721,9 +1755,11 @@ def test_invalid_summary_after_plan_clears_candidate() -> None:
 
 def test_summary_then_later_failure_uses_clarification() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
         _reply(
-            [_tool_block("buy", name="purchase_items", payload={"token": _SECRET})],
+            [
+                _budget_block("s1"),
+                _tool_block("buy", name="purchase_items", payload={"token": _SECRET}),
+            ],
             "tool_use",
         ),
         _reply([_text_block("I will not purchase items.")], "end_turn"),
@@ -1789,7 +1825,10 @@ def test_typed_clarification_then_summary_keeps_typed_error() -> None:
 
 def test_refusal_after_summary_drops_summary_answer() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
+        _reply(
+            [_budget_block("s1"), _budget_block("bad", payload={"invalid": True})],
+            "tool_use",
+        ),
         _reply([_text_block('{"refusal":"secrets"}')], "end_turn"),
     ]
     result, _provider = _run(replies)
@@ -1803,7 +1842,10 @@ def test_refusal_after_summary_drops_summary_answer() -> None:
     assert result["request"] is None
     assert result["evidence_id"] is None
     assert result["planner_revisions"] == 0
-    assert result["tool_trace"] == [_budget_trace("s1")]
+    assert result["tool_trace"] == [
+        _budget_trace("s1"),
+        _budget_trace("bad", sequence=2, outcome="error"),
+    ]
     assert '{"refusal"' not in json.dumps(result)
     _assert_public(result)
 
@@ -1811,9 +1853,11 @@ def test_refusal_after_summary_drops_summary_answer() -> None:
 def test_invalid_summary_clears_prior_summary_fallback() -> None:
     expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
         _reply(
-            [_budget_block("s2", payload={"transactions": [_SECRET]})],
+            [
+                _budget_block("s1"),
+                _budget_block("s2", payload={"transactions": [_SECRET]}),
+            ],
             "tool_use",
         ),
         _reply([_text_block("Available USD $99.00")], "end_turn"),
@@ -1829,9 +1873,10 @@ def test_invalid_summary_clears_prior_summary_fallback() -> None:
 
 
 def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None:
+    over = plan_args(plan_cap_cents=100)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
-        _reply([_tool_block("p2")], "tool_use"),
+        _reply([_budget_block("s1"), _tool_block("p1", payload=over)], "tool_use"),
+        _reply([_tool_block("p2", payload=over)], "tool_use"),
         _reply([_budget_block("s2"), _tool_block("p3")], "tool_use"),
         _reply([_text_block("ready")], "end_turn"),
     ]
@@ -1841,9 +1886,9 @@ def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None
     assert planned["plan"] is not None
     assert planned["evidence_id"] is not None
     limit_replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
-        _reply([_tool_block("p2")], "tool_use"),
-        _reply([_budget_block("s2"), _tool_block("p3")], "tool_use"),
+        _reply([_budget_block("s1"), _tool_block("p1", payload=over)], "tool_use"),
+        _reply([_tool_block("p2", payload=over)], "tool_use"),
+        _reply([_budget_block("s2"), _tool_block("p3", payload=over)], "tool_use"),
         _reply([_tool_block("p4")], "tool_use"),
     ]
     limited, provider = _run(limit_replies)
@@ -1855,10 +1900,13 @@ def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None
     assert limited["planner_revisions"] == MAX_PLANNER_REVISIONS
 
 
-def test_eight_summary_rounds_hit_model_cap_with_zero_planner() -> None:
+def test_eight_invalid_summary_rounds_hit_model_cap_with_zero_planner() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_budget_block(f"s-{turn}-{index}") for index in range(MAX_TOOL_CALLS)],
+            [
+                _budget_block(f"s-{turn}-{index}", payload={"invalid": True})
+                for index in range(MAX_TOOL_CALLS)
+            ],
             "tool_use",
         )
         for turn in range(MAX_MODEL_TURNS)
@@ -1875,7 +1923,346 @@ def test_eight_summary_rounds_hit_model_cap_with_zero_planner() -> None:
         _budget_trace(
             f"s-{turn}-{index}",
             sequence=turn * MAX_TOOL_CALLS + index + 1,
+            outcome="error",
         )
         for turn in range(MAX_MODEL_TURNS)
         for index in range(MAX_TOOL_CALLS)
     ]
+
+
+def test_nonterminal_summary_result_keeps_server_payload() -> None:
+    expected = execute_budget_summary({}, budget(), PERIOD, spending_source="fixture")
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("bad", name="unsupported", payload={}), _budget_block("s1")],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert result["answer"] == CLARIFICATION
+    assert len(provider.requests) == 2
+    messages = provider.requests[1]["messages"]
+    assert isinstance(messages, list)
+    content = messages[-1]["content"]
+    assert isinstance(content, list)
+    assert content[1]["toolResult"]["content"][0]["json"] == expected
+
+
+def test_successful_summary_batch_finishes_all_calls() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block(f"s-{index}") for index in range(3)], "tool_use")
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
+    assert result["model_turns"] == 1
+    assert result["planner_revisions"] == 0
+    assert result["answer"] == budget_summary_answer(
+        budget(), PERIOD, spending_source="fixture"
+    )
+    assert result["tool_trace"] == [
+        _budget_trace(f"s-{index}", sequence=index + 1) for index in range(3)
+    ]
+
+
+@pytest.mark.parametrize("order", ["error_first", "error_last"])
+def test_batch_error_prevents_fast_return_even_with_accepted_plan(order: str) -> None:
+    calls = [_tool_block("ok"), _tool_block("bad", name="unsupported", payload={})]
+    if order == "error_first":
+        calls.reverse()
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(calls, "tool_use"),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["model_turns"] == 2
+    expected_status = "planned" if order == "error_first" else "clarification"
+    assert result["status"] == expected_status
+    assert len(result["tool_trace"]) == 2
+
+
+def test_overbudget_later_plan_and_summary_cannot_finish_early() -> None:
+    over = plan_args(plan_cap_cents=100)
+    expected = execute_plan(over, budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("ok"), _tool_block("over", payload=over), _budget_block("s1")],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert len(result["tool_trace"]) == 3
+    assert result["status"] == "needs_revision"
+    assert result["plan"] == expected["plan"]
+    assert result["answer"] == render_public_answer(expected)
+
+
+def test_missing_price_result_keeps_correction_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_dispatch = loop.dispatch
+
+    def missing_dispatch(
+        call: ToolCall,
+        budget_value: BudgetResult,
+        period: date,
+        user_id: int,
+        source: SpendingSource,
+        trace: list[dict[str, object]],
+        record_evidence: EvidenceRecorder | None = None,
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        payload, block = real_dispatch(
+            call, budget_value, period, user_id, source, trace, record_evidence
+        )
+        if call.tool_use_id == "missing":
+            assert payload is not None
+            plan = payload["plan"]
+            assert isinstance(plan, dict)
+            plan.update(total_cents=None, accepted=False)
+        return payload, block
+
+    monkeypatch.setattr(loop, "dispatch", missing_dispatch)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("missing"), _budget_block("s1")], "tool_use"),
+        _reply([_tool_block("corrected")], "tool_use"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "planned"
+    assert result["planner_revisions"] == 2
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    assert result["answer"] == render_public_answer(expected)
+
+
+def test_planner_cap_finishes_later_budget_call_and_drops_accepted_plan() -> None:
+    over = plan_args(plan_cap_cents=100)
+    recorded: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        recorded.append(copy.deepcopy(payload))
+        return _REV
+
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("p1", payload=over), _tool_block("p2", payload=over)],
+            "tool_use",
+        ),
+        _reply([_tool_block("p3"), _tool_block("p4"), _budget_block("s1")], "tool_use"),
+    ]
+    result, provider = _run(replies, record_evidence=record)
+    assert len(provider.requests) == 2
+    assert result["status"] == "limit"
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
+    assert len(recorded) == MAX_PLANNER_REVISIONS
+    assert [entry["tool_use_id"] for entry in result["tool_trace"]] == [
+        "p1",
+        "p2",
+        "p3",
+        "s1",
+    ]
+    assert result["tool_trace"][-1] == _budget_trace("s1", sequence=4)
+
+
+def test_later_evidence_failure_cannot_be_hidden_by_first_accepted_plan() -> None:
+    recorded: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        recorded.append(copy.deepcopy(payload))
+        if len(recorded) == 2:
+            raise RuntimeError("store-failed")
+        return _REV
+
+    provider = FakeLLM([_reply([_tool_block("p1"), _tool_block("p2")], "tool_use")])
+    with pytest.raises(RuntimeError, match="store-failed"):
+        run_chat(provider, "plan", budget(), PERIOD, record_evidence=record)
+    assert len(recorded) == 2
+    assert len(provider.requests) == 1
+
+
+def test_provider_failure_after_nonterminal_result_stays_unavailable() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [_tool_block("p1", payload=plan_args(plan_cap_cents=100))], "tool_use"
+            ),
+            RuntimeError(_SECRET),
+        ]
+    )
+    with pytest.raises(ChatUnavailable) as caught:
+        run_chat(provider, "plan", budget(), PERIOD)
+    assert str(caught.value) == _UNAVAILABLE
+    _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 2
+
+
+def test_terminal_success_strips_hidden_reasoning_without_followup() -> None:
+    hidden = {"text": "hidden plan"}
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                {"reasoningContent": hidden},
+                _text_block("private intermediate", reasoning=hidden),
+                _tool_block("p1", reasoning=hidden),
+            ],
+            "tool_use",
+        )
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
+    assert result["status"] == "planned"
+    assert "hidden plan" not in json.dumps(result)
+    assert "private intermediate" not in json.dumps(result)
+    _assert_public(result)
+
+
+def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    planner_spec = planner_tool_spec()
+    summary_spec = budget_tool_spec()
+    expected = copy.deepcopy([planner_spec, summary_spec])
+    builds: list[str] = []
+
+    def planner() -> dict[str, object]:
+        builds.append("planner")
+        return planner_spec
+
+    def summary() -> dict[str, object]:
+        builds.append("summary")
+        return summary_spec
+
+    class MutatingLLM(FakeLLM):
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            assert tools == expected
+            response = super().converse(system_prompt, messages, tools)
+            spec = tools[0]["toolSpec"]
+            assert isinstance(spec, dict)
+            spec["inputSchema"] = {"json": {}}
+            tools.clear()
+            return response
+
+    monkeypatch.setattr(loop, "planner_tool_spec", planner)
+    monkeypatch.setattr(loop, "budget_tool_spec", summary)
+    first = MutatingLLM(_planner_then_final(payload=plan_args(plan_cap_cents=100)))
+    result = run_chat(first, "plan", budget(), PERIOD)
+    assert result["status"] == "needs_revision"
+    assert len(first.requests) == 2
+    assert builds == ["planner", "summary"]
+    second = MutatingLLM([_reply([_tool_block("p1")], "tool_use")])
+    assert run_chat(second, "plan", budget(), PERIOD)["status"] == "planned"
+    assert builds == ["planner", "summary", "planner", "summary"]
+    assert [planner_spec, summary_spec] == expected
+
+
+@pytest.mark.parametrize("kind", ["plan", "summary"])
+def test_terminal_result_retains_cache_usage(kind: str) -> None:
+    usage = {
+        "inputTokens": 4,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 9,
+        "cacheWriteInputTokens": 0,
+    }
+    call = _tool_block("p1") if kind == "plan" else _budget_block("s1")
+    result, provider = _run([_reply([call], "tool_use", usage=usage)])
+    assert len(provider.requests) == 1
+    assert result["usage"] == usage
+    assert result["usage"] is not usage
+    assert result["model_turns"] == 1
+
+
+def test_eighth_turn_can_finish_with_accepted_plan() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block(f"bad-{index}", name="unsupported", payload={})], "tool_use"
+        )
+        for index in range(MAX_MODEL_TURNS - 1)
+    ]
+    replies.append(_reply([_tool_block("ok")], "tool_use"))
+    result, provider = _run(replies)
+    assert len(provider.requests) == MAX_MODEL_TURNS
+    assert result["model_turns"] == MAX_MODEL_TURNS
+    assert result["status"] == "planned"
+    assert result["planner_revisions"] == 1
+    assert result["answer"] == render_public_answer(
+        execute_plan(plan_args(), budget(), PERIOD)
+    )
+
+
+def test_cache_usage_sums_across_correction_turns() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("over", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+            usage={
+                "inputTokens": 4,
+                "outputTokens": 5,
+                "cacheReadInputTokens": 0,
+                "cacheWriteInputTokens": 7,
+            },
+        ),
+        _reply(
+            [_tool_block("ok")],
+            "tool_use",
+            usage={
+                "inputTokens": 6,
+                "outputTokens": 7,
+                "cacheReadInputTokens": 9,
+                "cacheWriteInputTokens": 0,
+            },
+        ),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "planned"
+    assert result["usage"] == {
+        "inputTokens": 10,
+        "outputTokens": 12,
+        "cacheReadInputTokens": 9,
+        "cacheWriteInputTokens": 7,
+    }
+
+
+@pytest.mark.parametrize("key", ["cacheReadInputTokens", "cacheWriteInputTokens"])
+@pytest.mark.parametrize("missing_at", [0, 1, 2])
+@pytest.mark.parametrize("value", [None, True, False, -1, 1.0, "1", [], {}, "absent"])
+def test_unknown_cache_usage_does_not_reappear(
+    key: str, missing_at: int, value: object
+) -> None:
+    counts = {
+        "inputTokens": 3,
+        "outputTokens": 4,
+        "cacheReadInputTokens": 5,
+        "cacheWriteInputTokens": 6,
+    }
+    replies: list[dict[str, object] | BaseException] = []
+    for index in range(3):
+        usage: dict[str, object] = dict(counts)
+        if index == missing_at:
+            if value == "absent":
+                usage.pop(key)
+            else:
+                usage[key] = value
+        call = (
+            _tool_block(f"bad-{index}", name="unsupported", payload={})
+            if index < 2
+            else _tool_block("ok")
+        )
+        response = _reply([call], "tool_use")
+        response["usage"] = usage
+        replies.append(response)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 3
+    assert result["status"] == "planned"
+    expected = {name: count * 3 for name, count in counts.items() if name != key}
+    assert result["usage"] == expected
