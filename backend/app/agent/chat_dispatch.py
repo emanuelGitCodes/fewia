@@ -10,6 +10,10 @@ from app.agent.budget_tool import (
     BudgetToolError,
     execute_budget_summary,
 )
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
+)
+from app.agent.catalog_tool import CatalogToolError, execute_catalog_search
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -130,6 +134,27 @@ def dispatch(
     trace: list[dict[str, object]],
     record_evidence: EvidenceRecorder | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
+    if call.name == CATALOG_TOOL_NAME:
+        try:
+            discovery = execute_catalog_search(call.tool_input)
+        except CatalogToolError:
+            discovery = None
+        trace.append(
+            _entry(
+                tool=CATALOG_TOOL_NAME,
+                outcome="error" if discovery is None else "success",
+                tool_use_id=call.tool_use_id,
+                sequence=len(trace) + 1,
+                revision_index=None,
+            )
+        )
+        return discovery, msgs.tool_result_block(
+            call.tool_use_id,
+            {"error": "catalog arguments are invalid"}
+            if discovery is None
+            else discovery,
+            success=discovery is not None,
+        )
     if call.name == BUDGET_TOOL_NAME:
         return _dispatch_budget(call, budget, period, source, trace)
     if call.name != TOOL_NAME:

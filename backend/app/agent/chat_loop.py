@@ -10,6 +10,10 @@ from app.agent.budget_tool import (
     budget_summary_answer,
     budget_tool_spec,
 )
+from app.agent.catalog_tool import DISCOVERY_ERROR, catalog_tool_spec
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
+)
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import build_messages, sum_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
@@ -19,29 +23,9 @@ from app.agent.provider import LLMProvider
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
-from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS, SEARCH_TERMS
 
 MAX_MODEL_TURNS = 8
 MAX_PLANNER_REVISIONS = 3
-
-
-def _label_pairs() -> str:
-    pairs = []
-    for rid, tags in MEAL_TAGS.items():
-        pairs.append(f"{rid}:{','.join((*MEAL_DIETS[rid], *tags))}")
-    return ", ".join(pairs)
-
-
-def _term_rules() -> str:
-    terms_by_target: dict[str, list[str]] = {}
-    for term, (target, _note) in SEARCH_TERMS.items():
-        terms_by_target.setdefault(target, []).append(term)
-    return "".join(
-        f"When the user asks for {', '.join(terms)}, "
-        f"offer catalog meals tagged {target}. "
-        for target, terms in terms_by_target.items()
-    )
-
 
 SYSTEM_PROMPT = (
     "You plan grocery meals. Catalog IDs are authoritative: "
@@ -100,11 +84,11 @@ SYSTEM_PROMPT = (
     "You MUST NOT translate a restriction group such as nightshades into catalog IDs. "
     "The tool rejects unknown terms and asks the user. "
     "Ask the user before you choose an alternative. "
-    "Catalog meal labels are id:labels pairs: "
-    f"{_label_pairs()}. "
+    "For meal discovery and meal-type requests, you MUST call find_catalog_meals. "
+    "Include effective diet and exact exclusions from the latest user message "
+    "and validated prior request. Do not infer hidden preferences. "
     "high_protein means 30 g or more protein per serving. "
     "lower_carb means 30 g or less carbohydrate per serving. "
-    f"{_term_rules()}"
     "No meal in this catalog is keto. No meal is strictly carnivore. "
     "gluten_free_ingredients describes the ingredients only. "
     "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe. "
@@ -196,11 +180,37 @@ def run_chat(
     candidate: dict[str, object] | None = None
     last_error: dict[str, object] | None = None
     summary_ok = False
+    discovery: dict[str, object] | None = None
+    discovery_failed = False
+    other_failed = False
+    catalog_batch = False
     revisions = 0
     turns = 0
     usage: dict[str, int] | None = {"inputTokens": 0, "outputTokens": 0}
-    tools = [planner_tool_spec(), budget_tool_spec()]
+    tools = [planner_tool_spec(), budget_tool_spec(), catalog_tool_spec()]
     pending_results: list[dict[str, object]] | None = None
+
+    def answer() -> str:
+        if not catalog_batch:
+            if candidate is None and last_error is None and summary_ok:
+                return budget_summary_answer(
+                    budget, period, spending_source=spending_source
+                )
+            return render_public_answer(candidate, last_error)
+        parts: list[str] = []
+        if candidate is not None or last_error is not None:
+            parts.append(render_public_answer(candidate, last_error))
+        if discovery_failed:
+            parts.append(DISCOVERY_ERROR)
+        elif discovery is not None:
+            parts.append(render_public_answer(None, discovery=discovery))
+        if summary_ok:
+            parts.append(
+                budget_summary_answer(budget, period, spending_source=spending_source)
+            )
+        if other_failed and parts:
+            parts.append("A tool call failed. Check the request.")
+        return " ".join(parts) if parts else render_public_answer(None)
 
     def out(
         status: str, answer: str, plan: dict[str, object] | None
@@ -239,13 +249,7 @@ def run_chat(
                 refused = parse_refusal(text)
                 if refused is not None:
                     return out("clarification", refused, None)
-                if candidate is None and last_error is None and summary_ok:
-                    answer = budget_summary_answer(
-                        budget, period, spending_source=spending_source
-                    )
-                    return out("clarification", answer, None)
-                answer = render_public_answer(candidate, last_error)
-                return out(_end_status(candidate), answer, candidate)
+                return out(_end_status(candidate), answer(), candidate)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
@@ -253,6 +257,12 @@ def run_chat(
         blocks: list[dict[str, object]] = []
         batch_ok = True
         planner_limit = False
+        other_failed = False
+        catalog_batch = any(call.name == CATALOG_TOOL_NAME for call in calls)
+        if not catalog_batch:
+            discovery = None
+            discovery_failed = False
+        catalog_seen = False
         for call in calls:
             heartbeat()
             if call.name == TOOL_NAME:
@@ -284,28 +294,42 @@ def run_chat(
             batch_ok = batch_ok and success
             if call.name == TOOL_NAME and _end_status(payload) != "planned":
                 batch_ok = False
-            if call.name == BUDGET_TOOL_NAME and success:
-                summary_ok = True
-            else:
+            if not catalog_batch:
+                if call.name == BUDGET_TOOL_NAME:
+                    summary_ok = success
+                if call.name == TOOL_NAME or not success:
+                    candidate = payload
+                    last_error = error
+                blocks.append(block)
+                continue
+            if call.name == CATALOG_TOOL_NAME:
+                if not catalog_seen:
+                    discovery_failed = False
+                    catalog_seen = True
+                discovery = payload
+                discovery_failed = discovery_failed or not success
+            elif call.name == BUDGET_TOOL_NAME:
+                summary_ok = summary_ok or success
+                other_failed = other_failed or not success
+            elif call.name == TOOL_NAME:
                 candidate = payload
                 last_error = error
-                summary_ok = False
+            else:
+                other_failed = True
             blocks.append(block)
         messages.append({"role": "user", "content": blocks})
         pending_results = blocks
         if planner_limit:
             return out("limit", _LIMIT, None)
         if batch_ok and candidate is not None and _end_status(candidate) == "planned":
-            return out("planned", render_public_answer(candidate), candidate)
+            return out("planned", answer(), candidate)
         if (
             batch_ok
-            and summary_ok
             and candidate is None
             and last_error is None
-            and all(call.name == BUDGET_TOOL_NAME for call in calls)
+            and not other_failed
+            and not discovery_failed
+            and (summary_ok or discovery is not None)
         ):
-            answer = budget_summary_answer(
-                budget, period, spending_source=spending_source
-            )
-            return out("clarification", answer, None)
+            return out("clarification", answer(), None)
     return out("limit", _LIMIT, None)

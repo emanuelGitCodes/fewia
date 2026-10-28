@@ -10,6 +10,10 @@ from app.agent.budget_tool import (
 from app.agent.budget_tool import (
     execute_budget_summary,
 )
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
+)
+from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
@@ -1018,3 +1022,50 @@ def test_budget_summary_then_planner_revision_index_skips_summary() -> None:
     assert trace[1]["revision_index"] == 1
     assert trace[1]["sequence"] == 2
     assert trace[1]["evidence_revision_id"] == _REV
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_discovery_dispatch_has_bounded_result_and_no_evidence(invalid: bool) -> None:
+    args: dict[str, object] = {
+        "terms": ["egg"],
+        "diet": "vegetarian",
+        "ingredient_exclusions": [],
+    }
+    if invalid:
+        args["prose"] = _SECRET
+    trace: list[dict[str, object]] = []
+
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("Discovery MUST NOT record plan evidence")
+
+    payload, block = dispatch(
+        ToolCall("d1", CATALOG_TOOL_NAME, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert trace == [
+        {
+            "tool": CATALOG_TOOL_NAME,
+            "outcome": "error" if invalid else "success",
+            "tool_use_id": "d1",
+            "sequence": 1,
+            "revision_index": None,
+        }
+    ]
+    assert _SECRET not in json.dumps([payload, block, trace])
+    if invalid:
+        assert payload is None
+        assert _tool_json(block) == {"error": "catalog arguments are invalid"}
+    else:
+        assert payload == execute_catalog_search(args)
+        assert _tool_json(block) == payload
+        assert payload is not None
+        assert "evidence_id" not in payload
+    _plan, _block = dispatch(
+        ToolCall("p1", TOOL_NAME, arguments()), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert trace[1]["revision_index"] == 1

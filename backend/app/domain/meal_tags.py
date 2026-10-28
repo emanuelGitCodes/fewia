@@ -51,6 +51,26 @@ SEARCH_TERMS: dict[str, tuple[str, str | None]] = {
 }
 
 
+def normalize_term(value: str) -> str:
+    return " ".join(value.lower().split())
+
+
+def resolve_meal_term(value: str) -> str | None:
+    term = normalize_term(value)
+    if term in (*TAG_ORDER, "omnivore", "vegetarian", "vegan"):
+        return term
+    alias = SEARCH_TERMS.get(term)
+    return None if alias is None else alias[0]
+
+
+def resolve_ingredient(value: str) -> str | None:
+    term = normalize_term(value)
+    for ingredient in INGREDIENTS.values():
+        if term in (ingredient.id, ingredient.name):
+            return ingredient.id
+    return None
+
+
 def _per_serving_grams(recipe_id: str) -> tuple[float, float]:
     request = GroceryRequest(
         meals=[MealRequest(recipe_id=recipe_id, servings=1)],

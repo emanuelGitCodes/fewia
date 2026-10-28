@@ -38,7 +38,12 @@ class ScriptedProvider:
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
         assert system_prompt == chat_loop.SYSTEM_PROMPT
-        assert len(tools) == 2
+        specs = [cast(dict[str, object], tool["toolSpec"]) for tool in tools]
+        assert [spec["name"] for spec in specs] == [
+            "plan_groceries",
+            "get_budget_summary",
+            "find_catalog_meals",
+        ]
         self.messages.append(deepcopy(messages))
         response = self.responses.pop(0)
         if isinstance(response, BaseException):

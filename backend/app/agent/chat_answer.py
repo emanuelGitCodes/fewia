@@ -1,5 +1,6 @@
 from typing import get_args
 
+from app.agent.catalog_tool import catalog_answer
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS, Diet
@@ -154,6 +155,7 @@ def _input_clarification(error: dict[str, object]) -> str | None:
 def render_public_answer(
     candidate: dict[str, object] | None,
     tool_error: dict[str, object] | None = None,
+    discovery: dict[str, object] | None = None,
 ) -> str:
     if candidate is not None:
         planned = _plan_answer(candidate)
@@ -172,4 +174,6 @@ def render_public_answer(
         typed = _input_clarification(tool_error)
         if typed is not None:
             return typed
+    if discovery is not None and tool_error is None:
+        return catalog_answer(discovery)
     return CLARIFICATION

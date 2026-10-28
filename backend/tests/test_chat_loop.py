@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from datetime import date
+from itertools import permutations
 from typing import Literal, cast
 
 import pytest
@@ -17,6 +18,15 @@ from app.agent.budget_tool import (
     budget_summary_answer,
     budget_tool_spec,
     execute_budget_summary,
+)
+from app.agent.catalog_tool import (
+    DISCOVERY_ERROR,
+    catalog_answer,
+    catalog_tool_spec,
+    execute_catalog_search,
+)
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.chat_answer import (
     _UNKNOWN_RESTRICTION,
@@ -36,7 +46,7 @@ from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
-from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS
+from app.domain.meal_tags import SEARCH_TERMS
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -208,7 +218,7 @@ def _reply(
 
 
 def _chat_tools() -> list[dict[str, object]]:
-    return [planner_tool_spec(), budget_tool_spec()]
+    return [planner_tool_spec(), budget_tool_spec(), catalog_tool_spec()]
 
 
 def _budget_block(
@@ -950,40 +960,27 @@ def test_system_prompt_requires_restriction_clarification() -> None:
     assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
 
 
-def test_system_prompt_lists_every_recipe_label_pair() -> None:
-    assert "Catalog meal labels are id:labels pairs: " in SYSTEM_PROMPT
-    assert len(MEAL_TAGS) == len(SUPPORTED_RECIPE_IDS)
-    assert list(MEAL_DIETS) == list(SUPPORTED_RECIPE_IDS)
-    for recipe_id, tags in MEAL_TAGS.items():
-        diets = MEAL_DIETS[recipe_id]
-        labels = (*diets, *tags)
-        assert labels, recipe_id
-        assert f"{recipe_id}:{','.join(labels)}" in SYSTEM_PROMPT
-        assert f"{recipe_id}:," not in SYSTEM_PROMPT
-        assert f"{recipe_id}:, " not in SYSTEM_PROMPT
-    assert "bean_tacos:vegan,vegetarian,beans,gluten_free_ingredients" in SYSTEM_PROMPT
+def test_prompt_and_all_schemas_are_below_item01_baseline() -> None:
+    serialized = json.dumps(
+        {"system": SYSTEM_PROMPT, "tools": _chat_tools()},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert len(serialized) < 9503, len(serialized)
+    assert "Catalog meal labels are id:labels pairs:" not in SYSTEM_PROMPT
+    assert "bean_tacos:vegan,vegetarian,beans" not in SYSTEM_PROMPT
+    assert "MUST call find_catalog_meals" in SYSTEM_PROMPT
 
 
-def test_system_prompt_states_tag_thresholds_and_terms() -> None:
+def test_system_prompt_states_tag_thresholds_and_tool_spec_lists_terms() -> None:
     assert "high_protein means 30 g or more protein per serving." in SYSTEM_PROMPT
     assert "lower_carb means 30 g or less carbohydrate per serving." in SYSTEM_PROMPT
-    assert (
-        "When the user asks for keto, low carb, lowcarb, low-carb, "
-        "offer catalog meals tagged lower_carb."
-    ) in SYSTEM_PROMPT
-    assert (
-        "When the user asks for carnivore, meat, offer catalog meals tagged chicken."
-    ) in SYSTEM_PROMPT
-    assert (
-        "When the user asks for gf, gluten free, gluten-free, celiac, "
-        "offer catalog meals tagged gluten_free_ingredients."
-    ) in SYSTEM_PROMPT
-    assert "tagged vegan." in SYSTEM_PROMPT
-    assert "tagged vegetarian." in SYSTEM_PROMPT
-    assert (
-        "When the user asks for protein, offer catalog meals tagged high_protein."
-        in (SYSTEM_PROMPT)
-    )
+    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
+    description = cast(str, spec["description"])
+    terms = description.split("Terms: ", 1)[1].removesuffix(".").split(", ")
+    assert set(SEARCH_TERMS) <= set(terms)
+    assert {"vegan", "vegetarian", "high_protein", "lower_carb"} <= set(terms)
+    assert "When the user asks for keto," not in SYSTEM_PROMPT
 
 
 def test_system_prompt_states_the_honest_tag_caveats() -> None:
@@ -1360,9 +1357,9 @@ def test_malformed_later_error_clears_candidate_or_exclusion_conflict(
     assert result["answer"] == CLARIFICATION
     assert result["plan"] is None
     assert result["evidence_id"] is None
-    assert result["evidence_revision_id"] is None
     assert "onion" not in result["answer"]
     assert "Change the recipe or the restriction." not in result["answer"]
+    assert result["evidence_revision_id"] is None
     assert "Need a meal choice." not in result["answer"]
     _assert_public(result)
 
@@ -1815,6 +1812,14 @@ def test_typed_clarification_then_summary_keeps_typed_error() -> None:
     assert result["status"] == "clarification"
     assert "onion" in answer
     assert "Change the recipe or the restriction." in answer
+    assert answer == render_public_answer(
+        None,
+        {
+            "error_code": "exclusion_reject",
+            "recipe_id": "vegetable_pasta",
+            "ingredient_id": "onion",
+        },
+    )
     assert "Here is your remaining budget." not in answer
     assert result["plan"] is None
     assert result["evidence_id"] is None
@@ -1977,8 +1982,13 @@ def test_batch_error_prevents_fast_return_even_with_accepted_plan(order: str) ->
     result, provider = _run(replies)
     assert len(provider.requests) == 2
     assert result["model_turns"] == 2
-    expected_status = "planned" if order == "error_first" else "clarification"
-    assert result["status"] == expected_status
+    assert result["status"] == (
+        "planned" if order == "error_first" else "clarification"
+    )
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    assert result["answer"] == (
+        render_public_answer(expected) if order == "error_first" else CLARIFICATION
+    )
     assert len(result["tool_trace"]) == 2
 
 
@@ -2126,7 +2136,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
 ) -> None:
     planner_spec = planner_tool_spec()
     summary_spec = budget_tool_spec()
-    expected = copy.deepcopy([planner_spec, summary_spec])
+    expected = copy.deepcopy([planner_spec, summary_spec, catalog_tool_spec()])
     builds: list[str] = []
 
     def planner() -> dict[str, object]:
@@ -2162,7 +2172,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
     second = MutatingLLM([_reply([_tool_block("p1")], "tool_use")])
     assert run_chat(second, "plan", budget(), PERIOD)["status"] == "planned"
     assert builds == ["planner", "summary", "planner", "summary"]
-    assert [planner_spec, summary_spec] == expected
+    assert [planner_spec, summary_spec, catalog_tool_spec()] == expected
 
 
 @pytest.mark.parametrize("kind", ["plan", "summary"])
@@ -2266,3 +2276,569 @@ def test_unknown_cache_usage_does_not_reappear(
     assert result["status"] == "planned"
     expected = {name: count * 3 for name, count in counts.items() if name != key}
     assert result["usage"] == expected
+
+
+def _discovery_block(tool_id: str = "d1", **changes: object) -> dict[str, object]:
+    args: dict[str, object] = {
+        "terms": ["egg"],
+        "diet": "vegetarian",
+        "ingredient_exclusions": [],
+    }
+    args.update(changes)
+    return _tool_block(tool_id, name=CATALOG_TOOL_NAME, payload=args)
+
+
+def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
+    usage = {
+        "inputTokens": 4,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 7,
+        "cacheWriteInputTokens": 0,
+    }
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    {"reasoningContent": {"text": "hidden-discovery"}},
+                    _text_block("injected-model-prose"),
+                    _discovery_block(),
+                ],
+                "tool_use",
+                usage=usage,
+            )
+        ]
+    )
+    captured: list[list[dict[str, object]]] = []
+    pulse = Heartbeats()
+
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("Discovery MUST NOT record plan evidence")
+
+    result = run_chat(
+        provider,
+        "egg meals",
+        budget(),
+        PERIOD,
+        heartbeat=pulse,
+        record_evidence=record,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == len(captured) == 1
+    assert len(captured[0]) == 1
+    tool_result = cast(dict[str, object], captured[0][0]["toolResult"])
+    content = cast(list[dict[str, object]], tool_result["content"])
+    expected = execute_catalog_search(
+        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
+    )
+    assert content == [{"json": expected}]
+    assert result["answer"] == catalog_answer(expected)
+    assert "Breakfast burritos" in result["answer"]
+    assert "bean tacos" not in result["answer"]
+    assert result["status"] == "clarification"
+    assert result["planner_revisions"] == 0
+    assert result["model_turns"] == 1
+    assert result["usage"] == usage
+    assert result["plan"] is result["request"] is result["evidence_id"] is None
+    assert pulse.count == 3
+    dumped = json.dumps([result, captured])
+    assert "hidden-discovery" not in dumped
+    assert "injected-model-prose" not in dumped
+    assert "reasoningContent" not in dumped
+
+
+@pytest.mark.parametrize("discovery_position", [0, 1, 2])
+@pytest.mark.parametrize("later_revision", ["invalid_servings", "over_budget"])
+def test_discovery_preserves_ordered_planner_revisions(
+    discovery_position: int, later_revision: str
+) -> None:
+    first = execute_plan(plan_args(), budget(), PERIOD)
+    assert cast(dict[str, object], first["plan"])["accepted"] is True
+    later_args = (
+        plan_args(meals=[{"recipe_id": "chicken_tacos", "servings": 9}])
+        if later_revision == "invalid_servings"
+        else plan_args(plan_cap_cents=100)
+    )
+    calls = [_tool_block("p1"), _tool_block("p2", payload=later_args)]
+    calls.insert(discovery_position, _discovery_block())
+    provider = FakeLLM(
+        [
+            _reply(calls, "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    records: list[dict[str, object]] = []
+    captured: list[list[dict[str, object]]] = []
+    revision_ids = [_REV, "b" * 64]
+
+    def record(payload: dict[str, object]) -> str:
+        records.append(copy.deepcopy(payload))
+        return revision_ids[len(records) - 1]
+
+    result = run_chat(
+        provider,
+        "plan and find egg meals",
+        budget(),
+        PERIOD,
+        record_evidence=record,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == result["model_turns"] == 2
+    assert result["planner_revisions"] == 2
+    assert captured == []
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    planner_sequences = [
+        sequence for sequence in range(1, 4) if sequence != discovery_position + 1
+    ]
+    expected_trace = [
+        _success_trace(
+            "p1",
+            first["evidence_id"],
+            sequence=planner_sequences[0],
+            revision_id=revision_ids[0],
+        )
+    ]
+    if later_revision == "invalid_servings":
+        assert result["status"] == "clarification"
+        for field in (
+            "plan",
+            "budget",
+            "request",
+            "evidence_id",
+            "evidence_revision_id",
+        ):
+            assert result[field] is None
+        expected_trace.append(
+            _error_trace(
+                TOOL_NAME, "p2", sequence=planner_sequences[1], revision_index=2
+            )
+        )
+        assert records == [first]
+    else:
+        later = execute_plan(later_args, budget(), PERIOD)
+        assert cast(dict[str, object], later["plan"])["accepted"] is False
+        assert result["status"] == "needs_revision"
+        for field in ("plan", "budget", "request", "evidence_id"):
+            assert result[field] == later[field]
+        assert result["evidence_revision_id"] == revision_ids[1]
+        expected_trace.append(
+            _success_trace(
+                "p2",
+                later["evidence_id"],
+                sequence=planner_sequences[1],
+                revision_index=2,
+                revision_id=revision_ids[1],
+            )
+        )
+        assert records == [first, later]
+    expected_trace.insert(
+        discovery_position,
+        {
+            "tool": CATALOG_TOOL_NAME,
+            "outcome": "success",
+            "tool_use_id": "d1",
+            "sequence": discovery_position + 1,
+            "revision_index": None,
+        },
+    )
+    assert result["tool_trace"] == expected_trace
+    messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+    blocks = cast(list[dict[str, object]], messages[-1]["content"])
+    assert [block["toolResult"]["toolUseId"] for block in blocks] == [
+        call["toolUse"]["toolUseId"] for call in calls
+    ]
+    expected_statuses = [
+        "success",
+        "error" if later_revision == "invalid_servings" else "success",
+    ]
+    expected_statuses.insert(discovery_position, "success")
+    assert [block["toolResult"]["status"] for block in blocks] == expected_statuses
+    assert "injected-model-prose" not in result["answer"]
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("order", list(permutations(["discovery", "plan", "budget"])))
+@pytest.mark.parametrize(
+    "mode", ["accepted", "over", "plan_error", "discovery_error", "budget_error"]
+)
+def test_mixed_discovery_precedence_is_order_independent(
+    order: tuple[str, ...], mode: str
+) -> None:
+    args = plan_args()
+    if mode == "over":
+        args["plan_cap_cents"] = 100
+    elif mode == "plan_error":
+        args.update(
+            meals=[{"recipe_id": "vegetable_pasta", "servings": 1}],
+            ingredient_exclusions=["onion"],
+        )
+    calls = {
+        "discovery": _discovery_block(terms=["nightshades"])
+        if mode == "discovery_error"
+        else _discovery_block(),
+        "plan": _tool_block("p1", payload=args),
+        "budget": _budget_block("s1", payload={"prose": _SECRET})
+        if mode == "budget_error"
+        else _budget_block("s1"),
+    }
+    provider = FakeLLM(
+        [
+            _reply([calls[name] for name in order], "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    records: list[dict[str, object]] = []
+    captured: list[list[dict[str, object]]] = []
+    pulse = Heartbeats()
+
+    def record(payload: dict[str, object]) -> str:
+        records.append(payload)
+        return _REV
+
+    result = run_chat(
+        provider,
+        "plan and find egg meals",
+        budget(),
+        PERIOD,
+        record_evidence=record,
+        heartbeat=pulse,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == (1 if mode == "accepted" else 2)
+    assert pulse.count == (5 if mode == "accepted" else 7)
+    assert result["planner_revisions"] == 1
+    assert len(result["tool_trace"]) == 3
+    assert [entry["tool"] for entry in result["tool_trace"]] == [
+        {
+            "discovery": CATALOG_TOOL_NAME,
+            "plan": TOOL_NAME,
+            "budget": BUDGET_TOOL_NAME,
+        }[name]
+        for name in order
+    ]
+    assert result["usage"] == {
+        "inputTokens": len(provider.requests),
+        "outputTokens": len(provider.requests),
+    }
+    if mode == "plan_error":
+        assert result["status"] == "clarification"
+        assert "onion" in result["answer"]
+        assert "Change the recipe or the restriction." in result["answer"]
+        assert result["evidence_id"] is None
+        assert result["evidence_revision_id"] is None
+        assert result["plan"] is None
+        assert not records
+        planner_answer = render_public_answer(
+            None,
+            {
+                "error_code": "exclusion_reject",
+                "recipe_id": "vegetable_pasta",
+                "ingredient_id": "onion",
+            },
+        )
+    else:
+        expected = execute_plan(args, budget(), PERIOD)
+        assert result["plan"] == expected["plan"]
+        assert result["evidence_id"] == expected["evidence_id"]
+        assert result["evidence_revision_id"] == _REV
+        assert result["status"] == ("needs_revision" if mode == "over" else "planned")
+        assert result["answer"].startswith(render_public_answer(expected))
+        assert len(records) == 1
+        planner_answer = render_public_answer(expected)
+    discovery_answer = (
+        DISCOVERY_ERROR
+        if mode == "discovery_error"
+        else catalog_answer(
+            execute_catalog_search(
+                {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
+            )
+        )
+    )
+    summary_answer = (
+        "A tool call failed. Check the request."
+        if mode == "budget_error"
+        else budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    )
+    expected_answer = " ".join([planner_answer, discovery_answer, summary_answer])
+    assert result["answer"] == expected_answer
+    if mode == "discovery_error":
+        assert DISCOVERY_ERROR in result["answer"]
+    if mode == "budget_error":
+        assert "A tool call failed." in result["answer"]
+    assert "injected-model-prose" not in result["answer"]
+    if mode == "accepted":
+        assert len(captured) == 1
+        assert len(captured[0]) == 3
+    else:
+        assert captured == []
+        messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+        assert len(cast(list[object], messages[-1]["content"])) == 3
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("order", [False, True])
+def test_discovery_and_budget_return_both_in_one_call(order: bool) -> None:
+    calls = [_discovery_block(), _budget_block("s1")]
+    if order:
+        calls.reverse()
+    provider = FakeLLM([_reply(calls, "tool_use")])
+    captured: list[list[dict[str, object]]] = []
+    pulse = Heartbeats()
+    result = run_chat(
+        provider,
+        "find egg meals and show my budget",
+        budget(),
+        PERIOD,
+        heartbeat=pulse,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == len(captured) == 1
+    assert len(captured[0]) == 2
+    assert pulse.count == 4
+    assert result["status"] == "clarification"
+    assert result["model_turns"] == 1
+    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
+    assert result["planner_revisions"] == 0
+    discovery = execute_catalog_search(
+        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
+    )
+    assert result["answer"] == (
+        catalog_answer(discovery)
+        + " "
+        + budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    )
+    assert result["plan"] is result["evidence_id"] is None
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("failure", ["budget", "unsupported", "discovery"])
+def test_discovery_mixed_failure_preserves_each_outcome(
+    reverse: bool, failure: str
+) -> None:
+    discovery = execute_catalog_search(
+        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
+    )
+    if failure == "discovery":
+        calls = [_discovery_block(terms=["nightshades"]), _budget_block("s1")]
+        expected = (
+            DISCOVERY_ERROR
+            + " "
+            + budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+        )
+    else:
+        failed = (
+            _budget_block("bad", payload={"prose": _SECRET})
+            if failure == "budget"
+            else _tool_block("bad", name="unsupported", payload={"prose": _SECRET})
+        )
+        calls = [_discovery_block(), failed]
+        expected = catalog_answer(discovery) + " A tool call failed. Check the request."
+    if reverse:
+        calls.reverse()
+    provider = FakeLLM(
+        [
+            _reply(calls, "tool_use"),
+            _reply(
+                [_text_block("injected-model-prose USD $0 https://evil.test Buy")],
+                "end_turn",
+            ),
+        ]
+    )
+    captured: list[list[dict[str, object]]] = []
+    result = run_chat(
+        provider,
+        "find meals and show my budget",
+        budget(),
+        PERIOD,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert result["answer"] == expected
+    assert result["status"] == "clarification"
+    assert result["planner_revisions"] == 0
+    assert result["model_turns"] == len(provider.requests) == 2
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    assert result["plan"] is result["evidence_id"] is None
+    assert captured == []
+    assert len(result["tool_trace"]) == 2
+    assert sorted(entry["outcome"] for entry in result["tool_trace"]) == [
+        "error",
+        "success",
+    ]
+    messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+    assert len(cast(list[object], messages[-1]["content"])) == 2
+    assert "injected-model-prose" not in result["answer"]
+    _assert_public(result)
+
+
+def test_discovery_failure_can_be_corrected_without_planner_revision() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block("bad", terms=["nightshades"])], "tool_use"),
+            _reply([_discovery_block("good")], "tool_use"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert "Catalog choices:" in result["answer"]
+    assert DISCOVERY_ERROR not in result["answer"]
+    assert result["planner_revisions"] == 0
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_discovery_batch_keeps_successful_summary_alongside_failed_summary(
+    reverse: bool,
+) -> None:
+    calls = [
+        _discovery_block(),
+        _budget_block("ok"),
+        _budget_block("bad", payload={"prose": _SECRET}),
+    ]
+    if reverse:
+        calls.reverse()
+    result, provider = _run(
+        [
+            _reply(calls, "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    discovery = execute_catalog_search(
+        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
+    )
+    assert result["answer"] == (
+        catalog_answer(discovery)
+        + " "
+        + budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+        + " A tool call failed. Check the request."
+    )
+    assert result["status"] == "clarification"
+    assert result["plan"] is result["evidence_id"] is None
+    assert result["planner_revisions"] == 0
+    assert len(provider.requests) == 2
+    _assert_public(result)
+
+
+def test_later_batch_without_discovery_restores_generic_failure() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [
+                    _discovery_block(),
+                    _tool_block("p1"),
+                    _budget_block("bad", payload={"invalid": True}),
+                ],
+                "tool_use",
+            ),
+            _reply([_tool_block("unsupported", name="unsupported")], "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == CLARIFICATION
+    assert result["status"] == "clarification"
+    assert result["plan"] is result["evidence_id"] is None
+    assert result["planner_revisions"] == 1
+    assert len(provider.requests) == 3
+    _assert_public(result)
+
+
+def test_summary_after_discovery_error_uses_summary_fast_return() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block(terms=[])], "tool_use"),
+            _reply([_budget_block("s1")], "tool_use"),
+        ]
+    )
+    assert result["answer"] == budget_summary_answer(
+        budget(), PERIOD, spending_source="fixture"
+    )
+    assert result["status"] == "clarification"
+    assert result["model_turns"] == len(provider.requests) == 2
+    assert result["planner_revisions"] == 0
+    assert result["plan"] is result["evidence_id"] is None
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("changes", [{"price": 0}, {"terms": []}])
+def test_invalid_discovery_cannot_show_model_suggestions(
+    changes: dict[str, object],
+) -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block(**changes)], "tool_use"),
+            _reply(
+                [_text_block("Try sushi for USD $0 at https://evil.test")], "end_turn"
+            ),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["answer"] == DISCOVERY_ERROR
+    assert result["plan"] is None
+
+
+def test_discovery_errors_obey_model_turn_cap() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block(f"d-{turn}", diet="keto")], "tool_use")
+            for turn in range(MAX_MODEL_TURNS)
+        ]
+    )
+    assert len(provider.requests) == MAX_MODEL_TURNS
+    assert result["status"] == "limit"
+    assert result["planner_revisions"] == 0
+    assert len(result["tool_trace"]) == MAX_MODEL_TURNS
+
+
+def test_discovery_cannot_bypass_planner_revision_cap() -> None:
+    over = plan_args(plan_cap_cents=100)
+    provider = FakeLLM(
+        [
+            _reply([_tool_block(f"p-{turn}", payload=over)], "tool_use")
+            for turn in range(MAX_PLANNER_REVISIONS)
+        ]
+        + [_reply([_tool_block("limit"), _discovery_block()], "tool_use")]
+    )
+    captured: list[list[dict[str, object]]] = []
+    result = run_chat(
+        provider,
+        "plan",
+        budget(),
+        PERIOD,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert result["status"] == "limit"
+    assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
+    assert result["tool_trace"][-1]["tool"] == CATALOG_TOOL_NAME
+    assert len(captured) == 1
+    assert len(captured[0]) == 2
+
+
+def test_provider_failure_after_discovery_error_is_static() -> None:
+    provider = FakeLLM(
+        [
+            _reply([_discovery_block(terms=["nightshades"])], "tool_use"),
+            RuntimeError(_SECRET),
+        ]
+    )
+    with pytest.raises(ChatUnavailable) as caught:
+        run_chat(provider, "find meals", budget(), PERIOD)
+    assert str(caught.value) == _UNAVAILABLE
+    _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 2
+
+
+@pytest.mark.parametrize("failure", ["secret-marker", "incomplete-capture"])
+def test_discovery_terminal_observer_failure_propagates(failure: str) -> None:
+    provider = FakeLLM([_reply([_discovery_block()], "tool_use")])
+    observed: list[list[dict[str, object]]] = []
+
+    def observe(blocks: list[dict[str, object]]) -> None:
+        observed.append(blocks)
+        raise RuntimeError(failure)
+
+    with pytest.raises(RuntimeError, match=failure):
+        run_chat(
+            provider,
+            "egg meals",
+            budget(),
+            PERIOD,
+            observe_terminal_tool_results=observe,
+        )
+    assert len(provider.requests) == len(observed) == 1

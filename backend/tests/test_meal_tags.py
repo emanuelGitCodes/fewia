@@ -11,6 +11,9 @@ from app.domain.meal_tags import (
     SEARCH_TERMS,
     TAG_ORDER,
     _per_serving_grams,
+    normalize_term,
+    resolve_ingredient,
+    resolve_meal_term,
 )
 
 
@@ -124,3 +127,17 @@ def test_search_term_table() -> None:
         "veggie",
         "protein",
     ]
+
+
+def test_resolvers_use_only_canonical_terms_and_exact_ingredients() -> None:
+    assert normalize_term("  LOW   CARB ") == "low carb"
+    for term, (target, _note) in SEARCH_TERMS.items():
+        assert resolve_meal_term(f" {term.upper()} ") == target
+    for term in (*TAG_ORDER, "omnivore", "vegetarian", "vegan"):
+        assert resolve_meal_term(term) == term
+    for ingredient in INGREDIENTS.values():
+        assert resolve_ingredient(ingredient.id) == ingredient.id
+        assert resolve_ingredient(f" {ingredient.name.upper()} ") == ingredient.id
+    for unknown in ("nightshades", "dairy", "gluten", "paleo", "", " "):
+        assert resolve_meal_term(unknown) is None
+        assert resolve_ingredient(unknown) is None
