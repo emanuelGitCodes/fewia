@@ -804,7 +804,9 @@ describe("TonightPrototype", () => {
       expect(document.getElementById("meal-filter-note")?.textContent).toBe(
         "No meal is strictly carnivore. These meals include chicken.",
       );
-      expect(textOf(buttonNamed("Chicken curry"))).toContain("Chicken · High protein");
+      expect(textOf(buttonNamed("Chicken curry"))).toContain(
+        "Chicken · High protein · Gluten-free ingredients",
+      );
     });
 
     it("shows the diets on a plan card and no image on a tile without a photo", () => {

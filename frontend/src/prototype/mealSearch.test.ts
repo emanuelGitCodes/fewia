@@ -24,10 +24,7 @@ describe("SEARCH_TERMS", () => {
       for (const term of terms) {
         expect(SEARCH_TERMS[term]).toBeDefined();
         const found = filterMeals(term);
-        for (const id of expected) {
-          expect(found).toContain(id);
-        }
-        expect(found).toEqual(RECIPE_ORDER.filter((id) => found.includes(id)));
+        expect(found).toEqual(expected);
       }
     });
   }
@@ -75,15 +72,27 @@ describe("filterMeals", () => {
 });
 
 describe("searchNote", () => {
-  it("returns the keto and carnivore notes", () => {
-    expect(searchNote("Keto")).toBe(
-      "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving.",
-    );
-    expect(searchNote("meat")).toBe("No meal is strictly carnivore. These meals include chicken.");
+  const ketoNote =
+    "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving.";
+  const carnivoreNote = "No meal is strictly carnivore. These meals include chicken.";
+
+  it("returns the note for every term that has one", () => {
+    for (const term of ["keto", "low carb", "lowcarb", "low-carb"]) {
+      expect(searchNote(term)).toBe(ketoNote);
+    }
+    for (const term of ["carnivore", "meat"]) {
+      expect(searchNote(term)).toBe(carnivoreNote);
+    }
+    expect(searchNote("Keto")).toBe(ketoNote);
   });
 
-  it("returns null for terms without a note and for plain queries", () => {
-    expect(searchNote("gf")).toBeNull();
+  it("returns null for every other term and for plain queries", () => {
+    const noted = new Set(["keto", "low carb", "lowcarb", "low-carb", "carnivore", "meat"]);
+    for (const term of Object.keys(SEARCH_TERMS)) {
+      if (!noted.has(term)) {
+        expect(searchNote(term)).toBeNull();
+      }
+    }
     expect(searchNote("rice")).toBeNull();
     expect(searchNote("")).toBeNull();
     expect(searchNote("constructor")).toBeNull();
