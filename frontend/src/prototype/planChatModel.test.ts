@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ChatJob, ChatResult } from "../chatTypes";
-import { chatBudget, ideasFromJob, planChatPrefix } from "./planChatModel";
+import {
+  chatBudget,
+  ideasFromJob,
+  planChatPrefix,
+  retainChatReplies,
+  type ChatReply,
+} from "./planChatModel";
 import { addMeal, initialPlanState, removeMeal, togglePlanPantry, withPlanBudgetInput } from "./planModel";
 
 function jobWith(
@@ -132,5 +138,36 @@ describe("ideasFromJob", () => {
     expect(ideasFromJob(jobWith("limit", meals), [])).toEqual([]);
     expect(ideasFromJob(jobWith("incomplete", meals), [])).toEqual([]);
     expect(ideasFromJob({ id: "j", status: "running", result: null, error_code: null }, [])).toEqual([]);
+  });
+});
+
+describe("retainChatReplies", () => {
+  it("bounds metadata to retained assistants plus the current completion", () => {
+    let replies: ReadonlyMap<string, ChatReply> = new Map();
+    for (let index = 0; index < 40; index += 1) {
+      const job = {
+        ...jobWith("planned", [{ recipe_id: "chickpea_curry", servings: 2 }]),
+        id: `job-${index}`,
+      };
+      const retained = Array.from(
+        { length: Math.min(index, 8) },
+        (_, offset) => `job-${index - offset - 1}`,
+      );
+      replies = retainChatReplies(replies, retained, job, []);
+      expect(replies.size).toBeLessThanOrEqual(9);
+      expect(replies.get(job.id)?.ideas).toEqual([{ recipeId: "chickpea_curry", servings: 2 }]);
+      expect(replies.has(`job-${index - 9}`)).toBe(false);
+      const appended = retainChatReplies(replies, [...retained, job.id], job, ["chickpea_curry"]);
+      expect(appended).toBe(replies);
+    }
+    expect(retainChatReplies(replies, [], null, []).size).toBe(0);
+  });
+
+  it("keeps failed-turn metadata while the assistant is retained", () => {
+    const job = jobWith("incomplete", []);
+    const replies = retainChatReplies(new Map(), [], job, []);
+    expect(replies.get(job.id)?.answered).toBe(false);
+    expect(retainChatReplies(replies, [job.id], null, [])).toBe(replies);
+    expect(retainChatReplies(replies, [], null, []).size).toBe(0);
   });
 });

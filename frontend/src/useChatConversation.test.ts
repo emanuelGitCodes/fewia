@@ -173,6 +173,53 @@ describe("useChatConversation", () => {
     bindJob();
   });
 
+  it("ignores a late completion after reset and accepts a reply in the new conversation", async () => {
+    const { result, refresh } = mount();
+    act(() => result.current.setMessage("Old question"));
+    await sendAndSettle(result);
+    act(() => result.current.newConversation());
+    jobState.job = succeeded("late-job", "Old answer");
+    refresh();
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.job).toBeNull();
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = succeeded("new-job", "New answer");
+    });
+    act(() => result.current.setMessage("New question"));
+    await sendAndSettle(result);
+    refresh();
+    expect(result.current.messages.map((turn) => turn.content)).toEqual([
+      "New question",
+      "New answer",
+    ]);
+    expect(submitted(jobState, 1).previous_job_id).toBeNull();
+  });
+
+  it("retains each current answer once through long conversations and resets seen IDs", async () => {
+    let count = 0;
+    jobState.submit.mockImplementation(async () => {
+      count += 1;
+      jobState.job = succeeded(`job-${count}`, `Answer ${count}`);
+    });
+    const { result, refresh } = mount();
+    for (let index = 1; index <= 24; index += 1) {
+      act(() => result.current.setMessage(`Question ${index}`));
+      await sendAndSettle(result);
+      refresh();
+      jobState.job = succeeded(`job-${index}`, `Answer ${index}`);
+      refresh();
+      expect(result.current.messages.length).toBeLessThanOrEqual(16);
+      expect(result.current.messages.filter((turn) => turn.id === `job-${index}`)).toHaveLength(1);
+    }
+    act(() => result.current.newConversation());
+    refresh();
+    count = 0;
+    act(() => result.current.setMessage("Start again"));
+    await sendAndSettle(result);
+    refresh();
+    expect(result.current.messages.map((turn) => turn.id)).toEqual(["user-1", "job-1"]);
+  });
+
   it("sends the first request without a parent and appends the answer once", async () => {
     const caller = { ...budget };
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {

@@ -56,7 +56,7 @@ export function initialPlanState(): PlanState {
   };
 }
 
-export function planLines(state: PlanState): PlanLine[] {
+export function planLines(state: Pick<PlanState, "meals" | "pantry">): PlanLine[] {
   const byId = new Map<string, PlanLine>();
   for (const { recipeId, servings } of state.meals) {
     for (const [ingredientId, perServing] of RECIPES[recipeId].ingredients) {
@@ -176,7 +176,11 @@ export type AddPreview = {
 
 // Prices an add without changing the plan. Check membership before reading RECIPES.
 // servings is the plan's own value for a planned meal, else the value addMeal uses.
-export function previewAdd(state: PlanState, recipeId: string, servings: number): AddPreview {
+export function previewAdd(
+  state: Pick<PlanState, "meals" | "pantry">,
+  recipeId: string,
+  servings: number,
+): AddPreview {
   const lines = planLines(state);
   const base = { recipeId, servings: clampServings(servings), lines, sharedIngredientNames: [] };
   if (!isKnownRecipe(recipeId)) {
@@ -196,7 +200,10 @@ export function previewAdd(state: PlanState, recipeId: string, servings: number)
   if (state.meals.length >= MAX_MEALS) {
     return { ...base, inPlan: false, blocked: "plan_full", deltaCents: 0 };
   }
-  const after = planLines(addMeal(state, recipeId, servings));
+  const after = planLines({
+    ...state,
+    meals: [...state.meals, { recipeId, servings: base.servings }],
+  });
   const bought = new Set(lines.filter((line) => !line.fromPantry).map((line) => line.ingredientId));
   const sharedIngredientNames = RECIPES[recipeId].ingredients
     .filter(([ingredientId]) => bought.has(ingredientId))

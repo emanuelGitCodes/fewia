@@ -182,6 +182,47 @@ describe("addMeal servings and unknown recipes", () => {
 });
 
 describe("previewAdd", () => {
+  it("matches add and remove prices after shared-package rounding and pantry changes", () => {
+    for (const pantry of [[], ["rice", "onion", "salt"]]) {
+      const state = {
+        ...planOf([{ recipeId: "egg_fried_rice", servings: 8 }]),
+        pantry,
+        checked: ["rice"],
+      };
+      for (const servings of [0, 2, 8, 20, Number.NaN]) {
+        const preview = previewAdd(state, "chickpea_curry", servings);
+        const added = addMeal(state, "chickpea_curry", servings);
+        expect(preview.lines).toEqual(planLines(added));
+        expect(preview.deltaCents).toBe(planCost(planLines(added)) - planCost(planLines(state)));
+        const removal = previewAdd(added, "chickpea_curry", 1);
+        expect(removal.lines).toEqual(planLines(added));
+        expect(removal.deltaCents).toBe(
+          planCost(planLines(added)) - planCost(planLines(removeMeal(added, "chickpea_curry"))),
+        );
+        expect(state.checked).toEqual(["rice"]);
+      }
+    }
+  });
+
+  it("matches incomplete prices without caching mutable catalog entries", () => {
+    const rice = requireIngredient("rice");
+    const state = planOf([CURRY]);
+    const priced = previewAdd(state, "egg_fried_rice", 2);
+    INGREDIENTS.rice = { ...rice, priceCents: null };
+    try {
+      const preview = previewAdd(state, "egg_fried_rice", 2);
+      const added = addMeal(state, "egg_fried_rice", 2);
+      expect(preview.lines).toEqual(planLines(added));
+      expect(planIncomplete(preview.lines)).toBe(true);
+      expect(preview.deltaCents).toBe(planCost(planLines(added)) - planCost(planLines(state)));
+      const pantry = togglePlanPantry(state, "rice");
+      expect(planIncomplete(previewAdd(pantry, "egg_fried_rice", 2).lines)).toBe(false);
+    } finally {
+      INGREDIENTS.rice = rice;
+    }
+    expect(previewAdd(state, "egg_fried_rice", 2)).toEqual(priced);
+  });
+
   it("prices a normal add like a real addMeal", () => {
     const state = initialPlanState();
     const preview = previewAdd(state, "chickpea_curry", 2);

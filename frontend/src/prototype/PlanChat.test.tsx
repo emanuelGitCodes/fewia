@@ -10,6 +10,7 @@ import { useChatJob } from "../useChatJob";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import { FAILED_LINE, OFF_LINE, PlanChat } from "./PlanChat";
 import { planChatPrefix } from "./planChatModel";
+import * as planModel from "./planModel";
 import { initialPlanState, withPlanBudgetInput, type PlanState } from "./planModel";
 
 vi.mock("../useChatJob", () => ({ useChatJob: vi.fn() }));
@@ -132,9 +133,77 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("PlanChat", () => {
+  it("keeps current cards and hidden failed turns after transcript eviction", async () => {
+    let count = 0;
+    jobState.submit.mockImplementation(async () => {
+      count += 1;
+      jobState.job = chatJob(
+        `job-${count}`,
+        count % 2 === 0 ? "incomplete" : "planned",
+        `Answer ${count}`,
+        [{ recipe_id: "chickpea_curry", servings: 2 }],
+      );
+    });
+    mount();
+    for (let index = 1; index <= 21; index += 1) {
+      await submitText(`Question ${index}`);
+    }
+    expect(screen.queryByText("Answer 1")).toBeNull();
+    expect(screen.queryByText("Question 20")).toBeNull();
+    expect(screen.queryByText("Answer 20")).toBeNull();
+    expect(screen.getByText("Answer 21")).toBeTruthy();
+    expect(screen.getAllByRole("article")).toHaveLength(4);
+  });
+
+  it("skips price recomputation while typing and polling", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "planned", "Try curry.", [
+        { recipe_id: "chickpea_curry", servings: 2 },
+      ]);
+    });
+    const state = initialPlanState();
+    const onToggleIdea = vi.fn();
+    const price = vi.spyOn(planModel, "previewAdd");
+    const view = render(<PlanChat state={state} onToggleIdea={onToggleIdea} />);
+    await submitText("Dinner");
+    const calls = price.mock.calls.length;
+    expect(calls).toBeGreaterThan(0);
+    type("Another dinner");
+    expect(price).toHaveBeenCalledTimes(calls);
+    for (const status of ["queued", "running", "running"] as const) {
+      jobState.job = { id: "job-2", status, result: null, error_code: null };
+      jobState.pending = true;
+      view.rerender(<PlanChat state={state} onToggleIdea={onToggleIdea} />);
+      expect(price).toHaveBeenCalledTimes(calls);
+    }
+  });
+
+  it("ignores a late completion after New chat", async () => {
+    const state = initialPlanState();
+    const onToggleIdea = vi.fn();
+    const onReply = vi.fn();
+    const view = render(<PlanChat state={state} onToggleIdea={onToggleIdea} onReply={onReply} />);
+    await submitText("Old question");
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+    jobState.job = chatJob("old-job", "planned", "Old answer", [
+      { recipe_id: "chickpea_curry", servings: 2 },
+    ]);
+    view.rerender(<PlanChat state={state} onToggleIdea={onToggleIdea} onReply={onReply} />);
+    expect(screen.queryByText("Old answer")).toBeNull();
+    expect(screen.queryByRole("article")).toBeNull();
+    expect(onReply).not.toHaveBeenCalled();
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("new-job", "clarification", "New answer");
+    });
+    await submitText("New question");
+    expect(screen.getByText("New answer")).toBeTruthy();
+    expect(screen.queryByText("Old answer")).toBeNull();
+  });
+
   it("is an aside labelled by its Ask FEWIA heading with one status region", () => {
     mount();
     const aside = screen.getByRole("complementary", { name: "Ask FEWIA" });

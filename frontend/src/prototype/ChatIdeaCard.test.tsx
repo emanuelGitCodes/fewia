@@ -4,9 +4,13 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatDollars } from "../money";
 import { ChatIdeaCard } from "./ChatIdeaCard";
+import * as planModel from "./planModel";
 import { addMeal, initialPlanState, previewAdd, type PlanState } from "./planModel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function renderCard(state: PlanState, recipeId = "chickpea_curry", servings = 2) {
   const onToggle = vi.fn();
@@ -17,6 +21,51 @@ function renderCard(state: PlanState, recipeId = "chickpea_curry", servings = 2)
 }
 
 describe("ChatIdeaCard", () => {
+  it("reuses prices for unrelated updates and keeps the cap and callback current", () => {
+    const price = vi.spyOn(planModel, "previewAdd");
+    const state = initialPlanState();
+    const firstToggle = vi.fn();
+    const nextToggle = vi.fn();
+    const view = render(
+      <ChatIdeaCard state={state} recipeId="chickpea_curry" servings={2} onToggle={firstToggle} />,
+    );
+    expect(price).toHaveBeenCalledTimes(1);
+    view.rerender(
+      <ChatIdeaCard
+        state={{ ...state, budgetCents: 1, checked: ["salsa"], view: "pantry" }}
+        recipeId="chickpea_curry"
+        servings={2}
+        onToggle={nextToggle}
+      />,
+    );
+    expect(price).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/over the \$0\.01 plan cap/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Add Chickpea curry/ }));
+    expect(nextToggle).toHaveBeenCalledWith("chickpea_curry", 2, false);
+    expect(firstToggle).not.toHaveBeenCalled();
+    view.rerender(
+      <ChatIdeaCard state={state} recipeId="chickpea_curry" servings={4} onToggle={nextToggle} />,
+    );
+    expect(price).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(/^4 servings · /)).toBeTruthy();
+    view.rerender(
+      <ChatIdeaCard state={state} recipeId="egg_fried_rice" servings={4} onToggle={nextToggle} />,
+    );
+    expect(price).toHaveBeenCalledTimes(3);
+    const pantry = planModel.togglePlanPantry(state, "rice");
+    view.rerender(
+      <ChatIdeaCard state={pantry} recipeId="egg_fried_rice" servings={4} onToggle={nextToggle} />,
+    );
+    expect(price).toHaveBeenCalledTimes(4);
+    expect(price.mock.results[3]?.value).toEqual(previewAdd(pantry, "egg_fried_rice", 4));
+    const meals = addMeal(pantry, "egg_fried_rice", 3);
+    view.rerender(
+      <ChatIdeaCard state={meals} recipeId="egg_fried_rice" servings={4} onToggle={nextToggle} />,
+    );
+    expect(screen.getByText(/^3 servings · /)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove Egg fried rice from plan" })).toBeTruthy();
+  });
+
   it("renders nothing for an unknown recipe", () => {
     const { container } = renderCard(initialPlanState(), "nope");
     expect(container.firstChild).toBeNull();

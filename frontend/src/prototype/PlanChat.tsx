@@ -4,7 +4,7 @@ import { BUDGET_ERROR, MAX_MESSAGE_LENGTH, TEXT_ERROR } from "../chatConversatio
 import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import { ChatIdeaCard } from "./ChatIdeaCard";
-import { chatBudget, ideasFromJob, planChatPrefix, type ChatIdea } from "./planChatModel";
+import { chatBudget, planChatPrefix, retainChatReplies, type ChatReply } from "./planChatModel";
 import type { PlanState } from "./planModel";
 
 export const OFF_LINE = "Ask FEWIA is off. The plan still works.";
@@ -14,8 +14,6 @@ const STARTERS = [
   "More protein for under $10",
   "Use what is in my pantry",
 ] as const;
-
-type Reply = { ideas: ChatIdea[]; answered: boolean };
 
 function replyLine(count: number): string {
   if (count === 0) {
@@ -48,24 +46,19 @@ export function PlanChat(props: {
   const stateRef = useRef(state);
   stateRef.current = state;
   // Ideas are fixed when the job succeeds, against the plan at that moment.
-  const [replies, setReplies] = useState<ReadonlyMap<string, Reply>>(new Map());
+  const [replies, setReplies] = useState<ReadonlyMap<string, ChatReply>>(new Map());
   const job = chat.job;
 
   useEffect(() => {
-    const result = job?.result ?? null;
-    if (job === null || job.status !== "succeeded" || result === null) {
-      return;
-    }
-    const id = job.id;
-    setReplies((current) => {
-      if (current.has(id)) {
-        return current;
-      }
-      const planned = stateRef.current.meals.map((meal) => meal.recipeId);
-      const answered = result.status !== "limit" && result.status !== "incomplete";
-      return new Map(current).set(id, { ideas: ideasFromJob(job, planned), answered });
-    });
-  }, [job]);
+    setReplies((current) =>
+      retainChatReplies(
+        current,
+        chat.messages.filter((turn) => turn.role === "assistant").map((turn) => turn.id),
+        job,
+        stateRef.current.meals.map((meal) => meal.recipeId),
+      ),
+    );
+  }, [job, chat.messages]);
 
   useEffect(() => {
     if (job === null || job.status !== "succeeded" || job.result === null) {
@@ -156,6 +149,8 @@ export function PlanChat(props: {
   };
   const startChat = (): void => {
     setReplies(new Map());
+    announced.current = null;
+    setAgain(false);
     chat.newConversation();
   };
   const fillStarter = (text: string): void => {

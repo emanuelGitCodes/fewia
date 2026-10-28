@@ -39,7 +39,7 @@ export function useChatConversation(
   retry: () => void;
   newConversation: () => void;
 } {
-  const { job, error: jobError, pending, submit, clear } = useChatJob();
+  const { job: polledJob, error: jobError, pending, submit, clear } = useChatJob();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -57,6 +57,8 @@ export function useChatConversation(
   const sendConvGenRef = useRef(0);
   manualRef.current = manualJobId;
   const composeMessage = options?.composeMessage;
+  // clear() cancels old polling attempts. The generation also hides jobs after New chat.
+  const job = convGenRef.current === sendConvGenRef.current ? polledJob : null;
 
   useEffect(() => {
     if (manualJobId === seenManualRef.current) {
@@ -68,6 +70,13 @@ export function useChatConversation(
   }, [manualJobId]);
 
   useEffect(() => {
+    const retained = new Set(
+      messages.filter((turn) => turn.role === "assistant").map((turn) => turn.id),
+    );
+    if (job !== null) {
+      retained.add(job.id);
+    }
+    seenRef.current = new Set([...seenRef.current].filter((id) => retained.has(id)));
     if (job === null || job.status !== "succeeded" || job.result === null) {
       return;
     }
@@ -85,7 +94,7 @@ export function useChatConversation(
     setMessages((current) =>
       keepLatestTurns([...current, { id: job.id, role: "assistant", content }]),
     );
-  }, [job]);
+  }, [job, messages]);
 
   const send = useCallback((): void => {
     if (busyRef.current || pending) {
@@ -157,6 +166,7 @@ export function useChatConversation(
     dispatchGenRef.current += 1;
     convGenRef.current += 1;
     busyRef.current = false;
+    seenRef.current.clear();
     parentRef.current = null;
     userSeq.current = 0;
     setMessages([]);

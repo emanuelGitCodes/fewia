@@ -1,4 +1,4 @@
-import { useId, type JSX } from "react";
+import { useId, useMemo, type JSX } from "react";
 import { formatDollars } from "../money";
 import { MealPhoto } from "./PlanMeals";
 import { planCost, planIncomplete, previewAdd, type PlanState } from "./planModel";
@@ -22,11 +22,15 @@ export function ChatIdeaCard(props: {
 }): JSX.Element | null {
   const { recipeId, state } = props;
   const uid = useId();
+  const { meals, pantry } = state;
+  const preview = useMemo(
+    () => previewAdd({ meals, pantry }, recipeId, props.servings),
+    [meals, pantry, recipeId, props.servings],
+  );
   if (!isKnownRecipe(recipeId)) {
     return null;
   }
   const recipe = RECIPES[recipeId];
-  const preview = previewAdd(state, recipeId, props.servings);
   const { inPlan } = preview;
   // The preview holds the servings the plan shows or addMeal would use.
   const servings = preview.servings;
