@@ -4402,3 +4402,76 @@ corrected the status of four tooling rows, the Plaid decision citation,
 a table count, and open-work rows that named files absent from `main`.
 The gates found no checks for a prose-only diff. The merge commit is
 `f4c6d61e`.
+
+## 2026-10-28 — PR 460 efficiency: Bedrock workflow
+
+The local update returns accepted plan batches and valid budget-only batches
+without a final model call. A simple accepted plan uses one provider call
+instead of two. The loop finishes the complete tool batch before it selects
+the response. Error and correction paths remain active.
+
+Terminal tool results reach evaluation capture without a billed follow-up.
+Cache-read and cache-write counts survive API decoding and capture. A cache
+total stays unknown when any contributing turn omits or invalidates it.
+The loop builds tool specifications once per chat run.
+
+Sol wrote item 01 at high effort. Luna high approved `4e0c26f2`.
+The gates passed with 9387 backend tests passed and one skipped. Frontend
+checks passed. The coordinator ran 83 focused checks on that SHA; all passed.
+Four new regression checks failed against the original PR source, as expected.
+Initial gates found two format issues and eleven obsolete fixture assumptions.
+Scoped repairs fixed those failures before review. One extra narrow fixture
+repair needed coordinator authorization.
+
+## 2026-10-28 — PR 460 efficiency: frontend state and previews
+
+Reply metadata and seen job IDs follow the bounded transcript. A new chat
+rejects late completions. Meal previews reuse price calculations while draft
+text and polling state change. Budget fit and callbacks remain current.
+An ordinary add preview aggregates the plan twice instead of four times.
+
+Sol wrote item 03 at medium effort. Luna high approved `42de9adf`.
+Frontend lint, build, and all 703 tests passed. Three new behavior checks
+failed against the original PR source, as expected. The local Node probe
+kept the same 666-cent add preview. A batch of 24 previews took about
+0.072 ms before and 0.040 ms after warm-up. These figures exclude React,
+the DOM, the network, and Bedrock. They do not measure full application latency.
+Two earlier writer attempts made no edits because of assignment wording.
+The corrected assignment completed with the same writer.
+
+Both preview measurements use warmed code. The comparison is between the
+original and updated implementations.
+
+## 2026-10-28 — PR 460 efficiency: catalog discovery
+
+The shared chat loop uses `find_catalog_meals` for meal-type requests.
+The tool intersects validated terms, diet, and exact ingredient exclusions.
+It returns up to three supported choices in catalog order. Server text owns
+the meal names and caveats. Discovery does not fabricate a priced plan.
+
+Prompt and serialized tool definitions decreased from 9503 to 7902 characters.
+The matching-meal fixture uses one provider call and no planner revision or
+plan evidence. The coordinator ran 144 catalog checks and eight ordered
+revision checks. All passed on their recorded heads.
+
+Sol wrote item 02 at medium effort. Luna high approved `a21b15b5`.
+The full gates passed with 9541 backend tests passed and one skipped.
+The first full run found three style errors and 42 failures from a fixture
+that required two tools. Scoped repairs fixed those failures. The fixture
+now checks all three tool names.
+
+The first review exposed ambiguous wording about order independence.
+Planner calls remain ordered revisions. A later invalid revision clears the
+current plan; a later over-budget revision stays unaccepted. Earlier evidence
+remains persisted and traced. Six new cases cover discovery before, between,
+and after those revisions. No production logic changed for this clarification.
+
+At item completion, the CLI ledger reports 11907624 input tokens and 115123
+output tokens across items 01-03. Summed CLI run time is 3095.564 seconds.
+This is not wall-clock time or a dollar cost. The record includes repeated
+input as reported by each CLI. Coordinator and native junior token usage is
+unavailable. The final integration review follows this checkpoint in the
+shared usage ledger.
+
+These results cover local source and deterministic providers. Live Bedrock
+tool selection, latency, and cache-hit rates remain unmeasured for this update.
