@@ -3,7 +3,7 @@ import { formatDollars } from "../money";
 import { MealPhoto } from "./PlanMeals";
 import { planCost, planIncomplete, previewAdd, type PlanState } from "./planModel";
 import { planFitLine } from "./PlanSummary";
-import { DIET_LABELS, MAX_MEALS, RECIPES, isKnownRecipe } from "./prototypeData";
+import { MAX_MEALS, RECIPES, isKnownRecipe, mealLabels } from "./prototypeData";
 import { formatMacro } from "./prototypeModel";
 
 function joinNames(names: string[]): string {
@@ -34,7 +34,7 @@ export function ChatIdeaCard(props: {
   const over = !planIncomplete(preview.lines) && planCost(preview.lines) > state.budgetCents;
   const nameId = `${uid}-name`;
   const noteId = `${uid}-note`;
-  const diets = recipe.diets.map((d) => DIET_LABELS[d]).join(" · ");
+  const diets = mealLabels(recipe).join(" · ");
   const count = `${String(servings)} ${servings === 1 ? "serving" : "servings"}`;
   const delta = `${preview.deltaCents < 0 ? "−" : "+"}${formatDollars(Math.abs(preview.deltaCents))}`;
   const label = inPlan

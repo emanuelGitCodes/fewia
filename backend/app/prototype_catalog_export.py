@@ -31,6 +31,46 @@ def _diets(recipe: Recipe) -> list[str]:
     return diets
 
 
+HIGH_PROTEIN_G = 30
+LOWER_CARB_G = 30
+PROTEIN_TAGS = (
+    ("chicken", "chicken_breast"),
+    ("egg", "eggs"),
+    ("beans", "black_beans"),
+    ("lentils", "lentils"),
+    ("chickpeas", "chickpeas"),
+)
+# Oats and oat milk count as gluten ingredients.
+GLUTEN_INGREDIENT_IDS = frozenset({"pasta", "soy_sauce", "oats", "oat_milk"})
+
+
+def _tags(recipe: Recipe, nutrition: dict[str, Any]) -> list[str]:
+    ids = {ingredient_id for ingredient_id, _ in recipe.ingredients}
+    tags = [tag for tag, ingredient_id in PROTEIN_TAGS if ingredient_id in ids]
+    if nutrition["proteinG"] >= HIGH_PROTEIN_G:
+        tags.append("high_protein")
+    if nutrition["carbsG"] <= LOWER_CARB_G:
+        tags.append("lower_carb")
+    if not ids & GLUTEN_INGREDIENT_IDS:
+        tags.append("gluten_free_ingredients")
+    return tags
+
+
+def _recipe_entry(recipe_id: str) -> dict[str, Any]:
+    recipe = RECIPES[recipe_id]
+    nutrition = _nutrition(recipe_id)
+    return {
+        "id": recipe_id,
+        "name": recipe_name(recipe_id),
+        "diets": _diets(recipe),
+        "tags": _tags(recipe, nutrition),
+        "ingredients": [
+            [ingredient_id, quantity] for ingredient_id, quantity in recipe.ingredients
+        ],
+        "nutrition": nutrition,
+    }
+
+
 def _nutrition(recipe_id: str) -> dict[str, Any]:
     request = GroceryRequest(
         meals=[MealRequest(recipe_id=recipe_id, servings=1)],
@@ -62,19 +102,7 @@ def build_catalog() -> dict[str, Any]:
             }
             for item in INGREDIENTS.values()
         ],
-        "recipes": [
-            {
-                "id": recipe_id,
-                "name": recipe_name(recipe_id),
-                "diets": _diets(RECIPES[recipe_id]),
-                "ingredients": [
-                    [ingredient_id, quantity]
-                    for ingredient_id, quantity in RECIPES[recipe_id].ingredients
-                ],
-                "nutrition": _nutrition(recipe_id),
-            }
-            for recipe_id in SUPPORTED_RECIPE_IDS
-        ],
+        "recipes": [_recipe_entry(recipe_id) for recipe_id in SUPPORTED_RECIPE_IDS],
     }
 
 

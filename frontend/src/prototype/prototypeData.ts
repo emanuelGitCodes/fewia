@@ -8,6 +8,25 @@ export const DIET_LABELS: Record<Diet, string> = {
   vegan: "Vegan",
   vegetarian: "Vegetarian",
 };
+export type Tag =
+  | "chicken"
+  | "egg"
+  | "beans"
+  | "lentils"
+  | "chickpeas"
+  | "high_protein"
+  | "lower_carb"
+  | "gluten_free_ingredients";
+export const TAG_LABELS: Record<Tag, string> = {
+  chicken: "Chicken",
+  egg: "Egg",
+  beans: "Beans",
+  lentils: "Lentils",
+  chickpeas: "Chickpeas",
+  high_protein: "High protein",
+  lower_carb: "Lower carb",
+  gluten_free_ingredients: "Gluten-free ingredients",
+};
 export type Ingredient = {
   id: string;
   name: string;
@@ -28,6 +47,7 @@ export type Recipe = {
   name: string;
   image: string | null;
   diets: readonly Diet[];
+  tags: readonly Tag[];
   // Each pair is an ingredient id and a per-serving quantity.
   ingredients: ReadonlyArray<readonly [string, number]>;
   // Nutrition stays per serving. Servings and pantry do not change it.
@@ -43,6 +63,7 @@ type CatalogJson = {
     id: string;
     name: string;
     diets: Diet[];
+    tags: Tag[];
     ingredients: Array<[string, number]>;
     nutrition: Nutrition;
   }>;
@@ -88,6 +109,7 @@ for (const recipe of CATALOG.recipes) {
     name: recipe.name,
     image: file === undefined ? null : `/prototype/${file}`,
     diets: recipe.diets,
+    tags: recipe.tags,
     ingredients: recipe.ingredients,
     nutrition: recipe.nutrition,
   };
@@ -96,6 +118,11 @@ for (const recipe of CATALOG.recipes) {
 // RECIPES is a plain object, so an inherited key such as "constructor" is not a recipe.
 export function isKnownRecipe(id: string): boolean {
   return Object.prototype.hasOwnProperty.call(RECIPES, id);
+}
+
+// Diet labels first, then tag labels.
+export function mealLabels(recipe: Recipe): string[] {
+  return [...recipe.diets.map((d) => DIET_LABELS[d]), ...recipe.tags.map((t) => TAG_LABELS[t])];
 }
 
 export function requireIngredient(id: string): Ingredient {

@@ -183,6 +183,11 @@
       "id": "chicken_tacos",
       "name": "Chicken tacos",
       "diets": [],
+      "tags": [
+        "chicken",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -226,6 +231,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -271,6 +280,7 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [],
       "ingredients": [
         [
           "pasta",
@@ -312,6 +322,11 @@
       "id": "chicken_and_rice_bowls",
       "name": "Chicken and rice bowls",
       "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -356,6 +371,10 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "lentils",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "lentils",
@@ -399,6 +418,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "chickpeas",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -448,6 +471,7 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [],
       "ingredients": [
         [
           "mixed_vegetables",
@@ -488,6 +512,10 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "potato",
@@ -522,6 +550,12 @@
       "name": "Breakfast burritos",
       "diets": [
         "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "beans",
+        "lower_carb",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -567,6 +601,7 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [],
       "ingredients": [
         [
           "oats",
@@ -588,6 +623,10 @@
       "id": "chicken_pasta",
       "name": "Chicken pasta",
       "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -625,6 +664,10 @@
       "id": "chicken_stir_fry",
       "name": "Chicken stir fry",
       "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -666,6 +709,11 @@
       "id": "chicken_curry",
       "name": "Chicken curry",
       "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -711,6 +759,11 @@
       "id": "chicken_vegetable_soup",
       "name": "Chicken vegetable soup",
       "diets": [],
+      "tags": [
+        "chicken",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -752,6 +805,12 @@
       "id": "chicken_burrito_bowls",
       "name": "Chicken burrito bowls",
       "diets": [],
+      "tags": [
+        "chicken",
+        "beans",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -797,6 +856,10 @@
       "id": "chicken_potato_bake",
       "name": "Chicken potato bake",
       "diets": [],
+      "tags": [
+        "chicken",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -834,6 +897,12 @@
       "id": "chicken_lentil_stew",
       "name": "Chicken lentil stew",
       "diets": [],
+      "tags": [
+        "chicken",
+        "lentils",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -875,6 +944,12 @@
       "id": "chicken_chickpea_skillet",
       "name": "Chicken chickpea skillet",
       "diets": [],
+      "tags": [
+        "chicken",
+        "chickpeas",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -916,6 +991,11 @@
       "id": "chicken_fried_rice",
       "name": "Chicken fried rice",
       "diets": [],
+      "tags": [
+        "chicken",
+        "egg",
+        "high_protein"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -957,6 +1037,11 @@
       "id": "chicken_tortilla_soup",
       "name": "Chicken tortilla soup",
       "diets": [],
+      "tags": [
+        "chicken",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chicken_breast",
@@ -999,6 +1084,9 @@
       "name": "Egg fried rice",
       "diets": [
         "vegetarian"
+      ],
+      "tags": [
+        "egg"
       ],
       "ingredients": [
         [
@@ -1043,6 +1131,11 @@
       "diets": [
         "vegetarian"
       ],
+      "tags": [
+        "egg",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "eggs",
@@ -1086,6 +1179,9 @@
       "diets": [
         "vegetarian"
       ],
+      "tags": [
+        "egg"
+      ],
       "ingredients": [
         [
           "eggs",
@@ -1125,6 +1221,10 @@
       "diets": [
         "vegetarian"
       ],
+      "tags": [
+        "egg",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "eggs",
@@ -1159,6 +1259,12 @@
       "name": "Chickpea egg scramble",
       "diets": [
         "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "chickpeas",
+        "lower_carb",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1203,6 +1309,10 @@
       "diets": [
         "vegetarian"
       ],
+      "tags": [
+        "egg",
+        "lower_carb"
+      ],
       "ingredients": [
         [
           "eggs",
@@ -1241,6 +1351,11 @@
       "name": "Egg rice bowls",
       "diets": [
         "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "beans",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1284,6 +1399,12 @@
       "name": "Lentil egg skillet",
       "diets": [
         "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "lentils",
+        "high_protein",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1329,6 +1450,10 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "rice",
@@ -1368,6 +1493,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "high_protein"
       ],
       "ingredients": [
         [
@@ -1413,6 +1542,10 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "chickpeas",
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "chickpeas",
@@ -1456,6 +1589,9 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1505,6 +1641,9 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "rice",
@@ -1549,6 +1688,7 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [],
       "ingredients": [
         [
           "pasta",
@@ -1584,6 +1724,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "lower_carb",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1624,6 +1768,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1669,6 +1817,9 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "chickpeas"
+      ],
       "ingredients": [
         [
           "pasta",
@@ -1708,6 +1859,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1757,6 +1912,9 @@
         "vegan",
         "vegetarian"
       ],
+      "tags": [
+        "gluten_free_ingredients"
+      ],
       "ingredients": [
         [
           "potato",
@@ -1800,6 +1958,10 @@
       "diets": [
         "vegan",
         "vegetarian"
+      ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
       ],
       "ingredients": [
         [

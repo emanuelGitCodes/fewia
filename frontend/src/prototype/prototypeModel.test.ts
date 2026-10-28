@@ -7,6 +7,8 @@ import {
   INITIAL_PANTRY,
   RECIPES,
   RECIPE_ORDER,
+  TAG_LABELS,
+  mealLabels,
   type Diet,
 } from "./prototypeData";
 import { formatMacro, packageCount, withBudgetInput } from "./prototypeModel";
@@ -88,6 +90,19 @@ describe("prototype recipes", () => {
         .filter((item) => item.isPantry)
         .map((item) => item.id),
     );
+  });
+
+  it("builds labels from diets then tags and gives every recipe one", () => {
+    for (const id of RECIPE_ORDER) {
+      expect(mealLabels(RECIPES[id]).length).toBeGreaterThan(0);
+    }
+    expect(mealLabels(RECIPES.bean_tacos).slice(0, 2)).toEqual(["Vegan", "Vegetarian"]);
+    expect(mealLabels(RECIPES.chicken_curry)).toEqual([
+      "Chicken",
+      "High protein",
+      "Gluten-free ingredients",
+    ]);
+    expect(Object.keys(TAG_LABELS)).toHaveLength(8);
   });
 
   it("keeps photos for three recipes only", () => {

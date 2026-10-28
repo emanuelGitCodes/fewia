@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import {
+  INGREDIENTS,
   INITIAL_PANTRY,
   PANTRY_IDS,
   RECIPES,
@@ -745,9 +746,13 @@ describe("TonightPrototype", () => {
         .map((button) => button.querySelector(".tonight-meal > span")?.textContent ?? "");
     }
 
-    const riceMeals = RECIPE_ORDER.filter((id) => RECIPES[id].name.toLowerCase().includes("rice")).map(
-      (id) => RECIPES[id].name,
-    );
+    const riceMeals = RECIPE_ORDER.filter(
+      (id) =>
+        RECIPES[id].name.toLowerCase().includes("rice") ||
+        RECIPES[id].ingredients.some(([ingredientId]) =>
+          INGREDIENTS[ingredientId].name.toLowerCase().includes("rice"),
+        ),
+    ).map((id) => RECIPES[id].name);
 
     it("starts with forty tiles", () => {
       mount();
@@ -774,6 +779,32 @@ describe("TonightPrototype", () => {
       expect(vegan).toContain("Bean tacos");
       expect(vegan).not.toContain("Egg fried rice");
       expect(tileNames()).toEqual(vegan);
+    });
+
+    it("shows a keto note, links it to the filter and removes it for other queries", () => {
+      mount();
+      expect(document.getElementById("meal-filter-note")).toBeNull();
+      expect(filterInput().getAttribute("aria-describedby")).toBeNull();
+      typeFilter("keto");
+      const note = document.getElementById("meal-filter-note");
+      expect(note?.textContent).toBe(
+        "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving.",
+      );
+      expect(filterInput().getAttribute("aria-describedby")).toBe("meal-filter-note");
+      expect(tileNames()).toHaveLength(8);
+      typeFilter("rice");
+      expect(document.getElementById("meal-filter-note")).toBeNull();
+      expect(filterInput().getAttribute("aria-describedby")).toBeNull();
+    });
+
+    it("lists the chicken meals for meat and shows a label on a chicken meal", () => {
+      mount();
+      typeFilter("meat");
+      expect(tileNames()).toHaveLength(12);
+      expect(document.getElementById("meal-filter-note")?.textContent).toBe(
+        "No meal is strictly carnivore. These meals include chicken.",
+      );
+      expect(textOf(buttonNamed("Chicken curry"))).toContain("Chicken · High protein");
     });
 
     it("shows the diets on a plan card and no image on a tile without a photo", () => {

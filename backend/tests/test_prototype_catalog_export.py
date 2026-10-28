@@ -96,6 +96,68 @@ def test_recipe_ingredients_and_nutrition_are_per_serving() -> None:
         )
 
 
+TAG_ORDER = [
+    "chicken",
+    "egg",
+    "beans",
+    "lentils",
+    "chickpeas",
+    "high_protein",
+    "lower_carb",
+    "gluten_free_ingredients",
+]
+
+
+def test_recipe_keys_put_tags_after_diets() -> None:
+    for recipe in build_catalog()["recipes"]:
+        assert list(recipe) == [
+            "id",
+            "name",
+            "diets",
+            "tags",
+            "ingredients",
+            "nutrition",
+        ]
+
+
+def test_tag_counts_match_the_catalog() -> None:
+    counts = dict.fromkeys(TAG_ORDER, 0)
+    for recipe in build_catalog()["recipes"]:
+        for tag in recipe["tags"]:
+            counts[tag] += 1
+    assert counts == {
+        "chicken": 12,
+        "egg": 10,
+        "beans": 7,
+        "lentils": 6,
+        "chickpeas": 5,
+        "high_protein": 10,
+        "lower_carb": 8,
+        "gluten_free_ingredients": 28,
+    }
+
+
+def test_tag_rules_and_order() -> None:
+    for recipe in build_catalog()["recipes"]:
+        tags = recipe["tags"]
+        assert tags == sorted(set(tags), key=TAG_ORDER.index)
+        ids = {ingredient_id for ingredient_id, _ in recipe["ingredients"]}
+        assert ("chicken" in tags) == ("chicken_breast" in ids)
+        assert ("egg" in tags) == ("eggs" in ids)
+        assert ("beans" in tags) == ("black_beans" in ids)
+        assert ("lentils" in tags) == ("lentils" in ids)
+        assert ("chickpeas" in tags) == ("chickpeas" in ids)
+        assert ("high_protein" in tags) == (recipe["nutrition"]["proteinG"] >= 30)
+        assert ("lower_carb" in tags) == (recipe["nutrition"]["carbsG"] <= 30)
+        gluten = ids & {"pasta", "soy_sauce", "oats", "oat_milk"}
+        assert ("gluten_free_ingredients" in tags) == (not gluten)
+
+
+def test_every_recipe_has_a_diet_or_tag_label() -> None:
+    for recipe in build_catalog()["recipes"]:
+        assert recipe["diets"] or recipe["tags"]
+
+
 def test_main_prints_json_without_out(capsys: pytest.CaptureFixture[str]) -> None:
     main([])
     assert capsys.readouterr().out == render_catalog()
