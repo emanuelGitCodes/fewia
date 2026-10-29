@@ -185,7 +185,7 @@ def _ingredient_facts(payload: dict[str, object]) -> str:
         return f"Which one do you mean: {_or(names)}?"
     if status != "unknown":
         raise ValueError("payload is invalid")
-    text = f"I cannot find {payload['name']} in the food list."
+    text = "I cannot find that food in the food list."
     if names:
         text += f" Did you mean {_or(names[:2])}?"
     return text
