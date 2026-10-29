@@ -53,6 +53,7 @@ from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import SEARCH_TERMS
+from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -1367,6 +1368,7 @@ def test_malformed_later_error_clears_candidate_or_exclusion_conflict(
         source: SpendingSource,
         trace: list[dict[str, object]],
         record_evidence: EvidenceRecorder | None = None,
+        plan: PlanRevisionInput | None = None,
     ) -> tuple[dict[str, object] | None, dict[str, object]]:
         if call.name != TOOL_NAME:
             return None, {
@@ -1384,6 +1386,7 @@ def test_malformed_later_error_clears_candidate_or_exclusion_conflict(
             source,
             trace,
             record_evidence=record_evidence,
+            plan=plan,
         )
 
     monkeypatch.setattr(loop, "dispatch", fake_dispatch)
@@ -2107,9 +2110,17 @@ def test_missing_price_result_keeps_correction_loop(
         source: SpendingSource,
         trace: list[dict[str, object]],
         record_evidence: EvidenceRecorder | None = None,
+        plan: PlanRevisionInput | None = None,
     ) -> tuple[dict[str, object] | None, dict[str, object]]:
         payload, block = real_dispatch(
-            call, budget_value, period, user_id, source, trace, record_evidence
+            call,
+            budget_value,
+            period,
+            user_id,
+            source,
+            trace,
+            record_evidence,
+            plan=plan,
         )
         if call.tool_use_id == "missing":
             assert payload is not None

@@ -11,6 +11,7 @@ from app import evaluation_model_turn as model
 from app.agent import chat_loop
 from app.agent.chat_messages import ToolCall
 from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.plan_revision import PlanRevisionInput
 from app.evaluation_adversarial import ScenarioProvider
 from app.evaluation_capture import CaptureProvider
 from app.evaluation_evidence import EvaluationEvidence
@@ -169,6 +170,7 @@ def augment_tool_results(
         trace: list[dict[str, object]],
         *,
         record_evidence: Recorder | None = None,
+        plan: PlanRevisionInput | None = None,
     ) -> tuple[dict[str, object] | None, dict[str, object]]:
         payload, block = original(
             call,
@@ -178,6 +180,7 @@ def augment_tool_results(
             spending_source,
             trace,
             record_evidence=record_evidence,
+            plan=plan,
         )
         tool_result = cast(dict[str, object], block["toolResult"])
         content = cast(list[dict[str, object]], tool_result["content"])
@@ -823,6 +826,7 @@ def test_callback_payload_is_sanitized_before_storage(
         trace: list[dict[str, object]],
         *,
         record_evidence: Recorder | None = None,
+        plan: PlanRevisionInput | None = None,
     ) -> tuple[dict[str, object] | None, dict[str, object]]:
         assert user_id == 23
         assert spending_source == "fixture"
@@ -843,6 +847,7 @@ def test_callback_payload_is_sanitized_before_storage(
             spending_source,
             trace,
             record_evidence=contaminated,
+            plan=plan,
         )
 
     def save(planning: dict[str, object]) -> str:
