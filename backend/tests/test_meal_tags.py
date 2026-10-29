@@ -1,3 +1,5 @@
+import pytest
+
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import (
@@ -127,6 +129,26 @@ def test_search_term_table() -> None:
         "veggie",
         "protein",
     ]
+
+
+@pytest.mark.parametrize(
+    "term,expected",
+    [
+        ("high protein", "high_protein"),
+        ("High-Protein", "high_protein"),
+        ("lower carb", "lower_carb"),
+        ("lower-carb", "lower_carb"),
+        ("gluten free ingredients", "gluten_free_ingredients"),
+        ("gluten-free-ingredients", "gluten_free_ingredients"),
+        ("low_carb", "lower_carb"),
+        ("high", None),
+        ("protein bar", None),
+        ("keto diet", None),
+        ("", None),
+    ],
+)
+def test_terms_accept_spaces_and_hyphens(term: str, expected: str | None) -> None:
+    assert resolve_meal_term(term) == expected
 
 
 def test_resolvers_use_only_canonical_terms_and_exact_ingredients() -> None:

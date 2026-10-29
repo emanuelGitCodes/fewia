@@ -110,6 +110,12 @@ def test_normalization_and_duplicate_terms() -> None:
     )
 
 
+def test_spaced_term_matches_underscored_term() -> None:
+    assert execute_catalog_search(
+        arguments(terms=["high protein"])
+    ) == execute_catalog_search(arguments(terms=["high_protein"]))
+
+
 @pytest.mark.parametrize("diet", ["omnivore", "vegetarian", "vegan"])
 def test_diet_term_stays_nonempty_when_it_matches_diet(diet: str) -> None:
     payload = execute_catalog_search(arguments(terms=[diet], diet=diet))

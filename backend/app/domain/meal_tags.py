@@ -60,7 +60,16 @@ def resolve_meal_term(value: str) -> str | None:
     if term in (*TAG_ORDER, "omnivore", "vegetarian", "vegan"):
         return term
     alias = SEARCH_TERMS.get(term)
-    return None if alias is None else alias[0]
+    if alias is not None:
+        return alias[0]
+    spaced = " ".join(term.replace("_", " ").replace("-", " ").split())
+    for canonical in (*TAG_ORDER, "omnivore", "vegetarian", "vegan"):
+        if spaced == canonical.replace("_", " "):
+            return canonical
+    for key, (target, _note) in SEARCH_TERMS.items():
+        if spaced == key.replace("-", " "):
+            return target
+    return None
 
 
 def resolve_ingredient(value: str) -> str | None:
