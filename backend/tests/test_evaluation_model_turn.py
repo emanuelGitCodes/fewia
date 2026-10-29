@@ -273,7 +273,7 @@ def test_terminal_capture_errors_remain_visible(
         monkeypatch.setattr(CaptureProvider, "_leaks", scan)
     else:
         monkeypatch.setattr(CaptureProvider, "_observe_results", capture)
-    provider = ScriptedProvider([tool("get_budget_summary", {})])
+    provider = ScriptedProvider([tool("plan_groceries", request())])
     turn = observe(provider)
     assert turn["status"] == "partial"
     assert turn["reason"] == "capture_incomplete"
