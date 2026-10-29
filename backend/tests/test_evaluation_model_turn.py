@@ -46,6 +46,7 @@ class ScriptedProvider:
             "find_catalog_meals",
             "get_plan",
             "get_meal",
+            "what_if_substitute",
         ]
         self.messages.append(deepcopy(messages))
         response = self.responses.pop(0)

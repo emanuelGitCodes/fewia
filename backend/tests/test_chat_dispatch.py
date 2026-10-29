@@ -17,6 +17,7 @@ from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
@@ -118,6 +119,67 @@ def test_get_plan_and_get_meal_invalid_arguments_return_static_error() -> None:
         assert payload is None
         assert _tool_json(block) == {"error": "arguments are invalid"}
     assert [t["outcome"] for t in trace] == ["error", "error"]
+
+
+_SWAP: dict[str, object] = {
+    "recipe_id": "chicken_tacos",
+    "servings": 2,
+    "replace_ingredient_id": "chicken_breast",
+    "with_ingredient_id": "chickpeas",
+}
+
+
+def test_what_if_substitute_dispatch_is_read_only_with_trace() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("what_if_substitute MUST NOT record plan evidence")
+
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("w1", SUBSTITUTE_TOOL, _SWAP),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert payload == execute_substitute(_SWAP)
+    assert block["toolResult"]["toolUseId"] == "w1"
+    assert block["toolResult"]["status"] == "success"
+    assert _tool_json(block) == payload
+    assert trace == [
+        {
+            "tool": SUBSTITUTE_TOOL,
+            "outcome": "success",
+            "tool_use_id": "w1",
+            "sequence": 1,
+            "revision_index": None,
+        }
+    ]
+    _plan, _block = dispatch(
+        ToolCall("p1", TOOL_NAME, arguments()), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert trace[1]["revision_index"] == 1
+
+
+def test_what_if_substitute_invalid_arguments_return_static_error() -> None:
+    args = {**_SWAP, "with_ingredient_id": "chicken_breast", "note": _SECRET}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("w2", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "w2",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [_error_trace(SUBSTITUTE_TOOL, "w2", revision_index=None)]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "SubstituteToolError" not in dumped
 
 
 def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:

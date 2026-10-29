@@ -4,7 +4,7 @@ import copy
 import json
 from datetime import date
 from itertools import permutations
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import pytest
 from botocore.session import Session
@@ -49,6 +49,11 @@ from app.agent.plan_tools import (
     get_plan_tool_spec,
 )
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
+from app.agent.substitute_tool import (
+    SUBSTITUTE_TOOL,
+    execute_substitute,
+    substitute_tool_spec,
+)
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -231,6 +236,7 @@ def _chat_tools() -> list[dict[str, object]]:
         catalog_tool_spec(),
         get_plan_tool_spec(),
         get_meal_tool_spec(),
+        substitute_tool_spec(),
     ]
 
 
@@ -442,6 +448,69 @@ def test_get_meal_error_does_not_set_candidate_or_error() -> None:
     assert result["status"] == "clarification"
     assert result["answer"] == CLARIFICATION
     assert cast(list[dict[str, object]], result["tool_trace"])[0]["outcome"] == "error"
+
+
+_SWAP_ARGS: dict[str, object] = {
+    "recipe_id": "chicken_tacos",
+    "servings": 2,
+    "replace_ingredient_id": "chicken_breast",
+    "with_ingredient_id": "chickpeas",
+}
+
+
+def test_what_if_substitute_traces_and_leaves_reply_state_alone() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("Fewer protein grams.")], "end_turn"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["model_turns"] == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    assert result["planner_revisions"] == 0
+    assert result["tool_trace"] == [
+        {
+            "tool": SUBSTITUTE_TOOL,
+            "outcome": "success",
+            "tool_use_id": "w1",
+            "sequence": 1,
+            "revision_index": None,
+        }
+    ]
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "success"
+    assert body["content"][0]["json"] == execute_substitute(_SWAP_ARGS)
+    assert (
+        "To compare a swap or a smaller or larger portion of one ingredient, "
+        "call what_if_substitute. It does not change the plan."
+    ) in SYSTEM_PROMPT
+
+
+def test_what_if_substitute_error_keeps_static_shape_and_reply_state() -> None:
+    bad = {**_SWAP_ARGS, "with_ingredient_id": "chicken_breast", "extra": _SECRET}
+    result, provider = _run(
+        [
+            _reply([_tool_block("w1", name=SUBSTITUTE_TOOL, payload=bad)], "tool_use"),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ]
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["tool"] == SUBSTITUTE_TOOL
+    assert trace[0]["outcome"] == "error"
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "error"
+    assert body["content"][0]["json"] == {"error": "arguments are invalid"}
+    _assert_public(result)
 
 
 def test_followup_history_and_previous_request_are_context_only() -> None:
@@ -2238,6 +2307,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
             catalog_tool_spec(),
             get_plan_tool_spec(),
             get_meal_tool_spec(),
+            substitute_tool_spec(),
         ]
     )
     builds: list[str] = []
@@ -2281,6 +2351,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
         catalog_tool_spec(),
         get_plan_tool_spec(),
         get_meal_tool_spec(),
+        substitute_tool_spec(),
     ] == expected
 
 

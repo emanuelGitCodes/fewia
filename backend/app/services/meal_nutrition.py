@@ -1,6 +1,6 @@
 """Estimate meal macros from consumed recipe quantities."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.domain.catalog import INGREDIENTS, RECIPES
@@ -80,6 +80,38 @@ def _grams(
     return quantity * portion
 
 
+def _sums(
+    ingredients: Sequence[tuple[str, int]],
+    facts: Mapping[str, NutritionFacts],
+    grams_per_each: Mapping[str, int],
+) -> tuple[int, int, int, int] | None:
+    energy = protein = carb = fat = 0
+    for ingredient_id, quantity in ingredients:
+        nutrition = facts.get(ingredient_id)
+        grams = _grams(ingredient_id, quantity, grams_per_each)
+        if nutrition is None or grams is None:
+            return None
+        energy += nutrition.energy_kcal * grams
+        protein += nutrition.protein_mg * grams
+        carb += nutrition.carbohydrate_mg * grams
+        fat += nutrition.fat_mg * grams
+    return energy, protein, carb, fat
+
+
+def ingredients_macros(
+    ingredients: Sequence[tuple[str, int]],
+    *,
+    servings: int = 1,
+    facts: Mapping[str, NutritionFacts] = NUTRITION,
+    grams_per_each: Mapping[str, int] = GRAMS_PER_EACH,
+) -> MacroTotals | None:
+    """Macros for `servings` of a per-serving list, rounded from unrounded sums."""
+    sums = _sums(ingredients, facts, grams_per_each)
+    if sums is None:
+        return None
+    return _macros(*(value * servings for value in sums))
+
+
 def meal_nutrition(
     request: GroceryRequest,
     *,
@@ -95,16 +127,10 @@ def meal_nutrition(
         recipe = RECIPES.get(meal.recipe_id)
         if recipe is None:
             return _unavailable()
-        energy = protein = carb = fat = 0
-        for ingredient_id, quantity in recipe.ingredients:
-            nutrition = facts.get(ingredient_id)
-            grams = _grams(ingredient_id, quantity, grams_per_each)
-            if nutrition is None or grams is None:
-                return _unavailable()
-            energy += nutrition.energy_kcal * grams
-            protein += nutrition.protein_mg * grams
-            carb += nutrition.carbohydrate_mg * grams
-            fat += nutrition.fat_mg * grams
+        sums = _sums(recipe.ingredients, facts, grams_per_each)
+        if sums is None:
+            return _unavailable()
+        energy, protein, carb, fat = sums
         meal_energy = energy * servings
         meal_protein = protein * servings
         meal_carb = carb * servings

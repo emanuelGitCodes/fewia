@@ -22,6 +22,11 @@ from app.agent.plan_tools import (
     execute_get_plan,
 )
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.substitute_tool import (
+    SUBSTITUTE_TOOL,
+    SubstituteToolError,
+    execute_substitute,
+)
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
@@ -143,9 +148,11 @@ def _dispatch_plan_tool(
     try:
         if call.name == GET_PLAN_TOOL:
             payload = execute_get_plan(call.tool_input, plan, budget)
+        elif call.name == SUBSTITUTE_TOOL:
+            payload = execute_substitute(call.tool_input)
         else:
             payload = execute_get_meal(call.tool_input)
-    except PlanToolError:
+    except (PlanToolError, SubstituteToolError):
         payload = None
     trace.append(
         _entry(
@@ -174,7 +181,7 @@ def dispatch(
     *,
     plan: PlanRevisionInput | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
-    if call.name in (GET_PLAN_TOOL, GET_MEAL_TOOL):
+    if call.name in (GET_PLAN_TOOL, GET_MEAL_TOOL, SUBSTITUTE_TOOL):
         return _dispatch_plan_tool(call, budget, plan, trace)
     if call.name == CATALOG_TOOL_NAME:
         try:

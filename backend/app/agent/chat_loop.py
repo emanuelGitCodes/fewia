@@ -26,6 +26,7 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.provider import LLMProvider
+from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
@@ -102,9 +103,11 @@ SYSTEM_PROMPT = (
     "When the user asks for a meal type, name up to three catalog meals "
     "with that tag and ask which one to plan. "
     "Call get_plan to read the user's current plan. "
-    "Call get_meal to read one catalog meal's ingredients and macros."
+    "Call get_meal to read one catalog meal's ingredients and macros. "
+    "To compare a swap or a smaller or larger portion of one ingredient, "
+    "call what_if_substitute. It does not change the plan."
 )
-_PLAN_READ_TOOLS = (GET_PLAN_TOOL, GET_MEAL_TOOL)
+_PLAN_READ_TOOLS = (GET_PLAN_TOOL, GET_MEAL_TOOL, SUBSTITUTE_TOOL)
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -204,6 +207,7 @@ def run_chat(
         catalog_tool_spec(),
         get_plan_tool_spec(),
         get_meal_tool_spec(),
+        substitute_tool_spec(),
     ]
     pending_results: list[dict[str, object]] | None = None
 
