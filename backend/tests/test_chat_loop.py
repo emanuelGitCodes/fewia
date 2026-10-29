@@ -61,6 +61,8 @@ from app.domain.meal_tags import SEARCH_TERMS
 from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
+# Interim budget while chat-arch phases 1-2 add tools; phase 3 lowers it.
+PROMPT_AND_TOOLS_BUDGET = 16000
 _SECRET = "do-not-echo-raw-input"
 _UNAVAILABLE = "The language model is unavailable."
 _LIMIT = "The job reached a processing limit."
@@ -1076,13 +1078,13 @@ def test_system_prompt_requires_restriction_clarification() -> None:
     assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
 
 
-def test_prompt_and_all_schemas_are_below_item01_baseline() -> None:
+def test_prompt_and_all_schemas_stay_under_interim_budget() -> None:
     serialized = json.dumps(
         {"system": SYSTEM_PROMPT, "tools": _chat_tools()},
         sort_keys=True,
         separators=(",", ":"),
     )
-    assert len(serialized) < 9503, len(serialized)
+    assert len(serialized) < PROMPT_AND_TOOLS_BUDGET, len(serialized)
     assert "Catalog meal labels are id:labels pairs:" not in SYSTEM_PROMPT
     assert "bean_tacos:vegan,vegetarian,beans" not in SYSTEM_PROMPT
     assert "MUST call find_catalog_meals" in SYSTEM_PROMPT

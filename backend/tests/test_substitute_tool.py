@@ -15,7 +15,11 @@ from app.agent.substitute_tool import (
 )
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
-from app.services.meal_nutrition import ingredients_macros, meal_nutrition
+from app.services.meal_nutrition import (
+    MealNutrition,
+    ingredients_macros,
+    meal_nutrition,
+)
 
 _SECRET = "do-not-echo-raw-input"
 _KEYS = ("energy_kcal", "protein_mg", "carbohydrate_mg", "fat_mg")
@@ -41,7 +45,7 @@ def scaled(percent: int, ingredient_id: str = "chicken_breast") -> dict[str, obj
     }
 
 
-def reference(recipe_id: str, servings: int) -> Any:
+def reference(recipe_id: str, servings: int) -> MealNutrition:
     request = GroceryRequest.model_validate(
         {
             "meals": [{"recipe_id": recipe_id, "servings": servings}],
