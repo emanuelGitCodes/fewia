@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import pytest
 
+from app.agent.ingredient_tool import resolve_food
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     SubstituteToolError,
@@ -100,11 +101,15 @@ def test_spec_declares_schema_without_extra_keys() -> None:
         "recipe_id",
         "servings",
         "replace_ingredient_id",
+        "with_food",
         "with_ingredient_id",
         "quantity_per_serving",
         "scale_ingredient_id",
         "scale_factor_percent",
     }
+    assert props["with_food"] == {"type": "string", "minLength": 1, "maxLength": 64}
+    assert "with_food" in spec["description"]
+    assert "protein" in spec["description"]
     assert props["recipe_id"]["enum"] == list(SUPPORTED_RECIPE_IDS)
     assert props["servings"] == {"type": "integer", "minimum": 1, "maximum": 8}
     for name in ("replace_ingredient_id", "with_ingredient_id", "scale_ingredient_id"):
@@ -360,6 +365,7 @@ def test_inputs_and_catalog_are_not_mutated() -> None:
 def test_payload_has_a_price_block_and_no_evidence_fields() -> None:
     result = execute_substitute(swap())
     assert set(result) == {
+        "status",
         "recipe_id",
         "servings",
         "servings_source",
@@ -494,6 +500,8 @@ def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
         swap(servings=2.0),
         swap(extra=_SECRET),
         swap(replace_ingredient_id=[_SECRET]),
+        {"recipe_id": "bean_tacos", "replace_ingredient_id": "black_beans"},
+        {"recipe_id": "bean_tacos", "with_ingredient_id": "ground_beef_80"},
     ],
 )
 def test_invalid_arguments_raise_static_error(arguments: object) -> None:
@@ -650,3 +658,157 @@ def test_curated_foods_cannot_be_recipe_ingredients(arguments: object) -> None:
     with pytest.raises(SubstituteToolError) as caught:
         execute_substitute(arguments)
     assert str(caught.value) == "arguments are invalid"
+
+
+def food_swap(**extra: object) -> dict[str, object]:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": "beef"}
+    args.update(extra)
+    return args
+
+
+def candidates_of(result: dict[str, object]) -> list[tuple[str, str]]:
+    items = cast(list[dict[str, str]], result["candidates"])
+    return [(item["ingredient_id"], item["name"]) for item in items]
+
+
+@pytest.mark.parametrize("food", ["beef", "Ground Beef", "  GROUND   beef "])
+def test_with_food_swaps_the_only_protein_like_the_explicit_ids(food: str) -> None:
+    plan = plan_with("bean_tacos", 2)
+    result = execute_substitute(food_swap(with_food=food), plan=plan)
+    expected = execute_substitute(beef_swap())
+    assert result["status"] == "swapped"
+    assert result["servings"] == 2
+    assert result["servings_source"] == "plan"
+    assert result["change"] == {
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+    for key in ("before", "after", "delta", "delta_percent", "diets_after", "price"):
+        assert result[key] == expected[key]
+    assert "with_food" not in json.dumps(result["change"])
+
+
+def test_explicit_id_and_scale_forms_gain_only_the_swapped_status() -> None:
+    explicit = execute_substitute(beef_swap())
+    assert explicit["status"] == "swapped"
+    assert execute_substitute(scaled(50))["status"] == "swapped"
+    assert execute_substitute(food_swap(servings=3))["servings_source"] == "request"
+
+
+def test_with_food_with_a_given_replacement_swaps_even_with_two_proteins() -> None:
+    result = execute_substitute(
+        food_swap(recipe_id="chicken_lentil_stew", replace_ingredient_id="lentils")
+    )
+    assert result["status"] == "swapped"
+    assert result["change"] == {
+        "replace_ingredient_id": "lentils",
+        "with_ingredient_id": "ground_beef_80",
+    }
+
+
+def test_with_food_honors_an_explicit_quantity() -> None:
+    result = execute_substitute(food_swap(quantity_per_serving=150))
+    assert result["assumptions"] == [
+        "Quantity set to 150 g per serving.",
+        "Servings not given; used 1.",
+    ]
+
+
+def test_ambiguous_food_asks_which_food_and_does_not_swap() -> None:
+    result = execute_substitute(food_swap(with_food="pork"))
+    assert set(result) == {"status", "recipe_id", "candidates"}
+    assert result["status"] == "needs_food_choice"
+    assert result["recipe_id"] == "bean_tacos"
+    assert sorted(name for _, name in candidates_of(result)) == [
+        "ground pork",
+        "pork loin",
+    ]
+    assert [item for item, _ in candidates_of(result)] == list(resolve_food("pork").ids)
+
+
+def test_unknown_food_returns_candidates_and_no_swap() -> None:
+    result = execute_substitute(food_swap(with_food="tofu"))
+    assert result == {
+        "status": "unknown_food",
+        "recipe_id": "bean_tacos",
+        "candidates": [],
+    }
+    near = execute_substitute(food_swap(with_food="beef stew"))
+    assert near["status"] == "unknown_food"
+    assert candidates_of(near)[0] == ("ground_beef_80", "ground beef (80% lean)")
+
+
+def test_no_protein_in_the_recipe_asks_for_the_ingredient_to_replace() -> None:
+    result = execute_substitute(food_swap(recipe_id="vegetable_pasta"))
+    assert set(result) == {"status", "recipe_id", "candidates"}
+    assert result["status"] == "needs_ingredient_choice"
+    assert result["recipe_id"] == "vegetable_pasta"
+    assert candidates_of(result) == [
+        (item, ALL_INGREDIENTS[item].name)
+        for item, _ in RECIPES["vegetable_pasta"].ingredients
+    ]
+
+
+def test_two_proteins_ask_instead_of_picking_the_first() -> None:
+    result = execute_substitute(food_swap(recipe_id="chicken_lentil_stew"))
+    assert result["status"] == "needs_ingredient_choice"
+    assert candidates_of(result) == [
+        ("chicken_breast", "chicken breast"),
+        ("lentils", "brown lentils"),
+    ]
+
+
+def test_with_food_and_a_replacement_in_a_meal_without_protein_swaps() -> None:
+    result = execute_substitute(
+        food_swap(recipe_id="vegetable_pasta", replace_ingredient_id="pasta")
+    )
+    assert result["status"] == "swapped"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        food_swap(with_ingredient_id="ground_beef_80"),
+        food_swap(with_food=""),
+        food_swap(with_food="a" * 65),
+        food_swap(with_food="   "),
+        food_swap(with_food=None),
+        food_swap(with_food=5),
+        food_swap(with_food=["beef"]),
+        food_swap(scale_ingredient_id="black_beans", scale_factor_percent=50),
+        food_swap(servings=0),
+        food_swap(replace_ingredient_id="salsa_not_here"),
+        food_swap(replace_ingredient_id=_SECRET),
+        food_swap(with_food="black beans"),
+        food_swap(extra=_SECRET),
+    ],
+)
+def test_invalid_with_food_arguments_raise_static_error(arguments: object) -> None:
+    with pytest.raises(SubstituteToolError) as caught:
+        execute_substitute(arguments)
+    assert str(caught.value) == "arguments are invalid"
+    assert _SECRET not in str(caught.value)
+    assert caught.value.__cause__ is None
+
+
+def test_with_food_length_edges_are_accepted() -> None:
+    assert execute_substitute(food_swap(with_food="a"))["status"] == "unknown_food"
+    long = execute_substitute(food_swap(with_food="a" * 64))
+    assert long["status"] == "unknown_food"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        food_swap(with_food="tofu"),
+        food_swap(with_food=_SECRET),
+        food_swap(recipe_id="vegetable_pasta", with_food=_SECRET + " beef"),
+        food_swap(recipe_id="chicken_lentil_stew", with_food="beef"),
+    ],
+)
+def test_question_payloads_never_contain_the_input_text(
+    arguments: dict[str, object],
+) -> None:
+    result = execute_substitute(arguments)
+    assert result["status"] != "swapped"
+    assert str(arguments["with_food"]) not in json.dumps(result)

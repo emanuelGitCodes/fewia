@@ -691,12 +691,17 @@ def test_ingredient_facts_error_keeps_static_shape_and_reply_state() -> None:
 
 
 def test_prompt_tells_the_model_to_look_up_foods_before_swapping() -> None:
-    assert SYSTEM_PROMPT.endswith(
+    assert (
         "When the user names a food or ingredient, call get_ingredient_facts "
         "to find its ID. "
         "To swap an ingredient in a meal for another food, call "
         "get_ingredient_facts, then what_if_substitute."
-    )
+    ) in SYSTEM_PROMPT
+    assert (
+        "When the user renames a meal with a food, for example beef tacos for "
+        "bean tacos, call what_if_substitute with that meal's recipe_id and "
+        "with_food set to the food."
+    ) in SYSTEM_PROMPT
 
 
 def test_typed_planner_error_beats_read_answer_in_same_batch() -> None:

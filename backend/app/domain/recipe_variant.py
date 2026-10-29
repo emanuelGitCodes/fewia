@@ -6,6 +6,7 @@ from typing import cast
 
 from app.domain.catalog import RECIPES, Recipe
 from app.domain.curated_foods import ALL_INGREDIENTS
+from app.domain.meal_tags import PROTEIN_TAGS
 from app.services.meal_nutrition import GRAMS_PER_EACH
 
 MIN_QUANTITY = 1
@@ -60,6 +61,12 @@ def ingredient_grams(ingredient_id: str, quantity: int) -> int:
     if ALL_INGREDIENTS[ingredient_id].unit == "g":
         return quantity
     return quantity * GRAMS_PER_EACH[ingredient_id]
+
+
+def protein_ingredient_ids(recipe_id: str) -> tuple[str, ...]:
+    """Return the recipe's PROTEIN_TAGS ingredients, in PROTEIN_TAGS order."""
+    present = {item for item, _ in RECIPES[recipe_id].ingredients}
+    return tuple(item for _, item in PROTEIN_TAGS if item in present)
 
 
 def _is_str(value: object) -> bool:

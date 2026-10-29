@@ -370,6 +370,79 @@ def test_dispatch_passes_the_plan_servings_to_swap_and_price_tools() -> None:
     assert priced_meal["servings_source"] == "plan"
 
 
+def _plan_of(recipe_id: str, servings: int) -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": recipe_id, "servings": servings}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def test_dispatch_resolves_with_food_to_a_swap_with_plan_servings() -> None:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": "beef"}
+    trace: list[dict[str, object]] = []
+    plan = _plan_of("bean_tacos", 2)
+    payload, block = dispatch(
+        ToolCall("f1", SUBSTITUTE_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=plan,
+    )
+    assert payload is not None
+    assert payload["status"] == "swapped"
+    assert payload["servings"] == 2 and payload["servings_source"] == "plan"
+    assert payload["change"] == {
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+    assert _tool_json(block) == payload
+    assert block["toolResult"]["status"] == "success"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "success")]
+
+
+@pytest.mark.parametrize(
+    ("food", "status"),
+    [("pork", "needs_food_choice"), ("tofu", "unknown_food")],
+)
+def test_dispatch_question_payloads_are_successes_without_the_input(
+    food: str, status: str
+) -> None:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": food}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("f2", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is not None and payload["status"] == status
+    assert block["toolResult"]["status"] == "success"
+    assert _tool_json(block) == payload
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "success")]
+    assert "error" not in payload
+
+
+def test_dispatch_with_food_and_with_ingredient_id_is_a_static_error() -> None:
+    args: dict[str, object] = {
+        "recipe_id": "bean_tacos",
+        "with_food": _SECRET,
+        "with_ingredient_id": "ground_beef_80",
+    }
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("f3", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+    assert block["toolResult"]["status"] == "error"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "error")]
+    assert _SECRET not in json.dumps({"block": block, "trace": trace})
+
+
 def test_price_lines_invalid_arguments_return_static_error() -> None:
     def record(_payload: dict[str, object]) -> str:
         pytest.fail("price_lines MUST NOT record plan evidence")

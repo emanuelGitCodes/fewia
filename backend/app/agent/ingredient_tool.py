@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from app.agent.plan_tools import _spec
 from app.domain.catalog import INGREDIENTS
 from app.domain.curated_foods import (
@@ -70,26 +72,37 @@ def _related(query: str) -> list[str]:
     return related[:_MAX_CANDIDATES]
 
 
-def execute_ingredient_facts(arguments: object) -> dict[str, object]:
-    if type(arguments) is not dict or set(arguments) != {"name"}:
+@dataclass(frozen=True)
+class FoodResolution:
+    """status is found (one ID), ambiguous (matches), or unknown (related)."""
+
+    status: str
+    query: str
+    ids: tuple[str, ...]
+
+
+def resolve_food(name: object) -> FoodResolution:
+    if type(name) is not str or not 1 <= len(name) <= 64:
         raise IngredientToolError("arguments are invalid")
-    raw = arguments["name"]
-    if type(raw) is not str or not 1 <= len(raw) <= 64:
-        raise IngredientToolError("arguments are invalid")
-    query = normalize_term(raw)
+    query = normalize_term(name)
     if not query:
         raise IngredientToolError("arguments are invalid")
     matches = _resolve(query)
     if len(matches) == 1:
-        return _facts(matches[0])
+        return FoodResolution("found", query, (matches[0],))
     if matches:
-        return {
-            "status": "ambiguous",
-            "name": query,
-            "candidates": [_facts(item) for item in matches[:_MAX_CANDIDATES]],
-        }
+        return FoodResolution("ambiguous", query, tuple(matches[:_MAX_CANDIDATES]))
+    return FoodResolution("unknown", query, tuple(_related(query)))
+
+
+def execute_ingredient_facts(arguments: object) -> dict[str, object]:
+    if type(arguments) is not dict or set(arguments) != {"name"}:
+        raise IngredientToolError("arguments are invalid")
+    resolution = resolve_food(arguments["name"])
+    if resolution.status == "found":
+        return _facts(resolution.ids[0])
     return {
-        "status": "unknown",
-        "name": query,
-        "candidates": [_facts(item) for item in _related(query)],
+        "status": resolution.status,
+        "name": resolution.query,
+        "candidates": [_facts(item) for item in resolution.ids],
     }

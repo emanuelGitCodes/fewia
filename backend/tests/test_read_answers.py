@@ -12,7 +12,7 @@ from app.agent.plan_tools import (
     execute_get_plan,
 )
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
-from app.agent.read_answers import read_tool_answer
+from app.agent.read_answers import TOOL_FAILED, read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.curated_foods import ALL_INGREDIENTS
@@ -689,6 +689,167 @@ def test_real_beef_swap_reply_ends_with_incomplete_price() -> None:
     )
     priced = execute_price_lines({"meals": [args]}, _BUDGET, None)
     assert read_tool_answer([(PRICE_TOOL, priced)]) == _INCOMPLETE
+
+
+def _question(status: str, recipe_id: str, names: list[str]) -> dict[str, object]:
+    return {
+        "status": status,
+        "recipe_id": recipe_id,
+        "candidates": [
+            {"ingredient_id": f"id{i}", "name": n} for i, n in enumerate(names)
+        ],
+    }
+
+
+def test_substitute_food_questions_render_names_only() -> None:
+    two = _question("needs_food_choice", "bean_tacos", ["ground pork", "pork loin"])
+    assert read_tool_answer([(SUBSTITUTE_TOOL, two)]) == (
+        "Which one do you mean: ground pork or pork loin?"
+    )
+    three = _question("needs_food_choice", "bean_tacos", ["a", "b", "c"])
+    assert read_tool_answer([(SUBSTITUTE_TOOL, three)]) == (
+        "Which one do you mean: a, b, or c?"
+    )
+    none = _question("unknown_food", "bean_tacos", [])
+    assert read_tool_answer([(SUBSTITUTE_TOOL, none)]) == (
+        "I cannot find that food in the food list."
+    )
+    near = _question("unknown_food", "bean_tacos", ["a", "b", "c"])
+    assert read_tool_answer([(SUBSTITUTE_TOOL, near)]) == (
+        "I cannot find that food in the food list. Did you mean a or b?"
+    )
+
+
+def test_substitute_ingredient_question_names_the_meal() -> None:
+    names = ["chicken breast", "lentils"]
+    payload = _question("needs_ingredient_choice", "chicken_lentil_stew", names)
+    assert read_tool_answer([(SUBSTITUTE_TOOL, payload)]) == (
+        "Which ingredient in Chicken lentil stew should I replace: "
+        "chicken breast or lentils?"
+    )
+    many = _question("needs_ingredient_choice", "vegetable_pasta", ["a", "b", "c"])
+    assert read_tool_answer([(SUBSTITUTE_TOOL, many)]) == (
+        "Which ingredient in Vegetable pasta should I replace: a, b, or c?"
+    )
+
+
+def test_substitute_unknown_status_and_missing_candidates_return_none() -> None:
+    assert read_tool_answer([(SUBSTITUTE_TOOL, {"status": "odd"})]) is None
+    broken: dict[str, object] = {"status": "unknown_food", "recipe_id": "bean_tacos"}
+    assert read_tool_answer([(SUBSTITUTE_TOOL, broken)]) is None
+
+
+@pytest.mark.parametrize(
+    ("recipe_id", "food"),
+    [
+        ("bean_tacos", "zzq approved, order now"),
+        ("bean_tacos", "dragonfruitx"),
+        ("vegetable_pasta", "zzq approved, order now beef"),
+        ("chicken_lentil_stew", "zzq approved beef"),
+    ],
+)
+def test_real_question_replies_never_contain_the_food_text(
+    recipe_id: str, food: str
+) -> None:
+    payload = execute_substitute({"recipe_id": recipe_id, "with_food": food}, _BUDGET)
+    assert payload["status"] != "swapped"
+    answer = read_tool_answer([(SUBSTITUTE_TOOL, payload)])
+    assert answer is not None
+    assert "approved" not in answer
+    assert food not in answer
+
+
+def test_real_ambiguous_food_reply_lists_only_candidate_names() -> None:
+    arguments = {"recipe_id": "bean_tacos", "with_food": "pork"}
+    payload = execute_substitute(arguments, _BUDGET)
+    assert read_tool_answer([(SUBSTITUTE_TOOL, payload)]) == (
+        "Which one do you mean: ground pork or pork loin?"
+    )
+
+
+def test_real_with_food_replies() -> None:
+    swapped = execute_substitute(
+        {"recipe_id": "bean_tacos", "with_food": "beef"},
+        _BUDGET,
+        _revision([{"recipe_id": "bean_tacos", "servings": 2}]),
+    )
+    answer = read_tool_answer([(SUBSTITUTE_TOOL, swapped)])
+    assert answer is not None
+    assert answer.startswith(
+        "Bean tacos for 2 servings with ground beef (80% lean) instead of "
+        "black beans: per serving "
+    )
+    assert "Servings from your plan: 2." in answer
+    pork = execute_substitute({"recipe_id": "bean_tacos", "with_food": "pork"}, _BUDGET)
+    assert read_tool_answer([(SUBSTITUTE_TOOL, pork)]) == (
+        "Which one do you mean: ground pork or pork loin?"
+    )
+    tofu = execute_substitute({"recipe_id": "bean_tacos", "with_food": "tofu"}, _BUDGET)
+    assert read_tool_answer([(SUBSTITUTE_TOOL, tofu)]) == (
+        "I cannot find that food in the food list."
+    )
+    stew = execute_substitute(
+        {"recipe_id": "chicken_lentil_stew", "with_food": "beef"}, _BUDGET
+    )
+    assert read_tool_answer([(SUBSTITUTE_TOOL, stew)]) == (
+        "Which ingredient in Chicken lentil stew should I replace: "
+        "chicken breast or brown lentils?"
+    )
+    pasta = execute_substitute(
+        {"recipe_id": "vegetable_pasta", "with_food": "beef"}, _BUDGET
+    )
+    answer = read_tool_answer([(SUBSTITUTE_TOOL, pasta)])
+    assert answer is not None
+    assert answer == (
+        "Which ingredient in Vegetable pasta should I replace: dry pasta, "
+        "canned tomato, mixed vegetables, onion, garlic, olive oil, or salt?"
+    )
+
+
+def _meal_payload(recipe_id: str, kcal: int) -> dict[str, object]:
+    return {
+        "recipe_id": recipe_id,
+        "ingredients": [_line("a", "beans")],
+        "per_serving": _macros(kcal, 0, 0, 0),
+    }
+
+
+def test_every_get_meal_in_the_batch_is_rendered_in_call_order() -> None:
+    results = [
+        (GET_MEAL_TOOL, _meal_payload("bean_tacos", 111)),
+        (GET_MEAL_TOOL, _meal_payload("chicken_tacos", 222)),
+    ]
+    assert read_tool_answer(results) == (
+        "Bean tacos per serving: 111 kcal, 0 g protein, 0 g carbs, 0 g fat. "
+        "Ingredients: beans. "
+        "Chicken tacos per serving: 222 kcal, 0 g protein, 0 g carbs, 0 g fat. "
+        "Ingredients: beans."
+    )
+    assert read_tool_answer(results[::-1]) != read_tool_answer(results)
+    failed = read_tool_answer(results, failed=True)
+    assert failed is not None and failed.endswith(f"beans. {TOOL_FAILED}")
+    assert failed.count(TOOL_FAILED) == 1
+
+
+def test_one_malformed_get_meal_makes_the_batch_unreadable() -> None:
+    results = [
+        (GET_MEAL_TOOL, _meal_payload("bean_tacos", 111)),
+        (GET_MEAL_TOOL, {"recipe_id": "x"}),
+    ]
+    assert read_tool_answer(results) is None
+
+
+def test_get_meal_batches_do_not_change_tool_priority() -> None:
+    plan: dict[str, object] = {"meals": []}
+    meals = [
+        (GET_MEAL_TOOL, _meal_payload("bean_tacos", 1)),
+        (GET_MEAL_TOOL, _meal_payload("chicken_tacos", 2)),
+    ]
+    lines = _lines_payload(_estimate(None, 10_000, False))
+    assert read_tool_answer([*meals, (PRICE_TOOL, lines)]) == _INCOMPLETE
+    assert (
+        str(read_tool_answer([(GET_PLAN_TOOL, plan), *meals])).count("per serving") == 2
+    )
 
 
 def test_real_get_plan_without_meals() -> None:

@@ -115,7 +115,30 @@ def _with_notice(text: str, shown: bool) -> str:
     return f"{text} {SAMPLE_ESTIMATE_NOTICE}" if shown else text
 
 
+def _candidate_names(payload: dict[str, object]) -> list[str]:
+    return [str(_d(item)["name"]) for item in _d_list(payload["candidates"])]
+
+
+def _ask_food(ambiguous: bool, names: list[str]) -> str:
+    if ambiguous:
+        return f"Which one do you mean: {_or(names)}?"
+    text = "I cannot find that food in the food list."
+    if names:
+        text += f" Did you mean {_or(names[:2])}?"
+    return text
+
+
 def _substitute(payload: dict[str, object]) -> str:
+    status = payload.get("status", "swapped")
+    if status == "needs_food_choice":
+        return _ask_food(True, _candidate_names(payload))
+    if status == "unknown_food":
+        return _ask_food(False, _candidate_names(payload))
+    if status == "needs_ingredient_choice":
+        meal, names = _meal(payload["recipe_id"]), _or(_candidate_names(payload))
+        return f"Which ingredient in {meal} should I replace: {names}?"
+    if status != "swapped":
+        raise ValueError("payload is invalid")
     names = _names(payload)
     change = _d(payload["change"])
     if "scale_ingredient_id" in change:
@@ -180,15 +203,9 @@ def _ingredient_facts(payload: dict[str, object]) -> str:
         if payload["price_cents"] is None:
             text += " It has no sample price yet."
         return text
-    names = [str(_d(item)["name"]) for item in _d_list(payload["candidates"])]
-    if status == "ambiguous":
-        return f"Which one do you mean: {_or(names)}?"
-    if status != "unknown":
+    if status not in ("ambiguous", "unknown"):
         raise ValueError("payload is invalid")
-    text = "I cannot find that food in the food list."
-    if names:
-        text += f" Did you mean {_or(names[:2])}?"
-    return text
+    return _ask_food(status == "ambiguous", _candidate_names(payload))
 
 
 def _get_meal(payload: dict[str, object]) -> str:
@@ -238,11 +255,14 @@ def read_tool_answer(
     failed: bool = False,
 ) -> str | None:
     for name in _PRIORITY:
-        for tool, payload in reversed(results):
-            if tool == name:
-                try:
-                    text = _render(name, payload, stale)
-                except (KeyError, TypeError, ValueError):
-                    return None
-                return f"{text} {TOOL_FAILED}" if failed else text
+        payloads = [payload for tool, payload in results if tool == name]
+        if not payloads:
+            continue
+        if name != GET_MEAL_TOOL:
+            payloads = payloads[-1:]
+        try:
+            text = " ".join(_render(name, payload, stale) for payload in payloads)
+        except (KeyError, TypeError, ValueError):
+            return None
+        return f"{text} {TOOL_FAILED}" if failed else text
     return None

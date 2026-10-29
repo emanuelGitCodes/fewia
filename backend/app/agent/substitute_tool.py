@@ -2,6 +2,7 @@ from dataclasses import asdict
 from typing import cast
 
 from app.agent.estimate import priced_estimate
+from app.agent.ingredient_tool import IngredientToolError, resolve_food
 from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
 from app.domain.catalog import RECIPES
@@ -18,6 +19,7 @@ from app.domain.recipe_variant import (
     RecipeVariantError,
     ingredient_grams,
     parse_change,
+    protein_ingredient_ids,
     round_half_up,
     variant_recipes,
 )
@@ -25,6 +27,9 @@ from app.services.meal_nutrition import MacroTotals
 
 SUBSTITUTE_TOOL = "what_if_substitute"
 INGREDIENT_ID_HELP = "An ingredient ID from get_ingredient_facts or get_meal."
+_ID_FORM_FIELDS = frozenset(
+    {"with_ingredient_id", "scale_ingredient_id", "scale_factor_percent"}
+)
 _MACRO_KEYS = ("energy_kcal", "protein_mg", "carbohydrate_mg", "fat_mg")
 
 
@@ -38,13 +43,15 @@ def substitute_tool_spec() -> dict[str, object]:
         SUBSTITUTE_TOOL,
         "Recompute one catalog meal with one ingredient replaced or scaled. "
         "Return before, after, and delta macros. The tool does not change the "
-        "plan. Use either replace_ingredient_id with with_ingredient_id, or "
-        "scale_ingredient_id with scale_factor_percent. "
+        "plan. To swap, give with_food (a food name) or with_ingredient_id. "
+        "replace_ingredient_id defaults to the meal's only protein. "
+        "To scale, use scale_ingredient_id with scale_factor_percent. "
         "Omit servings for a meal in the user's plan to use the plan's servings.",
         {
             "recipe_id": {"type": "string", "enum": list(SUPPORTED_RECIPE_IDS)},
             "servings": {"type": "integer", "minimum": 1, "maximum": 8},
             "replace_ingredient_id": ingredient,
+            "with_food": {"type": "string", "minLength": 1, "maxLength": 64},
             "with_ingredient_id": ingredient,
             "quantity_per_serving": {
                 "type": "integer",
@@ -203,6 +210,40 @@ def servings_assumption(servings: int, source: str) -> str | None:
     return None
 
 
+def _question(status: str, recipe_id: str, ids: tuple[str, ...]) -> dict[str, object]:
+    return {
+        "status": status,
+        "recipe_id": recipe_id,
+        "candidates": [
+            {"ingredient_id": item, "name": ALL_INGREDIENTS[item].name} for item in ids
+        ],
+    }
+
+
+def _fill_food(
+    arguments: dict[str, object], recipe_id: str
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    """Return (question, arguments with the food and protein IDs filled in)."""
+    if not _ID_FORM_FIELDS.isdisjoint(arguments):
+        raise SubstituteToolError("arguments are invalid")
+    try:
+        food = resolve_food(arguments["with_food"])
+    except IngredientToolError:
+        raise SubstituteToolError("arguments are invalid") from None
+    if food.status != "found":
+        status = "needs_food_choice" if food.status == "ambiguous" else "unknown_food"
+        return _question(status, recipe_id, food.ids), arguments
+    filled = {key: value for key, value in arguments.items() if key != "with_food"}
+    filled["with_ingredient_id"] = food.ids[0]
+    if "replace_ingredient_id" not in filled:
+        proteins = protein_ingredient_ids(recipe_id)
+        if len(proteins) != 1:
+            ids = proteins or tuple(item for item, _ in RECIPES[recipe_id].ingredients)
+            return _question("needs_ingredient_choice", recipe_id, ids), filled
+        filled["replace_ingredient_id"] = proteins[0]
+    return None, filled
+
+
 def execute_substitute(
     arguments: object, budget: BudgetResult, plan: PlanRevisionInput | None = None
 ) -> dict[str, object]:
@@ -211,6 +252,7 @@ def execute_substitute(
     if "recipe_id" not in arguments or not set(arguments) <= {
         "recipe_id",
         "servings",
+        "with_food",
         *CHANGE_FIELDS,
     }:
         raise SubstituteToolError("arguments are invalid")
@@ -221,6 +263,10 @@ def execute_substitute(
     if resolved is None:
         raise SubstituteToolError("arguments are invalid")
     servings, source = resolved
+    if "with_food" in arguments:
+        question, arguments = _fill_food(arguments, recipe_id)
+        if question is not None:
+            return question
     try:
         change = parse_change(arguments)
         if change is None:
@@ -237,6 +283,7 @@ def execute_substitute(
     if note is not None:
         assumptions.append(note)
     return {
+        "status": "swapped",
         "recipe_id": recipe_id,
         "servings": servings,
         "servings_source": source,

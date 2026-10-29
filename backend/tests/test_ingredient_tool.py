@@ -5,9 +5,11 @@ import pytest
 
 from app.agent.ingredient_tool import (
     INGREDIENT_TOOL,
+    FoodResolution,
     IngredientToolError,
     execute_ingredient_facts,
     ingredient_tool_spec,
+    resolve_food,
 )
 from app.domain.catalog import INGREDIENTS
 from app.domain.curated_foods import CURATED_INGREDIENTS, CURATED_NUTRITION
@@ -202,3 +204,34 @@ def test_lookup_does_not_mutate_the_tables() -> None:
 
 def test_error_is_value_error() -> None:
     assert issubclass(IngredientToolError, ValueError)
+
+
+def test_resolve_food_reports_found_ambiguous_and_unknown() -> None:
+    assert resolve_food("  Beef ") == FoodResolution(
+        "found", "beef", ("ground_beef_80",)
+    )
+    assert resolve_food("pork") == FoodResolution(
+        "ambiguous", "pork", ("ground_pork", "pork_loin")
+    )
+    assert resolve_food("tofu") == FoodResolution("unknown", "tofu", ())
+    assert resolve_food("beef stew").ids[0] == "ground_beef_80"
+
+
+@pytest.mark.parametrize("name", [None, 5, ["beef"], "", "a" * 65, "   "])
+def test_resolve_food_rejects_invalid_names_with_a_static_error(name: object) -> None:
+    with pytest.raises(IngredientToolError) as caught:
+        resolve_food(name)
+    assert str(caught.value) == "arguments are invalid"
+
+
+@pytest.mark.parametrize("name", ["beef", "pork", "tofu", "beef stew", "black beans"])
+def test_the_tool_and_the_resolver_agree(name: str) -> None:
+    resolution = resolve_food(name)
+    result = lookup(name)
+    assert result["status"] == resolution.status
+    if resolution.status == "found":
+        assert result["ingredient_id"] == resolution.ids[0]
+    else:
+        assert result["name"] == resolution.query
+        ids = [item["ingredient_id"] for item in result["candidates"]]
+        assert ids == list(resolution.ids)
