@@ -176,7 +176,8 @@ def test_plan_revision_rows_are_immutable_on_postgresql(
         connection.execute(text("INSERT INTO users (id, display_name) VALUES (1, 'u')"))
         connection.execute(
             text(
-                "INSERT INTO plan_revisions (id, user_id, snapshot) VALUES (:i, 1, '{}')"
+                "INSERT INTO plan_revisions (id, user_id, snapshot) "
+                "VALUES (:i, 1, '{}')"
             ),
             {"i": revision_id},
         )

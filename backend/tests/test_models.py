@@ -18,6 +18,7 @@ EXPECTED_TABLES = {
     plaid_models.PlaidTransaction.__tablename__,
     handoff_models.ShoppingHandoff.__tablename__,
     evidence_models.GroceryEvidence.__tablename__,
+    "plan_revisions",
 }
 
 

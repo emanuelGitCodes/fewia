@@ -5,6 +5,7 @@ from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
@@ -93,10 +94,13 @@ def create_chat_job(
     if body.plan_revision_id is not None:
         row = session.get(PlanRevision, body.plan_revision_id)
         if row is not None and row.user_id == DEMO_USER_ID:
-            plan_revision = PlanRevisionInput(
-                id=row.id, snapshot=PlanSnapshot.model_validate(row.snapshot)
-            )
-        else:
+            try:
+                plan_revision = PlanRevisionInput(
+                    id=row.id, snapshot=PlanSnapshot.model_validate(row.snapshot)
+                )
+            except ValidationError:
+                plan_revision = None
+        if plan_revision is None:
             raise HTTPException(status_code=409, detail=PLAN_REVISION_MESSAGE)
     turns = [ChatHistoryTurn.model_validate(item) for item in history]
     payload = cast(

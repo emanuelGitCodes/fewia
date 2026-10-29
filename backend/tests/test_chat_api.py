@@ -483,6 +483,24 @@ def test_unknown_or_foreign_plan_revision_conflicts(
     assert session.scalars(select(Job)).all() == []
 
 
+def test_invalid_stored_plan_snapshot_conflicts(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    revision_id = uuid4()
+    session.add(PlanRevision(id=revision_id, user_id=1, snapshot={"meals": "bad"}))
+    session.flush()
+    response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == chat_api.PLAN_REVISION_MESSAGE
+    assert session.scalars(select(Job)).all() == []
+
+
 def test_same_key_same_plan_revision_returns_existing_job(
     client: TestClient,
     session: Session,

@@ -54,17 +54,20 @@ def test_create_body_accepts_caller_fields() -> None:
     assert body.monthly_limit_cents == 40000
     assert body.plan_cap_cents is None
     assert body.previous_job_id is None
+    assert body.plan_revision_id is None
     assert set(CreateChatJobBody.model_fields) == {
         "message",
         "monthly_limit_cents",
         "plan_cap_cents",
         "previous_job_id",
+        "plan_revision_id",
     }
     assert dumped == {
         "message": "plan chicken tacos",
         "monthly_limit_cents": 40000,
         "plan_cap_cents": None,
         "previous_job_id": None,
+        "plan_revision_id": None,
     }
 
 
