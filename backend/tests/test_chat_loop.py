@@ -584,8 +584,8 @@ def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
     # + cumin 199 + oil 599; salt is in the pantry.
     assert cast(dict[str, Any], expected["estimate"])["total_cents"] == 1_733
     assert result["answer"] == (
-        "Sample total for Chicken tacos with chickpeas instead of chicken breast, "
-        "Bean tacos: USD $17.33. "
+        "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
+        "chicken breast, Bean tacos (1 serving): USD $17.33. "
         f"It fits the available USD $100.00. {SAMPLE_ESTIMATE_NOTICE}"
     )
     assert (
@@ -697,6 +697,12 @@ def test_failed_read_tool_in_batch_adds_failure_sentence() -> None:
     assert answer.endswith(" A tool call failed. Check the request.")
 
 
+def test_system_prompt_tells_model_to_omit_servings_for_planned_meals() -> None:
+    assert "Omit servings for a meal that is already in the user's plan." in (
+        SYSTEM_PROMPT
+    )
+
+
 def test_stale_budget_warning_reaches_price_lines_reply() -> None:
     stale = BudgetResult(10_000, 250, True, (STALE_SPENDING_WARNING,))
     args: dict[str, object] = {"meals": [{**_SWAP_ARGS}]}
@@ -709,8 +715,8 @@ def test_stale_budget_warning_reaches_price_lines_reply() -> None:
     )
     result = run_chat(provider, "price it", stale, PERIOD, heartbeat=_noop)
     assert result["answer"] == (
-        "Sample total for Chicken tacos with chickpeas instead of chicken breast: "
-        f"{_usd(estimate['total_cents'])}. It fits the available USD $100.00. "
+        "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
+        f"chicken breast: {_usd(estimate['total_cents'])}. It fits the available USD $100.00. "
         f"{STALE_SPENDING_WARNING} {SAMPLE_ESTIMATE_NOTICE}"
     )
 

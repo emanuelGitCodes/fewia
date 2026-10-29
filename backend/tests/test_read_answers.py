@@ -202,10 +202,13 @@ def _lines_payload(estimate: dict[str, object]) -> dict[str, object]:
     }
 
 
+_PRICED = "Chicken tacos (2 servings), Bean tacos (1 serving)"
+
+
 def test_price_lines_fits() -> None:
     payload = _lines_payload(_estimate(1_250, 10_000, True))
     assert read_tool_answer([(PRICE_TOOL, payload)]) == (
-        f"Sample total for Chicken tacos, Bean tacos: {_usd(1_250)}. "
+        f"Sample total for {_PRICED}: {_usd(1_250)}. "
         f"It fits the available {_usd(10_000)}. {_NOTICE}"
     )
 
@@ -213,7 +216,7 @@ def test_price_lines_fits() -> None:
 def test_price_lines_exceeds() -> None:
     payload = _lines_payload(_estimate(1_250, 1_000, False))
     assert read_tool_answer([(PRICE_TOOL, payload)]) == (
-        f"Sample total for Chicken tacos, Bean tacos: {_usd(1_250)}. "
+        f"Sample total for {_PRICED}: {_usd(1_250)}. "
         f"It exceeds the available {_usd(1_000)}. {_NOTICE}"
     )
 
@@ -388,7 +391,7 @@ def test_real_price_lines_fits() -> None:
     assert _at(payload, "estimate", "total_cents") == 2_502
     assert _at(payload, "estimate", "accepted") is True
     assert read_tool_answer([(PRICE_TOOL, payload)]) == (
-        "Sample total for Chicken tacos, Bean tacos: USD $25.02. "
+        f"Sample total for {_PRICED}: USD $25.02. "
         f"It fits the available USD $100.00. {_NOTICE}"
     )
 
@@ -399,7 +402,7 @@ def test_real_price_lines_exceeds_plan_cap() -> None:
     assert _at(payload, "estimate", "available_cents") == 2_000
     assert _at(payload, "estimate", "accepted") is False
     assert read_tool_answer([(PRICE_TOOL, payload)]) == (
-        "Sample total for Chicken tacos, Bean tacos: USD $25.02. "
+        f"Sample total for {_PRICED}: USD $25.02. "
         f"It exceeds the available USD $20.00. {_NOTICE}"
     )
 
@@ -408,8 +411,8 @@ def test_real_price_lines_names_swap_and_scale() -> None:
     swap = execute_price_lines({"meals": [_REAL_SWAP]}, _BUDGET, None)
     assert _at(swap, "estimate", "total_cents") == 1_703
     assert read_tool_answer([(PRICE_TOOL, swap)]) == (
-        "Sample total for Chicken tacos with chickpeas instead of chicken breast: "
-        f"USD $17.03. It fits the available USD $100.00. {_NOTICE}"
+        "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
+        f"chicken breast: USD $17.03. It fits the available USD $100.00. {_NOTICE}"
     )
     scale: dict[str, object] = {
         **_TACOS,
@@ -419,7 +422,7 @@ def test_real_price_lines_names_swap_and_scale() -> None:
     scaled = execute_price_lines({"meals": [scale]}, _BUDGET, None)
     assert _at(scaled, "estimate", "total_cents") == 2_373
     assert read_tool_answer([(PRICE_TOOL, scaled)]) == (
-        "Sample total for Chicken tacos with chicken breast changed: "
+        "Sample total for Chicken tacos (2 servings) with chicken breast changed: "
         f"USD $23.73. It fits the available USD $100.00. {_NOTICE}"
     )
 
@@ -429,8 +432,8 @@ def test_stale_warning_precedes_notice_when_total_is_stated() -> None:
     for cap, verdict, available in cases:
         payload = execute_price_lines({"meals": [_REAL_SWAP]}, _BUDGET, cap)
         expected = (
-            "Sample total for Chicken tacos with chickpeas instead of chicken breast: "
-            f"USD $17.03. It {verdict} the available {available}. "
+            "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
+            f"chicken breast: USD $17.03. It {verdict} the available {available}. "
             f"{STALE_SPENDING_WARNING} {_NOTICE}"
         )
         assert read_tool_answer([(PRICE_TOOL, payload)], stale=True) == expected
@@ -544,6 +547,18 @@ def test_real_swap_reply_shows_resolved_servings_and_plural_rules() -> None:
     assert "Servings from your plan: 2." in plan_text
     assert "Chicken tacos for 1 serving with" in default_text
     assert "Servings not given; used 1." in default_text
+
+
+def test_real_price_lines_reply_shows_servings_and_assumptions() -> None:
+    args: dict[str, object] = {"meals": [{"recipe_id": "bean_tacos"}]}
+    payload = execute_price_lines(args, _BUDGET, None)
+    assert _at(payload, "assumptions") == ["Bean tacos: Servings not given; used 1."]
+    total = _at(payload, "estimate", "total_cents")
+    assert read_tool_answer([(PRICE_TOOL, payload)]) == (
+        f"Sample total for Bean tacos (1 serving): {_usd(cast(int, total))}. "
+        "It fits the available USD $100.00. "
+        f"Bean tacos: Servings not given; used 1. {_NOTICE}"
+    )
 
 
 def test_real_get_plan_without_meals() -> None:

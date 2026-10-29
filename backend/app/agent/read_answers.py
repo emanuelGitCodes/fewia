@@ -2,7 +2,8 @@ from collections.abc import Sequence
 
 from app.agent.chat_answer import _usd
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
-from app.agent.price_tool import PRICE_TOOL, meal_name as _meal
+from app.agent.price_tool import PRICE_TOOL
+from app.agent.price_tool import meal_name as _meal
 from app.agent.substitute_tool import SUBSTITUTE_TOOL
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import INGREDIENTS
@@ -94,7 +95,7 @@ def _total_sentence(
 
 
 def _priced_meal(item: dict[str, object]) -> str:
-    name = _meal(item["recipe_id"])
+    name = f"{_meal(item['recipe_id'])} ({_servings(_int(item['servings']))})"
     change = item.get("change")
     if not isinstance(change, dict):
         return name
@@ -154,6 +155,9 @@ def _price_lines(payload: dict[str, object], stale: bool) -> str:
     items = _d_list(payload["meals"])
     meals = ", ".join(_priced_meal(_d(item)) for item in items)
     text, shown = _total_sentence(meals, _d(payload["estimate"]), stale)
+    notes = " ".join(str(note) for note in _d_list(payload.get("assumptions", [])))
+    if notes:
+        text = f"{text} {notes}"
     return _with_notice(text, shown)
 
 

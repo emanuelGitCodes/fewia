@@ -2,8 +2,8 @@ from dataclasses import asdict
 
 from app.agent.estimate import priced_estimate
 from app.agent.plan_tools import _spec
-from app.domain.budget import BudgetResult
 from app.agent.substitute_tool import resolve_servings, servings_assumption
+from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
