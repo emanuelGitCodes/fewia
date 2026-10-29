@@ -20,6 +20,7 @@ from app.domain.grocery import (
     SUPPORTED_RECIPE_IDS,
     GroceryRequest,
 )
+from app.domain.plan_revision import PlanRevisionInput
 from app.services.meal_nutrition import (
     MealNutrition,
     ingredients_macros,
@@ -35,9 +36,23 @@ def budget(available_cents: int = 10_000) -> BudgetResult:
 
 
 def execute_substitute(
-    arguments: object, available_cents: int = 10_000
+    arguments: object,
+    available_cents: int = 10_000,
+    plan: PlanRevisionInput | None = None,
 ) -> dict[str, object]:
-    return _execute_substitute(arguments, budget(available_cents))
+    return _execute_substitute(arguments, budget(available_cents), plan)
+
+
+def plan_with(recipe_id: str, servings: int) -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "snapshot": {
+                "meals": [{"recipe_id": recipe_id, "servings": servings}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
 
 
 def swap(**extra: object) -> dict[str, object]:
@@ -75,7 +90,8 @@ def test_spec_declares_schema_without_extra_keys() -> None:
     schema = spec["inputSchema"]["json"]
     assert spec["name"] == SUBSTITUTE_TOOL == "what_if_substitute"
     assert schema["additionalProperties"] is False
-    assert schema["required"] == ["recipe_id", "servings"]
+    assert schema["required"] == ["recipe_id"]
+    assert "plan's servings" in spec["description"]
     props = schema["properties"]
     assert set(props) == {
         "recipe_id",
@@ -340,6 +356,7 @@ def test_payload_has_a_price_block_and_no_evidence_fields() -> None:
     assert set(result) == {
         "recipe_id",
         "servings",
+        "servings_source",
         "change",
         "before",
         "after",
@@ -461,6 +478,7 @@ def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
         {**scaled(50), "quantity_per_serving": 5},
         {**scaled(50), "with_ingredient_id": "rice"},
         {"recipe_id": "chicken_tacos", "servings": 1, "scale_ingredient_id": "salsa"},
+        swap(servings=None),
         swap(servings=0),
         swap(servings=9),
         swap(servings=True),
@@ -476,6 +494,39 @@ def test_invalid_arguments_raise_static_error(arguments: object) -> None:
     assert str(caught.value) == "arguments are invalid"
     assert _SECRET not in str(caught.value)
     assert caught.value.__cause__ is None
+
+
+def _without_servings() -> dict[str, object]:
+    args = swap()
+    del args["servings"]
+    return args
+
+
+def test_omitted_servings_use_the_plan() -> None:
+    result = execute_substitute(_without_servings(), plan=plan_with("chicken_tacos", 2))
+    assert result["servings"] == 2
+    assert result["servings_source"] == "plan"
+    assert "Servings from your plan: 2." in cast(list[str], result["assumptions"])
+    expected = execute_substitute(swap(servings=2))
+    assert result["after"] == expected["after"]
+    assert result["delta"] == expected["delta"]
+
+
+def test_explicit_servings_win_over_the_plan() -> None:
+    result = execute_substitute(swap(servings=3), plan=plan_with("chicken_tacos", 2))
+    assert result["servings"] == 3
+    assert result["servings_source"] == "request"
+    assert not any(
+        "Servings" in item for item in cast(list[str], result["assumptions"])
+    )
+
+
+def test_omitted_servings_without_a_plan_meal_default_to_one() -> None:
+    for plan in (None, plan_with("vegetable_stir_fry", 4)):
+        result = execute_substitute(_without_servings(), plan=plan)
+        assert result["servings"] == 1
+        assert result["servings_source"] == "default"
+        assert "Servings not given; used 1." in cast(list[str], result["assumptions"])
 
 
 @pytest.mark.parametrize("servings", [1, 8])

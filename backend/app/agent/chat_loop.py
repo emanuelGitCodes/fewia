@@ -50,6 +50,7 @@ SYSTEM_PROMPT = (
     "For budget questions, you MUST call get_budget_summary. "
     "You MUST use the server money strings. "
     "You MUST use the exact requested constraints, servings, and pantry. "
+    "Omit servings for a meal that is already in the user's plan. "
     "You MUST NOT purchase items. You MUST NOT request raw bank data or "
     "secrets. You MUST NOT open external URLs. "
     "A purchase means a request to place an order, check out, pay, or open "

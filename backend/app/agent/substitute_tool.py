@@ -6,6 +6,7 @@ from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.plan_revision import PlanRevisionInput
 from app.domain.recipe_variant import (
     CHANGE_FIELDS,
     MAX_QUANTITY,
@@ -36,7 +37,8 @@ def substitute_tool_spec() -> dict[str, object]:
         "Recompute one catalog meal with one ingredient replaced or scaled. "
         "Return before, after, and delta macros. The tool does not change the "
         "plan. Use either replace_ingredient_id with with_ingredient_id, or "
-        "scale_ingredient_id with scale_factor_percent.",
+        "scale_ingredient_id with scale_factor_percent. "
+        "Omit servings for a meal in the user's plan to use the plan's servings.",
         {
             "recipe_id": {"type": "string", "enum": list(SUPPORTED_RECIPE_IDS)},
             "servings": {"type": "integer", "minimum": 1, "maximum": 8},
@@ -54,7 +56,7 @@ def substitute_tool_spec() -> dict[str, object]:
                 "maximum": MAX_SCALE_PERCENT,
             },
         },
-        ["recipe_id", "servings"],
+        ["recipe_id"],
     )
 
 
@@ -155,25 +157,48 @@ def _diets(ingredients: tuple[tuple[str, int], ...]) -> list[str]:
     return diets
 
 
-def execute_substitute(arguments: object, budget: BudgetResult) -> dict[str, object]:
+def resolve_servings(
+    raw: dict[object, object], recipe_id: str, plan: PlanRevisionInput | None
+) -> tuple[int, str] | None:
+    """Return (servings, source), or None when an explicit value is invalid."""
+    if "servings" in raw:
+        servings = raw["servings"]
+        if type(servings) is not int or not 1 <= servings <= 8:
+            return None
+        return servings, "request"
+    if plan is not None:
+        for meal in plan.snapshot.meals:
+            if meal.recipe_id == recipe_id:
+                return meal.servings, "plan"
+    return 1, "default"
+
+
+def servings_assumption(servings: int, source: str) -> str | None:
+    if source == "plan":
+        return f"Servings from your plan: {servings}."
+    if source == "default":
+        return "Servings not given; used 1."
+    return None
+
+
+def execute_substitute(
+    arguments: object, budget: BudgetResult, plan: PlanRevisionInput | None = None
+) -> dict[str, object]:
     if type(arguments) is not dict:
         raise SubstituteToolError("arguments are invalid")
-    if (
-        not {"recipe_id", "servings"}
-        <= set(arguments)
-        <= {
-            "recipe_id",
-            "servings",
-            *CHANGE_FIELDS,
-        }
-    ):
+    if "recipe_id" not in arguments or not set(arguments) <= {
+        "recipe_id",
+        "servings",
+        *CHANGE_FIELDS,
+    }:
         raise SubstituteToolError("arguments are invalid")
     recipe_id = arguments["recipe_id"]
-    servings = arguments["servings"]
     if type(recipe_id) is not str or recipe_id not in SUPPORTED_RECIPE_IDS:
         raise SubstituteToolError("arguments are invalid")
-    if type(servings) is not int or not 1 <= servings <= 8:
+    resolved = resolve_servings(arguments, recipe_id, plan)
+    if resolved is None:
         raise SubstituteToolError("arguments are invalid")
+    servings, source = resolved
     try:
         change = parse_change(arguments)
         if change is None:
@@ -185,9 +210,14 @@ def execute_substitute(arguments: object, budget: BudgetResult) -> dict[str, obj
     before, before_each, before_total = _side(before_list, servings)
     after, after_each, after_total = _side(after_list, servings)
     per_serving_delta = _delta(after_each, before_each)
+    assumptions = _assumptions(recipe_id, change, after_list)
+    note = servings_assumption(servings, source)
+    if note is not None:
+        assumptions.append(note)
     return {
         "recipe_id": recipe_id,
         "servings": servings,
+        "servings_source": source,
         "change": {
             key: value for key, value in asdict(change).items() if value is not None
         },
@@ -202,6 +232,6 @@ def execute_substitute(arguments: object, budget: BudgetResult) -> dict[str, obj
             for key in _MACRO_KEYS
         },
         "diets_after": _diets(after_list),
-        "assumptions": _assumptions(recipe_id, change, after_list),
+        "assumptions": assumptions,
         "price": _price(recipe_id, servings, change, budget),
     }

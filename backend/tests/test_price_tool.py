@@ -61,6 +61,38 @@ def plan_of(
     )
 
 
+def test_omitted_servings_use_plan_or_default() -> None:
+    plan = plan_of([meal("chicken_tacos", 2)], [], 5_000)
+    result = cast(
+        dict[str, Any],
+        execute_price_lines(
+            {"meals": [{"recipe_id": "chicken_tacos"}, {"recipe_id": "bean_tacos"}]},
+            BUDGET,
+            None,
+            plan,
+        ),
+    )
+    first, second = result["meals"]
+    assert (first["servings"], first["servings_source"]) == (2, "plan")
+    assert (second["servings"], second["servings_source"]) == (1, "default")
+    assert len(result["assumptions"]) == 2
+    assert "Servings from your plan: 2." in result["assumptions"][0]
+    assert "Servings not given; used 1." in result["assumptions"][1]
+    expected = price([meal("chicken_tacos", 2), meal("bean_tacos", 1)])
+    assert result["estimate"] == expected["estimate"]
+
+
+def test_explicit_servings_win_and_add_no_assumption() -> None:
+    plan = plan_of([meal("chicken_tacos", 2)], [], 5_000)
+    result = cast(
+        dict[str, Any],
+        execute_price_lines({"meals": [meal("chicken_tacos", 3)]}, BUDGET, None, plan),
+    )
+    assert result["meals"][0]["servings"] == 3
+    assert result["meals"][0]["servings_source"] == "request"
+    assert result["assumptions"] == []
+
+
 def line_of(lines: list[dict[str, Any]], ingredient_id: str) -> dict[str, Any]:
     return next(line for line in lines if line["ingredient_id"] == ingredient_id)
 
@@ -76,7 +108,8 @@ def test_spec_declares_schema_without_extra_keys() -> None:
     assert meals["minItems"] == 1 and meals["maxItems"] == 3
     item = meals["items"]
     assert item["additionalProperties"] is False
-    assert item["required"] == ["recipe_id", "servings"]
+    assert item["required"] == ["recipe_id"]
+    assert "plan's servings" in spec["description"]
     assert set(item["properties"]) == {
         "recipe_id",
         "servings",
@@ -183,7 +216,7 @@ def test_scale_prices_the_variant_recipe() -> None:
 
 def test_meals_without_change_echo_none_and_catalog_ingredients() -> None:
     result = price([meal("bean_tacos", 3)])
-    assert set(result) == {"meals", "estimate"}
+    assert set(result) == {"meals", "assumptions", "estimate"}
     echoed = result["meals"][0]
     assert echoed["change"] is None
     assert [(i["ingredient_id"], i["quantity"]) for i in echoed["ingredients"]] == list(
@@ -300,7 +333,7 @@ _FOUR = [
         {"meals": [meal("chicken_tacos")], "extra": _SECRET},
         {"meals": [{**meal("chicken_tacos"), "extra": _SECRET}]},
         {"meals": ["chicken_tacos"]},
-        {"meals": [{"recipe_id": "chicken_tacos"}]},
+        {"meals": [{"recipe_id": "chicken_tacos", "servings": None}]},
         {"meals": [{"servings": 1}]},
         {"meals": [meal("not_a_recipe")]},
         {"meals": [meal(_SECRET)]},

@@ -530,6 +530,22 @@ def test_real_get_plan_with_meals() -> None:
     )
 
 
+def test_real_swap_reply_shows_resolved_servings_and_plural_rules() -> None:
+    args: dict[str, object] = {
+        "recipe_id": "chicken_tacos",
+        "replace_ingredient_id": "chicken_breast",
+        "with_ingredient_id": "chickpeas",
+    }
+    planned = execute_substitute(args, _BUDGET, _revision([_TACOS]))
+    default = execute_substitute(args, _BUDGET)
+    plan_text = read_tool_answer([(SUBSTITUTE_TOOL, planned)])
+    default_text = read_tool_answer([(SUBSTITUTE_TOOL, default)])
+    assert "Chicken tacos for 2 servings with" in plan_text
+    assert "Servings from your plan: 2." in plan_text
+    assert "Chicken tacos for 1 serving with" in default_text
+    assert "Servings not given; used 1." in default_text
+
+
 def test_real_get_plan_without_meals() -> None:
     for plan in (None, _revision([])):
         payload = execute_get_plan({}, plan, _BUDGET)

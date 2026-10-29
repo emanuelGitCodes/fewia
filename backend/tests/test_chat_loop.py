@@ -506,6 +506,48 @@ def test_what_if_substitute_traces_and_leaves_reply_state_alone() -> None:
     ) in SYSTEM_PROMPT
 
 
+def test_what_if_substitute_without_servings_uses_the_plan_revision() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _tool_block(
+                        "w1",
+                        name=SUBSTITUTE_TOOL,
+                        payload={
+                            key: value
+                            for key, value in _SWAP_ARGS.items()
+                            if key != "servings"
+                        },
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    revision = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+    result = run_chat(
+        provider,
+        "swap chicken for chickpeas",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=revision,
+    )
+    answer = cast(str, result["answer"])
+    assert "for 2 servings" in answer
+    assert "Servings from your plan: 2." in answer
+
+
 _PRICE_ARGS: dict[str, object] = {
     "meals": [{**_SWAP_ARGS}, {"recipe_id": "bean_tacos", "servings": 1}],
     "pantry_ingredient_ids": ["salt"],

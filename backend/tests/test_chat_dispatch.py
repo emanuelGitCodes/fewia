@@ -227,6 +227,44 @@ def test_price_lines_dispatch_applies_the_plan_revision_cap() -> None:
     assert [t["outcome"] for t in trace] == ["success"]
 
 
+def test_dispatch_passes_the_plan_servings_to_swap_and_price_tools() -> None:
+    plan = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+    swap_args: dict[str, object] = {
+        "recipe_id": "chicken_tacos",
+        "replace_ingredient_id": "chicken_breast",
+        "with_ingredient_id": "chickpeas",
+    }
+    swapped, _ = dispatch(
+        ToolCall("s1", SUBSTITUTE_TOOL, swap_args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        [],
+        plan=plan,
+    )
+    priced, _ = dispatch(
+        ToolCall("s2", PRICE_TOOL, {"meals": [{"recipe_id": "chicken_tacos"}]}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        [],
+        plan=plan,
+    )
+    assert swapped is not None and priced is not None
+    assert swapped["servings"] == 2 and swapped["servings_source"] == "plan"
+    assert cast(list[dict[str, Any]], priced["meals"])[0]["servings"] == 2
+
+
 def test_price_lines_invalid_arguments_return_static_error() -> None:
     def record(_payload: dict[str, object]) -> str:
         pytest.fail("price_lines MUST NOT record plan evidence")

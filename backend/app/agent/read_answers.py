@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 from app.agent.chat_answer import _usd
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
-from app.agent.price_tool import PRICE_TOOL
+from app.agent.price_tool import PRICE_TOOL, meal_name as _meal
 from app.agent.substitute_tool import SUBSTITUTE_TOOL
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import INGREDIENTS
@@ -17,11 +17,6 @@ def _d(value: object) -> dict[str, object]:
     if not isinstance(value, dict):
         raise TypeError("payload is invalid")
     return value
-
-
-def _meal(recipe_id: object) -> str:
-    name = str(recipe_id).replace("_", " ")
-    return f"{name[:1].upper()}{name[1:]}"
 
 
 def _int(value: object) -> int:

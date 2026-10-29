@@ -150,10 +150,10 @@ def _dispatch_plan_tool(
         if call.name == GET_PLAN_TOOL:
             payload = execute_get_plan(call.tool_input, plan, budget)
         elif call.name == SUBSTITUTE_TOOL:
-            payload = execute_substitute(call.tool_input, budget)
+            payload = execute_substitute(call.tool_input, budget, plan)
         elif call.name == PRICE_TOOL:
             cap = None if plan is None else plan.snapshot.plan_cap_cents
-            payload = execute_price_lines(call.tool_input, budget, cap)
+            payload = execute_price_lines(call.tool_input, budget, cap, plan)
         else:
             payload = execute_get_meal(call.tool_input)
     except (PlanToolError, SubstituteToolError, PriceToolError):
