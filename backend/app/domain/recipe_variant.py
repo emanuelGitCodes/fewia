@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import cast
 
 from app.domain.catalog import INGREDIENTS, RECIPES, Recipe
 from app.services.meal_nutrition import GRAMS_PER_EACH
@@ -41,8 +42,13 @@ def parse_change(fields: Mapping[str, object]) -> RecipeChange | None:
     for key in present:
         if type(fields[key]) is not (int if key in _INT_FIELDS else str):
             raise RecipeVariantError("change fields are invalid")
-    values = {key: fields[key] for key in present}
-    return RecipeChange(**values)  # type: ignore[arg-type]
+    return RecipeChange(
+        replace_ingredient_id=cast("str | None", fields.get("replace_ingredient_id")),
+        with_ingredient_id=cast("str | None", fields.get("with_ingredient_id")),
+        quantity_per_serving=cast("int | None", fields.get("quantity_per_serving")),
+        scale_ingredient_id=cast("str | None", fields.get("scale_ingredient_id")),
+        scale_factor_percent=cast("int | None", fields.get("scale_factor_percent")),
+    )
 
 
 def round_half_up(numerator: int, denominator: int) -> int:

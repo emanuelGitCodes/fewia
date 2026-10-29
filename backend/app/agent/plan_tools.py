@@ -2,13 +2,12 @@ from dataclasses import asdict
 from datetime import date
 from typing import cast
 
-from app.agent.estimate import estimate_payload
+from app.agent.estimate import priced_estimate
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
 from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS
 from app.domain.plan_revision import PlanRevisionInput
-from app.services.grocery_planner import plan_groceries
 from app.services.meal_nutrition import MacroTotals, meal_nutrition
 
 GET_PLAN_TOOL = "get_plan"
@@ -85,24 +84,14 @@ def execute_get_plan(
     }
     if not snapshot.meals:
         return payload
-    request = GroceryRequest(
-        meals=[
-            MealRequest(recipe_id=meal.recipe_id, servings=meal.servings)
-            for meal in snapshot.meals
-        ],
-        budget_period=_NO_PERIOD,
-        plan_cap_cents=snapshot.plan_cap_cents,
-        pantry_ingredients=list(snapshot.pantry_ingredient_ids),
-    )
-    available_cents = budget.available_cents
-    if snapshot.plan_cap_cents is not None:
-        available_cents = min(available_cents, snapshot.plan_cap_cents)
-    nutrition = meal_nutrition(request)
-    estimate = plan_groceries(
-        request,
-        BudgetResult(
-            available_cents, budget.pending_cents, budget.stale, budget.warnings
-        ),
+    pairs = [(meal.recipe_id, meal.servings) for meal in snapshot.meals]
+    nutrition = meal_nutrition(
+        GroceryRequest(
+            meals=[
+                MealRequest(recipe_id=item, servings=count) for item, count in pairs
+            ],
+            budget_period=_NO_PERIOD,
+        )
     )
     payload["meals"] = [
         {
@@ -114,7 +103,12 @@ def execute_get_plan(
         for meal in nutrition.meals
     ]
     payload["total"] = None if nutrition.total is None else _macros(nutrition.total)
-    payload["estimate"] = estimate_payload(estimate, available_cents)
+    payload["estimate"] = priced_estimate(
+        pairs,
+        snapshot.pantry_ingredient_ids,
+        budget,
+        snapshot.plan_cap_cents,
+    )
     return payload
 
 

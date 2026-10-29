@@ -1,6 +1,6 @@
 import json
 from datetime import date
-from typing import cast, get_args
+from typing import Any, cast, get_args
 
 import pytest
 
@@ -17,10 +17,12 @@ from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
+from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -180,6 +182,79 @@ def test_what_if_substitute_invalid_arguments_return_static_error() -> None:
     dumped = json.dumps({"block": block, "trace": trace})
     assert _SECRET not in dumped
     assert "SubstituteToolError" not in dumped
+
+
+def test_price_lines_dispatch_applies_the_plan_revision_cap() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("price_lines MUST NOT record plan evidence")
+
+    meals = [{"recipe_id": "chicken_tacos", "servings": 1}]
+    plan = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": meals,
+                "pantry_ingredient_ids": [],
+                "plan_cap_cents": 100,
+            },
+        }
+    )
+    args: dict[str, object] = {"meals": meals}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("l1", PRICE_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+        plan=plan,
+    )
+    assert payload is not None
+    estimate = cast(dict[str, Any], payload["estimate"])
+    assert estimate["available_cents"] == 100
+    assert estimate["accepted"] is False
+    assert payload == execute_price_lines(args, budget(), 100)
+    assert _tool_json(block) == payload
+    uncapped, _ = dispatch(
+        ToolCall("l2", PRICE_TOOL, args), budget(), PERIOD, 1, "fixture", []
+    )
+    assert uncapped is not None
+    free = cast(dict[str, Any], uncapped["estimate"])
+    assert free["available_cents"] == 10_000
+    assert free["accepted"] is True
+    assert [t["outcome"] for t in trace] == ["success"]
+
+
+def test_price_lines_invalid_arguments_return_static_error() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("price_lines MUST NOT record plan evidence")
+
+    meal = {"recipe_id": "chicken_tacos", "servings": 1}
+    args = {"meals": [meal, meal, meal, meal], "note": _SECRET}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("l3", PRICE_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert payload is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "l3",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [_error_trace(PRICE_TOOL, "l3", revision_index=None)]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "PriceToolError" not in dumped
 
 
 def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:

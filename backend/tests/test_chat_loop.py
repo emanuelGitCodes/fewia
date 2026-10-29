@@ -536,6 +536,37 @@ def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
     ) in SYSTEM_PROMPT
 
 
+def test_price_lines_error_keeps_static_shape_and_records_no_evidence() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("price_lines MUST NOT record plan evidence")
+
+    meals = [{"recipe_id": "chicken_tacos", "servings": 1}] * 3
+    bad = {"meals": [*meals, {"recipe_id": "bean_tacos", "servings": 1}]}
+    result, provider = _run(
+        [
+            _reply([_tool_block("l1", name=PRICE_TOOL, payload=bad)], "tool_use"),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ],
+        record_evidence=record,
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["tool_trace"] == [
+        {
+            "tool": PRICE_TOOL,
+            "outcome": "error",
+            "tool_use_id": "l1",
+            "sequence": 1,
+            "revision_index": None,
+        }
+    ]
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "error"
+    assert body["content"][0]["json"] == {"error": "arguments are invalid"}
+    _assert_public(result)
+
+
 def test_what_if_substitute_error_keeps_static_shape_and_reply_state() -> None:
     bad = {**_SWAP_ARGS, "with_ingredient_id": "chicken_breast", "extra": _SECRET}
     result, provider = _run(
