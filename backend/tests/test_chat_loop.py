@@ -716,7 +716,8 @@ def test_stale_budget_warning_reaches_price_lines_reply() -> None:
     result = run_chat(provider, "price it", stale, PERIOD, heartbeat=_noop)
     assert result["answer"] == (
         "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
-        f"chicken breast: {_usd(estimate['total_cents'])}. It fits the available USD $100.00. "
+        f"chicken breast: {_usd(estimate['total_cents'])}. "
+        "It fits the available USD $100.00. "
         f"{STALE_SPENDING_WARNING} {SAMPLE_ESTIMATE_NOTICE}"
     )
 

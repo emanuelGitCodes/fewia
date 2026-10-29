@@ -262,7 +262,9 @@ def test_dispatch_passes_the_plan_servings_to_swap_and_price_tools() -> None:
     )
     assert swapped is not None and priced is not None
     assert swapped["servings"] == 2 and swapped["servings_source"] == "plan"
-    assert cast(list[dict[str, Any]], priced["meals"])[0]["servings"] == 2
+    priced_meal = cast(list[dict[str, Any]], priced["meals"])[0]
+    assert priced_meal["servings"] == 2
+    assert priced_meal["servings_source"] == "plan"
 
 
 def test_price_lines_invalid_arguments_return_static_error() -> None:
