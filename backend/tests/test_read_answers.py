@@ -13,7 +13,7 @@ from app.agent.plan_tools import (
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
-from app.domain.budget import BudgetResult
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 from app.domain.plan_revision import PlanRevisionInput
@@ -401,6 +401,60 @@ def test_real_price_lines_exceeds_plan_cap() -> None:
     assert read_tool_answer([(PRICE_TOOL, payload)]) == (
         "Sample total for Chicken tacos, Bean tacos: USD $25.02. "
         f"It exceeds the available USD $20.00. {_NOTICE}"
+    )
+
+
+def test_real_price_lines_names_swap_and_scale() -> None:
+    swap = execute_price_lines({"meals": [_REAL_SWAP]}, _BUDGET, None)
+    assert _at(swap, "estimate", "total_cents") == 1_703
+    assert read_tool_answer([(PRICE_TOOL, swap)]) == (
+        "Sample total for Chicken tacos with chickpeas instead of chicken breast: "
+        f"USD $17.03. It fits the available USD $100.00. {_NOTICE}"
+    )
+    scale: dict[str, object] = {
+        **_TACOS,
+        "scale_ingredient_id": "chicken_breast",
+        "scale_factor_percent": 50,
+    }
+    scaled = execute_price_lines({"meals": [scale]}, _BUDGET, None)
+    assert _at(scaled, "estimate", "total_cents") == 2_373
+    assert read_tool_answer([(PRICE_TOOL, scaled)]) == (
+        "Sample total for Chicken tacos with chicken breast changed: "
+        f"USD $23.73. It fits the available USD $100.00. {_NOTICE}"
+    )
+
+
+def test_stale_warning_precedes_notice_when_total_is_stated() -> None:
+    cases = ((None, "fits", "USD $100.00"), (500, "exceeds", "USD $5.00"))
+    for cap, verdict, available in cases:
+        payload = execute_price_lines({"meals": [_REAL_SWAP]}, _BUDGET, cap)
+        expected = (
+            "Sample total for Chicken tacos with chickpeas instead of chicken breast: "
+            f"USD $17.03. It {verdict} the available {available}. "
+            f"{STALE_SPENDING_WARNING} {_NOTICE}"
+        )
+        assert read_tool_answer([(PRICE_TOOL, payload)], stale=True) == expected
+        assert STALE_SPENDING_WARNING not in cast(
+            str, read_tool_answer([(PRICE_TOOL, payload)])
+        )
+
+
+def test_stale_warning_skips_replies_without_a_fit_statement() -> None:
+    meal = execute_get_meal({"recipe_id": "chicken_tacos"})
+    assert STALE_SPENDING_WARNING not in cast(
+        str, read_tool_answer([(GET_MEAL_TOOL, meal)], stale=True)
+    )
+    swap = execute_substitute(_REAL_SWAP, _BUDGET)
+    assert STALE_SPENDING_WARNING not in cast(
+        str, read_tool_answer([(SUBSTITUTE_TOOL, swap)], stale=True)
+    )
+
+
+def test_failed_flag_appends_failure_sentence() -> None:
+    meal = execute_get_meal({"recipe_id": "chicken_tacos"})
+    plain = cast(str, read_tool_answer([(GET_MEAL_TOOL, meal)]))
+    assert read_tool_answer([(GET_MEAL_TOOL, meal)], failed=True) == (
+        f"{plain} A tool call failed. Check the request."
     )
 
 

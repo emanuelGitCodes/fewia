@@ -220,7 +220,9 @@ def run_chat(
     def answer() -> str:
         if not catalog_batch:
             if candidate is None and last_error is None:
-                read = read_tool_answer(read_results)
+                read = read_tool_answer(
+                    read_results, stale=budget.stale, failed=other_failed
+                )
                 if read is not None:
                     return read
             if candidate is None and last_error is None and summary_ok:

@@ -4,8 +4,11 @@ from app.agent.chat_answer import _usd
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
 from app.agent.price_tool import PRICE_TOOL
 from app.agent.substitute_tool import SUBSTITUTE_TOOL
+from app.domain.budget import STALE_SPENDING_WARNING
+from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
+TOOL_FAILED = "A tool call failed. Check the request."
 _PRIORITY = (SUBSTITUTE_TOOL, PRICE_TOOL, GET_MEAL_TOOL, GET_PLAN_TOOL)
 _INCOMPLETE_TOTAL = "The sample total is incomplete because a price is missing."
 
@@ -78,17 +81,37 @@ def _names(payload: dict[str, object]) -> dict[str, str]:
     return names
 
 
-def _total_sentence(meals: str, estimate: dict[str, object]) -> tuple[str, bool]:
+def _total_sentence(
+    meals: str, estimate: dict[str, object], stale: bool
+) -> tuple[str, bool]:
     total = estimate.get("total_cents")
     if type(total) is not int:
         return _INCOMPLETE_TOTAL, False
     available = _usd(_int(estimate["available_cents"]))
     verdict = "fits" if estimate.get("accepted") is True else "exceeds"
-    return (
+    text = (
         f"Sample total for {meals}: {_usd(total)}. "
-        f"It {verdict} the available {available}.",
-        True,
+        f"It {verdict} the available {available}."
     )
+    if stale:
+        text += f" {STALE_SPENDING_WARNING}"
+    return text, True
+
+
+def _priced_meal(item: dict[str, object]) -> str:
+    name = _meal(item["recipe_id"])
+    change = item.get("change")
+    if not isinstance(change, dict):
+        return name
+    if "scale_ingredient_id" in change:
+        return f"{name} with {_catalog_name(change['scale_ingredient_id'])} changed"
+    new = _catalog_name(change["with_ingredient_id"])
+    old = _catalog_name(change["replace_ingredient_id"])
+    return f"{name} with {new} instead of {old}"
+
+
+def _catalog_name(ingredient_id: object) -> str:
+    return INGREDIENTS[str(ingredient_id)].name
 
 
 def _with_notice(text: str, shown: bool) -> str:
@@ -132,10 +155,10 @@ def _d_list(value: object) -> list[object]:
     return value
 
 
-def _price_lines(payload: dict[str, object]) -> str:
+def _price_lines(payload: dict[str, object], stale: bool) -> str:
     items = _d_list(payload["meals"])
-    meals = ", ".join(_meal(_d(item)["recipe_id"]) for item in items)
-    text, shown = _total_sentence(meals, _d(payload["estimate"]))
+    meals = ", ".join(_priced_meal(_d(item)) for item in items)
+    text, shown = _total_sentence(meals, _d(payload["estimate"]), stale)
     return _with_notice(text, shown)
 
 
@@ -148,7 +171,7 @@ def _get_meal(payload: dict[str, object]) -> str:
     )
 
 
-def _get_plan(payload: dict[str, object]) -> str:
+def _get_plan(payload: dict[str, object], stale: bool) -> str:
     meals = _d_list(payload["meals"])
     if not meals:
         return "Your plan has no meals yet."
@@ -163,24 +186,32 @@ def _get_plan(payload: dict[str, object]) -> str:
     if payload.get("estimate") is None:
         return text
     names = ", ".join(_meal(item["recipe_id"]) for item in items)
-    sentence, shown = _total_sentence(names, _d(payload["estimate"]))
+    sentence, shown = _total_sentence(names, _d(payload["estimate"]), stale)
     return _with_notice(f"{text} {sentence}", shown)
 
 
-_RENDERERS = {
-    SUBSTITUTE_TOOL: _substitute,
-    PRICE_TOOL: _price_lines,
-    GET_MEAL_TOOL: _get_meal,
-    GET_PLAN_TOOL: _get_plan,
-}
+def _render(name: str, payload: dict[str, object], stale: bool) -> str:
+    if name == SUBSTITUTE_TOOL:
+        return _substitute(payload)
+    if name == PRICE_TOOL:
+        return _price_lines(payload, stale)
+    if name == GET_MEAL_TOOL:
+        return _get_meal(payload)
+    return _get_plan(payload, stale)
 
 
-def read_tool_answer(results: Sequence[tuple[str, dict[str, object]]]) -> str | None:
+def read_tool_answer(
+    results: Sequence[tuple[str, dict[str, object]]],
+    *,
+    stale: bool = False,
+    failed: bool = False,
+) -> str | None:
     for name in _PRIORITY:
         for tool, payload in reversed(results):
             if tool == name:
                 try:
-                    return _RENDERERS[name](payload)
+                    text = _render(name, payload, stale)
                 except (KeyError, TypeError, ValueError):
                     return None
+                return f"{text} {TOOL_FAILED}" if failed else text
     return None

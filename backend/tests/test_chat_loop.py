@@ -55,7 +55,7 @@ from app.agent.substitute_tool import (
     execute_substitute,
     substitute_tool_spec,
 )
-from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import SEARCH_TERMS
@@ -542,7 +542,8 @@ def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
     # + cumin 199 + oil 599; salt is in the pantry.
     assert cast(dict[str, Any], expected["estimate"])["total_cents"] == 1_733
     assert result["answer"] == (
-        "Sample total for Chicken tacos, Bean tacos: USD $17.33. "
+        "Sample total for Chicken tacos with chickpeas instead of chicken breast, "
+        "Bean tacos: USD $17.33. "
         f"It fits the available USD $100.00. {SAMPLE_ESTIMATE_NOTICE}"
     )
     assert (
@@ -600,6 +601,76 @@ def test_plan_success_with_get_plan_keeps_plan_answer() -> None:
     )
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
+
+
+def test_budget_summary_with_read_tool_in_same_batch_gives_read_answer() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [
+                    _budget_block("s1"),
+                    _tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == _SWAP_ANSWER
+
+
+def test_read_payloads_reset_each_batch() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_budget_block("s1")], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    assert result["answer"] == expected
+    assert result["answer"] != _SWAP_ANSWER
+
+
+def test_failed_read_tool_in_batch_adds_failure_sentence() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [
+                    _tool_block("w1", name=SUBSTITUTE_TOOL, payload={"recipe_id": "x"}),
+                    _tool_block(
+                        "m1", name=GET_MEAL_TOOL, payload={"recipe_id": "bean_tacos"}
+                    ),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    answer = cast(str, result["answer"])
+    assert answer.startswith("Bean tacos per serving: ")
+    assert answer.endswith(" A tool call failed. Check the request.")
+
+
+def test_stale_budget_warning_reaches_price_lines_reply() -> None:
+    stale = BudgetResult(10_000, 250, True, (STALE_SPENDING_WARNING,))
+    args: dict[str, object] = {"meals": [{**_SWAP_ARGS}]}
+    estimate = cast(dict[str, Any], execute_price_lines(args, stale, None)["estimate"])
+    provider = FakeLLM(
+        [
+            _reply([_tool_block("l1", name=PRICE_TOOL, payload=args)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(provider, "price it", stale, PERIOD, heartbeat=_noop)
+    assert result["answer"] == (
+        "Sample total for Chicken tacos with chickpeas instead of chicken breast: "
+        f"{_usd(estimate['total_cents'])}. It fits the available USD $100.00. "
+        f"{STALE_SPENDING_WARNING} {SAMPLE_ESTIMATE_NOTICE}"
+    )
 
 
 def test_price_lines_error_keeps_static_shape_and_records_no_evidence() -> None:
