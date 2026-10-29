@@ -169,6 +169,22 @@ def test_matches_stored_plan_cap() -> None:
     assert body.matches_stored_caller_fields(other) is False
 
 
+def test_matches_stored_plan_revision_id() -> None:
+    revision_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    body = CreateChatJobBody.model_validate(valid_body(plan_revision_id=revision_id))
+    same = stored_chat_payload(plan_revision_id=revision_id)
+    other = stored_chat_payload(plan_revision_id=str(PARENT_ID))
+
+    assert body.matches_stored_caller_fields(same) is True
+    assert body.matches_stored_caller_fields(other) is False
+    assert body.matches_stored_caller_fields(stored_chat_payload()) is False
+
+
+def test_create_body_plan_revision_id_rejects_invalid_uuid() -> None:
+    with pytest.raises(ValidationError):
+        CreateChatJobBody.model_validate(valid_body(plan_revision_id="not-a-uuid"))
+
+
 def test_chat_job_input_previous_job_id_defaults_none() -> None:
     parsed = ChatJobInput.model_validate(
         {

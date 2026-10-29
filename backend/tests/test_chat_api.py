@@ -35,6 +35,7 @@ from app.api.grocery import (
 from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
+from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.services import job_submission
 from app.services.chat_job import ChatJobInput
@@ -417,6 +418,103 @@ def test_changed_body_conflicts(
     enable_chat(monkeypatch)
     first = post_chat(client)
     second = post_chat(client, body=chat_body(monthly_limit_cents=1))
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert second.json()["error"]["message"] == CONFLICT_MESSAGE
+
+
+PLAN_SNAPSHOT: dict[str, object] = {
+    "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+    "pantry_ingredient_ids": [],
+    "plan_cap_cents": 3000,
+}
+
+
+def add_revision(session: Session, *, user_id: int = 1) -> UUID:
+    revision_id = uuid4()
+    session.add(
+        PlanRevision(id=revision_id, user_id=user_id, snapshot=dict(PLAN_SNAPSHOT))
+    )
+    session.flush()
+    return revision_id
+
+
+def test_post_chat_embeds_plan_revision(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    revision_id = add_revision(session)
+    response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
+    job = session.get(Job, response.json()["job_id"])
+
+    assert response.status_code == 202
+    assert job is not None
+    assert job.payload["plan_revision_id"] == str(revision_id)
+    assert job.payload["plan_revision"] == {
+        "id": str(revision_id),
+        "snapshot": PLAN_SNAPSHOT,
+    }
+    ChatJobInput.model_validate(job.payload)
+
+
+@pytest.mark.parametrize("owner", [None, 2])
+def test_unknown_or_foreign_plan_revision_conflicts(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: int | None,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    revision_id = uuid4()
+    if owner is not None:
+        seed_user(owner, "Other")
+        revision_id = add_revision(session, user_id=owner)
+    response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == chat_api.PLAN_REVISION_MESSAGE
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_same_key_same_plan_revision_returns_existing_job(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    body = chat_body(plan_revision_id=str(add_revision(session)))
+    first = post_chat(client, body=body)
+    second = post_chat(client, body=body)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+    assert len(session.scalars(select(Job)).all()) == 1
+
+
+def test_same_key_different_plan_revision_conflicts(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    first = post_chat(
+        client, body=chat_body(plan_revision_id=str(add_revision(session)))
+    )
+    second = post_chat(
+        client, body=chat_body(plan_revision_id=str(add_revision(session)))
+    )
 
     assert first.status_code == 202
     assert second.status_code == 409

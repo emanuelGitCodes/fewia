@@ -13,6 +13,7 @@ from app.api.evidence import router as evidence_router
 from app.api.grocery import router as grocery_router
 from app.api.handoff import router as handoff_router
 from app.api.plan_templates import router as plan_templates_router
+from app.api.plans import router as plans_router
 from app.api.sync import router as sync_router
 
 app = FastAPI(title="FEWIA API")
@@ -74,6 +75,7 @@ def healthz() -> dict[str, str]:
 
 app.include_router(grocery_router)
 app.include_router(plan_templates_router)
+app.include_router(plans_router)
 app.include_router(chat_router)
 app.include_router(evidence_router)
 app.include_router(handoff_router)

@@ -378,6 +378,37 @@ def test_chat_job_input_accepts_manual_spending_source() -> None:
     assert parsed.spending_source == "manual"
 
 
+def test_chat_job_input_carries_plan_revision() -> None:
+    revision = {
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "snapshot": {
+            "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+            "pantry_ingredient_ids": [],
+            "plan_cap_cents": None,
+        },
+    }
+    parsed = chat_job_module.ChatJobInput.model_validate(
+        chat_payload(plan_revision_id=revision["id"], plan_revision=revision)
+    )
+    plain = chat_job_module.ChatJobInput.model_validate(chat_payload())
+
+    assert parsed.plan_revision is not None
+    assert parsed.plan_revision.model_dump(mode="json") == revision
+    assert plain.plan_revision is None
+    assert plain.plan_revision_id is None
+
+
+def test_chat_job_input_rejects_invalid_plan_revision() -> None:
+    revision = {
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "snapshot": {"meals": [], "pantry_ingredient_ids": [], "extra": 1},
+    }
+    with pytest.raises(ValidationError):
+        chat_job_module.ChatJobInput.model_validate(
+            chat_payload(plan_revision=revision)
+        )
+
+
 def test_chat_job_heartbeat_failure_is_before_provider() -> None:
     def heartbeat() -> None:
         raise RuntimeError("heartbeat-lost")

@@ -10,6 +10,7 @@ from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import run_chat
 from app.agent.provider import LLMProvider
 from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
+from app.domain.plan_revision import PlanRevisionInput
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
 from app.services.plan_job import SpendingInput
@@ -42,6 +43,8 @@ class ChatJobInput(BaseModel):
     previous_ingredient_ids: list[StrictStr] | None = None
     history: list[ChatHistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
     previous_job_id: UUID | None = Field(default=None)
+    plan_revision_id: UUID | None = None
+    plan_revision: PlanRevisionInput | None = None
 
     @field_validator("message")
     @classmethod

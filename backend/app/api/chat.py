@@ -13,8 +13,10 @@ from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
 from app.demo import DEMO_USER_ID
 from app.deps import get_provider_settings, get_session, get_supermarket_estimator
 from app.domain.budget import NEW_YORK
+from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.job_models import Job
 from app.models import User
+from app.plan_models import PlanRevision
 from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
@@ -35,6 +37,7 @@ router = APIRouter(prefix="/grocery", tags=["grocery"])
 CHAT_KEY_PREFIX = "chat:"
 CHAT_UNAVAILABLE_MESSAGE = "Chat is not configured."
 CHAT_CONTEXT_MESSAGE = "Chat context is unavailable."
+PLAN_REVISION_MESSAGE = "The plan is not available. Refresh the page and try again."
 JOB_NOT_FOUND_MESSAGE = "Job not found"
 IdempotencyKey = Annotated[str, Header(min_length=1, max_length=120)]
 
@@ -86,6 +89,15 @@ def create_chat_job(
     if loaded is None:
         raise HTTPException(status_code=409, detail=CHAT_CONTEXT_MESSAGE)
     history, previous_request, previous_ingredient_ids = loaded
+    plan_revision: PlanRevisionInput | None = None
+    if body.plan_revision_id is not None:
+        row = session.get(PlanRevision, body.plan_revision_id)
+        if row is not None and row.user_id == DEMO_USER_ID:
+            plan_revision = PlanRevisionInput(
+                id=row.id, snapshot=PlanSnapshot.model_validate(row.snapshot)
+            )
+        else:
+            raise HTTPException(status_code=409, detail=PLAN_REVISION_MESSAGE)
     turns = [ChatHistoryTurn.model_validate(item) for item in history]
     payload = cast(
         dict[str, object],
@@ -95,6 +107,8 @@ def create_chat_job(
             monthly_limit_cents=body.monthly_limit_cents,
             plan_cap_cents=body.plan_cap_cents,
             previous_job_id=body.previous_job_id,
+            plan_revision_id=body.plan_revision_id,
+            plan_revision=plan_revision,
             history=turns,
             previous_request=previous_request,
             previous_ingredient_ids=previous_ingredient_ids,
