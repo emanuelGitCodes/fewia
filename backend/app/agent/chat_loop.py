@@ -115,7 +115,7 @@ SYSTEM_PROMPT = (
     "When the user names a food or ingredient, call get_ingredient_facts "
     "to find its ID. "
     "To swap an ingredient in a meal for another food, call "
-    "get_ingredient_facts, then what_if_substitute. "
+    "what_if_substitute with with_food. "
     "When the user renames a meal with a food, for example beef tacos for "
     "bean tacos, call what_if_substitute with that meal's recipe_id and "
     "with_food set to the food."

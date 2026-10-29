@@ -791,6 +791,27 @@ def test_invalid_with_food_arguments_raise_static_error(arguments: object) -> No
     assert caught.value.__cause__ is None
 
 
+@pytest.mark.parametrize("food", ["tofu", "pork", "beef"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"replace_ingredient_id": "salsa_not_here"},
+        {"replace_ingredient_id": 5},
+        {"quantity_per_serving": 0},
+        {"quantity_per_serving": "5"},
+        {"quantity_per_serving": 1001},
+        {"servings": 9},
+        {"extra": 1},
+    ],
+)
+def test_other_invalid_arguments_error_before_a_food_question(
+    food: str, bad: dict[str, object]
+) -> None:
+    with pytest.raises(SubstituteToolError) as caught:
+        execute_substitute(food_swap(with_food=food, **bad))
+    assert str(caught.value) == "arguments are invalid"
+
+
 def test_with_food_length_edges_are_accepted() -> None:
     assert execute_substitute(food_swap(with_food="a"))["status"] == "unknown_food"
     long = execute_substitute(food_swap(with_food="a" * 64))

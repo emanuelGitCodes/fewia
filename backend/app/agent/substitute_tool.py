@@ -226,6 +226,14 @@ def _fill_food(
     """Return (question, arguments with the food and protein IDs filled in)."""
     if not _ID_FORM_FIELDS.isdisjoint(arguments):
         raise SubstituteToolError("arguments are invalid")
+    present = {item for item, _ in RECIPES[recipe_id].ingredients}
+    old = arguments.get("replace_ingredient_id")
+    quantity = arguments.get("quantity_per_serving")
+    if ("replace_ingredient_id" in arguments and old not in present) or (
+        "quantity_per_serving" in arguments
+        and (type(quantity) is not int or not MIN_QUANTITY <= quantity <= MAX_QUANTITY)
+    ):
+        raise SubstituteToolError("arguments are invalid")
     try:
         food = resolve_food(arguments["with_food"])
     except IngredientToolError:

@@ -135,8 +135,9 @@ def _substitute(payload: dict[str, object]) -> str:
     if status == "unknown_food":
         return _ask_food(False, _candidate_names(payload))
     if status == "needs_ingredient_choice":
-        meal, names = _meal(payload["recipe_id"]), _or(_candidate_names(payload))
-        return f"Which ingredient in {meal} should I replace: {names}?"
+        meal = _meal(payload["recipe_id"])
+        choices = _or(_candidate_names(payload))
+        return f"Which ingredient in {meal} should I replace: {choices}?"
     if status != "swapped":
         raise ValueError("payload is invalid")
     names = _names(payload)

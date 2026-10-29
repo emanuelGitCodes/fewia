@@ -51,6 +51,7 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines, price_tool_spec
+from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     execute_substitute,
@@ -660,6 +661,56 @@ def test_scripted_beef_chat_looks_up_beef_then_swaps_it_in() -> None:
     assert swap["content"][0]["json"]["price"]["delta_cents"] is None
 
 
+def test_scripted_with_food_chat_swaps_in_one_call() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _tool_block(
+                        "w1",
+                        name=SUBSTITUTE_TOOL,
+                        payload={"recipe_id": "bean_tacos", "with_food": "beef"},
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("Beef adds fat.")], "end_turn"),
+        ]
+    )
+    revision = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+    result = run_chat(
+        provider,
+        "How would the macros change if we change the bean tacos for beef tacos?",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=revision,
+    )
+    swap = execute_substitute(
+        {"recipe_id": "bean_tacos", "with_food": "beef"}, budget(), revision
+    )
+    assert result["answer"] == read_tool_answer([(SUBSTITUTE_TOOL, swap)])
+    assert "Servings from your plan: 2." in cast(str, result["answer"])
+    assert cast(str, result["answer"]).startswith(
+        "Bean tacos for 2 servings with ground beef (80% lean) instead of "
+        "black beans: per serving "
+    )
+    assert result["status"] == "clarification"
+    assert result["model_turns"] == 2
+    assert [(t["tool"], t["outcome"]) for t in result["tool_trace"]] == [
+        (SUBSTITUTE_TOOL, "success")
+    ]
+    assert "Beef adds fat." not in json.dumps(result)
+
+
 def test_ingredient_facts_reply_for_an_unknown_food() -> None:
     result, _ = _run(
         [
@@ -695,8 +746,9 @@ def test_prompt_tells_the_model_to_look_up_foods_before_swapping() -> None:
         "When the user names a food or ingredient, call get_ingredient_facts "
         "to find its ID. "
         "To swap an ingredient in a meal for another food, call "
-        "get_ingredient_facts, then what_if_substitute."
+        "what_if_substitute with with_food."
     ) in SYSTEM_PROMPT
+    assert "get_ingredient_facts, then what_if_substitute" not in SYSTEM_PROMPT
     assert (
         "When the user renames a meal with a food, for example beef tacos for "
         "bean tacos, call what_if_substitute with that meal's recipe_id and "
