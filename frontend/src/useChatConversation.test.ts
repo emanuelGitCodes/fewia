@@ -237,11 +237,13 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: null,
       previous_job_id: null,
+      plan_revision_id: null,
     });
     expect(Object.keys(body).sort()).toEqual([
       "message",
       "monthly_limit_cents",
       "plan_cap_cents",
+      "plan_revision_id",
       "previous_job_id",
     ]);
     expect(result.current.hasRequest).toBe(true);
@@ -440,6 +442,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: 4000,
       previous_job_id: null,
+      plan_revision_id: null,
     };
     const received: ChatJobCreate[] = [];
     jobState.submit.mockImplementation(async (body: ChatJobCreate) => {
@@ -470,6 +473,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: 4000,
       previous_job_id: "tampered",
+      plan_revision_id: null,
     });
     await retryAndSettle(result);
     expect(received[1]).toEqual(originalBody);
@@ -478,6 +482,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: 4000,
       previous_job_id: "tampered",
+      plan_revision_id: null,
     });
   });
 
@@ -727,6 +732,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: null,
       previous_job_id: null,
+      plan_revision_id: null,
     });
     expect(result.current.messages).toEqual([{ id: "user-1", role: "user", content: "Add tofu." }]);
   });

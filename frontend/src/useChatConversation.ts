@@ -23,10 +23,15 @@ export type ChatTurn = {
   content: string;
 };
 
+export type PreparedSend = { message: string; planRevisionId: string | null };
+
 export function useChatConversation(
   budget: ChatBudget | null,
   manualJobId: string | null = null,
-  options?: { composeMessage?: (text: string) => string },
+  options?: {
+    composeMessage?: (text: string) => string;
+    prepareSend?: (text: string) => Promise<PreparedSend>;
+  },
 ): {
   message: string;
   setMessage: (value: string) => void;
@@ -56,7 +61,9 @@ export function useChatConversation(
   const convGenRef = useRef(0);
   const sendConvGenRef = useRef(0);
   manualRef.current = manualJobId;
+  const [preparing, setPreparing] = useState(false);
   const composeMessage = options?.composeMessage;
+  const prepareSend = options?.prepareSend;
   // clear() cancels old polling attempts. The generation also hides jobs after New chat.
   const job = convGenRef.current === sendConvGenRef.current ? polledJob : null;
 
@@ -96,6 +103,39 @@ export function useChatConversation(
     );
   }, [job, messages]);
 
+  // `held` is a dispatch generation already begun while prepareSend ran.
+  const sendBody = useCallback(
+    (text: string, body: ChatJobCreate, held: number | null): void => {
+      const gen = held ?? beginDispatch(busyRef, dispatchGenRef);
+      if (
+        lastBody !== null &&
+        shouldReplaySavedBody(job, lastBody, {
+          ...body,
+          previous_job_id: lastBody.previous_job_id,
+        })
+      ) {
+        void submit(copyJobBody(lastBody)).finally(() => {
+          endDispatch(busyRef, dispatchGenRef, gen);
+        });
+        return;
+      }
+      clear();
+      convGenRef.current += 1;
+      sendConvGenRef.current = convGenRef.current;
+      sendParentGenRef.current = parentGenRef.current;
+      userSeq.current += 1;
+      const turnId = `user-${userSeq.current}`;
+      setLastBody(copyJobBody(body));
+      setMessages((current) =>
+        keepLatestTurns([...current, { id: turnId, role: "user", content: text }]),
+      );
+      void submit(copyJobBody(body)).finally(() => {
+        endDispatch(busyRef, dispatchGenRef, gen);
+      });
+    },
+    [clear, job, lastBody, submit],
+  );
+
   const send = useCallback((): void => {
     if (busyRef.current || pending) {
       return;
@@ -109,47 +149,41 @@ export function useChatConversation(
     if (
       text.length === 0 ||
       message.length > MAX_MESSAGE_LENGTH ||
-      composed.length > MAX_MESSAGE_LENGTH
+      (prepareSend === undefined && composed.length > MAX_MESSAGE_LENGTH)
     ) {
       setLocalError(TEXT_ERROR);
       return;
     }
-    const body: ChatJobCreate = {
-      message: composed,
+    setLocalError(null);
+    const bodyFor = (messageText: string, planRevisionId: string | null): ChatJobCreate => ({
+      message: messageText,
       monthly_limit_cents: budget.monthly_limit_cents,
       plan_cap_cents: budget.plan_cap_cents,
       previous_job_id: parentRef.current ?? manualRef.current,
-    };
-    if (
-      lastBody !== null &&
-      shouldReplaySavedBody(job, lastBody, {
-        ...body,
-        previous_job_id: lastBody.previous_job_id,
-      })
-    ) {
-      setLocalError(null);
-      const gen = beginDispatch(busyRef, dispatchGenRef);
-      void submit(copyJobBody(lastBody)).finally(() => {
-        endDispatch(busyRef, dispatchGenRef, gen);
-      });
+      plan_revision_id: planRevisionId,
+    });
+    if (prepareSend === undefined) {
+      sendBody(text, bodyFor(composed, null), null);
       return;
     }
-    setLocalError(null);
-    clear();
-    const gen = beginDispatch(busyRef, dispatchGenRef);
-    convGenRef.current += 1;
-    sendConvGenRef.current = convGenRef.current;
-    sendParentGenRef.current = parentGenRef.current;
-    userSeq.current += 1;
-    const turnId = `user-${userSeq.current}`;
-    setLastBody(copyJobBody(body));
-    setMessages((current) =>
-      keepLatestTurns([...current, { id: turnId, role: "user", content: text }]),
-    );
-    void submit(copyJobBody(body)).finally(() => {
-      endDispatch(busyRef, dispatchGenRef, gen);
-    });
-  }, [budget, clear, composeMessage, job, lastBody, message, pending, submit]);
+    const held = beginDispatch(busyRef, dispatchGenRef);
+    setPreparing(true);
+    void prepareSend(text)
+      .catch((): PreparedSend => ({ message: text, planRevisionId: null }))
+      .then((prepared) => {
+        if (dispatchGenRef.current !== held) {
+          return;
+        }
+        setPreparing(false);
+        if (prepared.message.length > MAX_MESSAGE_LENGTH) {
+          endDispatch(busyRef, dispatchGenRef, held);
+          setLocalError(TEXT_ERROR);
+          return;
+        }
+        sendBody(text, bodyFor(prepared.message, prepared.planRevisionId), held);
+      });
+  }, [budget, composeMessage, message, pending, prepareSend, sendBody]);
+
 
   const retry = useCallback((): void => {
     if (busyRef.current || pending || lastBody === null) {
@@ -166,6 +200,7 @@ export function useChatConversation(
     dispatchGenRef.current += 1;
     convGenRef.current += 1;
     busyRef.current = false;
+    setPreparing(false);
     seenRef.current.clear();
     parentRef.current = null;
     userSeq.current = 0;
@@ -182,7 +217,7 @@ export function useChatConversation(
     messages,
     job,
     error: localError ?? jobError,
-    pending,
+    pending: pending || preparing,
     hasRequest: lastBody !== null,
     send,
     retry,

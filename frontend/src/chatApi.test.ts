@@ -15,6 +15,7 @@ const body: ChatJobCreate = {
   monthly_limit_cents: 20000,
   plan_cap_cents: null,
   previous_job_id: null,
+  plan_revision_id: null,
 };
 
 const result: ChatResult = {

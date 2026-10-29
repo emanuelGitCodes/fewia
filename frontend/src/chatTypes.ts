@@ -58,6 +58,7 @@ export type ChatJobCreate = {
   monthly_limit_cents: number;
   plan_cap_cents: number | null;
   previous_job_id: string | null;
+  plan_revision_id: string | null;
 };
 
 export type ChatJob = {

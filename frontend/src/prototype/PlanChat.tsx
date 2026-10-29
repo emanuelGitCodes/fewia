@@ -6,6 +6,7 @@ import { useProviderCapabilities } from "../useProviderCapabilities";
 import { ChatIdeaCard } from "./ChatIdeaCard";
 import { chatBudget, planChatPrefix, retainChatReplies, type ChatReply } from "./planChatModel";
 import type { PlanState } from "./planModel";
+import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 
 export const OFF_LINE = "Ask FEWIA is off. The plan still works.";
 export const FAILED_LINE = "FEWIA did not answer. Your plan did not change.";
@@ -36,15 +37,36 @@ export function PlanChat(props: {
   const headingId = `${uid}-heading`;
   const inputId = `${uid}-input`;
   const providers = useProviderCapabilities();
-  const composeMessage = useCallback((text: string) => planChatPrefix(state) + text, [state]);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const savedRef = useRef<{ key: string; id: string } | null>(null);
+  // Save the plan as a revision so the model reads it with get_plan. When saving fails, the
+  // plan goes in the message text as before.
+  const prepareSend = useCallback(async (text: string) => {
+    const current = stateRef.current;
+    const body = planRevisionBody(current);
+    const key = JSON.stringify(body);
+    try {
+      let saved = savedRef.current;
+      if (saved?.key !== key) {
+        saved = { key, id: await savePlanRevision(body) };
+        savedRef.current = saved;
+      }
+      return { message: text, planRevisionId: saved.id };
+    } catch {
+      const prefixed = planChatPrefix(current) + text;
+      return {
+        message: prefixed.length > MAX_MESSAGE_LENGTH ? text : prefixed,
+        planRevisionId: null,
+      };
+    }
+  }, []);
   const budget = chatBudget(state);
-  const chat = useChatConversation(budget, null, { composeMessage });
+  const chat = useChatConversation(budget, null, { prepareSend });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hideRef = useRef<HTMLButtonElement>(null);
   const announced = useRef<string | null>(null);
   const [again, setAgain] = useState(false);
-  const stateRef = useRef(state);
-  stateRef.current = state;
   // Ideas are fixed when the job succeeds, against the plan at that moment.
   const [replies, setReplies] = useState<ReadonlyMap<string, ChatReply>>(new Map());
   const job = chat.job;
@@ -278,7 +300,7 @@ export function PlanChat(props: {
               id={inputId}
               ref={inputRef}
               rows={2}
-              maxLength={Math.max(MAX_MESSAGE_LENGTH - planChatPrefix(state).length, 0)}
+              maxLength={MAX_MESSAGE_LENGTH}
               value={chat.message}
               readOnly={pending}
               aria-describedby={`${inputId}-hint`}

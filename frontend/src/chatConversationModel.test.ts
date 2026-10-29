@@ -19,6 +19,7 @@ const body: ChatJobCreate = {
   monthly_limit_cents: 20000,
   plan_cap_cents: null,
   previous_job_id: null,
+  plan_revision_id: null,
 };
 
 function job(status: ChatJob["status"]): ChatJob {
@@ -26,28 +27,32 @@ function job(status: ChatJob["status"]): ChatJob {
 }
 
 describe("chatConversationModel", () => {
-  it("copies the four wire fields and does not mutate the source", () => {
+  it("copies the five wire fields and does not mutate the source", () => {
     const source = { ...body, extra: "drop" } as ChatJobCreate & { extra: string };
     const copied = copyJobBody(source);
     source.message = "mutated";
     source.monthly_limit_cents = 1;
     source.plan_cap_cents = 2;
     source.previous_job_id = "job-1";
+    source.plan_revision_id = "rev-1";
     expect(copied).toEqual(body);
     expect(Object.keys(copied).sort()).toEqual([
       "message",
       "monthly_limit_cents",
       "plan_cap_cents",
+      "plan_revision_id",
       "previous_job_id",
     ]);
+    expect(copyJobBody({ ...body, plan_revision_id: "rev-1" }).plan_revision_id).toBe("rev-1");
   });
 
-  it("compares the four wire fields only", () => {
+  it("compares the five wire fields only", () => {
     expect(sameJobBody(body, copyJobBody(body))).toBe(true);
     expect(sameJobBody(body, { ...body, message: "Plan lentil soup." })).toBe(false);
     expect(sameJobBody(body, { ...body, monthly_limit_cents: 1 })).toBe(false);
     expect(sameJobBody(body, { ...body, plan_cap_cents: 4000 })).toBe(false);
     expect(sameJobBody(body, { ...body, previous_job_id: "job-1" })).toBe(false);
+    expect(sameJobBody(body, { ...body, plan_revision_id: "rev-1" })).toBe(false);
   });
 
   it("replays the saved body for null, queued, and running jobs", () => {
@@ -58,6 +63,7 @@ describe("chatConversationModel", () => {
     expect(shouldReplaySavedBody(job("succeeded"), body, next)).toBe(false);
     expect(shouldReplaySavedBody(job("failed"), body, next)).toBe(false);
     expect(shouldReplaySavedBody(null, body, { ...body, message: "other" })).toBe(false);
+    expect(shouldReplaySavedBody(null, body, { ...body, plan_revision_id: "rev-1" })).toBe(false);
   });
 
   it("accepts a monthly limit with an optional plan cap", () => {

@@ -36,7 +36,7 @@ function servingsText(servings: number): string {
   return `${String(servings)} ${servings === 1 ? "serving" : "servings"}`;
 }
 
-// The chat request carries no plan, so the client states the plan in the message text.
+// Fallback when the plan cannot be saved as a revision: the client states the plan in the message text.
 export function planChatPrefix(state: PlanState): string {
   const meals =
     state.meals.length === 0

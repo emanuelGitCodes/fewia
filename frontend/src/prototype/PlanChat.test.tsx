@@ -287,11 +287,9 @@ describe("PlanChat", () => {
     expect(jobState.submit).not.toHaveBeenCalled();
   });
 
-  it("limits the textarea by the room left after the plan prefix", () => {
-    const state = initialPlanState();
-    mount(state);
-    expect(box().maxLength).toBe(MAX_MESSAGE_LENGTH - planChatPrefix(state).length);
-    expect(box().maxLength).toBeLessThan(MAX_MESSAGE_LENGTH);
+  it("allows MAX_MESSAGE_LENGTH characters in the textarea", () => {
+    mount(initialPlanState());
+    expect(box().maxLength).toBe(MAX_MESSAGE_LENGTH);
   });
 
   it("does not send an empty message", async () => {
