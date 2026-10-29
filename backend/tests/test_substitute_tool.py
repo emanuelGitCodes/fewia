@@ -758,6 +758,23 @@ def test_two_proteins_ask_instead_of_picking_the_first() -> None:
     ]
 
 
+@pytest.mark.parametrize("bad", [["x"], {}])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "replace_ingredient_id",
+        "with_food",
+        "with_ingredient_id",
+        "scale_ingredient_id",
+    ],
+)
+def test_unhashable_ingredient_values_with_food_are_static_errors(
+    field: str, bad: object
+) -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute(food_swap(**{field: bad}))
+
+
 def test_with_food_and_a_replacement_in_a_meal_without_protein_swaps() -> None:
     result = execute_substitute(
         food_swap(recipe_id="vegetable_pasta", replace_ingredient_id="pasta")

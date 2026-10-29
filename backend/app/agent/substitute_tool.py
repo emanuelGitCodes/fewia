@@ -229,7 +229,10 @@ def _fill_food(
     present = {item for item, _ in RECIPES[recipe_id].ingredients}
     old = arguments.get("replace_ingredient_id")
     quantity = arguments.get("quantity_per_serving")
-    if ("replace_ingredient_id" in arguments and old not in present) or (
+    if (
+        "replace_ingredient_id" in arguments
+        and (type(old) is not str or old not in present)
+    ) or (
         "quantity_per_serving" in arguments
         and (type(quantity) is not int or not MIN_QUANTITY <= quantity <= MAX_QUANTITY)
     ):

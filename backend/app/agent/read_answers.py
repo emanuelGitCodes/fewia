@@ -261,6 +261,16 @@ def read_tool_answer(
             continue
         if name != GET_MEAL_TOOL:
             payloads = payloads[-1:]
+        else:
+            seen: set[object] = set()
+            unique: list[dict[str, object]] = []
+            for payload in payloads:
+                recipe_id = payload.get("recipe_id")
+                key = recipe_id if type(recipe_id) is str else id(payload)
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(payload)
+            payloads = unique
         try:
             text = " ".join(_render(name, payload, stale) for payload in payloads)
         except (KeyError, TypeError, ValueError):

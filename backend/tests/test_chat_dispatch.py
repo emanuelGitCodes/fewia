@@ -426,6 +426,31 @@ def test_dispatch_question_payloads_are_successes_without_the_input(
     assert "error" not in payload
 
 
+@pytest.mark.parametrize("bad", [["x"], {}])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "replace_ingredient_id",
+        "with_food",
+        "with_ingredient_id",
+        "scale_ingredient_id",
+    ],
+)
+def test_dispatch_unhashable_ingredient_values_are_static_errors(
+    field: str, bad: object
+) -> None:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": "beef"}
+    args[field] = bad
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("f4", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+    assert block["toolResult"]["status"] == "error"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "error")]
+
+
 def test_dispatch_with_food_and_with_ingredient_id_is_a_static_error() -> None:
     args: dict[str, object] = {
         "recipe_id": "bean_tacos",

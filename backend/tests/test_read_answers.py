@@ -831,6 +831,20 @@ def test_every_get_meal_in_the_batch_is_rendered_in_call_order() -> None:
     assert failed.count(TOOL_FAILED) == 1
 
 
+def test_a_repeated_recipe_in_the_batch_is_rendered_once_in_first_order() -> None:
+    results = [
+        (GET_MEAL_TOOL, _meal_payload("bean_tacos", 111)),
+        (GET_MEAL_TOOL, _meal_payload("chicken_tacos", 222)),
+        (GET_MEAL_TOOL, _meal_payload("bean_tacos", 333)),
+    ]
+    assert read_tool_answer(results) == (
+        "Bean tacos per serving: 111 kcal, 0 g protein, 0 g carbs, 0 g fat. "
+        "Ingredients: beans. "
+        "Chicken tacos per serving: 222 kcal, 0 g protein, 0 g carbs, 0 g fat. "
+        "Ingredients: beans."
+    )
+
+
 def test_one_malformed_get_meal_makes_the_batch_unreadable() -> None:
     results = [
         (GET_MEAL_TOOL, _meal_payload("bean_tacos", 111)),

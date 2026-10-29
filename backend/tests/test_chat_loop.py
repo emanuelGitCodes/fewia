@@ -51,7 +51,6 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines, price_tool_spec
-from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     execute_substitute,
@@ -694,14 +693,12 @@ def test_scripted_with_food_chat_swaps_in_one_call() -> None:
         heartbeat=_noop,
         plan_revision=revision,
     )
-    swap = execute_substitute(
-        {"recipe_id": "bean_tacos", "with_food": "beef"}, budget(), revision
-    )
-    assert result["answer"] == read_tool_answer([(SUBSTITUTE_TOOL, swap)])
-    assert "Servings from your plan: 2." in cast(str, result["answer"])
-    assert cast(str, result["answer"]).startswith(
+    assert result["answer"] == (
         "Bean tacos for 2 servings with ground beef (80% lean) instead of "
-        "black beans: per serving "
+        "black beans: per serving 379 to 525 kcal (+146 kcal), "
+        "protein 14 to 24 g (+10 g), carbs 56 to 27 g (-29 g), "
+        "fat 12 to 36 g (+24 g). Same weight per serving: 120 g. "
+        "Servings from your plan: 2. The sample price is incomplete."
     )
     assert result["status"] == "clarification"
     assert result["model_turns"] == 2
