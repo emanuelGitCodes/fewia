@@ -9,6 +9,7 @@ import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 
 export const OFF_LINE = "Ask FEWIA is off. The plan still works.";
+const SAVE_TIMEOUT_MS = 5000;
 export const FAILED_LINE = "FEWIA did not answer. Your plan did not change.";
 const STARTERS = [
   "Cheap vegetarian dinner for 2",
@@ -49,7 +50,7 @@ export function PlanChat(props: {
     try {
       let saved = savedRef.current;
       if (saved?.key !== key) {
-        saved = { key, id: await savePlanRevision(body) };
+        saved = { key, id: await savePlanRevision(body, AbortSignal.timeout(SAVE_TIMEOUT_MS)) };
         savedRef.current = saved;
       }
       return { message: text, planRevisionId: saved.id };

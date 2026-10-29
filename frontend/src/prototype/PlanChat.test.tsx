@@ -12,9 +12,14 @@ import { FAILED_LINE, OFF_LINE, PlanChat } from "./PlanChat";
 import { planChatPrefix } from "./planChatModel";
 import * as planModel from "./planModel";
 import { initialPlanState, withPlanBudgetInput, type PlanState } from "./planModel";
+import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 
 vi.mock("../useChatJob", () => ({ useChatJob: vi.fn() }));
 vi.mock("../useProviderCapabilities", () => ({ useProviderCapabilities: vi.fn() }));
+vi.mock("./planRevisionApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./planRevisionApi")>()),
+  savePlanRevision: vi.fn(),
+}));
 
 type JobMocks = {
   job: ChatJob | null;
@@ -128,6 +133,9 @@ beforeEach(() => {
     clear: jobState.clear,
   }));
   setProviders(true);
+  // Most tests run the fallback path; the plan revision tests override this.
+  vi.mocked(savePlanRevision).mockReset();
+  vi.mocked(savePlanRevision).mockRejectedValue(new Error("save failed"));
 });
 
 afterEach(() => {
@@ -483,6 +491,68 @@ describe("PlanChat", () => {
     expect(onReply).not.toHaveBeenCalled();
     await submitText("Plan dinner");
     expect(onReply).toHaveBeenCalledTimes(1);
+  });
+
+  describe("plan revision", () => {
+    it("sends the saved revision ID and the unprefixed text", async () => {
+      vi.mocked(savePlanRevision).mockResolvedValue("rev-1");
+      const state = initialPlanState();
+      mount(state);
+      await submitText("  Cheap dinner  ");
+      expect(savePlanRevision).toHaveBeenCalledWith(planRevisionBody(state), expect.any(AbortSignal));
+      expect(submitted(0).plan_revision_id).toBe("rev-1");
+      expect(submitted(0).message).toBe("Cheap dinner");
+    });
+
+    it("saves once for two sends with an unchanged plan", async () => {
+      vi.mocked(savePlanRevision).mockResolvedValue("rev-1");
+      mount();
+      await submitText("First");
+      await submitText("Second");
+      expect(jobState.submit).toHaveBeenCalledTimes(2);
+      expect(savePlanRevision).toHaveBeenCalledTimes(1);
+      expect(submitted(1).plan_revision_id).toBe("rev-1");
+    });
+
+    it("saves again after a plan change between sends", async () => {
+      vi.mocked(savePlanRevision).mockResolvedValueOnce("rev-1").mockResolvedValueOnce("rev-2");
+      const onToggleIdea = vi.fn();
+      const view = render(<PlanChat state={initialPlanState()} onToggleIdea={onToggleIdea} />);
+      await submitText("First");
+      view.rerender(
+        <PlanChat state={withPlanBudgetInput(initialPlanState(), "55")} onToggleIdea={onToggleIdea} />,
+      );
+      await submitText("Second");
+      expect(savePlanRevision).toHaveBeenCalledTimes(2);
+      expect(submitted(0).plan_revision_id).toBe("rev-1");
+      expect(submitted(1).plan_revision_id).toBe("rev-2");
+    });
+
+    it("falls back to the prefixed text with no revision ID when the save fails", async () => {
+      const state = initialPlanState();
+      mount(state);
+      await submitText("Cheap dinner");
+      expect(submitted(0).plan_revision_id).toBeNull();
+      expect(submitted(0).message).toBe(`${planChatPrefix(state)}Cheap dinner`);
+    });
+
+    it("falls back to the prefix when a hung save is aborted", async () => {
+      vi.mocked(savePlanRevision).mockRejectedValue(new DOMException("timed out", "TimeoutError"));
+      const state = initialPlanState();
+      mount(state);
+      await submitText("Cheap dinner");
+      expect(vi.mocked(savePlanRevision).mock.calls[0]?.[1]).toBeInstanceOf(AbortSignal);
+      expect(submitted(0).plan_revision_id).toBeNull();
+      expect(submitted(0).message).toBe(`${planChatPrefix(state)}Cheap dinner`);
+    });
+
+    it("sends the text alone when the fallback prefix would exceed the limit", async () => {
+      const text = "a".repeat(MAX_MESSAGE_LENGTH);
+      mount();
+      await submitText(text);
+      expect(submitted(0).plan_revision_id).toBeNull();
+      expect(submitted(0).message).toBe(text);
+    });
   });
 
   it("clears the transcript on New chat", async () => {

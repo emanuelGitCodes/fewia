@@ -753,6 +753,107 @@ describe("useChatConversation", () => {
     expect(result.current.hasRequest).toBe(false);
   });
 
+  describe("prepareSend", () => {
+    type Prepared = { message: string; planRevisionId: string | null };
+
+    function deferred(): { promise: Promise<Prepared>; resolve: (value: Prepared) => void } {
+      let resolve: (value: Prepared) => void = () => undefined;
+      const promise = new Promise<Prepared>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+
+    it("is pending while prepareSend runs and ignores a second send", async () => {
+      const wait = deferred();
+      const prepareSend = vi.fn(() => wait.promise);
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      expect(result.current.pending).toBe(true);
+      await sendAndSettle(result);
+      expect(prepareSend).toHaveBeenCalledTimes(1);
+      expect(jobState.submit).not.toHaveBeenCalled();
+      await act(async () => {
+        wait.resolve({ message: "Add tofu.", planRevisionId: "rev-1" });
+      });
+      await flushMicrotasks();
+      expect(jobState.submit).toHaveBeenCalledTimes(1);
+      expect(result.current.pending).toBe(false);
+    });
+
+    it("sends the prepared message and revision ID and shows the typed text", async () => {
+      const prepareSend = vi.fn(async () => ({ message: "PREPARED", planRevisionId: "rev-1" }));
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("  Add tofu.  ");
+      });
+      await sendAndSettle(result);
+      expect(prepareSend).toHaveBeenCalledWith("Add tofu.");
+      expect(submitted(jobState, 0)).toEqual({
+        message: "PREPARED",
+        monthly_limit_cents: 20000,
+        plan_cap_cents: null,
+        previous_job_id: null,
+        plan_revision_id: "rev-1",
+      });
+      expect(result.current.messages).toEqual([{ id: "user-1", role: "user", content: "Add tofu." }]);
+    });
+
+    it("retries the same body including the revision ID", async () => {
+      const prepareSend = vi.fn(async () => ({ message: "PREPARED", planRevisionId: "rev-1" }));
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      await retryAndSettle(result);
+      expect(jobState.submit).toHaveBeenCalledTimes(2);
+      expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
+      expect(submitted(jobState, 1).plan_revision_id).toBe("rev-1");
+      expect(prepareSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops a late prepareSend result after New chat", async () => {
+      const wait = deferred();
+      const { result } = renderHook(() =>
+        useChatConversation(budget, null, { prepareSend: () => wait.promise }),
+      );
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      act(() => {
+        result.current.newConversation();
+      });
+      expect(result.current.pending).toBe(false);
+      await act(async () => {
+        wait.resolve({ message: "Add tofu.", planRevisionId: "rev-1" });
+      });
+      await flushMicrotasks();
+      expect(jobState.submit).not.toHaveBeenCalled();
+      expect(result.current.messages).toEqual([]);
+      expect(result.current.hasRequest).toBe(false);
+    });
+
+    it("does not lock the chat when sending throws", async () => {
+      const prepareSend = vi.fn(async () => ({ message: "PREPARED", planRevisionId: null }));
+      jobState.submit.mockImplementationOnce(() => {
+        throw new Error("boom");
+      });
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      expect(result.current.pending).toBe(false);
+      await sendAndSettle(result);
+      expect(prepareSend).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("sends the first request with a saved manual job as parent", async () => {
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
       jobState.job = succeeded("chat-1", "Bean tacos fit the budget.");

@@ -181,6 +181,11 @@ export function useChatConversation(
           return;
         }
         sendBody(text, bodyFor(prepared.message, prepared.planRevisionId), held);
+      })
+      .catch(() => {
+        // A thrown error must not leave the chat busy.
+        endDispatch(busyRef, dispatchGenRef, held);
+        setPreparing(false);
       });
   }, [budget, composeMessage, message, pending, prepareSend, sendBody]);
 
