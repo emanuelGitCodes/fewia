@@ -14,6 +14,11 @@ from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.catalog_tool import CatalogToolError, execute_catalog_search
+from app.agent.ingredient_tool import (
+    INGREDIENT_TOOL,
+    IngredientToolError,
+    execute_ingredient_facts,
+)
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -34,6 +39,13 @@ from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 from app.domain.plan_revision import PlanRevisionInput
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
+_PLAN_READ_TOOLS = (
+    GET_PLAN_TOOL,
+    GET_MEAL_TOOL,
+    SUBSTITUTE_TOOL,
+    PRICE_TOOL,
+    INGREDIENT_TOOL,
+)
 
 
 def _is_revision_id(value: object) -> bool:
@@ -154,9 +166,11 @@ def _dispatch_plan_tool(
         elif call.name == PRICE_TOOL:
             cap = None if plan is None else plan.snapshot.plan_cap_cents
             payload = execute_price_lines(call.tool_input, budget, cap, plan)
+        elif call.name == INGREDIENT_TOOL:
+            payload = execute_ingredient_facts(call.tool_input)
         else:
             payload = execute_get_meal(call.tool_input)
-    except (PlanToolError, SubstituteToolError, PriceToolError):
+    except (PlanToolError, SubstituteToolError, PriceToolError, IngredientToolError):
         payload = None
     trace.append(
         _entry(
@@ -185,7 +199,7 @@ def dispatch(
     *,
     plan: PlanRevisionInput | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
-    if call.name in (GET_PLAN_TOOL, GET_MEAL_TOOL, SUBSTITUTE_TOOL, PRICE_TOOL):
+    if call.name in _PLAN_READ_TOOLS:
         return _dispatch_plan_tool(call, budget, plan, trace)
     if call.name == CATALOG_TOOL_NAME:
         try:

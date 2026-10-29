@@ -4,6 +4,7 @@ from typing import cast
 import pytest
 
 from app.agent.chat_answer import _usd
+from app.agent.ingredient_tool import INGREDIENT_TOOL, execute_ingredient_facts
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -14,7 +15,7 @@ from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
-from app.domain.catalog import INGREDIENTS
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 from app.domain.plan_revision import PlanRevisionInput
 from app.services.meal_nutrition import meal_nutrition
@@ -463,7 +464,9 @@ def test_failed_flag_appends_failure_sentence() -> None:
 
 def test_real_incomplete_prices(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
-        INGREDIENTS, "chickpeas", replace(INGREDIENTS["chickpeas"], price_cents=None)
+        ALL_INGREDIENTS,
+        "chickpeas",
+        replace(ALL_INGREDIENTS["chickpeas"], price_cents=None),
     )
     swap = execute_substitute(_REAL_SWAP, _BUDGET)
     assert _at(swap, "price", "before", "total_cents") == 2_373
@@ -559,6 +562,118 @@ def test_real_price_lines_reply_shows_servings_and_assumptions() -> None:
         "It fits the available USD $100.00. "
         f"Bean tacos: Servings not given; used 1. {_NOTICE}"
     )
+
+
+def _found(
+    name: str, fdc_id: int, price_cents: int | None, ingredient_id: str = "x"
+) -> dict[str, object]:
+    return {
+        "status": "found",
+        "ingredient_id": ingredient_id,
+        "name": name,
+        "source": "curated",
+        "fdc_id": fdc_id,
+        "per_100g": _macros(254, 17_170, 0, 20_000),
+        "vegetarian": False,
+        "vegan": False,
+        "price_cents": price_cents,
+    }
+
+
+def test_ingredient_facts_found_without_a_price() -> None:
+    payload = _found("ground beef (80% lean)", 174036, None)
+    assert read_tool_answer([(INGREDIENT_TOOL, payload)]) == (
+        "Ground beef (80% lean) per 100 g: 254 kcal, 17 g protein, 0 g carbs, "
+        "20 g fat (USDA FDC 174036). It has no sample price yet."
+    )
+
+
+def test_ingredient_facts_found_with_a_price_has_no_price_sentence() -> None:
+    answer = read_tool_answer([(INGREDIENT_TOOL, _found("black beans", 1, 129))])
+    assert answer == (
+        "Black beans per 100 g: 254 kcal, 17 g protein, 0 g carbs, 20 g fat "
+        "(USDA FDC 1)."
+    )
+
+
+def test_ingredient_facts_ambiguous_and_unknown() -> None:
+    names = ["ground pork", "pork loin", "ground beef (80% lean)"]
+    candidates = [_found(name, 1, None) for name in names]
+    ambiguous = {"status": "ambiguous", "name": "pork", "candidates": candidates[:2]}
+    assert read_tool_answer([(INGREDIENT_TOOL, ambiguous)]) == (
+        "Which one do you mean: ground pork or pork loin?"
+    )
+    three = {"status": "ambiguous", "name": "x", "candidates": candidates}
+    assert read_tool_answer([(INGREDIENT_TOOL, three)]) == (
+        "Which one do you mean: ground pork, pork loin, or ground beef (80% lean)?"
+    )
+    unknown = {"status": "unknown", "name": "tofu", "candidates": []}
+    assert read_tool_answer([(INGREDIENT_TOOL, unknown)]) == (
+        "I cannot find tofu in the food list."
+    )
+    near = {"status": "unknown", "name": "beefy", "candidates": candidates}
+    assert read_tool_answer([(INGREDIENT_TOOL, near)]) == (
+        "I cannot find beefy in the food list. Did you mean ground pork or pork loin?"
+    )
+
+
+def test_ingredient_facts_bad_status_returns_none() -> None:
+    assert read_tool_answer([(INGREDIENT_TOOL, {"status": "odd"})]) is None
+    assert read_tool_answer([(INGREDIENT_TOOL, {})]) is None
+
+
+def test_real_ingredient_facts_render() -> None:
+    beef = execute_ingredient_facts({"name": "beef"})
+    assert read_tool_answer([(INGREDIENT_TOOL, beef)]) == (
+        "Ground beef (80% lean) per 100 g: 254 kcal, 17 g protein, 0 g carbs, "
+        "20 g fat (USDA FDC 174036). It has no sample price yet."
+    )
+    pork = execute_ingredient_facts({"name": "pork"})
+    assert read_tool_answer([(INGREDIENT_TOOL, pork)]) == (
+        "Which one do you mean: ground pork or pork loin?"
+    )
+
+
+def test_ingredient_facts_rank_below_price_lines_and_above_get_meal() -> None:
+    beef = _found("ground beef (80% lean)", 174036, None)
+    meal = {
+        "recipe_id": "bean_tacos",
+        "ingredients": [_line("b", "beans")],
+        "per_serving": _macros(1, 0, 0, 0),
+    }
+    lines = _lines_payload(_estimate(None, 10_000, False))
+    plan: dict[str, object] = {"meals": []}
+    results = [
+        (GET_PLAN_TOOL, plan),
+        (GET_MEAL_TOOL, meal),
+        (INGREDIENT_TOOL, beef),
+        (PRICE_TOOL, lines),
+    ]
+    assert read_tool_answer(results) == _INCOMPLETE
+    assert str(read_tool_answer(results[:3])).startswith("Ground beef")
+    assert str(read_tool_answer(results[:2])).startswith("Bean tacos per serving")
+
+
+def test_real_beef_swap_reply_ends_with_incomplete_price() -> None:
+    args: dict[str, object] = {
+        "recipe_id": "bean_tacos",
+        "servings": 2,
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+    payload = execute_substitute(args, _BUDGET)
+    assert _at(payload, "price", "after", "total_cents") is None
+    answer = read_tool_answer([(SUBSTITUTE_TOOL, payload)])
+    assert answer is not None
+    assert answer.startswith(
+        "Bean tacos for 2 servings with ground beef (80% lean) instead of "
+        "black beans: per serving "
+    )
+    assert answer.endswith(
+        "Same weight per serving: 120 g. The sample price is incomplete."
+    )
+    priced = execute_price_lines({"meals": [args]}, _BUDGET, None)
+    assert read_tool_answer([(PRICE_TOOL, priced)]) == _INCOMPLETE
 
 
 def test_real_get_plan_without_meals() -> None:

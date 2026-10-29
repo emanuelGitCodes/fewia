@@ -254,3 +254,48 @@ def test_variant_recipes_without_changes_equals_the_catalog() -> None:
 def test_variant_recipes_raises_for_an_invalid_change() -> None:
     with pytest.raises(RecipeVariantError):
         variant_recipes({"chicken_tacos": swap("rice", "eggs")})
+
+
+def test_curated_food_can_replace_a_catalog_ingredient() -> None:
+    result = apply_change("bean_tacos", swap("black_beans", "ground_beef_80"))
+    assert result == (
+        ("ground_beef_80", 120),
+        *RECIPES["bean_tacos"].ingredients[1:],
+    )
+    assert RECIPES["bean_tacos"].ingredients[0] == ("black_beans", 120)
+
+
+def test_curated_food_keeps_grams_when_replacing_an_each_ingredient() -> None:
+    result = apply_change("bean_tacos", swap("tortillas", "salmon"))
+    assert dict(result)["salmon"] == 48
+    assert "tortillas" not in dict(result)
+
+
+def test_curated_explicit_quantity_is_used_as_is() -> None:
+    result = apply_change("bean_tacos", swap("black_beans", "ground_pork", 150))
+    assert result[0] == ("ground_pork", 150)
+
+
+def test_curated_grams_need_no_grams_per_each_entry() -> None:
+    assert ingredient_grams("ground_beef_80", 120) == 120
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        swap("ground_beef_80", "rice"),
+        scale("ground_beef_80", 50),
+        swap("black_beans", "ground_beef_999"),
+        swap("black_beans", "black_beans"),
+    ],
+)
+def test_curated_food_cannot_be_a_recipe_ingredient(change: RecipeChange) -> None:
+    with pytest.raises(RecipeVariantError):
+        apply_change("bean_tacos", change)
+
+
+def test_curated_replacement_cannot_repeat_a_present_ingredient() -> None:
+    once = variant_recipes({"bean_tacos": swap("black_beans", "ground_beef_80")})
+    assert dict(once["bean_tacos"].ingredients)["ground_beef_80"] == 120
+    with pytest.raises(RecipeVariantError):
+        apply_change("bean_tacos", swap("black_beans", "salsa"))

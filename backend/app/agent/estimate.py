@@ -3,6 +3,7 @@ from datetime import date
 
 from app.domain.budget import BudgetResult
 from app.domain.catalog import RECIPES, Recipe
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import GroceryRequest, MealRequest
 from app.services.grocery_planner import PlanEstimate, plan_groceries
 
@@ -52,6 +53,7 @@ def priced_estimate(
         BudgetResult(
             available_cents, budget.pending_cents, budget.stale, budget.warnings
         ),
+        ingredients=ALL_INGREDIENTS,
         recipes=recipes,
     )
     return estimate_payload(estimate, available_cents)

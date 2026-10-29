@@ -14,7 +14,8 @@ from app.agent.substitute_tool import (
 )
 from app.agent.substitute_tool import execute_substitute as _execute_substitute
 from app.domain.budget import BudgetResult
-from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.catalog import RECIPES
+from app.domain.curated_foods import ALL_INGREDIENTS, ALL_NUTRITION
 from app.domain.grocery import (
     SAMPLE_ESTIMATE_NOTICE,
     SUPPORTED_RECIPE_IDS,
@@ -22,6 +23,8 @@ from app.domain.grocery import (
 )
 from app.domain.plan_revision import PlanRevisionInput
 from app.services.meal_nutrition import (
+    GRAMS_PER_EACH,
+    MacroTotals,
     MealNutrition,
     ingredients_macros,
     meal_nutrition,
@@ -105,7 +108,10 @@ def test_spec_declares_schema_without_extra_keys() -> None:
     assert props["recipe_id"]["enum"] == list(SUPPORTED_RECIPE_IDS)
     assert props["servings"] == {"type": "integer", "minimum": 1, "maximum": 8}
     for name in ("replace_ingredient_id", "with_ingredient_id", "scale_ingredient_id"):
-        assert props[name]["enum"] == sorted(INGREDIENTS)
+        assert props[name] == {
+            "type": "string",
+            "description": "An ingredient ID from get_ingredient_facts or get_meal.",
+        }
     assert props["quantity_per_serving"]["minimum"] == 1
     assert props["quantity_per_serving"]["maximum"] == 1000
     assert props["scale_factor_percent"]["minimum"] == 10
@@ -430,7 +436,9 @@ def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(
-        INGREDIENTS, "chickpeas", replace(INGREDIENTS["chickpeas"], price_cents=None)
+        ALL_INGREDIENTS,
+        "chickpeas",
+        replace(ALL_INGREDIENTS["chickpeas"], price_cents=None),
     )
     price = cast(dict[str, Any], execute_substitute(swap())["price"])
     assert price["before"]["price_complete"] is True
@@ -543,3 +551,102 @@ def test_scale_range_edges_are_accepted(percent: int) -> None:
 
 def test_error_is_value_error() -> None:
     assert issubclass(SubstituteToolError, ValueError)
+
+
+def beef_swap(**extra: object) -> dict[str, object]:
+    args: dict[str, object] = {
+        "recipe_id": "bean_tacos",
+        "servings": 2,
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+    args.update(extra)
+    return args
+
+
+def hand_macros(items: tuple[tuple[str, int], ...], servings: int = 1) -> MacroTotals:
+    """Sum grams x per-gram facts from ALL_NUTRITION, rounding once at the end."""
+    sums = [0, 0, 0, 0]
+    for ingredient_id, quantity in items:
+        grams = quantity
+        if ALL_INGREDIENTS[ingredient_id].unit == "each":
+            grams = quantity * GRAMS_PER_EACH[ingredient_id]
+        facts = ALL_NUTRITION[ingredient_id]
+        sums[0] += facts.energy_kcal * grams
+        sums[1] += facts.protein_mg * grams
+        sums[2] += facts.carbohydrate_mg * grams
+        sums[3] += facts.fat_mg * grams
+    a, b, c, d = ((value * servings + 50) // 100 for value in sums)
+    return MacroTotals(a, b, c, d)
+
+
+def test_hand_macros_matches_ingredients_macros_for_catalog_items() -> None:
+    items = RECIPES["bean_tacos"].ingredients
+    assert hand_macros(items, 2) == ingredients_macros(items, servings=2)
+
+
+def test_bean_tacos_to_curated_beef_uses_curated_nutrition() -> None:
+    result = execute_substitute(beef_swap())
+    hand_list = (("ground_beef_80", 120), *RECIPES["bean_tacos"].ingredients[1:])
+    each = hand_macros(hand_list)
+    total = hand_macros(hand_list, 2)
+    assert result["assumptions"] == ["Same weight per serving: 120 g."]
+    before = cast(dict[str, Any], result["before"])
+    after = cast(dict[str, Any], result["after"])
+    assert after["per_serving"] == asdict(each)
+    assert after["total"] == asdict(total)
+    assert after["ingredients"][0] == {
+        "ingredient_id": "ground_beef_80",
+        "name": "ground beef (80% lean)",
+        "quantity": 120,
+        "unit": "g",
+    }
+    assert before["per_serving"] == asdict(reference("bean_tacos", 2).per_serving)
+    delta = cast(dict[str, Any], result["delta"])
+    for key in _KEYS:
+        assert (
+            delta["per_serving"][key]
+            == after["per_serving"][key] - (before["per_serving"][key])
+        )
+        assert delta["total"][key] == after["total"][key] - before["total"][key]
+    assert delta["per_serving"]["fat_mg"] > 0
+    assert result["diets_after"] == []
+    assert result["change"] == {
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+
+
+def test_curated_swap_price_is_incomplete() -> None:
+    price = cast(dict[str, Any], execute_substitute(beef_swap())["price"])
+    assert price["before"]["price_complete"] is True
+    assert price["after"]["price_complete"] is False
+    assert price["after"]["total_cents"] is None
+    assert price["delta_cents"] is None
+    beef = next(
+        line
+        for line in price["after"]["lines"]
+        if line["ingredient_id"] == "ground_beef_80"
+    )
+    assert beef["cost_cents"] is None
+    assert beef["quantity"] == 240
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        beef_swap(replace_ingredient_id="ground_beef_80", with_ingredient_id="rice"),
+        beef_swap(replace_ingredient_id="ground_beef_80", with_ingredient_id="salsa"),
+        {
+            "recipe_id": "bean_tacos",
+            "servings": 1,
+            "scale_ingredient_id": "ground_beef_80",
+            "scale_factor_percent": 50,
+        },
+        beef_swap(with_ingredient_id="ground_beef_999"),
+    ],
+)
+def test_curated_foods_cannot_be_recipe_ingredients(arguments: object) -> None:
+    with pytest.raises(SubstituteToolError) as caught:
+        execute_substitute(arguments)
+    assert str(caught.value) == "arguments are invalid"

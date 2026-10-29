@@ -48,6 +48,7 @@ class ScriptedProvider:
             "get_meal",
             "what_if_substitute",
             "price_lines",
+            "get_ingredient_facts",
         ]
         self.messages.append(deepcopy(messages))
         response = self.responses.pop(0)

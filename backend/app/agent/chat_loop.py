@@ -18,6 +18,7 @@ from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import build_messages, sum_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.chat_refusal import parse_refusal
+from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -110,9 +111,19 @@ SYSTEM_PROMPT = (
     "To compare a swap or a smaller or larger portion of one ingredient, "
     "call what_if_substitute. It does not change the plan. "
     "To price meals with or without a swap, call price_lines. "
-    "Prices are sample estimates."
+    "Prices are sample estimates. "
+    "When the user names a food or ingredient, call get_ingredient_facts "
+    "to find its ID. "
+    "To swap an ingredient in a meal for another food, call "
+    "get_ingredient_facts, then what_if_substitute."
 )
-_PLAN_READ_TOOLS = (GET_PLAN_TOOL, GET_MEAL_TOOL, SUBSTITUTE_TOOL, PRICE_TOOL)
+_PLAN_READ_TOOLS = (
+    GET_PLAN_TOOL,
+    GET_MEAL_TOOL,
+    SUBSTITUTE_TOOL,
+    PRICE_TOOL,
+    INGREDIENT_TOOL,
+)
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -214,6 +225,7 @@ def run_chat(
         get_meal_tool_spec(),
         substitute_tool_spec(),
         price_tool_spec(),
+        ingredient_tool_spec(),
     ]
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []

@@ -42,6 +42,7 @@ from app.agent.chat_loop import (
     run_chat,
 )
 from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError, ToolCall
+from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -241,6 +242,7 @@ def _chat_tools() -> list[dict[str, object]]:
         get_meal_tool_spec(),
         substitute_tool_spec(),
         price_tool_spec(),
+        ingredient_tool_spec(),
     ]
 
 
@@ -607,6 +609,93 @@ def test_substitute_then_model_prose_ends_with_server_template() -> None:
     assert result["answer"] == _SWAP_ANSWER
     assert result["answer"] != CLARIFICATION
     assert "model-prose-after-swap" not in json.dumps(result)
+
+
+_BEEF_ARGS: dict[str, object] = {
+    "recipe_id": "bean_tacos",
+    "servings": 2,
+    "replace_ingredient_id": "black_beans",
+    "with_ingredient_id": "ground_beef_80",
+}
+
+
+def test_scripted_beef_chat_looks_up_beef_then_swaps_it_in() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "beef"})],
+                "tool_use",
+            ),
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_BEEF_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("Beef adds fat.")], "end_turn"),
+        ]
+    )
+    assert result["model_turns"] == 3
+    assert len(provider.requests) == 3
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    answer = cast(str, result["answer"])
+    assert answer.startswith(
+        "Bean tacos for 2 servings with ground beef (80% lean) instead of "
+        "black beans: per serving "
+    )
+    assert answer.endswith(
+        "Same weight per serving: 120 g. The sample price is incomplete."
+    )
+    assert "Beef adds fat." not in json.dumps(result)
+    assert [item["tool"] for item in result["tool_trace"]] == [
+        INGREDIENT_TOOL,
+        SUBSTITUTE_TOOL,
+    ]
+    second = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    lookup = second[-1]["content"][0]["toolResult"]
+    assert lookup["status"] == "success"
+    assert lookup["content"][0]["json"]["ingredient_id"] == "ground_beef_80"
+    third = cast(list[dict[str, Any]], provider.requests[2]["messages"])
+    swap = third[-1]["content"][0]["toolResult"]
+    assert swap["content"][0]["json"] == execute_substitute(_BEEF_ARGS, budget())
+    assert swap["content"][0]["json"]["price"]["delta_cents"] is None
+
+
+def test_ingredient_facts_reply_for_an_unknown_food() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "tofu"})],
+                "tool_use",
+            ),
+            _reply([_text_block("Tofu is great.")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == "I cannot find tofu in the food list."
+    assert "Tofu is great." not in json.dumps(result)
+
+
+def test_ingredient_facts_error_keeps_static_shape_and_reply_state() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": ""})],
+                "tool_use",
+            ),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    assert cast(list[dict[str, object]], result["tool_trace"])[0]["outcome"] == "error"
+
+
+def test_prompt_tells_the_model_to_look_up_foods_before_swapping() -> None:
+    assert SYSTEM_PROMPT.endswith(
+        "When the user names a food or ingredient, call get_ingredient_facts "
+        "to find its ID. "
+        "To swap an ingredient in a meal for another food, call "
+        "get_ingredient_facts, then what_if_substitute."
+    )
 
 
 def test_typed_planner_error_beats_read_answer_in_same_batch() -> None:
@@ -1354,7 +1443,8 @@ def test_system_prompt_states_tag_thresholds_and_tool_spec_lists_terms() -> None
     spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
     description = cast(str, spec["description"])
     terms = description.split("Terms: ", 1)[1].removesuffix(".").split(", ")
-    assert set(SEARCH_TERMS) <= set(terms)
+    assert set(SEARCH_TERMS) - {"meat", "carnivore"} <= set(terms)
+    assert not {"meat", "carnivore"} & set(terms)
     assert {"vegan", "vegetarian", "high_protein", "lower_carb"} <= set(terms)
     assert "When the user asks for keto," not in SYSTEM_PROMPT
 
@@ -2569,6 +2659,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
             get_meal_tool_spec(),
             substitute_tool_spec(),
             price_tool_spec(),
+            ingredient_tool_spec(),
         ]
     )
     builds: list[str] = []
@@ -2614,6 +2705,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
         get_meal_tool_spec(),
         substitute_tool_spec(),
         price_tool_spec(),
+        ingredient_tool_spec(),
     ] == expected
 
 

@@ -2,9 +2,13 @@ from dataclasses import asdict
 
 from app.agent.estimate import priced_estimate
 from app.agent.plan_tools import _spec
-from app.agent.substitute_tool import resolve_servings, servings_assumption
+from app.agent.substitute_tool import (
+    INGREDIENT_ID_HELP,
+    resolve_servings,
+    servings_assumption,
+)
 from app.domain.budget import BudgetResult
-from app.domain.catalog import INGREDIENTS
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
 from app.domain.recipe_variant import (
@@ -34,7 +38,7 @@ def meal_name(recipe_id: object) -> str:
 
 
 def price_tool_spec() -> dict[str, object]:
-    ingredient = {"type": "string", "description": "A catalog ingredient ID."}
+    ingredient = {"type": "string", "description": INGREDIENT_ID_HELP}
     meal: dict[str, object] = {
         "type": "object",
         "properties": {
@@ -69,7 +73,7 @@ def price_tool_spec() -> dict[str, object]:
             "meals": {"type": "array", "minItems": 1, "maxItems": 3, "items": meal},
             "pantry_ingredient_ids": {
                 "type": "array",
-                "items": {"type": "string", "enum": sorted(INGREDIENTS)},
+                "items": {"type": "string", "description": INGREDIENT_ID_HELP},
             },
         },
         ["meals"],
@@ -102,7 +106,7 @@ def _pantry(arguments: dict[object, object]) -> list[str]:
     if type(pantry) is not list:
         raise PriceToolError(_INVALID)
     for ingredient_id in pantry:
-        if type(ingredient_id) is not str or ingredient_id not in INGREDIENTS:
+        if type(ingredient_id) is not str or ingredient_id not in ALL_INGREDIENTS:
             raise PriceToolError(_INVALID)
     if len(set(pantry)) != len(pantry):
         raise PriceToolError(_INVALID)
@@ -152,9 +156,9 @@ def execute_price_lines(
                 "ingredients": [
                     {
                         "ingredient_id": ingredient_id,
-                        "name": INGREDIENTS[ingredient_id].name,
+                        "name": ALL_INGREDIENTS[ingredient_id].name,
                         "quantity": quantity,
-                        "unit": INGREDIENTS[ingredient_id].unit,
+                        "unit": ALL_INGREDIENTS[ingredient_id].unit,
                     }
                     for ingredient_id, quantity in recipes[recipe_id].ingredients
                 ],

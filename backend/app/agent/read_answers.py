@@ -1,16 +1,17 @@
 from collections.abc import Sequence
 
 from app.agent.chat_answer import _usd
+from app.agent.ingredient_tool import INGREDIENT_TOOL
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
 from app.agent.price_tool import PRICE_TOOL
 from app.agent.price_tool import meal_name as _meal
 from app.agent.substitute_tool import SUBSTITUTE_TOOL
 from app.domain.budget import STALE_SPENDING_WARNING
-from app.domain.catalog import INGREDIENTS
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
 TOOL_FAILED = "A tool call failed. Check the request."
-_PRIORITY = (SUBSTITUTE_TOOL, PRICE_TOOL, GET_MEAL_TOOL, GET_PLAN_TOOL)
+_PRIORITY = (SUBSTITUTE_TOOL, PRICE_TOOL, INGREDIENT_TOOL, GET_MEAL_TOOL, GET_PLAN_TOOL)
 _INCOMPLETE_TOTAL = "The sample total is incomplete because a price is missing."
 
 
@@ -107,7 +108,7 @@ def _priced_meal(item: dict[str, object]) -> str:
 
 
 def _catalog_name(ingredient_id: object) -> str:
-    return INGREDIENTS[str(ingredient_id)].name
+    return ALL_INGREDIENTS[str(ingredient_id)].name
 
 
 def _with_notice(text: str, shown: bool) -> str:
@@ -161,6 +162,35 @@ def _price_lines(payload: dict[str, object], stale: bool) -> str:
     return _with_notice(text, shown)
 
 
+def _or(names: list[str]) -> str:
+    if len(names) <= 2:
+        return " or ".join(names)
+    return f"{', '.join(names[:-1])}, or {names[-1]}"
+
+
+def _ingredient_facts(payload: dict[str, object]) -> str:
+    status = payload["status"]
+    if status == "found":
+        name = str(payload["name"])
+        text = (
+            f"{name[:1].upper()}{name[1:]} per 100 g: "
+            f"{_macro_line(_d(payload['per_100g']))} "
+            f"(USDA FDC {_int(payload['fdc_id'])})."
+        )
+        if payload["price_cents"] is None:
+            text += " It has no sample price yet."
+        return text
+    names = [str(_d(item)["name"]) for item in _d_list(payload["candidates"])]
+    if status == "ambiguous":
+        return f"Which one do you mean: {_or(names)}?"
+    if status != "unknown":
+        raise ValueError("payload is invalid")
+    text = f"I cannot find {payload['name']} in the food list."
+    if names:
+        text += f" Did you mean {_or(names[:2])}?"
+    return text
+
+
 def _get_meal(payload: dict[str, object]) -> str:
     lines = _d_list(payload["ingredients"])
     names = ", ".join(str(_d(line)["name"]) for line in lines)
@@ -194,6 +224,8 @@ def _render(name: str, payload: dict[str, object], stale: bool) -> str:
         return _substitute(payload)
     if name == PRICE_TOOL:
         return _price_lines(payload, stale)
+    if name == INGREDIENT_TOOL:
+        return _ingredient_facts(payload)
     if name == GET_MEAL_TOOL:
         return _get_meal(payload)
     return _get_plan(payload, stale)

@@ -4,7 +4,8 @@ from typing import cast
 from app.agent.estimate import priced_estimate
 from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
-from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.catalog import RECIPES
+from app.domain.curated_foods import ALL_INGREDIENTS, ALL_NUTRITION
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
 from app.domain.recipe_variant import (
@@ -20,9 +21,10 @@ from app.domain.recipe_variant import (
     round_half_up,
     variant_recipes,
 )
-from app.services.meal_nutrition import MacroTotals, ingredients_macros
+from app.services.meal_nutrition import MacroTotals
 
 SUBSTITUTE_TOOL = "what_if_substitute"
+INGREDIENT_ID_HELP = "An ingredient ID from get_ingredient_facts or get_meal."
 _MACRO_KEYS = ("energy_kcal", "protein_mg", "carbohydrate_mg", "fat_mg")
 
 
@@ -31,7 +33,7 @@ class SubstituteToolError(ValueError):
 
 
 def substitute_tool_spec() -> dict[str, object]:
-    ingredient = {"type": "string", "enum": sorted(INGREDIENTS)}
+    ingredient = {"type": "string", "description": INGREDIENT_ID_HELP}
     return _spec(
         SUBSTITUTE_TOOL,
         "Recompute one catalog meal with one ingredient replaced or scaled. "
@@ -68,21 +70,40 @@ def _lines(ingredients: tuple[tuple[str, int], ...]) -> list[dict[str, object]]:
     return [
         {
             "ingredient_id": ingredient_id,
-            "name": INGREDIENTS[ingredient_id].name,
+            "name": ALL_INGREDIENTS[ingredient_id].name,
             "quantity": quantity,
-            "unit": INGREDIENTS[ingredient_id].unit,
+            "unit": ALL_INGREDIENTS[ingredient_id].unit,
         }
         for ingredient_id, quantity in ingredients
     ]
 
 
+def _round_macros(sums: tuple[int, int, int, int], servings: int = 1) -> MacroTotals:
+    energy, protein, carb, fat = ((value * servings + 50) // 100 for value in sums)
+    return MacroTotals(energy, protein, carb, fat)
+
+
 def _side(
     ingredients: tuple[tuple[str, int], ...], servings: int
 ) -> tuple[dict[str, object], MacroTotals, MacroTotals]:
-    per_serving = ingredients_macros(ingredients)
-    total = ingredients_macros(ingredients, servings=servings)
-    if per_serving is None or total is None:
-        raise SubstituteToolError("meal is unavailable")
+    # meal_nutrition.ingredients_macros only knows catalog ingredients, so sum
+    # over ALL_NUTRITION here and round once from unrounded sums.
+    sums = [0, 0, 0, 0]
+    for ingredient_id, quantity in ingredients:
+        grams = ingredient_grams(ingredient_id, quantity)
+        facts = ALL_NUTRITION[ingredient_id]
+        for index, value in enumerate(
+            (
+                facts.energy_kcal,
+                facts.protein_mg,
+                facts.carbohydrate_mg,
+                facts.fat_mg,
+            )
+        ):
+            sums[index] += value * grams
+    unrounded = (sums[0], sums[1], sums[2], sums[3])
+    per_serving = _round_macros(unrounded)
+    total = _round_macros(unrounded, servings)
     side: dict[str, object] = {
         "ingredients": _lines(ingredients),
         "per_serving": _macros(per_serving),
@@ -112,9 +133,10 @@ def _assumptions(
         percent = cast(int, change.scale_factor_percent)
         if now[target] == round_half_up(before[target] * percent, 100):
             return [f"Scaled to {percent} percent."]
-        return [f"Scaled to the minimum of 1 {INGREDIENTS[target].unit} per serving."]
+        unit = ALL_INGREDIENTS[target].unit
+        return [f"Scaled to the minimum of 1 {unit} per serving."]
     new = cast(str, change.with_ingredient_id)
-    unit = INGREDIENTS[new].unit
+    unit = ALL_INGREDIENTS[new].unit
     if change.quantity_per_serving is not None:
         return [f"Quantity set to {change.quantity_per_serving} {unit} per serving."]
     old = cast(str, change.replace_ingredient_id)
@@ -148,7 +170,7 @@ def _price(
 
 
 def _diets(ingredients: tuple[tuple[str, int], ...]) -> list[str]:
-    items = [INGREDIENTS[ingredient_id] for ingredient_id, _ in ingredients]
+    items = [ALL_INGREDIENTS[ingredient_id] for ingredient_id, _ in ingredients]
     diets: list[str] = []
     if all(item.vegan for item in items):
         diets.append("vegan")

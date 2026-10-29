@@ -16,6 +16,8 @@ from app.domain.meal_tags import (
 
 TOOL_NAME = "find_catalog_meals"
 _DIETS = ("omnivore", "vegetarian", "vegan")
+_UI_ONLY_TERMS = ("meat", "carnivore")
+_AGENT_TERMS = tuple(term for term in SEARCH_TERMS if term not in _UI_ONLY_TERMS)
 DISCOVERY_ERROR = (
     "I cannot find meals from those inputs. "
     "Name a catalog meal type, diet, and exact ingredients to exclude."
@@ -48,7 +50,7 @@ def catalog_tool_spec() -> dict[str, object]:
                 "Do not infer restriction groups or hidden preferences. "
                 "Ask before planning an alternative. Planning still requires "
                 "plan_groceries validation. Terms: "
-                f"{', '.join((*TAG_ORDER, *_DIETS, *SEARCH_TERMS))}."
+                f"{', '.join((*TAG_ORDER, *_DIETS, *_AGENT_TERMS))}."
             ),
             "inputSchema": {
                 "json": {
@@ -99,7 +101,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     targets: set[str] = set()
     for term in terms:
         target = resolve_meal_term(term)
-        if target is None:
+        if target is None or term in _UI_ONLY_TERMS:
             raise CatalogToolError("arguments are invalid")
         targets.add(target)
     exclusions: set[str] = set()

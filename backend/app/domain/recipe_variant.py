@@ -4,7 +4,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import cast
 
-from app.domain.catalog import INGREDIENTS, RECIPES, Recipe
+from app.domain.catalog import RECIPES, Recipe
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.services.meal_nutrition import GRAMS_PER_EACH
 
 MIN_QUANTITY = 1
@@ -56,7 +57,7 @@ def round_half_up(numerator: int, denominator: int) -> int:
 
 
 def ingredient_grams(ingredient_id: str, quantity: int) -> int:
-    if INGREDIENTS[ingredient_id].unit == "g":
+    if ALL_INGREDIENTS[ingredient_id].unit == "g":
         return quantity
     return quantity * GRAMS_PER_EACH[ingredient_id]
 
@@ -121,7 +122,7 @@ def apply_change(recipe_id: str, change: RecipeChange) -> tuple[tuple[str, int],
     explicit = change.quantity_per_serving
     if old not in present:
         raise RecipeVariantError("ingredient is not in the recipe")
-    if new not in INGREDIENTS or new in present:
+    if new not in ALL_INGREDIENTS or new in present:
         raise RecipeVariantError("replacement is not allowed")
     assert old is not None and new is not None
     if explicit is not None:
@@ -131,7 +132,7 @@ def apply_change(recipe_id: str, change: RecipeChange) -> tuple[tuple[str, int],
     else:
         old_quantity = dict(ingredients)[old]
         grams = ingredient_grams(old, old_quantity)
-        if INGREDIENTS[new].unit == "g":
+        if ALL_INGREDIENTS[new].unit == "g":
             quantity = grams
         else:
             quantity = max(1, round_half_up(grams, GRAMS_PER_EACH[new]))

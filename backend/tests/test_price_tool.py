@@ -13,7 +13,8 @@ from app.agent.price_tool import (
     price_tool_spec,
 )
 from app.domain.budget import BudgetResult
-from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.catalog import RECIPES
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
 
@@ -122,7 +123,10 @@ def test_spec_declares_schema_without_extra_keys() -> None:
     assert item["properties"]["recipe_id"]["enum"] == list(SUPPORTED_RECIPE_IDS)
     assert item["properties"]["servings"]["maximum"] == 8
     pantry = schema["properties"]["pantry_ingredient_ids"]
-    assert pantry["items"]["enum"] == sorted(INGREDIENTS)
+    help_text = "An ingredient ID from get_ingredient_facts or get_meal."
+    assert pantry["items"] == {"type": "string", "description": help_text}
+    for name in ("replace_ingredient_id", "with_ingredient_id", "scale_ingredient_id"):
+        assert item["properties"][name] == {"type": "string", "description": help_text}
 
 
 @pytest.mark.parametrize("cap", [5_000, 20_000])
@@ -269,7 +273,9 @@ def test_unpriced_swap_makes_the_estimate_incomplete(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(
-        INGREDIENTS, "chickpeas", replace(INGREDIENTS["chickpeas"], price_cents=None)
+        ALL_INGREDIENTS,
+        "chickpeas",
+        replace(ALL_INGREDIENTS["chickpeas"], price_cents=None),
     )
     swapped = meal(
         "chicken_tacos",
@@ -412,3 +418,48 @@ def test_three_meals_are_accepted() -> None:
 
 def test_error_is_value_error() -> None:
     assert issubclass(PriceToolError, ValueError)
+
+
+def test_curated_swap_has_no_price_and_the_estimate_is_incomplete() -> None:
+    beef = meal(
+        "bean_tacos",
+        2,
+        replace_ingredient_id="black_beans",
+        with_ingredient_id="ground_beef_80",
+    )
+    result = price([beef])
+    estimate = result["estimate"]
+    assert estimate["price_complete"] is False
+    assert estimate["total_cents"] is None
+    assert estimate["accepted"] is False
+    line = line_of(estimate["lines"], "ground_beef_80")
+    assert line["cost_cents"] is None
+    assert line["quantity"] == 240
+    ingredients = result["meals"][0]["ingredients"]
+    assert ingredients[0] == {
+        "ingredient_id": "ground_beef_80",
+        "name": "ground beef (80% lean)",
+        "quantity": 120,
+        "unit": "g",
+    }
+    assert price([meal("bean_tacos", 2)])["estimate"]["price_complete"] is True
+
+
+def test_curated_food_can_be_a_pantry_item() -> None:
+    result = price([meal("bean_tacos")], pantry=["ground_beef_80"])
+    assert result["estimate"]["price_complete"] is True
+
+
+def test_curated_food_cannot_replace_a_recipe_ingredient() -> None:
+    arguments = {
+        "meals": [
+            meal(
+                "bean_tacos",
+                1,
+                replace_ingredient_id="ground_beef_80",
+                with_ingredient_id="rice",
+            )
+        ]
+    }
+    with pytest.raises(PriceToolError):
+        execute_price_lines(arguments, BUDGET, None)

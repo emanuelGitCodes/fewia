@@ -32,8 +32,12 @@ def arguments(**changes: object) -> dict[str, object]:
     return result
 
 
+_UI_ONLY = ("meat", "carnivore")
+_AGENT_SEARCH_TERMS = [term for term in SEARCH_TERMS if term not in _UI_ONLY]
+
+
 @pytest.mark.parametrize(
-    "term", [*SEARCH_TERMS, *TAG_ORDER, "omnivore", "vegetarian", "vegan"]
+    "term", [*_AGENT_SEARCH_TERMS, *TAG_ORDER, "omnivore", "vegetarian", "vegan"]
 )
 def test_every_term_matches_catalog_in_stable_order(term: str) -> None:
     target = SEARCH_TERMS.get(term, (term, None))[0]
@@ -167,7 +171,7 @@ def test_fields_are_required(missing: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "term,note", [("keto", KETO_NOTE), ("carnivore", CARNIVORE_NOTE)]
+    "term,note", [("keto", KETO_NOTE), ("chicken", CARNIVORE_NOTE)]
 )
 def test_fixed_caveats_and_safety(term: str, note: str) -> None:
     answer = catalog_answer(execute_catalog_search(arguments(terms=[term])))
@@ -198,6 +202,30 @@ def test_forged_ids_cannot_render_choices() -> None:
     payload["recipe_ids"] = ["bean_tacos"]
     assert catalog_answer(payload) == DISCOVERY_ERROR
     assert catalog_answer({"request": {}}) == DISCOVERY_ERROR
+
+
+@pytest.mark.parametrize("term", ["meat", "carnivore", " MEAT ", "Carnivore"])
+def test_ui_only_terms_are_rejected_for_the_agent(term: str) -> None:
+    with pytest.raises(CatalogToolError, match="^arguments are invalid$"):
+        execute_catalog_search(arguments(terms=[term]))
+    with pytest.raises(CatalogToolError):
+        execute_catalog_search(arguments(terms=["keto", term]))
+
+
+def test_keto_still_works_for_the_agent() -> None:
+    payload = execute_catalog_search(arguments(terms=["keto"]))
+    request = cast(dict[str, object], payload["request"])
+    assert request["terms"] == ["lower_carb"]
+    assert KETO_NOTE in catalog_answer(payload)
+
+
+def test_ui_only_terms_stay_in_the_ui_search_table_not_the_description() -> None:
+    assert "meat" in SEARCH_TERMS and "carnivore" in SEARCH_TERMS
+    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
+    description = cast(str, spec["description"])
+    terms = description.split("Terms: ", 1)[1].rstrip(".").split(", ")
+    assert "meat" not in terms and "carnivore" not in terms
+    assert "keto" in terms
 
 
 def test_schema_requires_only_bounded_arguments() -> None:
