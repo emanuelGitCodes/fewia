@@ -2220,7 +2220,15 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
 ) -> None:
     planner_spec = planner_tool_spec()
     summary_spec = budget_tool_spec()
-    expected = copy.deepcopy([planner_spec, summary_spec, catalog_tool_spec()])
+    expected = copy.deepcopy(
+        [
+            planner_spec,
+            summary_spec,
+            catalog_tool_spec(),
+            get_plan_tool_spec(),
+            get_meal_tool_spec(),
+        ]
+    )
     builds: list[str] = []
 
     def planner() -> dict[str, object]:
@@ -2256,7 +2264,13 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
     second = MutatingLLM([_reply([_tool_block("p1")], "tool_use")])
     assert run_chat(second, "plan", budget(), PERIOD)["status"] == "planned"
     assert builds == ["planner", "summary", "planner", "summary"]
-    assert [planner_spec, summary_spec, catalog_tool_spec()] == expected
+    assert [
+        planner_spec,
+        summary_spec,
+        catalog_tool_spec(),
+        get_plan_tool_spec(),
+        get_meal_tool_spec(),
+    ] == expected
 
 
 @pytest.mark.parametrize("kind", ["plan", "summary"])

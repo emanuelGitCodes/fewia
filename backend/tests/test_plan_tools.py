@@ -15,7 +15,12 @@ from app.agent.plan_tools import (
 )
 from app.domain.budget import BudgetResult
 from app.domain.catalog import RECIPES
-from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
+from app.domain.grocery import (
+    SAMPLE_ESTIMATE_NOTICE,
+    SUPPORTED_RECIPE_IDS,
+    GroceryRequest,
+    MealRequest,
+)
 from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS
 from app.domain.plan_revision import PlanRevisionInput
 from app.services.grocery_planner import plan_groceries
@@ -25,14 +30,16 @@ BUDGET = BudgetResult(10_000, 0, False, ())
 REVISION_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 
-def _plan(meals: list[dict[str, object]], pantry: list[str]) -> PlanRevisionInput:
+def _plan(
+    meals: list[dict[str, object]], pantry: list[str], cap: int = 5_000
+) -> PlanRevisionInput:
     return PlanRevisionInput.model_validate(
         {
             "id": REVISION_ID,
             "snapshot": {
                 "meals": meals,
                 "pantry_ingredient_ids": pantry,
-                "plan_cap_cents": 5_000,
+                "plan_cap_cents": cap,
             },
         }
     )
@@ -71,7 +78,7 @@ def test_get_plan_matches_nutrition_and_estimate() -> None:
         pantry_ingredients=pantry,
     )
     nutrition = meal_nutrition(request)
-    estimate = plan_groceries(request, BUDGET)
+    estimate = plan_groceries(request, BudgetResult(5_000, 0, False, ()))
     assert out["plan_revision_id"] == REVISION_ID
     assert out["pantry_ingredient_ids"] == pantry
     assert out["plan_cap_cents"] == 5_000
@@ -89,8 +96,9 @@ def test_get_plan_matches_nutrition_and_estimate() -> None:
     assert isinstance(est, dict)
     assert est["total_cents"] == estimate.total_cents
     assert est["accepted"] == estimate.accepted
+    assert est["notice"] == estimate.notice == SAMPLE_ESTIMATE_NOTICE
     assert est["price_complete"] == (estimate.total_cents is not None)
-    assert est["available_cents"] == BUDGET.available_cents
+    assert est["available_cents"] == 5_000
     assert [
         (
             x["ingredient_id"],
@@ -107,6 +115,24 @@ def test_get_plan_matches_nutrition_and_estimate() -> None:
     ]
     facts = collect_facts(GET_PLAN_TOOL, out)
     assert any(f.path == "meals[0].per_serving.energy_kcal" for f in facts)
+
+
+def test_get_plan_cap_below_total_rejects_estimate() -> None:
+    meals = [{"recipe_id": SUPPORTED_RECIPE_IDS[0], "servings": 2}]
+    open_plan = _plan(meals, [], cap=BUDGET.available_cents)
+    uncapped = execute_get_plan({}, open_plan, BUDGET)
+    uncapped_est = uncapped["estimate"]
+    assert isinstance(uncapped_est, dict)
+    total = uncapped_est["total_cents"]
+    assert isinstance(total, int) and total > 0
+    assert uncapped_est["accepted"] is True
+
+    capped = execute_get_plan({}, _plan(meals, [], cap=total - 1), BUDGET)
+    est = capped["estimate"]
+    assert isinstance(est, dict)
+    assert est["total_cents"] == total
+    assert est["available_cents"] == total - 1
+    assert est["accepted"] is False
 
 
 def test_get_plan_without_plan_is_empty_shape() -> None:

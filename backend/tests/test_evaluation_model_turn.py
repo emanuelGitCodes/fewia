@@ -43,6 +43,8 @@ class ScriptedProvider:
             "plan_groceries",
             "get_budget_summary",
             "find_catalog_meals",
+            "get_plan",
+            "get_meal",
         ]
         self.messages.append(deepcopy(messages))
         response = self.responses.pop(0)

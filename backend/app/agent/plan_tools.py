@@ -39,7 +39,6 @@ def _spec(
 
 
 def get_plan_tool_spec() -> dict[str, object]:
-    """Return the Bedrock toolSpec for get_plan."""
     return _spec(
         GET_PLAN_TOOL,
         "Return the user's current plan with macros and a labeled estimate. "
@@ -50,7 +49,6 @@ def get_plan_tool_spec() -> dict[str, object]:
 
 
 def get_meal_tool_spec() -> dict[str, object]:
-    """Return the Bedrock toolSpec for get_meal."""
     return _spec(
         GET_MEAL_TOOL,
         "Return one catalog meal's ingredients per serving and macros.",
@@ -66,7 +64,6 @@ def _macros(totals: MacroTotals) -> dict[str, object]:
 def execute_get_plan(
     arguments: object, plan: PlanRevisionInput | None, budget: BudgetResult
 ) -> dict[str, object]:
-    """Return the current plan, its macros, and its labeled estimate."""
     if type(arguments) is not dict or arguments:
         raise PlanToolError("arguments are invalid")
     if plan is None:
@@ -96,8 +93,16 @@ def execute_get_plan(
         plan_cap_cents=snapshot.plan_cap_cents,
         pantry_ingredients=list(snapshot.pantry_ingredient_ids),
     )
+    available_cents = budget.available_cents
+    if snapshot.plan_cap_cents is not None:
+        available_cents = min(available_cents, snapshot.plan_cap_cents)
     nutrition = meal_nutrition(request)
-    estimate = plan_groceries(request, budget)
+    estimate = plan_groceries(
+        request,
+        BudgetResult(
+            available_cents, budget.pending_cents, budget.stale, budget.warnings
+        ),
+    )
     payload["meals"] = [
         {
             "recipe_id": meal.recipe_id,
@@ -122,14 +127,14 @@ def execute_get_plan(
         ],
         "total_cents": estimate.total_cents,
         "price_complete": estimate.total_cents is not None,
-        "available_cents": budget.available_cents,
+        "available_cents": available_cents,
         "accepted": estimate.accepted,
+        "notice": estimate.notice,
     }
     return payload
 
 
 def execute_get_meal(arguments: object) -> dict[str, object]:
-    """Return one catalog meal's ingredients and per-serving macros."""
     if type(arguments) is not dict or set(arguments) != {"recipe_id"}:
         raise PlanToolError("arguments are invalid")
     recipe_id = arguments["recipe_id"]
