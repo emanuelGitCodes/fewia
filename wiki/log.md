@@ -4499,3 +4499,22 @@ assertion updates through the supervisor. Two writer runs reported 660777
 input tokens, 11741 output tokens, and 168.557 seconds of CLI run time.
 Independent review follows the committed-head gates. Image-generation token
 usage and dollar cost are unavailable.
+
+## 2026-10-29 — PR 460 graph refresh
+
+Refreshed the local Graphify graph for the PR 460 work at `7a257d2`.
+The baseline graph came from the main checkout at `285b1f3`. The refresh
+processed 149 changed or previously unindexed files: 85 source and metadata
+files, 13 documents, and 51 images. All 40 catalog photos are included.
+
+The graph covers `run_chat` terminal batches, catalog discovery, cache usage,
+frontend plan previews, and all 40 `PHOTOS` mappings. The refresh preserved
+412 history nodes after checking that the old log was an exact prefix.
+
+Integrity checks found no dangling or missing endpoints and no collapsed
+edges. The 55 existing self-loops remain unchanged. The HTML graph uses a
+community view because the graph has more than 5000 nodes. Outputs remain
+local and ignored under `graphify-out/`.
+
+Semantic token usage and dollar cost are unavailable. AST extraction uses
+no LLM. The graph refresh does not merge or deploy PR 460.
