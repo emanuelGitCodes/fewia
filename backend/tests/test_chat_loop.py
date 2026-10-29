@@ -670,7 +670,8 @@ def test_ingredient_facts_reply_for_an_unknown_food() -> None:
             _reply([_text_block("Tofu is great.")], "end_turn"),
         ]
     )
-    assert result["answer"] == "I cannot find tofu in the food list."
+    assert result["answer"] == "I cannot find that food in the food list."
+    assert "tofu" not in result["answer"]
     assert "Tofu is great." not in json.dumps(result)
 
 
