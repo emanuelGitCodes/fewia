@@ -1677,12 +1677,49 @@ def test_summary_only_uses_budget_answer_without_plan() -> None:
     assert result["evidence_id"] is None
     assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 0
-    assert result["model_turns"] == 1
-    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
+    assert result["model_turns"] == 2
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
     assert result["tool_trace"] == [_budget_trace("s1")]
     assert seen == []
-    assert len(provider.requests) == 1
+    assert len(provider.requests) == 2
     _assert_public(result)
+
+
+def test_budget_only_batch_takes_final_turn() -> None:
+    expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_text_block("model-prose-after-budget")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == expected
+    assert "model-prose-after-budget" not in json.dumps(result)
+    assert result["plan"] is None
+    assert result["model_turns"] == 2
+    assert result["tool_trace"] == [_budget_trace("s1")]
+    _assert_public(result)
+
+
+def test_sequential_budget_then_plan_reaches_plan() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_tool_block("p1")], "tool_use"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
+    assert result["plan"] == expected["plan"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["planner_revisions"] == 1
+    assert result["model_turns"] == 2
+    assert result["tool_trace"] == [
+        _budget_trace("s1"),
+        _success_trace("p1", expected["evidence_id"], sequence=2),
+    ]
 
 
 def test_plan_then_summary_keeps_plan() -> None:
@@ -1956,11 +1993,12 @@ def test_nonterminal_summary_result_keeps_server_payload() -> None:
 
 def test_successful_summary_batch_finishes_all_calls() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block(f"s-{index}") for index in range(3)], "tool_use")
+        _reply([_budget_block(f"s-{index}") for index in range(3)], "tool_use"),
+        _reply([_text_block("done")], "end_turn"),
     ]
     result, provider = _run(replies)
-    assert len(provider.requests) == 1
-    assert result["model_turns"] == 1
+    assert len(provider.requests) == 2
+    assert result["model_turns"] == 2
     assert result["planner_revisions"] == 0
     assert result["answer"] == budget_summary_answer(
         budget(), PERIOD, spending_source="fixture"
@@ -2184,11 +2222,20 @@ def test_terminal_result_retains_cache_usage(kind: str) -> None:
         "cacheWriteInputTokens": 0,
     }
     call = _tool_block("p1") if kind == "plan" else _budget_block("s1")
-    result, provider = _run([_reply([call], "tool_use", usage=usage)])
-    assert len(provider.requests) == 1
-    assert result["usage"] == usage
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([call], "tool_use", usage=usage)
+    ]
+    if kind != "plan":
+        replies.append(_reply([_text_block("done")], "end_turn", usage=usage))
+    result, provider = _run(replies)
+    turns = 1 if kind == "plan" else 2
+    assert len(provider.requests) == turns
+    assert result["model_turns"] == turns
+    if kind == "plan":
+        assert result["usage"] == usage
+    else:
+        assert result["usage"] == {key: value * 2 for key, value in usage.items()}
     assert result["usage"] is not usage
-    assert result["model_turns"] == 1
 
 
 def test_eighth_turn_can_finish_with_accepted_plan() -> None:
@@ -2739,21 +2786,35 @@ def test_later_batch_without_discovery_restores_generic_failure() -> None:
     _assert_public(result)
 
 
-def test_summary_after_discovery_error_uses_summary_fast_return() -> None:
+def test_summary_after_discovery_error_takes_final_turn() -> None:
     result, provider = _run(
         [
             _reply([_discovery_block(terms=[])], "tool_use"),
             _reply([_budget_block("s1")], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
         ]
     )
     assert result["answer"] == budget_summary_answer(
         budget(), PERIOD, spending_source="fixture"
     )
     assert result["status"] == "clarification"
-    assert result["model_turns"] == len(provider.requests) == 2
+    assert result["model_turns"] == len(provider.requests) == 3
     assert result["planner_revisions"] == 0
     assert result["plan"] is result["evidence_id"] is None
     _assert_public(result)
+
+
+def test_discovery_then_plan_stops_at_choices() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block()], "tool_use"),
+            _reply([_tool_block("p1")], "tool_use"),
+        ]
+    )
+    assert len(provider.requests) == 1
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    assert result["model_turns"] == 1
 
 
 @pytest.mark.parametrize("changes", [{"price": 0}, {"terms": []}])

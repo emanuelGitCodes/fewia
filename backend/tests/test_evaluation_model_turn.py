@@ -199,12 +199,16 @@ def test_terminal_batch_is_captured_once_without_followup(kind: str) -> None:
         "plan_first": [plan, summary],
         "summary_first": [summary, plan],
     }[kind]
-    provider = ScriptedProvider([tool_batch(*calls)])
+    responses = [tool_batch(*calls)]
+    if kind == "summary":
+        responses.append(reply())
+    expected_calls = len(responses)
+    provider = ScriptedProvider(responses)
     turn = observe(provider)
     assert turn["status"] == "completed"
     assert turn["reason"] is None
-    assert turn["provider_calls"] == len(provider.messages) == 1
-    assert result(turn)["model_turns"] == 1
+    assert turn["provider_calls"] == len(provider.messages) == expected_calls
+    assert result(turn)["model_turns"] == expected_calls
     results = cast(list[dict[str, object]], turn["tool_results"])
     assert [item["toolUseId"] for item in results] == [call[2] for call in calls]
     assert all(item["status"] == "success" for item in results)
@@ -222,13 +226,17 @@ def test_terminal_result_marker_is_sanitized_and_graded(
     }
     augment_tool_results(monkeypatch, extra)
     payload = request() if name == "plan_groceries" else {}
-    provider = ScriptedProvider([tool(name, payload)])
+    responses = [tool(name, payload)]
+    if name == "get_budget_summary":
+        responses.append(reply())
+    expected_calls = len(responses)
+    provider = ScriptedProvider(responses)
     turn = observe(provider, markers=(MARKER,))
     assert turn["status"] == ("completed" if hidden else "failed")
     assert turn["reason"] == (None if hidden else "secret_leak")
     assert turn["secret_leak"] is (not hidden)
     assert turn["capture_incomplete"] is False
-    assert turn["provider_calls"] == len(provider.messages) == 1
+    assert turn["provider_calls"] == len(provider.messages) == expected_calls
     assert len(cast(list[object], turn["tool_results"])) == 1
     assert MARKER not in dumps(turn)
     assert "reasoningContent" not in dumps(turn)

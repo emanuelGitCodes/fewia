@@ -329,7 +329,7 @@ def run_chat(
             and last_error is None
             and not other_failed
             and not discovery_failed
-            and (summary_ok or discovery is not None)
+            and discovery is not None
         ):
             return out("clarification", answer(), None)
     return out("limit", _LIMIT, None)
