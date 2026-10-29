@@ -18,11 +18,18 @@ from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import build_messages, sum_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.chat_refusal import parse_refusal
+from app.agent.plan_tools import (
+    GET_MEAL_TOOL,
+    GET_PLAN_TOOL,
+    get_meal_tool_spec,
+    get_plan_tool_spec,
+)
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.provider import LLMProvider
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.plan_revision import PlanRevisionInput
 
 MAX_MODEL_TURNS = 8
 MAX_PLANNER_REVISIONS = 3
@@ -93,8 +100,11 @@ SYSTEM_PROMPT = (
     "gluten_free_ingredients describes the ingredients only. "
     "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe. "
     "When the user asks for a meal type, name up to three catalog meals "
-    "with that tag and ask which one to plan."
+    "with that tag and ask which one to plan. "
+    "Call get_plan to read the user's current plan. "
+    "Call get_meal to read one catalog meal's ingredients and macros."
 )
+_PLAN_READ_TOOLS = (GET_PLAN_TOOL, GET_MEAL_TOOL)
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -161,6 +171,7 @@ def run_chat(
     history: list[dict[str, str]] | None = None,
     record_evidence: EvidenceRecorder | None = None,
     plan_cap_cents: int | None = None,
+    plan_revision: PlanRevisionInput | None = None,
     observe_terminal_tool_results: Callable[[list[dict[str, object]]], None]
     | None = None,
 ) -> dict[str, object]:
@@ -187,7 +198,13 @@ def run_chat(
     revisions = 0
     turns = 0
     usage: dict[str, int] | None = {"inputTokens": 0, "outputTokens": 0}
-    tools = [planner_tool_spec(), budget_tool_spec(), catalog_tool_spec()]
+    tools = [
+        planner_tool_spec(),
+        budget_tool_spec(),
+        catalog_tool_spec(),
+        get_plan_tool_spec(),
+        get_meal_tool_spec(),
+    ]
     pending_results: list[dict[str, object]] | None = None
 
     def answer() -> str:
@@ -283,6 +300,7 @@ def run_chat(
                 spending_source,
                 trace,
                 record_evidence=record_evidence,
+                plan=plan_revision,
             )
             error = _tool_error_payload(block)
             tool_result = block.get("toolResult")
@@ -294,6 +312,10 @@ def run_chat(
             batch_ok = batch_ok and success
             if call.name == TOOL_NAME and _end_status(payload) != "planned":
                 batch_ok = False
+            if call.name in _PLAN_READ_TOOLS:
+                other_failed = other_failed or not success
+                blocks.append(block)
+                continue
             if not catalog_batch:
                 if call.name == BUDGET_TOOL_NAME:
                     summary_ok = success

@@ -42,6 +42,12 @@ from app.agent.chat_loop import (
     run_chat,
 )
 from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError, ToolCall
+from app.agent.plan_tools import (
+    GET_MEAL_TOOL,
+    GET_PLAN_TOOL,
+    get_meal_tool_spec,
+    get_plan_tool_spec,
+)
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -218,7 +224,13 @@ def _reply(
 
 
 def _chat_tools() -> list[dict[str, object]]:
-    return [planner_tool_spec(), budget_tool_spec(), catalog_tool_spec()]
+    return [
+        planner_tool_spec(),
+        budget_tool_spec(),
+        catalog_tool_spec(),
+        get_plan_tool_spec(),
+        get_meal_tool_spec(),
+    ]
 
 
 def _budget_block(
@@ -395,6 +407,40 @@ def test_plain_final_without_tool_is_clarification() -> None:
     assert result["model_turns"] == 1
     assert result["planner_revisions"] == 0
     assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
+
+
+def test_get_plan_turn_is_not_a_fast_return_and_keeps_reply_state() -> None:
+    result, provider = _run(
+        [
+            _reply([_tool_block("p1", name=GET_PLAN_TOOL, payload={})], "tool_use"),
+            _reply([_text_block("Your plan is empty.")], "end_turn"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [item["tool"] for item in trace] == [GET_PLAN_TOOL]
+    assert provider.requests[0]["tools"] == _chat_tools()
+    assert "Call get_plan to read the user's current plan." in cast(
+        str, provider.requests[0]["system"]
+    )
+
+
+def test_get_meal_error_does_not_set_candidate_or_error() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("m1", name=GET_MEAL_TOOL, payload={"recipe_id": "x"})],
+                "tool_use",
+            ),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ]
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert cast(list[dict[str, object]], result["tool_trace"])[0]["outcome"] == "error"
 
 
 def test_followup_history_and_previous_request_are_context_only() -> None:

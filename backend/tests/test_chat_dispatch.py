@@ -94,6 +94,32 @@ def _tool_json(block: dict[str, object]) -> dict[str, object]:
     return body
 
 
+def test_get_plan_and_get_meal_dispatch_read_only_with_trace() -> None:
+    trace: list[dict[str, object]] = []
+    plan_call = ToolCall("p1", "get_plan", {})
+    payload, block = dispatch(plan_call, budget(), PERIOD, 1, "fixture", trace)
+    assert payload is not None and payload["plan_revision_id"] is None
+    assert _tool_json(block) == payload
+    meal_call = ToolCall("m1", "get_meal", {"recipe_id": "chicken_tacos"})
+    meal, _ = dispatch(meal_call, budget(), PERIOD, 1, "fixture", trace)
+    assert meal is not None and meal["recipe_id"] == "chicken_tacos"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [
+        ("get_plan", "success"),
+        ("get_meal", "success"),
+    ]
+
+
+def test_get_plan_and_get_meal_invalid_arguments_return_static_error() -> None:
+    trace: list[dict[str, object]] = []
+    for name, args in (("get_plan", {"x": 1}), ("get_meal", {})):
+        payload, block = dispatch(
+            ToolCall("c", name, args), budget(), PERIOD, 1, "fixture", trace
+        )
+        assert payload is None
+        assert _tool_json(block) == {"error": "arguments are invalid"}
+    assert [t["outcome"] for t in trace] == ["error", "error"]
+
+
 def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:
     call = ToolCall("call-1", TOOL_NAME, arguments())
     trace: list[dict[str, object]] = []

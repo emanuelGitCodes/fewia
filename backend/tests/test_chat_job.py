@@ -409,6 +409,47 @@ def test_chat_job_input_rejects_invalid_plan_revision() -> None:
         )
 
 
+def test_chat_job_get_plan_reads_the_job_plan_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    revision_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    revision = {
+        "id": revision_id,
+        "snapshot": {
+            "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+            "pantry_ingredient_ids": [],
+            "plan_cap_cents": None,
+        },
+    }
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    {
+                        "toolUse": {
+                            "toolUseId": "g1",
+                            "name": "get_plan",
+                            "input": {},
+                        }
+                    }
+                ],
+                "tool_use",
+            ),
+            _reply([{"text": "Done."}], "end_turn"),
+        ]
+    )
+    result = chat_job_module.chat_job(
+        chat_payload(plan_revision_id=revision_id, plan_revision=revision),
+        lambda: None,
+        provider=provider,
+        factory=FACTORY,
+    )
+    assert result["status"] == "clarification"
+    assert len(provider.requests) == 2
+    assert revision_id in json.dumps(provider.requests[1]["messages"])
+
+
 def test_chat_job_heartbeat_failure_is_before_provider() -> None:
     def heartbeat() -> None:
         raise RuntimeError("heartbeat-lost")

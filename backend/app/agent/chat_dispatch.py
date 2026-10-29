@@ -14,10 +14,18 @@ from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.catalog_tool import CatalogToolError, execute_catalog_search
+from app.agent.plan_tools import (
+    GET_MEAL_TOOL,
+    GET_PLAN_TOOL,
+    PlanToolError,
+    execute_get_meal,
+    execute_get_plan,
+)
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
+from app.domain.plan_revision import PlanRevisionInput
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
 
@@ -125,6 +133,36 @@ def _dispatch_budget(
     return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
 
 
+def _dispatch_plan_tool(
+    call: msgs.ToolCall,
+    budget: BudgetResult,
+    plan: PlanRevisionInput | None,
+    trace: list[dict[str, object]],
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    payload: dict[str, object] | None
+    try:
+        if call.name == GET_PLAN_TOOL:
+            payload = execute_get_plan(call.tool_input, plan, budget)
+        else:
+            payload = execute_get_meal(call.tool_input)
+    except PlanToolError:
+        payload = None
+    trace.append(
+        _entry(
+            tool=call.name,
+            outcome="error" if payload is None else "success",
+            tool_use_id=call.tool_use_id,
+            sequence=len(trace) + 1,
+            revision_index=None,
+        )
+    )
+    if payload is None:
+        return None, msgs.tool_result_block(
+            call.tool_use_id, {"error": "arguments are invalid"}, success=False
+        )
+    return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
+
+
 def dispatch(
     call: msgs.ToolCall,
     budget: BudgetResult,
@@ -133,7 +171,11 @@ def dispatch(
     source: SpendingSource,
     trace: list[dict[str, object]],
     record_evidence: EvidenceRecorder | None = None,
+    *,
+    plan: PlanRevisionInput | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
+    if call.name in (GET_PLAN_TOOL, GET_MEAL_TOOL):
+        return _dispatch_plan_tool(call, budget, plan, trace)
     if call.name == CATALOG_TOOL_NAME:
         try:
             discovery = execute_catalog_search(call.tool_input)
