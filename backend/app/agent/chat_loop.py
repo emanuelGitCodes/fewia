@@ -27,6 +27,7 @@ from app.agent.plan_tools import (
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.price_tool import PRICE_TOOL, price_tool_spec
 from app.agent.provider import LLMProvider
+from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -214,9 +215,14 @@ def run_chat(
         price_tool_spec(),
     ]
     pending_results: list[dict[str, object]] | None = None
+    read_results: list[tuple[str, dict[str, object]]] = []
 
     def answer() -> str:
         if not catalog_batch:
+            if candidate is None and last_error is None:
+                read = read_tool_answer(read_results)
+                if read is not None:
+                    return read
             if candidate is None and last_error is None and summary_ok:
                 return budget_summary_answer(
                     budget, period, spending_source=spending_source
@@ -283,6 +289,7 @@ def run_chat(
         batch_ok = True
         planner_limit = False
         other_failed = False
+        read_results = []
         catalog_batch = any(call.name == CATALOG_TOOL_NAME for call in calls)
         if not catalog_batch:
             discovery = None
@@ -322,6 +329,8 @@ def run_chat(
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:
                 other_failed = other_failed or not success
+                if success and payload is not None:
+                    read_results.append((call.name, payload))
                 blocks.append(block)
                 continue
             if not catalog_batch:

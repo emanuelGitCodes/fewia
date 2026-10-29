@@ -50,6 +50,7 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines, price_tool_spec
+from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     execute_substitute,
@@ -429,7 +430,7 @@ def test_get_plan_turn_is_not_a_fast_return_and_keeps_reply_state() -> None:
     )
     assert len(provider.requests) == 2
     assert result["status"] == "clarification"
-    assert result["answer"] == CLARIFICATION
+    assert result["answer"] == "Your plan has no meals yet."
     assert result["plan"] is None
     trace = cast(list[dict[str, object]], result["tool_trace"])
     assert [item["tool"] for item in trace] == [GET_PLAN_TOOL]
@@ -475,7 +476,15 @@ def test_what_if_substitute_traces_and_leaves_reply_state_alone() -> None:
     assert len(provider.requests) == 2
     assert result["model_turns"] == 2
     assert result["status"] == "clarification"
-    assert result["answer"] == CLARIFICATION
+    expected_answer = read_tool_answer(
+        [(SUBSTITUTE_TOOL, execute_substitute(_SWAP_ARGS, budget()))]
+    )
+    assert expected_answer is not None
+    assert result["answer"] == expected_answer
+    assert str(result["answer"]).startswith(
+        "Chicken tacos for 2 servings with chickpeas instead of chicken breast: "
+    )
+    assert "Fewer protein grams." not in result["answer"]
     assert result["plan"] is None
     assert result["planner_revisions"] == 0
     assert result["tool_trace"] == [
@@ -524,16 +533,50 @@ def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
         }
     ]
     assert result["status"] == "clarification"
-    assert result["answer"] == CLARIFICATION
     second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
     body = second_messages[-1]["content"][0]["toolResult"]
     assert body["status"] == "success"
     expected = execute_price_lines(_PRICE_ARGS, budget(), None)
     assert body["content"][0]["json"] == expected
+    assert result["answer"] == read_tool_answer([(PRICE_TOOL, expected)])
+    assert str(result["answer"]).startswith("Sample total for Chicken tacos, Bean")
     assert (
         "To price meals with or without a swap, call price_lines. "
         "Prices are sample estimates."
     ) in SYSTEM_PROMPT
+
+
+def test_substitute_then_model_prose_ends_with_server_template() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("model-prose-after-swap")], "end_turn"),
+        ]
+    )
+    expected = read_tool_answer(
+        [(SUBSTITUTE_TOOL, execute_substitute(_SWAP_ARGS, budget()))]
+    )
+    assert expected is not None
+    assert result["answer"] == expected
+    assert result["answer"] != CLARIFICATION
+    assert "model-prose-after-swap" not in json.dumps(result)
+
+
+def test_plan_success_with_get_plan_keeps_plan_answer() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("p1"), _tool_block("g1", name=GET_PLAN_TOOL, payload={})],
+                "tool_use",
+            ),
+        ]
+    )
+    assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
 
 
 def test_price_lines_error_keeps_static_shape_and_records_no_evidence() -> None:
