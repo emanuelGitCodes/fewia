@@ -87,11 +87,48 @@ export const MAX_MEALS = 3;
 export const INITIAL_BUDGET_INPUT = "40";
 export const INITIAL_BUDGET_CENTS = 4000;
 
-// Only these recipes have a photo. Every other recipe uses the fallback.
+// Map each catalog recipe to its local photo file.
 const PHOTOS: Readonly<Record<string, string>> = {
   bean_tacos: "bean-tacos.webp",
+  chicken_tacos: "chicken-tacos.webp",
+  vegetable_pasta: "vegetable-pasta.webp",
+  chicken_and_rice_bowls: "chicken-and-rice-bowls.webp",
+  lentil_soup: "lentil-soup.webp",
   chickpea_curry: "chickpea-curry.webp",
+  vegetable_stir_fry: "vegetable-stir-fry.webp",
+  baked_potatoes_with_beans: "baked-potatoes-with-beans.webp",
+  breakfast_burritos: "breakfast-burritos.webp",
+  overnight_oats: "overnight-oats.webp",
+  chicken_pasta: "chicken-pasta.webp",
+  chicken_stir_fry: "chicken-stir-fry.webp",
+  chicken_curry: "chicken-curry.webp",
+  chicken_vegetable_soup: "chicken-vegetable-soup.webp",
+  chicken_burrito_bowls: "chicken-burrito-bowls.webp",
+  chicken_potato_bake: "chicken-potato-bake.webp",
+  chicken_lentil_stew: "chicken-lentil-stew.webp",
+  chicken_chickpea_skillet: "chicken-chickpea-skillet.webp",
+  chicken_fried_rice: "chicken-fried-rice.webp",
+  chicken_tortilla_soup: "chicken-tortilla-soup.webp",
   egg_fried_rice: "egg-fried-rice.webp",
+  egg_tacos: "egg-tacos.webp",
+  tomato_egg_pasta: "tomato-egg-pasta.webp",
+  potato_hash_with_eggs: "potato-hash-with-eggs.webp",
+  chickpea_egg_scramble: "chickpea-egg-scramble.webp",
+  vegetable_egg_stir_fry: "vegetable-egg-stir-fry.webp",
+  egg_rice_bowls: "egg-rice-bowls.webp",
+  lentil_egg_skillet: "lentil-egg-skillet.webp",
+  rice_and_beans: "rice-and-beans.webp",
+  lentil_pasta: "lentil-pasta.webp",
+  chickpea_tacos: "chickpea-tacos.webp",
+  potato_curry: "potato-curry.webp",
+  tomato_rice: "tomato-rice.webp",
+  garlic_tomato_pasta: "garlic-tomato-pasta.webp",
+  vegetable_soup: "vegetable-soup.webp",
+  lentil_tacos: "lentil-tacos.webp",
+  chickpea_pasta: "chickpea-pasta.webp",
+  coconut_lentil_curry: "coconut-lentil-curry.webp",
+  potato_tacos: "potato-tacos.webp",
+  salsa_rice_bowls: "salsa-rice-bowls.webp",
 };
 
 export const INITIAL_PANTRY: readonly string[] = CATALOG.ingredients

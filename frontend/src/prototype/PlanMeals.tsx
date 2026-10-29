@@ -27,7 +27,15 @@ export function MealPhoto(props: {
       {failed ? (
         <span className="tonight-photo-fallback">{props.alt}</span>
       ) : (
-        <img src={props.src} alt={props.alt} onError={() => { setFailed(true); }} />
+        <img
+          src={props.src}
+          alt={props.alt}
+          loading="lazy"
+          decoding="async"
+          width={1200}
+          height={900}
+          onError={() => { setFailed(true); }}
+        />
       )}
     </div>
   );

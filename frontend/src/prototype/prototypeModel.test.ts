@@ -105,9 +105,15 @@ describe("prototype recipes", () => {
     expect(Object.keys(TAG_LABELS)).toHaveLength(8);
   });
 
-  it("keeps photos for three recipes only", () => {
-    const withPhoto = RECIPE_ORDER.filter((id) => RECIPES[id].image !== null).sort();
-    expect(withPhoto).toEqual(["bean_tacos", "chickpea_curry", "egg_fried_rice"]);
+  it("maps every catalog recipe to a unique photo", () => {
+    const images = RECIPE_ORDER.map((id) => RECIPES[id].image);
+    expect(images).not.toContain(null);
+    expect(new Set(images).size).toBe(RECIPE_ORDER.length);
+    for (const id of RECIPE_ORDER) {
+      expect(RECIPES[id].image).toBe(`/prototype/${id.replace(/_/g, "-")}.webp`);
+    }
     expect(RECIPES.bean_tacos.image).toBe("/prototype/bean-tacos.webp");
+    expect(RECIPES.chickpea_curry.image).toBe("/prototype/chickpea-curry.webp");
+    expect(RECIPES.egg_fried_rice.image).toBe("/prototype/egg-fried-rice.webp");
   });
 });

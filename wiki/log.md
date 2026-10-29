@@ -4475,3 +4475,27 @@ shared usage ledger.
 
 These results cover local source and deterministic providers. Live Bedrock
 tool selection, latency, and cache-hit rates remain unmeasured for this update.
+
+## 2026-10-29 — Catalog meal photos
+
+Generated the missing 37 meal photos with the built-in image generator.
+The catalog now maps all 40 meals to unique local WebP files. The three
+existing photos remain unchanged. Each new image has a prompt sidecar.
+The photos use the catalog ingredients and a consistent ceramic-table style.
+
+All 40 files passed WebP validation at 1200 by 900 pixels. The full set uses
+5218628 bytes. The 37 new files use 4736220 bytes. The meal photo component
+uses native lazy loading, asynchronous decoding, and explicit dimensions.
+
+Playwright checked the local prototype at 1440 by 1000 and 390 by 844.
+All 40 desktop catalog photos decoded. Search and meal selection showed the
+correct Salsa rice bowls and Overnight oats photos. The mobile document
+width stayed at 390 pixels. The desktop check recorded no console errors,
+failed requests, or framework overlay. These checks cover Chromium only.
+The Browser plugin was not available, so the coordinator used Playwright CLI.
+
+Luna xhigh wrote the image mapping, photo attributes, and existing photo
+assertion updates through the supervisor. Two writer runs reported 660777
+input tokens, 11741 output tokens, and 168.557 seconds of CLI run time.
+Independent review follows the committed-head gates. Image-generation token
+usage and dollar cost are unavailable.

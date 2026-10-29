@@ -809,11 +809,14 @@ describe("TonightPrototype", () => {
       );
     });
 
-    it("shows the diets on a plan card and no image on a tile without a photo", () => {
+    it("shows the diets on a plan card and the meal photo on its tile", () => {
       mount();
       click("Vegetable stir fry");
       expect(textOf(card("Vegetable stir fry"))).toContain("Vegan");
-      expect(buttonNamed("Vegetable stir fry").querySelector("img")).toBeNull();
+      expect(textOf(card("Vegetable stir fry"))).toContain("Vegetarian");
+      expect(
+        buttonNamed("Vegetable stir fry").querySelector("img")?.getAttribute("src"),
+      ).toBe("/prototype/vegetable-stir-fry.webp");
     });
 
     it("shows a message and no tiles when nothing matches", () => {
