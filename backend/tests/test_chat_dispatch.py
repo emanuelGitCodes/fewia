@@ -143,7 +143,7 @@ def test_what_if_substitute_dispatch_is_read_only_with_trace() -> None:
         trace,
         record_evidence=record,
     )
-    assert payload == execute_substitute(_SWAP)
+    assert payload == execute_substitute(_SWAP, budget())
     assert block["toolResult"]["toolUseId"] == "w1"
     assert block["toolResult"]["status"] == "success"
     assert _tool_json(block) == payload

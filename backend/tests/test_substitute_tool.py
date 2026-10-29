@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date
 from fractions import Fraction
 from typing import Any, cast
@@ -10,11 +10,16 @@ from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     SubstituteToolError,
     _percent,
-    execute_substitute,
     substitute_tool_spec,
 )
+from app.agent.substitute_tool import execute_substitute as _execute_substitute
+from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
-from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
+from app.domain.grocery import (
+    SAMPLE_ESTIMATE_NOTICE,
+    SUPPORTED_RECIPE_IDS,
+    GroceryRequest,
+)
 from app.services.meal_nutrition import (
     MealNutrition,
     ingredients_macros,
@@ -23,6 +28,16 @@ from app.services.meal_nutrition import (
 
 _SECRET = "do-not-echo-raw-input"
 _KEYS = ("energy_kcal", "protein_mg", "carbohydrate_mg", "fat_mg")
+
+
+def budget(available_cents: int = 10_000) -> BudgetResult:
+    return BudgetResult(available_cents, 250, False, ())
+
+
+def execute_substitute(
+    arguments: object, available_cents: int = 10_000
+) -> dict[str, object]:
+    return _execute_substitute(arguments, budget(available_cents))
 
 
 def swap(**extra: object) -> dict[str, object]:
@@ -191,7 +206,9 @@ def test_g_to_each_uses_grams_per_each_and_half_up() -> None:
         "quantity": 2,
         "unit": "each",
     }
-    assert result["assumptions"] == ["Same weight per serving: 75 g."]
+    assert result["assumptions"] == [
+        "Closest whole amount: 2 each (100 g) per serving instead of 75 g."
+    ]
     hand = tuple(
         ("eggs", 2) if item == "rice" else (item, qty)
         for item, qty in RECIPES["chicken_and_rice_bowls"].ingredients
@@ -243,9 +260,32 @@ def test_scale_halves_with_half_up_and_minimum_one() -> None:
     oil = execute_substitute(scaled(25, "olive_oil"))
     quantity = cast(dict[str, Any], oil["after"])["ingredients"][5]["quantity"]
     assert quantity == 3
+    assert oil["assumptions"] == ["Scaled to 25 percent."]
     tiny = execute_substitute(scaled(10, "salt"))
     assert cast(dict[str, Any], tiny["after"])["ingredients"][6]["quantity"] == 1
+    assert tiny["assumptions"] == ["Scaled to the minimum of 1 g per serving."]
     assert result["diets_after"] == []
+
+
+def test_default_substitute_reports_the_closest_whole_amount() -> None:
+    result = execute_substitute(
+        {
+            "recipe_id": "chicken_and_rice_bowls",
+            "servings": 1,
+            "replace_ingredient_id": "rice",
+            "with_ingredient_id": "potato",
+        }
+    )
+    assert result["assumptions"] == [
+        "Closest whole amount: 1 each (213 g) per serving instead of 75 g."
+    ]
+
+
+def test_scale_that_rounds_to_the_stored_amount_keeps_the_percent_sentence() -> None:
+    result = execute_substitute(scaled(150, "olive_oil"))
+    quantity = cast(dict[str, Any], result["after"])["ingredients"][5]["quantity"]
+    assert quantity == 15
+    assert result["assumptions"] == ["Scaled to 150 percent."]
 
 
 def test_scale_hundred_percent_has_zero_delta() -> None:
@@ -295,7 +335,7 @@ def test_inputs_and_catalog_are_not_mutated() -> None:
     assert {key: value.ingredients for key, value in RECIPES.items()} == recipes
 
 
-def test_payload_has_no_plan_price_or_evidence_fields() -> None:
+def test_payload_has_a_price_block_and_no_evidence_fields() -> None:
     result = execute_substitute(swap())
     assert set(result) == {
         "recipe_id",
@@ -307,10 +347,84 @@ def test_payload_has_no_plan_price_or_evidence_fields() -> None:
         "delta_percent",
         "diets_after",
         "assumptions",
+        "price",
     }
-    dumped = json.dumps(result)
-    assert "cents" not in dumped
-    assert "evidence" not in dumped
+    assert set(cast(dict[str, Any], result["price"])) == {
+        "before",
+        "after",
+        "delta_cents",
+    }
+    assert "evidence" not in json.dumps(result)
+
+
+def test_price_block_matches_hand_computed_package_math() -> None:
+    price = cast(dict[str, Any], execute_substitute(swap())["price"])
+    # Two servings of tacos, one package of each ingredient.
+    before_total = 799 + 299 + 249 + 129 + 199 + 599 + 99
+    after_total = before_total - 799 + 129
+    assert before_total == 2373
+    assert price["before"]["total_cents"] == before_total
+    assert price["after"]["total_cents"] == after_total == 1703
+    assert price["delta_cents"] == after_total - before_total == -670
+    after_ids = [line["ingredient_id"] for line in price["after"]["lines"]]
+    before_ids = [line["ingredient_id"] for line in price["before"]["lines"]]
+    assert "chickpeas" in after_ids and "chicken_breast" not in after_ids
+    assert "chicken_breast" in before_ids and "chickpeas" not in before_ids
+    chickpeas = next(
+        line for line in price["after"]["lines"] if line["ingredient_id"] == "chickpeas"
+    )
+    assert chickpeas == {
+        "ingredient_id": "chickpeas",
+        "quantity": 200,
+        "unit": "g",
+        "packages": 1,
+        "cost_cents": 129,
+        "from_pantry": False,
+    }
+    for side in ("before", "after"):
+        assert price[side]["price_complete"] is True
+        assert price[side]["available_cents"] == 10_000
+        assert price[side]["accepted"] is True
+        assert price[side]["notice"] == SAMPLE_ESTIMATE_NOTICE
+        assert not any(line["from_pantry"] for line in price[side]["lines"])
+
+
+def test_price_block_scales_with_servings() -> None:
+    price = cast(dict[str, Any], execute_substitute(swap(servings=8))["price"])
+    # Eight servings: chicken 800 g is 2 packages, tortillas 16 is 2 packages,
+    # chickpeas 800 g is 2 packages, and the rest stay at one package.
+    before_total = 2 * 799 + 2 * 299 + 249 + 129 + 199 + 599 + 99
+    after_total = before_total - 2 * 799 + 2 * 129
+    assert price["before"]["total_cents"] == before_total == 3471
+    assert price["after"]["total_cents"] == after_total == 2131
+    assert price["delta_cents"] == -1340
+
+
+def test_price_block_compares_each_side_with_the_budget() -> None:
+    price = cast(
+        dict[str, Any], execute_substitute(swap(), available_cents=2000)["price"]
+    )
+    assert price["before"]["available_cents"] == 2000
+    assert price["before"]["accepted"] is False
+    assert price["after"]["accepted"] is True
+
+
+def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(
+        INGREDIENTS, "chickpeas", replace(INGREDIENTS["chickpeas"], price_cents=None)
+    )
+    price = cast(dict[str, Any], execute_substitute(swap())["price"])
+    assert price["before"]["price_complete"] is True
+    assert price["after"]["price_complete"] is False
+    assert price["after"]["total_cents"] is None
+    assert price["after"]["accepted"] is False
+    chickpeas = next(
+        line for line in price["after"]["lines"] if line["ingredient_id"] == "chickpeas"
+    )
+    assert chickpeas["cost_cents"] is None
+    assert price["delta_cents"] is None
 
 
 @pytest.mark.parametrize(
@@ -331,6 +445,10 @@ def test_payload_has_no_plan_price_or_evidence_fields() -> None:
         swap(recipe_id=1),
         swap(scale_ingredient_id="salsa", scale_factor_percent=50),
         swap(replace_ingredient_id=None, with_ingredient_id=None),
+        swap(quantity_per_serving=None),
+        swap(scale_ingredient_id=None),
+        {**scaled(50), "scale_factor_percent": None},
+        {**scaled(50), "quantity_per_serving": None},
         {"recipe_id": "chicken_tacos", "servings": 1},
         swap(quantity_per_serving=0),
         swap(quantity_per_serving=1001),

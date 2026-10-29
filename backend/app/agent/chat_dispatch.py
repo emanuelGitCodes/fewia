@@ -22,6 +22,7 @@ from app.agent.plan_tools import (
     execute_get_plan,
 )
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.price_tool import PRICE_TOOL, PriceToolError, execute_price_lines
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     SubstituteToolError,
@@ -149,10 +150,13 @@ def _dispatch_plan_tool(
         if call.name == GET_PLAN_TOOL:
             payload = execute_get_plan(call.tool_input, plan, budget)
         elif call.name == SUBSTITUTE_TOOL:
-            payload = execute_substitute(call.tool_input)
+            payload = execute_substitute(call.tool_input, budget)
+        elif call.name == PRICE_TOOL:
+            cap = None if plan is None else plan.snapshot.plan_cap_cents
+            payload = execute_price_lines(call.tool_input, budget, cap)
         else:
             payload = execute_get_meal(call.tool_input)
-    except (PlanToolError, SubstituteToolError):
+    except (PlanToolError, SubstituteToolError, PriceToolError):
         payload = None
     trace.append(
         _entry(
@@ -181,7 +185,7 @@ def dispatch(
     *,
     plan: PlanRevisionInput | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
-    if call.name in (GET_PLAN_TOOL, GET_MEAL_TOOL, SUBSTITUTE_TOOL):
+    if call.name in (GET_PLAN_TOOL, GET_MEAL_TOOL, SUBSTITUTE_TOOL, PRICE_TOOL):
         return _dispatch_plan_tool(call, budget, plan, trace)
     if call.name == CATALOG_TOOL_NAME:
         try:

@@ -6,7 +6,9 @@ from app.domain.recipe_variant import (
     RecipeVariantError,
     apply_change,
     ingredient_grams,
+    parse_change,
     round_half_up,
+    variant_recipes,
 )
 
 TACOS = (
@@ -188,3 +190,67 @@ def test_invalid_changes_raise(recipe_id: str, change: RecipeChange) -> None:
 
 def test_recipe_variant_error_is_value_error() -> None:
     assert issubclass(RecipeVariantError, ValueError)
+
+
+def test_parse_change_returns_none_without_change_keys() -> None:
+    assert parse_change({}) is None
+    assert parse_change({"recipe_id": "chicken_tacos", "servings": 2}) is None
+
+
+def test_parse_change_builds_each_form_and_ignores_other_keys() -> None:
+    fields = {"recipe_id": "chicken_tacos", "servings": 2}
+    assert parse_change(
+        {
+            **fields,
+            "replace_ingredient_id": "chicken_breast",
+            "with_ingredient_id": "eggs",
+            "quantity_per_serving": 2,
+        }
+    ) == swap("chicken_breast", "eggs", 2)
+    assert parse_change(
+        {**fields, "scale_ingredient_id": "salt", "scale_factor_percent": 50}
+    ) == scale("salt", 50)
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"replace_ingredient_id": None},
+        {"with_ingredient_id": None},
+        {"quantity_per_serving": None},
+        {"scale_ingredient_id": None},
+        {"scale_factor_percent": None},
+        {"replace_ingredient_id": 5},
+        {"with_ingredient_id": ["eggs"]},
+        {"quantity_per_serving": "5"},
+        {"quantity_per_serving": True},
+        {"quantity_per_serving": 2.0},
+        {"scale_factor_percent": False},
+        {"scale_ingredient_id": b"salt"},
+    ],
+)
+def test_parse_change_rejects_wrong_types_and_null(fields: dict[str, object]) -> None:
+    with pytest.raises(RecipeVariantError):
+        parse_change(fields)
+
+
+def test_variant_recipes_replaces_only_the_changed_recipe() -> None:
+    recipes = variant_recipes({"chicken_tacos": swap("chicken_breast", "chickpeas")})
+    assert set(recipes) == set(RECIPES)
+    assert recipes["chicken_tacos"].id == "chicken_tacos"
+    assert recipes["chicken_tacos"].ingredients == (("chickpeas", 100), *TACOS[1:])
+    for recipe_id, recipe in RECIPES.items():
+        if recipe_id != "chicken_tacos":
+            assert recipes[recipe_id] is recipe
+    assert RECIPES["chicken_tacos"].ingredients == TACOS
+
+
+def test_variant_recipes_without_changes_equals_the_catalog() -> None:
+    recipes = variant_recipes({})
+    assert recipes == dict(RECIPES)
+    assert recipes is not RECIPES
+
+
+def test_variant_recipes_raises_for_an_invalid_change() -> None:
+    with pytest.raises(RecipeVariantError):
+        variant_recipes({"chicken_tacos": swap("rice", "eggs")})

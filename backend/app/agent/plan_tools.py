@@ -2,6 +2,7 @@ from dataclasses import asdict
 from datetime import date
 from typing import cast
 
+from app.agent.estimate import estimate_payload
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
@@ -113,24 +114,7 @@ def execute_get_plan(
         for meal in nutrition.meals
     ]
     payload["total"] = None if nutrition.total is None else _macros(nutrition.total)
-    payload["estimate"] = {
-        "lines": [
-            {
-                "ingredient_id": line.ingredient_id,
-                "quantity": line.quantity,
-                "unit": line.unit,
-                "packages": line.packages,
-                "cost_cents": line.cost_cents,
-                "from_pantry": line.from_pantry,
-            }
-            for line in estimate.lines
-        ],
-        "total_cents": estimate.total_cents,
-        "price_complete": estimate.total_cents is not None,
-        "available_cents": available_cents,
-        "accepted": estimate.accepted,
-        "notice": estimate.notice,
-    }
+    payload["estimate"] = estimate_payload(estimate, available_cents)
     return payload
 
 

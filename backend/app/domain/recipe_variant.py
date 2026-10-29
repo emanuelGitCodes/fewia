@@ -1,14 +1,23 @@
 """Apply one hypothetical ingredient change to a catalog recipe."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
-from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.catalog import INGREDIENTS, RECIPES, Recipe
 from app.services.meal_nutrition import GRAMS_PER_EACH
 
 MIN_QUANTITY = 1
 MAX_QUANTITY = 1000
 MIN_SCALE_PERCENT = 10
 MAX_SCALE_PERCENT = 400
+CHANGE_FIELDS = (
+    "replace_ingredient_id",
+    "with_ingredient_id",
+    "quantity_per_serving",
+    "scale_ingredient_id",
+    "scale_factor_percent",
+)
+_INT_FIELDS = ("quantity_per_serving", "scale_factor_percent")
 
 
 class RecipeVariantError(ValueError):
@@ -22,6 +31,18 @@ class RecipeChange:
     quantity_per_serving: int | None = None
     scale_ingredient_id: str | None = None
     scale_factor_percent: int | None = None
+
+
+def parse_change(fields: Mapping[str, object]) -> RecipeChange | None:
+    """Return the change in fields, or None when no change key is present."""
+    present = [key for key in CHANGE_FIELDS if key in fields]
+    if not present:
+        return None
+    for key in present:
+        if type(fields[key]) is not (int if key in _INT_FIELDS else str):
+            raise RecipeVariantError("change fields are invalid")
+    values = {key: fields[key] for key in present}
+    return RecipeChange(**values)  # type: ignore[arg-type]
 
 
 def round_half_up(numerator: int, denominator: int) -> int:
@@ -112,3 +133,11 @@ def apply_change(recipe_id: str, change: RecipeChange) -> tuple[tuple[str, int],
         (new, quantity) if item == old else (item, amount)
         for item, amount in ingredients
     )
+
+
+def variant_recipes(changes: Mapping[str, RecipeChange]) -> dict[str, Recipe]:
+    """Return RECIPES with each changed recipe replaced by its variant."""
+    recipes = dict(RECIPES)
+    for recipe_id, change in changes.items():
+        recipes[recipe_id] = Recipe(recipe_id, apply_change(recipe_id, change))
+    return recipes

@@ -1,29 +1,27 @@
 from dataclasses import asdict
 from typing import cast
 
+from app.agent.estimate import priced_estimate
 from app.agent.plan_tools import _spec
+from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.recipe_variant import (
+    CHANGE_FIELDS,
     MAX_QUANTITY,
     MAX_SCALE_PERCENT,
     MIN_QUANTITY,
     MIN_SCALE_PERCENT,
     RecipeChange,
     RecipeVariantError,
-    apply_change,
     ingredient_grams,
+    parse_change,
+    round_half_up,
+    variant_recipes,
 )
 from app.services.meal_nutrition import MacroTotals, ingredients_macros
 
 SUBSTITUTE_TOOL = "what_if_substitute"
-_FIELDS = (
-    "replace_ingredient_id",
-    "with_ingredient_id",
-    "quantity_per_serving",
-    "scale_ingredient_id",
-    "scale_factor_percent",
-)
 _MACRO_KEYS = ("energy_kcal", "protein_mg", "carbohydrate_mg", "fat_mg")
 
 
@@ -102,15 +100,49 @@ def _percent(delta: int, base: int) -> int | None:
     return -magnitude if delta < 0 else magnitude
 
 
-def _assumptions(recipe_id: str, change: RecipeChange) -> list[str]:
+def _assumptions(
+    recipe_id: str, change: RecipeChange, after: tuple[tuple[str, int], ...]
+) -> list[str]:
+    before = dict(RECIPES[recipe_id].ingredients)
+    now = dict(after)
     if change.scale_ingredient_id is not None:
-        return [f"Scaled to {change.scale_factor_percent} percent."]
+        target = change.scale_ingredient_id
+        percent = cast(int, change.scale_factor_percent)
+        if now[target] == round_half_up(before[target] * percent, 100):
+            return [f"Scaled to {percent} percent."]
+        return [f"Scaled to the minimum of 1 {INGREDIENTS[target].unit} per serving."]
+    new = cast(str, change.with_ingredient_id)
+    unit = INGREDIENTS[new].unit
     if change.quantity_per_serving is not None:
-        unit = INGREDIENTS[cast(str, change.with_ingredient_id)].unit
         return [f"Quantity set to {change.quantity_per_serving} {unit} per serving."]
     old = cast(str, change.replace_ingredient_id)
-    grams = ingredient_grams(old, dict(RECIPES[recipe_id].ingredients)[old])
-    return [f"Same weight per serving: {grams} g."]
+    old_g = ingredient_grams(old, before[old])
+    new_g = ingredient_grams(new, now[new])
+    if new_g == old_g:
+        return [f"Same weight per serving: {old_g} g."]
+    return [
+        f"Closest whole amount: {now[new]} {unit} ({new_g} g) per serving "
+        f"instead of {old_g} g."
+    ]
+
+
+def _price(
+    recipe_id: str,
+    servings: int,
+    change: RecipeChange,
+    budget: BudgetResult,
+) -> dict[str, object]:
+    meals = [(recipe_id, servings)]
+    before = priced_estimate(meals, [], budget)
+    after = priced_estimate(
+        meals, [], budget, recipes=variant_recipes({recipe_id: change})
+    )
+    before_total = before["total_cents"]
+    after_total = after["total_cents"]
+    delta = None
+    if isinstance(before_total, int) and isinstance(after_total, int):
+        delta = after_total - before_total
+    return {"before": before, "after": after, "delta_cents": delta}
 
 
 def _diets(ingredients: tuple[tuple[str, int], ...]) -> list[str]:
@@ -123,7 +155,7 @@ def _diets(ingredients: tuple[tuple[str, int], ...]) -> list[str]:
     return diets
 
 
-def execute_substitute(arguments: object) -> dict[str, object]:
+def execute_substitute(arguments: object, budget: BudgetResult) -> dict[str, object]:
     if type(arguments) is not dict:
         raise SubstituteToolError("arguments are invalid")
     if (
@@ -132,7 +164,7 @@ def execute_substitute(arguments: object) -> dict[str, object]:
         <= {
             "recipe_id",
             "servings",
-            *_FIELDS,
+            *CHANGE_FIELDS,
         }
     ):
         raise SubstituteToolError("arguments are invalid")
@@ -142,9 +174,11 @@ def execute_substitute(arguments: object) -> dict[str, object]:
         raise SubstituteToolError("arguments are invalid")
     if type(servings) is not int or not 1 <= servings <= 8:
         raise SubstituteToolError("arguments are invalid")
-    change = RecipeChange(**{key: arguments.get(key) for key in _FIELDS})
     try:
-        after_list = apply_change(recipe_id, change)
+        change = parse_change(arguments)
+        if change is None:
+            raise SubstituteToolError("arguments are invalid")
+        after_list = variant_recipes({recipe_id: change})[recipe_id].ingredients
     except RecipeVariantError:
         raise SubstituteToolError("arguments are invalid") from None
     before_list = RECIPES[recipe_id].ingredients
@@ -168,5 +202,6 @@ def execute_substitute(arguments: object) -> dict[str, object]:
             for key in _MACRO_KEYS
         },
         "diets_after": _diets(after_list),
-        "assumptions": _assumptions(recipe_id, change),
+        "assumptions": _assumptions(recipe_id, change, after_list),
+        "price": _price(recipe_id, servings, change, budget),
     }

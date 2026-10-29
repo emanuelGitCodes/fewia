@@ -49,6 +49,7 @@ from app.agent.plan_tools import (
     get_plan_tool_spec,
 )
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
+from app.agent.price_tool import PRICE_TOOL, execute_price_lines, price_tool_spec
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     execute_substitute,
@@ -239,6 +240,7 @@ def _chat_tools() -> list[dict[str, object]]:
         get_plan_tool_spec(),
         get_meal_tool_spec(),
         substitute_tool_spec(),
+        price_tool_spec(),
     ]
 
 
@@ -488,10 +490,49 @@ def test_what_if_substitute_traces_and_leaves_reply_state_alone() -> None:
     second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
     body = second_messages[-1]["content"][0]["toolResult"]
     assert body["status"] == "success"
-    assert body["content"][0]["json"] == execute_substitute(_SWAP_ARGS)
+    assert body["content"][0]["json"] == execute_substitute(_SWAP_ARGS, budget())
     assert (
         "To compare a swap or a smaller or larger portion of one ingredient, "
         "call what_if_substitute. It does not change the plan."
+    ) in SYSTEM_PROMPT
+
+
+_PRICE_ARGS: dict[str, object] = {
+    "meals": [{**_SWAP_ARGS}, {"recipe_id": "bean_tacos", "servings": 1}],
+    "pantry_ingredient_ids": ["salt"],
+}
+
+
+def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [_tool_block("l1", name=PRICE_TOOL, payload=_PRICE_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("Done.")], "end_turn"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["tool_trace"] == [
+        {
+            "tool": PRICE_TOOL,
+            "outcome": "success",
+            "tool_use_id": "l1",
+            "sequence": 1,
+            "revision_index": None,
+        }
+    ]
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "success"
+    expected = execute_price_lines(_PRICE_ARGS, budget(), None)
+    assert body["content"][0]["json"] == expected
+    assert (
+        "To price meals with or without a swap, call price_lines. "
+        "Prices are sample estimates."
     ) in SYSTEM_PROMPT
 
 
@@ -2310,6 +2351,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
             get_plan_tool_spec(),
             get_meal_tool_spec(),
             substitute_tool_spec(),
+            price_tool_spec(),
         ]
     )
     builds: list[str] = []
@@ -2354,6 +2396,7 @@ def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
         get_plan_tool_spec(),
         get_meal_tool_spec(),
         substitute_tool_spec(),
+        price_tool_spec(),
     ] == expected
 
 
