@@ -15,6 +15,7 @@ from pydantic import (
 )
 from sqlalchemy.orm import Session
 
+from app.domain.catalog import INGREDIENTS
 from app.domain.plan_revision import PlanMeal, PlanSnapshot
 from app.plan_models import PlanProposal, PlanRevision
 
@@ -26,11 +27,14 @@ class ProposalInvalid(ValueError):
     """Raised with a fixed message when operations cannot produce a valid plan."""
 
 
+CatalogId = Annotated[StrictStr, Field(min_length=1, max_length=64)]
+
+
 class AddMeal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     op: Literal["add"]
-    recipe_id: StrictStr
+    recipe_id: CatalogId
     servings: StrictInt
 
 
@@ -38,14 +42,14 @@ class RemoveMeal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     op: Literal["remove"]
-    recipe_id: StrictStr
+    recipe_id: CatalogId
 
 
 class SetServings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     op: Literal["set_servings"]
-    recipe_id: StrictStr
+    recipe_id: CatalogId
     servings: StrictInt
 
 
@@ -53,7 +57,7 @@ class SetPantry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     op: Literal["set_pantry"]
-    ingredient_id: StrictStr
+    ingredient_id: CatalogId
     owned: StrictBool
 
 
@@ -76,6 +80,8 @@ def apply_operations(snapshot: PlanSnapshot, ops: list[Operation]) -> PlanSnapsh
     pantry = list(snapshot.pantry_ingredient_ids)
     for operation in ops:
         if isinstance(operation, SetPantry):
+            if operation.ingredient_id not in INGREDIENTS:
+                raise ProposalInvalid(INVALID_PROPOSAL_MESSAGE)
             if operation.owned and operation.ingredient_id not in pantry:
                 pantry.append(operation.ingredient_id)
             elif not operation.owned and operation.ingredient_id in pantry:
@@ -107,6 +113,8 @@ def apply_operations(snapshot: PlanSnapshot, ops: list[Operation]) -> PlanSnapsh
                 )
             except ValidationError:
                 raise ProposalInvalid(INVALID_PROPOSAL_MESSAGE) from None
+    if not meals:
+        raise ProposalInvalid(INVALID_PROPOSAL_MESSAGE)
     try:
         return PlanSnapshot(
             meals=meals,
@@ -118,7 +126,10 @@ def apply_operations(snapshot: PlanSnapshot, ops: list[Operation]) -> PlanSnapsh
 
 
 def load_base_snapshot(revision: PlanRevision) -> PlanSnapshot:
-    return PlanSnapshot.model_validate(revision.snapshot)
+    try:
+        return PlanSnapshot.model_validate(revision.snapshot)
+    except ValidationError:
+        raise ProposalInvalid(INVALID_PROPOSAL_MESSAGE) from None
 
 
 def create_proposal(

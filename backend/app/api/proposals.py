@@ -1,5 +1,6 @@
 """HTTP routes that show, apply, or discard a plan proposal."""
 
+from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID, uuid4
 
@@ -86,6 +87,7 @@ def apply_proposal(
     session.flush()
     proposal.status = "applied"
     proposal.applied_plan_revision_id = revision_id
+    proposal.updated_at = datetime.now(UTC)
     session.commit()
     return {"plan_revision_id": str(revision_id)}
 
@@ -99,5 +101,6 @@ def discard_proposal(
         raise HTTPException(status_code=409, detail=PROPOSAL_APPLIED_MESSAGE)
     if proposal.status == "pending":
         proposal.status = "discarded"
+        proposal.updated_at = datetime.now(UTC)
         session.commit()
     return {"status": "discarded"}

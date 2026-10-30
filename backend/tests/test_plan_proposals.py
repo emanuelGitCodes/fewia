@@ -2,8 +2,10 @@
 
 import importlib.util
 from collections.abc import Iterator
+from datetime import datetime
 from io import StringIO
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,13 +13,16 @@ from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from conftest import UserSeeder, require_test_database_url
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, select, text
+from sqlalchemy import Connection, Engine, create_engine, func, select, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app import models
+from app.api import proposals as proposals_api
 from app.db import Base
+from app.demo import DEMO_USER_ID
+from app.domain import plan_revision
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_proposal import (
@@ -119,6 +124,8 @@ def test_apply_does_not_mutate_the_input() -> None:
         (1, {"op": "set_servings", "recipe_id": RECIPE_B, "servings": 2}),
         (1, {"op": "set_servings", "recipe_id": RECIPE_A, "servings": 9}),
         (1, {"op": "set_pantry", "ingredient_id": "nope", "owned": True}),
+        (1, {"op": "set_pantry", "ingredient_id": "nope", "owned": False}),
+        (1, {"op": "remove", "recipe_id": RECIPE_A}),
     ],
     ids=[
         "four-meals",
@@ -128,6 +135,8 @@ def test_apply_does_not_mutate_the_input() -> None:
         "set-missing",
         "set-servings-9",
         "unknown-pantry",
+        "unknown-pantry-not-owned",
+        "zero-meals",
     ],
 )
 def test_invalid_results_are_rejected(meals: int, op: dict[str, object]) -> None:
@@ -143,6 +152,9 @@ def test_invalid_results_are_rejected(meals: int, op: dict[str, object]) -> None
         [{"op": "substitute", "recipe_id": RECIPE_A}],
         [{"op": "remove", "recipe_id": RECIPE_A, "extra": 1}],
         [{"op": "add", "recipe_id": RECIPE_A, "servings": True}],
+        [{"op": "remove", "recipe_id": ""}],
+        [{"op": "remove", "recipe_id": "r" * 65}],
+        [{"op": "set_pantry", "ingredient_id": "i" * 65, "owned": False}],
         "remove",
     ],
 )
@@ -215,7 +227,7 @@ def test_missing_and_foreign_proposals_are_404(
     seed_user()
     session.add(models.User(id=2, display_name="other"))
     session.flush()
-    base_id = seed_revision(session, base_snapshot(), user_id=2)
+    base_id = seed_revision(session, base_snapshot(2), user_id=2)
     foreign_id = create_proposal(
         session, 2, base_id, [{"op": "remove", "recipe_id": RECIPE_A}]
     )
@@ -287,6 +299,95 @@ def test_discarding_an_applied_proposal_is_409(
     )
 
 
+def test_stale_base_snapshot_is_409_and_not_echoed(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    before = revision_count(session)
+    monkeypatch.setattr(
+        plan_revision,
+        "SUPPORTED_RECIPE_IDS",
+        tuple(item for item in SUPPORTED_RECIPE_IDS if item != RECIPE_A),
+    )
+
+    responses = [
+        client.get(f"/grocery/proposals/{proposal_id}"),
+        client.post(f"/grocery/proposals/{proposal_id}/apply"),
+    ]
+
+    for response in responses:
+        assert response.status_code == 409
+        assert response.json() == {"detail": proposals_api.PROPOSAL_STALE_MESSAGE}
+    assert revision_count(session) == before
+    row = session.get(PlanProposal, proposal_id)
+    assert row is not None
+    assert row.status == "pending"
+
+
+@pytest.mark.parametrize("action", ["apply", "discard"])
+def test_apply_and_discard_change_updated_at(
+    client: TestClient, session: Session, seed_user: UserSeeder, action: str
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    row = session.get(PlanProposal, proposal_id)
+    assert row is not None
+    old = datetime(2000, 1, 1)
+    row.updated_at = old
+    session.flush()
+
+    assert client.post(f"/grocery/proposals/{proposal_id}/{action}").status_code == 200
+
+    session.refresh(row)
+    assert row.updated_at.replace(tzinfo=None) > old
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix", "locks"),
+    [("get", "", False), ("post", "/apply", True), ("post", "/discard", True)],
+)
+def test_proposal_routes_lock_the_row_for_changes(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+    suffix: str,
+    locks: bool,
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    flags: list[bool] = []
+    statements: list[str] = []
+    real_load = proposals_api._load
+    real_scalars = session.scalars
+
+    def record_load(
+        db: Session, requested: UUID, *, lock: bool = False
+    ) -> PlanProposal:
+        flags.append(lock)
+        return real_load(db, requested, lock=lock)
+
+    def record_scalars(statement: Any, *args: Any, **kwargs: Any) -> Any:
+        statements.append(str(statement.compile(dialect=postgresql.dialect())))
+        return real_scalars(statement, *args, **kwargs)
+
+    monkeypatch.setattr(proposals_api, "_load", record_load)
+    monkeypatch.setattr(session, "scalars", record_scalars)
+
+    response = getattr(client, method)(f"/grocery/proposals/{proposal_id}{suffix}")
+
+    assert response.status_code == 200
+    assert flags == [locks]
+    selects = [sql for sql in statements if "FROM plan_proposals" in sql]
+    assert len(selects) == 1
+    assert ("FOR UPDATE" in selects[0]) is locks
+
+
 def test_migration_0009_compiles_and_downgrades() -> None:
     spec = importlib.util.spec_from_file_location("alembic_rev_0009", MIGRATION_PATH)
     assert spec is not None
@@ -328,46 +429,150 @@ def postgres_engine() -> Iterator[Engine]:
         admin.dispose()
 
 
-def test_status_checks_on_postgresql(postgres_engine: Engine) -> None:
-    revision_id = uuid4()
-    with postgres_engine.begin() as connection:
+@pytest.fixture()
+def migrated_rows() -> Iterator[tuple[Connection, int, UUID]]:
+    """Give a connection to the migrated database inside a rolled-back transaction."""
+    engine = create_engine(require_test_database_url())
+    if engine.dialect.name != "postgresql":
+        engine.dispose()
+        pytest.fail("The constraint test requires PostgreSQL.")
+    connection = engine.connect()
+    transaction = connection.begin()
+    try:
+        registered = connection.execute(
+            text("SELECT to_regclass('plan_proposals')")
+        ).scalar_one()
+        if registered is None:
+            pytest.fail("Run `uv run alembic upgrade head` on the test database.")
+        user_id = -(uuid4().int % 2_000_000_000 + 1)
+        revision_id = uuid4()
+        connection.execute(
+            text("INSERT INTO users (id, display_name) VALUES (:u, 'fixture')"),
+            {"u": user_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO plan_revisions (id, user_id, snapshot) "
+                "VALUES (:i, :u, '{}')"
+            ),
+            {"i": revision_id, "u": user_id},
+        )
+        yield connection, user_id, revision_id
+    finally:
+        transaction.rollback()
+        connection.close()
+        engine.dispose()
+
+
+INSERT_PROPOSAL = (
+    "INSERT INTO plan_proposals "
+    "(id, user_id, base_plan_revision_id, operations, status, "
+    "applied_plan_revision_id) "
+    "VALUES (:p, :u, :r, '[]', :s, :a)"
+)
+
+
+def test_migrated_table_rejects_bad_status_combinations(
+    migrated_rows: tuple[Connection, int, UUID],
+) -> None:
+    connection, user_id, revision_id = migrated_rows
+    bad = [
+        ("bogus", None, revision_id),
+        ("applied", None, revision_id),
+        ("pending", revision_id, revision_id),
+        ("discarded", revision_id, revision_id),
+        ("pending", None, uuid4()),
+        ("applied", uuid4(), revision_id),
+    ]
+    for status, applied, base in bad:
+        with pytest.raises(DBAPIError):
+            with connection.begin_nested():
+                connection.execute(
+                    text(INSERT_PROPOSAL),
+                    {
+                        "p": uuid4(),
+                        "u": user_id,
+                        "r": base,
+                        "s": status,
+                        "a": applied,
+                    },
+                )
+    for status, applied in (
+        ("pending", None),
+        ("discarded", None),
+        ("applied", revision_id),
+    ):
+        with connection.begin_nested():
+            connection.execute(
+                text(INSERT_PROPOSAL),
+                {
+                    "p": uuid4(),
+                    "u": user_id,
+                    "r": revision_id,
+                    "s": status,
+                    "a": applied,
+                },
+            )
+
+
+def test_migrated_table_defaults_status_to_pending(
+    migrated_rows: tuple[Connection, int, UUID],
+) -> None:
+    connection, user_id, revision_id = migrated_rows
+    row = connection.execute(
+        text(
+            "INSERT INTO plan_proposals "
+            "(id, user_id, base_plan_revision_id, operations) "
+            "VALUES (:p, :u, :r, '[]') "
+            "RETURNING status, applied_plan_revision_id, "
+            "created_at IS NOT NULL, updated_at IS NOT NULL"
+        ),
+        {"p": uuid4(), "u": user_id, "r": revision_id},
+    ).one()
+    assert tuple(row) == ("pending", None, True, True)
+
+
+def test_a_locked_proposal_row_blocks_apply_on_postgresql(
+    postgres_engine: Engine,
+) -> None:
+    ops = [{"op": "add", "recipe_id": RECIPE_B, "servings": 3}]
+    with Session(postgres_engine) as setup:
         Base.metadata.create_all(
-            connection,
+            setup.connection(),
             tables=[
                 models.User.__table__,
                 PlanRevision.__table__,
                 PlanProposal.__table__,
             ],
         )
-        connection.execute(text("INSERT INTO users (id, display_name) VALUES (1, 'u')"))
-        connection.execute(
-            text(
-                "INSERT INTO plan_revisions (id, user_id, snapshot) "
-                "VALUES (:i, 1, '{}')"
-            ),
-            {"i": revision_id},
-        )
-    insert = (
-        "INSERT INTO plan_proposals "
-        "(id, user_id, base_plan_revision_id, operations, status, "
-        "applied_plan_revision_id) "
-        "VALUES (:p, 1, :r, '[]', :s, :a)"
-    )
-    bad = [("bogus", None), ("applied", None), ("pending", revision_id)]
-    for status, applied in bad:
-        with pytest.raises(DBAPIError):
-            with postgres_engine.begin() as connection:
-                connection.execute(
-                    text(insert),
-                    {"p": uuid4(), "r": revision_id, "s": status, "a": applied},
-                )
-    with postgres_engine.begin() as connection:
-        for status, applied in (
-            ("pending", None),
-            ("discarded", None),
-            ("applied", revision_id),
-        ):
-            connection.execute(
-                text(insert),
-                {"p": uuid4(), "r": revision_id, "s": status, "a": applied},
-            )
+        setup.add(models.User(id=DEMO_USER_ID, display_name="demo"))
+        setup.flush()
+        base_id = seed_revision(setup, base_snapshot(), user_id=DEMO_USER_ID)
+        proposal_id = create_proposal(setup, DEMO_USER_ID, base_id, ops)
+        setup.commit()
+
+    with Session(postgres_engine) as holder, Session(postgres_engine) as waiter:
+        holder.scalars(
+            select(PlanProposal).where(PlanProposal.id == proposal_id).with_for_update()
+        ).one()
+        waiter.execute(text("SET LOCAL lock_timeout = '200ms'"))
+        with pytest.raises(DBAPIError, match="lock timeout"):
+            proposals_api.apply_proposal(proposal_id, waiter)
+        waiter.rollback()
+        holder.rollback()
+
+        with Session(postgres_engine) as check:
+            count = check.scalars(select(func.count()).select_from(PlanRevision))
+            assert count.one() == 1
+            pending = check.get(PlanProposal, proposal_id)
+            assert pending is not None
+            assert pending.status == "pending"
+
+        result = proposals_api.apply_proposal(proposal_id, waiter)
+
+    with Session(postgres_engine) as check:
+        count = check.scalars(select(func.count()).select_from(PlanRevision))
+        assert count.one() == 2
+        applied = check.get(PlanProposal, proposal_id)
+        assert applied is not None
+        assert str(applied.applied_plan_revision_id) == result["plan_revision_id"]
