@@ -316,7 +316,7 @@ export function PlanChat(props: {
       ) : null}
       {on && props.onKrogerChoose !== undefined && props.onKrogerClear !== undefined ? (
         <>
-          <KrogerConnect />
+          <KrogerConnect plan={state} locationId={krogerStore?.locationId ?? null} />
           <KrogerStorePicker
             store={krogerStore}
             onChoose={props.onKrogerChoose}

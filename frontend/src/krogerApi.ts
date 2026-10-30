@@ -63,6 +63,107 @@ export async function disconnectKroger(): Promise<void> {
   }
 }
 
+export type KrogerCartItem = {
+  ingredientId: string;
+  name: string;
+  upc: string;
+  description: string;
+  size: string | null;
+  quantity: number;
+};
+export type KrogerCartPreview = {
+  items: KrogerCartItem[];
+  unmatched: { ingredientId: string; name: string }[];
+};
+export type KrogerAddResult = "added" | "not_connected" | "unavailable" | "unknown";
+
+const MAX_CART_LINES = 30;
+const ITEM_KEYS = ["ingredient_id", "name", "upc", "description", "size", "quantity"];
+const UNMATCHED_KEYS = ["ingredient_id", "name"];
+
+function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  return (
+    Object.keys(value).length === keys.length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+}
+
+function copyCartItem(value: unknown): KrogerCartItem {
+  if (
+    !isRecord(value) || !hasExactKeys(value, ITEM_KEYS) ||
+    !isKrogerText(value.ingredient_id) || !isKrogerText(value.name) ||
+    !isString(value.upc) || !/^[0-9]{8,14}$/.test(value.upc) ||
+    !isKrogerText(value.description) ||
+    (value.size !== null && !isKrogerText(value.size)) ||
+    typeof value.quantity !== "number" || !Number.isInteger(value.quantity) ||
+    value.quantity < 1 || value.quantity > 10
+  ) {
+    throw new Error(SHAPE_ERROR);
+  }
+  return {
+    ingredientId: value.ingredient_id,
+    name: value.name,
+    upc: value.upc,
+    description: value.description,
+    size: value.size,
+    quantity: value.quantity,
+  };
+}
+
+function copyUnmatched(value: unknown): { ingredientId: string; name: string } {
+  if (
+    !isRecord(value) || !hasExactKeys(value, UNMATCHED_KEYS) ||
+    !isKrogerText(value.ingredient_id) || !isKrogerText(value.name)
+  ) {
+    throw new Error(SHAPE_ERROR);
+  }
+  return { ingredientId: value.ingredient_id, name: value.name };
+}
+
+export async function previewKrogerCart(
+  planRevisionId: string,
+  locationId: string,
+  signal?: AbortSignal,
+): Promise<KrogerCartPreview> {
+  const body = await readJson("/api/grocery/kroger/cart/preview", {
+    method: "POST",
+    signal,
+    body: JSON.stringify({ plan_revision_id: planRevisionId, location_id: locationId }),
+    headers: { "Content-Type": "application/json" },
+  });
+  if (
+    !isRecord(body) || !hasExactKeys(body, ["items", "unmatched"]) ||
+    !Array.isArray(body.items) || body.items.length > MAX_CART_LINES ||
+    !Array.isArray(body.unmatched) || body.unmatched.length > MAX_CART_LINES
+  ) {
+    throw new Error(SHAPE_ERROR);
+  }
+  return { items: body.items.map(copyCartItem), unmatched: body.unmatched.map(copyUnmatched) };
+}
+
+// Any outcome that is not a clear answer reads as "unknown", because the items may be in the cart.
+export async function addToKrogerCart(
+  items: { upc: string; quantity: number }[],
+): Promise<KrogerAddResult> {
+  let response: Response;
+  try {
+    response = await fetch("/api/grocery/kroger/cart/add", {
+      method: "POST",
+      body: JSON.stringify({ items: items.map(({ upc, quantity }) => ({ upc, quantity })) }),
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    return "unknown";
+  }
+  if (response.status === 204) {
+    return "added";
+  }
+  if (response.status === 409) {
+    return "not_connected";
+  }
+  return response.status === 503 ? "unavailable" : "unknown";
+}
+
 // The ZIP goes only in the POST body, never in a URL.
 export async function findKrogerStores(
   zip: string,

@@ -1,6 +1,74 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HTTP_ERROR, SHAPE_ERROR } from "./apiTypes";
-import { disconnectKroger, findKrogerStores, readKrogerConnection } from "./krogerApi";
+import {
+  addToKrogerCart,
+  disconnectKroger,
+  findKrogerStores,
+  previewKrogerCart,
+  readKrogerConnection,
+} from "./krogerApi";
+
+const cartItem = {
+  ingredient_id: "beans",
+  name: "Black beans",
+  upc: "0001111041600",
+  description: "Kroger Black Beans",
+  size: null,
+  quantity: 2,
+};
+
+describe("previewKrogerCart", () => {
+  it("posts the ids and maps the body", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ items: [cartItem], unmatched: [{ ingredient_id: "x", name: "Saffron" }] }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await previewKrogerCart("rev-1", "01400943");
+    expect(result.items[0]).toMatchObject({ upc: "0001111041600", size: null, quantity: 2 });
+    expect(result.unmatched).toEqual([{ ingredientId: "x", name: "Saffron" }]);
+    const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(init.body).toBe(JSON.stringify({ plan_revision_id: "rev-1", location_id: "01400943" }));
+  });
+
+  it("rejects malformed bodies", async () => {
+    const bad = [
+      null,
+      { items: [] },
+      { items: [], unmatched: [], extra: 1 },
+      { items: [{ ...cartItem, quantity: 11 }], unmatched: [] },
+      { items: [{ ...cartItem, upc: "12" }], unmatched: [] },
+      { items: [{ ...cartItem, extra: 1 }], unmatched: [] },
+      { items: [], unmatched: [{ ingredient_id: "x" }] },
+      { items: Array.from({ length: 31 }, () => cartItem), unmatched: [] },
+    ];
+    for (const body of bad) {
+      reply(body);
+      await expect(previewKrogerCart("rev-1", "01400943")).rejects.toThrow(SHAPE_ERROR);
+    }
+  });
+});
+
+describe("addToKrogerCart", () => {
+  it("maps status codes", async () => {
+    const cases: [number, string][] = [
+      [204, "added"],
+      [409, "not_connected"],
+      [503, "unavailable"],
+      [504, "unknown"],
+      [500, "unknown"],
+    ];
+    for (const [status, expected] of cases) {
+      vi.stubGlobal("fetch", vi.fn(async () => ({ status }) as Response));
+      expect(await addToKrogerCart([{ upc: "0001111041600", quantity: 1 }])).toBe(expected);
+    }
+  });
+
+  it("returns unknown when the network fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("down"); }));
+    expect(await addToKrogerCart([{ upc: "0001111041600", quantity: 1 }])).toBe("unknown");
+  });
+});
 
 const store = {
   location_id: "01400943",

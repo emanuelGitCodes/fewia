@@ -1050,6 +1050,29 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
+.tonight-kroger-cart {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.tonight-kroger-cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-kroger-cart-items li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+}
+.tonight-kroger-cart-name {
+  font-weight: 600;
+}
 .tonight-kroger-picker {
   margin-top: auto;
   padding-bottom: 0.5rem;

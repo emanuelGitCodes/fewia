@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
 import { disconnectKroger, readKrogerConnection } from "../krogerApi";
+import { KrogerCart } from "./KrogerCart";
+import type { PlanState } from "./planModel";
 
 export const KROGER_CONNECT_PATH = "/api/grocery/kroger/connect";
 export const KROGER_CONNECTED_LINE = "Kroger account connected.";
@@ -15,7 +17,10 @@ function readReturnMessage(): string {
   return value === "error" ? KROGER_SIGN_IN_FAILED_LINE : "";
 }
 
-export function KrogerConnect(): JSX.Element | null {
+export function KrogerConnect(props: {
+  plan?: PlanState;
+  locationId?: string | null;
+}): JSX.Element | null {
   // The connection state lives only in component state; the browser stores nothing.
   const [connected, setConnected] = useState<boolean | null>(null);
   const [returned] = useState(readReturnMessage);
@@ -96,6 +101,9 @@ export function KrogerConnect(): JSX.Element | null {
             Disconnect
           </button>
         </>
+      ) : null}
+      {connected === true && props.plan !== undefined ? (
+        <KrogerCart state={props.plan} locationId={props.locationId ?? null} />
       ) : null}
       <p className="tonight-ask-hint" aria-live="polite">
         {failed ? KROGER_DISCONNECT_FAILED_LINE : message}
