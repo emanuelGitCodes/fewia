@@ -100,6 +100,28 @@ uv run python -m app.evaluate \
   --live-bedrock
 ```
 
+## Conversation suite (`conversation-eval-v1`)
+
+The conversation suite is separate from the benchmark above (owner decision, 2026-10-30). The frozen `grocery-eval-v1` corpus keeps its 30 scenarios, and its batch keeps 138 slots. The benchmark CLI accepts only Nova 2 Lite.
+
+- **Corpus.** [`conversation.json`](../backend/tests/evaluation/conversation.json) holds 12 scenarios (C01 to C12), 22 turns in all, with three repeats: substitutions, a follow-up, a false premise, a budget question, a proposal and an apply, off-topic and medical requests, a prompt injection, a nine-turn thread, and a purchase-override attempt. A test regenerates every gold value from the deterministic tools.
+- **Runner.** [`evaluation_conversation.py`](../backend/app/evaluation_conversation.py) runs `run_chat` with validated model prose on, an in-memory plan revision, and a stub `propose`. Nothing writes the database.
+- **Records.** Each turn record holds the tool trace, the prose gate reason, the validator verdict codes, the count of unmatched numbers, usage, latency, and the reply's SHA-256. A record MUST NOT hold the reply text or the unmatched tokens. A test runs a marker reply and asserts the marker is in no output file.
+- **Scores.** [`evaluation_conversation_score.py`](../backend/app/evaluation_conversation_score.py) scores tools, outcome, gold facts, and grounding (`grounded_replies / prose_attempts`, unsupported numbers, fallbacks by gate reason), and reports p50 and p95 latency and cost per turn. Targets are reported, not enforced: grounded 99%, unsupported 0, p50 under 5 s, p95 under 12 s, cost under USD 0.006 per turn. A fixture run reports the cost and latency targets as `not_applicable`.
+- **Profiles.** [`evaluation_profiles.py`](../backend/app/evaluation_profiles.py) allows `nova-2-lite`, `nova-2-pro`, and `claude-haiku`. Only Nova models are approved in the AWS account, so `claude-haiku` MUST NOT be run live. The `nova-2-pro` model ID is not verified.
+
+Fixture run:
+
+```bash
+uv run --project backend python -m app.evaluate_conversation \
+  --corpus backend/tests/evaluation/conversation.json \
+  --output-dir /tmp/conversation-fixture \
+  --profile nova-2-lite --region us-east-1 \
+  --revision "$(git rev-parse HEAD)" --fixture
+```
+
+A live run replaces `--fixture` with `--live-bedrock` and adds `--rates`. It spends money and needs the owner's approval.
+
 ## Component boundaries
 
 - [`observe_reference_case`](../backend/app/evaluation_reference.py) runs the final structured request for five supported reference scenarios through deterministic planning. It does not run earlier language turns or a durable evidence store.

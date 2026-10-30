@@ -85,6 +85,7 @@ deployment.
 | 16 | Tonight Plan page | Frontend | `/prototype`, `prototype/TonightPrototype.tsx` | Prototype on /prototype | Lazy chunk. Demo data in `prototypeData.ts`. Makes no API call. Audience 18 to 25. |
 | 17 | Evaluation harness and CLI | Backend | `python -m app.evaluate`, `evaluation_*.py` | Tooling | 60 modules. 138-slot matrix. Fixture runs work today. |
 | 18 | Live benchmark on Nova 2 Lite | Evaluation | `eval/results/artifacts/` | Owner-gated | Last batch 2026-10-05: task 25 of 33, claims 109 of 112. Next batch waits on the A02 decision. |
+| 18b | Conversation suite (`conversation-eval-v1`) | Evaluation | `app/evaluate_conversation.py` | Fixture runs; live owner-gated | 12 scenarios, 3 repeats, records hold hashes, not reply text. Separate from the 138-slot batch. No live batch yet. |
 | 19 | Hosted demo stacks | Infra | `infra/hosting/`, `preflight_cli.py` | Source only | CDK for ECS Fargate, RDS, Secrets Manager, CloudWatch, Cognito edge. Nothing deployed. |
 | 20 | Bedrock credentials stack and session renewal | Infra | `infra/bedrock/`, `infra/bedrock_session.py` | Tooling | The owner renews the session before a live run. |
 | 21 | Health-era tables and legacy runner | Database, Backend | `models.py`, `evaluation_runner.py` | Retired | Decision 0018 retains the data. No route serves it. |

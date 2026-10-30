@@ -886,6 +886,15 @@ request; a medical question; an injection in a tool result; a long
 multi-turn thread; a refusal override attempt. Each lists expected tools,
 allowed outcomes, and gold facts.
 
+**As built (2026-10-30).** The conversation scenarios form a separate
+suite, `conversation-eval-v1`, with 12 scenarios; `grocery-eval-v1` does not
+change. Four scenarios differ from the list above. The injection comes in
+the user message, because tool results are server-built. The apply step
+runs in memory with `apply_operations`. Refusal, medical, and override
+scenarios score today's clarification path, because the `decline` tool
+waits for this scorer. There is no Kroger scenario, because the model has
+no Kroger tool (section 6.7). `docs/EVALUATION.md` describes the suite.
+
 **Grounding check on every number.** The runtime validator is the scorer.
 Each record stores the extracted propositions, the matched fact, the
 unmatched tokens, and the verdict. Metrics: `grounded_replies / replies`,
