@@ -39,7 +39,6 @@ _FILLER = frozenset(
         "separable lean and fat",
         "fresh",
         "all grades",
-        "composite of trimmed retail cuts",
         "nfs",
     }
 )
@@ -59,7 +58,7 @@ def _fail(message: str) -> ValueError:
 
 
 def _strip_includes(text: str) -> str:
-    while (start := text.find("(Includes")) != -1:
+    while (start := text.lower().find("(includes")) != -1:
         depth, end = 0, len(text)
         for index in range(start, len(text)):
             depth += {"(": 1, ")": -1}.get(text[index], 0)
@@ -107,6 +106,17 @@ def _collapse_composite(qualifiers: list[str]) -> list[str]:
     return qualifiers
 
 
+def _before_open_paren(text: str) -> str:
+    """Cut before the first "(" that the text leaves unmatched."""
+    opened: list[int] = []
+    for index, char in enumerate(text):
+        if char == "(":
+            opened.append(index)
+        elif char == ")" and opened:
+            opened.pop()
+    return text[: opened[0]].rstrip(" ,") if opened else text
+
+
 def display_name(description: str, limit: int = _SHORT_LIMIT) -> str:
     text = _strip_includes(description)
     if not text or text.startswith(","):
@@ -123,7 +133,8 @@ def display_name(description: str, limit: int = _SHORT_LIMIT) -> str:
         avail = room - sum(len(texts[index]) + 2 for index in kept)
         if len(texts[last]) > avail:
             cut = texts[last][: max(avail, 0) + 1]
-            texts[last] = cut.rsplit(" ", 1)[0].rstrip(" ,") if " " in cut else ""
+            cut = cut.rsplit(" ", 1)[0].rstrip(" ,") if " " in cut else ""
+            texts[last] = _before_open_paren(cut)
         if texts[last]:
             kept.add(last)
     used = sum(len(texts[index]) for index in kept) + 2 * max(len(kept) - 1, 0)

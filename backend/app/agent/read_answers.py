@@ -193,6 +193,11 @@ def _or(names: list[str]) -> str:
     return f"{', '.join(names[:-1])}, or {names[-1]}"
 
 
+def _live_other(item: dict[str, object]) -> str:
+    detail = item.get("brand") or f"USDA FDC {_int(item['fdc_id'])}"
+    return f"{item['name']} ({detail})"
+
+
 def _live_facts(foods: list[object]) -> str:
     if not foods:
         raise ValueError("payload is invalid")
@@ -205,7 +210,7 @@ def _live_facts(foods: list[object]) -> str:
         f"{_macro_line(_d(first['per_100g']))} (USDA FDC {_int(first['fdc_id'])}). "
         "FEWIA cannot add this food to a meal yet."
     )
-    others = [str(_d(item)["name"]) for item in foods[1:]]
+    others = [_live_other(_d(item)) for item in foods[1:]]
     if others:
         text += f" Other USDA matches: {', '.join(others)}."
     return text

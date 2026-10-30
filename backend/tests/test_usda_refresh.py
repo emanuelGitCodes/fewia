@@ -9,7 +9,7 @@ from pydantic import SecretStr
 
 from app.domain.nutrition import NutritionFacts
 from app.domain.nutrition_catalog import NUTRITION
-from app.usda_refresh import _load_api_key, compare, fetch_facts, main
+from app.usda_refresh import compare, fetch_facts, load_usda_api_key, main
 
 FAKE_API_KEY = "FAKE_USDA_FDC_KEY_VALUE"
 FDC_ID = 171077
@@ -215,7 +215,7 @@ def test_load_api_key_returns_none_for_invalid_provider_setting(
     key_file.write_text(f" {FAKE_API_KEY} \n", encoding="utf-8")
     monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(key_file))
     monkeypatch.setenv("FEWIA_BEDROCK_REGION", "eu-west-9")
-    assert _load_api_key() is None
+    assert load_usda_api_key() is None
 
 
 def test_load_api_key_reads_secret_from_key_file(
@@ -226,7 +226,7 @@ def test_load_api_key_reads_secret_from_key_file(
     monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(key_file))
     monkeypatch.delenv("FEWIA_BEDROCK_REGION", raising=False)
 
-    api_key = _load_api_key()
+    api_key = load_usda_api_key()
 
     assert isinstance(api_key, SecretStr)
     assert api_key.get_secret_value() == FAKE_API_KEY

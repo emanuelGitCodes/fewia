@@ -90,6 +90,17 @@ def test_energy_number_957_is_accepted() -> None:
     assert _client(_ok([entry])).search("x")[0].facts.energy_kcal == 99
 
 
+@pytest.mark.parametrize(
+    ("number", "unit"),
+    [("208", "G"), ("208", "MG"), ("203", "KCAL"), ("307", "IU"), ("204", "")],
+)
+def test_wrong_unit_for_a_nutrient_skips_the_food(number: str, unit: str) -> None:
+    rows = [row for row in _nutrients() if row["nutrientNumber"] != number]
+    rows.append({"nutrientNumber": number, "unitName": unit, "value": 5})
+    entry = {**_food(), "foodNutrients": rows}
+    assert _client(_ok([entry])).search("x") == []
+
+
 def test_food_missing_a_macro_is_skipped() -> None:
     no_protein = {**_food(1), "foodNutrients": _nutrients("203")}
     foods = _client(_ok([no_protein, _food(2), "junk", {"fdcId": "3"}])).search("x")
@@ -197,7 +208,7 @@ def test_builder_returns_none_without_a_key_and_caches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     get_usda_live_client.cache_clear()  # type: ignore[attr-defined]
-    monkeypatch.setattr(usda_live, "_load_api_key", lambda: None)
+    monkeypatch.setattr(usda_live, "load_usda_api_key", lambda: None)
     try:
         assert get_usda_live_client() is None
     finally:
@@ -210,7 +221,7 @@ def test_builder_builds_one_client_from_the_key(
     from pydantic import SecretStr
 
     get_usda_live_client.cache_clear()  # type: ignore[attr-defined]
-    monkeypatch.setattr(usda_live, "_load_api_key", lambda: SecretStr(KEY))
+    monkeypatch.setattr(usda_live, "load_usda_api_key", lambda: SecretStr(KEY))
     try:
         first = get_usda_live_client()
         assert isinstance(first, UsdaLiveClient)

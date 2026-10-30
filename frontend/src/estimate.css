@@ -27,19 +27,6 @@
   line-height: 1.2;
 }
 
-.estimate-overlay-label {
-  margin: 0;
-  color: var(--muted);
-}
-
-.estimate-overlay-total {
-  margin: 0;
-  color: var(--accent);
-  font-size: 1.15rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
 .estimate-lines {
   display: flex;
   flex-direction: column;

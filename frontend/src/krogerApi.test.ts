@@ -65,6 +65,13 @@ describe("findKrogerStores", () => {
     }
   });
 
+  it("counts text length in code points, not UTF-16 units", async () => {
+    reply({ stores: [{ ...store, city: "😀".repeat(160) }] });
+    expect(await findKrogerStores("45202")).toHaveLength(1);
+    reply({ stores: [{ ...store, city: "😀".repeat(161) }] });
+    await expect(findKrogerStores("45202")).rejects.toThrow(SHAPE_ERROR);
+  });
+
   it("throws HTTP_ERROR on a failed status", async () => {
     reply({ detail: "bad" }, false);
     await expect(findKrogerStores("45202")).rejects.toThrow(HTTP_ERROR);

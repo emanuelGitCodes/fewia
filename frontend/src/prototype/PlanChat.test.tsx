@@ -369,6 +369,32 @@ describe("PlanChat", () => {
     expect(onKrogerClear).toHaveBeenCalledTimes(1);
   });
 
+  it("calls the onKrogerChoose it received when a store is picked", async () => {
+    const stores = [
+      { location_id: "01400943", name: "Main Street", address_line: "1 Test Way", city: "Springfield", state: "OH" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ stores }) }) as Response),
+    );
+    const onKrogerChoose = vi.fn();
+    mount(initialPlanState(), { krogerStore: null, onKrogerChoose, onKrogerClear: vi.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Choose a Kroger store for live prices" }));
+    fireEvent.change(screen.getByLabelText("ZIP code"), { target: { value: "45202" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Find stores" }));
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /^Main Street, 1 Test Way/ }));
+    expect(onKrogerChoose).toHaveBeenCalledWith({
+      locationId: "01400943",
+      name: "Main Street",
+      addressLine: "1 Test Way",
+      city: "Springfield",
+      state: "OH",
+    });
+    vi.unstubAllGlobals();
+  });
+
   it("hides the store picker when chat is off", () => {
     setProviders(false);
     mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });

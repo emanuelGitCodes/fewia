@@ -14,7 +14,11 @@ const MAX_STORES = 5;
 const STORE_KEYS = ["location_id", "name", "address_line", "city", "state"];
 
 export function isKrogerText(value: unknown): value is string {
-  return isString(value) && value.length > 0 && value.length <= 160;
+  if (!isString(value)) {
+    return false;
+  }
+  const length = [...value].length; // code points, like the backend's 160-character cut
+  return length > 0 && length <= 160;
 }
 
 function copyStore(value: unknown): KrogerStoreOption {

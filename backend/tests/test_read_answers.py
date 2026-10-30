@@ -642,9 +642,24 @@ def test_ingredient_facts_live_reply_and_cannot_add_sentence() -> None:
         "USDA FoodData Central lists Paneer (Acme Dairy) per 100 g: 321 kcal, "
         "18 g protein, 3 g carbs, 25 g fat (USDA FDC 11). "
         "FEWIA cannot add this food to a meal yet. "
-        "Other USDA matches: paneer cheese."
+        "Other USDA matches: paneer cheese (USDA FDC 12)."
     )
     assert "approve" not in answer
+
+
+def test_ingredient_facts_live_others_use_brand_to_tell_equal_names_apart() -> None:
+    payload = {
+        "status": "live",
+        "name": "x",
+        "live": [
+            _live("paneer", 1, None),
+            _live("tofu", 2, "A"),
+            _live("tofu", 3, None),
+        ],
+    }
+    answer = read_tool_answer([(INGREDIENT_TOOL, payload)])
+    assert answer is not None
+    assert answer.endswith("Other USDA matches: tofu (A), tofu (USDA FDC 3).")
 
 
 def test_ingredient_facts_live_single_match_has_no_other_matches() -> None:

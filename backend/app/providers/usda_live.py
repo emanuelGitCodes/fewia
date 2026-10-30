@@ -13,7 +13,7 @@ import httpx
 from app.domain.nutrition import NutritionFacts
 from app.domain.usda_foods import display_name
 from app.providers.http_client import build_http_client
-from app.usda_refresh import _load_api_key
+from app.usda_refresh import load_usda_api_key
 
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 DATA_TYPES = "Foundation,SR Legacy,Branded"
@@ -63,11 +63,14 @@ def _facts(fdc_id: int, nutrients: object) -> NutritionFacts | None:
         if isinstance(amount, bool) or not isinstance(amount, int | float):
             return None
         unit = str(item.get("unitName", "")).lower()
+        allowed = ("kcal",) if number in _ENERGY_NUMBERS else ("g", "mg")
+        if unit not in allowed:
+            return None
         try:
             parsed = float(amount) * (1000 if unit == "g" else 1)
         except OverflowError:
             return None
-        if unit not in ("g", "mg", "kcal") or not 0 <= parsed < 1e12:
+        if not 0 <= parsed < 1e12:
             return None
         values[str(number)] = round(parsed)
     energy = next((values[n] for n in _ENERGY_NUMBERS if n in values), None)
@@ -187,7 +190,7 @@ _lock = threading.Lock()
 
 @functools.cache
 def _build_client() -> UsdaLiveClient | None:
-    key = _load_api_key()
+    key = load_usda_api_key()
     return None if key is None else UsdaLiveClient(key.get_secret_value())
 
 

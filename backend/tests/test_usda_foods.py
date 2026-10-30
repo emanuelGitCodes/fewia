@@ -159,6 +159,14 @@ def test_a_long_last_qualifier_is_cut_at_a_word_boundary() -> None:
     assert display_name("Soup, alpha beta", limit=14) == "soup (alpha)"
 
 
+def test_a_cut_never_leaves_an_open_parenthesis() -> None:
+    assert display_name("Soup, milk (fat free and more)", limit=22) == "soup (milk)"
+
+
+def test_includes_is_stripped_in_any_case() -> None:
+    assert display_name("Beef (INCLUDES x), raw") == "beef (raw)"
+
+
 def test_a_cut_never_lands_inside_a_word() -> None:
     assert display_name("Soup, alphabetagamma", limit=10) == "soup"
     assert display_name("Soup, composite of x, alphabetagamma", limit=10) == (
@@ -641,6 +649,16 @@ def test_chicken_thigh_foods_have_distinct_names() -> None:
 def test_real_display_names_are_unique() -> None:
     names = [food.ingredient.name for food in usda_foods.USDA_FOODS]
     assert len(set(names)) == len(names)
+
+
+@needs_bundle
+def test_real_display_names_have_balanced_parentheses() -> None:
+    for food in usda_foods.USDA_FOODS:
+        depth = 0
+        for char in food.ingredient.name:
+            depth += {"(": 1, ")": -1}.get(char, 0)
+            assert depth >= 0, food.ingredient.name
+        assert depth == 0, food.ingredient.name
 
 
 @needs_bundle

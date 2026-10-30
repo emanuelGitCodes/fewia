@@ -135,8 +135,8 @@ export function KrogerStorePicker(props: {
           </div>
           {options !== null && options.length > 0 ? (
             <ul className="tonight-kroger-stores" aria-label="Kroger stores">
-              {options.map((option) => (
-                <li key={option.locationId}>
+              {options.map((option, index) => (
+                <li key={`${option.locationId}-${String(index)}`}>
                   <button
                     type="button"
                     className="tonight-ask-btn"
