@@ -5,7 +5,7 @@ import json
 import re
 import zlib
 from collections import Counter
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -194,10 +194,15 @@ def parse_bundle(payload: object) -> list[UsdaFood]:
 
 def _keep_names_unique(foods: list[UsdaFood]) -> list[UsdaFood]:
     """Colliding names are retried with a longer limit, then fall back to full names."""
-    for rename in (
-        lambda food: display_name(food.description, _LONG_LIMIT),
-        lambda food: full_display_name(food.description),
-    ):
+
+    def longer(food: UsdaFood) -> str:
+        return display_name(food.description, _LONG_LIMIT)
+
+    def full(food: UsdaFood) -> str:
+        return full_display_name(food.description)
+
+    renames: tuple[Callable[[UsdaFood], str], ...] = (longer, full)
+    for rename in renames:
         counts = Counter(food.ingredient.name for food in foods)
         foods = [
             replace(food, ingredient=replace(food.ingredient, name=rename(food)))
