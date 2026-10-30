@@ -74,8 +74,8 @@ horizontal overflow.
 
 ## Files
 
-- `grocery.pw.ts` holds the grocery tests. `providers.pw.ts` holds the overlay
-  and chat tests. The `.pw.ts` suffix keeps them out of vitest. Do not rename
+- `grocery.pw.ts` holds the grocery tests. `providers.pw.ts` holds the sample
+  catalog and chat tests. The `.pw.ts` suffix keeps them out of vitest. Do not rename
   them to `.spec.ts`.
 - `fakes.ts` holds the shared `test` fixture with the console, page-error, and
   overflow guard, plus the fakes. It holds no tests.
