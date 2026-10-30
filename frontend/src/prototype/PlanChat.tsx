@@ -8,6 +8,7 @@ import type { ProposalPreview } from "../proposalApi";
 import { ChatIdeaCard } from "./ChatIdeaCard";
 import { ProposalCard } from "./ProposalCard";
 import type { KrogerStoreOption } from "../krogerApi";
+import { KrogerConnect } from "./KrogerConnect";
 import { KrogerQuoteLine } from "./KrogerQuoteLine";
 import { KrogerStorePicker } from "./KrogerStorePicker";
 import { chatBudget, planChatPrefix, retainChatReplies, type ChatReply } from "./planChatModel";
@@ -314,11 +315,14 @@ export function PlanChat(props: {
         </ol>
       ) : null}
       {on && props.onKrogerChoose !== undefined && props.onKrogerClear !== undefined ? (
-        <KrogerStorePicker
-          store={krogerStore}
-          onChoose={props.onKrogerChoose}
-          onClear={props.onKrogerClear}
-        />
+        <>
+          <KrogerConnect />
+          <KrogerStorePicker
+            store={krogerStore}
+            onChoose={props.onKrogerChoose}
+            onClear={props.onKrogerClear}
+          />
+        </>
       ) : null}
       {on ? (
         <form

@@ -1054,6 +1054,20 @@
   margin-top: auto;
   padding-bottom: 0.5rem;
 }
+.tonight-kroger-connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+.tonight-kroger-connect p {
+  margin: 0;
+  font-weight: 600;
+}
+.tonight-kroger-connect + .tonight-kroger-picker {
+  margin-top: 0;
+}
 .tonight-kroger-picker + .tonight-ask-form {
   margin-top: 0;
 }

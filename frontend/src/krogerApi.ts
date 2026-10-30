@@ -1,5 +1,5 @@
 import { readJson } from "./api";
-import { SHAPE_ERROR, isRecord, isString } from "./apiTypes";
+import { HTTP_ERROR, SHAPE_ERROR, isRecord, isString } from "./apiTypes";
 
 export type KrogerStoreOption = {
   locationId: string;
@@ -38,6 +38,29 @@ function copyStore(value: unknown): KrogerStoreOption {
     city: value.city,
     state: value.state,
   };
+}
+
+export async function readKrogerConnection(signal?: AbortSignal): Promise<boolean> {
+  const body = await readJson("/api/grocery/kroger/connection", { method: "GET", signal });
+  if (
+    !isRecord(body) || Object.keys(body).length !== 1 ||
+    !Object.prototype.hasOwnProperty.call(body, "connected") || typeof body.connected !== "boolean"
+  ) {
+    throw new Error(SHAPE_ERROR);
+  }
+  return body.connected;
+}
+
+export async function disconnectKroger(): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch("/api/grocery/kroger/connection", { method: "DELETE" });
+  } catch (error) {
+    throw new Error(HTTP_ERROR, { cause: error });
+  }
+  if (response.status !== 204) {
+    throw new Error(HTTP_ERROR);
+  }
 }
 
 // The ZIP goes only in the POST body, never in a URL.

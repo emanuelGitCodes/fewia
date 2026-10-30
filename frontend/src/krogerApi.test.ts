@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HTTP_ERROR, SHAPE_ERROR } from "./apiTypes";
-import { findKrogerStores } from "./krogerApi";
+import { disconnectKroger, findKrogerStores, readKrogerConnection } from "./krogerApi";
 
 const store = {
   location_id: "01400943",
@@ -19,6 +19,44 @@ function reply(body: unknown, ok = true): void {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("readKrogerConnection", () => {
+  it("returns the boolean", async () => {
+    reply({ connected: true });
+    expect(await readKrogerConnection()).toBe(true);
+    reply({ connected: false });
+    expect(await readKrogerConnection()).toBe(false);
+  });
+
+  it("throws SHAPE_ERROR for a malformed body", async () => {
+    for (const body of [null, {}, { connected: "yes" }, { connected: true, extra: 1 }]) {
+      reply(body);
+      await expect(readKrogerConnection()).rejects.toThrow(SHAPE_ERROR);
+    }
+  });
+
+  it("throws HTTP_ERROR on a 503", async () => {
+    reply({}, false);
+    await expect(readKrogerConnection()).rejects.toThrow(HTTP_ERROR);
+  });
+});
+
+describe("disconnectKroger", () => {
+  it("sends DELETE and accepts 204", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 204 }) as Response));
+    await disconnectKroger();
+    const [path, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(path).toBe("/api/grocery/kroger/connection");
+    expect(init?.method).toBe("DELETE");
+  });
+
+  it("throws HTTP_ERROR on any other status or a network failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200 }) as Response));
+    await expect(disconnectKroger()).rejects.toThrow(HTTP_ERROR);
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("down"); }));
+    await expect(disconnectKroger()).rejects.toThrow(HTTP_ERROR);
+  });
 });
 
 describe("findKrogerStores", () => {
