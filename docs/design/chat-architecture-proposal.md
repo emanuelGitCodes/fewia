@@ -51,9 +51,9 @@ behind the server and is never a tool.
 | D3. Which model runs the chat | Nova 2 Lite for phases 1 to 3. A measured bake-off against Nova 2 Pro and Claude Haiku on Bedrock in phase 5. |
 | D4. Streaming or polling | Keep the SQS job and polling. Add stage text to the poll. Decide on token streaming after the phase 5 latency measurement. |
 | D5. Evaluation records with model prose | Store propositions, validator verdicts, the tool trace, and a hash of the reply. Keep the reply text out of the evidence record. |
-| D6. Live price source | Kroger Products, confirmed by registration. The owner reads the Acceptable Use Policy before phase 2b. Remove Spoonacular. |
+| D6. Live price source | Kroger Products, confirmed by registration. The Kroger API Terms of Service (section 5e) allow a cache only as long as the response cache header allows. Section 6.7 holds the phase 2b plan. Remove Spoonacular. |
 | D7. Budget figure | Keep sample-catalog cents for acceptance (decision 0016). Show the Kroger price beside it. Revisit after one evaluation batch. |
-| D9. Store location | The user enters a ZIP. The server maps it to a Kroger `location_id`. The model never sees the ZIP. |
+| D9. Store location | The user enters a ZIP. The server returns nearby Kroger stores, and the browser keeps the chosen `location_id`. The server stores neither. The model never sees the ZIP. |
 | D12. Instacart removal | Remove the Instacart adapter and routes after the Kroger cart ships. This amends decision 0010. |
 | D10, D11. Certification to Production, redirect URI | The owner records Certification behavior and the Production steps from the portal, and registers the callback URI before the cart phase. |
 
@@ -658,11 +658,13 @@ handoff hosts today.
   token, a secret, or the ZIP code. The model receives `location_id`
   only.
 
-**Cache and freshness.** `ingredient_source_cache(source, external_id,
-kind, payload_json, retrieved_at, expires_at)`: Kroger quotes for 24 hours,
-keyed by `upc` and `location_id`; the ZIP to `location_id` mapping without
-expiry; USDA rows permanent. Spoonacular's memory cache goes away with the
-adapter.
+**Cache and freshness.** Section 6.7 replaces the 24-hour cache. The
+Kroger API Terms of Service (section 5e) forbid permanent copies of API
+content and allow a cached copy only as long as the response cache header
+allows. Kroger Certification sends no `Cache-Control` header on the token,
+Locations, or Products responses. FEWIA therefore caches only the app token
+in process memory. A quote is fetched when a reply is read, and nothing
+Kroger returns is written to the database. USDA rows stay permanent.
 
 **Timeouts, limits, and fallbacks.** Tool-time calls use 3 seconds to
 connect and 5 seconds to read, one attempt, no retry, inside a 10 second
@@ -751,9 +753,9 @@ retry choice, never replay blindly.
 
 Owner decisions for this layer:
 
-- **D6. Price source: Kroger.** Confirmed by registration. The owner reads
-  the Kroger Acceptable Use Policy before PR 2b.1 and confirms that
-  displaying and caching prices for 24 hours is allowed.
+- **D6. Price source: Kroger.** Confirmed by registration. The Kroger API
+  Terms of Service (section 5e) allow a cache only as long as the response
+  cache header allows. Section 6.7 holds the phase 2b plan.
 - **D7. Budget figure.** Keep sample cents for acceptance through phase
   2b. Show the Kroger price beside it. Decide after one evaluation batch
   whether a `store_live` total replaces the sample (amends decision 0016).
@@ -761,7 +763,9 @@ Owner decisions for this layer:
   by `FEWIA_KROGER_SECRET_FILE`, creates a Fernet key file for customer
   tokens, and keeps the USDA key file optional.
 - **D9. Store location.** The user enters a ZIP in the plan panel. The
-  server maps it to `location_id`. The model never sees the ZIP.
+  server returns nearby stores. The browser keeps the chosen
+  `location_id` and sends it when it reads a reply. The server stores
+  neither the ZIP nor the `location_id`. The model never sees the ZIP.
 - **D10. Certification to Production.** The owner records what
   Certification returns for a real `locationId`, the token `expires_in`,
   and the Production approval steps from the portal, then decides when to
@@ -789,6 +793,33 @@ Production; a fuzzy product match can pick the wrong product, so the reply
 names the label and the UI shows it; a cart add can be uncertain on
 timeout; customer tokens are a new secret at rest; each live call adds one
 to five seconds inside the turn.
+
+### 6.7 Phase 2b after the terms review
+
+This section replaces the 2b rows in section 6.6, the `get_price_quote`
+tool in section 6.4, and the cache row in step 3 of section 6.5. The
+Kroger API Terms of Service (section 5e) allow a cached copy of API
+content only as long as the response cache header allows. Kroger
+Certification sends no `Cache-Control` header. So FEWIA writes no Kroger
+content to the database and uses no `ingredient_source_cache` rows for
+Kroger.
+
+The design reuses the read-time overlay that Spoonacular uses today
+(`attach_supermarket_estimate` in `backend/app/api/chat.py`). The worker
+stores the validated reply. When the browser reads a finished chat job, the
+API attaches a Kroger quote to the response and does not store it.
+
+| Item | Content |
+|---|---|
+| kroger-01 | `KrogerClient`: app token in memory, Locations by ZIP, Products by term, budgets, cool-down, smoke command. Done. |
+| kroger-02 | A thread lock in `KrogerClient`; a process-wide client dependency; `POST /grocery/kroger/stores` with the ZIP in the request body, never in the URL. |
+| kroger-03 | `attach_kroger_quote` on chat job reads. It runs only when the browser sends a `location_id` and the reply lacks a sample price. It makes one Products call at most per read. It adds a structured `kroger_quote`, or `kroger_degraded` when Kroger does not answer. It never changes the reply text or the budget totals (D7). |
+| kroger-04 | Frontend: ZIP entry, store choice, the chosen store kept in the browser, and the `store_live` sentence beside the sample price. |
+| kroger-05 | Remove Spoonacular, as row 2b.5 in section 6.6 lists. |
+
+The model gets no Kroger tool in phase 2b. A model tool for quotes, UPC
+pinning, and a stored quote wait until Kroger sends a cache header that
+allows them.
 
 ## 7. Safety and honesty rules
 
