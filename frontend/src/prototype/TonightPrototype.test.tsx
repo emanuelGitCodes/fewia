@@ -155,7 +155,34 @@ function clearMealPantry(): void {
   }
 }
 
+const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+
+function memoryStorage(): Storage {
+  const data = new Map<string, string>();
+  return {
+    get length() {
+      return data.size;
+    },
+    clear: () => {
+      data.clear();
+    },
+    getItem: (key: string) => data.get(key) ?? null,
+    key: (index: number) => [...data.keys()][index] ?? null,
+    removeItem: (key: string) => {
+      data.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      data.set(key, String(value));
+    },
+  };
+}
+
 beforeEach(() => {
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    writable: true,
+    value: memoryStorage(),
+  });
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   jobState.job = null;
   jobState.submit = vi.fn(async (_body: ChatJobCreate) => undefined);
@@ -174,6 +201,11 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  if (originalLocalStorage === undefined) {
+    Reflect.deleteProperty(window, "localStorage");
+  } else {
+    Object.defineProperty(window, "localStorage", originalLocalStorage);
+  }
 });
 
 describe("TonightPrototype", () => {

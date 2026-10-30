@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KROGER_STORE_KEY, useKrogerStore } from "./useKrogerStore";
 
 const option = {
@@ -11,14 +11,43 @@ const option = {
   state: "OH",
 };
 
+const originalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+
+function memoryStorage(): Storage {
+  const data = new Map<string, string>();
+  return {
+    get length() {
+      return data.size;
+    },
+    clear: () => {
+      data.clear();
+    },
+    getItem: (key: string) => data.get(key) ?? null,
+    key: (index: number) => [...data.keys()][index] ?? null,
+    removeItem: (key: string) => {
+      data.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      data.set(key, String(value));
+    },
+  };
+}
+
+function setStorage(value: unknown): void {
+  Object.defineProperty(window, "localStorage", { configurable: true, writable: true, value });
+}
+
 beforeEach(() => {
-  window.localStorage.clear();
+  setStorage(memoryStorage());
 });
 
 afterEach(() => {
   cleanup();
-  vi.restoreAllMocks();
-  window.localStorage.clear();
+  if (originalStorage === undefined) {
+    Reflect.deleteProperty(window, "localStorage");
+  } else {
+    Object.defineProperty(window, "localStorage", originalStorage);
+  }
 });
 
 describe("useKrogerStore", () => {
@@ -64,16 +93,25 @@ describe("useKrogerStore", () => {
     }
   });
 
-  it("works without storage", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("denied");
+  it("works when localStorage is undefined", () => {
+    setStorage(undefined);
+    const view = renderHook(() => useKrogerStore());
+    expect(view.result.current.store).toBeNull();
+    act(() => {
+      view.result.current.choose(option);
     });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("denied");
+    expect(view.result.current.store?.name).toBe("Main Street");
+    act(() => {
+      view.result.current.clear();
     });
-    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+    expect(view.result.current.store).toBeNull();
+  });
+
+  it("works when localStorage throws", () => {
+    const denied = (): never => {
       throw new Error("denied");
-    });
+    };
+    setStorage({ getItem: denied, setItem: denied, removeItem: denied });
     const view = renderHook(() => useKrogerStore());
     expect(view.result.current.store).toBeNull();
     act(() => {

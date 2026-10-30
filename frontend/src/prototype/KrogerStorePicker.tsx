@@ -153,7 +153,7 @@ export function KrogerStorePicker(props: {
           ) : null}
         </form>
       ) : null}
-      <p className="tonight-ask-hint" role="status" aria-live="polite">
+      <p className="tonight-ask-hint" aria-live="polite">
         {status}
       </p>
     </div>

@@ -36,14 +36,48 @@ async function search(zip = "45202"): Promise<void> {
   });
 }
 
+const originalStorage = {
+  localStorage: Object.getOwnPropertyDescriptor(window, "localStorage"),
+  sessionStorage: Object.getOwnPropertyDescriptor(window, "sessionStorage"),
+};
+
+function memoryStorage(): Storage {
+  const data = new Map<string, string>();
+  return {
+    get length() {
+      return data.size;
+    },
+    clear: () => {
+      data.clear();
+    },
+    getItem: (key: string) => data.get(key) ?? null,
+    key: (index: number) => [...data.keys()][index] ?? null,
+    removeItem: (key: string) => {
+      data.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      data.set(key, String(value));
+    },
+  };
+}
+
 beforeEach(() => {
-  window.localStorage.clear();
+  for (const name of ["localStorage", "sessionStorage"] as const) {
+    Object.defineProperty(window, name, { configurable: true, writable: true, value: memoryStorage() });
+  }
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  window.localStorage.clear();
+  for (const name of ["localStorage", "sessionStorage"] as const) {
+    const original = originalStorage[name];
+    if (original === undefined) {
+      Reflect.deleteProperty(window, name);
+    } else {
+      Object.defineProperty(window, name, original);
+    }
+  }
 });
 
 describe("KrogerStorePicker", () => {
@@ -84,24 +118,23 @@ describe("KrogerStorePicker", () => {
 
   it("shows the empty and error texts in a polite status region", async () => {
     reply({ stores: [] });
-    render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
+    const { container } = render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
     await search();
-    const region = screen.getByRole("status");
-    expect(region.getAttribute("aria-live")).toBe("polite");
-    expect(region.textContent).toBe(KROGER_NO_STORES_LINE);
+    const region = container.querySelector('[aria-live="polite"]');
+    expect(region?.textContent).toBe(KROGER_NO_STORES_LINE);
     reply({ stores: "bad" });
     fireEvent.change(zipInput(), { target: { value: "45202" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Find stores" }));
     });
-    expect(screen.queryByRole("status")?.textContent).toBe(KROGER_UNAVAILABLE_LINE);
+    expect(region?.textContent).toBe(KROGER_UNAVAILABLE_LINE);
   });
 
   it("shows a fixed error without the ZIP when the request fails", async () => {
     reply({ detail: "ZIP 45202 failed" }, false);
     const { container } = render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
     await search();
-    expect(screen.getByRole("status").textContent).toBe(KROGER_UNAVAILABLE_LINE);
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe(KROGER_UNAVAILABLE_LINE);
     expect(container.textContent).not.toContain("45202");
   });
 
