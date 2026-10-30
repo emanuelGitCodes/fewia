@@ -41,6 +41,17 @@ describe("KrogerQuoteLine", () => {
     expect(text).toMatch(/: Long grain rice, regular \$2\.49\. Availability/);
   });
 
+  it("writes a store name that already starts with Kroger alone", () => {
+    render(
+      <KrogerQuoteLine
+        quote={quote}
+        degraded={false}
+        store={{ locationId: "01400943", name: "Kroger - Kroger On the Rhine" }}
+      />,
+    );
+    expect(screen.getByText(/^Live price from Kroger - Kroger On the Rhine as of /)).toBeTruthy();
+  });
+
   it("shows the fixed sentence when degraded and nothing otherwise", () => {
     const { container, rerender } = render(<KrogerQuoteLine quote={null} degraded store={store} />);
     expect(screen.getByText(KROGER_DEGRADED_LINE)).toBeTruthy();

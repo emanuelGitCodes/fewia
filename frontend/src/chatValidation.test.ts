@@ -122,7 +122,8 @@ describe("parseChatResult Kroger overlay", () => {
     for (const overrides of bad) {
       expectShapeError(candidate({ kroger_quote: krogerQuote(overrides) }));
     }
-    const { brand: _brand, ...missing } = krogerQuote();
+    const missing: Record<string, unknown> = { ...krogerQuote() };
+    delete missing.brand;
     expectShapeError(candidate({ kroger_quote: missing }));
     expectShapeError(candidate({ kroger_quote: "rice" }));
     expectShapeError(candidate({ kroger_degraded: false }));

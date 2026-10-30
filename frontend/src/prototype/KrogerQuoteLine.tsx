@@ -23,7 +23,12 @@ export function krogerQuoteSentence(quote: KrogerQuote, store: KrogerStore | nul
   if (quote.stock_level !== null && quote.stock_level.length > 0) {
     parts.push(`stock ${quote.stock_level.toLowerCase().replace(/_/g, " ")}`);
   }
-  const name = store === null ? "Kroger" : `Kroger ${store.name}`;
+  const name =
+    store === null
+      ? "Kroger"
+      : /^kroger/i.test(store.name)
+        ? store.name
+        : `Kroger ${store.name}`;
   return (
     `Live price from ${name} as of ${localTime(quote.retrieved_at)}: ${parts.join(", ")}. ` +
     "Availability and the final price are not verified."
