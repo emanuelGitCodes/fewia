@@ -814,8 +814,9 @@ API attaches a Kroger quote to the response and does not store it.
 | kroger-01 | `KrogerClient`: app token in memory, Locations by ZIP, Products by term, budgets, cool-down, smoke command. Done. |
 | kroger-02 | A thread lock in `KrogerClient`; a process-wide client dependency; `POST /grocery/kroger/stores` with the ZIP in the request body, never in the URL. |
 | kroger-03 | `attach_kroger_quote` on chat job reads. It runs only when the browser sends a `location_id` and the reply lacks a sample price. It makes one Products call at most per read. It adds a structured `kroger_quote`, or `kroger_degraded` when Kroger does not answer. It never changes the reply text or the budget totals (D7). |
-| kroger-04 | Frontend: ZIP entry, store choice, the chosen store kept in the browser, and the `store_live` sentence beside the sample price. |
-| kroger-05 | Remove Spoonacular, as row 2b.5 in section 6.6 lists. |
+| kroger-04 | Frontend data path: send the chosen `location_id` on each chat job read, validate `kroger_quote` and `kroger_degraded`, and show the `store_live` sentence under the reply. The browser does not store the quote. |
+| kroger-05 | Frontend store choice: ZIP entry, the store list, and the chosen store's `location_id` and name kept in the browser. |
+| kroger-06 | Remove Spoonacular, as row 2b.5 in section 6.6 lists. |
 
 The model gets no Kroger tool in phase 2b. A model tool for quotes, UPC
 pinning, and a stored quote wait until Kroger sends a cache header that
