@@ -7,10 +7,10 @@ import * as api from "../proposalApi";
 import {
   ACTION_ERROR_LINE,
   APPLIED_LINE,
-  CONFLICT_LINE,
   DISCARDED_LINE,
   LOAD_ERROR_LINE,
   ProposalCard,
+  UNCONFIRMED_LINE,
   describeChange,
 } from "./ProposalCard";
 import { addMeal, initialPlanState, togglePlanPantry, type PlanState } from "./planModel";
@@ -52,6 +52,8 @@ const other = RECIPE_ORDER.find((id) => id !== first.recipeId) ?? "";
 beforeEach(() => {
   vi.spyOn(Storage.prototype, "setItem");
   vi.spyOn(Storage.prototype, "getItem");
+  vi.spyOn(Storage.prototype, "removeItem");
+  vi.spyOn(Storage.prototype, "clear");
 });
 
 afterEach(() => {
@@ -119,22 +121,74 @@ describe("ProposalCard", () => {
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
   });
 
-  it("shows the conflict line and leaves the plan alone on ProposalConflict", async () => {
-    vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
+  it("treats a lost response as applied when the refetch says applied", async () => {
+    vi.mocked(api.fetchProposal)
+      .mockResolvedValueOnce(proposal(changed))
+      .mockResolvedValueOnce(proposal(changed, "applied"));
+    vi.mocked(api.applyProposal).mockRejectedValue(new Error("network"));
+    render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText(APPLIED_LINE);
+    expect(onApplied).toHaveBeenCalledWith(changed);
+  });
+
+  it("treats a 409 on an already-applied proposal as applied", async () => {
+    vi.mocked(api.fetchProposal)
+      .mockResolvedValueOnce(proposal(changed))
+      .mockResolvedValueOnce(proposal(changed, "applied"));
     vi.mocked(api.applyProposal).mockRejectedValue(new ProposalConflict());
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
-    await screen.findByText(CONFLICT_LINE);
-    expect(onApplied).not.toHaveBeenCalled();
+    await screen.findByText(APPLIED_LINE);
+    expect(onApplied).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a save error for other apply failures", async () => {
+  it("offers a retry when the refetch says pending", async () => {
     vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
     vi.mocked(api.applyProposal).mockRejectedValue(new Error("x"));
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
     await screen.findByText(ACTION_ERROR_LINE);
-    expect(screen.getByRole("button", { name: "Apply" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(onApplied).not.toHaveBeenCalled();
+  });
+
+  it("says it cannot confirm when the refetch fails or says discarded", async () => {
+    vi.mocked(api.fetchProposal)
+      .mockResolvedValueOnce(proposal(changed))
+      .mockRejectedValueOnce(new Error("down"));
+    vi.mocked(api.applyProposal).mockRejectedValue(new ProposalConflict());
+    const { unmount } = render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText(UNCONFIRMED_LINE);
+    expect(screen.queryByRole("button")).toBeNull();
+    unmount();
+    vi.mocked(api.fetchProposal)
+      .mockResolvedValueOnce(proposal(changed))
+      .mockResolvedValueOnce(proposal(changed, "discarded"));
+    render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText(UNCONFIRMED_LINE);
+    expect(onApplied).not.toHaveBeenCalled();
+  });
+
+  it("does not abort an in-flight Apply on unmount and ignores its result", async () => {
+    let seen: AbortSignal | undefined;
+    let finish: (id: string) => void = () => undefined;
+    vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
+    vi.mocked(api.applyProposal).mockImplementation((_id, signal) => {
+      seen = signal;
+      return new Promise<string>((resolve) => {
+        finish = resolve;
+      });
+    });
+    const { unmount } = render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    unmount();
+    expect(seen?.aborted).toBe(false);
+    finish(REVISION);
+    await Promise.resolve();
+    expect(onApplied).not.toHaveBeenCalled();
   });
 
   it("Discard says Discarded and does not change the plan", async () => {
@@ -187,6 +241,8 @@ describe("ProposalCard", () => {
     await screen.findByText(APPLIED_LINE);
     expect(Storage.prototype.setItem).not.toHaveBeenCalled();
     expect(Storage.prototype.getItem).not.toHaveBeenCalled();
+    expect(Storage.prototype.removeItem).not.toHaveBeenCalled();
+    expect(Storage.prototype.clear).not.toHaveBeenCalled();
   });
 
   it("uses the current plan for the diff", async () => {

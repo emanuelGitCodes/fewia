@@ -272,7 +272,11 @@ export function withSnapshot(state: PlanState, snapshot: ProposalPreview): PlanS
   const next = { ...state, meals, pantry: [...snapshot.pantry_ingredient_ids], servingsError: null };
   const kept = { ...next, checked: retainChecks(planLines(state), planLines(next), state.checked) };
   const cap = snapshot.plan_cap_cents;
-  return cap === null ? kept : withBudgetInput(kept, (cap / 100).toFixed(2));
+  if (cap === null) {
+    return kept;
+  }
+  const cents = String(cap % 100).padStart(2, "0");
+  return withBudgetInput(kept, `${String(Math.trunc(cap / 100))}.${cents}`);
 }
 
 export function withPlanBudgetInput(state: PlanState, input: string): PlanState {

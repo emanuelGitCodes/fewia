@@ -13,7 +13,7 @@ import { copyMealPlanNutrition, isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage, KrogerQuote } from "./chatTypes";
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const HEX64 =/^[0-9a-f]{64}$/;
+const HEX64 = /^[0-9a-f]{64}$/;
 const LOCATION_ID = /^[0-9A-Za-z]{8}$/;
 const RETRIEVED_AT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 const QUOTE_KEYS = [

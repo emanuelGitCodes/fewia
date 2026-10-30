@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
 import { formatDollars } from "../money";
 import {
-  ProposalConflict,
   applyProposal,
   discardProposal,
   fetchProposal,
@@ -14,10 +13,11 @@ import { INGREDIENTS, RECIPES } from "./prototypeData";
 
 export const APPLIED_LINE = "Applied to your plan.";
 export const DISCARDED_LINE = "Discarded.";
-export const CONFLICT_LINE = "This change no longer fits your plan.";
 export const LOADING_LINE = "Loading the proposed change.";
 export const LOAD_ERROR_LINE = "The proposed change could not be loaded.";
-export const ACTION_ERROR_LINE = "FEWIA could not save that. Your plan did not change.";
+export const ACTION_ERROR_LINE = "FEWIA could not save that. Try again.";
+export const DISCARD_ERROR_LINE = "FEWIA could not discard that. Try again.";
+export const UNCONFIRMED_LINE = "FEWIA could not confirm the change. Refresh the page to see your plan.";
 export const NO_CHANGE_LINE = "No changes to your plan.";
 
 function servingsText(servings: number): string {
@@ -59,7 +59,7 @@ export function describeChange(state: PlanState, preview: ProposalPreview): stri
   return lines;
 }
 
-type Phase = "loading" | "error" | ProposalStatus;
+type Phase = "loading" | "error" | "unconfirmed" | ProposalStatus;
 
 export function ProposalCard(props: {
   proposalId: string;
@@ -72,6 +72,14 @@ export function ProposalCard(props: {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -93,40 +101,58 @@ export function ProposalCard(props: {
     };
   }, [proposalId]);
 
-  const run = (act: () => Promise<void>): void => {
+  // Apply is never aborted: once sent, the server may apply it even if this card unmounts.
+  const apply = async (): Promise<void> => {
+    if (busy || preview === null) {
+      return;
+    }
+    const snapshot = preview;
+    const signal = new AbortController().signal;
+    setBusy(true);
+    setNote("");
+    let outcome: ProposalStatus | "unknown" = "unknown";
+    try {
+      await applyProposal(proposalId, signal);
+      outcome = "applied";
+    } catch {
+      try {
+        outcome = (await fetchProposal(proposalId, signal)).status;
+      } catch {
+        outcome = "unknown";
+      }
+    }
+    if (!mounted.current) {
+      return;
+    }
+    setBusy(false);
+    if (outcome === "applied") {
+      onApplied(snapshot);
+      setPhase("applied");
+    } else if (outcome === "pending") {
+      setNote(ACTION_ERROR_LINE);
+    } else {
+      setPhase("unconfirmed");
+    }
+  };
+  const discard = (): void => {
     const signal = controller.current?.signal;
     if (busy || signal === undefined) {
       return;
     }
     setBusy(true);
     setNote("");
-    act().then(
+    discardProposal(proposalId, signal).then(
       () => {
         setBusy(false);
+        setPhase("discarded");
       },
       (error: unknown) => {
-        if (isAbortError(error)) {
-          return;
+        if (!isAbortError(error)) {
+          setBusy(false);
+          setNote(DISCARD_ERROR_LINE);
         }
-        setBusy(false);
-        setNote(error instanceof ProposalConflict ? CONFLICT_LINE : ACTION_ERROR_LINE);
       },
     );
-  };
-  const apply = (): void => {
-    run(async () => {
-      await applyProposal(proposalId, controller.current?.signal ?? new AbortController().signal);
-      if (preview !== null) {
-        onApplied(preview);
-      }
-      setPhase("applied");
-    });
-  };
-  const discard = (): void => {
-    run(async () => {
-      await discardProposal(proposalId, controller.current?.signal ?? new AbortController().signal);
-      setPhase("discarded");
-    });
   };
 
   const changes = preview === null || phase !== "pending" ? [] : describeChange(state, preview);
@@ -139,6 +165,8 @@ export function ProposalCard(props: {
     message = APPLIED_LINE;
   } else if (phase === "discarded") {
     message = DISCARDED_LINE;
+  } else if (phase === "unconfirmed") {
+    message = UNCONFIRMED_LINE;
   }
 
   return (
@@ -155,7 +183,7 @@ export function ProposalCard(props: {
             <p>{NO_CHANGE_LINE}</p>
           )}
           <div className="tonight-proposal-actions">
-            <button type="button" className="tonight-ask-send" disabled={busy} onClick={apply}>
+            <button type="button" className="tonight-ask-send" disabled={busy} onClick={() => void apply()}>
               Apply
             </button>
             <button type="button" className="tonight-ask-btn" disabled={busy} onClick={discard}>

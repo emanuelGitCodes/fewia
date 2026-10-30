@@ -12,6 +12,7 @@ const ID = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
 const BASE = "9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d";
 const recipe = RECIPE_ORDER[0];
 const pantry = INITIAL_PANTRY[0];
+const one = { recipe_id: recipe, servings: 2 };
 
 function body(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -56,7 +57,7 @@ describe("fetchProposal", () => {
     reply(200, body({
       status: "applied",
       applied_plan_revision_id: BASE,
-      preview: { meals: [], pantry_ingredient_ids: [], plan_cap_cents: null },
+      preview: { meals: [{ recipe_id: recipe, servings: 2 }], pantry_ingredient_ids: [], plan_cap_cents: null },
     }));
     const proposal = await fetchProposal(ID, signal);
     expect(proposal.preview.plan_cap_cents).toBeNull();
@@ -72,9 +73,13 @@ describe("fetchProposal", () => {
     ["inherited recipe", { preview: { meals: [{ recipe_id: "constructor", servings: 2 }], pantry_ingredient_ids: [], plan_cap_cents: null } }],
     ["servings 0", { preview: { meals: [{ recipe_id: recipe, servings: 0 }], pantry_ingredient_ids: [], plan_cap_cents: null } }],
     ["servings 9", { preview: { meals: [{ recipe_id: recipe, servings: 9 }], pantry_ingredient_ids: [], plan_cap_cents: null } }],
-    ["pantry", { preview: { meals: [], pantry_ingredient_ids: ["nope"], plan_cap_cents: null } }],
-    ["negative cap", { preview: { meals: [], pantry_ingredient_ids: [], plan_cap_cents: -1 } }],
-    ["fraction cap", { preview: { meals: [], pantry_ingredient_ids: [], plan_cap_cents: 1.5 } }],
+    ["pantry", { preview: { meals: [one], pantry_ingredient_ids: ["nope"], plan_cap_cents: null } }],
+    ["negative cap", { preview: { meals: [one], pantry_ingredient_ids: [], plan_cap_cents: -1 } }],
+    ["fraction cap", { preview: { meals: [one], pantry_ingredient_ids: [], plan_cap_cents: 1.5 } }],
+    ["no meals", { preview: { meals: [], pantry_ingredient_ids: [], plan_cap_cents: null } }],
+    ["four meals", { preview: { meals: [0, 1, 2, 3].map((i) => ({ recipe_id: RECIPE_ORDER[i], servings: 2 })), pantry_ingredient_ids: [], plan_cap_cents: null } }],
+    ["duplicate recipe", { preview: { meals: [one, one], pantry_ingredient_ids: [], plan_cap_cents: null } }],
+    ["duplicate pantry id", { preview: { meals: [one], pantry_ingredient_ids: [pantry, pantry], plan_cap_cents: null } }],
     ["missing preview", { preview: null }],
   ])("rejects a bad %s", async (_name, overrides) => {
     reply(200, body(overrides));

@@ -51,6 +51,13 @@ function parsePreview(value: unknown): ProposalPreview {
     }
     return id;
   });
+  if (
+    meals.length < 1 || meals.length > 3 ||
+    new Set(meals.map((meal) => meal.recipe_id)).size !== meals.length ||
+    new Set(pantry).size !== pantry.length
+  ) {
+    throw new Error(SHAPE_ERROR);
+  }
   if (cap !== null && (!isSafeInteger(cap) || cap < 0)) {
     throw new Error(SHAPE_ERROR);
   }
