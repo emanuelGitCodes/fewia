@@ -1,0 +1,24 @@
+x-kroger: &kroger
+  environment:
+    FEWIA_KROGER_CLIENT_ID_FILE: /run/fewia/kroger-client-id
+    FEWIA_KROGER_SECRET_FILE: /run/fewia/kroger-secret
+    FEWIA_KROGER_ENVIRONMENT: "${FEWIA_KROGER_ENVIRONMENT:-certification}"
+  volumes:
+    - type: bind
+      source: "${FEWIA_KROGER_CLIENT_ID_FILE:?FEWIA_KROGER_CLIENT_ID_FILE MUST be an absolute path}"
+      target: /run/fewia/kroger-client-id
+      read_only: true
+      bind:
+        create_host_path: false
+    - type: bind
+      source: "${FEWIA_KROGER_SECRET_FILE:?FEWIA_KROGER_SECRET_FILE MUST be an absolute path}"
+      target: /run/fewia/kroger-secret
+      read_only: true
+      bind:
+        create_host_path: false
+
+services:
+  api:
+    <<: *kroger
+  worker:
+    <<: *kroger

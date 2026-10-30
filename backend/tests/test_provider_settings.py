@@ -12,6 +12,7 @@ from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
     TokenFileResolver,
+    load_kroger_credentials,
     load_provider_settings,
     read_secret_file,
 )
@@ -51,6 +52,62 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.instacart_key_file is None
     assert settings.spoonacular_key_file is None
     assert settings.usda_fdc_key_file is None
+    assert settings.kroger_client_id_file is None
+    assert settings.kroger_secret_file is None
+    assert settings.kroger_environment == "certification"
+
+
+def test_kroger_credentials_load_and_strip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client_id = tmp_path / "kroger-id"
+    secret = tmp_path / "kroger-secret"
+    client_id.write_text(f"  {CLIENT_MARKER}\n", encoding="utf-8")
+    secret.write_text(f"{SECRET_MARKER}  \n", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_KROGER_CLIENT_ID_FILE", f" {client_id} ")
+    monkeypatch.setenv("FEWIA_KROGER_SECRET_FILE", str(secret))
+    monkeypatch.setenv("FEWIA_KROGER_ENVIRONMENT", "production")
+    settings = load_provider_settings()
+    assert settings.kroger_client_id_file == client_id
+    assert settings.kroger_environment == "production"
+    loaded_id, loaded_secret = load_kroger_credentials(settings)
+    assert loaded_id.get_secret_value() == CLIENT_MARKER
+    assert loaded_secret.get_secret_value() == SECRET_MARKER
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b"  \n", b"bad\x01id", b"a" * 65537],
+    ids=["empty", "control", "oversize"],
+)
+def test_kroger_credentials_reject_invalid_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: bytes
+) -> None:
+    good = tmp_path / "good"
+    bad = tmp_path / "bad"
+    good.write_text("ok", encoding="utf-8")
+    bad.write_bytes(content)
+    monkeypatch.setenv("FEWIA_KROGER_CLIENT_ID_FILE", str(bad))
+    monkeypatch.setenv("FEWIA_KROGER_SECRET_FILE", str(good))
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_kroger_credentials(load_provider_settings())
+    _static(exc_info.value, str(bad))
+
+
+def test_kroger_credentials_require_both_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    good = tmp_path / "good"
+    good.write_text("ok", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_KROGER_CLIENT_ID_FILE", str(good))
+    with pytest.raises(ProviderConfigurationError):
+        load_kroger_credentials(load_provider_settings())
+
+
+def test_kroger_environment_rejects_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_ENVIRONMENT", "staging")
+    with pytest.raises(ProviderConfigurationError):
+        load_provider_settings()
 
 
 def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

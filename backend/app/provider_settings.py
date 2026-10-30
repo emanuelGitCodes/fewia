@@ -41,6 +41,9 @@ class GroceryProviderSettings(BaseSettings):
     instacart_key_file: Path | None = None
     spoonacular_key_file: Path | None = None
     usda_fdc_key_file: Path | None = None
+    kroger_client_id_file: Path | None = None
+    kroger_secret_file: Path | None = None
+    kroger_environment: Literal["certification", "production"] = "certification"
 
     @field_validator("bedrock_model_id", "aws_profile", mode="before")
     @classmethod
@@ -71,6 +74,8 @@ class GroceryProviderSettings(BaseSettings):
         "instacart_key_file",
         "spoonacular_key_file",
         "usda_fdc_key_file",
+        "kroger_client_id_file",
+        "kroger_secret_file",
         mode="before",
     )
     @classmethod
@@ -120,6 +125,17 @@ def read_secret_file(path: Path) -> SecretStr:
     if not stripped or _has_control(stripped):
         _invalid()
     return SecretStr(stripped)
+
+
+def load_kroger_credentials(
+    settings: GroceryProviderSettings,
+) -> tuple[SecretStr, SecretStr]:
+    if settings.kroger_client_id_file is None or settings.kroger_secret_file is None:
+        _invalid()
+    return (
+        read_secret_file(settings.kroger_client_id_file),
+        read_secret_file(settings.kroger_secret_file),
+    )
 
 
 def _load_token_mapping(path: Path) -> dict[str, str]:
