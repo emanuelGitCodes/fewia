@@ -53,7 +53,7 @@ behind the server and is never a tool.
 | D5. Evaluation records with model prose | Store propositions, validator verdicts, the tool trace, and a hash of the reply. Keep the reply text out of the evidence record. |
 | D6. Live price source | Kroger Products, confirmed by registration. The Kroger API Terms of Service (section 5e) allow a cache only as long as the response cache header allows. Section 6.7 holds the phase 2b plan. Remove Spoonacular. |
 | D7. Budget figure | Keep sample-catalog cents for acceptance (decision 0016). Show the Kroger price beside it. Revisit after one evaluation batch. |
-| D9. Store location | The user enters a ZIP. The server returns nearby Kroger stores, and the browser keeps the chosen `location_id`. The server stores neither. The model never sees the ZIP. |
+| D9. Store location | The user enters a ZIP. The server returns nearby Kroger stores, and the browser keeps the chosen store's `location_id` and name, the user's own choice. The server stores neither. The browser stores no store list, address, or price. The model never sees the ZIP. |
 | D12. Instacart removal | Remove the Instacart adapter and routes after the Kroger cart ships. This amends decision 0010. |
 | D10, D11. Certification to Production, redirect URI | The owner records Certification behavior and the Production steps from the portal, and registers the callback URI before the cart phase. |
 
@@ -764,7 +764,8 @@ Owner decisions for this layer:
   tokens, and keeps the USDA key file optional.
 - **D9. Store location.** The user enters a ZIP in the plan panel. The
   server returns nearby stores. The browser keeps the chosen
-  `location_id` and sends it when it reads a reply. The server stores
+  store's `location_id` and name and sends the `location_id` when it
+  reads a reply. It stores no store list, address, or price. The server stores
   neither the ZIP nor the `location_id`. The model never sees the ZIP.
 - **D10. Certification to Production.** The owner records what
   Certification returns for a real `locationId`, the token `expires_in`,
