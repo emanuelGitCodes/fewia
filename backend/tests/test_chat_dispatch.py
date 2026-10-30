@@ -1532,6 +1532,27 @@ def test_budget_summary_then_planner_revision_index_skips_summary() -> None:
     assert trace[1]["evidence_revision_id"] == _REV
 
 
+def test_unknown_exclusion_dispatch_keeps_names_out_of_trace() -> None:
+    sentinel = "zzqsentinel"
+    args: dict[str, object] = {"query": "egg", "exclude": [sentinel]}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("d1", CATALOG_TOOL_NAME, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is not None
+    assert payload["status"] == "unknown_exclusion"
+    assert payload["recipe_ids"] == []
+    assert payload["unresolved_exclusions"] == [sentinel]
+    assert _tool_json(block) == payload
+    assert trace[0]["inputs"] == {
+        "status": "unknown_exclusion",
+        "recipe_ids": [],
+        "diet": "omnivore",
+        "exclude": [],
+    }
+    assert sentinel not in json.dumps(trace)
+
+
 @pytest.mark.parametrize("invalid", [False, True])
 def test_discovery_dispatch_has_bounded_result_and_no_evidence(invalid: bool) -> None:
     args: dict[str, object] = {

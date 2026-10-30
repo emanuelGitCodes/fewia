@@ -1,21 +1,22 @@
 import re
+from datetime import date
 from functools import cache
 from typing import cast
 
 from app.agent.estimate import priced_estimate
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
 from app.domain.meal_tags import (
     CARNIVORE_NOTE,
     KETO_NOTE,
     MEAL_DIETS,
     MEAL_TAGS,
-    _per_serving_grams,
     normalize_term,
     resolve_ingredient,
     resolve_meal_term,
 )
+from app.services.meal_nutrition import meal_nutrition
 
 TOOL_NAME = "search_meals"
 _DIETS = ("omnivore", "vegetarian", "vegan")
@@ -24,6 +25,7 @@ _STOPWORDS = frozenset(
     "a an the and or with for of to me some something meal meals dinner lunch "
     "breakfast recipe recipes idea ideas please want need i my".split()
 )
+_NEGATIONS = frozenset({"without", "no"})
 _KEYS = {"query", "diet", "exclude", "min_protein_g", "max_cents_per_serving", "limit"}
 DISCOVERY_ERROR = (
     "I cannot find meals from those inputs. "
@@ -63,6 +65,7 @@ def catalog_tool_spec() -> dict[str, object]:
                 "or tag. Returns up to three recipe IDs and the words that "
                 "matched nothing. max_cents_per_serving is the sample grocery "
                 "cost for one serving, in whole packages. "
+                "Put exclusions in exclude, not query. "
                 "Not for a meal the user names or has in the plan. "
                 "Ask before planning an alternative; plan_groceries validates."
             ),
@@ -110,8 +113,24 @@ def _meal_words(recipe_id: str) -> frozenset[str]:
     )
 
 
-def _units(query: str) -> list[str]:
-    words = [w for w in re.findall(r"[a-z]+", query) if w not in _STOPWORDS]
+def _parse(query: str) -> tuple[list[str], list[str]]:
+    words: list[str] = []
+    negated: list[str] = []
+    after_not = False
+    for word in re.findall(r"[a-z]+", query):
+        if word in _NEGATIONS:
+            after_not = True
+        elif word in _STOPWORDS:
+            continue
+        elif after_not:
+            negated.append(word)
+            after_not = False
+        else:
+            words.append(word)
+    return _units(words), list(dict.fromkeys(negated))
+
+
+def _units(words: list[str]) -> list[str]:
     units: list[str] = []
     i = 0
     while i < len(words):
@@ -144,8 +163,19 @@ def _matches(unit: str, recipe_id: str) -> bool:
 
 
 @cache
+def _protein_mg(recipe_id: str) -> int:
+    request = GroceryRequest(
+        meals=[MealRequest(recipe_id=recipe_id, servings=1)],
+        budget_period=date(2026, 1, 1),
+    )
+    plan = meal_nutrition(request)
+    if len(plan.meals) != 1:
+        raise ValueError(f"nutrition is unavailable for {recipe_id}")
+    return plan.meals[0].per_serving.protein_mg
+
+
 def _protein_g(recipe_id: str) -> int:
-    return round(_per_serving_grams(recipe_id)[0])
+    return (_protein_mg(recipe_id) + 500) // 1000
 
 
 @cache
@@ -195,10 +225,11 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     resolved = {name: resolve_ingredient(name) for name in names}
     unresolved = sorted(name for name, found in resolved.items() if found is None)
     excluded = {found for found in resolved.values() if found is not None}
-    units = _units(query)
+    units, negated = _parse(query)
     unmatched = [
         u for u in units if not any(_matches(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
+    unmatched = list(dict.fromkeys([*unmatched, *negated]))
     scores: dict[str, int] = {}
     for rid in () if unresolved else SUPPORTED_RECIPE_IDS:
         if diet not in ("omnivore", *MEAL_DIETS[rid]):
@@ -212,7 +243,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
             if cents is None or cents > max_cents:
                 continue
         score = sum(_matches(u, rid) for u in units)
-        if score or not units:
+        if score:
             scores[rid] = score
 
     def rank(rid: str) -> tuple[int, int]:
@@ -225,7 +256,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         "request": {
             "query": query,
             "diet": diet,
-            "exclude": sorted({*excluded, *unresolved}),
+            "exclude": sorted(excluded),
             "min_protein_g": min_protein,
             "max_cents_per_serving": max_cents,
             "limit": limit,
@@ -237,8 +268,17 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
 
 
 def catalog_answer(payload: dict[str, object]) -> str:
+    request = payload.get("request")
+    unresolved = payload.get("unresolved_exclusions")
+    if (
+        payload.get("status") == "unknown_exclusion"
+        and isinstance(request, dict)
+        and isinstance(request.get("exclude"), list)
+        and isinstance(unresolved, list)
+    ):
+        request = {**request, "exclude": [*request["exclude"], *unresolved]}
     try:
-        validated = execute_catalog_search(payload.get("request"))
+        validated = execute_catalog_search(request)
     except CatalogToolError:
         return DISCOVERY_ERROR
     if payload != validated:
@@ -248,14 +288,15 @@ def catalog_answer(payload: dict[str, object]) -> str:
     if validated["status"] == "no_match":
         return _NO_MATCH
     request = cast(dict[str, object], validated["request"])
-    targets = {_target(u) for u in _units(cast(str, request["query"]))}
+    chosen = cast(list[str], validated["recipe_ids"])
+    targets = {_target(u) for u in _parse(cast(str, request["query"]))[0]}
     notes = []
-    if "lower_carb" in targets:
+    if "lower_carb" in targets and all("lower_carb" in MEAL_TAGS[r] for r in chosen):
         notes.append(KETO_NOTE)
-    if "chicken" in targets:
+    if "chicken" in targets and all("chicken" in MEAL_TAGS[r] for r in chosen):
         notes.append(CARNIVORE_NOTE)
     names = []
-    for rid in cast(list[str], validated["recipe_ids"]):
+    for rid in chosen:
         name = rid.replace("_", " ")
         names.append(name[0].upper() + name[1:])
     lead = f"Catalog choices: {', '.join(names)}. Which one should I plan?"

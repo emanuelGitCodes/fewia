@@ -1,8 +1,10 @@
 import json
+from datetime import date
 from typing import cast
 
 import pytest
 
+from app.agent import catalog_tool
 from app.agent.catalog_tool import (
     DISCOVERY_ERROR,
     TOOL_NAME,
@@ -14,16 +16,22 @@ from app.agent.catalog_tool import (
 from app.agent.estimate import priced_estimate
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
-from app.domain.meal_tags import (
-    CARNIVORE_NOTE,
-    KETO_NOTE,
-    MEAL_DIETS,
-    MEAL_TAGS,
-    _per_serving_grams,
-)
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
+from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE, MEAL_DIETS, MEAL_TAGS
+from app.services.meal_nutrition import meal_nutrition
 
 SENTINEL = "zqxsentinel"
+
+
+def protein_mg(rid: str) -> int:
+    request = GroceryRequest(
+        meals=[MealRequest(recipe_id=rid, servings=1)], budget_period=date(2026, 1, 1)
+    )
+    return meal_nutrition(request).meals[0].per_serving.protein_mg
+
+
+def protein_g(rid: str) -> int:
+    return (protein_mg(rid) + 500) // 1000
 
 
 def search(query: str, **changes: object) -> dict[str, object]:
@@ -82,7 +90,11 @@ def test_ingredient_word_finds_meals() -> None:
 def test_meal_name_word_finds_meals() -> None:
     payload = search("tacos")
     assert ids(payload)
-    assert all("taco" in rid for rid in ids(payload)[:1])
+    assert "taco" in ids(payload)[0]
+    for rid in ids(payload):
+        items = RECIPES[rid].ingredients
+        names = [rid, *(INGREDIENTS[item].name.lower() for item, _ in items)]
+        assert any("taco" in name for name in names)
 
 
 def test_high_protein_uses_the_tag() -> None:
@@ -125,6 +137,7 @@ def test_unknown_word_is_listed_but_known_word_still_matches() -> None:
     assert payload["status"] == "ok"
     assert payload["unmatched"] == ["cheap", "xyzzy"]
     assert ids(payload)
+    assert all(has(rid, "chickpeas") for rid in ids(payload))
 
 
 def test_score_orders_meals() -> None:
@@ -133,8 +146,41 @@ def test_score_orders_meals() -> None:
     assert has(first, "chickpeas") and has(first, "eggs")
 
 
-def test_stopword_only_query_returns_catalog_order() -> None:
-    assert ids(search("a meal for me")) == list(SUPPORTED_RECIPE_IDS)[:3]
+@pytest.mark.parametrize("query", ["a meal for me", "something", "123"])
+def test_query_without_search_words_is_no_match(query: str) -> None:
+    payload = search(query)
+    assert payload["status"] == "no_match"
+    assert ids(payload) == []
+
+
+def test_word_after_without_or_no_is_not_a_search_word() -> None:
+    plain = search("tacos")
+    for query in ("tacos without chicken", "tacos with no chicken"):
+        payload = search(query)
+        assert ids(payload) == ids(plain)
+        assert payload["unmatched"] == ["chicken"]
+    assert search("without chicken")["status"] == "no_match"
+
+
+@pytest.mark.parametrize(
+    ("query", "tag", "note"),
+    [
+        ("keto pasta", "lower_carb", KETO_NOTE),
+        ("chicken lentils", "chicken", CARNIVORE_NOTE),
+    ],
+)
+def test_note_needs_every_returned_meal_to_have_the_tag(
+    query: str, tag: str, note: str
+) -> None:
+    payload = search(query)
+    assert any(tag not in MEAL_TAGS[rid] for rid in ids(payload))
+    assert note not in catalog_answer(payload)
+
+
+def test_note_shows_when_every_returned_meal_has_the_tag() -> None:
+    payload = search("chicken", limit=1)
+    assert "chicken" in MEAL_TAGS[ids(payload)[0]]
+    assert CARNIVORE_NOTE in catalog_answer(payload)
 
 
 @pytest.mark.parametrize("diet", ["vegetarian", "vegan"])
@@ -163,6 +209,9 @@ def test_unknown_exclusion_returns_no_meals() -> None:
     assert payload["status"] == "unknown_exclusion"
     assert ids(payload) == []
     assert payload["unresolved_exclusions"] == ["nightshades"]
+    request = cast(dict[str, object], payload["request"])
+    assert request["exclude"] == ["eggs"]
+    assert "nightshades" not in json.dumps(request)
     assert "I could not match an ingredient to exclude" in catalog_answer(payload)
     assert "nightshades" not in catalog_answer(payload)
 
@@ -173,12 +222,22 @@ def test_min_protein_filters_on_computed_value() -> None:
             "rice chicken egg bean chickpea", min_protein_g=threshold, limit=3
         )
         for rid in ids(payload):
-            assert round(_per_serving_grams(rid)[0]) >= threshold
-    grams = [
-        round(_per_serving_grams(r)[0]) for r in ids(search("egg", min_protein_g=1))
-    ]
+            assert protein_g(rid) >= threshold
+    grams = [protein_g(r) for r in ids(search("egg", min_protein_g=1))]
     assert grams == sorted(grams, reverse=True)
     assert search("egg", min_protein_g=200)["status"] == "no_match"
+
+
+def test_protein_rounds_half_up_at_the_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rid = ids(search("egg"))[0]
+    values = {rid: 29_460}
+    monkeypatch.setattr(catalog_tool, "_protein_mg", lambda r: values.get(r, 0))
+    assert rid in ids(search("egg", min_protein_g=29))
+    assert rid not in ids(search("egg", min_protein_g=30, limit=3))
+    values[rid] = 29_500
+    assert rid in ids(search("egg", min_protein_g=30, limit=3))
 
 
 def test_max_cents_filters_on_sample_price() -> None:

@@ -3221,7 +3221,7 @@ def test_mixed_discovery_precedence_is_order_independent(
             ingredient_exclusions=["onion"],
         )
     calls = {
-        "discovery": _discovery_block(terms=["nightshades"])
+        "discovery": _discovery_block(query="")
         if mode == "discovery_error"
         else _discovery_block(),
         "plan": _tool_block("p1", payload=args),
@@ -3362,7 +3362,7 @@ def test_discovery_mixed_failure_preserves_each_outcome(
 ) -> None:
     discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     if failure == "discovery":
-        calls = [_discovery_block(terms=["nightshades"]), _budget_block("s1")]
+        calls = [_discovery_block(query=""), _budget_block("s1")]
         expected = (
             DISCOVERY_ERROR
             + " "
@@ -3416,7 +3416,7 @@ def test_discovery_mixed_failure_preserves_each_outcome(
 def test_discovery_failure_can_be_corrected_without_planner_revision() -> None:
     result, provider = _run(
         [
-            _reply([_discovery_block("bad", terms=["nightshades"])], "tool_use"),
+            _reply([_discovery_block("bad", query="")], "tool_use"),
             _reply([_discovery_block("good")], "tool_use"),
         ]
     )
@@ -3483,7 +3483,7 @@ def test_later_batch_without_discovery_restores_generic_failure() -> None:
 def test_summary_after_discovery_error_takes_final_turn() -> None:
     result, provider = _run(
         [
-            _reply([_discovery_block(terms=[])], "tool_use"),
+            _reply([_discovery_block(query="")], "tool_use"),
             _reply([_budget_block("s1")], "tool_use"),
             _reply([_text_block("done")], "end_turn"),
         ]
@@ -3496,6 +3496,27 @@ def test_summary_after_discovery_error_takes_final_turn() -> None:
     assert result["planner_revisions"] == 0
     assert result["plan"] is result["evidence_id"] is None
     _assert_public(result)
+
+
+def test_unknown_exclusion_discovery_gets_static_answer_and_no_trace_names() -> None:
+    result, provider = _run(
+        [_reply([_discovery_block(exclude=["zzqsentinel"])], "tool_use")]
+    )
+    discovery = execute_catalog_search(
+        {"query": "egg", "diet": "vegetarian", "exclude": ["zzqsentinel"]}
+    )
+    assert discovery["status"] == "unknown_exclusion"
+    assert result["answer"] == catalog_answer(discovery)
+    assert result["answer"] != DISCOVERY_ERROR
+    assert result["plan"] is None
+    assert result["tool_trace"][0]["inputs"] == {
+        "status": "unknown_exclusion",
+        "recipe_ids": [],
+        "diet": "vegetarian",
+        "exclude": [],
+    }
+    assert "zzqsentinel" not in json.dumps(result["tool_trace"])
+    assert "zzqsentinel" not in result["answer"]
 
 
 def test_discovery_then_plan_stops_at_choices() -> None:
@@ -3568,7 +3589,7 @@ def test_discovery_cannot_bypass_planner_revision_cap() -> None:
 def test_provider_failure_after_discovery_error_is_static() -> None:
     provider = FakeLLM(
         [
-            _reply([_discovery_block(terms=["nightshades"])], "tool_use"),
+            _reply([_discovery_block(query="")], "tool_use"),
             RuntimeError(_SECRET),
         ]
     )
