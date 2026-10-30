@@ -27,14 +27,15 @@ _WORD = rf"\b(?:{'|'.join(_SMALL)})\b"
 _BIG = (
     r"(?:(?:thir|four|fif|six|seven|eigh|nine)teen|twenty|thirty|forty|fifty|sixty"
     r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|half"
-    r"|halves|couple|zero|twice|double|triple|quadruple|quarters?|once|tens)"
+    r"|halves|couple|zero|twice|double|triple|quadruple|quarters?|once|tens"
+    r"|thirds?|fifths?|few|several)"
 )
 # Vulgar fractions U+00BC-U+00BE, U+2150-U+215E, and U+2189.
 _FRACTION = r"[¼-¾⅐-⅞↉]"
 _TOKEN = re.compile(
     rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s?(?P<usd>{_NUM})"
     rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s*(?P<usdn>{_NUM})"
-    rf"|(?P<mn>{_NUM}|{_WORD})\s*(?:(?P<mu>dollars?|USD)|(?P<cents>cents?))\b)"
+    rf"|(?P<mn>{_NUM}|{_WORD})\s*(?:(?P<mu>dollars?|USD)\b|(?P<cents>cents?\b|¢)))"
     rf"|(?P<big>\b{_BIG}\b|{_FRACTION})"
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
     rf"(?:\s*(?:to|-)\s*(?P<n2>{_NUM}))?"
@@ -55,11 +56,10 @@ _OPAQUE = re.compile(
     r"|\d{4}-\d{2}-\d{2}(?:[T ][\d:.+\-Z]*)?",
     re.IGNORECASE,
 )
+# Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
-    r"\bsafe for\b|\ballerg(?:y|en)[- ]free\b|\bceliac[- ]safe\b|\bmedical"
-    r"|\bcures\b|\btreats\b|\bprevents\b|\bdiagnos"
-    r"|\bgluten[- ]free\b(?! ingredients)",
-    re.IGNORECASE,
+    r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
+    r"|diagnos|glutenfree(?!ingredients)"
 )
 # The one server sentence that names the claims it refuses; removed before the check.
 _SAFETY_SENTENCE = _SAFETY.rsplit(". ", 1)[-1]
@@ -111,7 +111,12 @@ def _normalize(text: str) -> str:
     # NFKC would turn a vulgar fraction into digits, so name it as a number word first.
     text = re.sub(_FRACTION, " half ", text)
     folded = _DASHES.sub("-", unicodedata.normalize("NFKC", text))
-    return _SPACES.sub(" ", folded)
+    shown = "".join(c for c in folded if unicodedata.category(c) != "Cf")
+    return _SPACES.sub(" ", shown)
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[^a-z]", "", text.lower())
 
 
 def _is_id(low: str) -> bool:
@@ -274,9 +279,9 @@ def validate(reply: str, facts: FactSet) -> Verdict:
     claims = text.replace(_SAFETY_SENTENCE, " ")
     checks = (
         ("empty", not text.strip()),
-        ("too_long", len(text) > MAX_REPLY_CHARS),
-        ("store_price", "kroger" in text.lower()),
-        ("forbidden_claim", _FORBIDDEN.search(claims) is not None),
+        ("too_long", len(reply) > MAX_REPLY_CHARS),
+        ("store_price", "kroger" in _squash(text)),
+        ("forbidden_claim", _FORBIDDEN.search(_squash(claims)) is not None),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
     )

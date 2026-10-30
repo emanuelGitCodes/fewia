@@ -610,6 +610,11 @@ def test_vulgar_fractions_fail_as_number_words(fraction: str) -> None:
         "quarter",
         "billion",
         "once",
+        "third",
+        "thirds",
+        "few",
+        "several",
+        "fifth",
     ],
 )
 def test_other_number_words_fail(word: str) -> None:
@@ -657,6 +662,47 @@ def test_kroger_fails_with_store_price() -> None:
 )
 def test_forbidden_claims_fail(reply: str) -> None:
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    ("reply", "reason"),
+    [
+        ("These are safe  for you.", "forbidden_claim"),
+        ("These are gluten- free.", "forbidden_claim"),
+        ("These are gluten -free.", "forbidden_claim"),
+        ("These are gluten-​free.", "forbidden_claim"),
+        ("These are gluten-\nfree.", "forbidden_claim"),
+        ("It is allergy  free.", "forbidden_claim"),
+        ("It is allergen⁠free.", "forbidden_claim"),
+        ("It is celiac­safe.", "forbidden_claim"),
+        ("Gluten-free ingredients, and gluten-free tacos.", "forbidden_claim"),
+        ("Kr​oger sells it.", "store_price"),
+        ("Kro ger sells it.", "store_price"),
+        ("K-r-o-g-e-r sells it.", "store_price"),
+    ],
+)
+def test_claims_match_on_squashed_letters(reply: str, reason: str) -> None:
+    assert validate(reply, FactSet()).reasons == (reason,)
+
+
+def test_format_characters_are_stripped_before_numbers() -> None:
+    facts = _facts(protein_mg=26_000)
+    assert validate("It has 2​6 g of protein.", facts).ok
+    assert validate("It has 2​7 g of protein.", facts).unmatched == ("27",)
+
+
+def test_too_long_measures_the_raw_reply() -> None:
+    padded = "a" * MAX_REPLY_CHARS + "​"
+    assert validate(padded, FactSet()).reasons == ("too_long",)
+
+
+def test_cent_symbol_is_money() -> None:
+    facts = _facts(price_cents=50)
+    for reply in ("It costs 50¢.", "It costs 50 ¢.", "It costs 50￠."):
+        verdict = validate(reply, facts)
+        assert verdict.ok and verdict.has_money, reply
+    verdict = validate("It costs 60¢.", facts)
+    assert verdict.unmatched == ("60",) and verdict.has_money
 
 
 def test_gluten_free_ingredient_note_is_allowed() -> None:
