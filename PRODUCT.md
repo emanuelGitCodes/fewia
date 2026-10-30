@@ -64,7 +64,7 @@ adapters stay in the code
 The Instacart handoff is parked, and the shopping-link button stays hidden
 ([decision 0010](wiki/decisions/0010-usda-spoonacular-overlay.md)).
 Nutrition facts come from USDA FoodData Central. An optional overlay shows
-the Spoonacular average supermarket cost. Budget acceptance still uses the
+a live Kroger store price for a food with no sample price. Budget acceptance still uses the
 sample catalog. Evidence labels distinguish fixtures, emulator behavior,
 Sandbox behavior, and real model calls. `POST /grocery/templates` holds a library of six preset combinations.
 The service filters that library for budget, diet, pantry, and

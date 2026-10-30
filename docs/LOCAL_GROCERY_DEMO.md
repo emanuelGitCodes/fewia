@@ -99,29 +99,31 @@ docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
 
 The overlay mounts the credentials file into `api` and `worker` only.
 
-## Optional Spoonacular overlay
+## Optional Kroger overlay
 
-The Spoonacular key MUST live in a host file outside the repository. Set
-`FEWIA_SPOONACULAR_KEY_FILE` in `.env` to that absolute path. Do not put
-the key value in Compose, images, logs, or `.env.example`.
+The Kroger client ID and client secret MUST live in two host files outside
+the repository, mode 600. The Kroger API terms forbid credentials, client
+IDs included, in an open source repository. Set
+`FEWIA_KROGER_CLIENT_ID_FILE` and `FEWIA_KROGER_SECRET_FILE` in `.env` to
+the absolute paths. `FEWIA_KROGER_ENVIRONMENT` defaults to
+`certification`; set it to `production` only after Kroger approves the app.
 
-[`compose.spoonacular.yaml`](../compose.spoonacular.yaml) mounts the key
-file into `api` only:
+[`compose.kroger.yaml`](../compose.kroger.yaml) mounts both files
+read-only into `api` and `worker`:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.spoonacular.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d
 ```
 
-The API adds the Spoonacular average when it serves a succeeded job. The
-application MUST NOT store Spoonacular cents. Plan acceptance and the
-estimate total use sample catalog cents only. Each purchased line then
-shows a "Spoonacular avg" row, and the estimate shows an average
-supermarket total next to the sample total.
+On `/prototype`, choose a Kroger store in the chat panel. When a chat reply
+swaps in or looks up a food with no sample price, the API adds one live
+Kroger price as it serves the reply. The application MUST NOT store Kroger
+content. Plan acceptance and every total use sample catalog cents only.
 
 Both overlays together:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.spoonacular.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.kroger.yaml up -d
 ```
 
 ## Health and capability

@@ -26,7 +26,7 @@ Seven Compose services run the product. The browser talks only to the
 API. The API writes a job and its outbox row in one transaction. The
 worker's publisher thread moves the job id to Floci, the worker consumes
 it, runs the handler, and writes the result back. Providers sit at the
-edge: Bedrock behind the worker, Spoonacular behind a read, Instacart and
+edge: Bedrock behind the worker, Kroger behind a read, Instacart and
 Plaid dormant.
 
 ```mermaid
@@ -38,7 +38,7 @@ flowchart TB
   worker["worker --kind agent<br/>plan_job, chat_job<br/>outbox publisher thread"]
   sync["sync-worker --kind sync<br/>plaid_sync, paused"]
   bedrock["Bedrock · Nova 2 Lite"]
-  spoon["Spoonacular · cost overlay, opt-in"]
+  spoon["Kroger · live price on chat read, opt-in"]
   insta["Instacart · handoff, parked"]
   plaid["Plaid Sandbox · spending, paused"]
   web -->|fetch /api/grocery/*| api
@@ -55,7 +55,7 @@ flowchart TB
 The `bootstrap` service seeds the demo user and the Floci queues, then
 exits. The evaluation CLI drives the same runtime in-process with a
 private Floci queue and its own SQLite store; it is not a service.
-`compose.bedrock.yaml` and `compose.spoonacular.yaml` only add
+`compose.bedrock.yaml` and `compose.kroger.yaml` only add
 environment to `api` and `worker`.
 
 ## Feature inventory
@@ -74,7 +74,7 @@ deployment.
 | 5 | Plan estimate view | Frontend | `Estimate.tsx` | Live on / | Shows lines, total, budget fit, and the sample-price notice. One live status region per job. |
 | 6 | Meal templates | API, Frontend | `POST /grocery/templates`, `TemplatePicker.tsx` | Live on / | Six presets filtered through the planner. Returns up to six. Reserves no money. |
 | 7 | USDA nutrition facts | Service, Frontend | `meal_nutrition` in `services/meal_nutrition.py`, `Nutrition.tsx` | Live on / | Computed inside `execute_plan` at job time. Stored in the job result. |
-| 8 | Spoonacular cost overlay | Service | `attach_supermarket_estimate` on both job reads | Live on / | Read time only, never stored. Off unless `FEWIA_SPOONACULAR_KEY_FILE` is set. Budget acceptance ignores it. |
+| 8 | Kroger live price | Service | `attach_kroger_quote` on the chat job read with `location_id` | Live on /prototype | Read time only, never stored. Off unless the Kroger credential files are set and the user picks a store. Budget acceptance ignores it. |
 | 9 | Chat with the Bedrock agent | Agent, API | `POST /grocery/chat/jobs`, `agent/chat_loop.py` | Live on / | Tool calling with `plan_groceries` and `get_budget_summary`. 8 model turns, 3 planner revisions. Refusal parser. Needs the Bedrock overlay. |
 | 10 | Chat follow-up context | Service | `services/chat_history.py`, `agent/chat_context.py` | Live on / | The server loads history and `previous_ingredient_ids` from the prior job. The client cannot send them. |
 | 11 | Provider capability flags | API, Frontend | `GET /grocery/providers`, `useProviderCapabilities.ts` | Live on / | Tells the UI whether chat (Bedrock), Plaid, and Instacart are configured, and names the spending source. |
@@ -100,7 +100,7 @@ handoff and sync paths are complete in code and dormant by decision.
 
 | Path | Screen | Route | Handler | Engine | Read back |
 | --- | --- | --- | --- | --- | --- |
-| Manual plan, live | `BudgetForm`, post then poll | `POST /grocery/jobs`, job + outbox, idempotent | `worker`, `plan_job`, lease and heartbeat | `execute_plan`: planner, budget, USDA nutrition | `GET /grocery/jobs/{id}` + Spoonacular, `Estimate` view |
+| Manual plan, live | `BudgetForm`, post then poll | `POST /grocery/jobs`, job + outbox, idempotent | `worker`, `plan_job`, lease and heartbeat | `execute_plan`: planner, budget, USDA nutrition | `GET /grocery/jobs/{id}`, `Estimate` view |
 | Chat, live | `ChatPanel`, poll status | `POST /grocery/chat/jobs`, job + outbox, history by server | `worker`, `chat_job`, prior job ids | `chat_loop`: Bedrock, 8 turns, 2 typed tools | `GET /grocery/chat/jobs/{id}`, answer + trace, `ChatWorkspace` |
 | Templates, live | `TemplatePicker` | `POST /grocery/templates`, no job, in-line | `plan_templates`, 6 presets | planner: budget, diet, pantry, exclusions | same response, up to 6 ideas |
 | Handoff, parked | `HandoffControls`, hidden unless configured | `POST /grocery/handoffs` | `handoff_dispatch`, claim and finish | Instacart `products_link`, development | `GET /grocery/handoffs/{id}`, retry route |
@@ -124,8 +124,8 @@ How the live paths feed each other:
   and exclusions. A preset survives only if the planner accepts it.
 - Every plan path writes a `grocery_evidence` revision. Only the
   evaluation harness and the evidence route read them.
-- The Spoonacular overlay attaches on `GET /grocery/jobs/{id}` and on
-  the chat job read. Neither stores it.
+- The Kroger quote attaches on the chat job read when the browser sends
+  `location_id`. Nothing stores it.
 - `GET /grocery/providers` is the one switch the UI reads to show or
   hide the handoff button and the chat.
 
@@ -180,7 +180,7 @@ two switch on by environment, and two stay off by decision.
 | Floci SQS and S3 | `providers/local_sqs*.py`, `providers/local_artifacts.py`; `aws_sqs_*.py` and `aws_artifacts.py` for real AWS | `job_transport_settings.py` | On in Compose | emulator |
 | USDA FoodData Central | `domain/nutrition_catalog.py`; `usda_refresh.py` rebuilds the file | None at runtime; facts ship in the catalog | On | catalog |
 | Amazon Bedrock | `providers/bedrock.py` `BedrockConverseProvider` behind the `LLMProvider` protocol | `FEWIA_BEDROCK_MODEL_ID` through `compose.bedrock.yaml`; `us-east-1` or `us-west-2`; Nova 2 Lite | On when configured; plain `docker compose up` leaves chat unconfigured | live |
-| Spoonacular | `providers/spoonacular.py`; `services/supermarket_overlay.py` | `FEWIA_SPOONACULAR_KEY_FILE` through `compose.spoonacular.yaml` | On when configured; off by default | live, read time |
+| Kroger Products and Locations | `providers/kroger.py`; `services/kroger_overlay.py`; `api/kroger.py` | `FEWIA_KROGER_CLIENT_ID_FILE` and `FEWIA_KROGER_SECRET_FILE` through `compose.kroger.yaml` | On when configured; off by default | live, read time |
 | Instacart development | `providers/instacart.py` `InstacartDevelopmentProvider`; `POST /idp/v1/products/products_link` | `instacart_configured` from `provider_settings.py` | Parked, decision 0010 | development |
 | Plaid Sandbox | `providers/plaid.py` `PlaidSandboxProvider`, `plaid_contract.py` | `plaid_client_id`, secret file, tokens file | Paused, last by decision 0016 | sandbox, none recorded |
 
@@ -193,8 +193,8 @@ Rules every adapter obeys:
 - A handoff URL is validated before the UI may navigate to it.
 - Every sample-catalog estimate carries the fixed notice: "Estimated from
   the demo price catalog. Instacart prices, availability, taxes, delivery
-  fees, and tips are not verified." The Spoonacular overlay carries
-  `SPOONACULAR_COST_NOTICE`.
+  fees, and tips are not verified." A Kroger price carries "Availability
+  and the final price are not verified."
 - Budget acceptance uses sample-catalog cents only. The overlay is
   information, not a rule.
 - `runtime_database_policy.py` grants the hosted runtime role SELECT-only
@@ -383,7 +383,7 @@ One line per folder, grouped by layer. Tests sit next to their code:
 - `domain/catalog.py`, `catalog_recipes.json`: the 40 recipes and
   `sample-prices-v2`.
 - `domain/budget.py`, `domain/grocery.py`, `domain/nutrition*.py`,
-  `domain/spoonacular_catalog.py`, `domain/supermarket_estimate.py`.
+  `domain/usda_foods.py`.
 - `services/grocery_planner.py`, `plan_templates.py`,
   `ledger_budget.py`, `grocery_context.py`, `meal_nutrition.py`,
   `nutrition_overlay.py`, `supermarket_overlay.py`.
@@ -402,7 +402,7 @@ One line per folder, grouped by layer. Tests sit next to their code:
 - `backend/app/consume_jobs.py`, `publish_jobs.py`: the consumer and
   publisher entry points.
 - `backend/app/providers/`: `bedrock.py`, `instacart.py`, `plaid.py`,
-  `plaid_contract.py`, `spoonacular.py`, `http_client.py`,
+  `plaid_contract.py`, `kroger.py`, `http_client.py`,
   `local_sqs*.py`, `aws_sqs_*.py`, `local_artifacts.py`,
   `aws_artifacts.py`, `job_transport*.py`.
 
@@ -426,7 +426,7 @@ One line per folder, grouped by layer. Tests sit next to their code:
 
 - `compose.yaml`: `postgres`, `floci`, `bootstrap`, `api`, `worker`,
   `sync-worker`, `web`. `compose.bedrock.yaml` and
-  `compose.spoonacular.yaml` overlay the `api` and `worker` environment.
+  `compose.kroger.yaml` overlay the `api` and `worker` environment.
 - `infra/floci_bootstrap.py`, `infra/bedrock/`,
   `infra/bedrock_session.py`, `infra/hosting/`, `infra/rds/`.
 - `dev_supervisor/`: `process.py`, `gates.py`, `review.py`, `usage.py`,

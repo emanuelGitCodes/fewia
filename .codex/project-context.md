@@ -5,7 +5,9 @@ labeled sample prices. Floci runs in the default local stack with SQS jobs
 and S3 evaluation exports. The default spending source is `manual`. The
 monthly limit that the user enters is the whole budget. Fixture spending
 stays optional. Plaid work is last. Decision 0010 parks the Instacart
-handoff and adds USDA nutrition and an optional Spoonacular cost overlay.
+handoff and adds USDA nutrition. Decision D6 in
+`docs/design/chat-architecture-proposal.md` replaces the Spoonacular cost
+overlay with an optional live Kroger price.
 Decision 0016 keeps sample-catalog cents as the budget figure. Newer
 decisions in `wiki/decisions/` override this file.
 
