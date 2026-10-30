@@ -61,7 +61,10 @@ To show live Kroger prices, add the Kroger override. It reads the client
 ID from `FEWIA_KROGER_CLIENT_ID_FILE` and the secret from
 `FEWIA_KROGER_SECRET_FILE`. Keep both files outside the repository with
 mode 600. The Kroger terms forbid credentials in an open source
-repository. To use Bedrock too, add both `-f` flags.
+repository. The Kroger account sign-in also needs a Fernet key file in
+`FEWIA_KROGER_TOKEN_KEY_FILE`; see
+[docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md). To use Bedrock
+too, add both `-f` flags.
 
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d

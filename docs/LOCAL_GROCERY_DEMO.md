@@ -115,6 +115,26 @@ read-only into `api` and `worker`:
 docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d
 ```
 
+The overlay also needs a token key file for the Kroger account sign-in.
+The API uses this Fernet key to encrypt the customer tokens it stores.
+Create the key once, outside the repository, without showing it:
+
+```bash
+uv run --with cryptography python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" > ~/.config/fewia/kroger/token-key
+```
+
+```bash
+chmod 600 ~/.config/fewia/kroger/token-key
+```
+
+Set `FEWIA_KROGER_TOKEN_KEY_FILE` in `.env` to its absolute path. The
+overlay mounts it read-only into `api` only.
+
+The Kroger app MUST list `http://localhost:8010/grocery/kroger/callback` as
+a redirect URI. To use another API port or frontend address, set
+`FEWIA_KROGER_REDIRECT_URI` and `FEWIA_KROGER_RETURN_URL`. The return URL
+defaults to `http://127.0.0.1:5173/prototype` and MUST NOT hold a query.
+
 On `/prototype`, choose a Kroger store in the chat panel. When a chat reply
 swaps in or looks up a food with no sample price, the API adds one live
 Kroger price as it serves the reply. The application MUST NOT store Kroger
