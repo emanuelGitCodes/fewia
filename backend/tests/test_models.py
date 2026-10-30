@@ -19,6 +19,7 @@ EXPECTED_TABLES = {
     handoff_models.ShoppingHandoff.__tablename__,
     evidence_models.GroceryEvidence.__tablename__,
     "plan_revisions",
+    "plan_proposals",
 }
 
 
