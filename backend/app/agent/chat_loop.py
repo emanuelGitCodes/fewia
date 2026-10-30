@@ -371,19 +371,23 @@ def run_chat(
                 if refused is not None:
                     return out("clarification", refused, None)
                 status = _end_status(candidate)
-                clean = (
-                    model_prose
-                    and proposal_id is None
-                    and bool(run_payloads)
-                    and run_ok
-                    and not (other_failed or discovery_failed or last_error)
-                    and (revisions == 0 or status == "planned")
-                    and all(
-                        p.get("status", "ok") in _FINAL_STATUS for _, p in run_payloads
-                    )
-                )
-                if not clean:
+                gate: str | None = None
+                if proposal_id is not None:
+                    gate = "proposal"
+                elif not run_ok or other_failed or discovery_failed or last_error:
+                    gate = "tool_failed"
+                elif not run_payloads:
+                    gate = "no_tools"
+                elif revisions and status != "planned":
+                    gate = "clarification" if status == "clarification" else "planner"
+                elif any(
+                    p.get("status", "ok") not in _FINAL_STATUS for _, p in run_payloads
+                ):
+                    gate = "not_final"
+                if not model_prose:
                     return out(status, answer(), candidate)
+                if gate is not None:
+                    return out(status, answer(), candidate, "template", {"gate": gate})
                 verdict = grounding.validate(
                     text, grounding.facts_from_payloads(run_payloads)
                 )
@@ -391,6 +395,7 @@ def run_chat(
                     "ok": verdict.ok,
                     "reasons": list(verdict.reasons),
                     "unmatched": list(verdict.unmatched),
+                    "gate": "clean",
                 }
                 if not verdict.ok:
                     return out(status, answer(), candidate, "template", check)

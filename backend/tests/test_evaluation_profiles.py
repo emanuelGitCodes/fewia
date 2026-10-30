@@ -56,7 +56,29 @@ def test_profile_is_frozen() -> None:
 def test_resolve_profile_accepts_allowlist(name: str, region: str) -> None:
     profile = resolve_profile(name, region)
     assert isinstance(profile, ModelProfile)
-    assert profile is PROFILES[name]
+    assert profile == PROFILES[name]
+
+
+@pytest.mark.parametrize("name", list(PROFILES))
+def test_resolve_profile_returns_a_fresh_model_config(name: str) -> None:
+    first = resolve_profile(name, "us-east-1")
+    first.model_config["max_tokens"] = 1
+    first.model_config["extra"] = True
+
+    second = resolve_profile(name, "us-east-1")
+
+    assert second.model_config is not first.model_config
+    assert second.model_config is not PROFILES[name].model_config
+    assert second.model_config == PROFILES[name].model_config
+    assert "extra" not in PROFILES[name].model_config
+    assert PROFILES[name].model_config["max_tokens"] == 4096
+
+
+@pytest.mark.parametrize("region", [None, 1, b"us-east-1", ["us-east-1"], {}])
+def test_resolve_profile_rejects_a_non_string_region(region: object) -> None:
+    with pytest.raises(ValueError) as error:
+        resolve_profile("nova-2-lite", region)  # type: ignore[arg-type]
+    assert str(error.value) == "Invalid model profile"
 
 
 @pytest.mark.parametrize(
@@ -84,7 +106,7 @@ def test_rates_for_accepts_matching_file(tmp_path: Path, name: str) -> None:
     profile = PROFILES[name]
     path = write_rates(tmp_path, rates_body(profile.model_id, "us-west-2"))
 
-    rates = rates_for(profile, path)
+    rates = rates_for(profile, path, "us-west-2")
 
     assert rates.model_id == profile.model_id
     assert rates.region == "us-west-2"
@@ -94,15 +116,30 @@ def test_rates_for_rejects_other_model_id(tmp_path: Path) -> None:
     path = write_rates(tmp_path, rates_body(PROFILES["nova-2-pro"].model_id))
 
     with pytest.raises(ValueError, match=r"^Invalid evaluation rates\.$"):
-        rates_for(PROFILES["nova-2-lite"], path)
+        rates_for(PROFILES["nova-2-lite"], path, "us-east-1")
 
 
 def test_rates_for_rejects_region_outside_profile(tmp_path: Path) -> None:
     profile = PROFILES["claude-haiku"]
     path = write_rates(tmp_path, rates_body(profile.model_id, "eu-west-1"))
 
+    for region in ("eu-west-1", None, 1):
+        with pytest.raises(ValueError, match="^Invalid model profile$"):
+            rates_for(profile, path, region)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("file_region", "run_region"),
+    [("us-east-1", "us-west-2"), ("us-west-2", "us-east-1")],
+)
+def test_rates_for_rejects_a_rates_file_for_another_region(
+    tmp_path: Path, file_region: str, run_region: str
+) -> None:
+    profile = PROFILES["nova-2-lite"]
+    path = write_rates(tmp_path, rates_body(profile.model_id, file_region))
+
     with pytest.raises(ValueError, match="^Invalid model profile$"):
-        rates_for(profile, path)
+        rates_for(profile, path, run_region)
 
 
 @pytest.mark.parametrize(

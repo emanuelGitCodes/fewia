@@ -42,7 +42,12 @@ from app.agent.chat_loop import (
     ChatUnavailable,
     run_chat,
 )
-from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError, ToolCall
+from app.agent.chat_messages import (
+    MAX_TOOL_CALLS,
+    ChatProtocolError,
+    ToolCall,
+    tool_result_block,
+)
 from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
@@ -1022,7 +1027,7 @@ def test_a_passing_model_reply_after_the_tool_still_gets_the_template() -> None:
     result, _ = _propose_run(_proposal_replies(reply), proposer, model_prose=True)
     assert result["reply_source"] == "template"
     assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "proposal"}
     assert result["proposal_id"] == "proposal-1"
 
 
@@ -1065,7 +1070,7 @@ def test_a_changed_plan_claim_falls_back_to_the_template() -> None:
     reply = "I added Vegetable pasta to your plan."
     result, _ = _propose_run(_proposal_replies(reply), Proposer(), model_prose=True)
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "proposal"}
     assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
     assert result["proposal_id"] == "proposal-1"
 
@@ -3882,3 +3887,98 @@ def test_discovery_terminal_observer_failure_propagates(failure: str) -> None:
             observe_terminal_tool_results=observe,
         )
     assert len(provider.requests) == len(observed) == 1
+
+
+_GATE_TEXT = "Chickpeas raise the energy to 384 kcal per serving."
+
+
+def _prose_run(
+    replies: list[dict[str, object] | BaseException], *, model_prose: bool = True
+) -> dict[str, object]:
+    return run_chat(
+        FakeLLM(replies),
+        "swap",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        model_prose=model_prose,
+    )
+
+
+def _tool_then(
+    name: str, payload: dict[str, object], text: str = _GATE_TEXT
+) -> list[dict[str, object] | BaseException]:
+    return [
+        _reply([_tool_block("t1", name=name, payload=payload)], "tool_use"),
+        _reply([_text_block(text)], "end_turn"),
+    ]
+
+
+_GATE_CASES: dict[str, list[dict[str, object] | BaseException]] = {
+    "tool_failed": _tool_then(
+        SUBSTITUTE_TOOL, {**_SWAP_ARGS, "recipe_id": "no_such_meal"}
+    ),
+    "no_tools": [_reply([_text_block("Which meal should I plan?")], "end_turn")],
+    "not_final": _tool_then(INGREDIENT_TOOL, {"name": "zorblax root"}),
+    "planner": _tool_then(TOOL_NAME, plan_args(plan_cap_cents=100)),
+}
+
+
+@pytest.mark.parametrize("gate", list(_GATE_CASES))
+def test_a_run_that_is_not_clean_records_its_gate_reason(
+    gate: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.agent.ingredient_tool._live_client", lambda: None)
+    result = _prose_run(copy.deepcopy(_GATE_CASES[gate]))
+    assert result["reply_check"] == {"gate": gate}
+    assert result["reply_source"] == "template"
+    assert _GATE_TEXT not in cast(str, result["answer"])
+
+
+@pytest.mark.parametrize("gate", list(_GATE_CASES))
+def test_the_gate_reason_is_absent_when_model_prose_is_off(
+    gate: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.agent.ingredient_tool._live_client", lambda: None)
+    result = _prose_run(copy.deepcopy(_GATE_CASES[gate]), model_prose=False)
+    assert result["reply_check"] is None
+    assert result["reply_source"] == "template"
+
+
+def test_a_planner_that_asks_the_user_records_the_clarification_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload: dict[str, object] = {"plan": {"accepted": False, "total_cents": None}}
+
+    def asking(call: ToolCall, *args: object, **kwargs: object) -> tuple[Any, Any]:
+        return payload, tool_result_block(call.tool_use_id, payload, success=True)
+
+    monkeypatch.setattr(loop, "dispatch", asking)
+    result = _prose_run(_tool_then(TOOL_NAME, plan_args()))
+    assert result["status"] == "clarification"
+    assert result["planner_revisions"] == 1
+    assert result["reply_check"] == {"gate": "clarification"}
+
+
+def test_a_proposal_run_records_the_proposal_gate() -> None:
+    result, _ = _propose_run(_proposal_replies("done"), Proposer(), model_prose=True)
+    assert result["reply_check"] == {"gate": "proposal"}
+
+
+def test_a_clean_run_keeps_the_verdict_keys_and_adds_the_clean_gate() -> None:
+    passed = _prose_run(_tool_then(SUBSTITUTE_TOOL, _SWAP_ARGS))
+    assert passed["reply_source"] == "model"
+    assert passed["reply_check"] == {
+        "ok": True,
+        "reasons": [],
+        "unmatched": [],
+        "gate": "clean",
+    }
+    failed = _prose_run(_tool_then(SUBSTITUTE_TOOL, _SWAP_ARGS, "It adds 999 kcal."))
+    assert failed["reply_source"] == "template"
+    assert failed["reply_check"] == {
+        "ok": False,
+        "reasons": ["unmatched_number"],
+        "unmatched": ["999"],
+        "gate": "clean",
+    }

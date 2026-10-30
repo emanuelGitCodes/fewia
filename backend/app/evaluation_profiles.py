@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
@@ -58,14 +58,17 @@ PROFILES: dict[str, ModelProfile] = {
 
 def resolve_profile(name: str, region: str) -> ModelProfile:
     profile = PROFILES.get(name) if isinstance(name, str) else None
-    if profile is None or region not in profile.regions:
+    if profile is None or not isinstance(region, str) or region not in profile.regions:
         raise ValueError(_INVALID)
-    return profile
+    return replace(profile, model_config=dict(profile.model_config))
 
 
-def rates_for(profile: ModelProfile, path: Path) -> EvaluationRates:
+def rates_for(profile: ModelProfile, path: Path, region: str) -> EvaluationRates:
     rates = load_json(path)
-    region = rates.get("region")
-    if not isinstance(region, str) or region not in profile.regions:
+    if (
+        not isinstance(region, str)
+        or region not in profile.regions
+        or rates.get("region") != region
+    ):
         raise ValueError(_INVALID)
     return parse_rates(rates, model_id=profile.model_id, region=region)
