@@ -31,7 +31,7 @@ from app.agent.price_tool import PRICE_TOOL, price_tool_spec
 from app.agent.provider import LLMProvider
 from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
-from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.plan_revision import PlanRevisionInput
 
@@ -183,6 +183,14 @@ def _tool_error_payload(block: dict[str, object]) -> dict[str, object] | None:
     return payload
 
 
+def _has_stale(value: object) -> bool:
+    if isinstance(value, dict):
+        return value.get("stale") is True or any(_has_stale(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_has_stale(v) for v in value)
+    return False
+
+
 def run_chat(
     provider: LLMProvider,
     message: str,
@@ -227,6 +235,7 @@ def run_chat(
     discovery: dict[str, object] | None = None
     discovery_failed = False
     other_failed = False
+    run_ok = True
     catalog_batch = False
     revisions = 0
     turns = 0
@@ -323,7 +332,14 @@ def run_chat(
                 if refused is not None:
                     return out("clarification", refused, None)
                 status = _end_status(candidate)
-                if not (model_prose and run_payloads):
+                clean = (
+                    model_prose
+                    and bool(run_payloads)
+                    and run_ok
+                    and not (other_failed or discovery_failed or last_error)
+                    and (revisions == 0 or status == "planned")
+                )
+                if not clean:
                     return out(status, answer(), candidate)
                 reply = grounding.normalize(text).strip()
                 verdict = grounding.validate(
@@ -336,6 +352,9 @@ def run_chat(
                 }
                 if not verdict.ok:
                     return out(status, answer(), candidate, "template", check)
+                stale = budget.stale or any(_has_stale(p) for _, p in run_payloads)
+                if stale and STALE_SPENDING_WARNING not in reply:
+                    reply = f"{reply} {STALE_SPENDING_WARNING}"
                 shown = grounding.with_notice(reply) if verdict.has_money else reply
                 return out(status, shown, candidate, "model", check)
             return out("incomplete", _INCOMPLETE, None)
@@ -357,6 +376,7 @@ def run_chat(
             if call.name == TOOL_NAME:
                 if revisions >= MAX_PLANNER_REVISIONS:
                     planner_limit = True
+                    run_ok = False
                     blocks.append(
                         msgs.tool_result_block(
                             call.tool_use_id, {"error": _LIMIT}, success=False
@@ -382,6 +402,7 @@ def run_chat(
                 and tool_result.get("status") == "success"
             )
             batch_ok = batch_ok and success
+            run_ok = run_ok and success
             if success and payload is not None:
                 run_payloads.append((call.name, payload))
             if call.name == TOOL_NAME and _end_status(payload) != "planned":

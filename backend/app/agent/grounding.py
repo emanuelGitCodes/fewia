@@ -20,7 +20,14 @@ sentence end ([.!?] and whitespace). No exemption depends on nearby words.
 Token boundary rule: a number must be followed by the end of the text, whitespace,
 punctuation from the allowed set, or a recognized unit (see _UNITS). A number
 directly followed by any other letter ("12k", "2x", "3K") is `unmatched_number`.
+So is a number, whitespace, and a scale word or multiplier ("$12 K", "2 x").
 Mass units: "mg" must match a milligram fact, "kg" is grams times 1000.
+
+Digit rule: any digit, number, or letter-number character other than ASCII 0-9
+(superscripts, circled or fullwidth digits, other scripts, "Ⅻ") fails with
+`unsupported_character` before folding. Vulgar fractions are the exception.
+An ellipsis or an abbreviation dot ("e.g.", "i.e.") does not end a sentence, so
+a server sentence after one is not exempt.
 """
 
 import re
@@ -103,6 +110,12 @@ _OPAQUE = re.compile(
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
     r"|diagnos|glutenfree"
+    r"|placedyourorder|placedanorder|ordered|checkedout|checkout|purchased"
+    r"|boughtitforyou|addedtoyourcart|addedittoyourcart"
+)
+# A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein").
+_SCALED = re.compile(
+    rf"({_NUM})\s+(?:k|m|b|mil|bn|grand|thousand|million|billion|x)\b", re.IGNORECASE
 )
 # The server safety note names the claims it refuses; each exact sentence is removed
 # verbatim from the raw reply before the claim check, and nothing else is exempt.
@@ -110,6 +123,10 @@ _SERVER_SENTENCE = re.compile(
     r"(?:\A\s*|(?<=[.!?])\s+)(?:"
     + "|".join(re.escape(s) for s in re.split(r"(?<=\.) ", _SAFETY))
     + ")"
+)
+# An ellipsis or an abbreviation dot before a sentence is not a sentence end.
+_NOT_END = re.compile(
+    r"(?:\.\.|…|(?<![A-Za-z])(?:e\.g|i\.e|etc|vs|cf|approx)\.)\Z", re.IGNORECASE
 )
 
 
@@ -171,7 +188,25 @@ def normalize(text: str) -> str:
 
 
 def _without_server_sentences(reply: str) -> str:
-    return _SERVER_SENTENCE.sub(" ", reply)
+    def drop(match: re.Match[str]) -> str:
+        if _NOT_END.search(reply[: match.start()]):
+            return match.group()
+        return " "
+
+    return _SERVER_SENTENCE.sub(drop, reply)
+
+
+def _foreign_number(text: str) -> bool:
+    """A digit, number, or letter-number character other than ASCII 0-9.
+
+    Vulgar fractions are named as number words by _fold, so they are not flagged.
+    """
+    return any(
+        unicodedata.category(c) in ("Nd", "No", "Nl")
+        and not ("0" <= c <= "9")
+        and not re.fullmatch(_FRACTION, c)
+        for c in text
+    )
 
 
 def _squash(text: str) -> str:
@@ -346,11 +381,12 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     unmatched.extend(
         m[1] for m in _ATTACHED.finditer(reply) if m[2].lower() not in _UNITS
     )
+    unmatched.extend(m[0] for m in _SCALED.finditer(reply))
     return list(dict.fromkeys(unmatched)), word, money
 
 
 def validate(reply: str, facts: FactSet) -> Verdict:
-    if _UNSUPPORTED.search(_fold(reply)):
+    if _foreign_number(reply) or _UNSUPPORTED.search(_fold(reply)):
         return Verdict(False, ("unsupported_character",), (), False)
     text = normalize(reply)
     unmatched, word, money = _scan(text, facts)

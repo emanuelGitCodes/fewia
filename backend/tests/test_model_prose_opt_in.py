@@ -9,8 +9,10 @@ from app.agent import chat_loop
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_loop import run_chat
 from app.agent.planning_tool import execute_plan
+from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.provider import LLMProvider
 from app.agent.substitute_tool import SUBSTITUTE_TOOL
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_inputs import prepare_case
 from app.evaluation_model_turn import observe_model_turn
@@ -84,7 +86,7 @@ def test_grounded_reply_without_money_is_used_as_written() -> None:
     assert result["reply_sha256"] == _sha(GROUNDED_PLAIN)
 
 
-def test_model_reply_keeps_the_status_and_plan_of_the_template_path() -> None:
+def test_needs_revision_keeps_the_template_status_plan_and_answer() -> None:
     args = plan_args(plan_cap_cents=100)
     replies: list[Any] = [
         _reply([_tool_block("p1", payload=args)], "tool_use"),
@@ -94,8 +96,125 @@ def test_model_reply_keeps_the_status_and_plan_of_the_template_path() -> None:
     expected = execute_plan(args, budget(), PERIOD)
     assert result["status"] == "needs_revision"
     assert result["plan"] == expected["plan"]
-    assert result["answer"] == f"{SENTINEL} needs a revision."
+    assert result["answer"] == render_public_answer(expected)
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+    assert SENTINEL not in json.dumps(result)
+
+
+def _planner_then_final(args: dict[str, object], text: str) -> list[Any]:
+    return [
+        _reply([_tool_block("p1", payload=args)], "tool_use"),
+        _reply([_text_block(text)], "end_turn"),
+    ]
+
+
+_CONFLICTS = {
+    "diet": plan_args(
+        meals=[{"recipe_id": "chicken_tacos", "servings": 2}], diet="vegan"
+    ),
+    "exclusion": plan_args(
+        meals=[{"recipe_id": "vegetable_pasta", "servings": 2}],
+        ingredient_exclusions=["onion"],
+    ),
+    "unknown_restriction": plan_args(
+        meals=[{"recipe_id": "bean_tacos", "servings": 2}],
+        ingredient_exclusions=["mystery spice"],
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(_CONFLICTS))
+def test_planner_conflict_or_clarification_uses_the_template(name: str) -> None:
+    args = _CONFLICTS[name]
+    template, _ = _run(_planner_then_final(args, "done"), model_prose=False)
+    result, _ = _run(_planner_then_final(args, "Your plan is ready."))
+    assert result["answer"] == template["answer"]
+    assert "Your plan is ready." not in cast(str, result["answer"])
+    assert result["status"] == template["status"]
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+
+
+def test_an_earlier_failed_tool_forces_the_template_even_after_a_good_one() -> None:
+    bad = {**_SWAP_ARGS, "recipe_id": "no_such_meal"}
+    replies: list[Any] = [
+        _reply([_tool_block("w1", name=SUBSTITUTE_TOOL, payload=bad)], "tool_use"),
+        _reply(
+            [_tool_block("w2", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)], "tool_use"
+        ),
+        _reply([_text_block(GROUNDED_PLAIN)], "end_turn"),
+    ]
+    result, _ = _run(replies)
+    assert result["answer"] == _SWAP_ANSWER
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+
+
+def test_a_failed_tool_beside_a_good_one_forces_the_template() -> None:
+    bad = {**_SWAP_ARGS, "recipe_id": "no_such_meal"}
+    replies: list[Any] = [
+        _reply(
+            [
+                _tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS),
+                _tool_block("w2", name=SUBSTITUTE_TOOL, payload=bad),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block(GROUNDED_PLAIN)], "end_turn"),
+    ]
+    result, _ = _run(replies)
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+    assert GROUNDED_PLAIN not in cast(str, result["answer"])
+
+
+def _price_run(
+    text: str, *, stale: bool
+) -> tuple[dict[str, object], str, dict[str, Any]]:
+    held = BudgetResult(10_000, 250, stale, (STALE_SPENDING_WARNING,) if stale else ())
+    args: dict[str, object] = {"meals": [{**_SWAP_ARGS}]}
+    estimate = cast(dict[str, Any], execute_price_lines(args, held, None)["estimate"])
+    total = estimate["total_cents"]
+    reply = text.format(total=f"${total // 100}.{total % 100:02d}")
+    provider = FakeLLM(
+        [
+            _reply([_tool_block("l1", name=PRICE_TOOL, payload=args)], "tool_use"),
+            _reply([_text_block(reply)], "end_turn"),
+        ]
+    )
+    result = run_chat(provider, "price it", held, PERIOD, model_prose=True)
+    return result, reply, estimate
+
+
+def test_stale_budget_appends_the_server_warning_before_the_notice() -> None:
+    result, reply, _ = _price_run("The sample total is {total}.", stale=True)
     assert result["reply_source"] == "model"
+    assert result["answer"] == (
+        f"{reply} {STALE_SPENDING_WARNING} {SAMPLE_ESTIMATE_NOTICE}"
+    )
+    assert result["reply_sha256"] == _sha(result["answer"])
+
+
+def test_stale_warning_is_added_once_and_only_when_stale() -> None:
+    text = "The sample total is {total}. " + STALE_SPENDING_WARNING
+    stale, _, _ = _price_run(text, stale=True)
+    assert cast(str, stale["answer"]).count(STALE_SPENDING_WARNING) == 1
+    fresh, _, _ = _price_run("The sample total is {total}.", stale=False)
+    assert STALE_SPENDING_WARNING not in cast(str, fresh["answer"])
+
+
+def test_stale_warning_is_added_without_money_and_without_a_notice() -> None:
+    held = BudgetResult(10_000, 250, True, (STALE_SPENDING_WARNING,))
+    replies: list[Any] = [
+        _reply(
+            [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)], "tool_use"
+        ),
+        _reply([_text_block(GROUNDED_PLAIN)], "end_turn"),
+    ]
+    result = run_chat(FakeLLM(replies), "swap", held, PERIOD, model_prose=True)
+    assert result["answer"] == f"{GROUNDED_PLAIN} {STALE_SPENDING_WARNING}"
+    assert SAMPLE_ESTIMATE_NOTICE not in cast(str, result["answer"])
 
 
 def test_ungrounded_reply_falls_back_to_the_template_and_is_never_stored() -> None:
@@ -169,7 +288,7 @@ def test_facts_come_from_every_tool_and_turn() -> None:
         _reply(
             [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)], "tool_use"
         ),
-        _reply([_tool_block("p1", payload=plan_args(plan_cap_cents=100))], "tool_use"),
+        _reply([_tool_block("b1", name="get_budget_summary", payload={})], "tool_use"),
         _reply([_text_block(GROUNDED_MONEY)], "end_turn"),
     ]
     result, _ = _run(replies)
@@ -228,24 +347,26 @@ def test_planner_limit_keeps_the_limit_answer() -> None:
 
 
 def test_reasoning_block_never_reaches_the_answer_or_next_request() -> None:
-    hidden = {"text": "hidden-chain-of-thought"}
-    result, provider = _run(_swap(GROUNDED_PLAIN, reasoning=hidden))
-    assert result["answer"] == GROUNDED_PLAIN
-    dumped = json.dumps(result)
-    assert "hidden-chain-of-thought" not in dumped
-    assert "reasoningContent" not in dumped
-    assert "hidden-chain-of-thought" not in json.dumps(provider.requests)
-
-
-def test_rejected_text_is_absent_from_the_next_turn_history() -> None:
-    first, _ = _run(_swap(f"{SENTINEL} adds 999 kcal."))
-    history = [
-        {"role": "user", "text": "swap chicken for chickpeas"},
-        {"role": "assistant", "text": cast(str, first["answer"])},
+    secret = "hidden-chain-of-thought"
+    hidden = {"text": secret}
+    swap = _tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS, reasoning=hidden)
+    replies: list[Any] = [
+        _reply([swap], "tool_use"),
+        _reply([_text_block(GROUNDED_PLAIN, reasoning=hidden)], "end_turn"),
     ]
-    _, second = _run(_swap(GROUNDED_PLAIN), history=history)
-    assert SENTINEL not in json.dumps(second.requests)
-    assert _SWAP_ANSWER in json.dumps(second.requests[0]["messages"])
+    # Control: the sentinel is in what the provider returned.
+    assert secret in json.dumps(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["answer"] == GROUNDED_PLAIN
+    assert result["reply_source"] == "model"
+    stored = json.dumps(result)
+    assert secret not in stored
+    assert "reasoningContent" not in stored
+    assert secret not in json.dumps(provider.requests[1]["messages"])
+    # The check can fail: a reply that quotes the sentinel is stored in the result.
+    quoted, _ = _run(_swap(f"{secret} adds 384 kcal.", reasoning=hidden))
+    assert secret in json.dumps(quoted)
 
 
 def test_accepted_model_text_is_what_the_next_turn_replays() -> None:

@@ -1,6 +1,7 @@
 """Tests for server-owned chat history loading."""
 
 import copy
+import json
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -12,6 +13,8 @@ from app.agent.chat_context import MAX_MESSAGE_LEN
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
+from tests.test_chat_loop import _SWAP_ANSWER
+from tests.test_model_prose_opt_in import GROUNDED_PLAIN, SENTINEL, _run, _swap
 
 PERIOD = "2026-09-01"
 SECRET = "do-not-echo-raw-input"
@@ -108,6 +111,45 @@ def test_none_parent_returns_empty_context(session: Session) -> None:
     assert history == []
     assert previous is None
     assert _ingredient_ids is None
+
+
+def test_rejected_model_text_is_not_in_the_loaded_next_turn(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    rejected = f"{SENTINEL} adds 999 kcal."
+    first, _ = _run(_swap(rejected))
+    assert first["reply_source"] == "template"
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message="swap chicken for chickpeas"),
+        result=first,
+    )
+
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+    assert SENTINEL not in json.dumps(history)
+    assert history[-1] == {"role": "assistant", "text": _SWAP_ANSWER}
+
+    _, second = _run(_swap(GROUNDED_PLAIN), history=history)
+    assert SENTINEL not in json.dumps(second.requests)
+    assert _SWAP_ANSWER in json.dumps(second.requests[0]["messages"])
+
+
+def test_accepted_model_text_is_what_the_loaded_next_turn_replays(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    first, _ = _run(_swap(GROUNDED_PLAIN))
+    assert first["reply_source"] == "model"
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message="swap chicken for chickpeas"),
+        result=first,
+    )
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+    assert history[-1] == {"role": "assistant", "text": GROUNDED_PLAIN}
 
 
 def test_owner_isolation_and_foreign_job(

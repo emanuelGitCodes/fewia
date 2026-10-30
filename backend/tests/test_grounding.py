@@ -1144,6 +1144,84 @@ def test_get_meal_with_several_meals_is_grounded() -> None:
     assert verdict.ok, (answer, verdict)
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I placed your order.",
+        "I placed an order for you.",
+        "I ordered the tacos.",
+        "I checked out for you.",
+        "Proceed to checkout.",
+        "I purchased the chicken.",
+        "I bought it for you.",
+        "I added to your cart the rice.",
+        "I added it to your cart.",
+        "I P.l.a.c.e.d your order.",
+    ],
+)
+def test_purchase_claims_are_forbidden(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "The total is $12 K.",
+        "The total is $12 k.",
+        "The total is $12 M.",
+        "The total is $12 B.",
+        "The total is $12 mil.",
+        "The total is $12 bn.",
+        "The total is $12 grand.",
+        "The total is $12 thousand.",
+        "The total is $12 million.",
+        "The total is $12 billion.",
+        "It has 2 x the protein.",
+        "It has 2\tx the protein.",
+    ],
+)
+def test_number_then_scale_word_is_unmatched(reply: str) -> None:
+    facts = _facts(total_cents=1_200, servings=2)
+    verdict = validate(reply, facts)
+    assert "unmatched_number" in verdict.reasons
+    assert not verdict.ok
+
+
+def test_scale_check_leaves_units_and_plain_words_alone() -> None:
+    facts = _facts(total_cents=1_200, servings=2, kcal=300)
+    assert validate("The total is $12 for 2 meals.", facts).ok
+    assert validate("It has 300 kcal and 2 servings.", facts).ok
+    assert validate("It has 2 xylitol packets.", facts).unmatched == ()
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "These tacos are... Gluten-free ingredients describes the ingredients only.",
+        "These tacos are… Gluten-free ingredients describes the ingredients only.",
+        "See e.g. Gluten-free ingredients describes the ingredients only.",
+        "That is, i.e. Gluten-free ingredients describes the ingredients only.",
+    ],
+)
+def test_ellipsis_and_abbreviations_are_not_sentence_ends(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["10³ kcal", "①", "H₂O", "１２ g", "Use ٣ g", "Add ⑫ eggs", "Add ❶ egg"],
+)
+def test_non_ascii_digits_fail_before_folding(reply: str) -> None:
+    verdict = validate(reply, _facts(kcal=10, servings=1, count=12))
+    assert verdict.reasons == ("unsupported_character",)
+    assert verdict.unmatched == ()
+
+
+@pytest.mark.parametrize("reply", ["Add Ⅻ eggs.", "Ⅲ servings", "Use ⅷ eggs."])
+def test_letter_number_characters_fail(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("unsupported_character",)
+
+
 def test_with_notice_appends_once() -> None:
     once = with_notice("The total is $5.")
     assert once == f"The total is $5. {SAMPLE_ESTIMATE_NOTICE}"
