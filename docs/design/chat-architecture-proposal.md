@@ -47,7 +47,7 @@ behind the server and is never a tool.
 | Decision | Recommendation |
 |---|---|
 | D1. Let the model write user-facing prose, with a validator | Yes. The current ban is a design choice from 2026-10-02, not a course contract. |
-| D2. Where facts and prices for non-catalog foods come from | A curated `ingredients` table in PostgreSQL seeded from USDA, with live USDA lookup as a fallback. Model knowledge never supplies a number. |
+| D2. Where facts and prices for non-catalog foods come from | The bundled USDA SR Legacy table and a curated set, with a live USDA FoodData Central search (SR Legacy, Foundation, Branded) when a food is unknown and a key file is set. A live food is shown for information and is not stored; confirm-and-store needs its own item with a migration. Model knowledge never supplies a number. |
 | D3. Which model runs the chat | Nova 2 Lite for phases 1 to 3. A measured bake-off against Nova 2 Pro and Claude Haiku on Bedrock in phase 5. |
 | D4. Streaming or polling | Keep the SQS job and polling. Add stage text to the poll. Decide on token streaming after the phase 5 latency measurement. |
 | D5. Evaluation records with model prose | Store propositions, validator verdicts, the tool trace, and a hash of the reply. Keep the reply text out of the evidence record. |
