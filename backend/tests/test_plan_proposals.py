@@ -2,7 +2,7 @@
 
 import importlib.util
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -13,7 +13,16 @@ from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from conftest import UserSeeder, require_test_database_url
 from fastapi.testclient import TestClient
-from sqlalchemy import Connection, Engine, create_engine, func, select, text
+from sqlalchemy import (
+    Connection,
+    Engine,
+    ScalarResult,
+    Select,
+    create_engine,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -321,7 +330,10 @@ def test_stale_base_snapshot_is_409_and_not_echoed(
 
     for response in responses:
         assert response.status_code == 409
-        assert response.json() == {"detail": proposals_api.PROPOSAL_STALE_MESSAGE}
+        body = response.json()
+        assert body["error"]["code"] == "conflict"
+        assert body["error"]["message"] == proposals_api.PROPOSAL_STALE_MESSAGE
+        assert RECIPE_A not in response.text
     assert revision_count(session) == before
     row = session.get(PlanProposal, proposal_id)
     assert row is not None
@@ -336,14 +348,14 @@ def test_apply_and_discard_change_updated_at(
     proposal_id = make_proposal(session)
     row = session.get(PlanProposal, proposal_id)
     assert row is not None
-    old = datetime(2000, 1, 1)
+    old = datetime(2000, 1, 1, tzinfo=UTC)
     row.updated_at = old
     session.flush()
 
     assert client.post(f"/grocery/proposals/{proposal_id}/{action}").status_code == 200
 
     session.refresh(row)
-    assert row.updated_at.replace(tzinfo=None) > old
+    assert row.updated_at.replace(tzinfo=UTC) > old
 
 
 @pytest.mark.parametrize(
@@ -372,7 +384,9 @@ def test_proposal_routes_lock_the_row_for_changes(
         flags.append(lock)
         return real_load(db, requested, lock=lock)
 
-    def record_scalars(statement: Any, *args: Any, **kwargs: Any) -> Any:
+    def record_scalars(
+        statement: Select[Any], *args: object, **kwargs: object
+    ) -> ScalarResult[Any]:
         statements.append(str(statement.compile(dialect=postgresql.dialect())))
         return real_scalars(statement, *args, **kwargs)
 
