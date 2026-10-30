@@ -4,8 +4,9 @@ The user approved real Bedrock, local web chat, a 40-meal catalog, and
 labeled sample prices. Floci runs in the default local stack with SQS jobs
 and S3 evaluation exports. The default spending source is `manual`. The
 monthly limit that the user enters is the whole budget. Fixture spending
-stays optional. Plaid work is last. Decision 0010 parks the Instacart
-handoff and adds USDA nutrition. Decision D6 in
+stays optional. Plaid work is last. Decision 0010 adds USDA nutrition.
+Decision 0023 retires the Instacart adapter and keeps the frozen
+`grocery-eval-v1` suite. The Kroger cart is the retailer path. Decision D6 in
 `docs/design/chat-architecture-proposal.md` replaces the Spoonacular cost
 overlay with an optional live Kroger price.
 Decision 0016 keeps sample-catalog cents as the budget figure. Newer
@@ -25,7 +26,8 @@ This brief records accepted scope, not authority for unrelated changes.
 - Direct REST adapters; MCP is not a prerequisite.
 - Real Bedrock through `LLMProvider` in `backend/app/agent/`.
 - Explicit endpoints and separate Floci dummy credentials and Bedrock credentials.
-- Instacart `POST /idp/v1/products/products_link` with `line_item_measurements`.
+- No Instacart handoff. Production code MUST NOT call an Instacart API
+  (decision 0023).
 - No real bank accounts, checkout, orders, or payment submission.
 
 ## Planning rules
@@ -53,8 +55,7 @@ Use versioned sample prices. Always label estimates:
 > Estimated from the demo price catalog. Instacart prices, availability,
 > taxes, delivery fees, and tips are not verified.
 
-Missing prices produce incomplete estimates. Instacart links prove handoff,
-not pricing or inventory. Validate vegetarian/vegan preferences and ingredient
+Missing prices produce incomplete estimates. Validate vegetarian/vegan preferences and ingredient
 exclusions against catalog facts. Clarify unknown restrictions. Do not certify
 retailer products or cross-contact safety. Spending older than 24 hours requires
 refresh or an explicit temporary cap before finalization.
@@ -65,13 +66,11 @@ The LLM interprets requests, asks questions, and selects typed tools.
 Application tools own arithmetic and validation. Limit each job to eight model
 turns and three planner revisions. Store tool traces and user-facing explanations,
 not hidden model reasoning. Provider text is untrusted. Never send credentials
-or raw bank records to the model. Validate handoff URLs before navigation.
+or raw bank records to the model. Validate retailer URLs before navigation.
 
 PostgreSQL owns jobs and outbox state. Handle duplicate SQS delivery, leases,
 crashes, visibility extension, retries, and dead letters. Serialize Plaid Item
-syncs. Apply changes and the final cursor atomically. An uncertain Instacart
-write needs a visible retry choice, not blind replay. Cache unchanged-plan links.
-Evidence snapshots need immutable revisions.
+syncs. Apply changes and the final cursor atomically. Evidence snapshots need immutable revisions.
 
 Use 30 scenarios repeated three times: spending/budget 5, meal planning 7,
 follow-up/pantry 5, missing/impossible requests 4, provider failures 5, and
@@ -83,6 +82,6 @@ violations in accepted plans, secret leaks, or purchase attempts.
 Separate fixture, Sandbox, live provider, emulator, and deployed evidence.
 
 Provider fakes permit development while access is pending. Release requires
-real Plaid Sandbox, Instacart development, and Bedrock evidence.
+real Plaid Sandbox and Bedrock evidence.
 Preserve old migrations and user changes. Retire legacy routes after the new
 path works. Table deletion needs a separate retention decision.

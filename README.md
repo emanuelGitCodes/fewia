@@ -21,9 +21,11 @@ endpoint returns up to six eligible suggestions. An empty list is
 possible. Suggestions use labeled sample prices. They do not reserve
 money. `get_budget_summary` returns read-only budget facts. Pending
 cents and stale-spending warnings stay separate.
-FEWIA parks the Instacart development handoff. The adapter stays in the
-code. The shopping-link button stays hidden while `instacart_configured`
-is false. See
+FEWIA has no Instacart shopping-link handoff. The Kroger cart is the
+retailer path. Only the frozen `grocery-eval-v1` suite runs the handoff
+services. See
+[wiki/decisions/0023-retire-instacart-adapter.md](wiki/decisions/0023-retire-instacart-adapter.md).
+The nutrition decision is
 [wiki/decisions/0010-usda-spoonacular-overlay.md](wiki/decisions/0010-usda-spoonacular-overlay.md).
 FEWIA stores nutrition facts from USDA FoodData Central. These facts are
 not a medical claim. The prototype chat can show a labeled live Kroger

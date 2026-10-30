@@ -26,20 +26,19 @@ Seven Compose services run the product. The browser talks only to the
 API. The API writes a job and its outbox row in one transaction. The
 worker's publisher thread moves the job id to Floci, the worker consumes
 it, runs the handler, and writes the result back. Providers sit at the
-edge: Bedrock behind the worker, Kroger behind a read, Instacart and
+edge: Bedrock behind the worker, Kroger behind a read and a user click,
 Plaid dormant.
 
 ```mermaid
 flowchart TB
   web["web · nginx :8080<br/>React app at /<br/>Plan page at /prototype"]
-  api["api · FastAPI<br/>13 routes under /grocery, plus /healthz"]
-  pg[("postgres<br/>jobs, job_outbox, evidence<br/>handoffs, plaid, legacy")]
+  api["api · FastAPI<br/>routes under /grocery, plus /healthz"]
+  pg[("postgres<br/>jobs, job_outbox, evidence<br/>frozen-suite handoffs, plaid, legacy")]
   floci["floci · SQS and S3<br/>fewia-agent, fewia-sync, dead letters<br/>bucket fewia-eval"]
   worker["worker --kind agent<br/>plan_job, chat_job<br/>outbox publisher thread"]
   sync["sync-worker --kind sync<br/>plaid_sync, paused"]
   bedrock["Bedrock · Nova 2 Lite"]
   spoon["Kroger · live price on chat read, opt-in"]
-  insta["Instacart · handoff, parked"]
   plaid["Plaid Sandbox · spending, paused"]
   web -->|fetch /api/grocery/*| api
   api -->|job + outbox in one transaction| pg
@@ -48,7 +47,6 @@ flowchart TB
   floci -->|fewia-sync| sync
   worker -->|converse with tool calls| bedrock
   api -->|cost overlay at read time| spoon
-  api -.->|parked| insta
   sync -.->|paused| plaid
 ```
 
@@ -61,8 +59,8 @@ environment to `api` and `worker`.
 ## Feature inventory
 
 Twenty-three built features. Thirteen serve the `/` application today,
-four are tooling that no route serves, one serves `/prototype`, two sit
-dormant by decision, one is retired, and two wait on the owner or on
+four are tooling that no route serves, one serves `/prototype`, one sits
+dormant by decision, two are retired, and two wait on the owner or on
 deployment.
 
 | # | Feature | Layer | Entry point | Status | Note |
@@ -77,10 +75,10 @@ deployment.
 | 8 | Kroger live price | Service | `attach_kroger_quote` on the chat job read with `location_id` | Live on /prototype | Read time only, never stored. Off unless the Kroger credential files are set and the user picks a store. Budget acceptance ignores it. |
 | 9 | Chat with the Bedrock agent | Agent, API | `POST /grocery/chat/jobs`, `agent/chat_loop.py` | Live on / | Tool calling with `plan_groceries` and `get_budget_summary`. 8 model turns, 3 planner revisions. Refusal parser. Needs the Bedrock overlay. |
 | 10 | Chat follow-up context | Service | `services/chat_history.py`, `agent/chat_context.py` | Live on / | The server loads history and `previous_ingredient_ids` from the prior job. The client cannot send them. |
-| 11 | Provider capability flags | API, Frontend | `GET /grocery/providers`, `useProviderCapabilities.ts` | Live on / | Tells the UI whether chat (Bedrock), Plaid, and Instacart are configured, and names the spending source. |
+| 11 | Provider capability flags | API, Frontend | `GET /grocery/providers`, `useProviderCapabilities.ts` | Live on / | Returns `chat_configured`, `plaid_configured`, and `spending_source`. |
 | 12 | Durable jobs | Service, Worker | `services/job_submission.py`, `worker.py` | Live on / | Idempotency key per user and kind, outbox in the same transaction, publisher thread, leases, heartbeat, recovery, dead-letter queues. |
 | 13 | Evidence revisions | Service, API | `services/evidence_store.py`, `GET /grocery/evidence/{revision_id}` | Live on / | Immutable plan snapshots. The frontend reads the ids but never calls the route. |
-| 14 | Instacart shopping handoff | Provider, API, Frontend | `POST /grocery/handoffs`, `HandoffControls.tsx` | Parked | Decision 0010. Button hidden unless `instacart_configured`. Retry route exists. |
+| 14 | Instacart shopping handoff | Backend | `handoff_dispatch.py`, run by the frozen `grocery-eval-v1` suite only | Retired | Decision 0023. No route, no UI, and no HTTP client. The Kroger cart is the retailer path. |
 | 15 | Plaid Sandbox spending sync | Provider, Sync worker | `POST /grocery/sync/jobs`, `services/plaid_sync.py` | Paused | Decision 0016 orders it last; decision 0019 records the pause. No UI calls it. Runtime role is SELECT-only on the Plaid tables. |
 | 16 | Tonight Plan page | Frontend | `/prototype`, `prototype/TonightPrototype.tsx` | Prototype on /prototype | Lazy chunk. Demo data in `prototypeData.ts`. Makes no API call. Audience 18 to 25. |
 | 17 | Evaluation harness and CLI | Backend | `python -m app.evaluate`, `evaluation_*.py` | Tooling | 60 modules. 138-slot matrix. Fixture runs work today. |
@@ -97,14 +95,15 @@ deployment.
 Five request paths share one spine: a screen posts, the API stores a job,
 a worker runs a handler, an engine does the arithmetic, and the screen
 reads the result back. Templates skip the job and answer in-line. The
-handoff and sync paths are complete in code and dormant by decision.
+sync path is complete in code and dormant by decision. The handoff
+services run only inside the frozen evaluation suite.
 
 | Path | Screen | Route | Handler | Engine | Read back |
 | --- | --- | --- | --- | --- | --- |
 | Manual plan, live | `BudgetForm`, post then poll | `POST /grocery/jobs`, job + outbox, idempotent | `worker`, `plan_job`, lease and heartbeat | `execute_plan`: planner, budget, USDA nutrition | `GET /grocery/jobs/{id}`, `Estimate` view |
 | Chat, live | `ChatPanel`, poll status | `POST /grocery/chat/jobs`, job + outbox, history by server | `worker`, `chat_job`, prior job ids | `chat_loop`: Bedrock, 8 turns, 2 typed tools | `GET /grocery/chat/jobs/{id}`, answer + trace, `ChatWorkspace` |
 | Templates, live | `TemplatePicker` | `POST /grocery/templates`, no job, in-line | `plan_templates`, 6 presets | planner: budget, diet, pantry, exclusions | same response, up to 6 ideas |
-| Handoff, parked | `HandoffControls`, hidden unless configured | `POST /grocery/handoffs` | `handoff_dispatch`, claim and finish | Instacart `products_link`, development | `GET /grocery/handoffs/{id}`, retry route |
+| Handoff, evaluation only | none | none | `handoff_dispatch`, claim and finish, with an injected fake provider | scenario P02 and the duplicate-handoff check | none |
 | Sync, paused | none | `POST /grocery/sync/jobs` | `sync-worker`, `sync_job` | `plaid_sync`, Plaid Sandbox, serialized | `load_spending` on the plaid tables for a non-manual source |
 | `/prototype`, unreached | demo data only, calls no route | none | none | `planModel.ts` | none |
 | Evidence, unreached | none | `GET /grocery/evidence/{revision_id}` | none | none | no UI caller |
@@ -128,7 +127,7 @@ How the live paths feed each other:
 - The Kroger quote attaches on the chat job read when the browser sends
   `location_id`. Nothing stores it.
 - `GET /grocery/providers` is the one switch the UI reads to show or
-  hide the handoff button and the chat.
+  hide the chat.
 
 The two unreached parts: `/prototype` renders `prototypeData.ts` and
 never fetches, so its plan math in `planModel.ts` is a second
@@ -139,7 +138,7 @@ route has no screen; the chat response carries `evidence_id` and
 ## Data model
 
 PostgreSQL holds twelve tables from seven forward-only migrations. Four
-carry the product today, one is parked with Instacart, two wait for
+carry the product today, one serves the frozen evaluation suite only, two wait for
 Plaid, and the rest are health-era tables that decision 0018 keeps
 without a route.
 
@@ -149,7 +148,7 @@ without a route.
 | `jobs` | 0004 | `job_submission.py` on each `POST`; the worker on each state change | The three `GET .../jobs/{id}` routes; `chat_history.py` for the prior turn | Live |
 | `job_outbox` | 0004 | `job_submission.py` in the same transaction as the job | `outbox_publisher.py` on the worker's publisher thread | Live |
 | `grocery_evidence` | 0007 | `evidence_store.save_plan_evidence` after a plan | `GET /grocery/evidence/{revision_id}` | Live, no UI caller |
-| `shopping_handoffs` | 0006 | `handoff_dispatch.py` | `GET /grocery/handoffs/{id}` | Parked with Instacart |
+| `shopping_handoffs` | 0006 | `handoff_dispatch.py`, frozen evaluation only | Nothing in production | Retained, decisions 0018 and 0023 |
 | `plaid_items`, `plaid_transactions` | 0005 | `plaid_sync.sync_item` on the sync worker | `ledger_budget.load_spending` for a non-manual source | Paused; runtime role is SELECT-only |
 | `daily_finance`, `daily_environment`, `daily_health`, `model_runs`, `predictions` | 0001 to 0003 | Nothing on `main` | Nothing on `main` | Retired, retained |
 
@@ -174,7 +173,8 @@ Facts that shape every row:
 ## External providers and boundaries
 
 Six external systems touch the product. Two are on in the default stack,
-two switch on by environment, and two stay off by decision.
+three switch on by environment or user action, and one stays off by
+decision. The retired Instacart adapter is not a provider.
 
 | Provider | Adapter | Switch | State | Evidence label |
 | --- | --- | --- | --- | --- |
@@ -183,7 +183,6 @@ two switch on by environment, and two stay off by decision.
 | Amazon Bedrock | `providers/bedrock.py` `BedrockConverseProvider` behind the `LLMProvider` protocol | `FEWIA_BEDROCK_MODEL_ID` through `compose.bedrock.yaml`; `us-east-1` or `us-west-2`; Nova 2 Lite | On when configured; plain `docker compose up` leaves chat unconfigured | live |
 | Kroger Products and Locations | `providers/kroger.py`; `services/kroger_overlay.py`; `api/kroger.py` | `FEWIA_KROGER_CLIENT_ID_FILE` and `FEWIA_KROGER_SECRET_FILE` through `compose.kroger.yaml` | On when configured; off by default | live, read time |
 | Kroger account and cart | `kroger_customer.py`; `kroger_cart.py`; `api/kroger.py` (`/connect`, `/callback`, `/connection`, `/cart/preview`, `/cart/add`) | Also `FEWIA_KROGER_TOKEN_KEY_FILE`, `FEWIA_KROGER_REDIRECT_URI`, and `FEWIA_KROGER_RETURN_URL`; table `kroger_customer_tokens` holds Fernet-encrypted tokens only | On when configured; the user signs in and clicks | live, user action; not live-checked |
-| Instacart development | `providers/instacart.py` `InstacartDevelopmentProvider`; `POST /idp/v1/products/products_link` | `instacart_configured` from `provider_settings.py` | Parked, decision 0010 | development |
 | Plaid Sandbox | `providers/plaid.py` `PlaidSandboxProvider`, `plaid_contract.py` | `plaid_client_id`, secret file, tokens file | Paused, last by decision 0016 | sandbox, none recorded |
 
 Rules every adapter obeys:
@@ -192,7 +191,8 @@ Rules every adapter obeys:
   job payload, or a log.
 - Provider text is untrusted. The refusal parser and the answer renderer
   read it as data.
-- A handoff URL is validated before the UI may navigate to it.
+- A retailer URL is validated before the UI may navigate to it.
+- Production code MUST NOT call an Instacart API (decision 0023).
 - Every sample-catalog estimate carries the fixed notice: "Estimated from
   the demo price catalog. Instacart prices, availability, taxes, delivery
   fees, and tips are not verified." A Kroger price carries "Availability
@@ -339,7 +339,7 @@ One line per folder, grouped by layer. Tests sit next to their code:
 - `main.tsx`, `rootView.tsx`: pick `App` for `/` or the lazy
   `TonightPrototype` for `/prototype`.
 - `App.tsx`: composes `Conversation`, `BudgetForm`, `TemplatePicker`,
-  `ChatWorkspace`, `Estimate`, `HandoffControls`.
+  `ChatWorkspace`, `Estimate`.
 - `ChatWorkspace.tsx`, `ChatPanel.tsx`, `useChatConversation.ts`,
   `useChatJob.ts`, `chatConversationModel.ts`: the chat turn, its
   polling, and the manual-plan to chat context transfer.
@@ -348,8 +348,6 @@ One line per folder, grouped by layer. Tests sit next to their code:
 - `Estimate.tsx`, `Nutrition.tsx`, `money.ts`: the plan view.
 - `TemplatePicker.tsx`, `useTemplateSuggestions.ts`, `templateApi.ts`:
   meal ideas.
-- `HandoffControls.tsx`, `HandoffConsent.tsx`, `useHandoff.ts`,
-  `handoffApi.ts`: the hidden Instacart path.
 - `api.ts`, `chatApi.ts`, `providerApi.ts`, `apiTypes.ts`,
   `apiValidation.ts`, `chatValidation.ts`: the five API clients and their
   validators.
@@ -365,8 +363,6 @@ One line per folder, grouped by layer. Tests sit next to their code:
   `GET /grocery/chat/jobs/{id}`.
 - `plan_templates.py`: `POST /grocery/templates`.
 - `evidence.py`: `GET /grocery/evidence/{revision_id}`.
-- `handoff.py`: `POST /grocery/handoffs`, `GET /grocery/handoffs/{id}`,
-  `POST /grocery/handoffs/{id}/retry`.
 - `sync.py`: `POST /grocery/sync/jobs`, `GET /grocery/sync/jobs/{id}`.
 - `main.py`: the app, `/healthz`, and the six routers.
 
@@ -394,8 +390,8 @@ One line per folder, grouped by layer. Tests sit next to their code:
   `outbox_publisher.py`, `agent_jobs.py`, `plan_job.py`, `chat_job.py`,
   `chat_history.py`, `sync_job.py`.
 - `services/evidence_store.py`, `evidence_contract.py`,
-  `handoff_dispatch.py`, `handoff_contract.py`, `handoff_intents.py`,
-  `shopping_payload.py`, `plaid_sync.py`.
+  `plaid_sync.py`. The frozen suite alone runs `handoff_dispatch.py`,
+  `handoff_contract.py`, `handoff_intents.py`, and `shopping_payload.py`.
 
 **Workers and providers**
 
@@ -403,7 +399,7 @@ One line per folder, grouped by layer. Tests sit next to their code:
   publisher thread.
 - `backend/app/consume_jobs.py`, `publish_jobs.py`: the consumer and
   publisher entry points.
-- `backend/app/providers/`: `bedrock.py`, `instacart.py`, `plaid.py`,
+- `backend/app/providers/`: `bedrock.py`, `instacart.py` (exceptions and `validate_link_url` only), `plaid.py`,
   `plaid_contract.py`, `kroger.py`, `http_client.py`,
   `local_sqs*.py`, `aws_sqs_*.py`, `local_artifacts.py`,
   `aws_artifacts.py`, `job_transport*.py`.

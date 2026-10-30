@@ -96,5 +96,5 @@ The base Compose stack turns off Bedrock chat and the Kroger overlay.
   is the captured grocery POST body. It has no evidence ID and a placeholder
   revision of 64 zeros, because a grocery job result holds neither.
 
-The suite makes no real Bedrock or Kroger call. It does not cover the
-Instacart handoff.
+The suite makes no real Bedrock or Kroger call. The product has no
+Instacart handoff to cover (decision 0023).

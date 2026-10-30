@@ -29,8 +29,8 @@ Every estimate MUST show this notice:
 > Estimated from the demo price catalog. Instacart prices, availability,
 > taxes, delivery fees, and tips are not verified.
 
-The Instacart handoff stays parked under
-[decision 0010](../wiki/decisions/0010-usda-spoonacular-overlay.md). The
+The product has no Instacart handoff under
+[decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md). The
 product places no orders and submits no payments.
 
 ## Start the base stack

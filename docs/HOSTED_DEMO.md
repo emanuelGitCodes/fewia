@@ -33,8 +33,8 @@ Every grocery estimate MUST show this exact notice:
 
 > Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
 
-Plaid Sandbox remains paused. Live Instacart remains parked.
-Instacart development shopping links provide a handoff only.
+Plaid Sandbox remains paused. The product has no Instacart handoff under
+[decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md).
 The demo MUST NOT submit purchases, orders, or payments or use real bank accounts.
 Synthetic and sample data do not verify retailer, financial, or population claims.
 Retired health and activity planning remains historical.
@@ -562,7 +562,7 @@ The coordinator MUST observe these acceptance checks before recording deployed s
   Available budget equals the monthly limit minus net posted grocery spending, with a zero floor.
   A smaller explicit plan cap limits the available plan budget. Pending spending appears separately.
 - Each displayed grocery estimate includes the exact sample-price notice above.
-- Instacart development links remain a handoff. Plaid, live Instacart, and the sync worker remain parked.
+- The product has no Instacart handoff. Plaid and the sync worker remain parked.
 
 The internal ALB target port 80 does not create a public HTTP listener.
 For a wrong-host probe, use valid TLS for the chosen hostname and change only the HTTP Host header.

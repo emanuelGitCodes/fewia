@@ -739,7 +739,7 @@ Spoonacular pull request 2.7 is gone.
 | 4b.1 | `kroger_customer_tokens` migration with Fernet encryption; connect and callback endpoints; `state` nonce | 150 |
 | 4b.2 | Refresh on use; Profile call; "Connect Kroger" and "Disconnect" in the plan panel | 120 |
 | 4b.3 | Cart preview and send on user click; the API `PUT /v1/cart/add`; outcome-unknown handling on timeout. No model tool and no stored row (see below). | 150 |
-| 4b.4 | Retire Instacart: remove `providers/instacart.py`, `handoff_dispatch.py`, `api/handoff.py`, the handoff button, and `instacart_key_file`; keep the `shopping_handoffs` table. Deferred past phase 5 (see below). | deletions |
+| 4b.4 | Retire Instacart: remove `providers/instacart.py`, `handoff_dispatch.py`, `api/handoff.py`, the handoff button, and `instacart_key_file`; keep the `shopping_handoffs` table. Deferred past phase 5 (see below). Built under decision 0023 with the scope "retire adapter, keep suite"; the notice change stays open under D13. | deletions |
 
 PR 4b.3 replaces the `propose_cart` tool in section 6.4. A
 `cart_proposals` row of UPC, label, and cents is a stored copy of Kroger
