@@ -45,15 +45,6 @@ PROPOSAL_PROMPT_SUFFIX = (
     "propose_plan_change once with every change; do not call plan_groceries "
     "for that. The user applies the change in the plan panel."
 )
-PROSE_PROMPT_SUFFIX = (
-    " Use only numbers that a tool returned in this turn. Do not reuse a "
-    "number from an earlier reply, even for the same meal; call the tool "
-    "again. Do not add, multiply, or otherwise compute a number; report a "
-    "total only when a tool returned it. Write a change with its sign and "
-    "unit, such as +2.5 g fat or -5 kcal. Write plain ASCII text: write "
-    '"to" instead of an arrow. Do not repeat a number or a number word from '
-    "the user's message unless a tool returned it."
-)
 SYSTEM_PROMPT = (
     "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
     "lists the meals in the user's plan. When the user names a plan meal or "
@@ -276,8 +267,6 @@ def run_chat(
     if plan_revision is not None and propose is not None:
         tools.append(proposal_tool_spec())
         system_prompt += PROPOSAL_PROMPT_SUFFIX
-    if model_prose:
-        system_prompt += PROSE_PROMPT_SUFFIX
     proposal_id: str | None = None
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
