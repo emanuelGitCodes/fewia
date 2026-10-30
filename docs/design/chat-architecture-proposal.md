@@ -531,13 +531,14 @@ an operator command. Instacart `products_link` and Plaid Sandbox sync are
 server flows, parked and paused. When a user asks for beef tacos, nothing
 fetches beef nutrition or a beef price.
 
-The owner has registered FEWIA with Kroger: app `FEWIA`, client ID
-`fewia-bbcjrqp0`, environment Certification, with the Products, Locations,
-Cart, and Profile public APIs and the `authorization_code`,
-`client_credentials`, and `refresh_token` grants. No redirect URI is
-registered yet. This section redesigns the external layer around that
-registration. The client secret stays in the owner's file; this document
-does not hold it and no call was made with it.
+The owner has registered FEWIA with Kroger: app `FEWIA`, environment
+Certification, with the Products, Locations, Cart, and Profile public APIs
+and the `authorization_code`, `client_credentials`, and `refresh_token`
+grants. No redirect URI is registered yet. This section redesigns the
+external layer around that registration. The Kroger API Terms of Service
+(section 4b) forbid developer credentials, client IDs included, in an open
+source project. The client ID and the client secret MUST stay in the
+owner's local files and MUST NOT appear in this repository.
 
 ### 6.2 What each granted Kroger API returns
 
