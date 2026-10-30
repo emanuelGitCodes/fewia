@@ -199,6 +199,63 @@ def test_nova2_low_effort_sets_tokens_temperature_and_reasoning_config(
     assert "toolConfig" not in request
 
 
+_TOOL_RESULT = {"toolResult": {"toolUseId": "t1", "content": [{"text": "r"}]}}
+
+
+@pytest.mark.parametrize(
+    ("content", "reasoning"),
+    [
+        ([{"text": "hello"}], True),
+        ([_TOOL_RESULT], False),
+        ([{"text": "note"}, _TOOL_RESULT], False),
+    ],
+)
+def test_nova2_reasoning_only_when_not_answering_tool_results(
+    monkeypatch: pytest.MonkeyPatch, content: list[object], reasoning: bool
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_NOVA2_US_ID)
+    messages = [
+        {"role": "user", "content": [{"text": "hi"}]},
+        {"role": "assistant", "content": [{"toolUse": {"name": "x"}}]},
+        {"role": "user", "content": content},
+    ]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    if reasoning:
+        assert request["additionalModelRequestFields"] == _NOVA2_FIELDS
+    else:
+        assert "additionalModelRequestFields" not in request
+
+
+def test_luna_keeps_reasoning_on_tool_result_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_LUNA_US_ID)
+
+    instance.converse("system", [{"role": "user", "content": [_TOOL_RESULT]}], [])
+
+    extra = client.requests[0]["additionalModelRequestFields"]
+    assert extra == {"reasoning_effort": "low"}
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_prompt_cache_point_follows_setting(
+    monkeypatch: pytest.MonkeyPatch, cache: bool
+) -> None:
+    client = FakeClient(response())
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider("model-id", prompt_cache=cache)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], [])
+
+    expected: list[dict[str, object]] = [{"text": "system"}]
+    if cache:
+        expected.append({"cachePoint": {"type": "default"}})
+    assert client.requests[0]["system"] == expected
+
+
 def test_nova2_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     instance, _, client = provider(monkeypatch, response(), model_id=_NOVA2_US_ID)
     tools = [{"toolSpec": {"name": "get_context"}}]

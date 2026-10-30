@@ -34,6 +34,7 @@ def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:
             model_id,
             region=settings.bedrock_region,
             profile_name=settings.aws_profile,
+            prompt_cache=settings.bedrock_prompt_cache,
         )
     except Exception:  # noqa: BLE001
         pass

@@ -24,7 +24,7 @@ _NOVA2_REASONING_FIELDS: dict[str, object] = {
 
 class ConverseRequest(TypedDict):
     modelId: str
-    system: list[dict[str, str]]
+    system: list[dict[str, object]]
     messages: list[dict[str, object]]
     inferenceConfig: dict[str, int | float]
     toolConfig: NotRequired[dict[str, object]]
@@ -71,6 +71,15 @@ def _is_luna_us_model(model_id: str) -> bool:
 
 def _is_nova2_us_model(model_id: str) -> bool:
     return _is_us_profile(model_id, _NOVA2_US_MODEL_ID)
+
+
+def _answers_tool_results(messages: list[dict[str, object]]) -> bool:
+    last = messages[-1]
+    content = last["content"]
+    return last["role"] == "user" and any(
+        isinstance(block, Mapping) and "toolResult" in block
+        for block in cast(list[object], content)
+    )
 
 
 def _log_failure(
@@ -120,6 +129,7 @@ class BedrockConverseProvider:
         model_id: str,
         region: str = "us-east-1",
         profile_name: str | None = None,
+        prompt_cache: bool = False,
     ) -> None:
         if not isinstance(model_id, str) or not model_id.strip() or len(model_id) > 256:
             raise ValueError("model_id MUST be nonblank and at most 256 characters")
@@ -143,6 +153,7 @@ class BedrockConverseProvider:
         except Exception:  # noqa: BLE001
             raise LLMUnavailable from None
         self._model_id = model_id
+        self._prompt_cache = prompt_cache
 
     def converse(
         self,
@@ -174,15 +185,18 @@ class BedrockConverseProvider:
             inference = {"maxTokens": _NOVA2_MAX_TOKENS, "temperature": 0}
         else:
             inference = {"maxTokens": 1024, "temperature": 0}
+        system: list[dict[str, object]] = [{"text": system_prompt}]
+        if self._prompt_cache:
+            system.append({"cachePoint": {"type": "default"}})
         request: ConverseRequest = {
             "modelId": self._model_id,
-            "system": [{"text": system_prompt}],
+            "system": system,
             "messages": messages,
             "inferenceConfig": inference,
         }
         if luna:
             request["additionalModelRequestFields"] = {"reasoning_effort": "low"}
-        elif nova2:
+        elif nova2 and not _answers_tool_results(messages):
             request["additionalModelRequestFields"] = _NOVA2_REASONING_FIELDS
         if tools:
             request["toolConfig"] = {"tools": tools}

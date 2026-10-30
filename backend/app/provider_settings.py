@@ -35,6 +35,7 @@ class GroceryProviderSettings(BaseSettings):
     bedrock_model_id: str | None = None
     bedrock_region: Literal["us-east-1", "us-west-2"] = "us-east-1"
     aws_profile: str | None = None
+    bedrock_prompt_cache: bool = False
     plaid_client_id: SecretStr | None = None
     plaid_secret_file: Path | None = None
     plaid_tokens_file: Path | None = None

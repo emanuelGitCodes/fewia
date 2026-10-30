@@ -46,6 +46,7 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.bedrock_model_id is None
     assert settings.bedrock_region == "us-east-1"
     assert settings.aws_profile is None
+    assert settings.bedrock_prompt_cache is False
     assert settings.plaid_client_id is None
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
@@ -54,6 +55,14 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.kroger_client_id_file is None
     assert settings.kroger_secret_file is None
     assert settings.kroger_environment == "certification"
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("true", True), ("false", False)])
+def test_bedrock_prompt_cache_parses_env(
+    monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_PROMPT_CACHE", raw)
+    assert load_provider_settings().bedrock_prompt_cache is expected
 
 
 def test_kroger_credentials_load_and_strip(
