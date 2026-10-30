@@ -108,6 +108,8 @@ def _kinds(
 
 
 def _normalize(text: str) -> str:
+    # NFKC would turn a vulgar fraction into digits, so name it as a number word first.
+    text = re.sub(_FRACTION, " half ", text)
     folded = _DASHES.sub("-", unicodedata.normalize("NFKC", text))
     return _SPACES.sub(" ", folded)
 
