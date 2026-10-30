@@ -2,14 +2,13 @@
 
 import argparse
 import json
-import math
 import re
 import time
 import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 
 import httpx
 
@@ -79,18 +78,21 @@ def kroger_base_url(environment: str) -> str:
 def _clean(value: object) -> str | None:
     if not isinstance(value, str):
         return None
-    kept = "".join(ch for ch in value if unicodedata.category(ch) not in ("Cc", "Cf"))
+    kept = "".join(
+        ch for ch in value if unicodedata.category(ch) not in ("Cc", "Cf", "Zl", "Zp")
+    )
     return kept.strip()[:MAX_TEXT].strip() or None
 
 
 def _cents(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    if not math.isfinite(value) or value <= 0 or value > MAX_DOLLARS:
-        return None
     try:
-        cents = int((Decimal(str(value)) * 100).quantize(Decimal(1), ROUND_HALF_UP))
-    except InvalidOperation:
+        dollars = Decimal(str(value))
+        if not dollars.is_finite() or dollars <= 0 or dollars > MAX_DOLLARS:
+            return None
+        cents = int((dollars * 100).quantize(Decimal(1), ROUND_HALF_UP))
+    except (ArithmeticError, ValueError):
         return None
     return cents if cents > 0 else None
 
@@ -104,28 +106,22 @@ def _parse_store(entry: object) -> KrogerStore | None:
     raw_id = entry.get("locationId")
     if not isinstance(raw_id, str) or not _LOCATION_ID.fullmatch(raw_id):
         return None
-    fields = (
-        raw_id,
-        _clean(entry.get("name")),
-        _clean(entry.get("chain")),
-        _clean(address.get("addressLine1")),
-        _clean(address.get("city")),
-        _clean(address.get("state")),
-        _clean(address.get("zipCode")),
-    )
-    location_id, name, chain, line, city, state, zip_code = fields
+    name = _clean(entry.get("name"))
+    chain = _clean(entry.get("chain"))
+    line = _clean(address.get("addressLine1"))
+    city = _clean(address.get("city"))
+    state = _clean(address.get("state"))
+    zip_code = _clean(address.get("zipCode"))
     if (
-        location_id is None
-        or name is None
+        name is None
         or chain is None
         or line is None
         or city is None
         or state is None
         or zip_code is None
-        or not _LOCATION_ID.fullmatch(location_id)
     ):
         return None
-    return KrogerStore(location_id, name, chain, line, city, state, zip_code)
+    return KrogerStore(raw_id, name, chain, line, city, state, zip_code)
 
 
 def _parse_product(entry: object) -> KrogerProduct | None:
@@ -380,7 +376,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print("no stores found")
             client.cache_control.setdefault("products", "not requested")
-    except (ValueError, ArithmeticError):
+    except ValueError:
         print("Invalid ZIP code or search term")
         return 2
     except KrogerUnavailable:

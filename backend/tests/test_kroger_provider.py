@@ -136,6 +136,40 @@ def test_huge_prices_become_none() -> None:
     assert (by_id["P2"].regular_cents, by_id["P2"].promo_cents) == (10_000_000, 150)
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (10**400, None),
+        (1e30, None),
+        (float("nan"), None),
+        (float("inf"), None),
+        (-1, None),
+        (0, None),
+        (True, None),
+        ("2.49", None),
+        (None, None),
+        (2.49, 249),
+        (2.495, 250),
+        (100000, 10_000_000),
+        (100000.01, None),
+    ],
+)
+def test_cents_is_total(value: object, expected: int | None) -> None:
+    assert kroger._cents(value) == expected
+
+
+def test_search_products_keeps_product_with_huge_price() -> None:
+    server = Server()
+    server.products = {"data": [_product(price={"regular": 10**400, "promo": 1.5})]}
+    client, _ = _make(server)
+    (product,) = client.search_products("x", LOCATION).products
+    assert (product.regular_cents, product.promo_cents) == (None, 150)
+
+
+def test_clean_strips_line_and_paragraph_separators() -> None:
+    assert kroger._clean("a b c") == "abc"
+
+
 def test_products_budget_per_utc_day() -> None:
     server = Server()
     client, _ = _make(server)
@@ -480,5 +514,6 @@ def test_smoke_exits_2_when_unconfigured_or_unavailable(
     )
     assert kroger.main(["--zip", ZIP, "--term", "milk"]) == 2
     out = capsys.readouterr().out
+    assert "Kroger is unavailable" in out
     for sentinel in (CLIENT_ID, SECRET, TOKEN, ZIP):
         assert sentinel not in out

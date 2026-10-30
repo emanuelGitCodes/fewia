@@ -8,7 +8,9 @@ def _drop_below_warning(record: logging.LogRecord) -> bool:
 
 
 # httpx logs full request URLs at INFO, which would leak query parameters.
-# A logger filter survives a later setLevel call, unlike the level alone.
+# The WARNING level on "httpx" and "httpcore" protects their child loggers.
+# The filter covers only records logged directly on those two loggers, and it
+# survives a later setLevel call on them.
 for _name in ("httpx", "httpcore"):
     _logger = logging.getLogger(_name)
     _logger.setLevel(logging.WARNING)
