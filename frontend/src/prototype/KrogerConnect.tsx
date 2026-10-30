@@ -20,6 +20,7 @@ export function KrogerConnect(): JSX.Element | null {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [message] = useState(readReturnMessage);
   const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
 
   const refresh = (): void => {
@@ -54,9 +55,17 @@ export function KrogerConnect(): JSX.Element | null {
 
   const disconnect = (): void => {
     setFailed(false);
-    disconnectKroger().then(refresh, () => {
-      setFailed(true);
-    });
+    setBusy(true);
+    disconnectKroger().then(
+      () => {
+        setBusy(false);
+        refresh();
+      },
+      () => {
+        setBusy(false);
+        setFailed(true);
+      },
+    );
   };
 
   if (connected === null && message === "") {
@@ -71,8 +80,8 @@ export function KrogerConnect(): JSX.Element | null {
       ) : null}
       {connected === true ? (
         <>
-          <p>Kroger account connected</p>
-          <button type="button" className="tonight-ask-btn" onClick={disconnect}>
+          <p className="tonight-kroger-status">Kroger account connected</p>
+          <button type="button" className="tonight-ask-btn" disabled={busy} onClick={disconnect}>
             Disconnect
           </button>
         </>

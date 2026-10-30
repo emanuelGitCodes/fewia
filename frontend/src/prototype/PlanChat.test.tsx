@@ -98,6 +98,17 @@ function mount(
   return { ...view, onToggleIdea };
 }
 
+function stubKrogerFetch(body: object): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () => (url === "/api/grocery/kroger/connection" ? { connected: false } : body),
+    })),
+  );
+}
+
 function box(): HTMLTextAreaElement {
   return screen.getByLabelText("Ask for a meal") as HTMLTextAreaElement;
 }
@@ -148,6 +159,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
@@ -385,7 +397,8 @@ describe("PlanChat", () => {
     expect(screen.getByText(SAMPLE_ESTIMATE_NOTICE)).toBeTruthy();
   });
 
-  it("shows the picked store in the panel above the form and passes the handlers through", () => {
+  it("shows the picked store in the panel above the form and passes the handlers through", async () => {
+    stubKrogerFetch({});
     const onKrogerChoose = vi.fn();
     const onKrogerClear = vi.fn();
     mount(initialPlanState(), {
@@ -397,16 +410,27 @@ describe("PlanChat", () => {
     expect(picker.compareDocumentPosition(box()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(onKrogerClear).toHaveBeenCalledTimes(1);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+  });
+
+  it("renders KrogerConnect only when chat is on and the Kroger props are given", async () => {
+    stubKrogerFetch({});
+    mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });
+    expect(await screen.findByRole("link", { name: "Connect Kroger" })).toBeTruthy();
+    cleanup();
+    setProviders(false);
+    mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.queryByRole("link", { name: "Connect Kroger" })).toBeNull();
   });
 
   it("calls the onKrogerChoose it received when a store is picked", async () => {
     const stores = [
       { location_id: "01400943", name: "Main Street", address_line: "1 Test Way", city: "Springfield", state: "OH" },
     ];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: true, json: async () => ({ stores }) }) as Response),
-    );
+    stubKrogerFetch({ stores });
     const onKrogerChoose = vi.fn();
     mount(initialPlanState(), { krogerStore: null, onKrogerChoose, onKrogerClear: vi.fn() });
     fireEvent.click(screen.getByRole("button", { name: "Choose a Kroger store for live prices" }));

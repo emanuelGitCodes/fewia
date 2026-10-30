@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KrogerConnect } from "./KrogerConnect";
 
@@ -11,6 +11,13 @@ function stub(handler: Handler): void {
 
 function status(connected: unknown): Promise<Partial<Response>> {
   return Promise.resolve({ ok: true, status: 200, json: async () => ({ connected }) });
+}
+
+// A macrotask turn drains every pending promise, so the read has settled afterwards.
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }
 
 afterEach(() => {
@@ -28,14 +35,23 @@ describe("KrogerConnect", () => {
 
     stub(async () => ({ ok: false, status: 503 }));
     const off = render(<KrogerConnect />);
-    await waitFor(() => { expect(fetch).toHaveBeenCalled(); });
+    await settle();
     expect(off.container.firstChild).toBeNull();
     off.unmount();
 
-    stub(() => status("yes"));
-    const bad = render(<KrogerConnect />);
-    await waitFor(() => { expect(fetch).toHaveBeenCalled(); });
-    expect(bad.container.firstChild).toBeNull();
+    for (const body of ["yes", undefined]) {
+      stub(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => (body === undefined ? { connected: false, extra: 1 } : { connected: body }),
+        }),
+      );
+      const bad = render(<KrogerConnect />);
+      await settle();
+      expect(bad.container.firstChild).toBeNull();
+      bad.unmount();
+    }
   });
 
   it("links to the connect route when not connected", async () => {
@@ -67,7 +83,24 @@ describe("KrogerConnect", () => {
     render(<KrogerConnect />);
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
     expect(await screen.findByText("Could not disconnect Kroger. Try again.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Disconnect" })).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+  });
+
+  it("disables Disconnect while the request is in flight", async () => {
+    let finish: () => void = () => undefined;
+    stub((_url, init) =>
+      init?.method === "DELETE"
+        ? new Promise((resolve) => {
+            finish = () => { resolve({ ok: false, status: 500 }); };
+          })
+        : status(true),
+    );
+    render(<KrogerConnect />);
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+    expect((screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { finish(); });
+    expect((screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("shows the sign-in result and removes only the kroger parameter", async () => {
