@@ -112,7 +112,9 @@ def _changes(
             _changes(old, new, facts)
         elif type(old) is int and type(new) is int:
             now, was = _kinds(str(name), new), _kinds(str(name), old)
-            facts.deltas.update((k, a - b) for (k, a), (_, b) in zip(now, was))
+            facts.deltas.update(
+                (k, a - b) for (k, a), (_, b) in zip(now, was, strict=False)
+            )
             facts.deltas.update(_kinds(str(name), new - old))
 
 
