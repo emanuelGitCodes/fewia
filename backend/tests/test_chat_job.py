@@ -2,21 +2,27 @@ import copy
 import json
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import plan_ingredient_ids
 from app.agent.chat_loop import ChatUnavailable
 from app.agent.planning_tool import TOOL_NAME, execute_plan
+from app.db import Base
 from app.domain.budget import (
     STALE_SPENDING_ERROR,
     SpendingSnapshot,
     StaleSpendingError,
     calculate_budget,
 )
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.plan_models import PlanProposal, PlanRevision
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
 from app.services.plan_job import SpendingInput
@@ -537,3 +543,67 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
             "additions and removals; plan_meals is the user's current plan"
         )
         assert loaded["plan_meals"] is None
+
+
+def test_chat_job_proposal_tool_stores_a_committed_proposal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory: sessionmaker[Session] = sessionmaker(engine)
+    kept, added = SUPPORTED_RECIPE_IDS[:2]
+    snapshot = {
+        "meals": [{"recipe_id": kept, "servings": 2}],
+        "pantry_ingredient_ids": [],
+        "plan_cap_cents": None,
+    }
+    revision_id = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    try:
+        with factory() as seed:
+            seed.add(PlanRevision(id=UUID(revision_id), user_id=1, snapshot=snapshot))
+            seed.commit()
+        operations = [{"op": "add", "recipe_id": added, "servings": 2}]
+        provider = FakeLLM(
+            [
+                _reply(
+                    [
+                        {
+                            "toolUse": {
+                                "toolUseId": "p1",
+                                "name": "propose_plan_change",
+                                "input": {"operations": operations},
+                            }
+                        }
+                    ],
+                    "tool_use",
+                ),
+                _reply([{"text": "Done."}], "end_turn"),
+            ]
+        )
+        result = chat_job_module.chat_job(
+            chat_payload(
+                message="add another meal",
+                plan_revision_id=revision_id,
+                plan_revision={"id": revision_id, "snapshot": snapshot},
+            ),
+            lambda: None,
+            provider=provider,
+            factory=factory,
+        )
+        proposal_id = result["proposal_id"]
+        assert isinstance(proposal_id, str)
+        with factory() as fresh:
+            rows = fresh.scalars(select(PlanProposal)).all()
+        assert [str(row.id) for row in rows] == [proposal_id]
+        assert rows[0].user_id == 1
+        assert str(rows[0].base_plan_revision_id) == revision_id
+        assert rows[0].status == "pending"
+        assert rows[0].operations == operations
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
