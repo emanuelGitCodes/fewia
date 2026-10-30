@@ -78,19 +78,46 @@ def test_not_configured(api: TestClient) -> None:
     assert response.json()["error"]["message"] == "Kroger is not configured"
 
 
+def _assert_no_sentinel(caplog: pytest.LogCaptureFixture, text: str) -> None:
+    assert SENTINEL_ZIP not in text
+    for record in caplog.records:
+        assert SENTINEL_ZIP not in record.getMessage()
+        assert SENTINEL_ZIP not in str(record.args)
+    assert SENTINEL_ZIP not in caplog.text
+
+
+def _token_then(status: int) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 1800})
+        return httpx.Response(status)
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.parametrize("status", [500, 429])
 def test_unavailable_hides_zip(
+    api: TestClient, caplog: pytest.LogCaptureFixture, status: int
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    _override(_client(_token_then(status)))
+    response = api.post(URL, json={"zip_code": SENTINEL_ZIP})
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == "Kroger is unavailable"
+    _assert_no_sentinel(caplog, response.text)
+
+
+def test_token_failure_hides_zip(
     api: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
     caplog.set_level(logging.DEBUG)
     _override(_client(httpx.MockTransport(lambda r: httpx.Response(500))))
     response = api.post(URL, json={"zip_code": SENTINEL_ZIP})
     assert response.status_code == 503
-    assert response.json()["error"]["message"] == "Kroger is unavailable"
-    assert SENTINEL_ZIP not in response.text
-    assert SENTINEL_ZIP not in caplog.text
+    _assert_no_sentinel(caplog, response.text)
 
 
-@pytest.mark.parametrize("bad", ["9753", "975311", "9753a", "", "97 31"])
+@pytest.mark.parametrize("bad", ["97531x", "9753", "975311", "9753a", "", "97 31"])
 def test_bad_zip_is_422_without_echo(
     api: TestClient, caplog: pytest.LogCaptureFixture, bad: str
 ) -> None:
@@ -99,7 +126,8 @@ def test_bad_zip_is_422_without_echo(
     response = api.post(URL, json={"zip_code": bad})
     assert response.status_code == 422
     assert response.json()["error"]["message"] == "zip_code MUST be exactly 5 digits"
-    assert bad not in response.text or bad == ""
+    assert bad not in response.text if bad else True
+    _assert_no_sentinel(caplog, response.text)
 
 
 def test_invalid_body_detail_is_empty(api: TestClient) -> None:

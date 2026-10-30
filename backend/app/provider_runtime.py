@@ -111,7 +111,7 @@ def build_kroger(settings: GroceryProviderSettings) -> KrogerClient | None:
             secret.get_secret_value(),
             base_url=kroger_base_url(settings.kroger_environment),
         )
-    except Exception:  # noqa: BLE001
+    except ValueError:
         pass
     if client is None:
         raise ProviderConfigurationError()

@@ -3,6 +3,7 @@
 import base64
 import logging
 import threading
+import time
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -373,22 +374,109 @@ def test_truncated_token_body_has_no_cause_or_context() -> None:
 
 
 def test_concurrent_find_stores_makes_one_token_request() -> None:
-    server = Server()
-    server.locations = {"data": [_store()]}
-    client, _ = _make(server)
-    results: list[int] = []
+    token_started = threading.Event()
+    release = threading.Event()
+    requests: list[str] = []
 
-    def work() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path == "/v1/connect/oauth2/token":
+            token_started.set()
+            release.wait(5)
+            return httpx.Response(200, json={"access_token": TOKEN, "expires_in": 1800})
+        return httpx.Response(200, json={"data": [_store()]})
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+    results: list[int] = []
+    entered = [threading.Event() for _ in range(8)]
+
+    def work(i: int) -> None:
+        entered[i].set()
         results.append(len(client.find_stores(ZIP)))
 
-    threads = [threading.Thread(target=work) for _ in range(8)]
+    threads = [threading.Thread(target=work, args=(i,)) for i in range(8)]
+    threads[0].start()
+    assert token_started.wait(5)
+    for t in threads[1:]:
+        t.start()
+    for e in entered:
+        assert e.wait(5)
+    time.sleep(0.05)
+    release.set()
+    for t in threads:
+        t.join(10)
+    assert results == [1] * 8
+    assert requests.count("/v1/connect/oauth2/token") == 1
+    assert requests.count("/v1/locations") == 8
+
+
+def test_concurrent_spend_respects_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(kroger.DAILY_LIMITS, "locations", 5)
+    server = Server()
+    client, _ = _make(server)
+    barrier = threading.Barrier(20, timeout=5)
+    outcomes: list[bool] = []
+
+    def work() -> None:
+        barrier.wait()
+        try:
+            client.find_stores(ZIP)
+        except KrogerUnavailable:
+            outcomes.append(False)
+        else:
+            outcomes.append(True)
+
+    threads = [threading.Thread(target=work) for _ in range(20)]
     for t in threads:
         t.start()
     for t in threads:
-        t.join()
-    assert results == [1] * 8
-    assert server.count("/v1/connect/oauth2/token") == 1
-    assert server.count("/v1/locations") == 8
+        t.join(10)
+    assert server.count("/v1/locations") == 5
+    assert outcomes.count(True) == 5
+    assert outcomes.count(False) == 15
+
+
+def test_data_request_runs_without_the_lock() -> None:
+    a_started = threading.Event()
+    release_a = threading.Event()
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/connect/oauth2/token":
+            return httpx.Response(200, json={"access_token": TOKEN, "expires_in": 1800})
+        calls.append(1)
+        if len(calls) == 2:
+            a_started.set()
+            release_a.wait(5)
+        return httpx.Response(200, json={"data": []})
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+    client.find_stores(ZIP)
+    a = threading.Thread(target=client.find_stores, args=(ZIP,))
+    b = threading.Thread(target=client.find_stores, args=(ZIP,))
+    a.start()
+    try:
+        assert a_started.wait(5)
+        b.start()
+        b.join(5)
+        assert not b.is_alive()
+    finally:
+        release_a.set()
+        a.join(5)
+        b.join(5)
+
+
+def test_stale_401_keeps_newer_token() -> None:
+    server = Server()
+    client, _ = _make(server)
+    client.find_stores(ZIP)
+    client._token = "newer-token"
+    server.data_status = 401
+    with pytest.raises(KrogerUnavailable):
+        client._send("GET", "/v1/locations", {}, used_token=TOKEN)
+    assert client._token == "newer-token"
 
 
 def test_transport_error_and_invalid_json() -> None:

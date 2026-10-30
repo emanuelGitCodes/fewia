@@ -225,6 +225,7 @@ class KrogerClient:
         data: dict[str, str] | None = None,
         params: dict[str, str] | None = None,
         locked: bool = False,
+        used_token: str | None = None,
     ) -> httpx.Response:
         self._check_cooldown()
         response: httpx.Response | None = None
@@ -244,7 +245,7 @@ class KrogerClient:
         if response is None:
             raise KrogerUnavailable()
         with nullcontext() if locked else self._lock:
-            if response.status_code == 401:
+            if response.status_code == 401 and self._token == used_token:
                 self._token = None
             if response.status_code == 429:
                 self._cooldown_until = self._clock() + COOLDOWN_SECONDS
@@ -293,7 +294,9 @@ class KrogerClient:
             self._token_expires_at = self._clock() + expires_in - TOKEN_MARGIN_SECONDS
             return token
 
-    def _get(self, kind: str, path: str, params: dict[str, str]) -> httpx.Response:
+    def _get(
+        self, kind: str, path: str, params: dict[str, str]
+    ) -> tuple[httpx.Response, str | None]:
         self._check_cooldown()
         token = self._app_token()
         self._spend(kind)
@@ -302,15 +305,18 @@ class KrogerClient:
             path,
             {"Accept": "application/json", "Authorization": f"Bearer {token}"},
             params=params,
+            used_token=token,
         )
-        self.cache_control[kind] = response.headers.get("cache-control")
-        return response
+        header = response.headers.get("cache-control")
+        with self._lock:
+            self.cache_control[kind] = header
+        return response, header
 
     def find_stores(self, zip_code: str, limit: int = 5) -> list[KrogerStore]:
         if not isinstance(zip_code, str) or not _ZIP_CODE.fullmatch(zip_code):
             raise ValueError("zip_code MUST be exactly 5 digits")
         _require_limit(limit)
-        payload = self._fetch(
+        payload, _ = self._fetch(
             "locations",
             LOCATIONS_PATH,
             {"filter.zipCode.near": zip_code, "filter.limit": str(limit)},
@@ -329,7 +335,7 @@ class KrogerClient:
             raise ValueError("term MUST be 1 to 64 printable characters")
         _require_location_id(location_id)
         _require_limit(limit)
-        payload = self._fetch(
+        payload, header = self._fetch(
             "products",
             PRODUCTS_PATH,
             {
@@ -341,11 +347,14 @@ class KrogerClient:
         products = (_parse_product(entry) for entry in _data_list(payload))
         return KrogerSearch(
             products=[p for p in products if p is not None],
-            cache_control=self.cache_control.get("products"),
+            cache_control=header,
         )
 
-    def _fetch(self, kind: str, path: str, params: dict[str, str]) -> object:
-        return self._json(self._get(kind, path, params))
+    def _fetch(
+        self, kind: str, path: str, params: dict[str, str]
+    ) -> tuple[object, str | None]:
+        response, header = self._get(kind, path, params)
+        return self._json(response), header
 
 
 def _show(value: object) -> str:

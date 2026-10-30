@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -63,15 +64,33 @@ def test_get_supermarket_estimator_none_without_key_file(
     get_supermarket_estimator.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _clear_kroger_cache() -> Iterator[None]:
+    get_kroger_client.cache_clear()
+    yield
+    get_kroger_client.cache_clear()
+
+
 def test_get_kroger_client_none_without_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    get_kroger_client.cache_clear()
     monkeypatch.setattr(
         "app.deps.load_provider_settings", lambda: GroceryProviderSettings()
     )
     assert get_kroger_client() is None
-    get_kroger_client.cache_clear()
+
+
+def test_get_kroger_client_none_when_files_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "app.deps.load_provider_settings",
+        lambda: GroceryProviderSettings(
+            kroger_client_id_file=tmp_path / "no-id",
+            kroger_secret_file=tmp_path / "no-secret",
+        ),
+    )
+    assert get_kroger_client() is None
 
 
 def test_get_kroger_client_built_from_files(
@@ -83,7 +102,6 @@ def test_get_kroger_client_built_from_files(
     secret_file.write_text("invented-secret\n")
     id_file.chmod(0o600)
     secret_file.chmod(0o600)
-    get_kroger_client.cache_clear()
     monkeypatch.setattr(
         "app.deps.load_provider_settings",
         lambda: GroceryProviderSettings(
@@ -93,4 +111,3 @@ def test_get_kroger_client_built_from_files(
     client = get_kroger_client()
     assert isinstance(client, KrogerClient)
     assert get_kroger_client() is client
-    get_kroger_client.cache_clear()
