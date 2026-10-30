@@ -181,6 +181,7 @@ two switch on by environment, and two stay off by decision.
 | USDA FoodData Central | `domain/nutrition_catalog.py`; `usda_refresh.py` rebuilds the file | None at runtime; facts ship in the catalog | On | catalog |
 | Amazon Bedrock | `providers/bedrock.py` `BedrockConverseProvider` behind the `LLMProvider` protocol | `FEWIA_BEDROCK_MODEL_ID` through `compose.bedrock.yaml`; `us-east-1` or `us-west-2`; Nova 2 Lite | On when configured; plain `docker compose up` leaves chat unconfigured | live |
 | Kroger Products and Locations | `providers/kroger.py`; `services/kroger_overlay.py`; `api/kroger.py` | `FEWIA_KROGER_CLIENT_ID_FILE` and `FEWIA_KROGER_SECRET_FILE` through `compose.kroger.yaml` | On when configured; off by default | live, read time |
+| Kroger account and cart | `kroger_customer.py`; `kroger_cart.py`; `api/kroger.py` (`/connect`, `/callback`, `/connection`, `/cart/preview`, `/cart/add`) | Also `FEWIA_KROGER_TOKEN_KEY_FILE`, `FEWIA_KROGER_REDIRECT_URI`, and `FEWIA_KROGER_RETURN_URL`; table `kroger_customer_tokens` holds Fernet-encrypted tokens only | On when configured; the user signs in and clicks | live, user action; not live-checked |
 | Instacart development | `providers/instacart.py` `InstacartDevelopmentProvider`; `POST /idp/v1/products/products_link` | `instacart_configured` from `provider_settings.py` | Parked, decision 0010 | development |
 | Plaid Sandbox | `providers/plaid.py` `PlaidSandboxProvider`, `plaid_contract.py` | `plaid_client_id`, secret file, tokens file | Paused, last by decision 0016 | sandbox, none recorded |
 

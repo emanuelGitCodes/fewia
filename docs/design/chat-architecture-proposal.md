@@ -190,7 +190,7 @@ flowchart LR
   W --> LOOP[Agent loop]
   LOOP -->|Converse| BR[Bedrock model]
   BR -->|toolUse| LOOP
-  LOOP --> TOOLS[Deterministic tools<br/>get_plan, get_meal,<br/>get_ingredient_facts, get_price_quote,<br/>what_if_substitute, update_recipe,<br/>price_lines, search_meals,<br/>propose_plan_change, propose_cart,<br/>decline]
+  LOOP --> TOOLS[Deterministic tools<br/>get_plan, get_meal,<br/>get_ingredient_facts, get_price_quote,<br/>what_if_substitute, update_recipe,<br/>price_lines, search_meals,<br/>propose_plan_change,<br/>decline]
   TOOLS --> DOM[Domain: catalog, nutrition,<br/>planner, budget]
   DOM --> PG
   TOOLS --> ADP[Adapters: KrogerClient,<br/>UsdaSource, source cache]
@@ -279,9 +279,9 @@ and cost per turn.
 ### 4.4 Tool design
 
 Eight small tools replace `plan_groceries`, `get_budget_summary`, and
-`find_catalog_meals`. Section 6.4 adds three more, `get_price_quote`,
-`update_recipe`, and `propose_cart`, which reach Kroger through a server
-adapter. Each
+`find_catalog_meals`. Section 6.4 adds two more, `get_price_quote` and `update_recipe`, which
+reach Kroger through a server adapter. The Kroger cart has no model tool
+(section 6.6). Each
 tool is deterministic given its inputs and its cached sources, and adds
 the numbers it returns to the fact set. Schemas show properties only.
 
@@ -617,15 +617,9 @@ the Kroger quote, recomputes macros and cost, and returns `updated_recipe`
 `store_live` line, `price_complete`, `assumptions`, `degraded`) and a
 `proposal_id` from `propose_plan_change`.
 
-```json
-{"name": "propose_cart",
- "input": {"plan_revision_id": "string"}}
-```
-Builds the cart proposal from the plan's Kroger quotes: `items[]` of
-`upc`, `quantity`, `product_label`, `cents`, and `cart_proposal_id`. The
-model MUST NOT call the Cart API. The tool writes a proposal row only. The
-UI shows "Send to Kroger cart"; the user clicks; the API calls
-`PUT /v1/cart/add` with the customer token; the user checks out on
+The Kroger cart has no model tool. Section 6.6 holds the click-only flow:
+the user previews the plan's items at Kroger, confirms them, and the API
+calls `PUT /v1/cart/add` with the customer token. The user checks out on
 kroger.com. FEWIA never checks out, pays, or places an order.
 
 The refusal boundary in section 4.10 does not move. The model keeps the
@@ -720,8 +714,8 @@ ZIP once; the server cached `location_id`.
    not verified. Apply the change in the plan panel, or tell me to use
    leaner beef."
 6. The plan panel shows the proposal. Apply creates a new revision. If the
-   user has connected Kroger, a "Send to Kroger cart" button calls
-   `propose_cart`, shows the items, and sends them on a second click.
+   user has connected Kroger, "Preview Kroger cart" shows the matched
+   items, and "Send to Kroger cart" adds them on a second click.
 
 If Kroger times out, step 3 returns `degraded: ["kroger"]`, the reply omits
 the Kroger sentence, and the trace records the timeout.
