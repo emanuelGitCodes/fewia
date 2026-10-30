@@ -438,7 +438,7 @@ def test_refusal_text_is_not_validated_as_prose() -> None:
     off, _ = _run(_swap(refusal), model_prose=False)
     assert on["answer"] == off["answer"]
     assert on["reply_source"] == "template"
-    assert on["reply_check"] is None
+    assert on["reply_check"] == {"gate": "refusal"}
 
 
 def test_accepted_plan_keeps_the_template_without_a_final_call() -> None:
@@ -451,7 +451,7 @@ def test_accepted_plan_keeps_the_template_without_a_final_call() -> None:
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "planned_terminal"}
 
 
 def test_discovery_clarification_keeps_the_template() -> None:
@@ -464,7 +464,7 @@ def test_discovery_clarification_keeps_the_template() -> None:
     assert len(provider.requests) == 1
     assert on["answer"] == off["answer"]
     assert on["reply_source"] == "template"
-    assert on["reply_check"] is None
+    assert on["reply_check"] == {"gate": "discovery_terminal"}
 
 
 def test_planner_limit_keeps_the_limit_answer() -> None:
@@ -479,7 +479,7 @@ def test_planner_limit_keeps_the_limit_answer() -> None:
     assert result["status"] == "limit"
     assert result["answer"] == _LIMIT
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "limit"}
 
 
 def test_reasoning_block_never_reaches_the_answer_or_next_request() -> None:

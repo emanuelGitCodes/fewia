@@ -148,6 +148,7 @@ def ask(gate: str | None) -> Record:
         (ask("tool_failed"), "template"),
         (ask("no_tools"), "clarification"),
         (ask("clarification"), "clarification"),
+        (ask("refusal"), "clarification"),
         (ask(None), "clarification"),
         ({"proposal": True, "status": "clarification"}, "proposal"),
         ({"reply_source": "none", "status": "failed"}, "failed"),

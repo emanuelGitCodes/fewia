@@ -26,7 +26,7 @@ def outcome_of(record: dict[str, object]) -> str:
         return "prose"
     # A read tool also ends with status "clarification"; only a reply that asked
     # the user something without a tool answer is a clarification.
-    asked = record.get("gate") in (None, "no_tools", "clarification")
+    asked = record.get("gate") in (None, "no_tools", "clarification", "refusal")
     if asked and record.get("status") == "clarification":
         return "clarification"
     return "template"
