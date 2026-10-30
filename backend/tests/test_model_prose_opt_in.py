@@ -10,7 +10,7 @@ from app.agent.chat_answer import render_public_answer
 from app.agent.chat_loop import run_chat
 from app.agent.planning_tool import execute_plan
 from app.agent.provider import LLMProvider
-from app.agent.substitute_tool import TOOL_NAME as SUBSTITUTE_TOOL
+from app.agent.substitute_tool import SUBSTITUTE_TOOL
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_inputs import prepare_case
 from app.evaluation_model_turn import observe_model_turn
@@ -270,9 +270,9 @@ def test_evaluation_protocol_never_opts_in(monkeypatch: pytest.MonkeyPatch) -> N
     real = chat_loop.run_chat
     seen: list[dict[str, object]] = []
 
-    def spy(*args: Any, **kwargs: Any) -> dict[str, object]:
+    def spy(*args: object, **kwargs: object) -> dict[str, object]:
         seen.append(dict(kwargs))
-        return real(*args, **kwargs)
+        return real(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(chat_loop, "run_chat", spy)
     for case_id in ("P03", "P04"):
@@ -287,9 +287,9 @@ def test_evaluation_model_turn_never_stores_model_prose(
     seen: list[dict[str, object]] = []
     real = chat_loop.run_chat
 
-    def spy(*args: Any, **kwargs: Any) -> dict[str, object]:
+    def spy(*args: object, **kwargs: object) -> dict[str, object]:
         seen.append(dict(kwargs))
-        return real(*args, **kwargs)
+        return real(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(chat_loop, "run_chat", spy)
 
