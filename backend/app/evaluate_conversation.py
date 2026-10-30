@@ -114,7 +114,9 @@ def main(
 ) -> int:
     try:
         args = _arguments(argv)
-        if re.fullmatch(r"[0-9a-f]{40}", args.revision) is None or not args.output_dir:
+        if re.fullmatch(r"[0-9a-f]{40}", args.revision) is None:
+            raise ValueError(_INVALID)
+        if not args.output_dir or Path(args.output_dir).exists():
             raise ValueError(_INVALID)
         profile = resolve_profile(args.profile, args.region)
         corpus = load_conversation_corpus(Path(args.corpus))

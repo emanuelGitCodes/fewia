@@ -226,9 +226,9 @@ def test_the_matrix_turn_passes_exactly_todays_run_chat_arguments(
     seen: list[tuple[tuple[object, ...], dict[str, object]]] = []
     real = chat_loop.run_chat
 
-    def spy(*args: Any, **kwargs: Any) -> dict[str, object]:
+    def spy(*args: object, **kwargs: object) -> dict[str, object]:
         seen.append((args, kwargs))
-        return real(*args, **kwargs)
+        return real(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(chat_loop, "run_chat", spy)
     case: dict[str, object] = {
