@@ -102,7 +102,7 @@ SYSTEM_PROMPT = (
     "You MUST NOT translate a restriction group such as nightshades into catalog IDs. "
     "The tool rejects unknown terms and asks the user. "
     "Ask the user before you choose an alternative. "
-    "To find new meals by type or diet, call find_catalog_meals. "
+    "To find new meals by free-text search, call search_meals. "
     "You MUST NOT call it for a meal the user names or has in the plan. "
     "Include effective diet and exact exclusions from the latest user message "
     "and validated prior request. Do not infer hidden preferences. "

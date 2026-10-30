@@ -59,7 +59,6 @@ from app.agent.substitute_tool import (
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
-from app.domain.meal_tags import SEARCH_TERMS
 from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
@@ -762,7 +761,7 @@ def test_prompt_leads_with_the_swap_rule_and_the_plan_meals() -> None:
         "recipe_id and with_food set to the new food."
     )
     facts = "Call get_ingredient_facts only for a question about one food on its own."
-    discovery = "To find new meals by type or diet, call find_catalog_meals."
+    discovery = "To find new meals by free-text search, call search_meals."
     assert SYSTEM_PROMPT.startswith(
         "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
         "lists the meals in the user's plan. When the user names a plan meal or "
@@ -1640,18 +1639,15 @@ def test_prompt_and_all_schemas_stay_under_interim_budget() -> None:
     assert len(serialized) < PROMPT_AND_TOOLS_BUDGET, len(serialized)
     assert "Catalog meal labels are id:labels pairs:" not in SYSTEM_PROMPT
     assert "bean_tacos:vegan,vegetarian,beans" not in SYSTEM_PROMPT
-    assert "call find_catalog_meals" in SYSTEM_PROMPT
+    assert "call search_meals" in SYSTEM_PROMPT
+    assert "find_catalog_meals" not in SYSTEM_PROMPT
 
 
 def test_system_prompt_states_tag_thresholds_and_tool_spec_lists_terms() -> None:
     assert "high_protein means 30 g or more protein per serving." in SYSTEM_PROMPT
     assert "lower_carb means 30 g or less carbohydrate per serving." in SYSTEM_PROMPT
     spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
-    description = cast(str, spec["description"])
-    terms = description.split("Terms: ", 1)[1].removesuffix(".").split(", ")
-    assert set(SEARCH_TERMS) - {"meat", "carnivore"} <= set(terms)
-    assert not {"meat", "carnivore"} & set(terms)
-    assert {"vegan", "vegetarian", "high_protein", "lower_carb"} <= set(terms)
+    assert spec["name"] == "search_meals"
     assert "When the user asks for keto," not in SYSTEM_PROMPT
 
 
@@ -3029,11 +3025,7 @@ def test_unknown_cache_usage_does_not_reappear(
 
 
 def _discovery_block(tool_id: str = "d1", **changes: object) -> dict[str, object]:
-    args: dict[str, object] = {
-        "terms": ["egg"],
-        "diet": "vegetarian",
-        "ingredient_exclusions": [],
-    }
+    args: dict[str, object] = {"query": "egg", "diet": "vegetarian"}
     args.update(changes)
     return _tool_block(tool_id, name=CATALOG_TOOL_NAME, payload=args)
 
@@ -3077,9 +3069,7 @@ def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
     assert len(captured[0]) == 1
     tool_result = cast(dict[str, object], captured[0][0]["toolResult"])
     content = cast(list[dict[str, object]], tool_result["content"])
-    expected = execute_catalog_search(
-        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-    )
+    expected = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     assert content == [{"json": expected}]
     assert result["answer"] == catalog_answer(expected)
     assert "Breakfast burritos" in result["answer"]
@@ -3298,9 +3288,7 @@ def test_mixed_discovery_precedence_is_order_independent(
         DISCOVERY_ERROR
         if mode == "discovery_error"
         else catalog_answer(
-            execute_catalog_search(
-                {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-            )
+            execute_catalog_search({"query": "egg", "diet": "vegetarian"})
         )
     )
     summary_answer = (
@@ -3348,9 +3336,7 @@ def test_discovery_and_budget_return_both_in_one_call(order: bool) -> None:
     assert result["model_turns"] == 1
     assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
     assert result["planner_revisions"] == 0
-    discovery = execute_catalog_search(
-        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-    )
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     assert result["answer"] == (
         catalog_answer(discovery)
         + " "
@@ -3365,9 +3351,7 @@ def test_discovery_and_budget_return_both_in_one_call(order: bool) -> None:
 def test_discovery_mixed_failure_preserves_each_outcome(
     reverse: bool, failure: str
 ) -> None:
-    discovery = execute_catalog_search(
-        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-    )
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     if failure == "discovery":
         calls = [_discovery_block(terms=["nightshades"]), _budget_block("s1")]
         expected = (
@@ -3450,9 +3434,7 @@ def test_discovery_batch_keeps_successful_summary_alongside_failed_summary(
             _reply([_text_block("injected-model-prose")], "end_turn"),
         ]
     )
-    discovery = execute_catalog_search(
-        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-    )
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     assert result["answer"] == (
         catalog_answer(discovery)
         + " "
@@ -3520,7 +3502,7 @@ def test_discovery_then_plan_stops_at_choices() -> None:
     assert result["model_turns"] == 1
 
 
-@pytest.mark.parametrize("changes", [{"price": 0}, {"terms": []}])
+@pytest.mark.parametrize("changes", [{"price": 0}, {"query": ""}])
 def test_invalid_discovery_cannot_show_model_suggestions(
     changes: dict[str, object],
 ) -> None:

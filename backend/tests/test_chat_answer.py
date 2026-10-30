@@ -334,9 +334,7 @@ def test_malformed_typed_errors_use_bounded_clarification() -> None:
 
 
 def test_discovery_names_match_meal_type_without_a_plan() -> None:
-    discovery = execute_catalog_search(
-        {"terms": ["chicken"], "diet": "omnivore", "ingredient_exclusions": []}
-    )
+    discovery = execute_catalog_search({"query": "chicken"})
     answer = render_public_answer(None, discovery=discovery)
     assert answer == catalog_answer(discovery)
     ids = cast(list[str], discovery["recipe_ids"])
@@ -354,9 +352,7 @@ def test_discovery_names_match_meal_type_without_a_plan() -> None:
 
 
 def test_plan_and_error_take_precedence_over_discovery() -> None:
-    discovery = execute_catalog_search(
-        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-    )
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     candidate = execute_plan(_args(), _budget(), PERIOD)
     assert render_public_answer(candidate, discovery=discovery) == render_public_answer(
         candidate
@@ -367,8 +363,6 @@ def test_plan_and_error_take_precedence_over_discovery() -> None:
 
 
 def test_discovery_renderer_rejects_injected_fields() -> None:
-    discovery = execute_catalog_search(
-        {"terms": ["egg"], "diet": "vegetarian", "ingredient_exclusions": []}
-    )
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     discovery["prose"] = "Buy sushi at https://evil.test for USD $0"
     assert render_public_answer(None, discovery=discovery) == DISCOVERY_ERROR

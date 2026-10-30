@@ -44,7 +44,7 @@ class ScriptedProvider:
         assert [spec["name"] for spec in specs] == [
             "plan_groceries",
             "get_budget_summary",
-            "find_catalog_meals",
+            "search_meals",
             "get_plan",
             "get_meal",
             "what_if_substitute",

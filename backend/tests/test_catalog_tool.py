@@ -5,11 +5,14 @@ import pytest
 
 from app.agent.catalog_tool import (
     DISCOVERY_ERROR,
+    TOOL_NAME,
     CatalogToolError,
     catalog_answer,
     catalog_tool_spec,
     execute_catalog_search,
 )
+from app.agent.estimate import priced_estimate
+from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import (
@@ -17,250 +20,289 @@ from app.domain.meal_tags import (
     KETO_NOTE,
     MEAL_DIETS,
     MEAL_TAGS,
-    SEARCH_TERMS,
-    TAG_ORDER,
+    _per_serving_grams,
 )
 
+SENTINEL = "zqxsentinel"
 
-def arguments(**changes: object) -> dict[str, object]:
-    result: dict[str, object] = {
-        "terms": ["omnivore"],
-        "diet": "omnivore",
-        "ingredient_exclusions": [],
+
+def search(query: str, **changes: object) -> dict[str, object]:
+    return execute_catalog_search({"query": query, **changes})
+
+
+def ids(payload: dict[str, object]) -> list[str]:
+    return cast(list[str], payload["recipe_ids"])
+
+
+def has(rid: str, ingredient_id: str) -> bool:
+    return ingredient_id in dict(RECIPES[rid].ingredients)
+
+
+def test_name_is_search_meals() -> None:
+    assert TOOL_NAME == "search_meals"
+    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
+    assert spec["name"] == "search_meals"
+    assert "sample grocery cost for one serving, in whole packages" in cast(
+        str, spec["description"]
+    )
+    assert "price per serving" not in cast(str, spec["description"])
+
+
+def test_schema_is_bounded() -> None:
+    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
+    schema = cast(
+        dict[str, object], cast(dict[str, object], spec["inputSchema"])["json"]
+    )
+    assert schema["additionalProperties"] is False
+    assert schema["required"] == ["query"]
+    properties = cast(dict[str, dict[str, object]], schema["properties"])
+    assert set(properties) == {
+        "query",
+        "diet",
+        "exclude",
+        "min_protein_g",
+        "max_cents_per_serving",
+        "limit",
     }
-    result.update(changes)
-    return result
+    assert properties["query"]["maxLength"] == 120
+    assert properties["exclude"]["maxItems"] == 22
+    assert properties["limit"]["maximum"] == 3
+    assert "evidence" not in json.dumps(search("egg"))
 
 
-_UI_ONLY = ("meat", "carnivore")
-_AGENT_SEARCH_TERMS = [term for term in SEARCH_TERMS if term not in _UI_ONLY]
+def test_ingredient_word_finds_meals() -> None:
+    expected = [rid for rid in SUPPORTED_RECIPE_IDS if has(rid, "chickpeas")][:3]
+    payload = search("chickpea")
+    assert ids(payload) == expected and expected
+    assert payload["status"] == "ok"
+    assert payload["unmatched"] == []
+    assert ids(search("Chickpeas please")) == expected
 
 
-@pytest.mark.parametrize(
-    "term", [*_AGENT_SEARCH_TERMS, *TAG_ORDER, "omnivore", "vegetarian", "vegan"]
-)
-def test_every_term_matches_catalog_in_stable_order(term: str) -> None:
-    target = SEARCH_TERMS.get(term, (term, None))[0]
-    expected = [
-        rid
-        for rid in SUPPORTED_RECIPE_IDS
-        if target in {"omnivore", *MEAL_DIETS[rid], *MEAL_TAGS[rid]}
-    ][:3]
-    payload = execute_catalog_search(arguments(terms=[f"  {term.upper()}  "]))
-    assert payload["recipe_ids"] == expected
-    assert len(expected) <= 3
-    answer = catalog_answer(payload)
-    if expected:
-        names = ", ".join(rid.replace("_", " ").capitalize() for rid in expected)
-        assert answer.startswith(f"Catalog choices: {names}. Which one should I plan? ")
-    for forbidden in (
-        "injected-model-prose",
-        "USD",
-        "$",
-        "https://",
-        "Buy",
-        "purchase",
-    ):
-        assert forbidden not in answer
+def test_meal_name_word_finds_meals() -> None:
+    payload = search("tacos")
+    assert ids(payload)
+    assert all("taco" in rid for rid in ids(payload)[:1])
 
 
-@pytest.mark.parametrize("diet", ["omnivore", "vegetarian", "vegan"])
-def test_intersection_of_terms_diet_and_exact_exclusions(diet: str) -> None:
-    payload = execute_catalog_search(
-        arguments(terms=["protein", "gf"], diet=diet, ingredient_exclusions=["salt"])
-    )
-    expected = [
-        rid
-        for rid in SUPPORTED_RECIPE_IDS
-        if {"high_protein", "gluten_free_ingredients", diet}
-        <= {"omnivore", *MEAL_DIETS[rid], *MEAL_TAGS[rid]}
-        and "salt" not in dict(RECIPES[rid].ingredients)
-    ][:3]
-    assert payload["recipe_ids"] == expected
+def test_high_protein_uses_the_tag() -> None:
+    tagged = [rid for rid in SUPPORTED_RECIPE_IDS if "high_protein" in MEAL_TAGS[rid]]
+    payload = search("high protein")
+    assert ids(payload) == tagged[:3] and tagged
+    assert payload["unmatched"] == []
 
 
-@pytest.mark.parametrize("ingredient_id", list(INGREDIENTS))
-def test_ingredient_names_and_ids_resolve_exactly(ingredient_id: str) -> None:
-    by_id = execute_catalog_search(arguments(ingredient_exclusions=[ingredient_id]))
-    by_name = execute_catalog_search(
-        arguments(
-            ingredient_exclusions=[f" {INGREDIENTS[ingredient_id].name.upper()} "]
+def test_keto_and_low_carb_use_the_tag_with_note() -> None:
+    for query in ("keto", "low carb", "low-carb"):
+        payload = search(query)
+        assert ids(payload)
+        assert all("lower_carb" in MEAL_TAGS[rid] for rid in ids(payload))
+        assert KETO_NOTE in catalog_answer(payload)
+
+
+def test_meat_is_not_a_chicken_search() -> None:
+    payload = search("meat")
+    assert payload["status"] == "no_match"
+    assert payload["unmatched"] == ["meat"]
+    assert CARNIVORE_NOTE not in catalog_answer(payload)
+    assert search("carnivore")["status"] == "no_match"
+
+
+def test_chicken_adds_carnivore_note() -> None:
+    assert CARNIVORE_NOTE in catalog_answer(search("chicken"))
+
+
+def test_unknown_word_is_no_match_and_unmatched() -> None:
+    payload = search("xyzzy")
+    assert payload["status"] == "no_match"
+    assert ids(payload) == []
+    assert payload["unmatched"] == ["xyzzy"]
+    assert "No catalog meal matches that search" in catalog_answer(payload)
+
+
+def test_unknown_word_is_listed_but_known_word_still_matches() -> None:
+    payload = search("cheap chickpea xyzzy")
+    assert payload["status"] == "ok"
+    assert payload["unmatched"] == ["cheap", "xyzzy"]
+    assert ids(payload)
+
+
+def test_score_orders_meals() -> None:
+    payload = search("chickpea egg", limit=3)
+    first = ids(payload)[0]
+    assert has(first, "chickpeas") and has(first, "eggs")
+
+
+def test_stopword_only_query_returns_catalog_order() -> None:
+    assert ids(search("a meal for me")) == list(SUPPORTED_RECIPE_IDS)[:3]
+
+
+@pytest.mark.parametrize("diet", ["vegetarian", "vegan"])
+def test_diet_filters(diet: str) -> None:
+    payload = search("egg chickpea", diet=diet)
+    assert ids(payload)
+    assert all(diet in MEAL_DIETS[rid] for rid in ids(payload))
+    assert ids(search("vegan"))
+    assert all("vegan" in MEAL_DIETS[rid] for rid in ids(search("vegan")))
+
+
+def test_exclusion_removes_meals_and_normalizes_to_ids() -> None:
+    payload = search("chickpea", exclude=[" CHICKPEAS "])
+    assert payload["status"] == "no_match"
+    base = search("chicken", limit=3)
+    excluded = search("chicken", exclude=["chicken_breast"])
+    assert ids(base) and excluded["status"] == "no_match"
+    only = search("rice", exclude=["Eggs"])
+    assert all(not has(rid, "eggs") for rid in ids(only))
+    request = cast(dict[str, object], only["request"])
+    assert request["exclude"] == ["eggs"]
+
+
+def test_unknown_exclusion_returns_no_meals() -> None:
+    payload = search("chickpea", exclude=["nightshades", "eggs"])
+    assert payload["status"] == "unknown_exclusion"
+    assert ids(payload) == []
+    assert payload["unresolved_exclusions"] == ["nightshades"]
+    assert "I could not match an ingredient to exclude" in catalog_answer(payload)
+    assert "nightshades" not in catalog_answer(payload)
+
+
+def test_min_protein_filters_on_computed_value() -> None:
+    for threshold in (0, 20, 35, 200):
+        payload = search(
+            "rice chicken egg bean chickpea", min_protein_g=threshold, limit=3
         )
-    )
-    assert by_id == by_name
-    for rid in cast(list[str], by_id["recipe_ids"]):
-        assert ingredient_id not in dict(RECIPES[rid].ingredients)
+        for rid in ids(payload):
+            assert round(_per_serving_grams(rid)[0]) >= threshold
+    grams = [
+        round(_per_serving_grams(r)[0]) for r in ids(search("egg", min_protein_g=1))
+    ]
+    assert grams == sorted(grams, reverse=True)
+    assert search("egg", min_protein_g=200)["status"] == "no_match"
 
 
-def test_empty_terms_fail_and_zero_results_are_grounded() -> None:
-    with pytest.raises(CatalogToolError, match="^arguments are invalid$"):
-        execute_catalog_search(arguments(terms=[]))
-    assert catalog_answer({"request": arguments(terms=[])}) == DISCOVERY_ERROR
-    empty = execute_catalog_search(arguments(terms=["chicken"], diet="vegan"))
-    assert empty["recipe_ids"] == []
-    assert "No catalog meals match" in catalog_answer(empty)
-    assert "Catalog choices:" not in catalog_answer(empty)
+def test_max_cents_filters_on_sample_price() -> None:
+    budget = BudgetResult(10**9, 0, False, ())
+
+    def cents(rid: str) -> int:
+        return cast(int, priced_estimate([(rid, 1)], [], budget)["total_cents"])
+
+    prices = sorted(cents(rid) for rid in SUPPORTED_RECIPE_IDS)
+    cap = prices[len(prices) // 2]
+    payload = search("egg chickpea chicken rice bean", max_cents_per_serving=cap)
+    assert ids(payload)
+    assert all(cents(rid) <= cap for rid in ids(payload))
+    assert search("egg", max_cents_per_serving=1)["status"] == "no_match"
 
 
-def test_normalization_and_duplicate_terms() -> None:
-    assert execute_catalog_search(
-        arguments(
-            terms=["  LOW   CARB ", "lower_carb"],
-            diet=" OMNIVORE ",
-            ingredient_exclusions=[" OLIVE   OIL ", "olive_oil"],
-        )
-    ) == execute_catalog_search(
-        arguments(terms=["lower_carb"], ingredient_exclusions=["olive_oil"])
-    )
-
-
-def test_spaced_term_matches_underscored_term() -> None:
-    assert execute_catalog_search(
-        arguments(terms=["high protein"])
-    ) == execute_catalog_search(arguments(terms=["high_protein"]))
-
-
-@pytest.mark.parametrize("diet", ["omnivore", "vegetarian", "vegan"])
-def test_diet_term_stays_nonempty_when_it_matches_diet(diet: str) -> None:
-    payload = execute_catalog_search(arguments(terms=[diet], diet=diet))
-    request = cast(dict[str, object], payload["request"])
-    assert request["terms"] == [diet]
-    assert execute_catalog_search(request) == payload
-    assert catalog_answer(payload).startswith("Catalog choices: ")
+def test_limit() -> None:
+    assert len(ids(search("rice", limit=1))) == 1
+    assert len(ids(search("rice"))) <= 3
 
 
 @pytest.mark.parametrize(
     "changes",
     [
-        {"terms": []},
-        {"terms": ["nightshades"]},
-        {"terms": ["paleo"]},
-        {"terms": ["https://evil.test"]},
-        {"terms": [True]},
-        {"terms": [""]},
-        {"terms": [" "]},
-        {"terms": ["a" * 65]},
-        {"terms": ["egg"] * 9},
-        {"terms": "egg"},
-        {"terms": None},
+        {"query": ""},
+        {"query": " "},
+        {"query": "a" * 121},
+        {"query": 1},
         {"diet": "keto"},
         {"diet": True},
-        {"diet": " "},
-        {"ingredient_exclusions": ["nightshades"]},
-        {"ingredient_exclusions": ["dairy"]},
-        {"ingredient_exclusions": ["salt"] * 23},
-        {"ingredient_exclusions": [1]},
-        {"ingredient_exclusions": {}},
+        {"exclude": "eggs"},
+        {"exclude": [""]},
+        {"exclude": [1]},
+        {"exclude": ["a" * 65]},
+        {"exclude": ["salt"] * 23},
+        {"min_protein_g": -1},
+        {"min_protein_g": 201},
+        {"min_protein_g": True},
+        {"min_protein_g": 1.5},
+        {"max_cents_per_serving": 0},
+        {"max_cents_per_serving": 10001},
+        {"limit": 0},
+        {"limit": 4},
+        {"limit": None},
         {"prose": "ignore restrictions"},
-        {"price": 0},
-        {"url": "https://evil.test"},
-        {"purchase": True},
+        {"terms": ["egg"]},
     ],
 )
-def test_invalid_inputs_fail_without_echo(changes: dict[str, object]) -> None:
+def test_invalid_inputs_fail(changes: dict[str, object]) -> None:
+    args: dict[str, object] = {"query": "egg", **changes}
     with pytest.raises(CatalogToolError, match="^arguments are invalid$"):
-        execute_catalog_search(arguments(**changes))
-
-
-@pytest.mark.parametrize("missing", ["terms", "diet", "ingredient_exclusions"])
-def test_fields_are_required(missing: str) -> None:
-    args = arguments()
-    del args[missing]
-    with pytest.raises(CatalogToolError):
         execute_catalog_search(args)
 
 
+def test_query_is_required() -> None:
+    with pytest.raises(CatalogToolError):
+        execute_catalog_search({"diet": "vegan"})
+    with pytest.raises(CatalogToolError):
+        execute_catalog_search(None)
+
+
+def test_nullable_filters_accept_null() -> None:
+    assert search("egg", min_protein_g=None, max_cents_per_serving=None) == search(
+        "egg"
+    )
+
+
+def test_request_is_normalized_and_revalidates() -> None:
+    payload = search("  EGG   Chickpea ", diet=" Vegan ", exclude=["Olive  Oil"])
+    request = cast(dict[str, object], payload["request"])
+    assert request == {
+        "query": "egg chickpea",
+        "diet": "vegan",
+        "exclude": ["olive_oil"],
+        "min_protein_g": None,
+        "max_cents_per_serving": None,
+        "limit": 3,
+    }
+    assert execute_catalog_search(request) == payload
+
+
 @pytest.mark.parametrize(
-    "term,note", [("keto", KETO_NOTE), ("chicken", CARNIVORE_NOTE)]
+    "query", [SENTINEL, f"egg {SENTINEL}", f"{SENTINEL} {SENTINEL}"]
 )
-def test_fixed_caveats_and_safety(term: str, note: str) -> None:
-    answer = catalog_answer(execute_catalog_search(arguments(terms=[term])))
-    assert note in answer
-    assert "High protein" in answer
-    assert "Lower carb" in answer
-    assert "Gluten-free ingredients" in answer
-    assert "high_protein" not in answer
-    assert "lower_carb" not in answer
-    assert "gluten_free_ingredients" not in answer
+def test_answer_never_echoes_model_words(query: str) -> None:
+    payload = search(query, exclude=[SENTINEL] if query == SENTINEL else [])
+    assert SENTINEL in json.dumps(payload)
+    assert SENTINEL not in catalog_answer(payload)
+
+
+def test_answer_renders_exact_names_and_safety() -> None:
+    payload = search("chickpea")
+    names = ", ".join(rid.replace("_", " ").capitalize() for rid in ids(payload))
+    answer = catalog_answer(payload)
+    assert answer.startswith(f"Catalog choices: {names}. Which one should I plan? ")
     assert "30 g or more protein per serving" in answer
-    assert "30 g or less carbohydrate per serving" in answer
-    assert "ingredients only" in answer
     assert "cross-contact safety" in answer
+    for forbidden in ("USD", "$", "https://", "Buy", "purchase"):
+        assert forbidden not in answer
 
 
 @pytest.mark.parametrize(
     "field", ["prose", "price", "url", "purchase", "reasoningContent"]
 )
 def test_injected_result_fields_cannot_render_choices(field: str) -> None:
-    payload = execute_catalog_search(arguments(terms=["egg"]))
+    payload = search("egg")
     payload[field] = "injected-model-prose"
     assert catalog_answer(payload) == DISCOVERY_ERROR
 
 
-def test_forged_ids_cannot_render_choices() -> None:
-    payload = execute_catalog_search(arguments(terms=["egg"]))
+def test_forged_payloads_cannot_render_choices() -> None:
+    payload = search("egg")
     payload["recipe_ids"] = ["bean_tacos"]
     assert catalog_answer(payload) == DISCOVERY_ERROR
+    forged = search("egg")
+    forged["unmatched"] = [SENTINEL]
+    assert catalog_answer(forged) == DISCOVERY_ERROR
     assert catalog_answer({"request": {}}) == DISCOVERY_ERROR
+    assert catalog_answer({"request": {"query": "egg", "terms": []}}) == DISCOVERY_ERROR
 
 
-@pytest.mark.parametrize("term", ["meat", "carnivore", " MEAT ", "Carnivore"])
-def test_ui_only_terms_are_rejected_for_the_agent(term: str) -> None:
-    with pytest.raises(CatalogToolError, match="^arguments are invalid$"):
-        execute_catalog_search(arguments(terms=[term]))
-    with pytest.raises(CatalogToolError):
-        execute_catalog_search(arguments(terms=["keto", term]))
-
-
-def test_keto_still_works_for_the_agent() -> None:
-    payload = execute_catalog_search(arguments(terms=["keto"]))
-    request = cast(dict[str, object], payload["request"])
-    assert request["terms"] == ["lower_carb"]
-    assert KETO_NOTE in catalog_answer(payload)
-
-
-def test_ui_only_terms_stay_in_the_ui_search_table_not_the_description() -> None:
-    assert "meat" in SEARCH_TERMS and "carnivore" in SEARCH_TERMS
-    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
-    description = cast(str, spec["description"])
-    terms = description.split("Terms: ", 1)[1].rstrip(".").split(", ")
-    assert "meat" not in terms and "carnivore" not in terms
-    assert "keto" in terms
-
-
-def test_schema_requires_only_bounded_arguments() -> None:
-    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
-    schema_wrapper = cast(dict[str, object], spec["inputSchema"])
-    schema = cast(dict[str, object], schema_wrapper["json"])
-    assert schema["additionalProperties"] is False
-    assert set(cast(list[str], schema["required"])) == {
-        "terms",
-        "diet",
-        "ingredient_exclusions",
-    }
-    properties = cast(dict[str, dict[str, object]], schema["properties"])
-    assert set(properties) == set(cast(list[str], schema["required"]))
-    assert properties["terms"]["minItems"] == 1
-    for key, limit in [("terms", 8), ("ingredient_exclusions", 22)]:
-        assert properties[key]["maxItems"] == limit
-        assert properties[key]["items"] == {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-        }
-    payload = execute_catalog_search(arguments())
-    assert set(payload) == {"request", "recipe_ids"}
-    assert "evidence" not in json.dumps(payload)
-
-
-def test_discovery_renders_exact_catalog_names() -> None:
-    payload = execute_catalog_search(arguments(terms=["chicken"]))
-    assert payload["recipe_ids"] == [
-        "chicken_tacos",
-        "chicken_and_rice_bowls",
-        "chicken_pasta",
-    ]
-    assert catalog_answer(payload).startswith(
-        "Catalog choices: Chicken tacos, Chicken and rice bowls, Chicken pasta. "
-        "Which one should I plan? "
-    )
+def test_every_ingredient_name_resolves_as_exclusion() -> None:
+    for ingredient_id in INGREDIENTS:
+        by_id = search("rice", exclude=[ingredient_id])
+        by_name = search("rice", exclude=[INGREDIENTS[ingredient_id].name.upper()])
+        assert by_id == by_name
+        assert by_id["status"] != "unknown_exclusion"

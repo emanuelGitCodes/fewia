@@ -234,6 +234,18 @@ def _dispatch_plan_tool(
     return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
 
 
+def _catalog_inputs(discovery: dict[str, object]) -> dict[str, object]:
+    request = discovery["request"]
+    assert isinstance(request, dict)
+    excluded = [item for item in request["exclude"] if item in INGREDIENTS]
+    return {
+        "status": discovery["status"],
+        "recipe_ids": discovery["recipe_ids"],
+        "diet": request["diet"],
+        "exclude": excluded,
+    }
+
+
 def dispatch(
     call: msgs.ToolCall,
     budget: BudgetResult,
@@ -259,6 +271,7 @@ def dispatch(
                 tool_use_id=call.tool_use_id,
                 sequence=len(trace) + 1,
                 revision_index=None,
+                inputs=None if discovery is None else _catalog_inputs(discovery),
             )
         )
         return discovery, msgs.tool_result_block(

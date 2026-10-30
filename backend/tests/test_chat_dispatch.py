@@ -1535,9 +1535,9 @@ def test_budget_summary_then_planner_revision_index_skips_summary() -> None:
 @pytest.mark.parametrize("invalid", [False, True])
 def test_discovery_dispatch_has_bounded_result_and_no_evidence(invalid: bool) -> None:
     args: dict[str, object] = {
-        "terms": ["egg"],
+        "query": "egg",
         "diet": "vegetarian",
-        "ingredient_exclusions": [],
+        "exclude": ["salt"],
     }
     if invalid:
         args["prose"] = _SECRET
@@ -1555,15 +1555,22 @@ def test_discovery_dispatch_has_bounded_result_and_no_evidence(invalid: bool) ->
         trace,
         record_evidence=record,
     )
-    assert trace == [
-        {
-            "tool": CATALOG_TOOL_NAME,
-            "outcome": "error" if invalid else "success",
-            "tool_use_id": "d1",
-            "sequence": 1,
-            "revision_index": None,
+    expected: dict[str, object] = {
+        "tool": CATALOG_TOOL_NAME,
+        "outcome": "error" if invalid else "success",
+        "tool_use_id": "d1",
+        "sequence": 1,
+        "revision_index": None,
+    }
+    if not invalid:
+        assert payload is not None
+        expected["inputs"] = {
+            "status": "ok",
+            "recipe_ids": payload["recipe_ids"],
+            "diet": "vegetarian",
+            "exclude": ["salt"],
         }
-    ]
+    assert trace == [expected]
     assert _SECRET not in json.dumps([payload, block, trace])
     if invalid:
         assert payload is None
