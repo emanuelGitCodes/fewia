@@ -37,6 +37,7 @@ from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
     MAX_MODEL_TURNS,
     MAX_PLANNER_REVISIONS,
+    PROPOSAL_PROMPT_SUFFIX,
     SYSTEM_PROMPT,
     ChatUnavailable,
     run_chat,
@@ -952,6 +953,7 @@ def _proposal_replies(final: str) -> list[dict[str, object] | BaseException]:
 def test_proposal_tool_is_offered_only_with_a_plan_revision_and_propose() -> None:
     proposer = Proposer()
     offered: list[list[dict[str, object]]] = []
+    systems: list[str] = []
     cases: list[tuple[PlanRevisionInput | None, Proposer | None]] = [
         (_two_meal_revision(), proposer),
         (_two_meal_revision(), None),
@@ -970,9 +972,13 @@ def test_proposal_tool_is_offered_only_with_a_plan_revision_and_propose() -> Non
             propose=propose,
         )
         offered.append(cast(list[dict[str, object]], provider.requests[0]["tools"]))
+        systems.append(cast(str, provider.requests[0]["system"]))
     assert offered[0] == _chat_tools(with_proposal=True)
     assert offered[1:] == [_chat_tools()] * 3
     assert proposer.calls == []
+    assert systems[0] == SYSTEM_PROMPT + PROPOSAL_PROMPT_SUFFIX
+    assert systems[1:] == [SYSTEM_PROMPT] * 3
+    assert "call propose_plan_change once" in PROPOSAL_PROMPT_SUFFIX
 
 
 def test_evaluation_callers_get_the_same_tool_list() -> None:
@@ -1889,7 +1895,10 @@ def test_system_prompt_requires_restriction_clarification() -> None:
 
 def test_prompt_and_all_schemas_stay_under_interim_budget() -> None:
     serialized = json.dumps(
-        {"system": SYSTEM_PROMPT, "tools": _chat_tools(with_proposal=True)},
+        {
+            "system": SYSTEM_PROMPT + PROPOSAL_PROMPT_SUFFIX,
+            "tools": _chat_tools(with_proposal=True),
+        },
         sort_keys=True,
         separators=(",", ":"),
     )

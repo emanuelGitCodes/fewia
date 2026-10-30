@@ -42,6 +42,8 @@ class ProposalToolError(ValueError):
 def proposal_tool_spec() -> dict[str, object]:
     return _spec(
         PROPOSAL_TOOL,
+        "Use this, not plan_groceries, to add, remove, or resize meals in the "
+        "user's saved plan (plan_meals) or to mark pantry items. "
         "Propose a change to the user's saved plan for the user to apply. "
         "Operations: add (recipe_id, servings), remove (recipe_id), "
         "set_servings (recipe_id, servings), set_pantry (ingredient_id, owned). "

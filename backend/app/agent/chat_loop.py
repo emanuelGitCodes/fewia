@@ -39,6 +39,12 @@ from app.domain.plan_revision import PlanRevisionInput
 MAX_MODEL_TURNS = 8
 MAX_PLANNER_REVISIONS = 3
 
+PROPOSAL_PROMPT_SUFFIX = (
+    " plan_meals is the user's saved plan. To add a meal to it, remove a meal "
+    "from it, change a meal's servings, or mark a pantry item, call "
+    "propose_plan_change once with every change; do not call plan_groceries "
+    "for that. The user applies the change in the plan panel."
+)
 SYSTEM_PROMPT = (
     "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
     "lists the meals in the user's plan. When the user names a plan meal or "
@@ -257,8 +263,10 @@ def run_chat(
         price_tool_spec(),
         ingredient_tool_spec(),
     ]
+    system_prompt = SYSTEM_PROMPT
     if plan_revision is not None and propose is not None:
         tools.append(proposal_tool_spec())
+        system_prompt += PROPOSAL_PROMPT_SUFFIX
     proposal_id: str | None = None
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
@@ -342,7 +350,7 @@ def run_chat(
         raw: dict[str, object] | None
         try:
             raw = provider.converse(
-                SYSTEM_PROMPT,
+                system_prompt,
                 list(messages),
                 deepcopy(tools),
             )

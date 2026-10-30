@@ -86,6 +86,10 @@ def test_spec_uses_plain_types_and_never_says_the_plan_changed() -> None:
             assert isinstance(node["type"], str)
     tool_spec = cast(dict[str, dict[str, object]], spec)["toolSpec"]
     description = str(tool_spec["description"])
+    assert description.startswith(
+        "Use this, not plan_groceries, to add, remove, or resize meals in the "
+        "user's saved plan (plan_meals) or to mark pantry items."
+    )
     assert "for the user to apply" in description
     assert "never changes the plan" in description
     assert "plan changed" not in description.lower()
