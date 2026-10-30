@@ -802,8 +802,10 @@ def test_tool_descriptions_steer_food_changes_to_what_if_substitute() -> None:
     assert description(get_meal_tool_spec()).endswith(
         " To compare a meal with a different food, call what_if_substitute instead."
     )
-    assert "Not for a meal the user names or has in the plan. Terms: " in description(
-        catalog_tool_spec()
+    catalog_description = description(catalog_tool_spec())
+    assert "Not for a meal the user names or has in the plan." in catalog_description
+    assert (
+        "sample grocery cost for one serving, in whole packages" in catalog_description
     )
 
 
@@ -3093,6 +3095,7 @@ def test_discovery_preserves_ordered_planner_revisions(
 ) -> None:
     first = execute_plan(plan_args(), budget(), PERIOD)
     assert cast(dict[str, object], first["plan"])["accepted"] is True
+    discovery_found = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     later_args = (
         plan_args(meals=[{"recipe_id": "chicken_tacos", "servings": 9}])
         if later_revision == "invalid_servings"
@@ -3178,6 +3181,12 @@ def test_discovery_preserves_ordered_planner_revisions(
             "tool_use_id": "d1",
             "sequence": discovery_position + 1,
             "revision_index": None,
+            "inputs": {
+                "status": "ok",
+                "recipe_ids": discovery_found["recipe_ids"],
+                "diet": "vegetarian",
+                "exclude": [],
+            },
         },
     )
     assert result["tool_trace"] == expected_trace
