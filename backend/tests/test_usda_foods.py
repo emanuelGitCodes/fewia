@@ -144,23 +144,67 @@ def index_of(*descriptions: str) -> UsdaIndex:
         (
             "Pork, fresh, composite of trimmed leg, loin, shoulder, and spareribs,"
             " separable lean only, cooked, braised, roasted",
-            "pork (separable lean only, cooked, braised, roasted)",
+            "pork (composite, cooked, braised, roasted)",
         ),
     ],
 )
 def test_display_names(description: str, expected: str) -> None:
     assert display_name(description) == expected
+    if "composite of" in description:
+        assert "composite" in display_name(description)
 
 
 def test_a_long_last_qualifier_is_cut_at_a_word_boundary() -> None:
     assert display_name("Soup, alpha beta gamma delta", limit=20) == "soup (alpha beta)"
+    assert display_name("Soup, alpha beta", limit=14) == "soup (alpha)"
+
+
+def test_a_cut_never_lands_inside_a_word() -> None:
+    assert display_name("Soup, alphabetagamma", limit=10) == "soup"
+    assert display_name("Soup, composite of x, alphabetagamma", limit=10) == (
+        "soup (composite)"
+    )
 
 
 def test_a_larger_limit_keeps_more_qualifiers() -> None:
-    description = "Pork, fresh, composite of trimmed leg, loin, shoulder, cooked, rst"
-    assert display_name(description, limit=90) == (
-        "pork (composite, loin, shoulder, cooked, rst)"
+    description = (
+        "Pork, alpha beta gamma, delta epsilon zeta, eta theta iota,"
+        " kappa lambda mu, nu xi omicron, raw"
     )
+    short, long = display_name(description, 60), display_name(description, 90)
+    assert len(long.split(", ")) > len(short.split(", "))
+    assert "delta epsilon zeta" in long
+    assert "delta epsilon zeta" not in short
+
+
+def test_a_description_without_a_head_is_rejected() -> None:
+    for text in ("(Includes x)", ", alpha, beta", "  , raw"):
+        with pytest.raises(ValueError, match="USDA foods are invalid"):
+            display_name(text)
+        with pytest.raises(ValueError, match="USDA foods are invalid"):
+            parse_bundle(bundle([row(1, text)]))
+
+
+def test_names_that_collide_at_the_short_limit_are_retried_at_the_long_limit() -> None:
+    same = "c" * 30
+    foods = parse_bundle(
+        bundle(
+            [
+                row(1, f"Pork, {'a' * 30}, {same}, raw"),
+                row(2, f"Pork, {'b' * 30}, {same}, raw"),
+            ]
+        )
+    )
+    assert display_name(foods[0].description) == display_name(foods[1].description)
+    assert [food.ingredient.name for food in foods] == [
+        f"pork ({'a' * 30}, {same}, raw)",
+        f"pork ({'b' * 30}, {same}, raw)",
+    ]
+
+
+def test_identical_descriptions_fail_the_load() -> None:
+    with pytest.raises(ValueError, match="names must be unique"):
+        parse_bundle(bundle([row(1, "Pork, raw"), row(2, "Pork, raw")]))
 
 
 @pytest.mark.parametrize(

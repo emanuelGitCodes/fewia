@@ -32,6 +32,7 @@ _VEGETARIAN_CATEGORIES = _VEGAN_CATEGORIES | {1}
 _MAX_CANDIDATES = 3
 _SHORT_LIMIT = 60
 _LONG_LIMIT = 90
+_COMPOSITE = "composite"
 _FILLER = frozenset(
     {
         "broilers or fryers",
@@ -99,28 +100,40 @@ def _collapse_composite(qualifiers: list[str]) -> list[str]:
                 ),
                 start,
             )
-            return [*qualifiers[:start], "composite", *qualifiers[stop + 1 :]]
+            return [*qualifiers[:start], _COMPOSITE, *qualifiers[stop + 1 :]]
     return qualifiers
 
 
 def display_name(description: str, limit: int = _SHORT_LIMIT) -> str:
-    head, *qualifiers = _top_level_split(_strip_includes(description))
+    text = _strip_includes(description)
+    if not text or text.startswith(","):
+        raise _fail("a description has no head")
+    head, *qualifiers = _top_level_split(text)
     qualifiers = _collapse_composite(qualifiers)
     head = head.lower()
     if not qualifiers:
         return head
     *middle, last = qualifiers
     room = limit - len(head) - 3
+    if _COMPOSITE in middle:
+        room -= len(_COMPOSITE) + 2
     if len(last) > room:
         cut = last[: max(room, 0) + 1]
-        last = (cut.rsplit(" ", 1)[0] if " " in cut else cut[:-1]).rstrip(" ,")
-    kept: list[str] = []
+        last = cut.rsplit(" ", 1)[0].rstrip(" ,") if " " in cut else ""
+    kept: set[int] = {index for index, item in enumerate(middle) if item == _COMPOSITE}
     used = len(last)
-    for qualifier in reversed(middle):
-        if qualifier.lower() not in _FILLER and used + len(qualifier) + 2 <= room:
-            kept.insert(0, qualifier)
+    for index in reversed(range(len(middle))):
+        qualifier = middle[index]
+        if (
+            last
+            and index not in kept
+            and qualifier.lower() not in _FILLER
+            and used + len(qualifier) + 2 <= room
+        ):
+            kept.add(index)
             used += len(qualifier) + 2
-    return f"{head} ({', '.join([*kept, last])})" if last else head
+    parts = [middle[index] for index in sorted(kept)] + ([last] if last else [])
+    return f"{head} ({', '.join(parts)})" if parts else head
 
 
 def word_tokens(text: str) -> frozenset[str]:
@@ -210,6 +223,9 @@ def _keep_names_unique(foods: list[UsdaFood]) -> list[UsdaFood]:
             else food
             for food in foods
         ]
+    names = [food.ingredient.name for food in foods]
+    if len(set(names)) != len(names):
+        raise _fail("display names must be unique")
     return foods
 
 
