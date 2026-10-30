@@ -507,6 +507,17 @@ def test_direction_word_binds_only_a_unit_number_directly_before_it() -> None:
     assert validate("Look for more options.", facts).ok
 
 
+def test_a_bare_count_before_a_direction_word_stays_unbound() -> None:
+    assert validate("Add 2 more", FactSet(count={Decimal(2)})).ok
+    assert not validate("Add 2 more", _changes(("count", 2))).ok
+
+
+def test_a_range_before_a_direction_word_stays_unbound() -> None:
+    facts = FactSet(mass={Decimal(2), Decimal(3)})
+    assert validate("2 to 3 g more", facts).ok
+    assert not validate("2 to 3 g more", _changes(("mass", 2), ("mass", 3))).ok
+
+
 def test_negative_plain_fact_matches_only_a_minus_sign() -> None:
     facts = _facts(remaining_cents=-120)
     assert validate("Remaining: USD -$1.20.", facts).ok
