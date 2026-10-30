@@ -193,6 +193,24 @@ def _or(names: list[str]) -> str:
     return f"{', '.join(names[:-1])}, or {names[-1]}"
 
 
+def _live_facts(foods: list[object]) -> str:
+    if not foods:
+        raise ValueError("payload is invalid")
+    first = _d(foods[0])
+    name = str(first["name"])
+    brand = first.get("brand")
+    label = f"{name[:1].upper()}{name[1:]}" + (f" ({brand})" if brand else "")
+    text = (
+        f"USDA FoodData Central lists {label} per 100 g: "
+        f"{_macro_line(_d(first['per_100g']))} (USDA FDC {_int(first['fdc_id'])}). "
+        "FEWIA cannot add this food to a meal yet."
+    )
+    others = [str(_d(item)["name"]) for item in foods[1:]]
+    if others:
+        text += f" Other USDA matches: {', '.join(others)}."
+    return text
+
+
 def _ingredient_facts(payload: dict[str, object]) -> str:
     status = payload["status"]
     if status == "found":
@@ -205,6 +223,8 @@ def _ingredient_facts(payload: dict[str, object]) -> str:
         if payload["price_cents"] is None:
             text += " It has no sample price yet."
         return text
+    if status == "live":
+        return _live_facts(_d_list(payload["live"]))
     if status not in ("ambiguous", "unknown"):
         raise ValueError("payload is invalid")
     return _ask_food(status == "ambiguous", _candidate_names(payload))

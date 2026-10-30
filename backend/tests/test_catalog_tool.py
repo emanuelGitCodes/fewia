@@ -75,6 +75,8 @@ def test_schema_is_bounded() -> None:
     assert properties["query"]["maxLength"] == 120
     assert properties["exclude"]["maxItems"] == 22
     assert properties["limit"]["maximum"] == 3
+    assert properties["min_protein_g"]["type"] == "integer"
+    assert properties["max_cents_per_serving"]["type"] == "integer"
     assert "evidence" not in json.dumps(search("egg"))
 
 
@@ -160,6 +162,14 @@ def test_word_after_without_or_no_is_not_a_search_word() -> None:
         assert ids(payload) == ids(plain)
         assert payload["unmatched"] == ["chicken"]
     assert search("without chicken")["status"] == "no_match"
+
+
+def test_negation_ends_at_the_next_stopword() -> None:
+    payload = search("no, i want chicken")
+    assert payload["status"] == "ok"
+    assert payload["unmatched"] == []
+    assert ids(payload) == ids(search("chicken"))
+    assert search("tacos without the chicken")["unmatched"] == ["chicken"]
 
 
 @pytest.mark.parametrize(
@@ -260,6 +270,16 @@ def test_max_cents_filters_on_sample_price() -> None:
     assert ids(payload)
     assert all(cents(rid) <= cap for rid in ids(payload))
     assert search("egg", max_cents_per_serving=1)["status"] == "no_match"
+
+
+def test_incomplete_price_is_excluded_by_a_price_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert ids(search("egg", max_cents_per_serving=10000))
+    monkeypatch.setattr(catalog_tool, "_serving_cents", lambda rid: None)
+    payload = search("egg", max_cents_per_serving=10000)
+    assert payload["status"] == "no_match"
+    assert ids(payload) == []
 
 
 def test_limit() -> None:

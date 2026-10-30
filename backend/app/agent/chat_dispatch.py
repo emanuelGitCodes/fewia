@@ -150,6 +150,13 @@ def _trace_inputs(
         inputs["status"] = result["status"]
         if result["status"] == "found":
             inputs["ingredient_id"] = result.get("ingredient_id")
+        live = result.get("live")
+        if result["status"] == "live" and isinstance(live, list):
+            inputs["fdc_ids"] = [
+                item["fdc_id"]
+                for item in live
+                if isinstance(item, dict) and type(item.get("fdc_id")) is int
+            ]
     if call.name == SUBSTITUTE_TOOL and isinstance(result.get("status"), str):
         inputs["status"] = result["status"]
         change = result.get("change")

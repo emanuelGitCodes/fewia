@@ -95,7 +95,8 @@ def fetch_facts(
     try:
         response = client.get(
             FOOD_URL.format(fdc_id=fdc_id),
-            params={"api_key": api_key, "format": "full"},
+            params={"format": "full"},
+            headers={"X-Api-Key": api_key},
             follow_redirects=False,
             timeout=_TIMEOUT,
         )

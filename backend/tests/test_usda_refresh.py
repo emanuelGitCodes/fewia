@@ -50,6 +50,19 @@ def _fetch_payload(payload: object, fdc_id: int = FDC_ID) -> NutritionFacts | No
         client.close()
 
 
+def test_fetch_facts_sends_the_key_only_in_a_header() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=FULL_PAYLOAD)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert fetch_facts(FDC_ID, client, FAKE_API_KEY) == PARSED_FULL
+    assert seen[0].headers["X-Api-Key"] == FAKE_API_KEY
+    assert FAKE_API_KEY not in str(seen[0].url)
+
+
 def test_fetch_facts_parses_abridged_payload() -> None:
     assert _fetch_payload(FULL_PAYLOAD) == PARSED_FULL
 

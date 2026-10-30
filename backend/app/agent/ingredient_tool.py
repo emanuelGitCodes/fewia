@@ -11,6 +11,11 @@ from app.domain.curated_foods import (
 )
 from app.domain.meal_tags import normalize_term
 from app.domain.usda_foods import USDA_FOODS, USDA_INGREDIENTS, UsdaIndex
+from app.providers.usda_live import (
+    UsdaLiveClient,
+    UsdaUnavailable,
+    get_usda_live_client,
+)
 
 INGREDIENT_TOOL = "get_ingredient_facts"
 _MAX_CANDIDATES = 3
@@ -119,8 +124,43 @@ def execute_ingredient_facts(arguments: object) -> dict[str, object]:
     resolution = resolve_food(arguments["name"])
     if resolution.status == "found":
         return _facts(resolution.ids[0])
-    return {
+    payload: dict[str, object] = {
         "status": resolution.status,
         "name": resolution.query,
         "candidates": [_facts(item) for item in resolution.ids],
     }
+    if resolution.status == "unknown":
+        live = _live_foods(resolution.query)
+        if live:
+            payload["status"] = "live"
+            payload["live"] = live
+    return payload
+
+
+def _live_client() -> UsdaLiveClient | None:
+    return get_usda_live_client()
+
+
+def _live_foods(query: str) -> list[dict[str, object]]:
+    client = _live_client()
+    if client is None:
+        return []
+    try:
+        foods = client.search(query)
+    except (UsdaUnavailable, ValueError):
+        return []
+    return [
+        {
+            "fdc_id": food.fdc_id,
+            "name": food.name,
+            "brand": food.brand,
+            "data_type": food.data_type,
+            "per_100g": {
+                "energy_kcal": food.facts.energy_kcal,
+                "protein_mg": food.facts.protein_mg,
+                "carbohydrate_mg": food.facts.carbohydrate_mg,
+                "fat_mg": food.facts.fat_mg,
+            },
+        }
+        for food in foods[:_MAX_CANDIDATES]
+    ]

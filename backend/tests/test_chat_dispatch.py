@@ -14,6 +14,7 @@ from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.catalog_tool import execute_catalog_search
+from app.agent import ingredient_tool
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.ingredient_tool import INGREDIENT_TOOL, execute_ingredient_facts
@@ -23,6 +24,8 @@ from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
+from app.domain.nutrition import NutritionFacts
+from app.providers.usda_live import LiveFood
 from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
@@ -353,7 +356,35 @@ def test_get_ingredient_facts_dispatch_is_read_only_with_trace() -> None:
     ]
 
 
-def test_get_ingredient_facts_unknown_name_is_a_successful_lookup() -> None:
+def test_get_ingredient_facts_live_trace_has_only_fdc_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Live:
+        def search(self, query: str) -> list[LiveFood]:
+            facts = NutritionFacts(7, 321, 18000, 25000, 3000, 600)
+            return [
+                LiveFood(7, "paneer", "Secret Brand", "Branded", facts),
+                LiveFood(9, "paneer cheese", None, "SR Legacy", facts),
+            ]
+
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: Live())
+    trace: list[dict[str, object]] = []
+    payload, _ = dispatch(
+        ToolCall("i4", INGREDIENT_TOOL, {"name": "paneer"}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+    )
+    assert payload is not None and payload["status"] == "live"
+    assert trace[0]["inputs"] == {"status": "live", "fdc_ids": [7, 9]}
+
+
+def test_get_ingredient_facts_unknown_name_is_a_successful_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: None)
     trace: list[dict[str, object]] = []
     payload, block = dispatch(
         ToolCall("i2", INGREDIENT_TOOL, {"name": "zzqx"}),

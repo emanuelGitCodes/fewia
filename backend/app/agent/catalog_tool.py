@@ -26,6 +26,7 @@ _STOPWORDS = frozenset(
     "breakfast recipe recipes idea ideas please want need i my".split()
 )
 _NEGATIONS = frozenset({"without", "no"})
+_ARTICLES = frozenset({"a", "an", "the", "some"})
 _KEYS = {"query", "diet", "exclude", "min_protein_g", "max_cents_per_serving", "limit"}
 DISCOVERY_ERROR = (
     "I cannot find meals from those inputs. "
@@ -51,9 +52,8 @@ class CatalogToolError(ValueError):
     pass
 
 
-def _number(low: int, high: int, nullable: bool = False) -> dict[str, object]:
-    kind = ["integer", "null"] if nullable else "integer"
-    return {"type": kind, "minimum": low, "maximum": high}
+def _number(low: int, high: int) -> dict[str, object]:
+    return {"type": "integer", "minimum": low, "maximum": high}
 
 
 def catalog_tool_spec() -> dict[str, object]:
@@ -84,8 +84,8 @@ def catalog_tool_spec() -> dict[str, object]:
                                 "maxLength": 64,
                             },
                         },
-                        "min_protein_g": _number(0, 200, True),
-                        "max_cents_per_serving": _number(1, 10000, True),
+                        "min_protein_g": _number(0, 200),
+                        "max_cents_per_serving": _number(1, 10000),
                         "limit": _number(1, 3),
                     },
                     "required": ["query"],
@@ -121,7 +121,7 @@ def _parse(query: str) -> tuple[list[str], list[str]]:
         if word in _NEGATIONS:
             after_not = True
         elif word in _STOPWORDS:
-            continue
+            after_not = after_not and word in _ARTICLES
         elif after_not:
             negated.append(word)
             after_not = False

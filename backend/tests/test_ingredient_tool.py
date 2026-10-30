@@ -3,6 +3,7 @@ from typing import Any, cast
 
 import pytest
 
+from app.agent import ingredient_tool
 from app.agent.ingredient_tool import (
     INGREDIENT_TOOL,
     FoodResolution,
@@ -17,8 +18,10 @@ from app.domain.curated_foods import (
     CURATED_INGREDIENTS,
     CURATED_NUTRITION,
 )
+from app.domain.nutrition import NutritionFacts
 from app.domain.nutrition_catalog import NUTRITION
 from app.domain.usda_foods import USDA_FOODS
+from app.providers.usda_live import LiveFood, UsdaUnavailable
 
 _SECRET = "do-not-echo-raw-input"
 _FOUND_KEYS = {
@@ -33,6 +36,70 @@ _FOUND_KEYS = {
     "price_cents",
 }
 _MACRO_KEYS = {"energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg"}
+
+
+@pytest.fixture(autouse=True)
+def _no_live_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: None)
+
+
+class _FakeLive:
+    def __init__(self, foods: list[LiveFood] | Exception) -> None:
+        self.foods = foods
+        self.queries: list[str] = []
+
+    def search(self, query: str) -> list[LiveFood]:
+        self.queries.append(query)
+        if isinstance(self.foods, Exception):
+            raise self.foods
+        return self.foods
+
+
+def _live_food(fdc_id: int, name: str, brand: str | None = None) -> LiveFood:
+    facts = NutritionFacts(fdc_id, 321, 18000, 25000, 3000, 600)
+    return LiveFood(fdc_id, name, brand, "Branded", facts)
+
+
+def test_unknown_food_with_a_live_client_reports_live_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeLive([_live_food(i, f"food {i}") for i in range(1, 6)])
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: fake)
+    result = lookup("zzqx")
+    assert fake.queries == ["zzqx"]
+    assert result["status"] == "live"
+    assert result["name"] == "zzqx"
+    assert result["candidates"] == []
+    assert [item["fdc_id"] for item in result["live"]] == [1, 2, 3]
+    assert result["live"][0] == {
+        "fdc_id": 1,
+        "name": "food 1",
+        "brand": None,
+        "data_type": "Branded",
+        "per_100g": {
+            "energy_kcal": 321,
+            "protein_mg": 18000,
+            "carbohydrate_mg": 3000,
+            "fat_mg": 25000,
+        },
+    }
+
+
+@pytest.mark.parametrize("outcome", [[], UsdaUnavailable(), ValueError("x")])
+def test_live_failure_or_no_match_keeps_the_unknown_payload(
+    monkeypatch: pytest.MonkeyPatch, outcome: list[LiveFood] | Exception
+) -> None:
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: _FakeLive(outcome))
+    assert lookup("zzqx") == {"status": "unknown", "name": "zzqx", "candidates": []}
+
+
+def test_known_foods_never_call_the_live_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeLive([_live_food(1, "x")])
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: fake)
+    assert lookup("beef")["status"] == "found"
+    assert fake.queries == []
 
 
 def lookup(name: object) -> dict[str, Any]:
