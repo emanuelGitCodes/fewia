@@ -18,6 +18,7 @@ import {
   togglePlanPantry,
   withPlanBudgetInput,
   withPlanView,
+  withSnapshot,
   type PlanState,
   type PlannedMeal,
 } from "./planModel";
@@ -343,6 +344,36 @@ describe("retainChecks", () => {
     const next = removeMeal(state, "bean_tacos");
     expect(retainChecks(planLines(state), planLines(next), state.checked)).toEqual([]);
     expect(next.checked).toEqual([]);
+  });
+});
+
+describe("withSnapshot", () => {
+  const snapshot = {
+    meals: [{ recipe_id: "egg_fried_rice", servings: 3 }],
+    pantry_ingredient_ids: ["salsa"],
+    plan_cap_cents: 2550,
+  };
+
+  it("sets meals, pantry, and cap input and keeps the view", () => {
+    const state = { ...initialPlanState(), view: "pantry" as const };
+    const next = withSnapshot(state, snapshot);
+    expect(next.meals).toEqual([{ recipeId: "egg_fried_rice", servings: 3 }]);
+    expect(next.pantry).toEqual(["salsa"]);
+    expect(next).toMatchObject({
+      view: "pantry", budgetCents: 2550, budgetInput: "25.50", budgetError: null,
+    });
+  });
+
+  it("keeps the cap on null and keeps checks only for lines still present", () => {
+    const state = {
+      ...togglePlanChecked(togglePlanChecked(initialPlanState(), "salsa"), "onion"),
+    };
+    const next = withSnapshot(state, { ...snapshot, pantry_ingredient_ids: [], plan_cap_cents: null });
+    expect(next.budgetCents).toBe(state.budgetCents);
+    expect(next.budgetInput).toBe(state.budgetInput);
+    const present = planLines(next).map((line) => line.ingredientId);
+    expect(next.checked.every((id) => present.includes(id))).toBe(true);
+    expect(next.checked).not.toContain("salsa");
   });
 });
 

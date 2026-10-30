@@ -132,6 +132,20 @@ describe("parseChatResult Kroger overlay", () => {
   });
 });
 
+describe("parseChatResult proposal_id", () => {
+  const id = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
+  it("keeps a UUID and keeps an absent id absent", () => {
+    expect(parseChatResult(candidate({ proposal_id: id })).proposal_id).toBe(id);
+    expect("proposal_id" in parseChatResult(candidate())).toBe(false);
+  });
+
+  it("rejects a non-UUID, null, or non-string id", () => {
+    for (const bad of ["abc", "", null, 7, "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6"]) {
+      expectShapeError(candidate({ proposal_id: bad }));
+    }
+  });
+});
+
 describe("parseChatResult", () => {
   it("accepts a planned result with budget, request, and a 64-hex revision", () => {
     const parsed = parseChatResult(candidate());

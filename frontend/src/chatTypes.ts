@@ -59,6 +59,7 @@ export type ChatResult = {
   meal_nutrition: MealPlanNutrition | null;
   kroger_quote?: KrogerQuote | null;
   kroger_degraded?: true;
+  proposal_id?: string;
   evidence_id: string | null;
   evidence_revision_id: string | null;
   spending_source: ChatSpendingSource;

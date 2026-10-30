@@ -10,6 +10,7 @@ import {
   togglePlanPantry,
   withPlanBudgetInput,
   withPlanView,
+  withSnapshot,
   type PlanState,
 } from "./planModel";
 import { PlanChat } from "./PlanChat";
@@ -199,6 +200,9 @@ export function TonightPrototype(): JSX.Element {
             krogerStore={kroger.store}
             onKrogerChoose={kroger.choose}
             onKrogerClear={kroger.clear}
+            onApplyProposal={(snapshot) => {
+              setState((current) => withSnapshot(current, snapshot));
+            }}
             onToggleIdea={(id, servings, inPlan) => {
               setState((current) =>
                 inPlan ? removeMeal(current, id) : addMeal(current, id, servings),

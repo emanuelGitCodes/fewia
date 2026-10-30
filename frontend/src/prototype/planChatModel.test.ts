@@ -163,6 +163,14 @@ describe("retainChatReplies", () => {
     expect(retainChatReplies(replies, [], null, []).size).toBe(0);
   });
 
+  it("copies proposal_id from the completed job and defaults to null", () => {
+    const id = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
+    const base = jobWith("planned", []);
+    const withId = { ...base, result: { ...base.result, proposal_id: id } } as ChatJob;
+    expect(retainChatReplies(new Map(), [], withId, []).get("job-1")?.proposalId).toBe(id);
+    expect(retainChatReplies(new Map(), [], base, []).get("job-1")?.proposalId).toBeNull();
+  });
+
   it("copies the Kroger quote and degraded flag from the completed job", () => {
     const quote = {
       kind: "store_live", ingredient_id: "rice", product_label: "Rice", brand: null, size: null,

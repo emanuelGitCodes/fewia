@@ -12,6 +12,7 @@ export type ChatReply = {
   answered: boolean;
   quote: KrogerQuote | null;
   degraded: boolean;
+  proposalId: string | null;
 };
 
 export function retainChatReplies(
@@ -32,6 +33,7 @@ export function retainChatReplies(
       answered: completed.result.status !== "limit" && completed.result.status !== "incomplete",
       quote: completed.result.kroger_quote ?? null,
       degraded: completed.result.kroger_degraded === true,
+      proposalId: completed.result.proposal_id ?? null,
     });
   }
   return next.size === current.size && [...next.keys()].every((id) => current.has(id))

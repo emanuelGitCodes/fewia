@@ -4,7 +4,9 @@ import { BUDGET_ERROR, MAX_MESSAGE_LENGTH, TEXT_ERROR } from "../chatConversatio
 import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import type { KrogerStore } from "../chatTypes";
+import type { ProposalPreview } from "../proposalApi";
 import { ChatIdeaCard } from "./ChatIdeaCard";
+import { ProposalCard } from "./ProposalCard";
 import type { KrogerStoreOption } from "../krogerApi";
 import { KrogerQuoteLine } from "./KrogerQuoteLine";
 import { KrogerStorePicker } from "./KrogerStorePicker";
@@ -31,6 +33,7 @@ function replyLine(count: number): string {
 export function PlanChat(props: {
   state: PlanState;
   onToggleIdea: (recipeId: string, servings: number, inPlan: boolean) => void;
+  onApplyProposal?: (snapshot: ProposalPreview) => void;
   id?: string;
   // True while the panel is an open sheet; opening moves focus into it.
   open?: boolean;
@@ -278,6 +281,15 @@ export function PlanChat(props: {
                 <p className="tonight-ask-text">{turn.content}</p>
                 {turn.role === "assistant" && reply !== undefined ? (
                   <KrogerQuoteLine quote={reply.quote} degraded={reply.degraded} store={krogerStore} />
+                ) : null}
+                {turn.role === "assistant" && reply?.proposalId != null ? (
+                  <ProposalCard
+                    proposalId={reply.proposalId}
+                    state={state}
+                    onApplied={(snapshot) => {
+                      props.onApplyProposal?.(snapshot);
+                    }}
+                  />
                 ) : null}
                 {ideas.length > 0 ? (
                   <>

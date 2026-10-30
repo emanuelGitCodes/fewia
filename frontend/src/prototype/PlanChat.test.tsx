@@ -21,6 +21,14 @@ vi.mock("./planRevisionApi", async (importOriginal) => ({
   savePlanRevision: vi.fn(),
 }));
 
+vi.mock("./ProposalCard", () => ({
+  ProposalCard: (props: { proposalId: string; onApplied: (snapshot: never) => void }) => (
+    <button type="button" onClick={() => { props.onApplied({} as never); }}>
+      {`proposal ${props.proposalId}`}
+    </button>
+  ),
+}));
+
 type JobMocks = {
   job: ChatJob | null;
   error: string | null;
@@ -188,6 +196,28 @@ describe("PlanChat", () => {
       view.rerender(<PlanChat state={state} onToggleIdea={onToggleIdea} />);
       expect(price).toHaveBeenCalledTimes(calls);
     }
+  });
+
+  it("shows a proposal card only for a reply with a proposal_id", async () => {
+    const proposalId = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
+    const onApplyProposal = vi.fn();
+    mount(initialPlanState(), { onApplyProposal });
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "clarification", "No change");
+    });
+    await submitText("Plain");
+    expect(screen.queryByRole("button", { name: /^proposal / })).toBeNull();
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-2", "clarification", "Try this");
+      if (job.result !== null) {
+        job.result.proposal_id = proposalId;
+      }
+      jobState.job = job;
+    });
+    await submitText("Change it");
+    fireEvent.click(screen.getByRole("button", { name: `proposal ${proposalId}` }));
+    expect(screen.getAllByRole("button", { name: /^proposal / })).toHaveLength(1);
+    expect(onApplyProposal).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a late completion after New chat", async () => {

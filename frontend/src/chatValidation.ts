@@ -12,7 +12,8 @@ import {
 import { copyMealPlanNutrition, isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage, KrogerQuote } from "./chatTypes";
 
-const HEX64 = /^[0-9a-f]{64}$/;
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEX64 =/^[0-9a-f]{64}$/;
 const LOCATION_ID = /^[0-9A-Za-z]{8}$/;
 const RETRIEVED_AT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 const QUOTE_KEYS = [
@@ -189,7 +190,8 @@ export function parseChatResult(value: unknown): ChatResult {
   const quote = rawQuote == null ? rawQuote : copyKrogerQuote(rawQuote);
   if (
     (rawQuote != null && quote === null) ||
-    (value.kroger_degraded !== undefined && value.kroger_degraded !== true)
+    (value.kroger_degraded !== undefined && value.kroger_degraded !== true) ||
+    (value.proposal_id !== undefined && !(isString(value.proposal_id) && UUID.test(value.proposal_id)))
   ) {
     throw new Error(SHAPE_ERROR);
   }
@@ -209,6 +211,7 @@ export function parseChatResult(value: unknown): ChatResult {
     usage: value.usage === null ? null : copyUsage(value.usage),
     ...(quote === undefined ? {} : { kroger_quote: quote }),
     ...(value.kroger_degraded === true ? { kroger_degraded: true as const } : {}),
+    ...(value.proposal_id === undefined ? {} : { proposal_id: value.proposal_id as string }),
   };
 }
 export function parseChatJob(value: unknown): ChatJob {

@@ -1021,6 +1021,30 @@
 .tonight-ask-kroger {
   margin-top: 0.5rem;
 }
+.tonight-proposal {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+}
+.tonight-proposal-changes {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.tonight-proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.tonight-proposal-note {
+  margin: 0.4rem 0 0;
+  color: var(--tonight-muted);
+}
+.tonight-proposal-note:empty {
+  display: none;
+}
 .tonight-kroger-picker {
   margin-top: auto;
   padding-bottom: 0.5rem;
