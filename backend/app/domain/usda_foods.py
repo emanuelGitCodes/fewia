@@ -88,18 +88,21 @@ def _top_level_split(text: str) -> list[str]:
 
 
 def _collapse_composite(qualifiers: list[str]) -> list[str]:
-    """Replace a comma-split "composite of ..., and ..." list with "composite"."""
+    """Replace a comma-split "composite of ..., and ..." run with "composite".
+
+    Short qualifiers (two words or fewer) are merged up to the first "and ..." one;
+    a run that does not end in "and ..." merges nothing after "composite of ...".
+    """
     for start, qualifier in enumerate(qualifiers):
-        lowered = qualifier.lower()
-        if lowered.startswith("composite of") and lowered not in _FILLER:
-            stop = next(
-                (
-                    index
-                    for index in range(start + 1, len(qualifiers))
-                    if qualifiers[index].lower().startswith("and ")
-                ),
-                start,
-            )
+        if qualifier.lower().startswith("composite of"):
+            stop = start
+            for index in range(start + 1, len(qualifiers)):
+                following = qualifiers[index]
+                if len(following.split()) > 2:
+                    break
+                if following.lower().startswith("and "):
+                    stop = index
+                    break
             return [*qualifiers[:start], _COMPOSITE, *qualifiers[stop + 1 :]]
     return qualifiers
 
@@ -108,31 +111,33 @@ def display_name(description: str, limit: int = _SHORT_LIMIT) -> str:
     text = _strip_includes(description)
     if not text or text.startswith(","):
         raise _fail("a description has no head")
-    head, *qualifiers = _top_level_split(text)
-    qualifiers = _collapse_composite(qualifiers)
+    head, *texts = _top_level_split(text)
+    texts = _collapse_composite(texts)
     head = head.lower()
-    if not qualifiers:
+    if not texts:
         return head
-    *middle, last = qualifiers
     room = limit - len(head) - 3
-    if _COMPOSITE in middle:
-        room -= len(_COMPOSITE) + 2
-    if len(last) > room:
-        cut = last[: max(room, 0) + 1]
-        last = cut.rsplit(" ", 1)[0].rstrip(" ,") if " " in cut else ""
-    kept: set[int] = {index for index, item in enumerate(middle) if item == _COMPOSITE}
-    used = len(last)
-    for index in reversed(range(len(middle))):
-        qualifier = middle[index]
-        if (
-            last
-            and index not in kept
-            and qualifier.lower() not in _FILLER
-            and used + len(qualifier) + 2 <= room
-        ):
-            kept.add(index)
-            used += len(qualifier) + 2
-    parts = [middle[index] for index in sorted(kept)] + ([last] if last else [])
+    last = len(texts) - 1
+    kept = {index for index, item in enumerate(texts) if item == _COMPOSITE}
+    if last not in kept:
+        avail = room - sum(len(texts[index]) + 2 for index in kept)
+        if len(texts[last]) > avail:
+            cut = texts[last][: max(avail, 0) + 1]
+            texts[last] = cut.rsplit(" ", 1)[0].rstrip(" ,") if " " in cut else ""
+        if texts[last]:
+            kept.add(last)
+    used = sum(len(texts[index]) for index in kept) + 2 * max(len(kept) - 1, 0)
+    if texts[last]:
+        for index in reversed(range(last)):
+            size = len(texts[index])
+            if (
+                index not in kept
+                and texts[index].lower() not in _FILLER
+                and used + size + 2 <= room
+            ):
+                kept.add(index)
+                used += size + 2
+    parts = [texts[index] for index in sorted(kept)]
     return f"{head} ({', '.join(parts)})" if parts else head
 
 

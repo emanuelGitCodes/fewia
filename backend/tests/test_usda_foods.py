@@ -190,12 +190,14 @@ def test_names_that_collide_at_the_short_limit_are_retried_at_the_long_limit() -
     foods = parse_bundle(
         bundle(
             [
-                row(1, f"Pork, {'a' * 30}, {same}, raw"),
-                row(2, f"Pork, {'b' * 30}, {same}, raw"),
+                row(1, f"Pork, fresh, {'a' * 30}, {same}, raw"),
+                row(2, f"Pork, fresh, {'b' * 30}, {same}, raw"),
             ]
         )
     )
     assert display_name(foods[0].description) == display_name(foods[1].description)
+    # The full-name fallback would keep "fresh"; the 90 retry drops it.
+    assert all("fresh" not in food.ingredient.name for food in foods)
     assert [food.ingredient.name for food in foods] == [
         f"pork ({'a' * 30}, {same}, raw)",
         f"pork ({'b' * 30}, {same}, raw)",
@@ -216,8 +218,9 @@ def test_identical_descriptions_fail_the_load() -> None:
             "pork (composite, separable lean only, cooked, braised, roasted)",
         ),
         (
-            "Beef, composite of trimmed flank, rib, and loin, separable lean only, raw",
-            "beef (composite, separable lean only, raw)",
+            "Beef, composite of trimmed retail cuts, separable lean and fat,"
+            ' trimmed to 1/8" fat, all grades, raw',
+            'beef (composite, trimmed to 1/8" fat, raw)',
         ),
     ],
 )
@@ -226,7 +229,23 @@ def test_composite_cuts_are_named_composite_not_one_cut(
 ) -> None:
     name = display_name(description, limit=90)
     assert name == expected
+    assert "composite" in name and "raw" in name
     assert not any(cut in name for cut in ("leg", "loin", "shoulder", "spareribs"))
+
+
+def test_a_composite_merge_covers_only_short_cuts_ending_in_and() -> None:
+    merged = (
+        "Pork, fresh, composite of trimmed leg, loin, shoulder, and spareribs,"
+        " (includes cuts to be cured), separable lean and fat, raw"
+    )
+    assert display_name(merged) == "pork (composite, (includes cuts to be cured), raw)"
+    unmerged = "Pork, fresh, composite of separable fat, with added solution, cooked"
+    assert display_name(unmerged) == "pork (composite, with added solution, cooked)"
+
+
+def test_composite_is_kept_at_every_limit_even_as_the_last_qualifier() -> None:
+    assert display_name("Soup, alpha, composite of x") == "soup (alpha, composite)"
+    assert display_name("Soup, alpha, composite of x", limit=10) == "soup (composite)"
 
 
 @pytest.mark.parametrize(
