@@ -356,7 +356,7 @@ def test_get_ingredient_facts_dispatch_is_read_only_with_trace() -> None:
 def test_get_ingredient_facts_unknown_name_is_a_successful_lookup() -> None:
     trace: list[dict[str, object]] = []
     payload, block = dispatch(
-        ToolCall("i2", INGREDIENT_TOOL, {"name": "tofu"}),
+        ToolCall("i2", INGREDIENT_TOOL, {"name": "zzqx"}),
         budget(),
         PERIOD,
         1,
@@ -506,7 +506,7 @@ def test_dispatch_resolves_with_food_to_a_swap_with_plan_servings() -> None:
 
 @pytest.mark.parametrize(
     ("food", "status"),
-    [("pork", "needs_food_choice"), ("tofu", "unknown_food")],
+    [("pork", "needs_food_choice"), ("zzqx", "unknown_food")],
 )
 def test_dispatch_question_payloads_are_successes_without_the_input(
     food: str, status: str

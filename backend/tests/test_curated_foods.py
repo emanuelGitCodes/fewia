@@ -18,6 +18,7 @@ from app.domain.curated_foods import (
 )
 from app.domain.nutrition import NutritionFacts
 from app.domain.nutrition_catalog import NUTRITION
+from app.domain.usda_foods import USDA_INGREDIENTS, USDA_NUTRITION
 
 _FILE = Path(curated_foods.__file__).with_name("curated_foods.json")
 _PER_100G = ("energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg", "sodium_mg")
@@ -126,12 +127,20 @@ def test_curated_ids_do_not_collide_with_the_catalog() -> None:
     assert not set(CURATED_NUTRITION) & set(NUTRITION)
 
 
-def test_all_maps_list_catalog_first_then_curated() -> None:
-    assert list(ALL_INGREDIENTS) == [*INGREDIENTS, *CURATED_INGREDIENTS]
-    assert list(ALL_NUTRITION) == [*NUTRITION, *CURATED_NUTRITION]
+def test_all_maps_list_catalog_then_curated_then_usda() -> None:
+    assert list(ALL_INGREDIENTS) == [
+        *INGREDIENTS,
+        *CURATED_INGREDIENTS,
+        *USDA_INGREDIENTS,
+    ]
+    assert list(ALL_NUTRITION) == [*NUTRITION, *CURATED_NUTRITION, *USDA_NUTRITION]
     for key, value in INGREDIENTS.items():
         assert ALL_INGREDIENTS[key] is value
     for key, facts in NUTRITION.items():
+        assert ALL_NUTRITION[key] is facts
+    for key, value in CURATED_INGREDIENTS.items():
+        assert ALL_INGREDIENTS[key] is value
+    for key, facts in CURATED_NUTRITION.items():
         assert ALL_NUTRITION[key] is facts
 
 

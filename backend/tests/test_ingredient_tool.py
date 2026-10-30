@@ -12,8 +12,13 @@ from app.agent.ingredient_tool import (
     resolve_food,
 )
 from app.domain.catalog import INGREDIENTS
-from app.domain.curated_foods import CURATED_INGREDIENTS, CURATED_NUTRITION
+from app.domain.curated_foods import (
+    ALL_INGREDIENTS,
+    CURATED_INGREDIENTS,
+    CURATED_NUTRITION,
+)
 from app.domain.nutrition_catalog import NUTRITION
+from app.domain.usda_foods import USDA_FOODS
 
 _SECRET = "do-not-echo-raw-input"
 _FOUND_KEYS = {
@@ -134,22 +139,22 @@ def test_pork_is_ambiguous_between_both_pork_foods() -> None:
 
 
 def test_unknown_name_returns_status_and_no_error() -> None:
-    result = lookup("tofu")
-    assert result == {"status": "unknown", "name": "tofu", "candidates": []}
+    result = lookup("zzqx")
+    assert result == {"status": "unknown", "name": "zzqx", "candidates": []}
 
 
 def test_unknown_name_lists_up_to_three_related_foods() -> None:
-    result = lookup("beef stew")
+    result = lookup("beef zzqx")
     assert result["status"] == "unknown"
-    assert result["name"] == "beef stew"
+    assert result["name"] == "beef zzqx"
     ids = [item["ingredient_id"] for item in result["candidates"]]
     assert ids[0] == "ground_beef_80"
     assert 1 <= len(ids) <= 3
     assert all(item["status"] == "found" for item in result["candidates"])
-    contained = lookup("white rice bowl")
+    contained = lookup("white rice zzqx")
     assert contained["status"] == "unknown"
     assert [item["ingredient_id"] for item in contained["candidates"]] == ["rice"]
-    wide = lookup("e")
+    wide = lookup("ea")
     assert wide["status"] == "unknown"
     assert len(wide["candidates"]) == 3
 
@@ -186,7 +191,7 @@ def test_invalid_arguments_raise_a_static_error(arguments: object) -> None:
 
 
 def test_name_length_edges_are_accepted() -> None:
-    assert lookup("a")["status"] == "unknown"
+    assert lookup("a")["status"] in {"found", "ambiguous", "unknown"}
     assert lookup("a" * 64)["status"] == "unknown"
 
 
@@ -199,7 +204,92 @@ def test_lookup_does_not_mutate_the_tables() -> None:
     before = (dict(INGREDIENTS), dict(CURATED_INGREDIENTS), dict(NUTRITION))
     lookup("pork")
     lookup("tofu")
+    lookup("zzqx")
     assert (dict(INGREDIENTS), dict(CURATED_INGREDIENTS), dict(NUTRITION)) == before
+
+
+needs_bundle = pytest.mark.skipif(not USDA_FOODS, reason="no USDA bundle")
+_TOFU = "tofu (raw, firm, prepared with calcium sulfate)"
+
+
+@needs_bundle
+@pytest.mark.parametrize(
+    ("raw", "ingredient_id"),
+    [
+        ("tofu", "usda_172475"),
+        ("Tofu", "usda_172475"),
+        ("shrimp", "usda_175179"),
+        ("cheese", "usda_173414"),
+        ("Tempeh", "usda_174272"),
+        (_TOFU, "usda_172475"),
+    ],
+)
+def test_common_usda_foods_resolve_to_one_food(raw: str, ingredient_id: str) -> None:
+    result = lookup(raw)
+    assert result["status"] == "found"
+    assert result["ingredient_id"] == ingredient_id
+    assert result["source"] == "usda"
+    assert result["fdc_id"] == int(ingredient_id.removeprefix("usda_"))
+    assert result["price_cents"] is None
+    assert set(result) == _FOUND_KEYS
+
+
+@needs_bundle
+def test_tofu_facts_carry_the_usda_name_and_diet_flags() -> None:
+    result = lookup("tofu")
+    assert result["name"] == _TOFU
+    assert result["vegetarian"] is True and result["vegan"] is True
+    assert set(result["per_100g"]) == _MACRO_KEYS
+    json.dumps(result)
+
+
+@needs_bundle
+@pytest.mark.parametrize(
+    ("raw", "ingredient_id", "source"),
+    [
+        ("beef", "ground_beef_80", "curated"),
+        ("black beans", "black_beans", "catalog"),
+    ],
+)
+def test_catalog_and_curated_foods_win_over_usda(
+    raw: str, ingredient_id: str, source: str
+) -> None:
+    result = lookup(raw)
+    assert (result["ingredient_id"], result["source"]) == (ingredient_id, source)
+
+
+@needs_bundle
+@pytest.mark.parametrize("raw", ["paneer", "seitan"])
+def test_foods_outside_the_bundle_stay_unknown(raw: str) -> None:
+    assert lookup(raw)["status"] == "unknown"
+
+
+@needs_bundle
+@pytest.mark.parametrize("raw", ["chicken thigh", "beans", "cheese, cheddar"])
+def test_every_ambiguous_candidate_resolves_back_to_itself(raw: str) -> None:
+    resolution = resolve_food(raw)
+    if raw != "cheese, cheddar":
+        assert resolution.status == "ambiguous"
+    if resolution.status != "ambiguous":
+        return
+    assert 1 <= len(resolution.ids) <= 3
+    for ingredient_id in resolution.ids:
+        by_id = lookup(ingredient_id)
+        assert (by_id["status"], by_id["ingredient_id"]) == ("found", ingredient_id)
+        name = ALL_INGREDIENTS[ingredient_id].name
+        assert by_id["name"] == name
+        again = resolve_food(name)
+        assert (again.status, again.ids) == ("found", (ingredient_id,)), name
+
+
+@needs_bundle
+def test_related_foods_never_come_from_usda_rows() -> None:
+    # A fragment of the tofu description that is no default term and no token.
+    result = lookup("calcium sulfa")
+    assert result == {"status": "unknown", "name": "calcium sulfa", "candidates": []}
+    default = lookup("tempeh zzqx")
+    assert default["status"] == "unknown"
+    assert [item["ingredient_id"] for item in default["candidates"]] == ["usda_174272"]
 
 
 def test_error_is_value_error() -> None:
@@ -213,8 +303,8 @@ def test_resolve_food_reports_found_ambiguous_and_unknown() -> None:
     assert resolve_food("pork") == FoodResolution(
         "ambiguous", "pork", ("ground_pork", "pork_loin")
     )
-    assert resolve_food("tofu") == FoodResolution("unknown", "tofu", ())
-    assert resolve_food("beef stew").ids[0] == "ground_beef_80"
+    assert resolve_food("zzqx") == FoodResolution("unknown", "zzqx", ())
+    assert resolve_food("beef zzqx").ids[0] == "ground_beef_80"
 
 
 @pytest.mark.parametrize("name", [None, 5, ["beef"], "", "a" * 65, "   "])
@@ -224,7 +314,9 @@ def test_resolve_food_rejects_invalid_names_with_a_static_error(name: object) ->
     assert str(caught.value) == "arguments are invalid"
 
 
-@pytest.mark.parametrize("name", ["beef", "pork", "tofu", "beef stew", "black beans"])
+@pytest.mark.parametrize(
+    "name", ["beef", "pork", "tofu", "zzqx", "beef zzqx", "black beans", "beans"]
+)
 def test_the_tool_and_the_resolver_agree(name: str) -> None:
     resolution = resolve_food(name)
     result = lookup(name)

@@ -5,12 +5,16 @@ from app.domain.catalog import INGREDIENTS
 from app.domain.curated_foods import (
     ALL_INGREDIENTS,
     ALL_NUTRITION,
+    CURATED_INGREDIENTS,
     CURATED_SYNONYMS,
+    USDA_DEFAULTS,
 )
 from app.domain.meal_tags import normalize_term
+from app.domain.usda_foods import USDA_FOODS, USDA_INGREDIENTS, UsdaIndex
 
 INGREDIENT_TOOL = "get_ingredient_facts"
 _MAX_CANDIDATES = 3
+_USDA = UsdaIndex(USDA_FOODS, USDA_DEFAULTS)
 
 
 class IngredientToolError(ValueError):
@@ -34,11 +38,16 @@ def ingredient_tool_spec() -> dict[str, object]:
 def _facts(ingredient_id: str) -> dict[str, object]:
     ingredient = ALL_INGREDIENTS[ingredient_id]
     nutrition = ALL_NUTRITION[ingredient_id]
+    source = "usda"
+    if ingredient_id in INGREDIENTS:
+        source = "catalog"
+    elif ingredient_id in CURATED_INGREDIENTS:
+        source = "curated"
     return {
         "status": "found",
         "ingredient_id": ingredient_id,
         "name": ingredient.name,
-        "source": "catalog" if ingredient_id in INGREDIENTS else "curated",
+        "source": source,
         "fdc_id": nutrition.fdc_id,
         "per_100g": {
             "energy_kcal": nutrition.energy_kcal,
@@ -62,15 +71,22 @@ def _resolve(query: str) -> list[str]:
         _exact(query, list(INGREDIENTS))
         or _exact(query, curated)
         or [item for item in curated if query in CURATED_SYNONYMS[item]]
+        or ([query] if query in USDA_INGREDIENTS else [])
+        or _USDA.lookup(query)
     )
 
 
 def _related(query: str) -> list[str]:
+    """Search catalog, curated, and default terms only, never the USDA rows."""
     related: list[str] = []
-    for item in ALL_INGREDIENTS:
+    for item in (*INGREDIENTS, *CURATED_INGREDIENTS):
         texts = (ALL_INGREDIENTS[item].name.lower(), *CURATED_SYNONYMS.get(item, ()))
         if any(query in text or text in query for text in texts):
             related.append(item)
+    for term in USDA_DEFAULTS:
+        found = _USDA.lookup(term)
+        if found and (query in term or term in query) and found[0] not in related:
+            related.append(found[0])
     return related[:_MAX_CANDIDATES]
 
 

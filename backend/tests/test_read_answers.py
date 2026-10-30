@@ -18,10 +18,12 @@ from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest
 from app.domain.plan_revision import PlanRevisionInput
+from app.domain.usda_foods import USDA_FOODS
 from app.services.meal_nutrition import meal_nutrition
 
 _NOTICE = SAMPLE_ESTIMATE_NOTICE
 _INCOMPLETE = "The sample total is incomplete because a price is missing."
+_TRY = "Try a common name, for example tofu, shrimp, or cheddar cheese."
 
 
 def _macros(kcal: int, protein: int, carbs: int, fat: int) -> dict[str, object]:
@@ -607,14 +609,14 @@ def test_ingredient_facts_ambiguous_and_unknown() -> None:
     assert read_tool_answer([(INGREDIENT_TOOL, three)]) == (
         "Which one do you mean: ground pork, pork loin, or ground beef (80% lean)?"
     )
-    unknown = {"status": "unknown", "name": "tofu", "candidates": []}
+    unknown = {"status": "unknown", "name": "paneer", "candidates": []}
     assert read_tool_answer([(INGREDIENT_TOOL, unknown)]) == (
-        "I cannot find that food in the food list."
+        "I cannot find that food in the food list. " + _TRY
     )
     near = {"status": "unknown", "name": "beefy", "candidates": candidates}
     assert read_tool_answer([(INGREDIENT_TOOL, near)]) == (
         "I cannot find that food in the food list. "
-        "Did you mean ground pork or pork loin?"
+        "Did you mean ground pork or pork loin? " + _TRY
     )
 
 
@@ -712,11 +714,11 @@ def test_substitute_food_questions_render_names_only() -> None:
     )
     none = _question("unknown_food", "bean_tacos", [])
     assert read_tool_answer([(SUBSTITUTE_TOOL, none)]) == (
-        "I cannot find that food in the food list."
+        "I cannot find that food in the food list. " + _TRY
     )
     near = _question("unknown_food", "bean_tacos", ["a", "b", "c"])
     assert read_tool_answer([(SUBSTITUTE_TOOL, near)]) == (
-        "I cannot find that food in the food list. Did you mean a or b?"
+        "I cannot find that food in the food list. Did you mean a or b? " + _TRY
     )
 
 
@@ -784,9 +786,11 @@ def test_real_with_food_replies() -> None:
     assert read_tool_answer([(SUBSTITUTE_TOOL, pork)]) == (
         "Which one do you mean: ground pork or pork loin?"
     )
-    tofu = execute_substitute({"recipe_id": "bean_tacos", "with_food": "tofu"}, _BUDGET)
-    assert read_tool_answer([(SUBSTITUTE_TOOL, tofu)]) == (
-        "I cannot find that food in the food list."
+    seitan = execute_substitute(
+        {"recipe_id": "bean_tacos", "with_food": "seitan"}, _BUDGET
+    )
+    assert read_tool_answer([(SUBSTITUTE_TOOL, seitan)]) == (
+        "I cannot find that food in the food list. " + _TRY
     )
     stew = execute_substitute(
         {"recipe_id": "chicken_lentil_stew", "with_food": "beef"}, _BUDGET
@@ -804,6 +808,23 @@ def test_real_with_food_replies() -> None:
         "Which ingredient in Vegetable pasta should I replace: dry pasta, "
         "canned tomato, mixed vegetables, onion, garlic, olive oil, or salt?"
     )
+
+
+@pytest.mark.skipif(not USDA_FOODS, reason="the USDA bundle is absent")
+def test_real_tofu_swap_reply_names_the_usda_food_and_the_incomplete_price() -> None:
+    tofu = execute_substitute(
+        {"recipe_id": "bean_tacos", "with_food": "tofu"},
+        _BUDGET,
+        _revision([{"recipe_id": "bean_tacos", "servings": 2}]),
+    )
+    answer = read_tool_answer([(SUBSTITUTE_TOOL, tofu)])
+    assert answer is not None
+    assert answer.startswith(
+        "Bean tacos for 2 servings with tofu (raw, firm, prepared with calcium "
+        "sulfate) instead of black beans: per serving "
+    )
+    assert answer.endswith("The sample price is incomplete.")
+    assert _TRY not in answer
 
 
 def _meal_payload(recipe_id: str, kcal: int) -> dict[str, object]:

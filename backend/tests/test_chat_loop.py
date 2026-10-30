@@ -726,15 +726,18 @@ def test_ingredient_facts_reply_for_an_unknown_food() -> None:
     result, _ = _run(
         [
             _reply(
-                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "tofu"})],
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "zzqx"})],
                 "tool_use",
             ),
-            _reply([_text_block("Tofu is great.")], "end_turn"),
+            _reply([_text_block("Zzqx is great.")], "end_turn"),
         ]
     )
-    assert result["answer"] == "I cannot find that food in the food list."
-    assert "tofu" not in result["answer"]
-    assert "Tofu is great." not in json.dumps(result)
+    assert result["answer"] == (
+        "I cannot find that food in the food list. "
+        "Try a common name, for example tofu, shrimp, or cheddar cheese."
+    )
+    assert "zzqx" not in result["answer"].lower()
+    assert "Zzqx is great." not in json.dumps(result)
 
 
 def test_ingredient_facts_error_keeps_static_shape_and_reply_state() -> None:

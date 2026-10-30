@@ -12,6 +12,7 @@ from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
 TOOL_FAILED = "A tool call failed. Check the request."
 _PRIORITY = (SUBSTITUTE_TOOL, PRICE_TOOL, INGREDIENT_TOOL, GET_MEAL_TOOL, GET_PLAN_TOOL)
+_TRY_COMMON_NAME = "Try a common name, for example tofu, shrimp, or cheddar cheese."
 _INCOMPLETE_TOTAL = "The sample total is incomplete because a price is missing."
 
 
@@ -125,7 +126,7 @@ def _ask_food(ambiguous: bool, names: list[str]) -> str:
     text = "I cannot find that food in the food list."
     if names:
         text += f" Did you mean {_or(names[:2])}?"
-    return text
+    return f"{text} {_TRY_COMMON_NAME}"
 
 
 def _substitute(payload: dict[str, object]) -> str:

@@ -1,4 +1,6 @@
-"""Versioned curated foods outside the recipe catalog. They carry no price yet."""
+"""Versioned curated foods outside the recipe catalog, then bundled USDA foods.
+
+Neither carries a price yet."""
 
 import json
 from dataclasses import dataclass
@@ -8,6 +10,12 @@ from typing import cast
 from app.domain.catalog import INGREDIENTS, Ingredient
 from app.domain.nutrition import NutritionFacts
 from app.domain.nutrition_catalog import NUTRITION
+from app.domain.usda_foods import (
+    USDA_FOODS,
+    USDA_INGREDIENTS,
+    USDA_NUTRITION,
+    load_defaults,
+)
 
 _FOOD_KEYS = {
     "id",
@@ -95,5 +103,24 @@ CURATED_FOODS_VERSION, _FOODS = _load()
 CURATED_INGREDIENTS = {food.ingredient.id: food.ingredient for food in _FOODS}
 CURATED_NUTRITION = {food.ingredient.id: food.facts for food in _FOODS}
 CURATED_SYNONYMS = {food.ingredient.id: food.synonyms for food in _FOODS}
-ALL_INGREDIENTS: dict[str, Ingredient] = {**INGREDIENTS, **CURATED_INGREDIENTS}
-ALL_NUTRITION: dict[str, NutritionFacts] = {**NUTRITION, **CURATED_NUTRITION}
+ALL_INGREDIENTS: dict[str, Ingredient] = {
+    **INGREDIENTS,
+    **CURATED_INGREDIENTS,
+    **USDA_INGREDIENTS,
+}
+ALL_NUTRITION: dict[str, NutritionFacts] = {
+    **NUTRITION,
+    **CURATED_NUTRITION,
+    **USDA_NUTRITION,
+}
+# Terms a USDA default must not shadow: catalog and curated IDs, names, synonyms.
+_NAMED = {**INGREDIENTS, **CURATED_INGREDIENTS}
+FOOD_TERMS = frozenset(
+    {
+        *_NAMED,
+        *(item.name.lower() for item in _NAMED.values()),
+        *(term for terms in CURATED_SYNONYMS.values() for term in terms),
+    }
+)
+_BUNDLED_IDS = {food.facts.fdc_id for food in USDA_FOODS}
+USDA_DEFAULTS = load_defaults(FOOD_TERMS, _BUNDLED_IDS or None)

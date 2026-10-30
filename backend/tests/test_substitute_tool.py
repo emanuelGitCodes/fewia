@@ -23,6 +23,7 @@ from app.domain.grocery import (
     GroceryRequest,
 )
 from app.domain.plan_revision import PlanRevisionInput
+from app.domain.usda_foods import USDA_FOODS
 from app.services.meal_nutrition import (
     GRAMS_PER_EACH,
     MacroTotals,
@@ -640,6 +641,36 @@ def test_curated_swap_price_is_incomplete() -> None:
     assert beef["quantity"] == 240
 
 
+needs_bundle = pytest.mark.skipif(not USDA_FOODS, reason="no USDA bundle")
+
+
+@needs_bundle
+def test_bean_tacos_to_tofu_uses_usda_nutrition_and_stays_vegan() -> None:
+    result = execute_substitute(
+        food_swap(with_food="tofu"), plan=plan_with("bean_tacos", 2)
+    )
+    hand_list = (("usda_172475", 120), *RECIPES["bean_tacos"].ingredients[1:])
+    each = hand_macros(hand_list)
+    total = hand_macros(hand_list, 2)
+    assert result["status"] == "swapped"
+    assert result["change"] == {
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "usda_172475",
+    }
+    after = cast(dict[str, Any], result["after"])
+    assert after["per_serving"] == asdict(each)
+    assert after["total"] == asdict(total)
+    assert after["ingredients"][0]["ingredient_id"] == "usda_172475"
+    assert after["ingredients"][0]["name"] == (
+        "tofu (raw, firm, prepared with calcium sulfate)"
+    )
+    assert {"vegan", "vegetarian"} <= set(cast(list[str], result["diets_after"]))
+    price = cast(dict[str, Any], result["price"])
+    assert price["before"]["price_complete"] is True
+    assert price["after"]["price_complete"] is False
+    assert price["delta_cents"] is None
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -727,13 +758,13 @@ def test_ambiguous_food_asks_which_food_and_does_not_swap() -> None:
 
 
 def test_unknown_food_returns_candidates_and_no_swap() -> None:
-    result = execute_substitute(food_swap(with_food="tofu"))
+    result = execute_substitute(food_swap(with_food="zzqx"))
     assert result == {
         "status": "unknown_food",
         "recipe_id": "bean_tacos",
         "candidates": [],
     }
-    near = execute_substitute(food_swap(with_food="beef stew"))
+    near = execute_substitute(food_swap(with_food="beef zzqx"))
     assert near["status"] == "unknown_food"
     assert candidates_of(near)[0] == ("ground_beef_80", "ground beef (80% lean)")
 
@@ -830,7 +861,8 @@ def test_other_invalid_arguments_error_before_a_food_question(
 
 
 def test_with_food_length_edges_are_accepted() -> None:
-    assert execute_substitute(food_swap(with_food="a"))["status"] == "unknown_food"
+    short = execute_substitute(food_swap(with_food="a"))
+    assert short["status"] in {"swapped", "needs_food_choice", "unknown_food"}
     long = execute_substitute(food_swap(with_food="a" * 64))
     assert long["status"] == "unknown_food"
 
@@ -838,7 +870,7 @@ def test_with_food_length_edges_are_accepted() -> None:
 @pytest.mark.parametrize(
     "arguments",
     [
-        food_swap(with_food="tofu"),
+        food_swap(with_food="zzqx"),
         food_swap(with_food=_SECRET),
         food_swap(recipe_id="vegetable_pasta", with_food=_SECRET + " beef"),
         food_swap(recipe_id="chicken_lentil_stew", with_food="beef"),
