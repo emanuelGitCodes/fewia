@@ -218,6 +218,44 @@ def test_find_stores_parses_and_skips_malformed() -> None:
     assert query["filter.zipCode.near"] == ZIP and query["filter.limit"] == "3"
 
 
+def test_find_stores_sends_radius_only_when_given() -> None:
+    server = Server()
+    client, _ = _make(server)
+    client.find_stores(ZIP)
+    client.find_stores(ZIP, radius_miles=50)
+    assert "filter.radiusInMiles" not in server.requests[1].url.params
+    assert server.requests[2].url.params["filter.radiusInMiles"] == "50"
+
+
+@pytest.mark.parametrize("radius", [0, -1, 101, True, 1.5, "50"])
+def test_find_stores_rejects_bad_radius(radius: object) -> None:
+    server = Server()
+    client, _ = _make(server)
+    with pytest.raises(ValueError, match="radius_miles MUST be"):
+        client.find_stores(ZIP, radius_miles=radius)  # type: ignore[arg-type]
+    assert server.requests == []
+
+
+@pytest.mark.parametrize(
+    ("name", "chain", "expected"),
+    [
+        ("Kroger - Kroger On the Rhine", "Kroger", "Kroger On the Rhine"),
+        ("Kroger - - Orlando Spoke", "Kroger", "Orlando Spoke"),
+        (
+            "Harris Teeter - Forecast Shed - HT Trans",
+            "Harris Teeter",
+            "Forecast Shed - HT Trans",
+        ),
+        ("Kroger - -", "Kroger", "Kroger - -"),
+        ("Kroger", "Kroger", "Kroger"),
+        ("Test Market", "Kroger", "Test Market"),
+    ],
+)
+def test_store_names_are_cleaned(name: str, chain: str, expected: str) -> None:
+    store = kroger._parse_store(_store(name=name, chain=chain))
+    assert store is not None and store.name == expected
+
+
 @pytest.mark.parametrize("zip_code", ["1234", "123456", "12a45", "１２３４５", ""])
 def test_find_stores_rejects_bad_zip(zip_code: str) -> None:
     server = Server()

@@ -71,6 +71,46 @@ def test_returns_stores_without_store_zip(api: TestClient) -> None:
     assert seen[-1].url.params["filter.zipCode.near"] == SENTINEL_ZIP
 
 
+def _locations_calls(
+    api: TestClient, responses: list[list[dict[str, object]]]
+) -> tuple[httpx.Response, list[httpx.Request]]:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 1800})
+        calls.append(request)
+        return httpx.Response(200, json={"data": responses[len(calls) - 1]})
+
+    _override(_client(httpx.MockTransport(handler)))
+    return api.post(URL, json={"zip_code": SENTINEL_ZIP}), calls
+
+
+def test_wider_search_runs_once_when_first_is_empty(api: TestClient) -> None:
+    store = _store()
+    store["name"] = "INVENTED - - Far Spoke"
+    store["chain"] = "INVENTED"
+    response, calls = _locations_calls(api, [[], [store]])
+    assert response.status_code == 200
+    assert response.json()["stores"][0]["name"] == "Far Spoke"
+    assert len(calls) == 2
+    assert "filter.radiusInMiles" not in calls[0].url.params
+    assert calls[1].url.params["filter.radiusInMiles"] == "50"
+
+
+def test_no_wider_search_when_first_has_stores(api: TestClient) -> None:
+    response, calls = _locations_calls(api, [[_store()]])
+    assert response.status_code == 200
+    assert len(calls) == 1
+
+
+def test_at_most_two_calls_when_both_empty(api: TestClient) -> None:
+    response, calls = _locations_calls(api, [[], []])
+    assert response.status_code == 200
+    assert response.json() == {"stores": []}
+    assert len(calls) == 2
+
+
 def test_not_configured(api: TestClient) -> None:
     _override(None)
     response = api.post(URL, json={"zip_code": SENTINEL_ZIP})

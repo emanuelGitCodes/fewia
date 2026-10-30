@@ -123,6 +123,9 @@ def _parse_store(entry: object) -> KrogerStore | None:
         or zip_code is None
     ):
         return None
+    prefix = re.match(rf"{re.escape(chain)}(?:\s+-)+\s+", name)
+    if prefix:
+        name = name[prefix.end() :].strip() or name
     return KrogerStore(raw_id, name, chain, line, city, state, zip_code)
 
 
@@ -312,15 +315,22 @@ class KrogerClient:
             self.cache_control[kind] = header
         return response, header
 
-    def find_stores(self, zip_code: str, limit: int = 5) -> list[KrogerStore]:
+    def find_stores(
+        self, zip_code: str, limit: int = 5, radius_miles: int | None = None
+    ) -> list[KrogerStore]:
         if not isinstance(zip_code, str) or not _ZIP_CODE.fullmatch(zip_code):
             raise ValueError("zip_code MUST be exactly 5 digits")
         _require_limit(limit)
-        payload, _ = self._fetch(
-            "locations",
-            LOCATIONS_PATH,
-            {"filter.zipCode.near": zip_code, "filter.limit": str(limit)},
-        )
+        params = {"filter.zipCode.near": zip_code, "filter.limit": str(limit)}
+        if radius_miles is not None:
+            if (
+                isinstance(radius_miles, bool)
+                or not isinstance(radius_miles, int)
+                or not 1 <= radius_miles <= 100
+            ):
+                raise ValueError("radius_miles MUST be an integer from 1 to 100")
+            params["filter.radiusInMiles"] = str(radius_miles)
+        payload, _ = self._fetch("locations", LOCATIONS_PATH, params)
         stores = (_parse_store(entry) for entry in _data_list(payload))
         return [store for store in stores if store is not None]
 

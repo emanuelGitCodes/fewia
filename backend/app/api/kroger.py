@@ -48,6 +48,8 @@ def find_kroger_stores(
     stores: list[KrogerStore] = []
     try:
         stores = client.find_stores(body.zip_code, limit=5)
+        if not stores:
+            stores = client.find_stores(body.zip_code, limit=5, radius_miles=50)
     except ValueError:
         failure = 422
     except KrogerUnavailable:
