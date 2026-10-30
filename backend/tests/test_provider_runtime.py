@@ -8,7 +8,6 @@ import pytest
 
 from app.provider_runtime import (
     build_bedrock,
-    build_instacart,
     build_plaid,
     capabilities,
 )
@@ -21,7 +20,6 @@ from app.provider_settings import (
 CLIENT_MARKER = "TEST_PLAID_CLIENT_MARKER"
 SECRET_MARKER = "TEST_SECRET_FILE_MARKER"
 TOKEN_MARKER = "TEST_ACCESS_TOKEN_MARKER"
-KEY_MARKER = "TEST_INSTACART_KEY_MARKER"
 MODEL_MARKER = "anthropic.model"
 PROFILE_MARKER = "operator-profile"
 REF = "item-ref"
@@ -65,17 +63,9 @@ class FakePlaid:
         self.token_resolver = token_resolver
 
 
-class FakeInstacart:
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-
-
 def _install_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", FakeBedrock)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", FakePlaid)
-    monkeypatch.setattr(
-        "app.provider_runtime.InstacartDevelopmentProvider", FakeInstacart
-    )
 
 
 def _forbid_reads(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,11 +83,9 @@ def test_unconfigured_defaults_have_zero_effects(
     settings = GroceryProviderSettings()
     assert build_bedrock(settings) is None
     assert build_plaid(settings) is None
-    assert build_instacart(settings) is None
     assert capabilities(settings) == {
         "chat_configured": False,
         "plaid_configured": False,
-        "instacart_configured": False,
         "spending_source": "manual",
     }
 
@@ -256,48 +244,6 @@ def test_build_plaid_hides_secret_on_constructor_failure(
     _static(exc_info.value, CLIENT_MARKER, SECRET_MARKER)
 
 
-def test_build_instacart_routes_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _install_fakes(monkeypatch)
-    key_file = tmp_path / "instacart.key"
-    key_file.write_text(f"{KEY_MARKER}\n", encoding="utf-8")
-    settings = GroceryProviderSettings(instacart_key_file=key_file)
-    provider = build_instacart(settings)
-    assert isinstance(provider, FakeInstacart)
-    assert provider.api_key == KEY_MARKER
-    caps = capabilities(settings)
-    assert caps["instacart_configured"] is True
-    assert KEY_MARKER not in repr(caps)
-    assert str(key_file) not in repr(caps)
-
-
-def test_build_instacart_hides_key_on_constructor_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def boom(api_key: str) -> None:
-        raise ValueError(api_key)
-
-    monkeypatch.setattr("app.provider_runtime.InstacartDevelopmentProvider", boom)
-    key_file = tmp_path / "instacart.key"
-    key_file.write_text(KEY_MARKER, encoding="utf-8")
-    settings = GroceryProviderSettings(instacart_key_file=key_file)
-    with pytest.raises(ProviderConfigurationError) as exc_info:
-        build_instacart(settings)
-    _static(exc_info.value, KEY_MARKER)
-
-
-def test_build_instacart_missing_file_is_static(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _install_fakes(monkeypatch)
-    key_file = tmp_path / "missing.key"
-    settings = GroceryProviderSettings(instacart_key_file=key_file)
-    with pytest.raises(ProviderConfigurationError) as exc_info:
-        build_instacart(settings)
-    _static(exc_info.value, str(key_file))
-
-
 def test_capabilities_does_not_construct_or_claim_live(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -306,7 +252,6 @@ def test_capabilities_does_not_construct_or_claim_live(
 
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", boom)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", boom)
-    monkeypatch.setattr("app.provider_runtime.InstacartDevelopmentProvider", boom)
     _forbid_reads(monkeypatch)
     settings = GroceryProviderSettings(
         spending_source="plaid_sandbox",
@@ -315,22 +260,15 @@ def test_capabilities_does_not_construct_or_claim_live(
         plaid_client_id=CLIENT_MARKER,
         plaid_secret_file=Path("secret"),
         plaid_tokens_file=Path("tokens"),
-        instacart_key_file=Path("key"),
     )
     caps = capabilities(settings)
     assert caps == {
         "chat_configured": True,
         "plaid_configured": True,
-        "instacart_configured": True,
         "spending_source": "plaid_sandbox",
     }
     blob = repr(caps)
-    assert set(caps) == {
-        "chat_configured",
-        "plaid_configured",
-        "instacart_configured",
-        "spending_source",
-    }
+    assert set(caps) == {"chat_configured", "plaid_configured", "spending_source"}
     assert "connected" not in blob
     assert PROFILE_MARKER not in blob
     assert MODEL_MARKER not in blob

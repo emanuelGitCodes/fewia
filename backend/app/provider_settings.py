@@ -40,7 +40,6 @@ class GroceryProviderSettings(BaseSettings):
     plaid_client_id: SecretStr | None = None
     plaid_secret_file: Path | None = None
     plaid_tokens_file: Path | None = None
-    instacart_key_file: Path | None = None
     usda_fdc_key_file: Path | None = None
     kroger_client_id_file: Path | None = None
     kroger_secret_file: Path | None = None
@@ -96,7 +95,6 @@ class GroceryProviderSettings(BaseSettings):
     @field_validator(
         "plaid_secret_file",
         "plaid_tokens_file",
-        "instacart_key_file",
         "usda_fdc_key_file",
         "kroger_client_id_file",
         "kroger_secret_file",

@@ -86,7 +86,6 @@ def forbid_provider_io(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.provider_runtime.build_plaid", boom)
     monkeypatch.setattr("app.provider_runtime.build_bedrock", boom)
-    monkeypatch.setattr("app.provider_runtime.build_instacart", boom)
     monkeypatch.setattr("app.provider_runtime.read_secret_file", boom)
     monkeypatch.setattr("app.provider_settings.read_secret_file", boom)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", boom)

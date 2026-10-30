@@ -14,7 +14,6 @@ from app.provider_settings import (
     read_secret_file,
 )
 from app.providers.bedrock import BedrockConverseProvider
-from app.providers.instacart import InstacartDevelopmentProvider
 from app.providers.kroger import KrogerClient, kroger_base_url
 from app.providers.plaid import PlaidSandboxProvider
 
@@ -22,7 +21,6 @@ from app.providers.plaid import PlaidSandboxProvider
 class ProviderCapabilities(TypedDict):
     chat_configured: bool
     plaid_configured: bool
-    instacart_configured: bool
     spending_source: SpendingSource
 
 
@@ -61,23 +59,6 @@ def build_plaid(settings: GroceryProviderSettings) -> PlaidSandboxProvider | Non
             secret.get_secret_value(),
             TokenFileResolver(tokens_file),
         )
-    except Exception:  # noqa: BLE001
-        pass
-    if provider is None:
-        raise ProviderConfigurationError()
-    return provider
-
-
-def build_instacart(
-    settings: GroceryProviderSettings,
-) -> InstacartDevelopmentProvider | None:
-    key_file = settings.instacart_key_file
-    if key_file is None:
-        return None
-    secret = read_secret_file(key_file)
-    provider: InstacartDevelopmentProvider | None = None
-    try:
-        provider = InstacartDevelopmentProvider(secret.get_secret_value())
     except Exception:  # noqa: BLE001
         pass
     if provider is None:
@@ -127,6 +108,5 @@ def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
     return {
         "chat_configured": settings.bedrock_model_id is not None,
         "plaid_configured": plaid_configured,
-        "instacart_configured": settings.instacart_key_file is not None,
         "spending_source": settings.spending_source,
     }

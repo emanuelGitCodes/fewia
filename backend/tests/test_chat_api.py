@@ -125,7 +125,6 @@ def forbid_provider_construction(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.provider_runtime.build_bedrock", boom)
     monkeypatch.setattr("app.provider_runtime.build_plaid", boom)
-    monkeypatch.setattr("app.provider_runtime.build_instacart", boom)
     monkeypatch.setattr("app.provider_runtime.read_secret_file", boom)
     monkeypatch.setattr("app.services.chat_job.chat_job", boom)
     monkeypatch.setattr("app.agent.chat_loop.run_chat", boom)
@@ -217,7 +216,6 @@ def test_providers_reports_capabilities_without_construction(
     assert body == {
         "chat_configured": False,
         "plaid_configured": False,
-        "instacart_configured": False,
         "spending_source": "manual",
     }
     assert "token" not in str(body).lower()
@@ -229,7 +227,6 @@ def test_providers_does_not_read_secret_files(
 ) -> None:
     secret = tmp_path / "plaid.secret"
     tokens = tmp_path / "plaid.tokens.json"
-    key = tmp_path / "instacart.key"
     forbid_provider_construction(monkeypatch)
     monkeypatch.setattr(
         "app.deps.load_provider_settings",
@@ -239,7 +236,6 @@ def test_providers_does_not_read_secret_files(
             plaid_client_id=SecretStr("client-marker"),
             plaid_secret_file=secret,
             plaid_tokens_file=tokens,
-            instacart_key_file=key,
         ),
     )
     response = client.get("/grocery/providers")
@@ -248,7 +244,7 @@ def test_providers_does_not_read_secret_files(
     assert response.status_code == 200
     assert body["chat_configured"] is True
     assert body["plaid_configured"] is True
-    assert body["instacart_configured"] is True
+    assert set(body) == {"chat_configured", "plaid_configured", "spending_source"}
     assert body["spending_source"] == "plaid_sandbox"
     assert "client-marker" not in str(body)
 

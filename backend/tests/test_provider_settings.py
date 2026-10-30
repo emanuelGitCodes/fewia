@@ -50,7 +50,6 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.plaid_client_id is None
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
-    assert settings.instacart_key_file is None
     assert settings.usda_fdc_key_file is None
     assert settings.kroger_client_id_file is None
     assert settings.kroger_secret_file is None
@@ -191,7 +190,6 @@ def test_kroger_environment_rejects_unknown(monkeypatch: pytest.MonkeyPatch) -> 
 def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     secret = tmp_path / "plaid.secret"
     tokens = tmp_path / "plaid.tokens.json"
-    key = tmp_path / "instacart.key"
     usda_key = tmp_path / "usda.key"
     monkeypatch.setenv("FEWIA_SPENDING_SOURCE", "plaid_sandbox")
     monkeypatch.setenv("FEWIA_BEDROCK_MODEL_ID", "anthropic.model")
@@ -200,7 +198,6 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("FEWIA_PLAID_CLIENT_ID", CLIENT_MARKER)
     monkeypatch.setenv("FEWIA_PLAID_SECRET_FILE", str(secret))
     monkeypatch.setenv("FEWIA_PLAID_TOKENS_FILE", str(tokens))
-    monkeypatch.setenv("FEWIA_INSTACART_KEY_FILE", str(key))
     monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(usda_key))
     settings = load_provider_settings()
     assert settings.spending_source == "plaid_sandbox"
@@ -211,7 +208,6 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.plaid_client_id.get_secret_value() == CLIENT_MARKER
     assert settings.plaid_secret_file == secret
     assert settings.plaid_tokens_file == tokens
-    assert settings.instacart_key_file == key
     assert settings.usda_fdc_key_file == usda_key
     assert CLIENT_MARKER not in repr(settings)
     assert CLIENT_MARKER not in str(settings)

@@ -1,4 +1,4 @@
-"""Tests for evidence and handoff registration on the main FastAPI app."""
+"""Tests for evidence and shopping route registration on the main FastAPI app."""
 
 import json
 import os
@@ -6,46 +6,28 @@ import sqlite3
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import NoReturn
-from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
-from sqlalchemy import Connection, Engine, create_engine, event, select
+from sqlalchemy import Connection, Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import models
 from app.agent.planning_tool import execute_plan
 from app.api import evidence as evidence_api
-from app.api import handoff as handoff_api
-from app.api.handoff_models import PLANNING_KEYS
 from app.db import Base
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.evidence_models import GroceryEvidence
-from app.handoff_models import ShoppingHandoff
 from app.job_models import Job
 from app.main import app
-from app.provider_settings import GroceryProviderSettings, ProviderConfigurationError
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
-from app.services.handoff_intents import prepare_handoff
 from app.services.plan_job import SpendingInput
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 PERIOD = date(2026, 9, 1)
 SECRET = "sk-test-not-for-models"
-FOREIGN_PAYLOAD: dict[str, object] = {
-    "title": "FEWIA grocery plan",
-    "link_type": "shopping_list",
-    "expires_in": 7,
-    "line_items": [
-        {
-            "name": "black beans",
-            "line_item_measurements": [{"quantity": 240, "unit": "g"}],
-        }
-    ],
-}
 
 
 @pytest.fixture(autouse=True)
@@ -80,7 +62,6 @@ def shopping_engine(tmp_path: Path) -> Iterator[Engine]:
         models.User.__table__,
         Job.__table__,
         GroceryEvidence.__table__,
-        ShoppingHandoff.__table__,
     ]
     Base.metadata.create_all(test_engine, tables=tables)
     try:
@@ -105,13 +86,11 @@ def owners(factory: sessionmaker[Session]) -> None:
 @pytest.fixture()
 def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
     app.dependency_overrides[evidence_api.get_session_factory] = lambda: factory
-    app.dependency_overrides[handoff_api.get_session_factory] = lambda: factory
     try:
         with TestClient(app) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(evidence_api.get_session_factory, None)
-        app.dependency_overrides.pop(handoff_api.get_session_factory, None)
 
 
 def evidence_inputs() -> EvidenceInputs:
@@ -163,27 +142,6 @@ def save_owned_evidence(factory: sessionmaker[Session], user_id: int = 1) -> str
     return save_plan_evidence(factory, user_id, planning, parsed)
 
 
-def save_owned_job(factory: sessionmaker[Session]) -> str:
-    planning, parsed = accepted_planning()
-    revision = save_plan_evidence(factory, 1, planning, parsed)
-    result: dict[str, object] = {key: planning[key] for key in PLANNING_KEYS}
-    if "meal_nutrition" in planning:
-        result["meal_nutrition"] = planning["meal_nutrition"]
-    result["evidence_revision_id"] = revision
-    job = Job(
-        user_id=1,
-        kind="agent",
-        request_key=str(uuid4()),
-        status="succeeded",
-        payload={"marker": SECRET},
-        result=result,
-    )
-    with factory.begin() as session:
-        session.add(job)
-        session.flush()
-        return job.id
-
-
 def assert_secret_absent(response: Response) -> None:
     rendered = json.dumps(response.json())
     assert SECRET not in rendered
@@ -196,18 +154,6 @@ def assert_not_found(response: Response, message: str) -> None:
         "error": {"code": "not_found", "message": message},
     }
     assert_secret_absent(response)
-
-
-def forbid_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    def settings() -> NoReturn:
-        raise AssertionError("load_provider_settings MUST NOT run")
-
-    def build(value: object) -> NoReturn:
-        del value
-        raise AssertionError("build_instacart MUST NOT run")
-
-    monkeypatch.setattr(handoff_api, "load_provider_settings", settings)
-    monkeypatch.setattr(handoff_api, "build_instacart", build)
 
 
 def test_existing_and_shopping_get_paths_are_registered() -> None:
@@ -226,8 +172,7 @@ def test_existing_and_shopping_get_paths_are_registered() -> None:
     assert ("/grocery/chat/jobs", "POST") in routes
     assert not any(path.startswith(("/context", "/predict")) for path, _ in routes)
     assert ("/grocery/evidence/{revision_id}", "GET") in routes
-    assert ("/grocery/handoffs/{handoff_id}", "GET") in routes
-    assert ("/grocery/handoffs", "POST") in routes
+    assert not any(path.startswith("/grocery/handoffs") for path, _ in routes)
     assert ("/grocery/sync/jobs", "POST") in routes
     assert ("/grocery/sync/jobs/{job_id}", "GET") in routes
 
@@ -266,55 +211,3 @@ def test_evidence_missing_foreign_malformed_use_main_error_envelope(
             client.get(f"/grocery/evidence/{value}"),
             evidence_api.NOT_FOUND_MESSAGE,
         )
-
-
-def test_handoff_missing_foreign_malformed_use_main_error_envelope(
-    client: TestClient, factory: sessionmaker[Session], owners: None
-) -> None:
-    missing = client.get(f"/grocery/handoffs/{uuid4()}")
-    other = prepare_handoff(factory, 2, FOREIGN_PAYLOAD)
-    foreign = client.get(f"/grocery/handoffs/{other.id}")
-    malformed = client.get("/grocery/handoffs/not-a-uuid")
-    assert_not_found(missing, handoff_api._HANDOFF_MISSING)
-    assert_not_found(foreign, handoff_api._HANDOFF_MISSING)
-    assert malformed.status_code == 422
-    body = malformed.json()
-    assert body["error"]["code"] == "validation_error"
-    assert body["error"]["message"] == "The request has invalid parameters."
-    assert_secret_absent(malformed)
-
-
-def test_handoff_create_unconfigured_returns_503_and_cached_get_skips_providers(
-    client: TestClient,
-    factory: sessionmaker[Session],
-    owners: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        handoff_api, "load_provider_settings", lambda: GroceryProviderSettings()
-    )
-    job_id = save_owned_job(factory)
-    response = client.post("/grocery/handoffs", json={"job_id": job_id})
-    assert response.status_code == 503
-    assert response.json() == {
-        "error": {
-            "code": "service_unavailable",
-            "message": handoff_api._UNAVAILABLE,
-        }
-    }
-    assert_secret_absent(response)
-    with factory.begin() as session:
-        rows = list(session.scalars(select(ShoppingHandoff)))
-        assert len(rows) == 1
-        assert rows[0].state == "prepared"
-        handoff_id = rows[0].id
-    forbid_provider(monkeypatch)
-    shown = client.get(f"/grocery/handoffs/{handoff_id}")
-    body = shown.json()
-    assert shown.status_code == 200
-    assert body["state"] == "prepared"
-    assert body["url"] is None
-    assert_secret_absent(shown)
-    rendered = json.dumps(response.json())
-    assert ProviderConfigurationError.__name__ not in rendered
-    assert SECRET not in rendered

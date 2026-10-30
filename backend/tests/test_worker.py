@@ -161,7 +161,6 @@ def forbid_provider_builds(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(worker, "build_bedrock", boom("bedrock"))
     monkeypatch.setattr(worker, "build_plaid", boom("plaid"))
-    monkeypatch.setattr("app.provider_runtime.build_instacart", boom("instacart"))
 
 
 def test_empty_then_work_then_stop(monkeypatch: pytest.MonkeyPatch) -> None:
