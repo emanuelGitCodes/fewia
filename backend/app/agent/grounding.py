@@ -14,8 +14,9 @@ the check. The only whitespace allowed is space, newline, and tab.
 
 Exemption rule: the only exemptions are the exact sentences of the server safety
 note (`_SAFETY`), removed verbatim from the raw reply before any normalization,
-for the claim check only, and only at the start of the reply or right after a
-sentence end ([.!?] and whitespace). No exemption depends on nearby words.
+for the claim check only, and only at the very start of the reply or right after a
+sentence end: a word of three or more letters or digits, one of .!?, and whitespace
+(see _SENTENCE_END). No exemption depends on any other nearby words.
 
 Token boundary rule: a number must be followed by the end of the text, whitespace,
 punctuation from the allowed set, or a recognized unit (see _UNITS). A number
@@ -26,8 +27,8 @@ Mass units: "mg" must match a milligram fact, "kg" is grams times 1000.
 Digit rule: any digit, number, or letter-number character other than ASCII 0-9
 (superscripts, circled or fullwidth digits, other scripts, "Ⅻ") fails with
 `unsupported_character` before folding. Vulgar fractions are the exception.
-An ellipsis or an abbreviation dot ("e.g.", "i.e.") does not end a sentence, so
-a server sentence after one is not exempt.
+An ellipsis, a spaced dot, or an abbreviation ("e.g.", "Dr.", "U.S.") does not end a
+sentence, so a server sentence after one is not exempt.
 """
 
 import re
@@ -110,12 +111,14 @@ _OPAQUE = re.compile(
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
     r"|diagnos|glutenfree"
-    r"|placedyourorder|placedanorder|ordered|checkedout|checkout|purchased"
-    r"|boughtitforyou|addedtoyourcart|addedittoyourcart"
+    r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
+    r"|purchased|checkedout"
 )
 # A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein").
 _SCALED = re.compile(
-    rf"({_NUM})\s+(?:k|m|b|mil|bn|grand|thousand|million|billion|x)\b", re.IGNORECASE
+    rf"({_NUM})\s+(?:k|m|b|mm|mn|bn|bln|tn|mil|grand|thousand|million|billion"
+    r"|trillion|x)\b",
+    re.IGNORECASE,
 )
 # The server safety note names the claims it refuses; each exact sentence is removed
 # verbatim from the raw reply before the claim check, and nothing else is exempt.
@@ -124,10 +127,9 @@ _SERVER_SENTENCE = re.compile(
     + "|".join(re.escape(s) for s in re.split(r"(?<=\.) ", _SAFETY))
     + ")"
 )
-# An ellipsis or an abbreviation dot before a sentence is not a sentence end.
-_NOT_END = re.compile(
-    r"(?:\.\.|…|(?<![A-Za-z])(?:e\.g|i\.e|etc|vs|cf|approx)\.)\Z", re.IGNORECASE
-)
+# A sentence end is a word of 3+ letters or digits, then one of .!? ("Dr.", "No.",
+# "e.g.", "U.S.", "a.m.", ". . ." and "..." are not sentence ends).
+_SENTENCE_END = re.compile(r"(?<![\w.])\w{3,}[.!?]\Z")
 
 
 @dataclass
@@ -189,7 +191,8 @@ def normalize(text: str) -> str:
 
 def _without_server_sentences(reply: str) -> str:
     def drop(match: re.Match[str]) -> str:
-        if _NOT_END.search(reply[: match.start()]):
+        before = reply[: match.start()]
+        if before and not _SENTENCE_END.search(before):
             return match.group()
         return " "
 

@@ -8,6 +8,7 @@ from app import evaluation_protocol as protocol
 from app.agent import chat_loop
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_loop import run_chat
+from app.agent.ingredient_tool import INGREDIENT_TOOL
 from app.agent.planning_tool import execute_plan
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.provider import LLMProvider
@@ -167,6 +168,52 @@ def test_a_failed_tool_beside_a_good_one_forces_the_template() -> None:
     assert result["reply_source"] == "template"
     assert result["reply_check"] is None
     assert GROUNDED_PLAIN not in cast(str, result["answer"])
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "args"),
+    [
+        (SUBSTITUTE_TOOL, {"recipe_id": "bean_tacos", "with_food": "pork"}),
+        (SUBSTITUTE_TOOL, {"recipe_id": "bean_tacos", "with_food": "zzqx"}),
+        (INGREDIENT_TOOL, {"name": "pork"}),
+        (INGREDIENT_TOOL, {"name": "zzqx"}),
+    ],
+)
+def test_a_question_status_from_a_read_tool_uses_the_template(
+    tool_name: str, args: dict[str, object]
+) -> None:
+    text = "I swapped in the beans for you."
+
+    def replies() -> list[Any]:
+        return [
+            _reply([_tool_block("r1", name=tool_name, payload=args)], "tool_use"),
+            _reply([_text_block(text)], "end_turn"),
+        ]
+
+    template, _ = _run(replies(), model_prose=False)
+    result, _ = _run(replies())
+    assert result["answer"] == template["answer"]
+    assert text not in cast(str, result["answer"])
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+
+
+@pytest.mark.parametrize("text", ["Use Ⅲ eggs.", "10³ kcal", "①"])
+def test_non_ascii_digits_reach_the_validator_unfolded(text: str) -> None:
+    result, _ = _run(_swap(text))
+    assert result["answer"] == _SWAP_ANSWER
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {
+        "ok": False,
+        "reasons": ["unsupported_character"],
+        "unmatched": [],
+    }
+
+
+def test_the_stored_reply_is_the_normalized_text_after_a_pass() -> None:
+    result, _ = _run(_swap(f"  {GROUNDED_PLAIN}\n"))
+    assert result["answer"] == GROUNDED_PLAIN
+    assert result["reply_source"] == "model"
 
 
 def _price_run(

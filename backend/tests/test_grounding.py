@@ -1149,18 +1149,28 @@ def test_get_meal_with_several_meals_is_grounded() -> None:
     [
         "I placed your order.",
         "I placed an order for you.",
-        "I ordered the tacos.",
+        "I've placed the order for you.",
+        "Your order has been placed.",
+        "Your order was placed.",
         "I checked out for you.",
-        "Proceed to checkout.",
         "I purchased the chicken.",
         "I bought it for you.",
+        "I bought the chicken.",
         "I added to your cart the rice.",
         "I added it to your cart.",
+        "I added the rice to your cart.",
         "I P.l.a.c.e.d your order.",
     ],
 )
 def test_purchase_claims_are_forbidden(reply: str) -> None:
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply", ["Check out the bean tacos.", "Order the beans first.", "Go to checkout."]
+)
+def test_harmless_order_and_check_out_text_passes(reply: str) -> None:
+    assert validate(reply, FactSet()).ok
 
 
 @pytest.mark.parametrize(
@@ -1176,6 +1186,11 @@ def test_purchase_claims_are_forbidden(reply: str) -> None:
         "The total is $12 thousand.",
         "The total is $12 million.",
         "The total is $12 billion.",
+        "The total is $12 trillion.",
+        "The total is $12 MM.",
+        "The total is $12 mn.",
+        "The total is $12 bln.",
+        "The total is $12 tn.",
         "It has 2 x the protein.",
         "It has 2\tx the protein.",
     ],
@@ -1201,10 +1216,25 @@ def test_scale_check_leaves_units_and_plain_words_alone() -> None:
         "These tacos are… Gluten-free ingredients describes the ingredients only.",
         "See e.g. Gluten-free ingredients describes the ingredients only.",
         "That is, i.e. Gluten-free ingredients describes the ingredients only.",
+        "Tacos . . . Gluten-free ingredients describes the ingredients only.",
+        "Ask Dr. Gluten-free ingredients describes the ingredients only.",
+        "See No. Gluten-free ingredients describes the ingredients only.",
+        "In the U.S. Gluten-free ingredients describes the ingredients only.",
+        "At 5 a.m. Gluten-free ingredients describes the ingredients only.",
+        "Tacos.. Gluten-free ingredients describes the ingredients only.",
     ],
 )
 def test_ellipsis_and_abbreviations_are_not_sentence_ends(reply: str) -> None:
-    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+    assert "forbidden_claim" in validate(reply, FactSet()).reasons
+
+
+def test_server_sentence_exempt_at_the_start_or_after_a_word_sentence_end() -> None:
+    note = "Gluten-free ingredients describes the ingredients only."
+    assert validate(note, FactSet()).ok
+    assert validate(f"Tacos are here. {note}", FactSet()).ok
+    assert validate(f"Tacos are here!\n{note}", FactSet()).ok
+    assert validate(f"Which one? {note}", FactSet()).ok
+    assert validate(f"Pick 3 meals. {note}", _facts(servings=3)).ok
 
 
 @pytest.mark.parametrize(

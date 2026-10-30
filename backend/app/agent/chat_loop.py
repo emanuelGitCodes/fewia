@@ -131,6 +131,8 @@ _PLAN_READ_TOOLS = (
     PRICE_TOOL,
     INGREDIENT_TOOL,
 )
+# Tool statuses that answer the question; any other status asks the user something.
+_FINAL_STATUS = frozenset({"swapped", "found", "live", "ok"})
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -338,12 +340,14 @@ def run_chat(
                     and run_ok
                     and not (other_failed or discovery_failed or last_error)
                     and (revisions == 0 or status == "planned")
+                    and all(
+                        p.get("status", "ok") in _FINAL_STATUS for _, p in run_payloads
+                    )
                 )
                 if not clean:
                     return out(status, answer(), candidate)
-                reply = grounding.normalize(text).strip()
                 verdict = grounding.validate(
-                    reply, grounding.facts_from_payloads(run_payloads)
+                    text, grounding.facts_from_payloads(run_payloads)
                 )
                 check: dict[str, object] = {
                     "ok": verdict.ok,
@@ -352,6 +356,7 @@ def run_chat(
                 }
                 if not verdict.ok:
                     return out(status, answer(), candidate, "template", check)
+                reply = grounding.normalize(text).strip()
                 stale = budget.stale or any(_has_stale(p) for _, p in run_payloads)
                 if stale and STALE_SPENDING_WARNING not in reply:
                     reply = f"{reply} {STALE_SPENDING_WARNING}"
