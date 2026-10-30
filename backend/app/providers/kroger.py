@@ -49,13 +49,14 @@ class KrogerUnavailable(Exception):
 
 
 class KrogerCartUnknown(Exception):
-    """The cart request may have reached Kroger, but no response came back."""
+    """The cart request may have reached Kroger, but it did not confirm the add."""
 
     def __init__(self) -> None:
         super().__init__("Kroger did not confirm the cart add")
 
 
 _NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+_MAYBE_APPLIED = (502, 503, 504)
 
 
 @dataclass(frozen=True)
@@ -290,6 +291,8 @@ class KrogerClient:
                 self._token = None
             if response.status_code == 429:
                 self._cooldown_until = self._clock() + COOLDOWN_SECONDS
+        if maybe_sent and response.status_code in _MAYBE_APPLIED:
+            raise KrogerCartUnknown()
         if response.status_code not in ok:
             raise KrogerUnavailable()
         return response

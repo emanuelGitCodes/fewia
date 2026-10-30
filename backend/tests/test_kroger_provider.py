@@ -987,12 +987,27 @@ def test_add_to_cart_request_and_success(status: int) -> None:
     }
 
 
-@pytest.mark.parametrize("status", [301, 400, 401, 403, 404, 500, 503])
+@pytest.mark.parametrize("status", [301, 400, 401, 403, 404, 429, 500, 501])
 def test_add_to_cart_non_2xx_is_unavailable_and_never_retried(status: int) -> None:
     server = CartServer(status)
     with pytest.raises(KrogerUnavailable):
         _cart_client(server).add_to_cart(TOKEN, ITEMS)
     assert len(server.requests) == 1
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_add_to_cart_gateway_error_may_have_applied_and_is_unknown(
+    status: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    server = CartServer(status)
+    with pytest.raises(KrogerCartUnknown) as exc_info:
+        _cart_client(server).add_to_cart(TOKEN, ITEMS)
+    rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
+    assert str(exc_info.value) == "Kroger did not confirm the cart add"
+    assert len(server.requests) == 1
+    for sentinel in (TOKEN, CLIENT_ID, SECRET):
+        assert sentinel not in rendered
 
 
 def test_add_to_cart_connect_failure_was_not_sent() -> None:

@@ -9,8 +9,9 @@ import httpx
 import pytest
 from conftest import UserSeeder
 from cryptography.fernet import Fernet
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import event, func, select
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.orm import ORMExecuteState, Session
 
 from app import kroger_customer
 from app.kroger_customer import (
@@ -262,6 +263,38 @@ def test_failed_refresh_propagates_and_keeps_the_row(
         customer_access_token(session, USER_ID, _kroger(server), cipher)
     assert _row_count(session) == 1
     assert _stored(row, cipher) == (ACCESS, REFRESH)
+
+
+@pytest.mark.parametrize("expires_in", [120, -5])
+def test_a_token_that_no_longer_decrypts_is_not_connected_and_is_deleted(
+    session: Session, seed_user: UserSeeder, expires_in: int
+) -> None:
+    server = _TokenServer()
+    _connected(session, seed_user, _cipher(), expires_in)
+    token = customer_access_token(session, USER_ID, _kroger(server), _cipher())
+    assert token is None
+    assert server.requests == []
+    assert _row_count(session) == 0
+    assert is_connected(session, USER_ID) is False
+
+
+def test_access_token_lookup_locks_the_row(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    _connected(session, seed_user, cipher, 120)
+    selects: list[str] = []
+
+    def capture(state: ORMExecuteState) -> None:
+        if state.is_select:
+            statement = state.statement.compile(dialect=postgresql.dialect())
+            selects.append(str(statement))
+
+    event.listen(session, "do_orm_execute", capture)
+    assert customer_access_token(session, USER_ID, _kroger(server), cipher) == ACCESS
+    assert len(selects) == 1
+    assert "kroger_customer_tokens" in selects[0]
+    assert selects[0].rstrip().endswith("FOR UPDATE")
 
 
 def test_delete_tokens_removes_the_row_and_tolerates_none(

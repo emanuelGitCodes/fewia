@@ -708,6 +708,25 @@ def test_preview_is_503_without_a_partial_result_when_kroger_fails(rig: Rig) -> 
     assert "items" not in response.text
 
 
+def test_preview_is_409_when_the_saved_plan_can_no_longer_be_read(rig: Rig) -> None:
+    revision_id = uuid4()
+    snapshot: dict[str, object] = {
+        "meals": [{"recipe_id": "no_such_recipe", "servings": 2}],
+        "pantry_ingredient_ids": [],
+    }
+    rig.session.add(
+        PlanRevision(id=revision_id, user_id=DEMO_USER_ID, snapshot=snapshot)
+    )
+    rig.session.flush()
+    response = rig.api.post(
+        PREVIEW, json={"plan_revision_id": str(revision_id), "location_id": "01234567"}
+    )
+    assert response.status_code == 409
+    assert _message(response) == "The plan revision can no longer be used."
+    assert "items" not in response.text
+    assert rig.token_calls == []
+
+
 def test_preview_is_404_for_an_unknown_or_foreign_revision(
     rig: Rig, seed_user: UserSeeder
 ) -> None:
@@ -809,6 +828,32 @@ def test_cart_add_is_503_when_kroger_rejects_the_add(rig: Rig, status: int) -> N
     assert len(rig.cart_calls) == 1
 
 
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_cart_add_is_504_when_kroger_answers_a_gateway_error(
+    rig: Rig, status: int
+) -> None:
+    _sign_in(rig)
+    rig.cart_status = status
+    response = _add(rig)
+    assert response.status_code == 504
+    assert _message(response) == "Kroger did not confirm the cart add"
+    assert len(rig.cart_calls) == 1
+
+
+@pytest.mark.parametrize("expires_in", [1800, -5])
+def test_cart_add_is_409_and_forgets_tokens_that_no_longer_decrypt(
+    rig: Rig, expires_in: int
+) -> None:
+    _sign_in(rig, expires_in=expires_in)
+    rig.cipher = Fernet(Fernet.generate_key())
+    response = _add(rig)
+    assert response.status_code == 409
+    assert _message(response) == "Kroger account is not connected"
+    assert rig.token_calls == [] and rig.cart_calls == []
+    assert _row_count(rig) == 0
+    assert rig.api.get(CONNECTION).json() == {"connected": False}
+
+
 def test_cart_add_is_503_when_the_connection_fails_before_sending(rig: Rig) -> None:
     _sign_in(rig)
     rig.cart_error = httpx.ConnectError("refused")
@@ -886,10 +931,16 @@ def test_cart_flow_never_logs_or_echoes_secrets(
     rig.cart_error = httpx.ReadTimeout(f"{NEW_ACCESS} {CLIENT_SECRET}")
     responses.append(_add(rig))
     rig.cart_error = None
+    rig.cart_status = 503
+    responses.append(_add(rig))
+    rig.cart_status = 204
     _sign_in(rig, expires_in=-5)
     rig.token_status = 500
     responses.append(_add(rig))
-    assert [r.status_code for r in responses] == [204, 503, 504, 503]
+    other_key = Fernet.generate_key()
+    rig.cipher = Fernet(other_key)
+    responses.append(_add(rig))
+    assert [r.status_code for r in responses] == [204, 503, 504, 504, 503, 409]
     haystack = [
         caplog.text,
         *(r.text for r in responses),
@@ -905,6 +956,7 @@ def test_cart_flow_never_logs_or_echoes_secrets(
         CLIENT_ID,
         CLIENT_SECRET,
         rig.key.decode(),
+        other_key.decode(),
     ]
     for secret in secrets:
         assert all(secret not in text for text in haystack)

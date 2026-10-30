@@ -84,7 +84,8 @@ def customer_access_token(
     """Return a usable access token, refreshing and storing a rotated pair first.
 
     The row stays locked until the commit. KrogerUnavailable propagates and
-    leaves the stored tokens as they were.
+    leaves the stored tokens as they were. A stored token that no longer decrypts
+    (for example after a key change) is deleted and counts as not connected.
     """
     row = session.scalars(
         select(KrogerCustomerToken)
@@ -96,11 +97,18 @@ def customer_access_token(
     expires_at = row.access_expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=UTC)
-    if expires_at - timedelta(seconds=TOKEN_MARGIN_SECONDS) > datetime.now(UTC):
-        access = cipher.decrypt(row.access_token).decode()
+    fresh = expires_at - timedelta(seconds=TOKEN_MARGIN_SECONDS) > datetime.now(UTC)
+    try:
+        secret = cipher.decrypt(
+            row.access_token if fresh else row.refresh_token
+        ).decode()
+    except (InvalidToken, UnicodeError):
+        delete_tokens(session, user_id)
+        return None
+    if fresh:
         session.commit()
-        return access
-    tokens = client.refresh_customer(cipher.decrypt(row.refresh_token).decode())
+        return secret
+    tokens = client.refresh_customer(secret)
     store_tokens(session, user_id, cipher, tokens)
     return tokens.access_token
 

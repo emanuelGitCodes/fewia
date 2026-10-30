@@ -11,6 +11,7 @@ from app.providers.kroger import KrogerClient, KrogerProduct
 from app.services.kroger_overlay import kroger_search_term
 
 MAX_LINES = 30
+MAX_QUANTITY = 10
 _UPC = re.compile(r"[0-9]{8,14}")
 
 
@@ -46,8 +47,12 @@ def grocery_ingredient_ids(snapshot: PlanSnapshot) -> list[str]:
 def build_preview(
     snapshot: PlanSnapshot, client: KrogerClient, location_id: str
 ) -> CartPreview:
-    """Search Kroger once per line. KrogerUnavailable propagates with no partial."""
+    """Search Kroger once per line. KrogerUnavailable propagates with no partial.
+
+    Lines that match the same UPC merge into the first line's item.
+    """
     items: list[PreviewItem] = []
+    by_upc: dict[str, PreviewItem] = {}
     unmatched: list[UnmatchedLine] = []
     for ingredient_id in grocery_ingredient_ids(snapshot):
         name = ALL_INGREDIENTS[ingredient_id].name
@@ -59,14 +64,18 @@ def build_preview(
         if product is None or product.upc is None:
             unmatched.append(UnmatchedLine(ingredient_id=ingredient_id, name=name))
             continue
-        items.append(
-            PreviewItem(
-                ingredient_id=ingredient_id,
-                name=name,
-                upc=product.upc,
-                description=product.description,
-                size=product.size,
-                quantity=1,
-            )
+        merged = by_upc.get(product.upc)
+        if merged is not None:
+            merged.quantity = min(merged.quantity + 1, MAX_QUANTITY)
+            continue
+        item = PreviewItem(
+            ingredient_id=ingredient_id,
+            name=name,
+            upc=product.upc,
+            description=product.description,
+            size=product.size,
+            quantity=1,
         )
+        by_upc[product.upc] = item
+        items.append(item)
     return CartPreview(items=items, unmatched=unmatched)

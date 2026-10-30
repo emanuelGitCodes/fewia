@@ -126,6 +126,51 @@ def test_preview_matches_the_first_product_with_a_valid_upc() -> None:
     }
 
 
+def test_preview_merges_lines_that_match_the_same_upc() -> None:
+    catalog = Catalog(
+        {
+            "chicken_breast": [_product("12345678", "Shared Item", "2 lb")],
+            "onion": [_product("0001112223334", "Invented Onion")],
+            "salsa": [_product("12345678", "Shared Again")],
+            "tortillas": [_product("12345678", "Shared Third")],
+        }
+    )
+    preview = build_preview(_snapshot(), _client(catalog), LOCATION)
+    assert [item.upc for item in preview.items] == ["12345678", "0001112223334"]
+    assert preview.model_dump() == {
+        "items": [
+            {
+                "ingredient_id": "chicken_breast",
+                "name": "chicken breast",
+                "upc": "12345678",
+                "description": "Shared Item",
+                "size": "2 lb",
+                "quantity": 3,
+            },
+            {
+                "ingredient_id": "onion",
+                "name": "onion",
+                "upc": "0001112223334",
+                "description": "Invented Onion",
+                "size": "1 lb",
+                "quantity": 1,
+            },
+        ],
+        "unmatched": [],
+    }
+    assert len(catalog.searches) == 4
+
+
+def test_merged_quantity_is_capped(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert kroger_cart.MAX_QUANTITY == 10
+    monkeypatch.setattr(kroger_cart, "MAX_QUANTITY", 2)
+    shared = [_product("12345678", "Shared Item")]
+    catalog = Catalog({line: shared for line in TACO_LINES})
+    preview = build_preview(_snapshot(), _client(catalog), LOCATION)
+    assert [(i.upc, i.quantity) for i in preview.items] == [("12345678", 2)]
+    assert preview.unmatched == []
+
+
 def test_preview_searches_once_per_line_in_order_with_the_store() -> None:
     catalog = Catalog({})
     snapshot = _snapshot(BOTH)
