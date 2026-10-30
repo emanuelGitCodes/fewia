@@ -15,8 +15,11 @@ _SUPPORTED_STOP_REASONS = frozenset(
 )
 _LUNA_US_MODEL_ID = "us.openai.gpt-6-luna"
 _NOVA2_US_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
+_NOVA2_PRO_US_MODEL_ID = "us.amazon.nova-2-pro-v1:0"
+_CLAUDE_HAIKU_US_MODEL_ID = "us.anthropic.claude-haiku-5-5"
 _LUNA_MAX_TOKENS = 4096
 _NOVA2_MAX_TOKENS = 4096
+_CLAUDE_MAX_TOKENS = 4096
 _NOVA2_REASONING_FIELDS: dict[str, object] = {
     "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "low"},
 }
@@ -70,7 +73,13 @@ def _is_luna_us_model(model_id: str) -> bool:
 
 
 def _is_nova2_us_model(model_id: str) -> bool:
-    return _is_us_profile(model_id, _NOVA2_US_MODEL_ID)
+    return _is_us_profile(model_id, _NOVA2_US_MODEL_ID) or _is_us_profile(
+        model_id, _NOVA2_PRO_US_MODEL_ID
+    )
+
+
+def _is_claude_us_model(model_id: str) -> bool:
+    return _is_us_profile(model_id, _CLAUDE_HAIKU_US_MODEL_ID)
 
 
 def _answers_tool_results(messages: list[dict[str, object]]) -> bool:
@@ -178,9 +187,13 @@ class BedrockConverseProvider:
             raise ValueError("tools MUST be a list of dictionaries")
         luna = _is_luna_us_model(self._model_id)
         nova2 = _is_nova2_us_model(self._model_id)
+        claude = _is_claude_us_model(self._model_id)
         if luna:
             # Converse MUST omit temperature for this reasoning model.
             inference: dict[str, int | float] = {"maxTokens": _LUNA_MAX_TOKENS}
+        elif claude:
+            # Non-default sampling values are rejected, so omit temperature.
+            inference = {"maxTokens": _CLAUDE_MAX_TOKENS}
         elif nova2:
             inference = {"maxTokens": _NOVA2_MAX_TOKENS, "temperature": 0}
         else:

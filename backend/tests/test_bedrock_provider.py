@@ -292,6 +292,80 @@ def test_non_us_nova2_identifiers_keep_default_inference(
     assert "additionalModelRequestFields" not in request
 
 
+_NOVA2_PRO_ID = "us.amazon.nova-2-pro-v1:0"
+_NOVA2_PRO_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-2-pro-v1:0"
+)
+_CLAUDE_ID = "us.anthropic.claude-haiku-5-5"
+_CLAUDE_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/"
+    "us.anthropic.claude-haiku-5-5"
+)
+
+
+@pytest.mark.parametrize("model_id", [_NOVA2_PRO_ID, _NOVA2_PRO_ARN])
+def test_nova2_pro_gets_nova_fields_and_tool_result_rule(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "hi"}]}], tools)
+    instance.converse("system", [{"role": "user", "content": [_TOOL_RESULT]}], tools)
+
+    first, second = client.requests
+    assert first["modelId"] == model_id
+    assert first["inferenceConfig"] == {"maxTokens": 4096, "temperature": 0}
+    assert first["additionalModelRequestFields"] == _NOVA2_FIELDS
+    assert first["toolConfig"] == {"tools": tools}
+    assert "additionalModelRequestFields" not in second
+
+
+@pytest.mark.parametrize("model_id", [_CLAUDE_ID, _CLAUDE_ARN])
+@pytest.mark.parametrize("cache", [False, True])
+def test_claude_omits_temperature_and_nova_fields_but_keeps_tools(
+    monkeypatch: pytest.MonkeyPatch, model_id: str, cache: bool
+) -> None:
+    client = FakeClient(response())
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider(model_id, prompt_cache=cache)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "hi"}]}], tools)
+
+    request = client.requests[0]
+    system: list[dict[str, object]] = [{"text": "system"}]
+    if cache:
+        system.append({"cachePoint": {"type": "default"}})
+    assert request["modelId"] == model_id
+    assert request["inferenceConfig"] == {"maxTokens": 4096}
+    assert "additionalModelRequestFields" not in request
+    assert request["toolConfig"] == {"tools": tools}
+    assert request["system"] == system
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "anthropic.claude-haiku-5-5",
+        "global.anthropic.claude-haiku-5-5",
+        "us.anthropic.claude-haiku-5-5-extra",
+        "us.amazon.nova-2-pro-v1",
+        "eu.amazon.nova-2-pro-v1:0",
+    ],
+)
+def test_other_claude_and_pro_identifiers_keep_default_inference(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+
+    instance.converse("system", _USER_MESSAGES, [])
+
+    request = client.requests[0]
+    assert request["inferenceConfig"] == {"maxTokens": 1024, "temperature": 0}
+    assert "additionalModelRequestFields" not in request
+
+
 @pytest.mark.parametrize(
     "bad_messages",
     [
