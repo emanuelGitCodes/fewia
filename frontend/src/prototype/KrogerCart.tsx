@@ -4,7 +4,10 @@ import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 
 export const KROGER_CART_ADDED_LINE = "Added to your Kroger cart. Review and check out on kroger.com.";
-export const KROGER_CART_RECONNECT_LINE = "Connect Kroger again.";
+export const KROGER_CART_RECONNECT_LINE =
+  "Your Kroger sign-in expired. Disconnect, then connect Kroger again.";
+export const KROGER_CART_REJECTED_LINE =
+  "Kroger could not take these items. Preview the cart again.";
 export const KROGER_CART_UNAVAILABLE_LINE = "Kroger is unavailable. Try again.";
 export const KROGER_CART_EMPTY_LINE = "No Kroger items found for this plan.";
 export const KROGER_CART_SAVE_FAILED_LINE = "Could not save the plan. Try again.";
@@ -23,6 +26,8 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const mounted = useRef(false);
+  const inFlight = useRef(false); // one send at a time, even across plan and store changes
+  const latestSend = useRef(0);
   const key = `${locationId ?? ""}:${JSON.stringify(planRevisionBody(state))}`;
 
   useEffect(() => {
@@ -36,7 +41,9 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
     setPreview(null);
     setMessage("");
     setPreviewing(false);
-    setSending(false);
+    if (!inFlight.current) {
+      setSending(false);
+    }
     setAdded(false);
     setUnconfirmed(false);
     return () => {
@@ -48,7 +55,7 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   const ready = locationId !== null && state.meals.length > 0;
 
   const showPreview = (): void => {
-    if (locationId === null) {
+    if (locationId === null || inFlight.current) {
       return;
     }
     controller.current?.abort();
@@ -89,22 +96,33 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   };
 
   const send = (): void => {
-    if (preview === null || sending) {
+    if (preview === null || inFlight.current) {
       return;
     }
+    inFlight.current = true;
+    latestSend.current += 1;
+    const mineSend = latestSend.current;
     const mine = generation.current;
     setSending(true);
     setMessage("");
     setUnconfirmed(false);
     addToKrogerCart(preview.items.map(({ upc, quantity }) => ({ upc, quantity }))).then((result) => {
-      if (generation.current !== mine) {
-        // The plan or store changed mid-send, so the items may be in the cart; never drop that.
-        if (mounted.current) {
-          setMessage(KROGER_CART_UNKNOWN_LINE);
-        }
+      inFlight.current = false;
+      if (!mounted.current) {
         return;
       }
       setSending(false);
+      if (generation.current !== mine) {
+        // The plan or store changed mid-send: only say what may be true of the old send.
+        if (latestSend.current === mineSend) {
+          if (result === "added") {
+            setMessage(KROGER_CART_ADDED_LINE);
+          } else if (result === "unknown") {
+            setMessage(KROGER_CART_UNKNOWN_LINE);
+          }
+        }
+        return;
+      }
       if (result === "added") {
         setAdded(true);
         setMessage(KROGER_CART_ADDED_LINE);
@@ -112,6 +130,9 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
         setMessage(KROGER_CART_RECONNECT_LINE);
       } else if (result === "unavailable") {
         setMessage(KROGER_CART_UNAVAILABLE_LINE);
+      } else if (result === "rejected") {
+        setPreview(null);
+        setMessage(KROGER_CART_REJECTED_LINE);
       } else {
         setUnconfirmed(true);
         setMessage(KROGER_CART_UNKNOWN_LINE);

@@ -75,7 +75,7 @@ export type KrogerCartPreview = {
   items: KrogerCartItem[];
   unmatched: { ingredientId: string; name: string }[];
 };
-export type KrogerAddResult = "added" | "not_connected" | "unavailable" | "unknown";
+export type KrogerAddResult = "added" | "not_connected" | "unavailable" | "rejected" | "unknown";
 
 const MAX_CART_LINES = 30;
 const ITEM_KEYS = ["ingredient_id", "name", "upc", "description", "size", "quantity"];
@@ -166,7 +166,10 @@ export async function addToKrogerCart(
     return "not_connected";
   }
   // 400 and 422 mean the request was rejected before anything was sent.
-  return [400, 422, 503].includes(response.status) ? "unavailable" : "unknown";
+  if (response.status === 400 || response.status === 422) {
+    return "rejected";
+  }
+  return response.status === 503 ? "unavailable" : "unknown";
 }
 
 // The ZIP goes only in the POST body, never in a URL.

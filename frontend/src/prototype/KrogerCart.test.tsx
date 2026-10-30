@@ -110,7 +110,9 @@ describe("KrogerCart", () => {
       fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
     };
     send();
-    expect(await screen.findByText("Connect Kroger again.")).toBeTruthy();
+    expect(
+      await screen.findByText("Your Kroger sign-in expired. Disconnect, then connect Kroger again."),
+    ).toBeTruthy();
     status = 503;
     send();
     expect(await screen.findByText("Kroger is unavailable. Try again.")).toBeTruthy();
@@ -160,41 +162,119 @@ describe("KrogerCart", () => {
     expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
   });
 
-  it("drops the preview on unmount without a late update", async () => {
-    stub(() => 204);
+  it("aborts the preview requests on unmount", async () => {
+    const calls = stub(() => 204);
     const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     await showPreview();
+    const signal = calls[0]?.init?.signal;
+    expect(signal?.aborted).toBe(false);
     view.unmount();
-    expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
+    expect(signal?.aborted).toBe(true);
   });
 
-  it("shows the unknown line when the plan changes during a send, and never resends", async () => {
-    let finish: () => void = () => undefined;
-    const calls = stub(() => new Promise<number>((resolve) => { finish = () => { resolve(204); }; }));
-    const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+  it("rejected adds ask for a new preview and offer no Retry", async () => {
+    stub(() => 422);
+    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     await showPreview();
     fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
-    view.rerender(<KrogerCart state={initialPlanState()} locationId="01400944" />);
-    await act(async () => { finish(); });
-    await settle();
-    expect(screen.getByText("Kroger did not confirm. Check your Kroger cart before you retry.")).toBeTruthy();
+    expect(
+      await screen.findByText("Kroger could not take these items. Preview the cart again."),
+    ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
-    expect(calls.filter((call) => call.url.endsWith("/cart/add")).length).toBe(1);
   });
 
-  it("does not update after unmount when a send settles late", async () => {
-    let finish: () => void = () => undefined;
-    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const calls = stub(() => new Promise<number>((resolve) => { finish = () => { resolve(204); }; }));
-    const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
-    await showPreview();
-    fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
-    view.unmount();
-    await act(async () => { finish(); });
-    await settle();
-    expect(errors).not.toHaveBeenCalled();
-    expect(calls.filter((call) => call.url.endsWith("/cart/add")).length).toBe(1);
-    errors.mockRestore();
+  describe("a send that settles after the plan or store changed", () => {
+    const adds = (calls: Calls): number => calls.filter((call) => call.url.endsWith("/cart/add")).length;
+    const previewButton = (): HTMLButtonElement =>
+      screen.getByRole("button", { name: "Preview Kroger cart" }) as HTMLButtonElement;
+    const other = <KrogerCart state={initialPlanState()} locationId="01400944" />;
+
+    // Each add waits for release(status); calls are released in order.
+    function gated(): { release: (status: number) => Promise<void>; calls: Calls } {
+      const pending: ((status: number) => void)[] = [];
+      const calls = stub(() => new Promise<number>((resolve) => { pending.push(resolve); }));
+      return {
+        calls,
+        release: async (status) => {
+          await act(async () => { pending.shift()?.(status); });
+          await settle();
+        },
+      };
+    }
+
+    it("keeps every button disabled until it settles, and never resends", async () => {
+      const { release, calls } = gated();
+      const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      view.rerender(other);
+      expect(previewButton().disabled).toBe(true);
+      fireEvent.click(previewButton());
+      expect(calls.filter((call) => call.url.endsWith("/preview")).length).toBe(1);
+      await release(204);
+      expect(previewButton().disabled).toBe(false);
+      expect(adds(calls)).toBe(1);
+    });
+
+    it("shows the added line for a late added", async () => {
+      const { release } = gated();
+      const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      view.rerender(other);
+      await release(204);
+      expect(screen.getByText(/^Added to your Kroger cart/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
+    });
+
+    it("shows the unknown line for a late unknown, without Retry", async () => {
+      const { release } = gated();
+      const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      view.rerender(other);
+      await release(504);
+      expect(screen.getByText(/^Kroger did not confirm/)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
+    });
+
+    it("shows nothing for a late not_connected", async () => {
+      const { release } = gated();
+      const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      view.rerender(other);
+      await release(409);
+      expect(screen.getByRole("status").textContent).toBe("");
+      expect(previewButton().disabled).toBe(false);
+    });
+
+    it("does not overwrite a newer send's line", async () => {
+      const { release } = gated();
+      const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      view.rerender(other);
+      await release(204);
+      fireEvent.click(previewButton());
+      await screen.findByRole("list", { name: "Kroger cart preview" });
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      await release(504);
+      expect(screen.getByText(/^Kroger did not confirm/)).toBeTruthy();
+      expect(screen.queryByText(/^Added to your Kroger cart/)).toBeNull();
+    });
+
+    it("makes no further request and throws nothing when it settles after unmount", async () => {
+      const { release, calls } = gated();
+      const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      const before = calls.length;
+      view.unmount();
+      await expect(release(204)).resolves.toBeUndefined();
+      expect(calls.length).toBe(before);
+      expect(screen.queryByRole("status")).toBeNull();
+    });
   });
 
   it("says so when the preview has no items and no unmatched lines", async () => {
