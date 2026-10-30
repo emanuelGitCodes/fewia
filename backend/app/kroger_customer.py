@@ -6,10 +6,11 @@ import time
 from datetime import UTC, datetime, timedelta
 
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.kroger_models import KrogerCustomerToken
-from app.providers.kroger import CustomerTokens
+from app.providers.kroger import TOKEN_MARGIN_SECONDS, CustomerTokens, KrogerClient
 
 STATE_COOKIE = "fewia_kroger_state"
 COOKIE_PATH = "/grocery/kroger"
@@ -67,6 +68,41 @@ def store_tokens(
 
 def is_connected(session: Session, user_id: int) -> bool:
     return session.get(KrogerCustomerToken, user_id) is not None
+
+
+def delete_tokens(session: Session, user_id: int) -> None:
+    """Forget the user's Kroger tokens. No error when there are none."""
+    session.execute(
+        delete(KrogerCustomerToken).where(KrogerCustomerToken.user_id == user_id)
+    )
+    session.commit()
+
+
+def customer_access_token(
+    session: Session, user_id: int, client: KrogerClient, cipher: Fernet
+) -> str | None:
+    """Return a usable access token, refreshing and storing a rotated pair first.
+
+    The row stays locked until the commit. KrogerUnavailable propagates and
+    leaves the stored tokens as they were.
+    """
+    row = session.scalars(
+        select(KrogerCustomerToken)
+        .where(KrogerCustomerToken.user_id == user_id)
+        .with_for_update()
+    ).one_or_none()
+    if row is None:
+        return None
+    expires_at = row.access_expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    if expires_at - timedelta(seconds=TOKEN_MARGIN_SECONDS) > datetime.now(UTC):
+        access = cipher.decrypt(row.access_token).decode()
+        session.commit()
+        return access
+    tokens = client.refresh_customer(cipher.decrypt(row.refresh_token).decode())
+    store_tokens(session, user_id, cipher, tokens)
+    return tokens.access_token
 
 
 class _RedactCallbackQuery(logging.Filter):

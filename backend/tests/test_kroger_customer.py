@@ -2,8 +2,10 @@
 
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from urllib.parse import parse_qs
 
+import httpx
 import pytest
 from conftest import UserSeeder
 from cryptography.fernet import Fernet
@@ -13,6 +15,8 @@ from sqlalchemy.orm import Session
 from app import kroger_customer
 from app.kroger_customer import (
     STATE_TTL_SECONDS,
+    customer_access_token,
+    delete_tokens,
     is_connected,
     make_state,
     new_nonce,
@@ -21,10 +25,13 @@ from app.kroger_customer import (
     store_tokens,
 )
 from app.kroger_models import KrogerCustomerToken
-from app.providers.kroger import CustomerTokens
+from app.providers import kroger
+from app.providers.kroger import CustomerTokens, KrogerClient, KrogerUnavailable
 
 ACCESS = "SENTINEL-ACCESS-TOKEN"
 REFRESH = "SENTINEL-REFRESH-TOKEN"
+NEW_ACCESS = "SENTINEL-NEW-ACCESS-TOKEN"
+NEW_REFRESH = "SENTINEL-NEW-REFRESH-TOKEN"
 USER_ID = 1
 
 
@@ -148,6 +155,124 @@ def test_is_connected(session: Session, seed_user: UserSeeder) -> None:
     store_tokens(session, USER_ID, _cipher(), CustomerTokens(ACCESS, REFRESH, 1800))
     assert is_connected(session, USER_ID) is True
     assert is_connected(session, USER_ID + 1) is False
+
+
+class _TokenServer:
+    def __init__(self) -> None:
+        self.requests: list[httpx.Request] = []
+        self.status = 200
+        self.body: dict[str, object] = {
+            "access_token": NEW_ACCESS,
+            "refresh_token": NEW_REFRESH,
+            "expires_in": 1800,
+        }
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        return httpx.Response(self.status, json=self.body)
+
+
+def _kroger(server: _TokenServer) -> KrogerClient:
+    http = httpx.Client(transport=httpx.MockTransport(server))
+    return KrogerClient(
+        "invented-id",
+        "invented-secret",
+        base_url=kroger.HOSTS["certification"],
+        client=http,
+    )
+
+
+def _connected(
+    session: Session, seed_user: UserSeeder, cipher: Fernet, expires_in: int
+) -> KrogerCustomerToken:
+    seed_user(USER_ID)
+    store_tokens(session, USER_ID, cipher, CustomerTokens(ACCESS, REFRESH, 1800))
+    row = session.get(KrogerCustomerToken, USER_ID)
+    assert row is not None
+    row.access_expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
+    session.flush()
+    return row
+
+
+def _stored(row: KrogerCustomerToken, cipher: Fernet) -> tuple[str, str]:
+    return (
+        cipher.decrypt(row.access_token).decode(),
+        cipher.decrypt(row.refresh_token).decode(),
+    )
+
+
+def test_access_token_is_none_without_a_row(session: Session) -> None:
+    server = _TokenServer()
+    token = customer_access_token(session, USER_ID, _kroger(server), _cipher())
+    assert token is None
+    assert server.requests == []
+
+
+def test_fresh_access_token_is_returned_without_a_refresh(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    row = _connected(session, seed_user, cipher, 120)
+    assert customer_access_token(session, USER_ID, _kroger(server), cipher) == ACCESS
+    assert server.requests == []
+    assert _stored(row, cipher) == (ACCESS, REFRESH)
+
+
+@pytest.mark.parametrize("expires_in", [30, -5])
+def test_expired_access_triggers_one_refresh_and_stores_the_rotation(
+    session: Session, seed_user: UserSeeder, expires_in: int
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    row = _connected(session, seed_user, cipher, expires_in)
+    client = _kroger(server)
+    assert customer_access_token(session, USER_ID, client, cipher) == NEW_ACCESS
+    assert len(server.requests) == 1
+    assert parse_qs(server.requests[0].content.decode()) == {
+        "grant_type": ["refresh_token"],
+        "refresh_token": [REFRESH],
+    }
+    assert NEW_ACCESS.encode() not in row.access_token
+    assert NEW_REFRESH.encode() not in row.refresh_token
+    assert _stored(row, cipher) == (NEW_ACCESS, NEW_REFRESH)
+    remaining = (_aware(row.access_expires_at) - datetime.now(UTC)).total_seconds()
+    assert 1700 < remaining <= 1800
+    assert customer_access_token(session, USER_ID, client, cipher) == NEW_ACCESS
+    assert len(server.requests) == 1
+
+
+def test_refresh_keeps_the_old_refresh_token_when_none_returns(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    server.body = {"access_token": NEW_ACCESS, "expires_in": 1800}
+    row = _connected(session, seed_user, cipher, -5)
+    assert customer_access_token(session, USER_ID, _kroger(server), cipher) == (
+        NEW_ACCESS
+    )
+    assert _stored(row, cipher) == (NEW_ACCESS, REFRESH)
+
+
+def test_failed_refresh_propagates_and_keeps_the_row(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    server.status = 500
+    row = _connected(session, seed_user, cipher, -5)
+    with pytest.raises(KrogerUnavailable):
+        customer_access_token(session, USER_ID, _kroger(server), cipher)
+    assert _row_count(session) == 1
+    assert _stored(row, cipher) == (ACCESS, REFRESH)
+
+
+def test_delete_tokens_removes_the_row_and_tolerates_none(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    delete_tokens(session, USER_ID)
+    _connected(session, seed_user, _cipher(), 1800)
+    delete_tokens(session, USER_ID)
+    assert _row_count(session) == 0
+    assert is_connected(session, USER_ID) is False
+    delete_tokens(session, USER_ID)
 
 
 def _log_access(caplog: pytest.LogCaptureFixture, path: str) -> logging.LogRecord:

@@ -6,7 +6,7 @@ import re
 import threading
 import time
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Container, Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -35,7 +35,8 @@ TIMEOUT = httpx.Timeout(5.0, connect=3.0, read=5.0)
 TOKEN_MARGIN_SECONDS = 60
 MAX_EXPIRES_IN_SECONDS = 86_400
 COOLDOWN_SECONDS = 600
-DAILY_LIMITS = {"products": 10_000, "locations": 1_600}
+CART_ADD_PATH = "/v1/cart/add"
+DAILY_LIMITS = {"products": 10_000, "locations": 1_600, "cart": 5_000}
 MAX_TEXT = 160
 MAX_DOLLARS = 100_000
 _LOCATION_ID = re.compile(r"[0-9A-Za-z]{8}")
@@ -45,6 +46,22 @@ _ZIP_CODE = re.compile(r"[0-9]{5}")
 class KrogerUnavailable(Exception):
     def __init__(self) -> None:
         super().__init__("Kroger is unavailable")
+
+
+class KrogerCartUnknown(Exception):
+    """The cart request may have reached Kroger, but no response came back."""
+
+    def __init__(self) -> None:
+        super().__init__("Kroger did not confirm the cart add")
+
+
+_NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+
+
+@dataclass(frozen=True)
+class CartItem:
+    upc: str
+    quantity: int
 
 
 @dataclass(frozen=True)
@@ -237,11 +254,15 @@ class KrogerClient:
         auth: tuple[str, str] | None = None,
         data: dict[str, str] | None = None,
         params: dict[str, str] | None = None,
+        json_body: dict[str, object] | None = None,
         locked: bool = False,
         used_token: str | None = None,
+        ok: Container[int] = (200,),
+        maybe_sent: bool = False,
     ) -> httpx.Response:
         self._check_cooldown()
         response: httpx.Response | None = None
+        unknown = False
         try:
             response = self._client.request(
                 method,
@@ -250,11 +271,18 @@ class KrogerClient:
                 auth=auth,
                 data=data,
                 params=params,
+                json=json_body,
                 follow_redirects=False,
                 timeout=TIMEOUT,
             )
-        except (httpx.RequestError, httpx.InvalidURL, TypeError, ValueError):
-            pass
+        except (httpx.RequestError, httpx.InvalidURL, TypeError, ValueError) as error:
+            unknown = (
+                maybe_sent
+                and isinstance(error, httpx.RequestError)
+                and not isinstance(error, _NOT_SENT)
+            )
+        if unknown:
+            raise KrogerCartUnknown()
         if response is None:
             raise KrogerUnavailable()
         with nullcontext() if locked else self._lock:
@@ -262,7 +290,7 @@ class KrogerClient:
                 self._token = None
             if response.status_code == 429:
                 self._cooldown_until = self._clock() + COOLDOWN_SECONDS
-        if response.status_code != 200:
+        if response.status_code not in ok:
             raise KrogerUnavailable()
         return response
 
@@ -334,11 +362,26 @@ class KrogerClient:
                 "redirect_uri": redirect_uri,
             },
         )
+        return self._customer_tokens(response, None)
+
+    def refresh_customer(self, refresh_token: str) -> CustomerTokens:
+        response = self._send(
+            "POST",
+            TOKEN_PATH,
+            {"Accept": "application/json"},
+            auth=self._auth,
+            data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+        )
+        return self._customer_tokens(response, refresh_token)
+
+    def _customer_tokens(
+        self, response: httpx.Response, previous_refresh: str | None
+    ) -> CustomerTokens:
         payload = self._json(response)
         if not isinstance(payload, dict):
             raise KrogerUnavailable()
         access = payload.get("access_token")
-        refresh = payload.get("refresh_token")
+        refresh = payload.get("refresh_token", previous_refresh)
         expires_in = payload.get("expires_in")
         if not isinstance(access, str) or not access.strip():
             raise KrogerUnavailable()
@@ -349,6 +392,21 @@ class KrogerClient:
         if not TOKEN_MARGIN_SECONDS < expires_in <= MAX_EXPIRES_IN_SECONDS:
             raise KrogerUnavailable()
         return CustomerTokens(access, refresh, expires_in)
+
+    def add_to_cart(self, access_token: str, items: Sequence[CartItem]) -> None:
+        """Add items to the customer's Kroger cart once; never retry."""
+        self._check_cooldown()
+        self._spend("cart")
+        self._send(
+            "PUT",
+            CART_ADD_PATH,
+            {"Accept": "application/json", "Authorization": f"Bearer {access_token}"},
+            json_body={
+                "items": [{"upc": i.upc, "quantity": i.quantity} for i in items]
+            },
+            ok=range(200, 300),
+            maybe_sent=True,
+        )
 
     def _get(
         self, kind: str, path: str, params: dict[str, str]

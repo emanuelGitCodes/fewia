@@ -1,6 +1,7 @@
 """Tests for the Kroger client, using invented data and a mock transport."""
 
 import base64
+import json
 import logging
 import threading
 import time
@@ -12,7 +13,12 @@ import httpx
 import pytest
 
 from app.providers import kroger
-from app.providers.kroger import KrogerClient, KrogerUnavailable
+from app.providers.kroger import (
+    CartItem,
+    KrogerCartUnknown,
+    KrogerClient,
+    KrogerUnavailable,
+)
 
 CLIENT_ID = "SENTINEL-CLIENT-ID"
 SECRET = "SENTINEL-SECRET"
@@ -856,3 +862,210 @@ def test_exchange_code_non_200_is_unavailable(
     rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
     for sentinel in (CODE, CLIENT_ID, SECRET):
         assert sentinel not in rendered
+
+
+NEW_ACCESS = "SENTINEL-NEW-ACCESS-TOKEN"
+NEW_REFRESH = "SENTINEL-NEW-REFRESH-TOKEN"
+
+
+def test_refresh_customer_request_and_rotated_result() -> None:
+    server = Server()
+    server.token_body = {
+        "access_token": NEW_ACCESS,
+        "refresh_token": NEW_REFRESH,
+        "expires_in": 1800,
+    }
+    tokens = _customer(server).refresh_customer(REFRESH)
+    assert (tokens.access_token, tokens.refresh_token) == (NEW_ACCESS, NEW_REFRESH)
+    assert tokens.expires_in == 1800
+    request = server.requests[0]
+    expected = base64.b64encode(f"{CLIENT_ID}:{SECRET}".encode()).decode()
+    assert request.method == "POST"
+    assert request.url.path == "/v1/connect/oauth2/token"
+    assert request.headers["authorization"] == f"Basic {expected}"
+    assert parse_qs(request.content.decode()) == {
+        "grant_type": ["refresh_token"],
+        "refresh_token": [REFRESH],
+    }
+
+
+def test_refresh_customer_keeps_the_old_refresh_token_when_none_returns() -> None:
+    server = Server()
+    server.token_body = {"access_token": NEW_ACCESS, "expires_in": 1800}
+    tokens = _customer(server).refresh_customer(REFRESH)
+    assert (tokens.access_token, tokens.refresh_token) == (NEW_ACCESS, REFRESH)
+
+
+def test_refresh_customer_leaves_app_token_and_budgets_alone() -> None:
+    server = Server()
+    server.token_body = {"access_token": NEW_ACCESS, "expires_in": 1800}
+    client = _customer(server)
+    client.refresh_customer(REFRESH)
+    assert client._token is None
+    assert client._counts == {}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        {},
+        {"refresh_token": NEW_REFRESH, "expires_in": 1800},
+        {"access_token": "", "expires_in": 1800},
+        {"access_token": NEW_ACCESS, "refresh_token": " ", "expires_in": 1800},
+        {"access_token": NEW_ACCESS, "refresh_token": 5, "expires_in": 1800},
+        {"access_token": NEW_ACCESS, "expires_in": 60},
+        {"access_token": NEW_ACCESS, "expires_in": "1800"},
+        {"access_token": NEW_ACCESS, "expires_in": True},
+    ],
+)
+def test_refresh_customer_rejects_bad_payloads(body: object) -> None:
+    server = Server()
+    server.token_body = body  # type: ignore[assignment]  # deliberately malformed
+    with pytest.raises(KrogerUnavailable):
+        _customer(server).refresh_customer(REFRESH)
+
+
+@pytest.mark.parametrize("status", [400, 401, 429, 500])
+def test_refresh_customer_non_200_is_unavailable(
+    status: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    server = Server()
+    server.token_status = status
+    with pytest.raises(KrogerUnavailable) as exc_info:
+        _customer(server).refresh_customer(REFRESH)
+    rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
+    for sentinel in (REFRESH, CLIENT_ID, SECRET):
+        assert sentinel not in rendered
+
+
+class CartServer:
+    def __init__(self, status: int = 204) -> None:
+        self.requests: list[httpx.Request] = []
+        self.status = status
+        self.error: Exception | None = None
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        return httpx.Response(self.status)
+
+
+ITEMS = [CartItem("0001112223334", 2), CartItem("12345678", 1)]
+
+
+def _cart_client(
+    server: CartServer, clock: Clock | None = None, day: date = date(2030, 1, 1)
+) -> KrogerClient:
+    http = httpx.Client(transport=httpx.MockTransport(server))
+    return KrogerClient(
+        CLIENT_ID,
+        SECRET,
+        base_url=BASE,
+        client=http,
+        clock=clock or Clock(),
+        today=lambda: day,
+    )
+
+
+@pytest.mark.parametrize("status", [200, 204])
+def test_add_to_cart_request_and_success(status: int) -> None:
+    server = CartServer(status)
+    assert _cart_client(server).add_to_cart(TOKEN, ITEMS) is None
+    assert len(server.requests) == 1
+    request = server.requests[0]
+    assert request.method == "PUT"
+    assert request.url.path == "/v1/cart/add"
+    assert request.headers["authorization"] == f"Bearer {TOKEN}"
+    assert json.loads(request.content) == {
+        "items": [
+            {"upc": "0001112223334", "quantity": 2},
+            {"upc": "12345678", "quantity": 1},
+        ]
+    }
+
+
+@pytest.mark.parametrize("status", [301, 400, 401, 403, 404, 500, 503])
+def test_add_to_cart_non_2xx_is_unavailable_and_never_retried(status: int) -> None:
+    server = CartServer(status)
+    with pytest.raises(KrogerUnavailable):
+        _cart_client(server).add_to_cart(TOKEN, ITEMS)
+    assert len(server.requests) == 1
+
+
+def test_add_to_cart_connect_failure_was_not_sent() -> None:
+    server = CartServer()
+    server.error = httpx.ConnectError(f"{TOKEN} {SECRET}")
+    with pytest.raises(KrogerUnavailable) as exc_info:
+        _cart_client(server).add_to_cart(TOKEN, ITEMS)
+    assert exc_info.value.__cause__ is None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ReadTimeout("x"),
+        httpx.ReadError("x"),
+        httpx.RemoteProtocolError("x"),
+        httpx.WriteTimeout("x"),
+    ],
+)
+def test_add_to_cart_without_a_response_is_unknown(
+    error: Exception, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    server = CartServer()
+    server.error = error
+    with pytest.raises(KrogerCartUnknown) as exc_info:
+        _cart_client(server).add_to_cart(TOKEN, ITEMS)
+    rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
+    assert str(exc_info.value) == "Kroger did not confirm the cart add"
+    assert exc_info.value.__cause__ is None
+    assert len(server.requests) == 1
+    for sentinel in (TOKEN, CLIENT_ID, SECRET):
+        assert sentinel not in rendered
+
+
+def test_add_to_cart_uses_no_app_token_and_no_other_budget() -> None:
+    server = CartServer()
+    client = _cart_client(server)
+    client.add_to_cart(TOKEN, ITEMS)
+    assert client._token is None
+    assert client._counts == {"cart": 1}
+
+
+def test_cart_budget_is_5000_per_utc_day() -> None:
+    assert kroger.DAILY_LIMITS["cart"] == 5_000
+    server = CartServer()
+    days = [date(2030, 1, 1)]
+    http = httpx.Client(transport=httpx.MockTransport(server))
+    client = KrogerClient(
+        CLIENT_ID, SECRET, base_url=BASE, client=http, today=lambda: days[0]
+    )
+    for _ in range(5_000):
+        client.add_to_cart(TOKEN, ITEMS)
+    sent = len(server.requests)
+    with pytest.raises(KrogerUnavailable):
+        client.add_to_cart(TOKEN, ITEMS)
+    assert len(server.requests) == sent
+    days[0] = date(2030, 1, 2)
+    client.add_to_cart(TOKEN, ITEMS)
+    assert len(server.requests) == sent + 1
+
+
+def test_add_to_cart_429_starts_cooldown() -> None:
+    server = CartServer(429)
+    clock = Clock()
+    client = _cart_client(server, clock)
+    with pytest.raises(KrogerUnavailable):
+        client.add_to_cart(TOKEN, ITEMS)
+    server.status = 204
+    clock.now += 599
+    with pytest.raises(KrogerUnavailable):
+        client.add_to_cart(TOKEN, ITEMS)
+    assert len(server.requests) == 1
+    clock.now += 1
+    client.add_to_cart(TOKEN, ITEMS)
+    assert len(server.requests) == 2

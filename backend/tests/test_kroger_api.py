@@ -1,10 +1,13 @@
 """Tests for the Kroger store lookup and sign-in routes, using invented data."""
 
+import json
 import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -27,12 +30,15 @@ from app.kroger_customer import (
     new_nonce,
     redact_access_log,
     state_matches,
+    store_tokens,
 )
 from app.kroger_models import KrogerCustomerToken
 from app.main import app
+from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.providers import kroger
-from app.providers.kroger import KrogerClient
+from app.providers.kroger import CustomerTokens, KrogerClient
+from app.services.kroger_overlay import kroger_search_term
 
 SENTINEL_ZIP = "97531"
 BASE = "https://kroger.test"
@@ -238,12 +244,28 @@ class Rig:
     token_status: int = 200
     expires_in: int = 1800
     token_calls: list[httpx.Request] = field(default_factory=list)
+    token_body: dict[str, object] | None = None
+    cart_status: int = 204
+    cart_error: Exception | None = None
+    cart_calls: list[httpx.Request] = field(default_factory=list)
+    products: dict[str, list[object]] = field(default_factory=dict)
+    products_status: int = 200
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/cart/add":
+            self.cart_calls.append(request)
+            if self.cart_error is not None:
+                raise self.cart_error
+            return httpx.Response(self.cart_status)
+        if request.url.path == "/v1/products":
+            term = request.url.params["filter.term"]
+            if self.products_status != 200:
+                return httpx.Response(self.products_status)
+            return httpx.Response(200, json={"data": self.products.get(term, [])})
         self.token_calls.append(request)
         if self.token_status != 200:
             return httpx.Response(self.token_status)
-        body = {
+        body = self.token_body or {
             "access_token": ACCESS,
             "refresh_token": REFRESH,
             "expires_in": self.expires_in,
@@ -545,6 +567,341 @@ def test_sign_in_never_logs_or_echoes_secrets(
         second_nonce,
         ACCESS,
         REFRESH,
+        CLIENT_ID,
+        CLIENT_SECRET,
+        rig.key.decode(),
+    ]
+    for secret in secrets:
+        assert all(secret not in text for text in haystack)
+
+
+PREVIEW = "/grocery/kroger/cart/preview"
+CART_ADD = "/grocery/kroger/cart/add"
+NEW_ACCESS = "SENTINEL-NEW-ACCESS-TOKEN"
+NEW_REFRESH = "SENTINEL-NEW-REFRESH-TOKEN"
+UPC_A = "0001112223334"
+UPC_B = "12345678"
+PANTRY = ["olive_oil", "cumin", "salt"]
+SOME_ID = "00000000-0000-0000-0000-000000000001"
+LINES = [{"upc": UPC_A, "quantity": 2}, {"upc": UPC_B, "quantity": 1}]
+
+
+def _sign_in(rig: Rig, *, expires_in: int = 1800) -> KrogerCustomerToken:
+    tokens = CustomerTokens(ACCESS, REFRESH, 1800)
+    store_tokens(rig.session, DEMO_USER_ID, rig.cipher, tokens)
+    row = rig.session.get(KrogerCustomerToken, DEMO_USER_ID)
+    assert row is not None
+    row.access_expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
+    rig.session.flush()
+    return row
+
+
+def _stored(rig: Rig) -> tuple[str, str]:
+    row = rig.session.get(KrogerCustomerToken, DEMO_USER_ID)
+    assert row is not None
+    return (
+        rig.cipher.decrypt(row.access_token).decode(),
+        rig.cipher.decrypt(row.refresh_token).decode(),
+    )
+
+
+def _plan(rig: Rig, user_id: int = DEMO_USER_ID) -> UUID:
+    revision_id = uuid4()
+    snapshot: dict[str, object] = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+        "pantry_ingredient_ids": PANTRY,
+        "plan_cap_cents": None,
+    }
+    rig.session.add(PlanRevision(id=revision_id, user_id=user_id, snapshot=snapshot))
+    rig.session.flush()
+    return revision_id
+
+
+def _product(upc: str, description: str) -> object:
+    return {
+        "productId": f"id-{upc}",
+        "upc": upc,
+        "description": description,
+        "items": [{"size": "1 lb"}],
+    }
+
+
+def _add(rig: Rig, items: object = LINES) -> httpx.Response:
+    return rig.api.post(CART_ADD, json={"items": items})
+
+
+def _message(response: httpx.Response) -> str:
+    message: str = response.json()["error"]["message"]
+    return message
+
+
+def test_disconnect_deletes_the_tokens_and_is_always_204(rig: Rig) -> None:
+    assert rig.api.delete(CONNECTION).status_code == 204
+    _sign_in(rig)
+    response = rig.api.delete(CONNECTION)
+    assert response.status_code == 204
+    assert response.content == b""
+    assert _row_count(rig) == 0
+    assert rig.api.get(CONNECTION).json() == {"connected": False}
+    assert rig.api.delete(CONNECTION).status_code == 204
+    assert rig.token_calls == [] and rig.cart_calls == []
+
+
+def test_preview_returns_matched_and_unmatched_lines_in_order(rig: Rig) -> None:
+    revision_id = _plan(rig)
+    rig.products[kroger_search_term("chicken_breast")] = [
+        _product("1234567", "Too short"),
+        _product(UPC_A, "Invented Chicken"),
+    ]
+    rig.products[kroger_search_term("salsa")] = [_product(UPC_B, "Invented Salsa")]
+    response = rig.api.post(
+        PREVIEW, json={"plan_revision_id": str(revision_id), "location_id": "01234567"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "ingredient_id": "chicken_breast",
+                "name": "chicken breast",
+                "upc": UPC_A,
+                "description": "Invented Chicken",
+                "size": "1 lb",
+                "quantity": 1,
+            },
+            {
+                "ingredient_id": "salsa",
+                "name": "salsa",
+                "upc": UPC_B,
+                "description": "Invented Salsa",
+                "size": "1 lb",
+                "quantity": 1,
+            },
+        ],
+        "unmatched": [
+            {"ingredient_id": "onion", "name": "onion"},
+            {"ingredient_id": "tortillas", "name": "corn tortillas"},
+        ],
+    }
+
+
+def test_preview_writes_nothing(rig: Rig) -> None:
+    revision_id = _plan(rig)
+    rig.products[kroger_search_term("onion")] = [_product(UPC_A, "Invented Onion")]
+    before = rig.session.scalar(select(func.count()).select_from(PlanRevision))
+    response = rig.api.post(
+        PREVIEW, json={"plan_revision_id": str(revision_id), "location_id": "01234567"}
+    )
+    assert response.status_code == 200
+    assert rig.session.scalar(select(func.count()).select_from(PlanRevision)) == before
+    assert _row_count(rig) == 0
+    assert not rig.session.new and not rig.session.dirty
+
+
+def test_preview_is_503_without_a_partial_result_when_kroger_fails(rig: Rig) -> None:
+    revision_id = _plan(rig)
+    rig.products_status = 500
+    response = rig.api.post(
+        PREVIEW, json={"plan_revision_id": str(revision_id), "location_id": "01234567"}
+    )
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is unavailable"
+    assert "items" not in response.text
+
+
+def test_preview_is_404_for_an_unknown_or_foreign_revision(
+    rig: Rig, seed_user: UserSeeder
+) -> None:
+    seed_user(2)
+    foreign = _plan(rig, user_id=2)
+    for revision_id in (uuid4(), foreign):
+        response = rig.api.post(
+            PREVIEW,
+            json={"plan_revision_id": str(revision_id), "location_id": "01234567"},
+        )
+        assert response.status_code == 404
+    assert rig.token_calls == []
+
+
+def test_preview_is_503_when_not_configured(rig: Rig) -> None:
+    app.dependency_overrides[get_kroger_client] = lambda: None
+    response = rig.api.post(
+        PREVIEW, json={"plan_revision_id": str(_plan(rig)), "location_id": "01234567"}
+    )
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is not configured"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"plan_revision_id": SOME_ID},
+        {"location_id": "01234567"},
+        {"plan_revision_id": "not-a-uuid", "location_id": "01234567"},
+        {"plan_revision_id": SOME_ID, "location_id": "0123456"},
+        {"plan_revision_id": SOME_ID, "location_id": "012345678"},
+        {"plan_revision_id": SOME_ID, "location_id": "0123456!"},
+        {"plan_revision_id": SOME_ID, "location_id": "01234567\n"},
+        {"plan_revision_id": SOME_ID, "location_id": 12345678},
+        {"plan_revision_id": SOME_ID, "location_id": "01234567", "extra": 1},
+    ],
+)
+def test_preview_rejects_a_bad_body(rig: Rig, body: dict[str, object]) -> None:
+    response = rig.api.post(PREVIEW, json=body)
+    assert response.status_code == 422
+    assert rig.token_calls == []
+
+
+def test_cart_add_sends_the_exact_body_with_a_fresh_token(rig: Rig) -> None:
+    _sign_in(rig)
+    response = _add(rig)
+    assert response.status_code == 204
+    assert response.content == b""
+    assert rig.token_calls == []
+    assert len(rig.cart_calls) == 1
+    request = rig.cart_calls[0]
+    assert request.method == "PUT"
+    assert request.headers["authorization"] == f"Bearer {ACCESS}"
+    assert json.loads(request.content) == {"items": LINES}
+
+
+def test_cart_add_refreshes_an_expired_token_first(rig: Rig) -> None:
+    _sign_in(rig, expires_in=-5)
+    rig.token_body = {
+        "access_token": NEW_ACCESS,
+        "refresh_token": NEW_REFRESH,
+        "expires_in": 1800,
+    }
+    assert _add(rig).status_code == 204
+    assert len(rig.token_calls) == 1
+    assert parse_qs(rig.token_calls[0].content.decode()) == {
+        "grant_type": ["refresh_token"],
+        "refresh_token": [REFRESH],
+    }
+    assert rig.cart_calls[0].headers["authorization"] == f"Bearer {NEW_ACCESS}"
+    assert _stored(rig) == (NEW_ACCESS, NEW_REFRESH)
+
+
+def test_cart_add_is_409_when_not_connected(rig: Rig) -> None:
+    response = _add(rig)
+    assert response.status_code == 409
+    assert _message(response) == "Kroger account is not connected"
+    assert rig.token_calls == [] and rig.cart_calls == []
+
+
+def test_cart_add_is_503_when_the_refresh_fails_and_keeps_the_row(rig: Rig) -> None:
+    _sign_in(rig, expires_in=-5)
+    rig.token_status = 500
+    response = _add(rig)
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is unavailable"
+    assert rig.cart_calls == []
+    assert _stored(rig) == (ACCESS, REFRESH)
+
+
+@pytest.mark.parametrize("status", [400, 401, 429, 500])
+def test_cart_add_is_503_when_kroger_rejects_the_add(rig: Rig, status: int) -> None:
+    _sign_in(rig)
+    rig.cart_status = status
+    response = _add(rig)
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is unavailable"
+    assert len(rig.cart_calls) == 1
+
+
+def test_cart_add_is_503_when_the_connection_fails_before_sending(rig: Rig) -> None:
+    _sign_in(rig)
+    rig.cart_error = httpx.ConnectError("refused")
+    assert _add(rig).status_code == 503
+
+
+def test_cart_add_is_504_when_kroger_does_not_confirm(rig: Rig) -> None:
+    _sign_in(rig)
+    rig.cart_error = httpx.ReadTimeout("slow")
+    response = _add(rig)
+    assert response.status_code == 504
+    assert _message(response) == "Kroger did not confirm the cart add"
+    assert len(rig.cart_calls) == 1
+
+
+@pytest.mark.parametrize("missing", [get_kroger_client, get_kroger_cipher])
+def test_cart_add_is_503_when_not_configured(rig: Rig, missing: object) -> None:
+    _sign_in(rig)
+    app.dependency_overrides[missing] = lambda: None
+    response = _add(rig)
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is not configured"
+    assert rig.cart_calls == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"items": []},
+        {"items": [{"upc": f"{n:08d}", "quantity": 1} for n in range(31)]},
+        {"items": [{"upc": UPC_A, "quantity": 0}]},
+        {"items": [{"upc": UPC_A, "quantity": 11}]},
+        {"items": [{"upc": UPC_A, "quantity": "2"}]},
+        {"items": [{"upc": UPC_A, "quantity": True}]},
+        {"items": [{"upc": UPC_A}]},
+        {"items": [{"upc": "1234567", "quantity": 1}]},
+        {"items": [{"upc": "123456789012345", "quantity": 1}]},
+        {"items": [{"upc": "1234567a", "quantity": 1}]},
+        {"items": [{"upc": "12345678\n", "quantity": 1}]},
+        {"items": [{"upc": 12345678, "quantity": 1}]},
+        {"items": [{"upc": UPC_A, "quantity": 1}, {"upc": UPC_A, "quantity": 2}]},
+        {"items": [{"upc": UPC_A, "quantity": 1, "extra": 1}]},
+        {"items": [{"upc": UPC_A, "quantity": 1}], "extra": 1},
+    ],
+)
+def test_cart_add_rejects_a_bad_body(rig: Rig, body: dict[str, object]) -> None:
+    _sign_in(rig)
+    response = rig.api.post(CART_ADD, json=body)
+    assert response.status_code == 422
+    assert rig.cart_calls == []
+
+
+def test_cart_add_accepts_30_items_and_the_quantity_bounds(rig: Rig) -> None:
+    _sign_in(rig)
+    items = [{"upc": f"{n:08d}", "quantity": 1 + n % 10} for n in range(30)]
+    assert _add(rig, items).status_code == 204
+    assert json.loads(rig.cart_calls[0].content) == {"items": items}
+
+
+def test_cart_flow_never_logs_or_echoes_secrets(
+    rig: Rig, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    _sign_in(rig, expires_in=-5)
+    rig.token_body = {
+        "access_token": NEW_ACCESS,
+        "refresh_token": NEW_REFRESH,
+        "expires_in": 1800,
+    }
+    responses = [_add(rig)]
+    rig.cart_status = 500
+    responses.append(_add(rig))
+    rig.cart_status = 204
+    rig.cart_error = httpx.ReadTimeout(f"{NEW_ACCESS} {CLIENT_SECRET}")
+    responses.append(_add(rig))
+    rig.cart_error = None
+    _sign_in(rig, expires_in=-5)
+    rig.token_status = 500
+    responses.append(_add(rig))
+    assert [r.status_code for r in responses] == [204, 503, 504, 503]
+    haystack = [
+        caplog.text,
+        *(r.text for r in responses),
+        *(str(r.headers) for r in responses),
+        *(record.getMessage() for record in caplog.records),
+        *(str(record.args) for record in caplog.records),
+    ]
+    secrets = [
+        ACCESS,
+        REFRESH,
+        NEW_ACCESS,
+        NEW_REFRESH,
         CLIENT_ID,
         CLIENT_SECRET,
         rig.key.decode(),
