@@ -115,7 +115,41 @@ def test_token_request_shape_and_reuse() -> None:
     assert server.count("/v1/connect/oauth2/token") == 2
 
 
-@pytest.mark.parametrize("expires", [0, -5, "1800", None, True, 1.5])
+def test_expires_in_just_above_margin_is_accepted() -> None:
+    server = Server()
+    server.token_body = {"access_token": TOKEN, "expires_in": 61}
+    client, _ = _make(server)
+    assert client.find_stores(ZIP) == []
+
+
+def test_huge_prices_become_none() -> None:
+    server = Server()
+    server.products = {
+        "data": [
+            _product(price={"regular": 1e30, "promo": 100000.01}, productId="P1"),
+            _product(price={"regular": 100000, "promo": 1.5}, productId="P2"),
+        ]
+    }
+    client, _ = _make(server)
+    by_id = {p.product_id: p for p in client.search_products("x", LOCATION).products}
+    assert (by_id["P1"].regular_cents, by_id["P1"].promo_cents) == (None, None)
+    assert (by_id["P2"].regular_cents, by_id["P2"].promo_cents) == (10_000_000, 150)
+
+
+def test_products_budget_per_utc_day() -> None:
+    server = Server()
+    client, _ = _make(server)
+    for _ in range(10_000):
+        client.search_products("milk", LOCATION)
+    sent = len(server.requests)
+    with pytest.raises(KrogerUnavailable):
+        client.search_products("milk", LOCATION)
+    assert len(server.requests) == sent
+    client.find_stores(ZIP)
+    assert len(server.requests) == sent + 1
+
+
+@pytest.mark.parametrize("expires", [0, -5, 60, "1800", None, True, 1.5])
 def test_bad_expires_in_is_unavailable(expires: object) -> None:
     server = Server()
     server.token_body = {"access_token": TOKEN, "expires_in": expires}
@@ -408,10 +442,26 @@ def test_smoke_prints_products_and_cache_headers(
     assert kroger.main(["--zip", ZIP, "--term", "ground beef"]) == 0
     out = capsys.readouterr().out
     assert "Test Market\tInvented Ground Beef\t1 lb\t249\tnone\tHIGH" in out
-    assert "cache-control: max-age=5" in out
-    assert "cache-control: none" in out
+    assert "cache-control locations: max-age=5" in out
+    assert "cache-control products: max-age=5" in out
+    assert "cache-control token: none" in out
     for sentinel in (CLIENT_ID, SECRET, TOKEN, ZIP):
         assert sentinel not in out
+
+
+def test_smoke_without_stores_reports_products_not_requested(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _smoke_env(monkeypatch, tmp_path)
+    server = Server()
+    monkeypatch.setattr(
+        kroger,
+        "build_http_client",
+        lambda base_url: httpx.Client(transport=httpx.MockTransport(server)),
+    )
+    assert kroger.main(["--zip", ZIP, "--term", "milk"]) == 0
+    out = capsys.readouterr().out
+    assert "cache-control products: not requested" in out
 
 
 def test_smoke_exits_2_when_unconfigured_or_unavailable(

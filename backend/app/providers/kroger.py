@@ -9,7 +9,7 @@ import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 import httpx
 
@@ -32,6 +32,7 @@ TOKEN_MARGIN_SECONDS = 60
 COOLDOWN_SECONDS = 600
 DAILY_LIMITS = {"products": 10_000, "locations": 1_600}
 MAX_TEXT = 160
+MAX_DOLLARS = 100_000
 _LOCATION_ID = re.compile(r"[0-9A-Za-z]{8}")
 _ZIP_CODE = re.compile(r"[0-9]{5}")
 
@@ -85,9 +86,12 @@ def _clean(value: object) -> str | None:
 def _cents(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    if not math.isfinite(value) or value <= 0:
+    if not math.isfinite(value) or value <= 0 or value > MAX_DOLLARS:
         return None
-    cents = int((Decimal(str(value)) * 100).quantize(Decimal(1), ROUND_HALF_UP))
+    try:
+        cents = int((Decimal(str(value)) * 100).quantize(Decimal(1), ROUND_HALF_UP))
+    except InvalidOperation:
+        return None
     return cents if cents > 0 else None
 
 
@@ -274,7 +278,7 @@ class KrogerClient:
             raise KrogerUnavailable()
         if isinstance(expires_in, bool) or not isinstance(expires_in, int):
             raise KrogerUnavailable()
-        if expires_in <= 0:
+        if expires_in <= TOKEN_MARGIN_SECONDS:
             raise KrogerUnavailable()
         self.cache_control["token"] = response.headers.get("cache-control")
         self._token = token
@@ -375,7 +379,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         else:
             print("no stores found")
-    except ValueError:
+            client.cache_control.setdefault("products", "not requested")
+    except (ValueError, ArithmeticError):
         print("Invalid ZIP code or search term")
         return 2
     except KrogerUnavailable:
@@ -384,7 +389,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     finally:
         client.close()
     for kind in ("locations", "products", "token"):
-        print(f"cache-control: {_show(client.cache_control.get(kind))}")
+        print(f"cache-control {kind}: {_show(client.cache_control.get(kind))}")
     return 0
 
 
