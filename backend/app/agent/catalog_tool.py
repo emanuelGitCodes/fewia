@@ -49,7 +49,8 @@ def catalog_tool_spec() -> dict[str, object]:
                 "from the latest message and validated prior request. "
                 "Do not infer restriction groups or hidden preferences. "
                 "Ask before planning an alternative. Planning still requires "
-                "plan_groceries validation. Terms: "
+                "plan_groceries validation. Not for a meal the user names or "
+                "has in the plan. Terms: "
                 f"{', '.join((*TAG_ORDER, *_DIETS, *_AGENT_TERMS))}."
             ),
             "inputSchema": {

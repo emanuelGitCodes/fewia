@@ -23,7 +23,9 @@ def ingredient_tool_spec() -> dict[str, object]:
         "Look up one food or ingredient by name. Return its ingredient ID, "
         "source, USDA macros per 100 g, diet flags, and sample price in cents "
         "(null when it has none). An unknown or ambiguous name returns "
-        "candidates. Use the ID in what_if_substitute and price_lines.",
+        "candidates. Use the ID in what_if_substitute and price_lines. "
+        "Use it only for a question about one food on its own. To change a "
+        "food in a meal, call what_if_substitute with with_food.",
         {"name": {"type": "string", "minLength": 1, "maxLength": 64}},
         ["name"],
     )

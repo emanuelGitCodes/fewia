@@ -51,7 +51,9 @@ def get_plan_tool_spec() -> dict[str, object]:
 def get_meal_tool_spec() -> dict[str, object]:
     return _spec(
         GET_MEAL_TOOL,
-        "Return one catalog meal's ingredients per serving and macros.",
+        "Return one catalog meal's ingredients per serving and macros. "
+        "To compare a meal with a different food, call what_if_substitute "
+        "instead.",
         {"recipe_id": {"type": "string", "enum": list(SUPPORTED_RECIPE_IDS)}},
         ["recipe_id"],
     )

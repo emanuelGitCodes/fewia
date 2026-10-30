@@ -106,6 +106,7 @@ def _entry(
     revision_index: int | None,
     evidence_id: object = None,
     evidence_revision_id: object = None,
+    inputs: dict[str, object] | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "tool": tool,
@@ -114,11 +115,55 @@ def _entry(
         "sequence": sequence,
         "revision_index": revision_index,
     }
+    if inputs is not None:
+        entry["inputs"] = inputs
     if isinstance(evidence_id, str):
         entry["evidence_id"] = evidence_id
     if isinstance(evidence_revision_id, str):
         entry["evidence_revision_id"] = evidence_revision_id
     return entry
+
+
+def _valid_recipe(value: object) -> str:
+    if isinstance(value, str) and value in SUPPORTED_RECIPE_IDS:
+        return value
+    return "invalid"
+
+
+def _trace_inputs(
+    call: msgs.ToolCall, payload: dict[str, object] | None
+) -> dict[str, object]:
+    """Validated values only; model-supplied text never reaches the trace."""
+    raw = call.tool_input if isinstance(call.tool_input, dict) else {}
+    result = {} if payload is None else payload
+    inputs: dict[str, object] = {}
+    if call.name in (GET_MEAL_TOOL, SUBSTITUTE_TOOL):
+        inputs["recipe_id"] = _valid_recipe(raw.get("recipe_id"))
+    elif call.name == PRICE_TOOL:
+        meals = raw.get("meals")
+        items = meals[:3] if isinstance(meals, list) else []
+        inputs["recipe_ids"] = [
+            _valid_recipe(item.get("recipe_id") if isinstance(item, dict) else None)
+            for item in items
+        ]
+    if call.name == INGREDIENT_TOOL and isinstance(result.get("status"), str):
+        inputs["status"] = result["status"]
+        if result["status"] == "found":
+            inputs["ingredient_id"] = result.get("ingredient_id")
+    if call.name == SUBSTITUTE_TOOL and isinstance(result.get("status"), str):
+        inputs["status"] = result["status"]
+        change = result.get("change")
+        if result["status"] == "swapped" and isinstance(change, dict):
+            for key in (
+                "replace_ingredient_id",
+                "with_ingredient_id",
+                "scale_ingredient_id",
+            ):
+                if key in change:
+                    inputs[key] = change[key]
+            inputs["servings"] = result.get("servings")
+            inputs["servings_source"] = result.get("servings_source")
+    return inputs
 
 
 def _dispatch_budget(
@@ -179,6 +224,7 @@ def _dispatch_plan_tool(
             tool_use_id=call.tool_use_id,
             sequence=len(trace) + 1,
             revision_index=None,
+            inputs=_trace_inputs(call, payload),
         )
     )
     if payload is None:

@@ -64,7 +64,7 @@ from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
 # Interim budget while chat-arch phases 1-2 add tools; phase 3 lowers it.
-PROMPT_AND_TOOLS_BUDGET = 16000
+PROMPT_AND_TOOLS_BUDGET = 15000
 _SECRET = "do-not-echo-raw-input"
 _UNAVAILABLE = "The language model is unavailable."
 _LIMIT = "The job reached a processing limit."
@@ -359,8 +359,9 @@ def test_accepted_plan_finishes_without_final_and_keeps_evidence_and_usage() -> 
     _assert_public(result)
     first = provider.requests[0]
     assert first["system"] == SYSTEM_PROMPT
+    assert SYSTEM_PROMPT.startswith("You are FEWIA, a meal and grocery assistant.")
     for recipe_id in SUPPORTED_RECIPE_IDS:
-        assert recipe_id in SYSTEM_PROMPT
+        assert recipe_id not in SYSTEM_PROMPT
     assert "arithmetic" in SYSTEM_PROMPT
     assert "servings" in SYSTEM_PROMPT
     assert "pantry" in SYSTEM_PROMPT
@@ -436,9 +437,10 @@ def test_get_plan_turn_is_not_a_fast_return_and_keeps_reply_state() -> None:
     trace = cast(list[dict[str, object]], result["tool_trace"])
     assert [item["tool"] for item in trace] == [GET_PLAN_TOOL]
     assert provider.requests[0]["tools"] == _chat_tools()
-    assert "Call get_plan to read the user's current plan." in cast(
+    assert "Call get_plan for the plan's totals and prices." in cast(
         str, provider.requests[0]["system"]
     )
+    assert trace[0]["inputs"] == {}
 
 
 def test_get_meal_error_does_not_set_candidate_or_error() -> None:
@@ -453,7 +455,10 @@ def test_get_meal_error_does_not_set_candidate_or_error() -> None:
     )
     assert result["status"] == "clarification"
     assert result["answer"] == CLARIFICATION
-    assert cast(list[dict[str, object]], result["tool_trace"])[0]["outcome"] == "error"
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["outcome"] == "error"
+    assert trace[0]["inputs"] == {"recipe_id": "invalid"}
+    assert '"x"' not in json.dumps(trace)
 
 
 _SWAP_ARGS: dict[str, object] = {
@@ -496,6 +501,14 @@ def test_what_if_substitute_traces_and_leaves_reply_state_alone() -> None:
             "tool_use_id": "w1",
             "sequence": 1,
             "revision_index": None,
+            "inputs": {
+                "recipe_id": "chicken_tacos",
+                "status": "swapped",
+                "replace_ingredient_id": "chicken_breast",
+                "with_ingredient_id": "chickpeas",
+                "servings": 2,
+                "servings_source": "request",
+            },
         }
     ]
     second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
@@ -574,6 +587,7 @@ def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
             "tool_use_id": "l1",
             "sequence": 1,
             "revision_index": None,
+            "inputs": {"recipe_ids": ["chicken_tacos", "bean_tacos"]},
         }
     ]
     assert result["status"] == "clarification"
@@ -738,19 +752,150 @@ def test_ingredient_facts_error_keeps_static_shape_and_reply_state() -> None:
     assert cast(list[dict[str, object]], result["tool_trace"])[0]["outcome"] == "error"
 
 
-def test_prompt_tells_the_model_to_look_up_foods_before_swapping() -> None:
+def test_prompt_leads_with_the_swap_rule_and_the_plan_meals() -> None:
+    swap = (
+        "To change a food in a meal, for example beef instead of beans or beef "
+        "tacos for bean tacos, call what_if_substitute once with the meal's "
+        "recipe_id and with_food set to the new food."
+    )
+    facts = "Call get_ingredient_facts only for a question about one food on its own."
+    discovery = "To find new meals by type or diet, call find_catalog_meals."
+    assert SYSTEM_PROMPT.startswith(
+        "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
+        "lists the meals in the user's plan. When the user names a plan meal or "
+        "says my meal, use that plan meal's recipe_id. "
+    )
+    assert swap in SYSTEM_PROMPT
+    assert SYSTEM_PROMPT.index(swap) < SYSTEM_PROMPT.index(facts)
+    assert SYSTEM_PROMPT.index(swap) < SYSTEM_PROMPT.index(discovery)
     assert (
-        "When the user names a food or ingredient, call get_ingredient_facts "
-        "to find its ID. "
-        "To swap an ingredient in a meal for another food, call "
-        "what_if_substitute with with_food."
+        "Do not call get_meal or get_ingredient_facts before that call. "
+        "A meal name that changes one food in a plan meal or a catalog meal is "
+        "a swap, not a new meal. "
     ) in SYSTEM_PROMPT
-    assert "get_ingredient_facts, then what_if_substitute" not in SYSTEM_PROMPT
-    assert (
-        "When the user renames a meal with a food, for example beef tacos for "
-        "bean tacos, call what_if_substitute with that meal's recipe_id and "
-        "with_food set to the food."
-    ) in SYSTEM_PROMPT
+    assert "You MUST NOT call it for a meal the user names or has in the plan." in (
+        SYSTEM_PROMPT
+    )
+    assert "not in the catalog and is not a swap, you MUST NOT invent" in SYSTEM_PROMPT
+    assert "When the user names a food or ingredient" not in SYSTEM_PROMPT
+    assert "To swap an ingredient in a meal for another food" not in SYSTEM_PROMPT
+    assert "When the user renames a meal with a food" not in SYSTEM_PROMPT
+    assert "bean_tacos" not in SYSTEM_PROMPT
+    assert "chicken_burrito_bowls" not in SYSTEM_PROMPT
+
+
+def test_tool_descriptions_steer_food_changes_to_what_if_substitute() -> None:
+    def description(spec: dict[str, object]) -> str:
+        return cast(str, cast(dict[str, object], spec["toolSpec"])["description"])
+
+    assert description(substitute_tool_spec()).startswith(
+        "Use this when the user wants a different food in a meal: beef instead "
+        "of beans, make it beef tacos, swap, or replace. One call does it: give "
+        "recipe_id and with_food. "
+    )
+    assert description(ingredient_tool_spec()).endswith(
+        " Use it only for a question about one food on its own. To change a "
+        "food in a meal, call what_if_substitute with with_food."
+    )
+    assert description(get_meal_tool_spec()).endswith(
+        " To compare a meal with a different food, call what_if_substitute instead."
+    )
+    assert "Not for a meal the user names or has in the plan. Terms: " in description(
+        catalog_tool_spec()
+    )
+
+
+def _beef_revision() -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def _swap_trace(with_food: str) -> list[dict[str, object]]:
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _tool_block(
+                        "w1",
+                        name=SUBSTITUTE_TOOL,
+                        payload={"recipe_id": "bean_tacos", "with_food": with_food},
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "bean tacos to beef tacos",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=_beef_revision(),
+    )
+    return cast(list[dict[str, object]], result["tool_trace"])
+
+
+def test_run_chat_gives_the_provider_the_plan_meals() -> None:
+    provider = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+    run_chat(
+        provider,
+        "bean tacos to beef tacos",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=_beef_revision(),
+    )
+    messages = cast(list[dict[str, Any]], provider.requests[0]["messages"])
+    context = json.loads(messages[-1]["content"][0]["text"])
+    assert context["plan_meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
+    assert "plan_meals is the user's current plan" in context["context_role"]
+    bare = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+    run_chat(bare, "hello", budget(), PERIOD, heartbeat=_noop)
+    bare_messages = cast(list[dict[str, Any]], bare.requests[0]["messages"])
+    assert json.loads(bare_messages[-1]["content"][0]["text"])["plan_meals"] is None
+
+
+def test_trace_records_the_validated_swap_inputs() -> None:
+    trace = _swap_trace("beef")
+    assert trace[0]["inputs"] == {
+        "recipe_id": "bean_tacos",
+        "status": "swapped",
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+        "servings": 2,
+        "servings_source": "plan",
+    }
+    assert '"beef"' not in json.dumps(trace)
+
+
+def test_trace_never_copies_model_supplied_food_text() -> None:
+    trace = _swap_trace("zzz injected text")
+    assert trace[0]["inputs"] == {"recipe_id": "bean_tacos", "status": "unknown_food"}
+    assert "zzz injected text" not in json.dumps(trace)
+
+
+def test_trace_records_ingredient_facts_without_the_name() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "beef"})],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["inputs"] == {"status": "found", "ingredient_id": "ground_beef_80"}
+    assert "name" not in cast(dict[str, object], trace[0]["inputs"])
 
 
 def test_typed_planner_error_beats_read_answer_in_same_batch() -> None:
@@ -888,6 +1033,7 @@ def test_price_lines_error_keeps_static_shape_and_records_no_evidence() -> None:
             "tool_use_id": "l1",
             "sequence": 1,
             "revision_index": None,
+            "inputs": {"recipe_ids": ["chicken_tacos"] * 3},
         }
     ]
     second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
@@ -951,7 +1097,9 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert context["plan_cap_cents"] is None
     assert context["context_role"] == (
         "previous_request is prior state; apply latest explicit additions and removals"
+        "; plan_meals is the user's current plan"
     )
+    assert context["plan_meals"] is None
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
     _assert_public(result)
@@ -1489,7 +1637,7 @@ def test_prompt_and_all_schemas_stay_under_interim_budget() -> None:
     assert len(serialized) < PROMPT_AND_TOOLS_BUDGET, len(serialized)
     assert "Catalog meal labels are id:labels pairs:" not in SYSTEM_PROMPT
     assert "bean_tacos:vegan,vegetarian,beans" not in SYSTEM_PROMPT
-    assert "MUST call find_catalog_meals" in SYSTEM_PROMPT
+    assert "call find_catalog_meals" in SYSTEM_PROMPT
 
 
 def test_system_prompt_states_tag_thresholds_and_tool_spec_lists_terms() -> None:
@@ -1951,8 +2099,9 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         assert context["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
         assert context["context_role"] == (
             "previous_request is prior state; apply latest explicit "
-            "additions and removals"
+            "additions and removals; plan_meals is the user's current plan"
         )
+        assert context["plan_meals"] is None
 
 
 @pytest.mark.parametrize(

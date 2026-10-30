@@ -11,6 +11,7 @@ from app import evaluation_model_turn as model
 from app.agent import chat_loop
 from app.agent.chat_messages import ToolCall
 from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
 from app.evaluation_adversarial import ScenarioProvider
 from app.evaluation_capture import CaptureProvider
@@ -90,9 +91,7 @@ def reply() -> dict[str, object]:
 
 def request(servings: int = 2) -> dict[str, object]:
     return {
-        "meals": [
-            {"recipe_id": chat_loop.SUPPORTED_RECIPE_IDS[0], "servings": servings}
-        ],
+        "meals": [{"recipe_id": SUPPORTED_RECIPE_IDS[0], "servings": servings}],
         "pantry_ingredients": [],
         "budget_period": "2026-10-01",
         "plan_cap_cents": 10000,

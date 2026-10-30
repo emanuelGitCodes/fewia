@@ -36,14 +36,18 @@ def _error_trace(
     *,
     sequence: int = 1,
     revision_index: int | None = 1,
+    inputs: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    return {
+    entry: dict[str, object] = {
         "tool": tool,
         "outcome": "error",
         "tool_use_id": tool_use_id,
         "sequence": sequence,
         "revision_index": revision_index,
     }
+    if inputs is not None:
+        entry["inputs"] = inputs
+    return entry
 
 
 def _success_trace(
@@ -113,6 +117,30 @@ def test_get_plan_and_get_meal_dispatch_read_only_with_trace() -> None:
     ]
 
 
+def test_trace_inputs_hold_validated_values_only() -> None:
+    trace: list[dict[str, object]] = []
+    for call in (
+        ToolCall("p1", "get_plan", {}),
+        ToolCall("m1", "get_meal", {"recipe_id": "chicken_tacos"}),
+        ToolCall("m2", "get_meal", {"recipe_id": _SECRET}),
+        ToolCall(
+            "w1", SUBSTITUTE_TOOL, {"recipe_id": "bean_tacos", "with_food": _SECRET}
+        ),
+        ToolCall("w2", SUBSTITUTE_TOOL, {"recipe_id": _SECRET, "with_food": "beef"}),
+        ToolCall("i1", INGREDIENT_TOOL, {"name": _SECRET}),
+    ):
+        dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert [entry["inputs"] for entry in trace] == [
+        {},
+        {"recipe_id": "chicken_tacos"},
+        {"recipe_id": "invalid"},
+        {"recipe_id": "bean_tacos", "status": "unknown_food"},
+        {"recipe_id": "invalid"},
+        {"status": "unknown"},
+    ]
+    assert _SECRET not in json.dumps(trace)
+
+
 def test_get_plan_and_get_meal_invalid_arguments_return_static_error() -> None:
     trace: list[dict[str, object]] = []
     for name, args in (("get_plan", {"x": 1}), ("get_meal", {})):
@@ -157,6 +185,14 @@ def test_what_if_substitute_dispatch_is_read_only_with_trace() -> None:
             "tool_use_id": "w1",
             "sequence": 1,
             "revision_index": None,
+            "inputs": {
+                "recipe_id": "chicken_tacos",
+                "status": "swapped",
+                "replace_ingredient_id": "chicken_breast",
+                "with_ingredient_id": "chickpeas",
+                "servings": 2,
+                "servings_source": "request",
+            },
         }
     ]
     _plan, _block = dispatch(
@@ -179,7 +215,14 @@ def test_what_if_substitute_invalid_arguments_return_static_error() -> None:
             "status": "error",
         }
     }
-    assert trace == [_error_trace(SUBSTITUTE_TOOL, "w2", revision_index=None)]
+    assert trace == [
+        _error_trace(
+            SUBSTITUTE_TOOL,
+            "w2",
+            revision_index=None,
+            inputs={"recipe_id": "chicken_tacos"},
+        )
+    ]
     dumped = json.dumps({"block": block, "trace": trace})
     assert _SECRET not in dumped
     assert "SubstituteToolError" not in dumped
@@ -254,6 +297,7 @@ def test_get_ingredient_facts_dispatch_is_read_only_with_trace() -> None:
             "tool_use_id": "i1",
             "sequence": 1,
             "revision_index": None,
+            "inputs": {"status": "found", "ingredient_id": "ground_beef_80"},
         }
     ]
 
@@ -304,7 +348,9 @@ def test_get_ingredient_facts_invalid_arguments_return_static_error(
             "status": "error",
         }
     }
-    assert trace == [_error_trace(INGREDIENT_TOOL, "i3", revision_index=None)]
+    assert trace == [
+        _error_trace(INGREDIENT_TOOL, "i3", revision_index=None, inputs={})
+    ]
     dumped = json.dumps({"block": block, "trace": trace})
     assert _SECRET not in dumped
     assert "IngredientToolError" not in dumped
@@ -492,7 +538,14 @@ def test_price_lines_invalid_arguments_return_static_error() -> None:
             "status": "error",
         }
     }
-    assert trace == [_error_trace(PRICE_TOOL, "l3", revision_index=None)]
+    assert trace == [
+        _error_trace(
+            PRICE_TOOL,
+            "l3",
+            revision_index=None,
+            inputs={"recipe_ids": ["chicken_tacos"] * 3},
+        )
+    ]
     dumped = json.dumps({"block": block, "trace": trace})
     assert _SECRET not in dumped
     assert "PriceToolError" not in dumped

@@ -32,19 +32,25 @@ from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
 
 MAX_MODEL_TURNS = 8
 MAX_PLANNER_REVISIONS = 3
 
 SYSTEM_PROMPT = (
-    "You plan grocery meals. Catalog IDs are authoritative: "
-    f"{', '.join(SUPPORTED_RECIPE_IDS)}. "
+    "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
+    "lists the meals in the user's plan. When the user names a plan meal or "
+    "says my meal, use that plan meal's recipe_id. To change a food in a "
+    "meal, for example beef instead of beans or beef tacos for bean tacos, "
+    "call what_if_substitute once with the meal's recipe_id and with_food set "
+    "to the new food. Do not call get_meal or get_ingredient_facts before "
+    "that call. A meal name that changes one food in a plan meal or a "
+    "catalog meal is a swap, not a new meal. "
     "Catalog ingredients are id:name pairs: "
     f"{', '.join(f'{item.id}:{item.name}' for item in INGREDIENTS.values())}. "
-    "When a requested meal is not in the catalog, you MUST NOT invent a "
-    "recipe. Offer up to three catalog meals that fit the stated diet. "
+    "When a requested meal is not in the catalog and is not a swap, you MUST "
+    "NOT invent a recipe. Offer up to three catalog meals that fit the "
+    "stated diet. "
     "Ask the user which one to plan. "
     "Name meals in plain words in replies, not as catalog IDs. "
     "You MUST call the plan_groceries tool for arithmetic and validation. "
@@ -96,7 +102,8 @@ SYSTEM_PROMPT = (
     "You MUST NOT translate a restriction group such as nightshades into catalog IDs. "
     "The tool rejects unknown terms and asks the user. "
     "Ask the user before you choose an alternative. "
-    "For meal discovery and meal-type requests, you MUST call find_catalog_meals. "
+    "To find new meals by type or diet, call find_catalog_meals. "
+    "You MUST NOT call it for a meal the user names or has in the plan. "
     "Include effective diet and exact exclusions from the latest user message "
     "and validated prior request. Do not infer hidden preferences. "
     "high_protein means 30 g or more protein per serving. "
@@ -106,19 +113,13 @@ SYSTEM_PROMPT = (
     "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe. "
     "When the user asks for a meal type, name up to three catalog meals "
     "with that tag and ask which one to plan. "
-    "Call get_plan to read the user's current plan. "
+    "Call get_plan for the plan's totals and prices. "
     "Call get_meal to read one catalog meal's ingredients and macros. "
     "To compare a swap or a smaller or larger portion of one ingredient, "
     "call what_if_substitute. It does not change the plan. "
     "To price meals with or without a swap, call price_lines. "
     "Prices are sample estimates. "
-    "When the user names a food or ingredient, call get_ingredient_facts "
-    "to find its ID. "
-    "To swap an ingredient in a meal for another food, call "
-    "what_if_substitute with with_food. "
-    "When the user renames a meal with a food, for example beef tacos for "
-    "bean tacos, call what_if_substitute with that meal's recipe_id and "
-    "with_food set to the food."
+    "Call get_ingredient_facts only for a question about one food on its own."
 )
 _PLAN_READ_TOOLS = (
     GET_PLAN_TOOL,
@@ -207,6 +208,12 @@ def run_chat(
         previous_ingredient_ids=previous_ingredient_ids,
         history=history,
         plan_cap_cents=plan_cap_cents,
+        plan_meals=None
+        if plan_revision is None
+        else [
+            {"recipe_id": meal.recipe_id, "servings": meal.servings}
+            for meal in plan_revision.snapshot.meals
+        ],
     )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []

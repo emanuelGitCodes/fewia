@@ -41,6 +41,9 @@ def substitute_tool_spec() -> dict[str, object]:
     ingredient = {"type": "string", "description": INGREDIENT_ID_HELP}
     return _spec(
         SUBSTITUTE_TOOL,
+        "Use this when the user wants a different food in a meal: beef instead "
+        "of beans, make it beef tacos, swap, or replace. One call does it: "
+        "give recipe_id and with_food. "
         "Recompute one catalog meal with one ingredient replaced or scaled. "
         "Return before, after, and delta macros. The tool does not change the "
         "plan. To swap, give with_food (a food name) or with_ingredient_id. "
