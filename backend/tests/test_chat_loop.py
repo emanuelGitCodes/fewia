@@ -1038,6 +1038,23 @@ def test_a_proposal_wins_over_a_later_catalog_search() -> None:
     assert result["proposal_id"] == "proposal-1"
 
 
+def test_a_proposal_is_followed_by_a_later_planner_answer() -> None:
+    result, _ = _propose_run(
+        [
+            _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+            _reply([_tool_block("p1", payload={})], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        Proposer(),
+    )
+    answer = cast(str, result["answer"])
+    alone, _ = _propose_run(_proposal_replies("done"), Proposer())
+    assert answer.startswith(cast(str, alone["answer"]))
+    assert len(answer) > len(cast(str, alone["answer"]))
+    assert "Apply it in the plan panel." in answer
+    assert result["proposal_id"] == "proposal-1"
+
+
 def test_a_changed_plan_claim_falls_back_to_the_template() -> None:
     reply = "I added Vegetable pasta to your plan."
     result, _ = _propose_run(_proposal_replies(reply), Proposer(), model_prose=True)

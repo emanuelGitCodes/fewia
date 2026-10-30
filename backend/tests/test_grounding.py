@@ -108,10 +108,25 @@ def test_diet_check_ignores_letters_inside_other_words(reply: str) -> None:
 
 @pytest.mark.parametrize(
     "reply",
-    ["These are vegan.", "a keto meal", "plant based", "dairy free", "Low-fat."],
+    [
+        "These are vegan.",
+        "a keto meal",
+        "plant based",
+        "dairy free",
+        "Low-fat.",
+        "Great for vegetarians.",
+        "These suit vegans.",
+        "A ketogenic dinner.",
+        "It is keto_friendly.",
+    ],
 )
-def test_diet_labels_fail_as_whole_words(reply: str) -> None:
+def test_diet_labels_fail_from_a_word_start(reply: str) -> None:
     assert "forbidden_claim" in validate(reply, FactSet()).reasons
+
+
+def test_spaced_out_letters_pass_the_diet_check() -> None:
+    # Known trade-off: only the safety claims keep the squashed-letter match.
+    assert "forbidden_claim" not in validate("v e g a n", FactSet()).reasons
 
 
 @pytest.mark.parametrize(
@@ -130,7 +145,9 @@ def test_servings_sentence_is_exempt_where_allowed(reply: str) -> None:
 
 def test_servings_sentence_is_not_exempt_mid_sentence() -> None:
     reply = "Plan Servings from your plan: 2."
-    assert not validate(reply, FactSet(generic={Decimal(2)})).ok
+    verdict = validate(reply, FactSet(generic={Decimal(2)}))
+    assert not verdict.ok
+    assert "forbidden_claim" in verdict.reasons
 
 
 # Self-consistency: every server template passes its own validator.

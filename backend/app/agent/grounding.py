@@ -120,12 +120,13 @@ _FORBIDDEN = re.compile(
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
 )
-# Diet labels match as whole words on the folded text, so "tofu" or "take" never hit
-# "keto". Only the catalog's own sentences (see _SERVER_SENTENCE) may use them.
+# Diet labels match from a word start on the folded text: "tofu" does not match
+# "keto"; "vegetarians" and "ketogenic" do. Spaced letters do not match.
+# Only the catalog's own sentences (see _SERVER_SENTENCE) may use a diet label.
 _DIET_LABEL = re.compile(
     r"\b(?:vegan|vegetarian|keto|paleo|halal|kosher"
     r"|(?:plant[- ]?based|(?:dairy|lactose|nut|egg|soy|sugar)[- ]?free"
-    r"|low[- ]?(?:sodium|fat)|high[- ]?fiber))\b",
+    r"|low[- ]?(?:sodium|fat)|high[- ]?fiber))",
     re.IGNORECASE,
 )
 # A word split by a hyphen at a line break ("vegetar-\nian") is one word.
@@ -439,10 +440,9 @@ def validate(reply: str, facts: FactSet) -> Verdict:
         return Verdict(False, ("unsupported_character",), (), False)
     text = normalize(reply)
     unmatched, word, money = _scan(text, facts)
-    claims_raw = normalize(
-        _LINE_HYPHEN.sub("", _fold(_without_server_sentences(reply)))
-    )
-    claims = normalize(_without_server_sentences(reply))
+    kept = _without_server_sentences(reply)
+    claims = normalize(kept)
+    diet_text = normalize(_LINE_HYPHEN.sub("", _fold(kept)))
     # Only the server appends the stale warning; a model copy of it is a claim.
     stale_copy = _squash(STALE_SPENDING_WARNING) in _squash(text)
     checks = (
@@ -453,7 +453,7 @@ def validate(reply: str, facts: FactSet) -> Verdict:
             "forbidden_claim",
             stale_copy
             or _FORBIDDEN.search(_squash(claims)) is not None
-            or _DIET_LABEL.search(_LINE_HYPHEN.sub("", claims_raw)) is not None,
+            or _DIET_LABEL.search(diet_text) is not None,
         ),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
