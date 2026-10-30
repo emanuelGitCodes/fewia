@@ -925,6 +925,7 @@
 }
 .tonight-ask-sub,
 .tonight-ask-hint,
+.tonight-ask-kroger,
 .tonight-ask-est,
 .tonight-ask-who {
   margin: 0;
@@ -1016,7 +1017,8 @@
   padding: 0;
   list-style: none;
 }
-.tonight-ask-est {
+.tonight-ask-est,
+.tonight-ask-kroger {
   margin-top: 0.5rem;
 }
 .tonight-ask-form {

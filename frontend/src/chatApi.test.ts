@@ -157,6 +157,21 @@ describe("chatApi", () => {
     expect(job).toEqual(queuedJob);
   });
 
+  it("appends location_id only for a valid 8-character id", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(queuedJob),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const path = `/api/grocery/chat/jobs/${encodeURIComponent(queuedJob.id)}`;
+    await fetchChatJob(queuedJob.id, undefined, "01400943");
+    await fetchChatJob(queuedJob.id, undefined, "bad id");
+    await fetchChatJob(queuedJob.id, undefined, null);
+    await fetchChatJob(queuedJob.id);
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      `${path}?location_id=01400943`, path, path, path,
+    ]);
+  });
+
   it("returns a typed succeeded job from a valid fixture", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(succeededJob)));
     await expect(fetchChatJob(succeededJob.id)).resolves.toEqual(succeededJob);

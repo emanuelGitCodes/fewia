@@ -337,6 +337,43 @@ describe("PlanChat", () => {
     expect(onToggleIdea).toHaveBeenCalledWith("chickpea_curry", 2, false);
   });
 
+  it("shows the Kroger quote under the reply and passes the store id to the job", async () => {
+    const quote = {
+      kind: "store_live", ingredient_id: "rice", product_label: "Long grain rice", brand: null,
+      size: "2 lb", regular_cents: 249, promo_cents: null, stock_level: "HIGH",
+      location_id: "01400943", retrieved_at: "2026-09-01T12:00:00Z",
+    } as const;
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-1", "planned", "Rice fits.", [{ recipe_id: "chickpea_curry", servings: 2 }]);
+      jobState.job = { ...job, result: { ...job.result, kroger_quote: quote } as ChatResult };
+    });
+    mount(initialPlanState(), { krogerStore: { locationId: "01400943", name: "Main Street" } });
+    await submitText("Rice please");
+    expect(vi.mocked(useChatJob)).toHaveBeenCalledWith("01400943");
+    const line = screen.getByText(/^Live price from Kroger Main Street as of /);
+    expect(line.textContent).toContain(": Long grain rice, 2 lb, regular $2.49, stock high. ");
+    expect(screen.getByText(SAMPLE_ESTIMATE_NOTICE)).toBeTruthy();
+  });
+
+  it("shows the fixed sentence when Kroger is degraded and nothing without a quote", async () => {
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-1", "clarification", "Which meals?");
+      jobState.job = { ...job, result: { ...job.result, kroger_degraded: true } as ChatResult };
+    });
+    mount();
+    await submitText("Plan dinner");
+    expect(screen.getByText("Kroger did not answer, so no live price is shown.")).toBeTruthy();
+    cleanup();
+    jobState.job = null;
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-2", "clarification", "Which meals?");
+    });
+    mount();
+    await submitText("Plan dinner");
+    expect(screen.queryByText(/Kroger/)).toBeNull();
+    expect(vi.mocked(useChatJob)).toHaveBeenLastCalledWith(null);
+  });
+
   it("shows only the answer text for a clarification", async () => {
     jobState.submit.mockImplementation(async () => {
       jobState.job = chatJob("job-1", "clarification", "Which meals should I plan?");

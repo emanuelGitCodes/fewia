@@ -163,6 +163,26 @@ describe("retainChatReplies", () => {
     expect(retainChatReplies(replies, [], null, []).size).toBe(0);
   });
 
+  it("copies the Kroger quote and degraded flag from the completed job", () => {
+    const quote = {
+      kind: "store_live", ingredient_id: "rice", product_label: "Rice", brand: null, size: null,
+      regular_cents: 199, promo_cents: null, stock_level: null, location_id: "01400943",
+      retrieved_at: "2026-09-01T12:00:00Z",
+    } as const;
+    const base = jobWith("planned", []);
+    const withQuote = { ...base, result: { ...base.result, kroger_quote: quote } } as ChatJob;
+    const degraded = { ...base, result: { ...base.result, kroger_degraded: true } } as ChatJob;
+    expect(retainChatReplies(new Map(), [], withQuote, []).get("job-1")).toMatchObject({
+      quote, degraded: false,
+    });
+    expect(retainChatReplies(new Map(), [], degraded, []).get("job-1")).toMatchObject({
+      quote: null, degraded: true,
+    });
+    expect(retainChatReplies(new Map(), [], base, []).get("job-1")).toMatchObject({
+      quote: null, degraded: false,
+    });
+  });
+
   it("keeps failed-turn metadata while the assistant is retained", () => {
     const job = jobWith("incomplete", []);
     const replies = retainChatReplies(new Map(), [], job, []);

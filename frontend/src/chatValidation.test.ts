@@ -91,6 +91,44 @@ function expectShapeError(value: unknown): void {
   }
 }
 
+function krogerQuote(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    kind: "store_live", ingredient_id: "rice", product_label: "Long grain rice", brand: "Acme",
+    size: "2 lb", regular_cents: 249, promo_cents: 199, stock_level: "HIGH",
+    location_id: "01400943", retrieved_at: "2026-09-01T12:00:00Z", ...overrides,
+  };
+}
+
+describe("parseChatResult Kroger overlay", () => {
+  it("accepts a valid quote, null, and absence, and keeps absent keys absent", () => {
+    expect(parseChatResult(candidate({ kroger_quote: krogerQuote() })).kroger_quote).toEqual(
+      krogerQuote(),
+    );
+    expect(parseChatResult(candidate({ kroger_quote: null })).kroger_quote).toBeNull();
+    const plain = parseChatResult(candidate());
+    expect("kroger_quote" in plain).toBe(false);
+    expect("kroger_degraded" in plain).toBe(false);
+    expect(parseChatResult(candidate({ kroger_degraded: true })).kroger_degraded).toBe(true);
+  });
+
+  it("rejects malformed quotes and a false degraded flag", () => {
+    const bad: Array<Record<string, unknown>> = [
+      { kind: "other" }, { ingredient_id: 1 }, { product_label: "x".repeat(161) },
+      { brand: 3 }, { size: "x".repeat(161) }, { regular_cents: 0 }, { regular_cents: 1.5 },
+      { regular_cents: -1 }, { promo_cents: -1 }, { promo_cents: "1" }, { stock_level: 5 },
+      { location_id: "0140094" }, { location_id: "0140094!" }, { retrieved_at: "2026-09-01 12:00:00" },
+      { retrieved_at: "2026-09-01T12:00:00+00:00" }, { extra: true },
+    ];
+    for (const overrides of bad) {
+      expectShapeError(candidate({ kroger_quote: krogerQuote(overrides) }));
+    }
+    const { brand: _brand, ...missing } = krogerQuote();
+    expectShapeError(candidate({ kroger_quote: missing }));
+    expectShapeError(candidate({ kroger_quote: "rice" }));
+    expectShapeError(candidate({ kroger_degraded: false }));
+  });
+});
+
 describe("parseChatResult", () => {
   it("accepts a planned result with budget, request, and a 64-hex revision", () => {
     const parsed = parseChatResult(candidate());

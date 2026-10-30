@@ -1,5 +1,5 @@
 import type { ChatBudget } from "../chatConversationModel";
-import type { ChatJob } from "../chatTypes";
+import type { ChatJob, KrogerQuote } from "../chatTypes";
 import { formatDollars } from "../money";
 import type { PlanState } from "./planModel";
 import { INGREDIENTS, RECIPES, isKnownRecipe } from "./prototypeData";
@@ -7,7 +7,12 @@ import { INGREDIENTS, RECIPES, isKnownRecipe } from "./prototypeData";
 export const MAX_IDEAS = 3;
 
 export type ChatIdea = { recipeId: string; servings: number };
-export type ChatReply = { ideas: ChatIdea[]; answered: boolean };
+export type ChatReply = {
+  ideas: ChatIdea[];
+  answered: boolean;
+  quote: KrogerQuote | null;
+  degraded: boolean;
+};
 
 export function retainChatReplies(
   current: ReadonlyMap<string, ChatReply>,
@@ -25,6 +30,8 @@ export function retainChatReplies(
     next.set(completed.id, {
       ideas: ideasFromJob(completed, plannedIds),
       answered: completed.result.status !== "limit" && completed.result.status !== "incomplete",
+      quote: completed.result.kroger_quote ?? null,
+      degraded: completed.result.kroger_degraded === true,
     });
   }
   return next.size === current.size && [...next.keys()].every((id) => current.has(id))

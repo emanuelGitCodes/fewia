@@ -3,7 +3,9 @@ import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import { BUDGET_ERROR, MAX_MESSAGE_LENGTH, TEXT_ERROR } from "../chatConversationModel";
 import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
+import type { KrogerStore } from "../chatTypes";
 import { ChatIdeaCard } from "./ChatIdeaCard";
+import { KrogerQuoteLine } from "./KrogerQuoteLine";
 import { chatBudget, planChatPrefix, retainChatReplies, type ChatReply } from "./planChatModel";
 import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
@@ -32,8 +34,10 @@ export function PlanChat(props: {
   open?: boolean;
   onHide?: () => void;
   onReply?: () => void;
+  krogerStore?: KrogerStore | null;
 }): JSX.Element {
   const { state, onReply } = props;
+  const krogerStore = props.krogerStore ?? null;
   const uid = useId();
   const headingId = `${uid}-heading`;
   const inputId = `${uid}-input`;
@@ -63,7 +67,10 @@ export function PlanChat(props: {
     }
   }, []);
   const budget = chatBudget(state);
-  const chat = useChatConversation(budget, null, { prepareSend });
+  const chat = useChatConversation(budget, null, {
+    prepareSend,
+    krogerLocationId: krogerStore?.locationId ?? null,
+  });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hideRef = useRef<HTMLButtonElement>(null);
   const announced = useRef<string | null>(null);
@@ -265,6 +272,9 @@ export function PlanChat(props: {
               <li key={turn.id} className={`tonight-ask-turn is-${turn.role}`}>
                 <p className="tonight-ask-who">{turn.role === "user" ? "You" : "FEWIA"}</p>
                 <p className="tonight-ask-text">{turn.content}</p>
+                {turn.role === "assistant" && reply !== undefined ? (
+                  <KrogerQuoteLine quote={reply.quote} degraded={reply.degraded} store={krogerStore} />
+                ) : null}
                 {ideas.length > 0 ? (
                   <>
                     <ul className="tonight-ask-ideas" aria-label="Meal ideas">

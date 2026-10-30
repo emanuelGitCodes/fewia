@@ -20,9 +20,19 @@ export async function submitChatJob(
   );
 }
 
-export async function fetchChatJob(id: string, signal?: AbortSignal): Promise<ChatJob> {
+const LOCATION_ID = /^[0-9A-Za-z]{8}$/;
+
+export async function fetchChatJob(
+  id: string,
+  signal?: AbortSignal,
+  locationId?: string | null,
+): Promise<ChatJob> {
+  const query =
+    locationId != null && LOCATION_ID.test(locationId)
+      ? `?location_id=${encodeURIComponent(locationId)}`
+      : "";
   return parseChatJob(
-    await readJson(`/api/grocery/chat/jobs/${encodeURIComponent(id)}`, {
+    await readJson(`/api/grocery/chat/jobs/${encodeURIComponent(id)}${query}`, {
       method: "GET",
       signal,
     }),

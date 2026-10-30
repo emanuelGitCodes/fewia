@@ -31,6 +31,7 @@ export function useChatConversation(
   options?: {
     composeMessage?: (text: string) => string;
     prepareSend?: (text: string) => Promise<PreparedSend>;
+    krogerLocationId?: string | null;
   },
 ): {
   message: string;
@@ -44,7 +45,9 @@ export function useChatConversation(
   retry: () => void;
   newConversation: () => void;
 } {
-  const { job: polledJob, error: jobError, pending, submit, clear } = useChatJob();
+  const { job: polledJob, error: jobError, pending, submit, clear } = useChatJob(
+    options?.krogerLocationId ?? null,
+  );
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);

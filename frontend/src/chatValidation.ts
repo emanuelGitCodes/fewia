@@ -10,9 +10,45 @@ import {
   type MealPlanNutrition,
 } from "./apiTypes";
 import { copyMealPlanNutrition, copySupermarketEstimate, isBudget, isPlan } from "./apiValidation";
-import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage } from "./chatTypes";
+import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage, KrogerQuote } from "./chatTypes";
 
 const HEX64 = /^[0-9a-f]{64}$/;
+const LOCATION_ID = /^[0-9A-Za-z]{8}$/;
+const RETRIEVED_AT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
+const QUOTE_KEYS = [
+  "kind", "ingredient_id", "product_label", "brand", "size", "regular_cents",
+  "promo_cents", "stock_level", "location_id", "retrieved_at",
+];
+function shortText(value: unknown): value is string {
+  return isString(value) && value.length <= 160;
+}
+function optionalText(value: unknown): value is string | null {
+  return value === null || shortText(value);
+}
+function copyKrogerQuote(value: unknown): KrogerQuote | null {
+  if (
+    !isRecord(value) || Object.keys(value).length !== QUOTE_KEYS.length ||
+    !QUOTE_KEYS.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  ) {
+    return null;
+  }
+  const { regular_cents: regular, promo_cents: promo } = value;
+  if (
+    value.kind !== "store_live" || !shortText(value.ingredient_id) || !shortText(value.product_label) ||
+    !optionalText(value.brand) || !optionalText(value.size) || !optionalText(value.stock_level) ||
+    !isSafeInteger(regular) || regular <= 0 ||
+    (promo !== null && (!isSafeInteger(promo) || promo < 0)) ||
+    !isString(value.location_id) || !LOCATION_ID.test(value.location_id) ||
+    !isString(value.retrieved_at) || !RETRIEVED_AT.test(value.retrieved_at)
+  ) {
+    return null;
+  }
+  return {
+    kind: "store_live", ingredient_id: value.ingredient_id, product_label: value.product_label,
+    brand: value.brand, size: value.size, regular_cents: regular, promo_cents: promo,
+    stock_level: value.stock_level, location_id: value.location_id, retrieved_at: value.retrieved_at,
+  };
+}
 const FIRST_DAY = /^(\d{4})-(\d{2})-01$/;
 function isRequest(value: unknown): value is GroceryRequest {
   if (!isRecord(value) || !Array.isArray(value.meals) || !isString(value.budget_period)) {
@@ -152,7 +188,12 @@ export function parseChatResult(value: unknown): ChatResult {
     value.supermarket_estimate === undefined
       ? undefined
       : copySupermarketEstimate(value.supermarket_estimate);
-  if (overlay === null) {
+  const rawQuote = value.kroger_quote;
+  const quote = rawQuote == null ? rawQuote : copyKrogerQuote(rawQuote);
+  if (
+    overlay === null || (rawQuote != null && quote === null) ||
+    (value.kroger_degraded !== undefined && value.kroger_degraded !== true)
+  ) {
     throw new Error(SHAPE_ERROR);
   }
   return {
@@ -170,6 +211,8 @@ export function parseChatResult(value: unknown): ChatResult {
     planner_revisions: value.planner_revisions,
     usage: value.usage === null ? null : copyUsage(value.usage),
     ...(overlay === undefined ? {} : { supermarket_estimate: overlay }),
+    ...(quote === undefined ? {} : { kroger_quote: quote }),
+    ...(value.kroger_degraded === true ? { kroger_degraded: true as const } : {}),
   };
 }
 export function parseChatJob(value: unknown): ChatJob {
