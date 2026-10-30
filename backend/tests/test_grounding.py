@@ -737,6 +737,82 @@ def test_has_money_flags_dollar_tokens_only() -> None:
     assert not validate("That is 5 servings.", facts).has_money
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "These tacos are gluten-free. Ingredients: corn.",
+        "This meal is gluten free (ingredients vary).",
+        "These tacos are gluten-free; ingredients: corn.",
+    ],
+)
+def test_gluten_free_ingredients_exemption_needs_the_exact_phrase(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+    assert validate("made with gluten-free ingredients", FactSet()).ok
+
+
+def test_accents_are_folded_before_claims() -> None:
+    for reply in ("These are gluten-frée.", "It is sàfe for you.", "Kröger sells it"):
+        assert not validate(reply, FactSet()).ok, reply
+    assert validate("Kröger sells it", FactSet()).reasons == ("store_price",)
+    assert validate("Add jalapeño slices.", FactSet()).ok
+
+
+def test_mixed_script_words_fail_but_single_script_words_do_not() -> None:
+    cyrillic_e = "glutеn"
+    verdict = validate(f"These are {cyrillic_e}-free.", FactSet())
+    assert verdict.reasons == ("mixed_script",)
+    assert validate("Это просто текст.", FactSet()).ok
+    assert validate("Add jalapeño slices.", FactSet()).ok
+
+
+@pytest.mark.parametrize(
+    "word",
+    [
+        "fourth",
+        "fourths",
+        "sixth",
+        "seventh",
+        "eighth",
+        "ninth",
+        "tenth",
+        "pair",
+        "couple",
+    ],
+)
+def test_ordinal_and_group_words_fail(word: str) -> None:
+    assert validate(f"Use a {word} of it.", FactSet()).reasons == ("number_word",)
+
+
+def test_dollar_words_and_spaced_dollar_sign_are_money() -> None:
+    verdict = validate("It costs a dollar.", FactSet())
+    assert verdict.reasons == ("number_word",) and verdict.has_money
+    bucks = validate("It costs 5 bucks.", _facts(price_cents=500))
+    assert bucks.ok and bucks.has_money
+    wrong = validate("It costs 6 bucks.", _facts(price_cents=500))
+    assert wrong.unmatched == ("$6",) and wrong.has_money
+    assert validate("It costs bucks.", FactSet()).has_money
+    for reply in ("It costs $   12.", "It costs $ 12."):
+        verdict = validate(reply, _facts(price_cents=1_200))
+        assert verdict.ok and verdict.has_money, reply
+        assert validate(reply, FactSet()).unmatched == ("$12",), reply
+
+
+def test_usd_with_a_sign_is_a_signed_money_token() -> None:
+    facts = _facts(price_cents=1_200)
+    verdict = validate("The change is USD -12.", facts)
+    assert verdict.unmatched == ("-$12",) and verdict.has_money
+    delta = {"delta": {"total": {"price_cents": -1_200}}}
+    assert validate("The change is USD -12.", facts_from_payloads([("t", delta)])).ok
+
+
+def test_one_with_a_hyphenated_unit_is_checked_like_a_digit() -> None:
+    reply = "Buy a one-pound package."
+    assert validate(reply, FactSet()).unmatched == ("1",)
+    assert validate(reply, _facts(servings=1)).ok
+    assert validate("Buy a one pound package.", FactSet()).unmatched == ("1",)
+    assert validate("Which one do you want?", FactSet()).ok
+
+
 def test_with_notice_appends_once() -> None:
     once = with_notice("The total is $5.")
     assert once == f"The total is $5. {SAMPLE_ESTIMATE_NOTICE}"

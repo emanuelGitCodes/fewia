@@ -28,14 +28,17 @@ _BIG = (
     r"(?:(?:thir|four|fif|six|seven|eigh|nine)teen|twenty|thirty|forty|fifty|sixty"
     r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|half"
     r"|halves|couple|zero|twice|double|triple|quadruple|quarters?|once|tens"
-    r"|thirds?|fifths?|few|several)"
+    r"|thirds?|fifths?|few|several|(?:fourth|sixth|seventh|eighth|ninth|tenth)s?"
+    r"|pair|couple)"
 )
 # Vulgar fractions U+00BC-U+00BE, U+2150-U+215E, and U+2189.
 _FRACTION = r"[¼-¾⅐-⅞↉]"
 _TOKEN = re.compile(
-    rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s?(?P<usd>{_NUM})"
-    rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s*(?P<usdn>{_NUM})"
-    rf"|(?P<mn>{_NUM}|{_WORD})\s*(?:(?P<mu>dollars?|USD)\b|(?P<cents>cents?\b|¢)))"
+    rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s*(?P<usd>{_NUM})"
+    rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s*(?P<s4>{_SIGN})?\s*(?P<usdn>{_NUM})"
+    rf"|(?P<mn>{_NUM}|{_WORD})[\s-]*"
+    r"(?:(?P<mu>dollars?|USD|bucks?)\b|(?P<cents>cents?\b|¢)))"
+    r"|(?P<ad>\ba\s+(?:dollar|buck)\b)|(?P<bare>\b(?:dollars?|bucks?)\b)"
     rf"|(?P<big>\b{_BIG}\b|{_FRACTION})"
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
     rf"(?:\s*(?:to|-)\s*(?P<n2>{_NUM}))?"
@@ -50,6 +53,13 @@ _DETERMINER = re.compile(
     r"\b(?:which|this|that|the|any|no|each|every|another|a|an)\s+$", re.IGNORECASE
 )
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
+# "a one-pound package": a unit word after "one" makes it a quantity, not a pronoun.
+_UNIT_AFTER = re.compile(
+    r"[\s-]*(?:pound|lb|ounce|oz|serving|meal|package|pack|cup|slice|piece|portion"
+    r"|gram|kg|kilogram|liter|ml|tbsp|tablespoon|tsp|teaspoon|calorie|kcal|percent"
+    r"|dollar|buck|cent)s?\b",
+    re.IGNORECASE,
+)
 # UUIDs, long hex hashes, and ISO dates or datetimes carry no quantity.
 _OPAQUE = re.compile(
     r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}|[0-9a-f]{16,}"
@@ -59,8 +69,11 @@ _OPAQUE = re.compile(
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
-    r"|diagnos|glutenfree(?!ingredients)"
+    r"|diagnos|glutenfree"
 )
+# Only this phrase may name gluten-free (the catalog tag describes ingredients).
+_GLUTEN_INGREDIENTS = re.compile(r"gluten[-\s]free\s+ingredients", re.IGNORECASE)
+_LETTER_KINDS = ("Ll", "Lu", "Lt", "Lo")
 # The one server sentence that names the claims it refuses; removed before the check.
 _SAFETY_SENTENCE = _SAFETY.rsplit(". ", 1)[-1]
 
@@ -115,8 +128,27 @@ def _normalize(text: str) -> str:
     return _SPACES.sub(" ", shown)
 
 
+def _fold(text: str) -> str:
+    """Drop accents (NFKD, no combining marks), then lowercase."""
+    parts = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in parts if unicodedata.category(c) != "Mn").lower()
+
+
 def _squash(text: str) -> str:
-    return re.sub(r"[^a-z]", "", text.lower())
+    return re.sub(r"[^a-z]", "", _fold(text))
+
+
+def _mixed_script(text: str) -> bool:
+    """True when one word mixes Latin letters with letters of another script."""
+    for word in re.findall(r"[^\W\d_]+", _fold(text)):
+        scripts = {
+            unicodedata.name(c, "?").split()[0]
+            for c in word
+            if unicodedata.category(c) in _LETTER_KINDS
+        }
+        if "LATIN" in scripts and len(scripts) > 1:
+            return True
+    return False
 
 
 def _is_id(low: str) -> bool:
@@ -242,14 +274,17 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     word = money = False
     for m in _TOKEN.finditer(reply):
         before = reply[max(0, m.start() - 20) : m.start()]
-        if m["big"]:
+        if m["big"] or m["ad"]:
             word = True
+            money = money or bool(m["ad"])
+        elif m["bare"]:
+            money = True
         elif m["usd"] or m["usdn"] or m["mn"]:
             money = True
             raw = m["usd"] or m["usdn"] or m["mn"]
             amount = _number(raw)
             text = str(amount) if raw[0].isalpha() else raw.replace(",", "")
-            msign = m["s1"] or m["s2"] or m["s3"]
+            msign = m["s1"] or m["s2"] or m["s3"] or m["s4"]
             cents = amount * (1 if m["cents"] else 100)
             if not _grounded("money", cents, msign, False, facts):
                 label = text if m["cents"] else f"${text}"
@@ -258,6 +293,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             m["n1"].lower() == "one"
             and not any(m[name] for name in _KINDS)
             and (_DETERMINER.search(before) or _OF.match(reply, m.end()))
+            and not _UNIT_AFTER.match(reply, m.end())
         ):
             continue
         else:
@@ -276,12 +312,13 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
 def validate(reply: str, facts: FactSet) -> Verdict:
     text = _normalize(reply)
     unmatched, word, money = _scan(text, facts)
-    claims = text.replace(_SAFETY_SENTENCE, " ")
+    claims = _GLUTEN_INGREDIENTS.sub(" ", text.replace(_SAFETY_SENTENCE, " "))
     checks = (
         ("empty", not text.strip()),
         ("too_long", len(reply) > MAX_REPLY_CHARS),
         ("store_price", "kroger" in _squash(text)),
         ("forbidden_claim", _FORBIDDEN.search(_squash(claims)) is not None),
+        ("mixed_script", _mixed_script(text)),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
     )
