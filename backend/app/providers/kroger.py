@@ -78,7 +78,7 @@ def kroger_base_url(environment: str) -> str:
 def _clean(value: object) -> str | None:
     if not isinstance(value, str):
         return None
-    kept = "".join(ch for ch in value if unicodedata.category(ch) != "Cc")
+    kept = "".join(ch for ch in value if unicodedata.category(ch) not in ("Cc", "Cf"))
     return kept.strip()[:MAX_TEXT].strip() or None
 
 
@@ -97,8 +97,11 @@ def _parse_store(entry: object) -> KrogerStore | None:
     address = entry.get("address")
     if not isinstance(address, dict):
         return None
+    raw_id = entry.get("locationId")
+    if not isinstance(raw_id, str) or not _LOCATION_ID.fullmatch(raw_id):
+        return None
     fields = (
-        _clean(entry.get("locationId")),
+        raw_id,
         _clean(entry.get("name")),
         _clean(entry.get("chain")),
         _clean(address.get("addressLine1")),
@@ -280,8 +283,8 @@ class KrogerClient:
 
     def _get(self, kind: str, path: str, params: dict[str, str]) -> httpx.Response:
         self._check_cooldown()
-        self._spend(kind)
         token = self._app_token()
+        self._spend(kind)
         response = self._send(
             "GET",
             path,

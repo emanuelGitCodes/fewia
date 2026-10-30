@@ -245,8 +245,13 @@ def test_budget_resets_next_day() -> None:
     )
     for _ in range(1600):
         client.find_stores(ZIP)
+    sent = len(server.requests)
+    with pytest.raises(KrogerUnavailable):
+        client.find_stores(ZIP)
+    assert len(server.requests) == sent
     days[0] = date(2030, 1, 2)
     client.find_stores(ZIP)
+    assert len(server.requests) == sent + 1
 
 
 def test_401_drops_token() -> None:
@@ -318,14 +323,60 @@ def test_no_sentinels_in_errors_or_logs(caplog: pytest.LogCaptureFixture) -> Non
         assert sentinel not in rendered
 
 
-def test_shared_client_writes_no_httpx_log_records(
+def test_httpx_info_records_dropped_even_after_setlevel(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    import app.providers.http_client  # noqa: F401
+    from app.providers.http_client import build_http_client
 
+    build_http_client(BASE).close()
     caplog.set_level(logging.DEBUG)
-    assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING
-    assert logging.getLogger("httpcore").getEffectiveLevel() >= logging.WARNING
+    for name in ("httpx", "httpcore"):
+        logger = logging.getLogger(name)
+        previous = logger.level
+        logger.setLevel(logging.DEBUG)
+        try:
+            logger.info("HTTP Request: GET https://x/?filter.zipCode.near=%s", ZIP)
+        finally:
+            logger.setLevel(previous)
+    assert not any(ZIP in record.getMessage() for record in caplog.records)
+
+
+def test_failed_token_request_does_not_charge_budget() -> None:
+    server = Server()
+    server.token_status = 500
+    client, _ = _make(server)
+    with pytest.raises(KrogerUnavailable):
+        client.find_stores(ZIP)
+    server.token_status = 200
+    for _ in range(1600):
+        client.find_stores(ZIP)
+    sent = len(server.requests)
+    with pytest.raises(KrogerUnavailable):
+        client.find_stores(ZIP)
+    assert len(server.requests) == sent
+
+
+def test_clean_strips_format_characters() -> None:
+    server = Server()
+    server.locations = {"data": [_store(name="A‮B​C")]}
+    client, _ = _make(server)
+    assert client.find_stores(ZIP)[0].name == "ABC"
+
+
+def test_location_id_not_trimmed_before_match() -> None:
+    server = Server()
+    server.locations = {"data": [_store(locationId=" 01234567 ")]}
+    client, _ = _make(server)
+    assert client.find_stores(ZIP) == []
+
+
+def test_token_reused_just_before_margin() -> None:
+    server = Server()
+    client, clock = _make(server)
+    client.find_stores(ZIP)
+    clock.now += 1800 - 61
+    client.find_stores(ZIP)
+    assert server.count("/v1/connect/oauth2/token") == 1
 
 
 def test_base_urls() -> None:
