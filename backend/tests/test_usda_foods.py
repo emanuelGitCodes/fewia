@@ -210,26 +210,28 @@ def test_identical_descriptions_fail_the_load() -> None:
 
 
 @pytest.mark.parametrize(
-    ("description", "expected"),
+    ("description", "expected", "state"),
     [
         (
             "Pork, fresh, composite of trimmed leg, loin, shoulder, and spareribs,"
             " separable lean only, cooked, braised, roasted",
             "pork (composite, separable lean only, cooked, braised, roasted)",
+            "cooked",
         ),
         (
             "Beef, composite of trimmed retail cuts, separable lean and fat,"
             ' trimmed to 1/8" fat, all grades, raw',
             'beef (composite, trimmed to 1/8" fat, raw)',
+            "raw",
         ),
     ],
 )
 def test_composite_cuts_are_named_composite_not_one_cut(
-    description: str, expected: str
+    description: str, expected: str, state: str
 ) -> None:
     name = display_name(description, limit=90)
     assert name == expected
-    assert "composite" in name and "raw" in name
+    assert "composite" in name and state in name
     assert not any(cut in name for cut in ("leg", "loin", "shoulder", "spareribs"))
 
 
