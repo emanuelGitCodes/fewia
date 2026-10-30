@@ -53,6 +53,8 @@ behind the server and is never a tool.
 | D5. Evaluation records with model prose | Store propositions, validator verdicts, the tool trace, and a hash of the reply. Keep the reply text out of the evidence record. |
 | D6. Live price source | Kroger Products, confirmed by registration. The owner reads the Acceptable Use Policy before phase 2b. Remove Spoonacular. |
 | D7. Budget figure | Keep sample-catalog cents for acceptance (decision 0016). Show the Kroger price beside it. Revisit after one evaluation batch. |
+| D9. Store location | The user enters a ZIP. The server maps it to a Kroger `location_id`. The model never sees the ZIP. |
+| D12. Instacart removal | Remove the Instacart adapter and routes after the Kroger cart ships. This amends decision 0010. |
 | D10, D11. Certification to Production, redirect URI | The owner records Certification behavior and the Production steps from the portal, and registers the callback URI before the cart phase. |
 
 ## 2. Why it feels clunky today
@@ -135,9 +137,9 @@ USDA FDC 174036, "Beef, ground, 80% lean meat / 20% fat, raw": 254 kcal,
 
 **3.4 A budget question**
 
-> User: how much room do I have left this month?
+> User: how much room do I have left under my plan cap?
 >
-> FEWIA: Your entered budget is $25.00 and your plan estimate is $23.73, so
+> FEWIA: Your plan cap is $25.00 and your plan estimate is $23.73, so
 > $1.27 is left under the cap. Estimated from the demo price catalog.
 > Instacart prices, availability, taxes, delivery fees, and tips are not
 > verified.
@@ -810,8 +812,10 @@ to five seconds inside the turn.
 7. When an ingredient is unknown, the reply MUST say so and MUST offer the
    USDA lookup or a catalog alternative. It MUST NOT guess.
 8. The assistant MUST NOT buy, open links, or handle credentials.
-9. Provider text stays untrusted data. The loop MUST NOT execute, store as
-   evidence, or replay model prose.
+9. Provider text stays untrusted data. The loop MUST NOT execute model
+   prose or store it as evidence. The loop MAY replay a reply that passed
+   validation as a history turn (section 4.6). It MUST NOT replay
+   unvalidated model text.
 10. A reply that fails validation MUST be replaced by the server fallback
     and MUST be counted in the evaluation.
 

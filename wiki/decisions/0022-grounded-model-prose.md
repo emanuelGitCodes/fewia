@@ -31,6 +31,8 @@ sections 4.4 and 4.5.
   propositions, the validator verdict, the trace, and a SHA-256 hash of the
   reply. The 2026-10-04 owner contract stays in force.
 - Hidden model reasoning MUST NOT be stored.
+- The loop MAY send a reply that passed validation back to the model as a
+  history turn. It MUST NOT send unvalidated model text back.
 
 ## Basis
 
