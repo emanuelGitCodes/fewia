@@ -212,6 +212,27 @@ def test_chat_job_terminal_plan_and_followup(
     assert json.loads(content[0]["text"])["previous_ingredient_ids"] == ingredient_ids
 
 
+def test_chat_job_opts_in_to_validated_model_prose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    seen: list[object] = []
+    real = chat_job_module.run_chat
+
+    def spy(*args: object, **kwargs: object) -> dict[str, object]:
+        seen.append(kwargs.get("model_prose"))
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(chat_job_module, "run_chat", spy)
+    provider = FakeLLM([_reply([{"text": "How many servings?"}], "end_turn")])
+    result = chat_job_module.chat_job(
+        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+    )
+    assert seen == [True]
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+
+
 def test_chat_job_stores_snapshot_before_return(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

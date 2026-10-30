@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import date
 
 from app.agent import chat_messages as msgs
+from app.agent import grounding
 from app.agent.budget_tool import (
     TOOL_NAME as BUDGET_TOOL_NAME,
 )
@@ -83,6 +84,8 @@ SYSTEM_PROMPT = (
     "For ordinary replies, write a concise plain-text final reply. "
     "You MUST use the server money_display strings for money. "
     "Leave itemized prices to the estimate panel. "
+    "In your final reply, write every number as digits with its unit, copied "
+    "exactly from a tool result; do not use number words or fractions. "
     "Latest pantry additions and removals override prior pantry. "
     "Listing an ingredient again in a shopping list does not mean "
     "purchasing it. "
@@ -197,6 +200,7 @@ def run_chat(
     plan_revision: PlanRevisionInput | None = None,
     observe_terminal_tool_results: Callable[[list[dict[str, object]]], None]
     | None = None,
+    model_prose: bool = False,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -239,6 +243,7 @@ def run_chat(
     ]
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
+    run_payloads: list[tuple[str, dict[str, object]]] = []
 
     def answer() -> str:
         if not catalog_batch:
@@ -269,12 +274,24 @@ def run_chat(
         return " ".join(parts) if parts else render_public_answer(None)
 
     def out(
-        status: str, answer: str, plan: dict[str, object] | None
+        status: str,
+        answer: str,
+        plan: dict[str, object] | None,
+        reply_source: str = "template",
+        reply_check: dict[str, object] | None = None,
     ) -> dict[str, object]:
         if pending_results is not None and observe_terminal_tool_results is not None:
             observe_terminal_tool_results(pending_results)
         result = msgs.build_chat_result(
-            status, answer, plan, spending_source, trace, turns, revisions
+            status,
+            answer,
+            plan,
+            spending_source,
+            trace,
+            turns,
+            revisions,
+            reply_source=reply_source,
+            reply_check=reply_check,
         )
         result["usage"] = usage
         return result
@@ -305,7 +322,22 @@ def run_chat(
                 refused = parse_refusal(text)
                 if refused is not None:
                     return out("clarification", refused, None)
-                return out(_end_status(candidate), answer(), candidate)
+                status = _end_status(candidate)
+                if not (model_prose and run_payloads):
+                    return out(status, answer(), candidate)
+                reply = grounding.normalize(text).strip()
+                verdict = grounding.validate(
+                    reply, grounding.facts_from_payloads(run_payloads)
+                )
+                check: dict[str, object] = {
+                    "ok": verdict.ok,
+                    "reasons": list(verdict.reasons),
+                    "unmatched": list(verdict.unmatched),
+                }
+                if not verdict.ok:
+                    return out(status, answer(), candidate, "template", check)
+                shown = grounding.with_notice(reply) if verdict.has_money else reply
+                return out(status, shown, candidate, "model", check)
             return out("incomplete", _INCOMPLETE, None)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
@@ -350,6 +382,8 @@ def run_chat(
                 and tool_result.get("status") == "success"
             )
             batch_ok = batch_ok and success
+            if success and payload is not None:
+                run_payloads.append((call.name, payload))
             if call.name == TOOL_NAME and _end_status(payload) != "planned":
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:

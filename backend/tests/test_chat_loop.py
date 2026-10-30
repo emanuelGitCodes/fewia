@@ -624,6 +624,21 @@ def test_substitute_then_model_prose_ends_with_server_template() -> None:
     assert "model-prose-after-swap" not in json.dumps(result)
 
 
+def test_default_run_labels_the_template_reply_and_hashes_it() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("model-prose-after-swap")], "end_turn"),
+        ]
+    )
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+    assert len(cast(str, result["reply_sha256"])) == 64
+
+
 _BEEF_ARGS: dict[str, object] = {
     "recipe_id": "bean_tacos",
     "servings": 2,

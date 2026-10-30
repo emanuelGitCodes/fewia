@@ -108,4 +108,5 @@ def chat_job(
         record_evidence=record_evidence,
         plan_cap_cents=parsed.plan_cap_cents,
         plan_revision=parsed.plan_revision,
+        model_prose=True,
     )
