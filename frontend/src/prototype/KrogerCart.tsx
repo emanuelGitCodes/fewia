@@ -6,6 +6,8 @@ import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 export const KROGER_CART_ADDED_LINE = "Added to your Kroger cart. Review and check out on kroger.com.";
 export const KROGER_CART_RECONNECT_LINE = "Connect Kroger again.";
 export const KROGER_CART_UNAVAILABLE_LINE = "Kroger is unavailable. Try again.";
+export const KROGER_CART_EMPTY_LINE = "No Kroger items found for this plan.";
+export const KROGER_CART_SAVE_FAILED_LINE = "Could not save the plan. Try again.";
 export const KROGER_CART_UNKNOWN_LINE =
   "Kroger did not confirm. Check your Kroger cart before you retry.";
 
@@ -20,7 +22,15 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   const [unconfirmed, setUnconfirmed] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
+  const mounted = useRef(false);
   const key = `${locationId ?? ""}:${JSON.stringify(planRevisionBody(state))}`;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     setPreview(null);
@@ -51,22 +61,31 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
     setAdded(false);
     setUnconfirmed(false);
     setPreviewing(true);
-    savePlanRevision(planRevisionBody(state), current.signal)
-      .then((id) => previewKrogerCart(id, locationId, current.signal))
-      .then(
-        (value) => {
-          if (generation.current === mine) {
-            setPreviewing(false);
-            setPreview(value);
-          }
-        },
-        () => {
-          if (generation.current === mine) {
-            setPreviewing(false);
-            setMessage(KROGER_CART_UNAVAILABLE_LINE);
-          }
-        },
-      );
+    const run = async (): Promise<void> => {
+      let id: string;
+      try {
+        id = await savePlanRevision(planRevisionBody(state), current.signal);
+      } catch {
+        if (generation.current === mine) {
+          setPreviewing(false);
+          setMessage(KROGER_CART_SAVE_FAILED_LINE);
+        }
+        return;
+      }
+      try {
+        const value = await previewKrogerCart(id, locationId, current.signal);
+        if (generation.current === mine) {
+          setPreviewing(false);
+          setPreview(value);
+        }
+      } catch {
+        if (generation.current === mine) {
+          setPreviewing(false);
+          setMessage(KROGER_CART_UNAVAILABLE_LINE);
+        }
+      }
+    };
+    void run();
   };
 
   const send = (): void => {
@@ -79,6 +98,10 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
     setUnconfirmed(false);
     addToKrogerCart(preview.items.map(({ upc, quantity }) => ({ upc, quantity }))).then((result) => {
       if (generation.current !== mine) {
+        // The plan or store changed mid-send, so the items may be in the cart; never drop that.
+        if (mounted.current) {
+          setMessage(KROGER_CART_UNKNOWN_LINE);
+        }
         return;
       }
       setSending(false);
@@ -122,6 +145,9 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
                 </li>
               ))}
             </ul>
+          ) : null}
+          {count === 0 && preview.unmatched.length === 0 ? (
+            <p className="tonight-ask-hint">{KROGER_CART_EMPTY_LINE}</p>
           ) : null}
           {preview.unmatched.length > 0 ? (
             <p className="tonight-ask-hint">

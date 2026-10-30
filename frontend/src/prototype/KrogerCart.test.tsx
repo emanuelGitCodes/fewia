@@ -151,4 +151,65 @@ describe("KrogerCart", () => {
     view.rerender(<KrogerCart state={initialPlanState()} locationId="01400944" />);
     expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
   });
+
+  it("drops the preview when the plan changes", async () => {
+    stub(() => 204);
+    const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    await showPreview();
+    view.rerender(<KrogerCart state={{ ...initialPlanState(), budgetCents: 12345 }} locationId="01400943" />);
+    expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
+  });
+
+  it("drops the preview on unmount without a late update", async () => {
+    stub(() => 204);
+    const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    await showPreview();
+    view.unmount();
+    expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
+  });
+
+  it("shows the unknown line when the plan changes during a send, and never resends", async () => {
+    let finish: () => void = () => undefined;
+    const calls = stub(() => new Promise<number>((resolve) => { finish = () => { resolve(204); }; }));
+    const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    await showPreview();
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+    view.rerender(<KrogerCart state={initialPlanState()} locationId="01400944" />);
+    await act(async () => { finish(); });
+    await settle();
+    expect(screen.getByText("Kroger did not confirm. Check your Kroger cart before you retry.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith("/cart/add")).length).toBe(1);
+  });
+
+  it("does not update after unmount when a send settles late", async () => {
+    let finish: () => void = () => undefined;
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const calls = stub(() => new Promise<number>((resolve) => { finish = () => { resolve(204); }; }));
+    const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    await showPreview();
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+    view.unmount();
+    await act(async () => { finish(); });
+    await settle();
+    expect(errors).not.toHaveBeenCalled();
+    expect(calls.filter((call) => call.url.endsWith("/cart/add")).length).toBe(1);
+    errors.mockRestore();
+  });
+
+  it("says so when the preview has no items and no unmatched lines", async () => {
+    stub(() => 204, { items: [], unmatched: [] });
+    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+    expect(await screen.findByText("No Kroger items found for this plan.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+  });
+
+  it("shows the save line, not the Kroger line, when the plan save fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500 })));
+    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+    expect(await screen.findByText("Could not save the plan. Try again.")).toBeTruthy();
+    expect(screen.queryByText("Kroger is unavailable. Try again.")).toBeNull();
+  });
 });

@@ -452,6 +452,39 @@ describe("PlanChat", () => {
     }
   });
 
+  it("passes the plan and the chosen store to the Kroger cart preview", async () => {
+    vi.mocked(savePlanRevision).mockResolvedValue("rev-1");
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/grocery/kroger/cart/preview") {
+          bodies.push(JSON.parse(init?.body as string));
+          return { ok: true, status: 200, json: async () => ({ items: [], unmatched: [] }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ connected: true }) };
+      }),
+    );
+    mount(initialPlanState(), {
+      krogerStore: { locationId: "01400943", name: "Main Street" },
+      onKrogerChoose: vi.fn(),
+      onKrogerClear: vi.fn(),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Preview Kroger cart" }));
+    await screen.findByText("No Kroger items found for this plan.");
+    expect(bodies).toEqual([{ plan_revision_id: "rev-1", location_id: "01400943" }]);
+  });
+
+  it("hides the Kroger cart preview without a chosen store", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ connected: true }) })),
+    );
+    mount(initialPlanState(), { krogerStore: null, onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });
+    await screen.findByText("Kroger account connected");
+    expect(screen.queryByRole("button", { name: "Preview Kroger cart" })).toBeNull();
+  });
+
   it("hides the store picker when chat is off", () => {
     setProviders(false);
     mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });

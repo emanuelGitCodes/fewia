@@ -138,7 +138,11 @@ export async function previewKrogerCart(
   ) {
     throw new Error(SHAPE_ERROR);
   }
-  return { items: body.items.map(copyCartItem), unmatched: body.unmatched.map(copyUnmatched) };
+  const items = body.items.map(copyCartItem);
+  if (new Set(items.map((item) => item.upc)).size !== items.length) {
+    throw new Error(SHAPE_ERROR);
+  }
+  return { items, unmatched: body.unmatched.map(copyUnmatched) };
 }
 
 // Any outcome that is not a clear answer reads as "unknown", because the items may be in the cart.
@@ -161,7 +165,8 @@ export async function addToKrogerCart(
   if (response.status === 409) {
     return "not_connected";
   }
-  return response.status === 503 ? "unavailable" : "unknown";
+  // 400 and 422 mean the request was rejected before anything was sent.
+  return [400, 422, 503].includes(response.status) ? "unavailable" : "unknown";
 }
 
 // The ZIP goes only in the POST body, never in a URL.

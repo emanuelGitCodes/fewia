@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { KrogerConnect } from "./KrogerConnect";
+import { initialPlanState } from "./planModel";
 
 type Handler = (url: string, init?: RequestInit) => Promise<Partial<Response>>;
 
@@ -59,6 +60,19 @@ describe("KrogerConnect", () => {
     render(<KrogerConnect />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
     expect(link.getAttribute("href")).toBe("/api/grocery/kroger/connect");
+  });
+
+  it("shows the cart preview button only while connected", async () => {
+    const plan = initialPlanState();
+    stub(() => status(false));
+    const off = render(<KrogerConnect plan={plan} locationId="01400943" />);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(screen.queryByRole("button", { name: "Preview Kroger cart" })).toBeNull();
+    off.unmount();
+
+    stub(() => status(true));
+    render(<KrogerConnect plan={plan} locationId="01400943" />);
+    expect(await screen.findByRole("button", { name: "Preview Kroger cart" })).toBeTruthy();
   });
 
   it("shows the connected state and disconnects", async () => {

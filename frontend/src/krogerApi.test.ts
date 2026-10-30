@@ -41,6 +41,7 @@ describe("previewKrogerCart", () => {
       { items: [{ ...cartItem, extra: 1 }], unmatched: [] },
       { items: [], unmatched: [{ ingredient_id: "x" }] },
       { items: Array.from({ length: 31 }, () => cartItem), unmatched: [] },
+      { items: [cartItem, { ...cartItem, ingredient_id: "rice" }], unmatched: [] },
     ];
     for (const body of bad) {
       reply(body);
@@ -55,7 +56,10 @@ describe("addToKrogerCart", () => {
       [204, "added"],
       [409, "not_connected"],
       [503, "unavailable"],
+      [400, "unavailable"],
+      [422, "unavailable"],
       [504, "unknown"],
+      [502, "unknown"],
       [500, "unknown"],
     ];
     for (const [status, expected] of cases) {
