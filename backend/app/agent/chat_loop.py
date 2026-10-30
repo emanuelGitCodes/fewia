@@ -344,6 +344,9 @@ def run_chat(
         result["usage"] = usage
         return result
 
+    def why(reason: str) -> dict[str, object] | None:
+        return {"gate": reason} if model_prose else None
+
     while turns < MAX_MODEL_TURNS:
         heartbeat()
         pending_results = None
@@ -369,7 +372,8 @@ def run_chat(
             if stop == "end_turn" and text.strip():
                 refused = parse_refusal(text)
                 if refused is not None:
-                    return out("clarification", refused, None)
+                    reason = why("refusal")
+                    return out("clarification", refused, None, "template", reason)
                 status = _end_status(candidate)
                 gate: str | None = None
                 if proposal_id is not None:
@@ -405,7 +409,8 @@ def run_chat(
                     reply = f"{reply} {STALE_SPENDING_WARNING}"
                 shown = grounding.with_notice(reply) if verdict.has_money else reply
                 return out(status, shown, candidate, "model", check)
-            return out("incomplete", _INCOMPLETE, None)
+            reason = why("incomplete")
+            return out("incomplete", _INCOMPLETE, None, "template", reason)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
         messages.append(_tool_use_history(calls))
@@ -492,9 +497,10 @@ def run_chat(
         messages.append({"role": "user", "content": blocks})
         pending_results = blocks
         if planner_limit:
-            return out("limit", _LIMIT, None)
+            return out("limit", _LIMIT, None, "template", why("limit"))
         if batch_ok and candidate is not None and _end_status(candidate) == "planned":
-            return out("planned", answer(), candidate)
+            reason = why("planned_terminal")
+            return out("planned", answer(), candidate, "template", reason)
         if (
             batch_ok
             and candidate is None
@@ -503,5 +509,6 @@ def run_chat(
             and not discovery_failed
             and discovery is not None
         ):
-            return out("clarification", answer(), None)
-    return out("limit", _LIMIT, None)
+            reason = why("discovery_terminal")
+            return out("clarification", answer(), None, "template", reason)
+    return out("limit", _LIMIT, None, "template", why("limit"))

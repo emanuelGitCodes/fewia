@@ -45,6 +45,11 @@ from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
 MAX_REPLY_CHARS = 1200
+# Every reason code validate can emit; a test keeps this list and validate in step.
+REASON_CODES = frozenset(
+    ("unsupported_character", "empty", "too_long", "store_price", "forbidden_claim")
+    + ("number_word", "unmatched_number")
+)
 APPROX_WINDOW = 10
 _NUM = r"(?:\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)"
 # normalize maps every dash and minus sign to a hyphen-minus first.

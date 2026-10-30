@@ -1,4 +1,5 @@
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
@@ -7,8 +8,9 @@ import pytest
 
 from app import evaluation_conversation as runner
 from app import evaluation_model_turn as model_turn
-from app.agent import chat_loop
+from app.agent import chat_loop, grounding
 from app.agent.provider import LLMProvider
+from app.domain.plan_proposal import ProposalInvalid
 from app.evaluate_conversation import GoldFollowingProvider, main
 from app.evaluation_conversation import run_conversation_suite
 from app.evaluation_conversation_corpus import (
@@ -17,6 +19,7 @@ from app.evaluation_conversation_corpus import (
     Scenario,
     load_conversation_corpus,
 )
+from app.evaluation_conversation_score import score_turn
 from app.evaluation_inputs import prepare_case
 
 _CORPUS = Path(__file__).parent / "evaluation" / "conversation.json"
@@ -35,6 +38,7 @@ _RECORD_KEYS = {
     "facts_present",
     "usage",
     "latency_ms",
+    "apply_error",
 }
 _USAGE = {"inputTokens": 10, "outputTokens": 3}
 Seen = dict[tuple[int, int], list[list[dict[str, object]]]]
@@ -199,8 +203,67 @@ def test_no_proposal_is_applied_when_none_was_recorded(
         )
         return Scripted(script, seen.setdefault((repeat, turn), []))
 
-    list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
     assert _plan_ids(seen[(1, 2)][0]) == ["bean_tacos"]
+    assert [r["apply_error"] for r in records] == [None, "missing"] * 3
+
+
+def test_a_proposal_that_fails_to_apply_is_recorded_and_fails_the_turn(
+    corpus: ConversationCorpus, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: Seen = {}
+    operations = [{"op": "add", "recipe_id": "overnight_oats", "servings": 2}]
+
+    def refuse(*args: object) -> object:
+        raise ProposalInvalid("rejected")
+
+    monkeypatch.setattr(runner, "apply_operations", refuse)
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        first = (
+            _use("propose_plan_change", {"operations": operations})
+            if turn == 1
+            else _use("get_plan", {})
+        )
+        return Scripted([first, _text("Done.")], seen.setdefault((repeat, turn), []))
+
+    sub = _only(corpus, "C07")
+    records = list(run_conversation_suite(sub, "p", provider_for))
+    assert [r["apply_error"] for r in records] == [None, "invalid"] * 3
+    assert _plan_ids(seen[(1, 2)][0]) == ["bean_tacos"]
+    scores = score_turn(sub.scenarios[0].turns[1], records[1])
+    assert not scores["gold"]
+    assert not scores["outcome"]
+
+
+_REPLIES_BY_CODE = {
+    "unsupported_character": "Snow ☃ today.",
+    "empty": "",
+    "too_long": "word " * 300,
+    "store_price": "Kroger sells it.",
+    "forbidden_claim": "This is medical advice.",
+    "number_word": "It takes several meals.",
+    "unmatched_number": "It adds 99999 kcal.",
+}
+
+
+def test_the_reason_allowlist_is_every_code_the_validator_can_emit() -> None:
+    emitted: set[str] = set()
+    for code, reply in _REPLIES_BY_CODE.items():
+        reasons = grounding.validate(reply, grounding.FactSet()).reasons
+        assert code in reasons
+        emitted.update(reasons)
+    assert emitted == set(grounding.REASON_CODES)
+    assert runner.REASONS == grounding.REASON_CODES
+
+
+def test_the_gate_allowlist_covers_every_reason_the_chat_loop_records() -> None:
+    source = Path(chat_loop.__file__).read_text(encoding="utf-8")
+    recorded = set(re.findall(r'(?:why\(|gate = |"gate": )"(\w+)"', source))
+    assert recorded
+    assert recorded <= runner.GATES
+    assert {"refusal", "incomplete", "limit"} <= runner.GATES
+    assert {"planned_terminal", "discovery_terminal"} <= runner.GATES
 
 
 def test_fact_presence_needs_the_tool_path_and_exact_typed_value() -> None:

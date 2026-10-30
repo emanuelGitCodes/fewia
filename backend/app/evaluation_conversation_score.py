@@ -14,6 +14,7 @@ CHECKS = ("tools", "outcome", "gold")
 GROUNDED_TARGET = 0.99
 P50_TARGET_MS, P95_TARGET_MS = 5000, 12000
 COST_TARGET = Decimal("0.006")
+FIXTURE_EVIDENCE = "deterministic_fake_provider"
 
 
 def outcome_of(record: dict[str, object]) -> str:
@@ -48,11 +49,15 @@ def score_turn(turn: Turn, record: dict[str, object] | None) -> dict[str, bool]:
     expect = turn.expect
     called = {t.get("name") for t in _list(record, "tools") if isinstance(t, dict)}
     present = _list(record, "facts_present")
+    # A turn whose earlier proposal could not be applied ran on the wrong plan.
+    applied = record.get("apply_error") is None
     return {
         "tools": (not expect.tools_any or bool(called & set(expect.tools_any)))
         and not called & set(expect.tools_forbidden),
-        "outcome": outcome_of(record) in expect.outcomes,
-        "gold": len(present) == len(expect.gold) and all(i is True for i in present),
+        "outcome": applied and outcome_of(record) in expect.outcomes,
+        "gold": applied
+        and len(present) == len(expect.gold)
+        and all(i is True for i in present),
     }
 
 
@@ -69,8 +74,12 @@ def _status(ok: bool | None) -> str:
     return "N/A" if ok is None else "PASS" if ok else "FAIL"
 
 
-def _target(name: str, goal: str, value: object, ok: bool) -> dict[str, object]:
+def _target(
+    name: str, goal: str, value: object, ok: bool, applicable: bool = True
+) -> dict[str, object]:
     status = _status(None if value is None else ok)
+    if not applicable:
+        status = "not_applicable"
     return {"name": name, "target": goal, "value": value, "status": status}
 
 
@@ -164,6 +173,8 @@ def build_report(
     per_turn = (
         None if average is None else format(average.quantize(Decimal("1e-6")), "f")
     )
+    # Fake-provider latency and cost say nothing about a real model.
+    real = manifest.get("evidence_class") != FIXTURE_EVIDENCE
     targets = [
         _target(
             "grounded_rate",
@@ -182,18 +193,21 @@ def build_report(
             f"< {P50_TARGET_MS}",
             p50,
             p50 is not None and p50 < P50_TARGET_MS,
+            real,
         ),
         _target(
             "latency_p95_ms",
             f"< {P95_TARGET_MS}",
             p95,
             p95 is not None and p95 < P95_TARGET_MS,
+            real,
         ),
         _target(
             "cost_per_turn_usd",
             f"< {COST_TARGET}",
             per_turn,
             average is not None and average < COST_TARGET,
+            real,
         ),
     ]
     return {

@@ -3921,6 +3921,30 @@ _GATE_CASES: dict[str, list[dict[str, object] | BaseException]] = {
     "no_tools": [_reply([_text_block("Which meal should I plan?")], "end_turn")],
     "not_final": _tool_then(INGREDIENT_TOOL, {"name": "zorblax root"}),
     "planner": _tool_then(TOOL_NAME, plan_args(plan_cap_cents=100)),
+    "refusal": [_reply([_text_block('{"refusal":"purchase"}')], "end_turn")],
+    "incomplete": _tool_then(TOOL_NAME, plan_args(plan_cap_cents=100))[:1]
+    + [_reply([_text_block(_GATE_TEXT)], "max_tokens")],
+    "incomplete_blank": [_reply([_text_block("   ")], "end_turn")],
+    "limit": [
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
+        for index in range(MAX_PLANNER_REVISIONS + 1)
+    ],
+    "limit_turns": [
+        _reply(
+            [_tool_block(f"u-{index}", name="purchase_items", payload={"token": "x"})],
+            "tool_use",
+        )
+        for index in range(MAX_MODEL_TURNS)
+    ],
+    "planned_terminal": [_reply([_tool_block("accepted")], "tool_use")],
+    "discovery_terminal": [_reply([_discovery_block()], "tool_use")],
+}
+_GATE_NAMES = {
+    "incomplete_blank": "incomplete",
+    "limit_turns": "limit",
 }
 
 
@@ -3930,7 +3954,7 @@ def test_a_run_that_is_not_clean_records_its_gate_reason(
 ) -> None:
     monkeypatch.setattr("app.agent.ingredient_tool._live_client", lambda: None)
     result = _prose_run(copy.deepcopy(_GATE_CASES[gate]))
-    assert result["reply_check"] == {"gate": gate}
+    assert result["reply_check"] == {"gate": _GATE_NAMES.get(gate, gate)}
     assert result["reply_source"] == "template"
     assert _GATE_TEXT not in cast(str, result["answer"])
 

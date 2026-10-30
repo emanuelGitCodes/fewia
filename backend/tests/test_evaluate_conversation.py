@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -54,6 +55,31 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     for scenario_id in ids:
         assert f"| {scenario_id} |" in markdown
     assert report["manifest_hash"] in markdown
+    for check in ("tools", "outcome", "gold"):
+        assert report["checks"][check]["rate"] == 1.0
+    assert report["grounding"]["grounded_rate"] == 1.0
+    found = {t["name"]: t["status"] for t in report["targets"]}
+    for name in ("latency_p50_ms", "latency_p95_ms", "cost_per_turn_usd"):
+        assert found[name] == "not_applicable"
+
+
+def test_the_manifest_hashes_the_bytes_that_were_parsed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads: list[Path] = []
+    original = Path.read_bytes
+
+    def counting(self: Path) -> bytes:
+        reads.append(self)
+        return original(self)
+
+    monkeypatch.setattr(Path, "read_bytes", counting)
+    out = tmp_path / "out"
+    assert cli.main(_argv(out)) == 0
+    assert reads.count(_CORPUS) == 1
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    digest = hashlib.sha256(_CORPUS.read_bytes()).hexdigest()
+    assert report["manifest"]["corpus_sha256"] == digest
 
 
 @pytest.mark.parametrize(

@@ -3,6 +3,7 @@ from typing import Any, cast
 
 import pytest
 
+from app.evaluation_conversation import GATES
 from app.evaluation_conversation_corpus import (
     ConversationCorpus,
     Turn,
@@ -335,6 +336,49 @@ def test_cost_needs_rates_and_known_usage(corpus: ConversationCorpus) -> None:
         "turns_priced": 0,
         "per_turn_usd": None,
     }
+
+
+@pytest.mark.parametrize("error", ["missing", "invalid"])
+def test_an_unapplied_proposal_fails_gold_and_outcome_but_not_tools(
+    error: str,
+) -> None:
+    item = turn(any_of=("get_plan",), gold=1)
+    good = record(facts_present=[True])
+    assert score_turn(item, good) == {"tools": True, "outcome": True, "gold": True}
+    scores = score_turn(item, good | {"apply_error": error})
+    assert scores == {"tools": True, "outcome": False, "gold": False}
+
+
+def test_every_non_clean_gate_reason_is_counted_as_a_fallback(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    first = perfect("C01", 1, 1, sub.scenarios[0].turns[0])
+    for gate in sorted(GATES - {"clean"}):
+        quiet = {"ok": None, "reasons": [], "unmatched_count": 0}
+        changed = first | {"reply_source": "template", "gate": gate, "verdict": quiet}
+        report = build_report(sub, [changed], _MANIFEST)
+        assert section(report, "grounding")["fallbacks"] == {gate: 1}
+        assert section(report, "grounding")["prose_attempts"] == 0
+
+
+def test_a_fixture_run_reports_cost_and_latency_targets_as_not_applicable(
+    corpus: ConversationCorpus,
+) -> None:
+    manifest = _MANIFEST | {"evidence_class": "deterministic_fake_provider"}
+    report = build_report(corpus, perfect_run(corpus), manifest, rates())
+    found = statuses(report)
+    for name in ("latency_p50_ms", "latency_p95_ms", "cost_per_turn_usd"):
+        assert found[name] == "not_applicable"
+    assert found["grounded_rate"] == "PASS"
+    assert found["unsupported_numbers"] == "PASS"
+    text = render_markdown(report)
+    assert "| latency_p50_ms | < 5000 | 1000 | not_applicable |" in text
+    assert "| cost_per_turn_usd | < 0.006 | 0.000088 | not_applicable |" in text
+    real = build_report(
+        corpus, perfect_run(corpus), _MANIFEST | {"evidence_class": "real_bedrock"}
+    )
+    assert statuses(real)["latency_p50_ms"] == "PASS"
 
 
 def test_a_run_without_records_reports_not_available(

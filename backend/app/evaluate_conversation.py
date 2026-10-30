@@ -12,11 +12,7 @@ from typing import NoReturn
 
 from app.agent.provider import LLMProvider
 from app.evaluation_conversation import ProviderFor, run_conversation_suite
-from app.evaluation_conversation_corpus import (
-    Scenario,
-    Turn,
-    load_conversation_corpus,
-)
+from app.evaluation_conversation_corpus import ConversationCorpus, Scenario, Turn
 from app.evaluation_conversation_score import build_report, render_markdown
 from app.evaluation_io import EvaluationOutput
 from app.evaluation_manifest import _hash
@@ -119,7 +115,9 @@ def main(
         if not args.output_dir or Path(args.output_dir).exists():
             raise ValueError(_INVALID)
         profile = resolve_profile(args.profile, args.region)
-        corpus = load_conversation_corpus(Path(args.corpus))
+        # One read: the bytes that are hashed are the bytes that are parsed.
+        corpus_bytes = Path(args.corpus).read_bytes()
+        corpus = ConversationCorpus.model_validate_json(corpus_bytes)
         rates = (
             rates_for(profile, Path(args.rates), args.region) if args.rates else None
         )
@@ -128,7 +126,7 @@ def main(
         )
         manifest: dict[str, object] = {
             "version": "conversation-manifest-v1",
-            "corpus_sha256": hashlib.sha256(Path(args.corpus).read_bytes()).hexdigest(),
+            "corpus_sha256": hashlib.sha256(corpus_bytes).hexdigest(),
             "profile": profile.name,
             "model_id": profile.model_id,
             "region": args.region,

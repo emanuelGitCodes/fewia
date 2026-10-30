@@ -13,6 +13,7 @@ from uuid import UUID
 
 from app.agent import chat_loop
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
+from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
 from app.domain.plan_proposal import ProposalInvalid, apply_operations, parse_operations
@@ -27,12 +28,10 @@ from app.evaluation_conversation_corpus import (
 
 GATES = frozenset(
     ("clean", "proposal", "tool_failed", "not_final", "planner", "no_tools")
-    + ("clarification",)
+    + ("clarification", "refusal", "incomplete", "limit", "planned_terminal")
+    + ("discovery_terminal",)
 )
-REASONS = frozenset(
-    ("unsupported_character", "empty", "too_long", "store_price", "forbidden_claim")
-    + ("number_word", "unmatched_number")
-)
+REASONS = REASON_CODES
 _USAGE_KEYS = (
     ("input", "inputTokens"),
     ("output", "outputTokens"),
@@ -103,6 +102,7 @@ def _observation(
     result: dict[str, object] | None,
     capture: CaptureProvider,
     latency_ms: int,
+    apply_error: str | None = None,
 ) -> dict[str, object]:
     gold = scenario.turns[index - 1].expect.gold
     record: dict[str, object] = {
@@ -120,6 +120,7 @@ def _observation(
         "facts_present": [False] * len(gold),
         "usage": _usage(None),
         "latency_ms": latency_ms,
+        "apply_error": apply_error,
     }
     if result is None:
         return record
@@ -180,14 +181,20 @@ def _run_scenario(
     previous: dict[str, object] | None = None
     previous_ids: list[str] | None = None
     for index, turn in enumerate(scenario.turns, start=1):
-        if turn.apply_proposal_before and pending:
-            try:
-                snapshot = apply_operations(plan.snapshot, parse_operations(pending[0]))
-                plan = PlanRevisionInput(
-                    id=UUID(int=repeat * 100 + index), snapshot=snapshot
-                )
-            except ProposalInvalid:
-                pass
+        apply_error: str | None = None
+        if turn.apply_proposal_before:
+            if not pending:
+                apply_error = "missing"
+            else:
+                try:
+                    snapshot = apply_operations(
+                        plan.snapshot, parse_operations(pending[0])
+                    )
+                    plan = PlanRevisionInput(
+                        id=UUID(int=repeat * 100 + index), snapshot=snapshot
+                    )
+                except ProposalInvalid:
+                    apply_error = "invalid"
             pending.clear()
         capture = CaptureProvider(provider_for(scenario, repeat, index))
         result: dict[str, object] | None = None
@@ -213,7 +220,7 @@ def _run_scenario(
             result = None
         latency_ms = round((perf_counter() - started) * 1000)
         yield _observation(
-            scenario, repeat, index, profile, result, capture, latency_ms
+            scenario, repeat, index, profile, result, capture, latency_ms, apply_error
         )
         if result is None:
             return
