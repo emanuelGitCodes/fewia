@@ -818,6 +818,12 @@ API attaches a Kroger quote to the response and does not store it.
 | kroger-04 | Frontend data path: send the chosen `location_id` on each chat job read, validate `kroger_quote` and `kroger_degraded`, and show the `store_live` sentence under the reply. The browser does not store the quote. |
 | kroger-05 | Frontend store choice: ZIP entry, the store list, and the chosen store's `location_id` and name kept in the browser. |
 | kroger-06 | Remove Spoonacular, as row 2b.5 in section 6.6 lists. |
+| kroger-07 | When no store is near the ZIP, search again within 50 miles; drop Kroger's "banner - " prefix from store names. |
+
+Kroger Certification returns no prices for the only location near Orlando,
+Florida (a delivery hub in Groveland): a product search there returns
+"503 Service Unavailable" or no products. Real prices for that area need
+Kroger Production access (D10), and a delivery hub may still return none.
 
 The model gets no Kroger tool in phase 2b. A model tool for quotes, UPC
 pinning, and a stored quote wait until Kroger sends a cache header that
@@ -982,6 +988,30 @@ After: nothing new in the UI. The owner gets numbers.
 | 5.3 | Evaluation CLI accepts an allowlist of three model profiles; rates files | 80 |
 | 5.4 | One live batch per model; wiki record | none |
 | 5.5 | If p50 stays above 5 s after 3.5, prototype streaming option B behind a flag | 150 |
+
+### Phase status after the 2026-10-30 build
+
+The work items differ from the pull request rows above:
+
+- PR 3.2 shipped as four items: p3-02 (validated prose in the user chat
+  only), p3-02b (prose only on a clean run, server warnings kept), p3-02c
+  and p3-02d (fixes from the first live Bedrock turn).
+- PR 4.1 shipped as three items: p4-01 (proposal storage and endpoints),
+  p4-01b (the `propose_plan_change` tool), and p4-02 (the card).
+- Ingredient swaps stay what-if answers. A saved plan does not hold swaps
+  in this release (owner decision), so proposals cover add, remove,
+  servings, and pantry only.
+
+Deferred, with the reason:
+
+- PR 3.3 (`decline` tool) and the prompt trim, and PR 3.4 (guardrail):
+  after the phase 5 grounding scorer. Nine evaluation modules score the
+  current refusal path, and a trimmed prompt needs a measured batch.
+- PR 4.3 (memory past eight turns): until a live check shows the gap.
+- Phase 5: the owner decides how the frozen scenario corpus changes. The
+  code holds 30 scenarios; the course documents cite 33.
+- Phase 4b: needs a registered redirect URI and an approved encryption
+  dependency.
 
 ## 10. Risks, open questions, and decisions
 
