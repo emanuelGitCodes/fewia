@@ -1,6 +1,7 @@
 """FastAPI dependencies."""
 
 import functools
+import threading
 from collections.abc import Iterator
 
 from fastapi import HTTPException
@@ -55,10 +56,21 @@ def get_supermarket_estimator() -> IngredientCostEstimator | None:
         return None
 
 
+_kroger_lock = threading.Lock()
+
+
 @functools.cache
-def get_kroger_client() -> KrogerClient | None:
-    """Return one process-wide Kroger client, or None."""
+def _build_kroger_client() -> KrogerClient | None:
     try:
         return build_kroger(load_provider_settings())
     except ProviderConfigurationError:
         return None
+
+
+def get_kroger_client() -> KrogerClient | None:
+    """Return one process-wide Kroger client, or None."""
+    with _kroger_lock:
+        return _build_kroger_client()
+
+
+get_kroger_client.cache_clear = _build_kroger_client.cache_clear  # type: ignore[attr-defined]

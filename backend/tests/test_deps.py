@@ -1,3 +1,5 @@
+import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -91,6 +93,38 @@ def test_get_kroger_client_none_when_files_missing(
         ),
     )
     assert get_kroger_client() is None
+
+
+def test_concurrent_first_calls_build_one_kroger_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    barrier = threading.Barrier(8, timeout=5)
+    built: list[object] = []
+
+    def slow_build(settings: object) -> object:
+        del settings
+        time.sleep(0.05)
+        client = object()
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(
+        "app.deps.load_provider_settings", lambda: GroceryProviderSettings()
+    )
+    monkeypatch.setattr("app.deps.build_kroger", slow_build)
+    results: list[object] = []
+
+    def work() -> None:
+        barrier.wait()
+        results.append(get_kroger_client())
+
+    threads = [threading.Thread(target=work) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert len(built) == 1
+    assert results == built * 8
 
 
 def test_get_kroger_client_built_from_files(

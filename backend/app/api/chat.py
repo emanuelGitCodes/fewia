@@ -1,5 +1,6 @@
 """HTTP routes for grocery chat jobs and provider capabilities."""
 
+import re
 from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
@@ -12,7 +13,12 @@ from app.api import grocery as grocery_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
 from app.demo import DEMO_USER_ID
-from app.deps import get_provider_settings, get_session, get_supermarket_estimator
+from app.deps import (
+    get_kroger_client,
+    get_provider_settings,
+    get_session,
+    get_supermarket_estimator,
+)
 from app.domain.budget import NEW_YORK
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.job_models import Job
@@ -20,6 +26,7 @@ from app.models import User
 from app.plan_models import PlanRevision
 from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
+from app.providers.kroger import KrogerClient
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
 from app.services.job_submission import (
@@ -29,6 +36,7 @@ from app.services.job_submission import (
     reuse_job,
     submit_job,
 )
+from app.services.kroger_overlay import attach_kroger_quote
 from app.services.supermarket_overlay import (
     IngredientCostEstimator,
     attach_supermarket_estimate,
@@ -40,6 +48,8 @@ CHAT_UNAVAILABLE_MESSAGE = "Chat is not configured."
 CHAT_CONTEXT_MESSAGE = "Chat context is unavailable."
 PLAN_REVISION_MESSAGE = "The plan is not available. Refresh the page and try again."
 JOB_NOT_FOUND_MESSAGE = "Job not found"
+LOCATION_ID_MESSAGE = "location_id MUST be 8 letters or digits"
+_LOCATION_ID = re.compile(r"[0-9A-Za-z]{8}")
 IdempotencyKey = Annotated[str, Header(min_length=1, max_length=120)]
 
 
@@ -147,7 +157,11 @@ def read_chat_job(
     estimator: Annotated[
         IngredientCostEstimator | None, Depends(get_supermarket_estimator)
     ],
+    kroger: Annotated[KrogerClient | None, Depends(get_kroger_client)],
+    location_id: str | None = None,
 ) -> GroceryJobView:
+    if location_id is not None and not _LOCATION_ID.fullmatch(location_id):
+        raise HTTPException(status_code=422, detail=LOCATION_ID_MESSAGE)
     job = session.get(Job, str(job_id))
     payload = job.payload if job is not None else None
     if (
@@ -161,6 +175,10 @@ def read_chat_job(
     result = job.result
     if job.status == "succeeded" and isinstance(result, dict):
         result = attach_supermarket_estimate(result, estimator)
+        if location_id is not None and kroger is not None:
+            result = attach_kroger_quote(
+                result, kroger, location_id, lambda: datetime.now(UTC)
+            )
     return GroceryJobView(
         id=job.id,
         status=job.status,

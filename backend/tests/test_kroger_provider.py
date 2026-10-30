@@ -437,6 +437,71 @@ def test_concurrent_spend_respects_budget(monkeypatch: pytest.MonkeyPatch) -> No
     assert outcomes.count(False) == 15
 
 
+class _InterleavingLimits(dict[str, int]):
+    """Make threads meet between the budget check and the increment."""
+
+    def __init__(self) -> None:
+        super().__init__({"locations": 1, "products": 1})
+        self.barrier = threading.Barrier(2, timeout=0.5)
+
+    def __getitem__(self, key: str) -> int:
+        try:
+            self.barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
+        return super().__getitem__(key)
+
+
+def test_spend_lock_covers_check_and_increment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(kroger, "DAILY_LIMITS", _InterleavingLimits())
+    client, _ = _make(Server())
+    outcomes: list[bool] = []
+
+    def work() -> None:
+        try:
+            client._spend("locations")
+        except KrogerUnavailable:
+            outcomes.append(False)
+        else:
+            outcomes.append(True)
+
+    threads = [threading.Thread(target=work) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert sorted(outcomes) == [False, True]
+
+
+def test_concurrent_searches_keep_their_own_cache_control() -> None:
+    barrier = threading.Barrier(2, timeout=5)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/connect/oauth2/token":
+            return httpx.Response(200, json={"access_token": TOKEN, "expires_in": 1800})
+        barrier.wait()
+        term = request.url.params["filter.term"]
+        return httpx.Response(
+            200, json={"data": []}, headers={"cache-control": f"max-age={term}"}
+        )
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+    seen: dict[str, str | None] = {}
+
+    def work(term: str) -> None:
+        seen[term] = client.search_products(term, LOCATION).cache_control
+
+    threads = [threading.Thread(target=work, args=(t,)) for t in ("111", "222")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert seen == {"111": "max-age=111", "222": "max-age=222"}
+
+
 def test_data_request_runs_without_the_lock() -> None:
     a_started = threading.Event()
     release_a = threading.Event()

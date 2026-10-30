@@ -2,6 +2,7 @@
 
 import json
 import os
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal, cast
@@ -11,7 +12,7 @@ import pytest
 from conftest import UserSeeder
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from httpx import Response
+from httpx import Client, MockTransport, Request, Response
 from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -32,11 +33,13 @@ from app.api.grocery import (
     INPUT_INVALID_MESSAGE,
     JOB_UNAVAILABLE_MESSAGE,
 )
-from app.deps import get_supermarket_estimator
+from app.deps import get_kroger_client, get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
+from app.main import app
 from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
+from app.providers.kroger import KrogerClient
 from app.services import job_submission
 from app.services.chat_job import ChatJobInput
 from app.services.grocery_context import (
@@ -976,3 +979,135 @@ def test_unfinished_chat_job_does_not_call_estimator(
     assert body["status"] == status
     assert body["result"] == PLAN_RESULT
     assert "supermarket_estimate" not in body["result"]
+
+
+KROGER_LOCATION = "01234567"
+SWAP_RESULT: dict[str, object] = {
+    "answer": "stored text",
+    "tool_trace": [
+        {
+            "tool": "what_if_substitute",
+            "outcome": "success",
+            "inputs": {"status": "swapped", "with_ingredient_id": "ground_beef_80"},
+        }
+    ],
+}
+
+
+def kroger_with_calls() -> tuple[KrogerClient, list[str]]:
+    terms: list[str] = []
+
+    def handler(request: Request) -> Response:
+        if request.url.path.endswith("/token"):
+            return Response(200, json={"access_token": "t", "expires_in": 1800})
+        terms.append(request.url.params["filter.term"])
+        product = {
+            "productId": "0001112223334",
+            "description": "Invented Ground Beef",
+            "items": [{"price": {"regular": 2.49}}],
+        }
+        return Response(200, json={"data": [product]})
+
+    http = Client(transport=MockTransport(handler))
+    return (
+        KrogerClient(
+            "invented-id",
+            "invented-secret",
+            base_url="https://kroger.test",
+            client=http,
+        ),
+        terms,
+    )
+
+
+@pytest.fixture
+def kroger_override() -> Iterator[Callable[[KrogerClient | None], None]]:
+    def set_client(value: KrogerClient | None) -> None:
+        app.dependency_overrides[get_kroger_client] = lambda: value
+
+    yield set_client
+    app.dependency_overrides.pop(get_kroger_client, None)
+
+
+def test_chat_job_without_location_id_is_unchanged(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+) -> None:
+    seed_user()
+    job = _seed_chat_job(
+        session, key="chat:kroger-none", status="succeeded", result=dict(SWAP_RESULT)
+    )
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(f"/grocery/chat/jobs/{job.id}")
+    assert response.status_code == 200
+    assert response.json()["result"] == SWAP_RESULT
+    assert terms == []
+
+
+def test_chat_job_with_location_id_attaches_quote_without_storing(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+) -> None:
+    seed_user()
+    job = _seed_chat_job(
+        session, key="chat:kroger-ok", status="succeeded", result=dict(SWAP_RESULT)
+    )
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(
+        f"/grocery/chat/jobs/{job.id}", params={"location_id": KROGER_LOCATION}
+    )
+    body = response.json()
+    assert response.status_code == 200
+    assert terms == ["ground beef 80% lean"]
+    assert body["result"]["kroger_quote"]["regular_cents"] == 249
+    assert body["result"]["answer"] == "stored text"
+    session.expire_all()
+    stored = session.get(Job, job.id)
+    assert stored is not None
+    assert stored.result == SWAP_RESULT
+    assert "kroger_quote" not in json.dumps(stored.result)
+
+
+@pytest.mark.parametrize("bad", ["short", "123456789", "0123456!", "01234 67", ""])
+def test_chat_job_bad_location_id_is_422(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+    bad: str,
+) -> None:
+    seed_user()
+    job = _seed_chat_job(
+        session, key="chat:kroger-bad", status="succeeded", result=dict(SWAP_RESULT)
+    )
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(f"/grocery/chat/jobs/{job.id}", params={"location_id": bad})
+    assert response.status_code == 422
+    assert terms == []
+
+
+def test_queued_chat_job_makes_no_kroger_call(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+) -> None:
+    seed_user()
+    job = _seed_chat_job(
+        session, key="chat:kroger-queued", status="queued", result=dict(SWAP_RESULT)
+    )
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(
+        f"/grocery/chat/jobs/{job.id}", params={"location_id": KROGER_LOCATION}
+    )
+    assert response.status_code == 200
+    assert response.json()["result"] == SWAP_RESULT
+    assert terms == []

@@ -130,6 +130,13 @@ def test_bad_zip_is_422_without_echo(
     _assert_no_sentinel(caplog, response.text)
 
 
+def test_bad_zip_is_422_even_when_not_configured(api: TestClient) -> None:
+    _override(None)
+    response = api.post(URL, json={"zip_code": "9753"})
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == "zip_code MUST be exactly 5 digits"
+
+
 def test_invalid_body_detail_is_empty(api: TestClient) -> None:
     _override(None)
     for body in ({"zip_code": 97531}, {"zip_code": SENTINEL_ZIP, "extra": 1}, {}):

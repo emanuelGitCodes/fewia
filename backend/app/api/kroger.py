@@ -1,5 +1,6 @@
 """HTTP route for Kroger store lookup; nothing from Kroger is stored."""
 
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/grocery/kroger", tags=["kroger"])
 NOT_CONFIGURED_MESSAGE = "Kroger is not configured"
 UNAVAILABLE_MESSAGE = "Kroger is unavailable"
 INVALID_ZIP_MESSAGE = "zip_code MUST be exactly 5 digits"
+_ZIP_CODE = re.compile(r"[0-9]{5}")
 
 
 class StoreSearchBody(BaseModel):
@@ -38,6 +40,8 @@ def find_kroger_stores(
     client: Annotated[KrogerClient | None, Depends(get_kroger_client)],
 ) -> StoreSearchResponse:
     """Return Kroger stores near a ZIP posted in the body."""
+    if not _ZIP_CODE.fullmatch(body.zip_code):
+        raise HTTPException(status_code=422, detail=INVALID_ZIP_MESSAGE)
     if client is None:
         raise HTTPException(status_code=503, detail=NOT_CONFIGURED_MESSAGE)
     failure: int | None = None
