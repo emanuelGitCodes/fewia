@@ -59,17 +59,6 @@ export type GroceryBudget = {
   warnings: string[];
 };
 
-export type SupermarketLine = {
-  ingredient_id: string;
-  cents: number | null;
-};
-
-export type SupermarketEstimate = {
-  total_cents: number | null;
-  notice: string;
-  lines: SupermarketLine[];
-};
-
 export type MacroTotals = {
   energy_kcal: number;
   protein_mg: number;
@@ -96,7 +85,6 @@ export type GroceryJobResult = {
   budget: GroceryBudget;
   spending_source: string;
   meal_nutrition?: MealPlanNutrition;
-  supermarket_estimate?: SupermarketEstimate;
 };
 
 export type JobErrorDetail = {
@@ -139,9 +127,6 @@ export const NUTRITION_NOTICE =
 
 export const NUTRITION_PORTION_NOTICE =
   "Portion estimates: one egg = 50 g, one corn tortilla = 24 g, one potato = 213 g. Actual sizes and preparation vary.";
-
-export const SPOONACULAR_COST_NOTICE =
-  "Average supermarket estimate from Spoonacular. Not a store price. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
 
 export const HTTP_ERROR =
   "The grocery request failed. Check meals, servings, and budget, then retry.";

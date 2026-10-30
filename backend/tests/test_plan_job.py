@@ -79,18 +79,9 @@ def test_plan_job_returns_json_plan_and_calls_heartbeats(
     assert isinstance(plan, dict)
     assert plan["notice"] == SAMPLE_ESTIMATE_NOTICE
     assert isinstance(plan["lines"], list)
-    assert "supermarket_estimate" not in result
 
 
-def test_plan_job_stores_no_supermarket_estimate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
-    result = plan_job_module.plan_job(payload(), lambda: None)
-    assert "supermarket_estimate" not in result
-
-
-def test_plan_job_records_catalog_without_supermarket_estimate(
+def test_plan_job_records_catalog_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(plan_job_module, "_utc_now", lambda: NOW)
@@ -105,7 +96,6 @@ def test_plan_job_records_catalog_without_supermarket_estimate(
     ) -> str:
         captured.append(dict(planning))
         del parsed, clock
-        assert "supermarket_estimate" not in planning
         return _REV
 
     result = plan_job_module.plan_job(
@@ -116,9 +106,7 @@ def test_plan_job_records_catalog_without_supermarket_estimate(
 
     assert len(captured) == 1
     planning = captured[0]
-    assert "supermarket_estimate" not in planning
     assert planning == expected
-    assert "supermarket_estimate" not in result
     assert result["evidence_revision_id"] == _REV
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["plan"] == expected["plan"]

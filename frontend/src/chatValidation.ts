@@ -9,7 +9,7 @@ import {
   type GroceryRequest,
   type MealPlanNutrition,
 } from "./apiTypes";
-import { copyMealPlanNutrition, copySupermarketEstimate, isBudget, isPlan } from "./apiValidation";
+import { copyMealPlanNutrition, isBudget, isPlan } from "./apiValidation";
 import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage, KrogerQuote } from "./chatTypes";
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -185,14 +185,10 @@ export function parseChatResult(value: unknown): ChatResult {
   if ((plan !== null && (drop || !planOk)) || (plan === null && (need || !extrasNull))) {
     throw new Error(SHAPE_ERROR);
   }
-  const overlay =
-    value.supermarket_estimate === undefined
-      ? undefined
-      : copySupermarketEstimate(value.supermarket_estimate);
   const rawQuote = value.kroger_quote;
   const quote = rawQuote == null ? rawQuote : copyKrogerQuote(rawQuote);
   if (
-    overlay === null || (rawQuote != null && quote === null) ||
+    (rawQuote != null && quote === null) ||
     (value.kroger_degraded !== undefined && value.kroger_degraded !== true)
   ) {
     throw new Error(SHAPE_ERROR);
@@ -211,7 +207,6 @@ export function parseChatResult(value: unknown): ChatResult {
     model_turns: value.model_turns,
     planner_revisions: value.planner_revisions,
     usage: value.usage === null ? null : copyUsage(value.usage),
-    ...(overlay === undefined ? {} : { supermarket_estimate: overlay }),
     ...(quote === undefined ? {} : { kroger_quote: quote }),
     ...(value.kroger_degraded === true ? { kroger_degraded: true as const } : {}),
   };

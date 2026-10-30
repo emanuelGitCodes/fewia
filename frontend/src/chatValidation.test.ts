@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  NUTRITION_NOTICE, SHAPE_ERROR, SPOONACULAR_COST_NOTICE,
+  NUTRITION_NOTICE, SHAPE_ERROR,
   type MacroTotals, type MealPlanNutrition, type MealRequest,
 } from "./apiTypes";
 import { budget, line, mealPlanNutrition, plan, sampleNutrition } from "../tests/apiFixtures";
@@ -428,16 +428,12 @@ describe("parseChatResult", () => {
     );
   });
 
-  it("copies supermarket_estimate when present and omits it when absent", () => {
-    const overlay = {
-      total_cents: 1299,
-      notice: SPOONACULAR_COST_NOTICE,
-      lines: [{ ingredient_id: "black_beans", cents: 199 }],
-    };
-    const parsed = parseChatResult(candidate({ supermarket_estimate: overlay }));
-    expect(parsed.supermarket_estimate).toEqual(overlay);
-    const omitted = parseChatResult(candidate());
-    expect("supermarket_estimate" in omitted).toBe(false);
+  it("ignores an unknown extra key", () => {
+    const parsed = parseChatResult(
+      candidate({ retired_overlay: { total_cents: 1299, notice: "x" } }),
+    );
+    expect(parsed.status).toBe("planned");
+    expect("retired_overlay" in parsed).toBe(false);
   });
 
   it("deep-copies meal_nutrition and does not mutate the input", () => {

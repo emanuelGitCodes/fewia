@@ -50,7 +50,6 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
     assert settings.instacart_key_file is None
-    assert settings.spoonacular_key_file is None
     assert settings.usda_fdc_key_file is None
     assert settings.kroger_client_id_file is None
     assert settings.kroger_secret_file is None
@@ -114,7 +113,6 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     secret = tmp_path / "plaid.secret"
     tokens = tmp_path / "plaid.tokens.json"
     key = tmp_path / "instacart.key"
-    spoonacular_key = tmp_path / "spoonacular.key"
     usda_key = tmp_path / "usda.key"
     monkeypatch.setenv("FEWIA_SPENDING_SOURCE", "plaid_sandbox")
     monkeypatch.setenv("FEWIA_BEDROCK_MODEL_ID", "anthropic.model")
@@ -124,7 +122,6 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("FEWIA_PLAID_SECRET_FILE", str(secret))
     monkeypatch.setenv("FEWIA_PLAID_TOKENS_FILE", str(tokens))
     monkeypatch.setenv("FEWIA_INSTACART_KEY_FILE", str(key))
-    monkeypatch.setenv("FEWIA_SPOONACULAR_KEY_FILE", str(spoonacular_key))
     monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(usda_key))
     settings = load_provider_settings()
     assert settings.spending_source == "plaid_sandbox"
@@ -136,10 +133,18 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.plaid_secret_file == secret
     assert settings.plaid_tokens_file == tokens
     assert settings.instacart_key_file == key
-    assert settings.spoonacular_key_file == spoonacular_key
     assert settings.usda_fdc_key_file == usda_key
     assert CLIENT_MARKER not in repr(settings)
     assert CLIENT_MARKER not in str(settings)
+
+
+def test_unknown_file_variable_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEWIA_RETIRED_KEY_FILE", str(tmp_path / "retired.key"))
+    settings = load_provider_settings()
+    assert settings.spending_source == "manual"
+    assert not hasattr(settings, "retired_key_file")
 
 
 def test_ignores_dotenv_and_unprefixed_env(

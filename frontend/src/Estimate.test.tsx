@@ -7,11 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   HTTP_ERROR,
   SAMPLE_ESTIMATE_NOTICE,
-  SPOONACULAR_COST_NOTICE,
   type CatalogItem,
   type GroceryJob,
   type PlanLine,
-  type SupermarketEstimate,
 } from "./apiTypes";
 import { Estimate } from "./Estimate";
 import { sampleNutrition } from "../tests/apiFixtures";
@@ -44,7 +42,6 @@ function succeeded(overrides: {
   pending?: number;
   planWarnings?: string[];
   budgetWarnings?: string[];
-  supermarket_estimate?: SupermarketEstimate;
   omitNutrition?: boolean;
 } = {}): GroceryJob {
   const lines = overrides.lines ?? [line(), line({ ingredient_id: "tortillas", name: "tortillas", unit: "ct", quantity: 8, packages: 1, cost_cents: 349 })];
@@ -69,9 +66,6 @@ function succeeded(overrides: {
         catalog_version: "sample-prices-v1",
         notice: NOTICE,
       },
-      ...(overrides.supermarket_estimate === undefined
-        ? {}
-        : { supermarket_estimate: overrides.supermarket_estimate }),
     },
   };
 }
@@ -186,34 +180,6 @@ describe("Estimate", () => {
     expect((within(rendered.container).queryAllByRole("checkbox") as HTMLInputElement[])).toHaveLength(2);
     expect(within(rendered.container).queryAllByRole("link")).toHaveLength(0);
     expect(text.toLowerCase()).not.toMatch(/checkout/);
-    expect(text).not.toContain("Average supermarket estimate");
-    expect(text).not.toContain("Spoonacular");
-    rendered.unmount();
-  });
-
-  it("shows catalog dollars and overlay dollars when present", () => {
-    const rendered = mount({
-      job: succeeded({
-        supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE, lines: [] },
-      }),
-    });
-    const text = renderedText(rendered.container);
-    expect(text).toContain("$4.78");
-    expect(text).toContain("Average supermarket estimate");
-    expect(text).toContain("$12.99");
-    expect(text).toContain(SPOONACULAR_COST_NOTICE);
-    expect(text).toContain(NOTICE);
-    rendered.unmount();
-  });
-
-  it("omits overlay copy when the key is absent", () => {
-    const rendered = mount({ job: succeeded() });
-    const text = renderedText(rendered.container);
-    expect(text).toContain("$4.78");
-    expect(text).toContain(NOTICE);
-    expect(text).not.toContain("Average supermarket estimate");
-    expect(text).not.toContain("$12.99");
-    expect(text).not.toContain(SPOONACULAR_COST_NOTICE);
     rendered.unmount();
   });
 
@@ -379,64 +345,6 @@ describe("Estimate", () => {
     rendered.unmount();
   });
 
-  it("shows Spoonacular avg dollars for a purchased matching line", () => {
-    const rendered = mount({
-      job: succeeded({
-        supermarket_estimate: {
-          total_cents: 1299,
-          notice: SPOONACULAR_COST_NOTICE,
-          lines: [{ ingredient_id: "black_beans", cents: 199 }],
-        },
-      }),
-    });
-    const text = renderedText(rendered.container);
-    expect(text).toContain("Spoonacular avg $1.99 for 425 g");
-    expect(text).toContain("$4.78");
-    expect(text).toContain("$12.99");
-    expect(text).toContain(SPOONACULAR_COST_NOTICE);
-    expect(rendered.container.querySelectorAll(".estimate-line-spoonacular")).toHaveLength(1);
-    expect(rendered.container.querySelectorAll(".estimate-overlay-total")).toHaveLength(1);
-    rendered.unmount();
-  });
-
-  it("shows Spoonacular avg unavailable for a matching null cents line", () => {
-    const rendered = mount({
-      job: succeeded({
-        supermarket_estimate: {
-          total_cents: 1299,
-          notice: SPOONACULAR_COST_NOTICE,
-          lines: [{ ingredient_id: "black_beans", cents: null }],
-        },
-      }),
-    });
-    expect(renderedText(rendered.container)).toContain("Spoonacular avg unavailable");
-    expect(renderedText(rendered.container)).toContain("$12.99");
-    expect(renderedText(rendered.container)).toContain(SPOONACULAR_COST_NOTICE);
-    rendered.unmount();
-  });
-
-  it("omits per-line Spoonacular text for a pantry line with a matching overlay", () => {
-    const rendered = mount({
-      job: succeeded({
-        lines: [line({ from_pantry: true })],
-        total: 129,
-        supermarket_estimate: {
-          total_cents: 1299,
-          notice: SPOONACULAR_COST_NOTICE,
-          lines: [{ ingredient_id: "black_beans", cents: 199 }],
-        },
-      }),
-    });
-    const text = renderedText(rendered.container);
-    expect(text).not.toContain("Spoonacular avg");
-    expect(text).toContain("$1.29");
-    expect(text).toContain("$12.99");
-    expect(text).toContain(SPOONACULAR_COST_NOTICE);
-    expect(rendered.container.querySelectorAll(".estimate-line-spoonacular")).toHaveLength(0);
-    expect(rendered.container.querySelectorAll(".estimate-overlay-total")).toHaveLength(1);
-    rendered.unmount();
-  });
-
   it("makes the heading programmatically focusable with and without a result", () => {
     const empty = mount();
     expect(empty.container.querySelector("h2#estimate-heading")?.getAttribute("tabindex")).toBe("-1");
@@ -514,18 +422,6 @@ describe("Estimate", () => {
       "Rebuild the request to apply request changes. This estimate is within the plan budget.",
     );
     expect(rendered.container.querySelector(".estimate-dirty")?.getAttribute("role")).toBeNull();
-    rendered.unmount();
-  });
-
-  it("omits per-line Spoonacular text when supermarket_estimate is absent", () => {
-    const rendered = mount({ job: succeeded() });
-    const text = renderedText(rendered.container);
-    expect(text).toContain("$4.78");
-    expect(text).toContain(NOTICE);
-    expect(text).not.toContain("Spoonacular avg");
-    expect(text).not.toContain("Average supermarket estimate");
-    expect(rendered.container.querySelectorAll(".estimate-line-spoonacular")).toHaveLength(0);
-    expect(rendered.container.querySelectorAll(".estimate-overlay-total")).toHaveLength(0);
     rendered.unmount();
   });
 });

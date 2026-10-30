@@ -446,7 +446,6 @@ def test_route_creates_no_jobs_commits_or_provider_calls(
 
     monkeypatch.setattr("app.services.job_submission.submit_job", boom)
     monkeypatch.setattr("app.agent.planning_tool.execute_plan", boom)
-    monkeypatch.setattr("app.provider_runtime.build_spoonacular", boom)
     commit_without_ending_the_test_transaction.clear()
     response = post_templates(client, template_body(plan_cap_cents=None))
 

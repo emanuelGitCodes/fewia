@@ -8,14 +8,13 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.provider_runtime import build_kroger, build_spoonacular
+from app.provider_runtime import build_kroger
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
     load_provider_settings,
 )
 from app.providers.kroger import KrogerClient
-from app.services.supermarket_overlay import IngredientCostEstimator
 
 PROVIDER_UNAVAILABLE_MESSAGE = "Provider configuration is invalid"
 
@@ -39,21 +38,6 @@ def get_provider_settings() -> GroceryProviderSettings:
     if settings is None:
         raise HTTPException(status_code=503, detail=PROVIDER_UNAVAILABLE_MESSAGE)
     return settings
-
-
-@functools.cache
-def get_supermarket_estimator() -> IngredientCostEstimator | None:
-    """Return one process-wide Spoonacular estimator, or None."""
-    try:
-        settings = load_provider_settings()
-    except ProviderConfigurationError:
-        return None
-    if settings.spoonacular_key_file is None:
-        return None
-    try:
-        return build_spoonacular(settings)
-    except ProviderConfigurationError:
-        return None
 
 
 _kroger_lock = threading.Lock()

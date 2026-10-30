@@ -141,24 +141,9 @@ def test_handler_routes_plan_and_chat(
     assert load_evidence(factory, 1, chat_revision) is not None
     assert count_rows(factory) == 2
     assert len(provider.requests) == 1
-    assert "supermarket_estimate" not in plan_result
-    assert "supermarket_estimate" not in chat_result
 
 
-def test_handler_stores_no_supermarket_estimate_for_plan_and_chat(
-    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    freeze_clocks(monkeypatch)
-    seed_user(factory)
-    provider = FakeLLM(_planner_then_final())
-    handler = make_agent_handler(factory, provider)
-    plan_result = handler(payload(), lambda: None)
-    chat_result = handler(chat_payload(), lambda: None)
-    assert "supermarket_estimate" not in plan_result
-    assert "supermarket_estimate" not in chat_result
-
-
-def test_process_one_stores_no_supermarket_estimate_for_plan_and_chat(
+def test_process_one_succeeds_for_plan_and_chat(
     factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     freeze_clocks(monkeypatch)
@@ -189,8 +174,6 @@ def test_process_one_stores_no_supermarket_estimate_for_plan_and_chat(
     assert chat_job_row.status == "succeeded"
     assert plan_job_row.result is not None
     assert chat_job_row.result is not None
-    assert "supermarket_estimate" not in plan_job_row.result
-    assert "supermarket_estimate" not in chat_job_row.result
 
 
 def test_handler_rejects_unknown_operation_before_external_work(

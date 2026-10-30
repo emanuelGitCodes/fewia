@@ -13,12 +13,7 @@ from app.api import grocery as grocery_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
 from app.demo import DEMO_USER_ID
-from app.deps import (
-    get_kroger_client,
-    get_provider_settings,
-    get_session,
-    get_supermarket_estimator,
-)
+from app.deps import get_kroger_client, get_provider_settings, get_session
 from app.domain.budget import NEW_YORK
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.job_models import Job
@@ -37,10 +32,6 @@ from app.services.job_submission import (
     submit_job,
 )
 from app.services.kroger_overlay import attach_kroger_quote
-from app.services.supermarket_overlay import (
-    IngredientCostEstimator,
-    attach_supermarket_estimate,
-)
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 CHAT_KEY_PREFIX = "chat:"
@@ -154,9 +145,6 @@ def create_chat_job(
 def read_chat_job(
     job_id: UUID,
     session: Annotated[Session, Depends(get_session)],
-    estimator: Annotated[
-        IngredientCostEstimator | None, Depends(get_supermarket_estimator)
-    ],
     kroger: Annotated[KrogerClient | None, Depends(get_kroger_client)],
     location_id: str | None = None,
 ) -> GroceryJobView:
@@ -174,7 +162,6 @@ def read_chat_job(
         raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_MESSAGE)
     result = job.result
     if job.status == "succeeded" and isinstance(result, dict):
-        result = attach_supermarket_estimate(result, estimator)
         if location_id is not None and kroger is not None:
             result = attach_kroger_quote(
                 result, kroger, location_id, lambda: datetime.now(UTC)

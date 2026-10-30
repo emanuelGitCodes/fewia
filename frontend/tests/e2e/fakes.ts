@@ -1,22 +1,15 @@
 import { expect, test as base, type Page } from "@playwright/test";
-import {
-  SPOONACULAR_COST_NOTICE,
-  type GroceryJobResult,
-  type GroceryRequest,
-  type SpendingSource,
-} from "../../src/apiTypes";
+import type { GroceryJobResult, GroceryRequest, SpendingSource } from "../../src/apiTypes";
 import type { ChatJobCreate, ChatResult } from "../../src/chatTypes";
 
 export { expect };
 
-// The base Compose stack turns off Bedrock chat and the Spoonacular overlay.
-// These helpers fake only those three surfaces with `page.route`: the providers
-// flag, the chat endpoints, and the overlay field. Every grocery request stays
-// live, and the chat and overlay fakes read the real grocery responses.
+// The base Compose stack turns off Bedrock chat. These helpers fake only that
+// surface with `page.route`: the providers flag and the chat endpoints. Every
+// grocery request stays live, and the chat fake reads the real grocery responses.
 
 export const CHAT_ANSWER = "Here is a plan that fits your budget.";
 
-const OVERLAY_MARKUP_CENTS = 37;
 // A grocery job result has no evidence fields, so the fake chat result carries
 // no evidence ID and a fixed placeholder revision. The UI requires 64 lowercase
 // hex characters for a chat plan.
@@ -36,19 +29,8 @@ export type GroceryCapture = {
   request: GroceryRequest | null;
 };
 
-export type AppliedOverlay = {
-  total_cents: number;
-  notice: string;
-  lines: { ingredient_id: string; cents: number }[];
-};
-
 export type GroceryTap = {
-  overlay: boolean;
-  // Ingredient ID of a pantry line that the fake overlay lists on purpose. The
-  // real overlay never lists one, so this checks that the page ignores it.
-  pantryLine: string | null;
   latest: () => GroceryCapture;
-  latestOverlay: () => AppliedOverlay;
 };
 
 export type ChatOutcome = "failed" | "succeeded";
@@ -85,25 +67,6 @@ async function horizontalOverflow(page: Page): Promise<number> {
   return width - viewport.width;
 }
 
-// Like `supermarket_overlay.py`, the total skips pantry lines. The fake lists
-// the one pantry line named by `pantryLine`, which that service never does.
-function overlayFor(result: GroceryJobResult, pantryLine: string | null): AppliedOverlay {
-  const lines = result.plan.lines
-    .filter((line) => !line.from_pantry || line.ingredient_id === pantryLine)
-    .map((line) => ({
-      ingredient_id: line.ingredient_id,
-      cents: (line.cost_cents ?? 0) + OVERLAY_MARKUP_CENTS,
-      pantry: line.from_pantry,
-    }));
-  return {
-    total_cents: lines
-      .filter((line) => !line.pantry)
-      .reduce((sum, line) => sum + line.cents, 0),
-    notice: SPOONACULAR_COST_NOTICE,
-    lines: lines.map(({ ingredient_id, cents }) => ({ ingredient_id, cents })),
-  };
-}
-
 async function installProviders(page: Page): Promise<void> {
   await page.route(/\/api\/grocery\/providers$/, async (route) => {
     if (route.request().method() !== "GET") {
@@ -119,21 +82,12 @@ async function installProviders(page: Page): Promise<void> {
 async function installGroceryTap(page: Page): Promise<GroceryTap> {
   let posted: GroceryRequest | null = null;
   let captured: GroceryCapture | null = null;
-  let applied: AppliedOverlay | null = null;
   const tap: GroceryTap = {
-    overlay: false,
-    pantryLine: null,
     latest: () => {
       if (captured === null) {
         throw new Error("No succeeded grocery job reached the page yet.");
       }
       return captured;
-    },
-    latestOverlay: () => {
-      if (applied === null) {
-        throw new Error("No overlay was added to a grocery job yet.");
-      }
-      return applied;
     },
   };
   await page.route(/\/api\/grocery\/jobs$/, async (route) => {
@@ -159,10 +113,6 @@ async function installGroceryTap(page: Page): Promise<GroceryTap> {
       return;
     }
     captured = { id: job.id, result: structuredClone(job.result), request: posted };
-    if (tap.overlay) {
-      applied = overlayFor(job.result, tap.pantryLine);
-      job.result.supermarket_estimate = applied;
-    }
     await route.fulfill({ response, json: job });
   });
   return tap;

@@ -42,9 +42,6 @@ export function chatEstimateJob(job: ChatJob | null): GroceryJob | null {
       ...(result.meal_nutrition === null
         ? {}
         : { meal_nutrition: structuredClone(result.meal_nutrition) }),
-      ...(result.supermarket_estimate === undefined
-        ? {}
-        : { supermarket_estimate: structuredClone(result.supermarket_estimate) }),
     },
   };
 }

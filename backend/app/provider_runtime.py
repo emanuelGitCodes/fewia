@@ -15,7 +15,6 @@ from app.providers.bedrock import BedrockConverseProvider
 from app.providers.instacart import InstacartDevelopmentProvider
 from app.providers.kroger import KrogerClient, kroger_base_url
 from app.providers.plaid import PlaidSandboxProvider
-from app.providers.spoonacular import SpoonacularEstimateProvider
 
 
 class ProviderCapabilities(TypedDict):
@@ -76,23 +75,6 @@ def build_instacart(
     provider: InstacartDevelopmentProvider | None = None
     try:
         provider = InstacartDevelopmentProvider(secret.get_secret_value())
-    except Exception:  # noqa: BLE001
-        pass
-    if provider is None:
-        raise ProviderConfigurationError()
-    return provider
-
-
-def build_spoonacular(
-    settings: GroceryProviderSettings,
-) -> SpoonacularEstimateProvider | None:
-    key_file = settings.spoonacular_key_file
-    if key_file is None:
-        return None
-    secret = read_secret_file(key_file)
-    provider: SpoonacularEstimateProvider | None = None
-    try:
-        provider = SpoonacularEstimateProvider(secret.get_secret_value())
     except Exception:  # noqa: BLE001
         pass
     if provider is None:

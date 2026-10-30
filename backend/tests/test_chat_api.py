@@ -17,13 +17,6 @@ from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_deps import (
-    PLAN_RESULT,
-    FixedEstimator,
-    ForbiddenEstimator,
-    clear_estimator_override,
-    override_estimator,
-)
 
 from app.api import chat as chat_api
 from app.api.chat_models import CreateChatJobBody
@@ -33,7 +26,7 @@ from app.api.grocery import (
     INPUT_INVALID_MESSAGE,
     JOB_UNAVAILABLE_MESSAGE,
 )
-from app.deps import get_kroger_client, get_supermarket_estimator
+from app.deps import get_kroger_client
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
 from app.main import app
@@ -903,82 +896,6 @@ def _seed_chat_job(
     job.result = result
     session.flush()
     return job
-
-
-def test_succeeded_chat_job_attaches_overlay_without_storing(
-    client: TestClient, session: Session, seed_user: UserSeeder
-) -> None:
-    seed_user()
-    job = _seed_chat_job(
-        session, key="chat:overlay-ok", status="succeeded", result=dict(PLAN_RESULT)
-    )
-    override_estimator(FixedEstimator())
-    try:
-        response = client.get(f"/grocery/chat/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
-    stored = session.get(Job, job.id)
-
-    assert response.status_code == 200
-    estimate = body["result"]["supermarket_estimate"]
-    assert isinstance(estimate, dict)
-    assert isinstance(estimate["lines"], list)
-    assert estimate["lines"]
-    assert stored is not None
-    assert isinstance(stored.result, dict)
-    assert "supermarket_estimate" not in stored.result
-
-
-def test_succeeded_chat_job_keeps_stored_result_without_estimator(
-    client: TestClient, session: Session, seed_user: UserSeeder
-) -> None:
-    seed_user()
-    get_supermarket_estimator.cache_clear()
-    stale = {
-        "total_cents": 9999,
-        "notice": "stale stored overlay",
-        "lines": [{"ingredient_id": "chicken_breast", "cents": 9999}],
-    }
-    stored_result: dict[str, object] = dict(PLAN_RESULT)
-    stored_result["supermarket_estimate"] = stale
-    job = _seed_chat_job(
-        session, key="chat:overlay-none", status="succeeded", result=stored_result
-    )
-    override_estimator(None)
-    try:
-        response = client.get(f"/grocery/chat/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
-    stored = session.get(Job, job.id)
-
-    assert response.status_code == 200
-    assert "supermarket_estimate" not in body["result"]
-    assert stored is not None
-    assert isinstance(stored.result, dict)
-    assert stored.result["supermarket_estimate"] == stale
-
-
-@pytest.mark.parametrize("status", ["queued", "failed"])
-def test_unfinished_chat_job_does_not_call_estimator(
-    client: TestClient, session: Session, seed_user: UserSeeder, status: str
-) -> None:
-    seed_user()
-    job = _seed_chat_job(
-        session, key=f"chat:overlay-{status}", status=status, result=dict(PLAN_RESULT)
-    )
-    override_estimator(ForbiddenEstimator())
-    try:
-        response = client.get(f"/grocery/chat/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
-
-    assert response.status_code == 200
-    assert body["status"] == status
-    assert body["result"] == PLAN_RESULT
-    assert "supermarket_estimate" not in body["result"]
 
 
 KROGER_LOCATION = "01234567"
