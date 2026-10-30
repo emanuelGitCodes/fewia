@@ -9,17 +9,12 @@ from uuid import UUID
 import pytest
 
 from app.agent import ingredient_tool
-from app.agent.budget_tool import budget_tool_spec
-from app.agent.catalog_tool import catalog_tool_spec
 from app.agent.chat_dispatch import dispatch
+from app.agent.chat_loop import ChatUnavailable, run_chat
 from app.agent.chat_messages import ToolCall
-from app.agent.ingredient_tool import ingredient_tool_spec
-from app.agent.plan_tools import get_meal_tool_spec, get_plan_tool_spec
-from app.agent.planning_tool import planner_tool_spec
-from app.agent.price_tool import price_tool_spec
-from app.agent.proposal_tool import PROPOSAL_TOOL, proposal_tool_spec
-from app.agent.substitute_tool import substitute_tool_spec
-from app.domain.catalog import CATALOG_VERSION
+from app.agent.proposal_tool import PROPOSAL_TOOL
+from app.domain.catalog import CATALOG_VERSION, RECIPES
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.plan_proposal import apply_operations, parse_operations
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.evaluation_budget_inputs import fixture_budget
@@ -76,20 +71,59 @@ def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
     assert outcomes == {"prose", "template", "clarification", "proposal"}
 
 
-def test_tool_names_match_the_registered_specs() -> None:
-    specs = [
-        planner_tool_spec(),
-        budget_tool_spec(),
-        catalog_tool_spec(),
-        get_plan_tool_spec(),
-        get_meal_tool_spec(),
-        substitute_tool_spec(),
-        price_tool_spec(),
-        ingredient_tool_spec(),
-        proposal_tool_spec(),
-    ]
-    names = {cast(Json, spec["toolSpec"])["name"] for spec in specs}
-    assert names == TOOL_NAMES
+class _Recorder:
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def converse(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        self.names = {cast(Json, spec["toolSpec"])["name"] for spec in tools}
+        raise RuntimeError("recorded")
+
+
+def _propose(operations: list[dict[str, object]]) -> str:
+    return "proposal-fixture"
+
+
+def _offered(corpus: ConversationCorpus, *, propose: bool) -> set[str]:
+    scenario = corpus.scenarios[0]
+    recorder = _Recorder()
+    with pytest.raises(ChatUnavailable):
+        run_chat(
+            recorder,
+            "What does my plan cost?",
+            fixture_budget(scenario.inputs.model_dump()),
+            date.fromisoformat(scenario.inputs.budget_period),
+            plan_revision=PlanRevisionInput(id=_REVISION_ID, snapshot=scenario.plan),
+            propose=_propose if propose else None,
+        )
+    assert recorder.names
+    return recorder.names
+
+
+def test_tool_names_are_what_run_chat_registers(corpus: ConversationCorpus) -> None:
+    offered = _offered(corpus, propose=True)
+    assert PROPOSAL_TOOL in offered
+    assert offered == TOOL_NAMES
+    assert _offered(corpus, propose=False) == TOOL_NAMES - {PROPOSAL_TOOL}
+
+
+def test_every_corpus_tool_is_registered(corpus: ConversationCorpus) -> None:
+    used = {
+        name
+        for scenario in corpus.scenarios
+        for turn in scenario.turns
+        for name in (
+            *turn.expect.tools_any,
+            *turn.expect.tools_forbidden,
+            *(item.tool for item in turn.expect.gold),
+        )
+    }
+    assert used <= _offered(corpus, propose=True)
 
 
 def _set(path: list[Any], key: str, value: object) -> Callable[[Json], None]:
@@ -121,6 +155,20 @@ def _swap_first_two(data: Json) -> None:
     data["scenarios"][:2] = [second, first]
 
 
+def _apply_twice_for_one_proposal(data: Json) -> None:
+    turns = data["scenarios"][6]["turns"]
+    turns.append(deepcopy(turns[1]))
+
+
+_FOUR_MEALS = [
+    {"recipe_id": recipe_id, "servings": 1}
+    for recipe_id in (
+        "bean_tacos",
+        "chicken_and_rice_bowls",
+        "lentil_soup",
+        "vegetable_pasta",
+    )
+]
 _TURN = ["scenarios", 0, "turns", 0]
 _EXPECT = [*_TURN, "expect"]
 _GOLD = [*_EXPECT, "gold", 0]
@@ -146,6 +194,12 @@ _RULES: dict[str, Callable[[Json], None]] = {
     "apply_after_non_proposal": _set(
         ["scenarios", 3, "turns", 1], "apply_proposal_before", True
     ),
+    "apply_twice_for_one_proposal": _apply_twice_for_one_proposal,
+    "no_meals": _set(["scenarios", 0, "plan"], "meals", []),
+    "four_meals": _set(["scenarios", 0, "plan"], "meals", _FOUR_MEALS),
+    "plan_cap_not_in_plan": _set(["scenarios", 5, "plan"], "plan_cap_cents", None),
+    "plan_cap_not_in_inputs": _set(["scenarios", 5, "inputs"], "plan_cap_cents", None),
+    "plan_cap_differs": _set(["scenarios", 5, "plan"], "plan_cap_cents", 4000),
     "empty_outcomes": _set(_EXPECT, "outcomes", []),
     "unknown_outcome": _set(_EXPECT, "outcomes", ["refusal"]),
     "repeated_outcome": _set(_EXPECT, "outcomes", ["prose", "prose"]),
@@ -172,6 +226,16 @@ def test_each_rule_rejects_a_bad_copy(tmp_path: Path, raw: Json, rule: str) -> N
     bad = deepcopy(raw)
     _RULES[rule](bad)
     _reject(tmp_path, bad)
+
+
+def test_a_new_proposal_turn_allows_another_apply(tmp_path: Path, raw: Json) -> None:
+    turns = raw["scenarios"][6]["turns"]
+    turns.extend(deepcopy(turns))
+    path = tmp_path / "conversation.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    loaded = load_conversation_corpus(path)
+    flags = [turn.apply_proposal_before for turn in loaded.scenarios[6].turns]
+    assert flags == [False, True, False, True]
 
 
 def test_missing_and_malformed_files_use_the_fixed_message(tmp_path: Path) -> None:
@@ -211,6 +275,7 @@ def test_gold_regenerates_from_the_tools(
                 assert proposed is not None, where
                 snapshot = apply_operations(plan.snapshot, parse_operations(proposed))
                 plan = PlanRevisionInput(id=_REVISION_ID, snapshot=snapshot)
+                proposed = None
             for gold in turn.expect.gold:
                 call = ToolCall("gold", gold.tool, deepcopy(gold.input))
                 trace: list[dict[str, object]] = []
@@ -239,4 +304,13 @@ def test_gold_regenerates_from_the_tools(
 def test_plan_snapshots_validate(corpus: ConversationCorpus) -> None:
     for scenario in corpus.scenarios:
         PlanSnapshot.model_validate(scenario.plan.model_dump())
-        assert scenario.plan.plan_cap_cents == scenario.inputs.plan_cap_cents
+
+
+def test_c05_false_premise_holds(corpus: ConversationCorpus) -> None:
+    scenario = corpus.scenarios[4]
+    assert scenario.id == "C05"
+    assert "chicken" in scenario.turns[0].user.lower()
+    for meal in scenario.plan.meals:
+        ids = [item for item, _ in RECIPES[meal.recipe_id].ingredients]
+        names = [ALL_INGREDIENTS[item].name.lower() for item in ids]
+        assert not any("chicken" in text for text in [*ids, *names])

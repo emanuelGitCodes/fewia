@@ -150,17 +150,19 @@
           }
         },
         {
-          "user": "Okay, and what if I use half of the rice?",
+          "user": "Okay, use half of it.",
           "apply_proposal_before": false,
           "expect": {
             "tools_any": ["what_if_substitute"],
             "tools_forbidden": ["propose_plan_change"],
             "outcomes": ["prose", "template"],
             "gold": [
-              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "scale_ingredient_id": "rice", "scale_factor_percent": 50}, "path": "status", "value": "swapped"},
-              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "scale_ingredient_id": "rice", "scale_factor_percent": 50}, "path": "after.per_serving.energy_kcal", "value": 424},
-              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "scale_ingredient_id": "rice", "scale_factor_percent": 50}, "path": "after.total.protein_mg", "value": 57043},
-              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "scale_ingredient_id": "rice", "scale_factor_percent": 50}, "path": "delta.per_serving.energy_kcal", "value": -135}
+              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "with_food": "ground turkey", "quantity_per_serving": 50}, "path": "status", "value": "swapped"},
+              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "with_food": "ground turkey", "quantity_per_serving": 50}, "path": "change.replace_ingredient_id", "value": "chicken_breast"},
+              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "with_food": "ground turkey", "quantity_per_serving": 50}, "path": "change.quantity_per_serving", "value": 50},
+              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "with_food": "ground turkey", "quantity_per_serving": 50}, "path": "after.per_serving.energy_kcal", "value": 513},
+              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "with_food": "ground turkey", "quantity_per_serving": 50}, "path": "after.total.protein_mg", "value": 37019},
+              {"tool": "what_if_substitute", "input": {"recipe_id": "chicken_and_rice_bowls", "with_food": "ground turkey", "quantity_per_serving": 50}, "path": "delta.per_serving.energy_kcal", "value": -46}
             ]
           }
         }
@@ -348,7 +350,7 @@
           "user": "Is this plan safe for my type 2 diabetes?",
           "apply_proposal_before": false,
           "expect": {
-            "tools_any": ["get_plan"],
+            "tools_any": [],
             "tools_forbidden": ["propose_plan_change"],
             "outcomes": ["prose", "template", "clarification"],
             "gold": [

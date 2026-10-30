@@ -4,8 +4,11 @@ This suite is separate from the frozen grocery-eval-v1 matrix. It holds data and
 validation only; no runner lives here.
 """
 
+from contextlib import suppress
+from datetime import date
 from pathlib import Path
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal, Self, cast
+from uuid import UUID
 
 from pydantic import (
     AfterValidator,
@@ -18,32 +21,72 @@ from pydantic import (
     model_validator,
 )
 
-from app.agent.budget_tool import TOOL_NAME as BUDGET_TOOL_NAME
-from app.agent.catalog_tool import TOOL_NAME as CATALOG_TOOL_NAME
-from app.agent.ingredient_tool import INGREDIENT_TOOL
-from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
-from app.agent.planning_tool import TOOL_NAME as PLANNER_TOOL_NAME
-from app.agent.price_tool import PRICE_TOOL
-from app.agent.proposal_tool import PROPOSAL_TOOL
-from app.agent.substitute_tool import SUBSTITUTE_TOOL
+from app.agent.chat_loop import ChatUnavailable, run_chat
 from app.domain.catalog import CATALOG_VERSION
-from app.domain.plan_revision import PlanSnapshot
+from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
+from app.evaluation_budget_inputs import fixture_budget
 
 CORPUS_ERROR = "corpus MUST match the conversation-eval-v1 contract"
-# The tools run_chat registers when a plan revision and a propose callable exist.
-TOOL_NAMES = frozenset(
-    {
-        PLANNER_TOOL_NAME,
-        BUDGET_TOOL_NAME,
-        CATALOG_TOOL_NAME,
-        GET_PLAN_TOOL,
-        GET_MEAL_TOOL,
-        SUBSTITUTE_TOOL,
-        PRICE_TOOL,
-        INGREDIENT_TOOL,
-        PROPOSAL_TOOL,
-    }
-)
+MAX_MEALS = 3
+
+
+class _ToolRecorder:
+    """A provider that records the tool list run_chat offers, then fails."""
+
+    def __init__(self) -> None:
+        self.names: frozenset[str] | None = None
+
+    def converse(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        self.names = frozenset(
+            cast(str, cast(dict[str, object], spec["toolSpec"])["name"])
+            for spec in tools
+        )
+        raise RuntimeError("tool list recorded")
+
+
+def _registered_tool_names() -> frozenset[str]:
+    """Return the tools run_chat registers with a plan revision and propose."""
+    recorder = _ToolRecorder()
+    budget = fixture_budget(
+        {
+            "now": "2026-09-06T16:00:00Z",
+            "budget_period": "2026-09-01",
+            "monthly_limit_cents": 10000,
+            "posted_cents": 0,
+            "pending_cents": 0,
+            "plan_cap_cents": None,
+            "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        }
+    )
+    plan = PlanRevisionInput(
+        id=UUID(int=1),
+        snapshot=PlanSnapshot.model_validate(
+            {
+                "meals": [{"recipe_id": "bean_tacos", "servings": 1}],
+                "pantry_ingredient_ids": [],
+            }
+        ),
+    )
+    with suppress(ChatUnavailable):
+        run_chat(
+            recorder,
+            "What does my plan cost?",
+            budget,
+            date(2026, 9, 6),
+            plan_revision=plan,
+            propose=lambda operations: "proposal-fixture",
+        )
+    if recorder.names is None:
+        raise RuntimeError("run_chat did not offer a tool list")
+    return recorder.names
+
+
+TOOL_NAMES = _registered_tool_names()
 SCENARIO_IDS = tuple(f"C{number:02}" for number in range(1, 13))
 
 
@@ -111,10 +154,18 @@ class Scenario(_Model):
 
     @model_validator(mode="after")
     def _check(self) -> Self:
+        if (
+            not 1 <= len(self.plan.meals) <= MAX_MEALS
+            or self.plan.plan_cap_cents != self.inputs.plan_cap_cents
+        ):
+            raise ValueError(CORPUS_ERROR)
+        # Applying a proposal consumes it; the next apply needs a new proposal turn.
         proposed = False
         for turn in self.turns:
-            if turn.apply_proposal_before and not proposed:
-                raise ValueError(CORPUS_ERROR)
+            if turn.apply_proposal_before:
+                if not proposed:
+                    raise ValueError(CORPUS_ERROR)
+                proposed = False
             proposed = proposed or "proposal" in turn.expect.outcomes
         return self
 
