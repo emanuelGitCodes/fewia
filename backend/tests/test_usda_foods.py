@@ -68,6 +68,10 @@ _EXPECTED_DEFAULTS = {
     "turkey breast": 171098,
     "italian sausage": 171631,
     "sausage": 171631,
+    # Recipes and macro tracking use boneless skinless thigh, so meat only and raw
+    # is the default (SR Legacy 173627); with skin stays one search away.
+    "chicken thigh": 173627,
+    "chicken thighs": 173627,
 }
 _CATEGORIES = (1, 2, 4, 5, 7, 9, 10, 11, 12, 13, 15, 16, 17, 20)
 _VEGAN = {9, 11, 12, 16, 20}
@@ -131,10 +135,54 @@ def index_of(*descriptions: str) -> UsdaIndex:
         ("Rice (Includes brown)", "rice"),
         ("Spices,   pepper,   black", "spices (pepper, black)"),
         ("Fish, salmon (wild), raw", "fish (salmon (wild), raw)"),
+        (
+            "Chicken, broilers or fryers, dark meat, thigh, meat only, raw",
+            "chicken (dark meat, thigh, meat only, raw)",
+        ),
+        ("Pork, fresh, loin, separable lean and fat, raw", "pork (loin, raw)"),
+        ("Pork, Fresh", "pork (Fresh)"),
+        (
+            "Pork, fresh, composite of trimmed leg, loin, shoulder, and spareribs,"
+            " separable lean only, cooked, braised, roasted",
+            "pork (separable lean only, cooked, braised, roasted)",
+        ),
     ],
 )
 def test_display_names(description: str, expected: str) -> None:
     assert display_name(description) == expected
+
+
+def test_a_long_last_qualifier_is_cut_at_a_word_boundary() -> None:
+    assert display_name("Soup, alpha beta gamma delta", limit=20) == "soup (alpha beta)"
+
+
+def test_a_larger_limit_keeps_more_qualifiers() -> None:
+    description = "Pork, fresh, composite of trimmed leg, loin, shoulder, cooked, rst"
+    assert display_name(description, limit=90) == (
+        "pork (composite, loin, shoulder, cooked, rst)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("description", "expected"),
+    [
+        (
+            "Pork, fresh, composite of trimmed leg, loin, shoulder, and spareribs,"
+            " separable lean only, cooked, braised, roasted",
+            "pork (composite, separable lean only, cooked, braised, roasted)",
+        ),
+        (
+            "Beef, composite of trimmed flank, rib, and loin, separable lean only, raw",
+            "beef (composite, separable lean only, raw)",
+        ),
+    ],
+)
+def test_composite_cuts_are_named_composite_not_one_cut(
+    description: str, expected: str
+) -> None:
+    name = display_name(description, limit=90)
+    assert name == expected
+    assert not any(cut in name for cut in ("leg", "loin", "shoulder", "spareribs"))
 
 
 @pytest.mark.parametrize(
@@ -499,6 +547,59 @@ def test_every_real_display_name_resolves_back_to_its_food() -> None:
             food.ingredient.id
         )
     assert shadowed <= 25, f"{shadowed} USDA names are shadowed by catalog or curated"
+
+
+@needs_bundle
+def test_chicken_thigh_resolves_to_the_meat_only_raw_food() -> None:
+    from app.agent.ingredient_tool import resolve_food
+
+    for query in ("chicken thigh", "chicken thighs"):
+        found = resolve_food(query)
+        assert (found.status, found.ids) == ("found", ("usda_173627",)), query
+
+
+@needs_bundle
+def test_chicken_thigh_foods_have_distinct_names() -> None:
+    ids = (172385, 172855, 172859, 172863, 173627, 174502)
+    names = {
+        food.facts.fdc_id: food.ingredient.name
+        for food in usda_foods.USDA_FOODS
+        if food.facts.fdc_id in ids
+    }
+    assert len(names) == 6
+    assert len(set(names.values())) == 6
+    assert "with added solution" in names[172859]
+    assert "with added solution" in names[172863]
+
+
+@needs_bundle
+def test_real_display_names_are_unique() -> None:
+    names = [food.ingredient.name for food in usda_foods.USDA_FOODS]
+    assert len(set(names)) == len(names)
+
+
+@needs_bundle
+def test_nearly_all_real_display_names_are_short() -> None:
+    names = [food.ingredient.name for food in usda_foods.USDA_FOODS]
+    short = sum(len(name) <= 64 for name in names)
+    assert short / len(names) >= 0.80
+
+
+def test_colliding_short_names_fall_back_to_full_names() -> None:
+    foods = parse_bundle(
+        bundle(
+            [
+                row(1, "Pork, fresh, raw"),
+                row(2, "Pork, raw"),
+                row(3, "Pork, cooked"),
+            ]
+        )
+    )
+    assert [food.ingredient.name for food in foods] == [
+        "pork (fresh, raw)",
+        "pork (raw)",
+        "pork (cooked)",
+    ]
 
 
 @needs_bundle

@@ -4,8 +4,9 @@ import gzip
 import json
 import re
 import zlib
+from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from app.domain.catalog import Ingredient
@@ -29,6 +30,18 @@ KEPT_CATEGORIES = frozenset({1, 2, 4, 5, 7, 9, 10, 11, 12, 13, 15, 16, 17, 20})
 _VEGAN_CATEGORIES = frozenset({9, 11, 12, 16, 20})
 _VEGETARIAN_CATEGORIES = _VEGAN_CATEGORIES | {1}
 _MAX_CANDIDATES = 3
+_SHORT_LIMIT = 60
+_LONG_LIMIT = 90
+_FILLER = frozenset(
+    {
+        "broilers or fryers",
+        "separable lean and fat",
+        "fresh",
+        "all grades",
+        "composite of trimmed retail cuts",
+        "nfs",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -56,10 +69,58 @@ def _strip_includes(text: str) -> str:
     return " ".join(text.split())
 
 
-def display_name(description: str) -> str:
+def full_display_name(description: str) -> str:
     head, _, rest = _strip_includes(description).partition(",")
     head, rest = head.strip().lower(), rest.strip()
     return f"{head} ({rest})" if rest else head
+
+
+def _top_level_split(text: str) -> list[str]:
+    parts, depth, start = [], 0, 0
+    for index, char in enumerate(text):
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if char == "," and depth <= 0:
+            parts.append(text[start:index])
+            start = index + 1
+    parts.append(text[start:])
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _collapse_composite(qualifiers: list[str]) -> list[str]:
+    """Replace a comma-split "composite of ..., and ..." list with "composite"."""
+    for start, qualifier in enumerate(qualifiers):
+        lowered = qualifier.lower()
+        if lowered.startswith("composite of") and lowered not in _FILLER:
+            stop = next(
+                (
+                    index
+                    for index in range(start + 1, len(qualifiers))
+                    if qualifiers[index].lower().startswith("and ")
+                ),
+                start,
+            )
+            return [*qualifiers[:start], "composite", *qualifiers[stop + 1 :]]
+    return qualifiers
+
+
+def display_name(description: str, limit: int = _SHORT_LIMIT) -> str:
+    head, *qualifiers = _top_level_split(_strip_includes(description))
+    qualifiers = _collapse_composite(qualifiers)
+    head = head.lower()
+    if not qualifiers:
+        return head
+    *middle, last = qualifiers
+    room = limit - len(head) - 3
+    if len(last) > room:
+        cut = last[: max(room, 0) + 1]
+        last = (cut.rsplit(" ", 1)[0] if " " in cut else cut[:-1]).rstrip(" ,")
+    kept: list[str] = []
+    used = len(last)
+    for qualifier in reversed(middle):
+        if qualifier.lower() not in _FILLER and used + len(qualifier) + 2 <= room:
+            kept.insert(0, qualifier)
+            used += len(qualifier) + 2
+    return f"{head} ({', '.join([*kept, last])})" if last else head
 
 
 def word_tokens(text: str) -> frozenset[str]:
@@ -128,6 +189,22 @@ def parse_bundle(payload: object) -> list[UsdaFood]:
     ids = [food.facts.fdc_id for food in foods]
     if ids != sorted(set(ids)):
         raise _fail("rows must be unique and sorted by fdc_id")
+    return _keep_names_unique(foods)
+
+
+def _keep_names_unique(foods: list[UsdaFood]) -> list[UsdaFood]:
+    """Colliding names are retried with a longer limit, then fall back to full names."""
+    for rename in (
+        lambda food: display_name(food.description, _LONG_LIMIT),
+        lambda food: full_display_name(food.description),
+    ):
+        counts = Counter(food.ingredient.name for food in foods)
+        foods = [
+            replace(food, ingredient=replace(food.ingredient, name=rename(food)))
+            if counts[food.ingredient.name] > 1
+            else food
+            for food in foods
+        ]
     return foods
 
 

@@ -272,7 +272,7 @@ def test_foods_outside_the_bundle_stay_unknown(raw: str) -> None:
 
 
 @needs_bundle
-@pytest.mark.parametrize("raw", ["chicken thigh", "beans", "cheese, cheddar"])
+@pytest.mark.parametrize("raw", ["beans", "cheese, cheddar"])
 def test_every_ambiguous_candidate_resolves_back_to_itself(raw: str) -> None:
     resolution = resolve_food(raw)
     if raw == "cheese, cheddar":
