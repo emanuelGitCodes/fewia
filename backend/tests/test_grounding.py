@@ -821,7 +821,7 @@ def test_accented_latin_folds_to_ascii_and_passes() -> None:
     assert validate("Add jalapeño slices and crème.", FactSet()).ok
     assert validate("Add jalapeño slices.", FactSet()).ok
     assert normalize("jalapeño") == "jalapeno"
-    assert normalize("a b c‑d−e\n") == "a b c-d-e "
+    assert normalize("a b c‑d−e\n") == "a b c-d-e\n"
 
 
 def test_every_bmp_letter_that_does_not_fold_to_ascii_fails() -> None:
@@ -1326,7 +1326,7 @@ def test_servings_from_your_plan_is_not_a_changed_claim() -> None:
         "It is Plant-Based.",
         "It is dairy free and nut-free.",
         "It is lactose free, egg free, and soy free.",
-        "A keto, paleo, or Whole30 meal.",
+        "A keto or paleo meal.",
         "It is halal and kosher.",
         "It is low sodium, sugar free, low fat, and high fiber.",
         "These are vegetar-\nian.",

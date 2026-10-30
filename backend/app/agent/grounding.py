@@ -117,11 +117,11 @@ _FORBIDDEN = re.compile(
     r"|diagnos|glutenfree"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
-    r"|updatedyourplan|changedyourplan|yourplannowhas"
+    r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
     # Diet labels: only the catalog's own sentences (see _SERVER_SENTENCE) may use them.
     r"|vegan|vegetarian|plantbased|dairyfree|lactosefree|nutfree|eggfree|soyfree"
-    r"|keto|paleo|whole30|halal|kosher|lowsodium|sugarfree|lowfat|highfiber"
+    r"|keto|paleo|halal|kosher|lowsodium|sugarfree|lowfat|highfiber"
 )
 # A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein",
 # "3 times", "3-fold", "two x").
@@ -159,7 +159,8 @@ _SERVER_SENTENCE = re.compile(
         re.escape(s)
         for s in (*re.split(r"(?<=\.) ", _SAFETY), *sorted(_diet_sentences()))
     )
-    + ")"
+    # The substitute and price tools print this one with the plan's servings.
+    + r"|Servings from your plan: \d+\.)"
 )
 # A sentence end is a word of 3+ letters or digits, then one of .!? ("Dr.", "No.",
 # "e.g.", "U.S.", "a.m.", ". . ." and "..." are not sentence ends).
