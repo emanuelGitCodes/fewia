@@ -21,9 +21,14 @@ def outcome_of(record: dict[str, object]) -> str:
         return "failed"
     if record.get("proposal") is True:
         return "proposal"
-    if record.get("status") == "clarification":
+    if record.get("reply_source") == "model":
+        return "prose"
+    # A read tool also ends with status "clarification"; only a reply that asked
+    # the user something without a tool answer is a clarification.
+    asked = record.get("gate") in (None, "no_tools", "clarification")
+    if asked and record.get("status") == "clarification":
         return "clarification"
-    return "prose" if record.get("reply_source") == "model" else "template"
+    return "template"
 
 
 def _list(record: dict[str, object], key: str) -> list[object]:
@@ -166,7 +171,12 @@ def build_report(
             grounded_rate,
             grounded_rate is not None and grounded_rate >= GROUNDED_TARGET,
         ),
-        _target("unsupported_numbers", "0", totals.unsupported, not totals.unsupported),
+        _target(
+            "unsupported_numbers",
+            "0",
+            totals.unsupported if totals.recorded else None,
+            not totals.unsupported,
+        ),
         _target(
             "latency_p50_ms",
             f"< {P50_TARGET_MS}",
