@@ -915,7 +915,7 @@ def test_failed_job_ignores_invalid_error_detail(
     seed_user()
     job = _seed_grocery_job(session, key="invalid-detail", status="failed", result=None)
     job.result = {"error_detail": detail}
-    view = grocery_api.read_grocery_job(UUID(job.id), session, None)
+    view = grocery_api.read_grocery_job(UUID(job.id), session)
     assert isinstance(view, PlanJobView)
     assert view.result is None
     assert view.error_detail is None
