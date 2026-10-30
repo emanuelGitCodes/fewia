@@ -248,7 +248,7 @@ def test_a_composite_merge_covers_only_short_cuts_ending_in_and() -> None:
         "Pork, fresh, composite of trimmed leg, loin, shoulder, and spareribs,"
         " (includes cuts to be cured), separable lean and fat, raw"
     )
-    assert display_name(merged) == "pork (composite, (includes cuts to be cured), raw)"
+    assert display_name(merged) == "pork (composite, raw)"
     unmerged = "Pork, fresh, composite of separable fat, with added solution, cooked"
     assert display_name(unmerged) == "pork (composite, with added solution, cooked)"
 
