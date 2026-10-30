@@ -119,10 +119,17 @@ _FORBIDDEN = re.compile(
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
-    # Diet labels: only the catalog's own sentences (see _SERVER_SENTENCE) may use them.
-    r"|vegan|vegetarian|plantbased|dairyfree|lactosefree|nutfree|eggfree|soyfree"
-    r"|keto|paleo|halal|kosher|lowsodium|sugarfree|lowfat|highfiber"
 )
+# Diet labels match as whole words on the folded text, so "tofu" or "take" never hit
+# "keto". Only the catalog's own sentences (see _SERVER_SENTENCE) may use them.
+_DIET_LABEL = re.compile(
+    r"\b(?:vegan|vegetarian|keto|paleo|halal|kosher"
+    r"|(?:plant[- ]?based|(?:dairy|lactose|nut|egg|soy|sugar)[- ]?free"
+    r"|low[- ]?(?:sodium|fat)|high[- ]?fiber))\b",
+    re.IGNORECASE,
+)
+# A word split by a hyphen at a line break ("vegetar-\nian") is one word.
+_LINE_HYPHEN = re.compile(r"(?<=[A-Za-z])-[^\S\n]*\n\s*(?=[A-Za-z])")
 # A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein",
 # "3 times", "3-fold", "two x").
 _SCALED = re.compile(
@@ -159,8 +166,10 @@ _SERVER_SENTENCE = re.compile(
         re.escape(s)
         for s in (*re.split(r"(?<=\.) ", _SAFETY), *sorted(_diet_sentences()))
     )
-    # The substitute and price tools print this one with the plan's servings.
+    # The substitute and price tools print this one with the plan's servings: at the
+    # start, after any .!? and whitespace, or at the start of a "- " list line.
     + r"|Servings from your plan: \d+\.)"
+    + r"|(?<![^\n])- Servings from your plan: \d+\."
 )
 # A sentence end is a word of 3+ letters or digits, then one of .!? ("Dr.", "No.",
 # "e.g.", "U.S.", "a.m.", ". . ." and "..." are not sentence ends).
@@ -227,6 +236,8 @@ def normalize(text: str) -> str:
 def _without_server_sentences(reply: str) -> str:
     def drop(match: re.Match[str]) -> str:
         before = reply[: match.start()]
+        if "Servings from your plan: " in match.group():
+            return " "  # the pattern already fixed its position
         if before and not _SENTENCE_END.search(before):
             return match.group()
         return " "
@@ -428,6 +439,9 @@ def validate(reply: str, facts: FactSet) -> Verdict:
         return Verdict(False, ("unsupported_character",), (), False)
     text = normalize(reply)
     unmatched, word, money = _scan(text, facts)
+    claims_raw = normalize(
+        _LINE_HYPHEN.sub("", _fold(_without_server_sentences(reply)))
+    )
     claims = normalize(_without_server_sentences(reply))
     # Only the server appends the stale warning; a model copy of it is a claim.
     stale_copy = _squash(STALE_SPENDING_WARNING) in _squash(text)
@@ -437,7 +451,9 @@ def validate(reply: str, facts: FactSet) -> Verdict:
         ("store_price", "kroger" in _squash(text)),
         (
             "forbidden_claim",
-            stale_copy or _FORBIDDEN.search(_squash(claims)) is not None,
+            stale_copy
+            or _FORBIDDEN.search(_squash(claims)) is not None
+            or _DIET_LABEL.search(_LINE_HYPHEN.sub("", claims_raw)) is not None,
         ),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),

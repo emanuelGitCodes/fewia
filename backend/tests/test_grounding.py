@@ -92,6 +92,47 @@ def _macros(kcal: int, protein: int, carbs: int, fat: int) -> dict[str, object]:
     }
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Bake tofu for 20 minutes",
+        "if you'd like tofu",
+        "take tomatoes",
+        "make tortillas",
+    ],
+)
+def test_diet_check_ignores_letters_inside_other_words(reply: str) -> None:
+    verdict = validate(reply, FactSet(generic={Decimal(20)}))
+    assert "forbidden_claim" not in verdict.reasons
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["These are vegan.", "a keto meal", "plant based", "dairy free", "Low-fat."],
+)
+def test_diet_labels_fail_as_whole_words(reply: str) -> None:
+    assert "forbidden_claim" in validate(reply, FactSet()).reasons
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Servings from your plan: 2.",
+        "Protein is 14 g. Servings from your plan: 2.",
+        "- Servings from your plan: 2.",
+        "Protein is 14 g\n- Servings from your plan: 2.",
+    ],
+)
+def test_servings_sentence_is_exempt_where_allowed(reply: str) -> None:
+    facts = FactSet(generic={Decimal(2), Decimal(14)}, mass={Decimal(14)})
+    assert validate(reply, facts).ok
+
+
+def test_servings_sentence_is_not_exempt_mid_sentence() -> None:
+    reply = "Plan Servings from your plan: 2."
+    assert not validate(reply, FactSet(generic={Decimal(2)})).ok
+
+
 # Self-consistency: every server template passes its own validator.
 
 

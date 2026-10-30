@@ -266,6 +266,13 @@ def run_chat(
     run_payloads: list[tuple[str, dict[str, object]]] = []
 
     def answer() -> str:
+        if proposal_read:
+            # A proposal always wins, even after a later catalog or planner call.
+            proposed = read_tool_answer(
+                proposal_read, stale=budget.stale, failed=other_failed
+            )
+            if proposed is not None:
+                return proposed
         if not catalog_batch:
             if candidate is None and last_error is None:
                 read = read_tool_answer(
