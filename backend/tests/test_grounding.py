@@ -27,9 +27,10 @@ from app.agent.plan_tools import (
     execute_get_plan,
 )
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
+from app.agent.proposal_tool import PROPOSAL_TOOL, execute_propose
 from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
-from app.domain.budget import BudgetResult
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
@@ -1226,6 +1227,107 @@ def test_scale_check_leaves_units_and_plain_words_alone() -> None:
 )
 def test_ellipsis_and_abbreviations_are_not_sentence_ends(reply: str) -> None:
     assert "forbidden_claim" in validate(reply, FactSet()).reasons
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Your order is placed.",
+        "Your order got placed.",
+        "Your order is now placed.",
+        "O.r.d.e.r is p.l.a.c.e.d.",
+        "I paid for it.",
+        "It is paid.",
+        "P a i d in full.",
+    ],
+)
+def test_more_purchase_claims_are_forbidden(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "It has 3 times the protein.",
+        "It has 3 Times the protein.",
+        "It has 3-fold the protein.",
+        "It has 3 - fold the protein.",
+        "It has two x the protein.",
+        "It has two times the protein.",
+        "It has two-fold the protein.",
+    ],
+)
+def test_more_multipliers_are_unmatched(reply: str) -> None:
+    verdict = validate(reply, _facts(servings=2, portions=3))
+    assert "unmatched_number" in verdict.reasons
+    assert not verdict.ok
+
+
+def test_a_model_copy_of_the_stale_warning_is_a_forbidden_claim() -> None:
+    facts = _facts(total_cents=1_200)
+    plain = validate("The sample total is $12.00.", facts)
+    assert plain.ok
+    for copy in (
+        STALE_SPENDING_WARNING,
+        STALE_SPENDING_WARNING.upper(),
+        STALE_SPENDING_WARNING.replace(" ", "  "),
+    ):
+        verdict = validate(f"The sample total is $12.00. {copy}", facts)
+        assert verdict.reasons == ("forbidden_claim",)
+
+
+def _propose(*ops: dict[str, object]) -> dict[str, object]:
+    plan = _revision(
+        [
+            {"recipe_id": "chicken_tacos", "servings": 2},
+            {"recipe_id": "bean_tacos", "servings": 2},
+        ]
+    )
+    return execute_propose({"operations": list(ops)}, _BUDGET, plan, lambda _: "p-1")
+
+
+_PROPOSAL_OPS: list[dict[str, object]] = [
+    {"op": "add", "recipe_id": "vegetable_pasta", "servings": 3},
+    {"op": "remove", "recipe_id": "bean_tacos"},
+    {"op": "set_servings", "recipe_id": "chicken_tacos", "servings": 4},
+    {"op": "set_pantry", "ingredient_id": next(iter(INGREDIENTS)), "owned": True},
+]
+
+
+def test_proposal_template_is_grounded() -> None:
+    answer, verdict = _grounded(PROPOSAL_TOOL, _propose(*_PROPOSAL_OPS))
+    assert answer.startswith(
+        "Proposed: add Vegetable pasta (3 servings), remove Bean tacos, "
+        "set Chicken tacos to 4 servings, mark "
+    )
+    assert " as owned. Sample meal price: " in answer
+    assert answer.endswith(f"Apply it in the plan panel. {SAMPLE_ESTIMATE_NOTICE}")
+    assert verdict.has_money
+
+
+def test_proposal_template_with_a_not_owned_pantry_item_and_a_price_drop() -> None:
+    ingredient = next(iter(INGREDIENTS))
+    payload = _propose(
+        {"op": "remove", "recipe_id": "bean_tacos"},
+        {"op": "set_pantry", "ingredient_id": ingredient, "owned": False},
+    )
+    answer, _ = _grounded(PROPOSAL_TOOL, payload)
+    assert "Proposed: remove Bean tacos, mark " in answer
+    assert " as not owned. " in answer
+    assert "(-USD $" in answer
+
+
+def test_proposal_template_with_an_incomplete_price_has_no_money() -> None:
+    payload = _propose(*_PROPOSAL_OPS)
+    after = payload["after"]
+    assert isinstance(after, dict)
+    after["estimate"] = {**after["estimate"], "total_cents": None}
+    answer, verdict = _grounded(PROPOSAL_TOOL, payload)
+    assert answer.endswith(
+        "The sample price is incomplete. Apply it in the plan panel."
+    )
+    assert SAMPLE_ESTIMATE_NOTICE not in answer
+    assert not verdict.has_money
 
 
 def test_server_sentence_exempt_at_the_start_or_after_a_word_sentence_end() -> None:

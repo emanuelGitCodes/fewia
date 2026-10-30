@@ -28,6 +28,7 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, planner_tool_spec
 from app.agent.price_tool import PRICE_TOOL, price_tool_spec
+from app.agent.proposal_tool import PROPOSAL_TOOL, Propose, proposal_tool_spec
 from app.agent.provider import LLMProvider
 from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
@@ -130,9 +131,10 @@ _PLAN_READ_TOOLS = (
     SUBSTITUTE_TOOL,
     PRICE_TOOL,
     INGREDIENT_TOOL,
+    PROPOSAL_TOOL,
 )
 # Tool statuses that answer the question; any other status asks the user something.
-_FINAL_STATUS = frozenset({"swapped", "found", "live", "ok"})
+_FINAL_STATUS = frozenset({"swapped", "found", "live", "ok", "proposed"})
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -211,6 +213,7 @@ def run_chat(
     observe_terminal_tool_results: Callable[[list[dict[str, object]]], None]
     | None = None,
     model_prose: bool = False,
+    propose: Propose | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -252,6 +255,9 @@ def run_chat(
         price_tool_spec(),
         ingredient_tool_spec(),
     ]
+    if plan_revision is not None and propose is not None:
+        tools.append(proposal_tool_spec())
+    proposal_id: str | None = None
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
     run_payloads: list[tuple[str, dict[str, object]]] = []
@@ -303,6 +309,7 @@ def run_chat(
             revisions,
             reply_source=reply_source,
             reply_check=reply_check,
+            proposal_id=proposal_id,
         )
         result["usage"] = usage
         return result
@@ -398,6 +405,7 @@ def run_chat(
                 trace,
                 record_evidence=record_evidence,
                 plan=plan_revision,
+                propose=propose,
             )
             error = _tool_error_payload(block)
             tool_result = block.get("toolResult")
@@ -410,6 +418,8 @@ def run_chat(
             run_ok = run_ok and success
             if success and payload is not None:
                 run_payloads.append((call.name, payload))
+                if call.name == PROPOSAL_TOOL:
+                    proposal_id = str(payload["proposal_id"])
             if call.name == TOOL_NAME and _end_status(payload) != "planned":
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:

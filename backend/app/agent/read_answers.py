@@ -5,13 +5,21 @@ from app.agent.ingredient_tool import INGREDIENT_TOOL
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
 from app.agent.price_tool import PRICE_TOOL
 from app.agent.price_tool import meal_name as _meal
+from app.agent.proposal_tool import PROPOSAL_TOOL
 from app.agent.substitute_tool import SUBSTITUTE_TOOL
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 
 TOOL_FAILED = "A tool call failed. Check the request."
-_PRIORITY = (SUBSTITUTE_TOOL, PRICE_TOOL, INGREDIENT_TOOL, GET_MEAL_TOOL, GET_PLAN_TOOL)
+_PRIORITY = (
+    PROPOSAL_TOOL,
+    SUBSTITUTE_TOOL,
+    PRICE_TOOL,
+    INGREDIENT_TOOL,
+    GET_MEAL_TOOL,
+    GET_PLAN_TOOL,
+)
 _TRY_COMMON_NAME = "Try a common name, for example tofu, shrimp, or cheddar cheese."
 _INCOMPLETE_TOTAL = "The sample total is incomplete because a price is missing."
 
@@ -273,7 +281,45 @@ def _get_plan(payload: dict[str, object], stale: bool) -> str:
     return _with_notice(f"{text} {sentence}", shown)
 
 
+def _operation(item: object) -> str:
+    op = _d(item)
+    kind = op["op"]
+    if kind == "set_pantry":
+        owned = "owned" if op["owned"] is True else "not owned"
+        return f"mark {_catalog_name(op['ingredient_id'])} as {owned}"
+    meal = _meal(op["recipe_id"])
+    if kind == "add":
+        return f"add {meal} ({_servings(_int(op['servings']))})"
+    if kind == "remove":
+        return f"remove {meal}"
+    if kind == "set_servings":
+        return f"set {meal} to {_servings(_int(op['servings']))}"
+    raise ValueError("payload is invalid")
+
+
+def _proposal(payload: dict[str, object]) -> str:
+    if payload.get("status") != "proposed":
+        raise ValueError("payload is invalid")
+    changes = ", ".join(_operation(item) for item in _d_list(payload["operations"]))
+    before, after = (
+        _d(_d(payload[side])["estimate"]).get("total_cents")
+        for side in ("before", "after")
+    )
+    text = f"Proposed: {changes}."
+    shown = type(before) is int and type(after) is int
+    if type(before) is int and type(after) is int:
+        text += (
+            f" Sample meal price: {_usd(before)} to {_usd(after)} "
+            f"({_signed_usd(after - before)})."
+        )
+    else:
+        text += " The sample price is incomplete."
+    return _with_notice(f"{text} Apply it in the plan panel.", shown)
+
+
 def _render(name: str, payload: dict[str, object], stale: bool) -> str:
+    if name == PROPOSAL_TOOL:
+        return _proposal(payload)
     if name == SUBSTITUTE_TOOL:
         return _substitute(payload)
     if name == PRICE_TOOL:

@@ -10,6 +10,7 @@ from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import run_chat
 from app.agent.provider import LLMProvider
 from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
+from app.domain.plan_proposal import create_proposal
 from app.domain.plan_revision import PlanRevisionInput
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
@@ -94,6 +95,15 @@ def chat_job(
     def record_evidence(planning: dict[str, object]) -> str:
         return save_plan_evidence(factory, 1, planning, inputs)
 
+    plan = parsed.plan_revision
+
+    def propose(operations: list[dict[str, object]]) -> str:
+        assert plan is not None
+        with factory() as session:
+            proposal_id = create_proposal(session, 1, plan.id, operations)
+            session.commit()
+        return str(proposal_id)
+
     return run_chat(
         provider,
         parsed.message,
@@ -109,4 +119,5 @@ def chat_job(
         plan_cap_cents=parsed.plan_cap_cents,
         plan_revision=parsed.plan_revision,
         model_prose=True,
+        propose=None if plan is None else propose,
     )

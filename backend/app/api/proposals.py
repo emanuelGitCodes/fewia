@@ -52,6 +52,11 @@ def _preview(session: Session, proposal: PlanProposal) -> PlanSnapshot:
             load_base_snapshot(base), parse_operations(proposal.operations)
         )
     except ProposalInvalid:
+        session.refresh(proposal, with_for_update=True)
+        if proposal.status == "pending":
+            proposal.status = "discarded"
+            proposal.updated_at = datetime.now(UTC)
+            session.commit()
         raise HTTPException(status_code=409, detail=PROPOSAL_STALE_MESSAGE) from None
 
 
@@ -60,13 +65,21 @@ def get_proposal(
     proposal_id: UUID, session: Annotated[Session, Depends(get_session)]
 ) -> dict[str, object]:
     proposal = _load(session, proposal_id)
+    was_discarded = proposal.status == "discarded"
+    preview: dict[str, object] | None
+    try:
+        preview = _preview(session, proposal).model_dump(mode="json")
+    except HTTPException:
+        if not was_discarded:
+            raise
+        preview = None
     applied_id = proposal.applied_plan_revision_id
     return {
         "id": str(proposal.id),
         "status": proposal.status,
         "base_plan_revision_id": str(proposal.base_plan_revision_id),
         "operations": proposal.operations,
-        "preview": _preview(session, proposal).model_dump(mode="json"),
+        "preview": preview,
         "applied_plan_revision_id": None if applied_id is None else str(applied_id),
     }
 

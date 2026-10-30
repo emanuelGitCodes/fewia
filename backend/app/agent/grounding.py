@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.agent.catalog_tool import _SAFETY, TOOL_NAME
+from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
@@ -112,12 +113,13 @@ _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
     r"|diagnos|glutenfree"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
-    r"|purchased|checkedout"
+    r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
 )
-# A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein").
+# A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein",
+# "3 times", "3-fold", "two x").
 _SCALED = re.compile(
-    rf"({_NUM})\s+(?:k|m|b|mm|mn|bn|bln|tn|mil|grand|thousand|million|billion"
-    r"|trillion|x)\b",
+    rf"(?:{_NUM}|{_WORD})(?:\s+(?:k|m|b|mm|mn|bn|bln|tn|mil|grand|thousand|million"
+    r"|billion|trillion|x|times)|\s*-\s*fold)\b",
     re.IGNORECASE,
 )
 # The server safety note names the claims it refuses; each exact sentence is removed
@@ -394,11 +396,16 @@ def validate(reply: str, facts: FactSet) -> Verdict:
     text = normalize(reply)
     unmatched, word, money = _scan(text, facts)
     claims = normalize(_without_server_sentences(reply))
+    # Only the server appends the stale warning; a model copy of it is a claim.
+    stale_copy = _squash(STALE_SPENDING_WARNING) in _squash(text)
     checks = (
         ("empty", not text.strip()),
         ("too_long", len(reply) > MAX_REPLY_CHARS),
         ("store_price", "kroger" in _squash(text)),
-        ("forbidden_claim", _FORBIDDEN.search(_squash(claims)) is not None),
+        (
+            "forbidden_claim",
+            stale_copy or _FORBIDDEN.search(_squash(claims)) is not None,
+        ),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
     )

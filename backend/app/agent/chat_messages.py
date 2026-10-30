@@ -136,11 +136,12 @@ def build_chat_result(
     *,
     reply_source: str = "template",
     reply_check: dict[str, object] | None = None,
+    proposal_id: str | None = None,
 ) -> dict[str, object]:
     keep = (
         candidate if status in {"planned", "needs_revision", "clarification"} else None
     )
-    return {
+    result: dict[str, object] = {
         "status": status,
         "answer": answer,
         "reply_source": reply_source,
@@ -159,3 +160,6 @@ def build_chat_result(
         "model_turns": turns,
         "planner_revisions": revisions,
     }
+    if proposal_id is not None:
+        result["proposal_id"] = proposal_id
+    return result

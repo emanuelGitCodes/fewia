@@ -28,6 +28,13 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.agent.price_tool import PRICE_TOOL, PriceToolError, execute_price_lines
+from app.agent.proposal_tool import (
+    PROPOSAL_ONCE,
+    PROPOSAL_TOOL,
+    ProposalToolError,
+    Propose,
+    execute_propose,
+)
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     SubstituteToolError,
@@ -36,6 +43,7 @@ from app.agent.substitute_tool import (
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
+from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
 from app.domain.plan_revision import PlanRevisionInput
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
@@ -146,6 +154,10 @@ def _trace_inputs(
             _valid_recipe(item.get("recipe_id") if isinstance(item, dict) else None)
             for item in items
         ]
+    if call.name == PROPOSAL_TOOL and result.get("status") == "proposed":
+        inputs["status"] = "proposed"
+        inputs["proposal_id"] = result.get("proposal_id")
+        inputs["operations"] = result.get("operations")
     if call.name == INGREDIENT_TOOL and isinstance(result.get("status"), str):
         inputs["status"] = result["status"]
         if result["status"] == "found":
@@ -241,6 +253,42 @@ def _dispatch_plan_tool(
     return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
 
 
+def _dispatch_proposal(
+    call: msgs.ToolCall,
+    budget: BudgetResult,
+    plan: PlanRevisionInput,
+    propose: Propose,
+    trace: list[dict[str, object]],
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    payload: dict[str, object] | None = None
+    error = INVALID_PROPOSAL_MESSAGE
+    if any(
+        item.get("tool") == PROPOSAL_TOOL and item.get("outcome") == "success"
+        for item in trace
+    ):
+        error = PROPOSAL_ONCE
+    else:
+        try:
+            payload = execute_propose(call.tool_input, budget, plan, propose)
+        except ProposalToolError:
+            pass
+    trace.append(
+        _entry(
+            tool=PROPOSAL_TOOL,
+            outcome="error" if payload is None else "success",
+            tool_use_id=call.tool_use_id,
+            sequence=len(trace) + 1,
+            revision_index=None,
+            inputs=_trace_inputs(call, payload),
+        )
+    )
+    if payload is None:
+        return None, msgs.tool_result_block(
+            call.tool_use_id, {"error": error}, success=False
+        )
+    return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
+
+
 def _catalog_inputs(discovery: dict[str, object]) -> dict[str, object]:
     request = discovery["request"]
     assert isinstance(request, dict)
@@ -263,9 +311,12 @@ def dispatch(
     record_evidence: EvidenceRecorder | None = None,
     *,
     plan: PlanRevisionInput | None = None,
+    propose: Propose | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
     if call.name in _PLAN_READ_TOOLS:
         return _dispatch_plan_tool(call, budget, plan, trace)
+    if call.name == PROPOSAL_TOOL and plan is not None and propose is not None:
+        return _dispatch_proposal(call, budget, plan, propose, trace)
     if call.name == CATALOG_TOOL_NAME:
         try:
             discovery = execute_catalog_search(call.tool_input)

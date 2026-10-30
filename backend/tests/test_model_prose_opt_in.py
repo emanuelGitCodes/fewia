@@ -243,12 +243,33 @@ def test_stale_budget_appends_the_server_warning_before_the_notice() -> None:
     assert result["reply_sha256"] == _sha(result["answer"])
 
 
-def test_stale_warning_is_added_once_and_only_when_stale() -> None:
+def test_a_model_copy_of_the_stale_warning_is_a_forbidden_claim() -> None:
     text = "The sample total is {total}. " + STALE_SPENDING_WARNING
-    stale, _, _ = _price_run(text, stale=True)
-    assert cast(str, stale["answer"]).count(STALE_SPENDING_WARNING) == 1
+    for stale in (True, False):
+        result, reply, _ = _price_run(text, stale=stale)
+        check = cast(dict[str, object], result["reply_check"])
+        assert check["reasons"] == ["forbidden_claim"]
+        assert result["reply_source"] == "template"
+        assert reply not in cast(str, result["answer"])
     fresh, _, _ = _price_run("The sample total is {total}.", stale=False)
     assert STALE_SPENDING_WARNING not in cast(str, fresh["answer"])
+
+
+def test_a_stale_tool_payload_adds_the_warning_when_the_budget_is_fresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real = chat_loop.dispatch
+
+    def stale_dispatch(*args: Any, **kwargs: Any) -> Any:
+        payload, block = real(*args, **kwargs)
+        assert payload is not None
+        payload["stale"] = True
+        return payload, block
+
+    monkeypatch.setattr(chat_loop, "dispatch", stale_dispatch)
+    result, _ = _run(_swap(GROUNDED_PLAIN))
+    assert result["reply_source"] == "model"
+    assert result["answer"] == f"{GROUNDED_PLAIN} {STALE_SPENDING_WARNING}"
 
 
 def test_stale_warning_is_added_without_money_and_without_a_notice() -> None:
