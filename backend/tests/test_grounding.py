@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.agent import catalog_tool, chat_answer
 from app.agent.budget_tool import budget_summary_answer, execute_budget_summary
 from app.agent.catalog_tool import TOOL_NAME, catalog_answer, execute_catalog_search
 from app.agent.chat_answer import CLARIFICATION, render_public_answer
@@ -29,6 +30,7 @@ from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult
+from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 from app.domain.plan_revision import PlanRevisionInput
@@ -716,14 +718,16 @@ def test_cent_symbol_is_money() -> None:
     assert verdict.unmatched == ("60",) and verdict.has_money
 
 
-def test_gluten_free_ingredient_note_is_allowed() -> None:
-    assert validate("These are made with gluten-free ingredients.", FactSet()).ok
-    assert validate("Made with gluten free ingredients.", FactSet()).ok
-    reply = (
-        "Gluten-free ingredients describes the ingredients only. "
-        "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
-    )
-    assert validate(reply, FactSet()).ok
+def test_server_safety_note_passes_but_the_ingredient_phrase_does_not() -> None:
+    facts = facts_from_payloads([(TOOL_NAME, {})])
+    assert validate(catalog_tool._SAFETY, facts).ok
+    for sentence in re.split(r"(?<=\.) ", catalog_tool._SAFETY):
+        assert validate(sentence, facts).ok, sentence
+    for reply in (
+        "These are made with gluten-free ingredients.",
+        "Made with gluten free ingredients.",
+    ):
+        assert validate(reply, FactSet()).reasons == ("forbidden_claim",), reply
 
 
 def test_length_and_empty_checks() -> None:
@@ -754,11 +758,13 @@ def test_has_money_flags_dollar_tokens_only() -> None:
         "These tacos are gluten-free. Ingredients: corn.",
         "This meal is gluten free (ingredients vary).",
         "These tacos are gluten-free; ingredients: corn.",
+        "Chicken tacos are gluten-free\nIngredients: chicken, corn.",
+        "Chicken tacos are gluten-free\n\nIngredients: chicken, corn.",
+        "made with gluten-free ingredients",
     ],
 )
-def test_gluten_free_ingredients_exemption_needs_the_exact_phrase(reply: str) -> None:
+def test_no_phrase_near_gluten_free_is_exempt(reply: str) -> None:
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
-    assert validate("made with gluten-free ingredients", FactSet()).ok
 
 
 def test_accents_are_folded_before_claims() -> None:
@@ -895,6 +901,129 @@ def test_one_before_a_noun_after_a_determiner_is_checked_like_a_digit() -> None:
         "The one that fits.",
     ):
         assert validate(reply, FactSet()).ok, reply
+
+
+def test_leading_dot_numbers_are_numbers_everywhere() -> None:
+    assert validate("It has .5 g.", _facts(protein_mg=5_000)).unmatched == (".5",)
+    assert validate("It has .5 g.", _facts(protein_mg=500)).ok
+    assert validate("Add .5 servings.", FactSet()).unmatched == (".5",)
+    usd = validate("It costs USD .50.", _facts(price_cents=50))
+    assert usd.ok and usd.has_money
+    assert validate("It costs USD .50.", FactSet()).unmatched == ("$.50",)
+    assert _facts(note="about .5 g").generic == {Decimal("0.5")}
+
+
+def test_every_number_in_a_money_range_is_money() -> None:
+    facts = _facts(a_cents=1_000, b_cents=1_200)
+    ranges = ("$10-12", "$10 to 12", "$10-$12", "10-12 dollars", "USD 10-12")
+    for reply in (*ranges, "10 to 12 USD"):
+        verdict = validate(f"It costs {reply}.", facts)
+        assert verdict.ok and verdict.has_money, reply
+    wrong = validate("It costs $10-13.", facts)
+    assert wrong.unmatched == ("$13",) and wrong.has_money
+    only_first = validate("It costs $10 to 12.", _facts(a_cents=1_000))
+    assert only_first.unmatched == ("$12",)
+    cents = validate("It costs 50-60 cents.", _facts(a_cents=50, b_cents=60))
+    assert cents.ok and cents.has_money
+    partial = validate("It costs 50-61 cents.", _facts(a_cents=50))
+    assert partial.unmatched == ("61",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "It costs an extra dollar.",
+        "It costs a single dollar.",
+        "Just a cent more.",
+        "A few bucks more.",
+        "The price is shown in USD.",
+        "It costs two more cents.",
+    ],
+)
+def test_money_units_without_a_number_fail_as_number_words(reply: str) -> None:
+    verdict = validate(reply, FactSet())
+    assert "number_word" in verdict.reasons
+    assert verdict.has_money
+
+
+@pytest.mark.parametrize("space", [" ", " ", "\u0085", "\x1c", "\x0b", "\x0c", "\r"])
+def test_line_separators_and_controls_fail_as_unsupported(space: str) -> None:
+    verdict = validate(f"Gluten{space}free tacos.", FactSet())
+    assert verdict.reasons == ("unsupported_character",)
+
+
+def test_only_space_newline_and_tab_are_allowed_whitespace() -> None:
+    assert validate("Tacos\tand\nrice  here.", FactSet()).ok
+    assert validate("Tacos and rice.", FactSet()).ok
+
+
+def test_curly_quotes_fold_to_ascii_but_degree_sign_is_rejected() -> None:
+    assert normalize("It’s “fine” and ‘ok’") == "It's \"fine\" and 'ok'"
+    assert validate("It’s “fine”.", FactSet()).ok
+    assert validate("It’s gluten‑free.", FactSet()).reasons == ("forbidden_claim",)
+    degrees = validate("Bake at 5° heat.", FactSet())
+    assert degrees.reasons == ("unsupported_character",)
+
+
+def _assert_template_grounded(text: str, payload: dict[str, object]) -> None:
+    verdict = validate(text, facts_from_payloads([("tool", payload)]))
+    assert verdict.ok, (text, verdict)
+
+
+def test_chat_answer_error_templates_are_grounded() -> None:
+    checked = 0
+    for recipe_id, recipe in RECIPES.items():
+        for item_id, _quantity in recipe.ingredients:
+            error: dict[str, object] = {
+                "error_code": "exclusion_reject",
+                "recipe_id": recipe_id,
+                "ingredient_id": item_id,
+            }
+            answer = chat_answer._exclusion_answer(error)
+            assert answer is not None
+            _assert_template_grounded(answer, error)
+            ingredient = INGREDIENTS[item_id]
+            for diet in ("vegetarian", "vegan"):
+                conflict = {**error, "error_code": "diet_conflict", "diet": diet}
+                reply = chat_answer._diet_conflict_answer(conflict)
+                if getattr(ingredient, diet):
+                    assert reply is None
+                    continue
+                assert reply is not None
+                _assert_template_grounded(reply, conflict)
+                checked += 1
+    assert checked > 0
+    unsupported: dict[str, object] = {"error_code": "unsupported_recipe"}
+    answer = chat_answer._unsupported_answer(unsupported)
+    assert answer is not None
+    _assert_template_grounded(answer, unsupported)
+
+
+def test_chat_answer_static_templates_are_grounded() -> None:
+    for text in (chat_answer._DIET, chat_answer._UNKNOWN_RESTRICTION):
+        _assert_template_grounded(text, {})
+    for code, field in (
+        ("unsupported_diet", "diet"),
+        ("unsupported_ingredient", "pantry_ingredients"),
+        ("unsupported_ingredient", "ingredient_exclusions"),
+    ):
+        error: dict[str, object] = {"error_code": code, "field": field}
+        answer = render_public_answer(None, error)
+        assert answer != CLARIFICATION
+        _assert_template_grounded(answer, error)
+
+
+def test_catalog_static_templates_are_grounded() -> None:
+    for text in (
+        catalog_tool.DISCOVERY_ERROR,
+        catalog_tool._NO_MATCH,
+        catalog_tool._UNKNOWN_EXCLUSION,
+    ):
+        _assert_template_grounded(text, {})
+    payload = execute_catalog_search({"query": "gluten free"})
+    facts = facts_from_payloads([(TOOL_NAME, payload)])
+    verdict = validate(catalog_answer(payload), facts)
+    assert verdict.ok, verdict
 
 
 def test_with_notice_appends_once() -> None:

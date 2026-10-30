@@ -8,8 +8,13 @@ character must be in the allowed set (see _UNSUPPORTED): ASCII letters, digits,
 space, newline, tab, the punctuation . , ; : ! ? ' " ( ) [ ] $ % / + - & * # _,
 and the cent sign. The server templates emit nothing else. Any other character
 fails with `unsupported_character`; nothing is deleted without being classified,
-so no character can hide a claim. Dashes and Unicode spaces are mapped, and
-vulgar fractions are named as the number word "half", before the check.
+so no character can hide a claim. Dashes are mapped to "-", curly quotes to
+ASCII quotes, and vulgar fractions are named as the number word "half", before
+the check. The only whitespace allowed is space, newline, and tab.
+
+Exemption rule: the only exemptions are the exact sentences of the server safety
+note (`_SAFETY`), removed verbatim from the raw reply before any normalization,
+for the claim check only. No exemption depends on nearby words.
 """
 
 import re
@@ -24,12 +29,13 @@ from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
 MAX_REPLY_CHARS = 1200
 APPROX_WINDOW = 10
-_NUM = r"\d+(?:,\d{3})*(?:\.\d+)?"
+_NUM = r"(?:\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)"
 # normalize maps every dash and minus sign to a hyphen-minus first.
 _SIGN = r"[+\-]"
 _MINUS = "-"
 _DASHES = re.compile("[‐-―−﹣－]")
 _SPACES = re.compile(r"\s")
+_QUOTES = str.maketrans("‘’“”", "''\"\"")
 _UNSUPPORTED = re.compile(r"[^A-Za-z0-9 \n\t.,;:!?'\"()\[\]$%/+\-&*#_¢]")
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
 _WORD = rf"\b(?:{'|'.join(_SMALL)})\b"
@@ -44,11 +50,12 @@ _BIG = (
 _FRACTION = r"[¼-¾⅐-⅞↉]"
 _TOKEN = re.compile(
     rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s*"
-    rf"(?P<usd>{_NUM}|\.\d+)"
+    rf"(?P<usd>{_NUM})(?:\s*(?:to\b|-)\s*\$?\s*(?P<usd2>{_NUM}))?"
     rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s*(?P<s4>{_SIGN})?\s*(?P<usdn>{_NUM})"
-    rf"|(?P<mn>{_NUM}|{_WORD})[\s-]*"
+    rf"(?:\s*(?:to\b|-)\s*(?P<usdn2>{_NUM}))?"
+    rf"|(?P<mn>{_NUM}|{_WORD})(?:\s*(?:to\b|-)\s*(?P<mn2>{_NUM}|{_WORD}))?[\s-]*"
     r"(?:(?P<mu>dollars?|USD|bucks?)\b|(?P<cents>cents?\b|¢)|(?P<sym>\$(?!\s*\.?\d))))"
-    rf"|(?P<ad>\ba\s+(?:dollar|buck)\b)|(?P<bare>\b(?:dollars?|bucks?)\b)"
+    r"|(?P<bare>\b(?:dollars?|bucks?|cents?|USD)\b)"
     rf"|(?P<dw>\$\s*(?=\b(?:{'|'.join(_SMALL)})\b|\b{_BIG}\b))"
     rf"|(?P<big>\b{_BIG}\b)"
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
@@ -84,10 +91,9 @@ _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
     r"|diagnos|glutenfree"
 )
-# Only this phrase may name gluten-free (the catalog tag describes ingredients).
-_GLUTEN_INGREDIENTS = re.compile(r"gluten[-\s]free\s+ingredients", re.IGNORECASE)
-# The one server sentence that names the claims it refuses; removed before the check.
-_SAFETY_SENTENCE = _SAFETY.rsplit(". ", 1)[-1]
+# The server safety note names the claims it refuses; each exact sentence is removed
+# verbatim from the raw reply before the claim check, and nothing else is exempt.
+_SAFETY_SENTENCES = tuple(re.split(r"(?<=\.) ", _SAFETY))
 
 
 @dataclass
@@ -132,13 +138,24 @@ def _kinds(
     return [("count", value), *([("mass", value)] if low.endswith("_g") else [])]
 
 
-def normalize(text: str) -> str:
-    """The text every check runs on: folded, with dashes and spaces mapped."""
+def _fold(text: str) -> str:
+    """NFKD without combining marks, ASCII quotes, and hyphen-minus dashes."""
     # NFKD would turn a vulgar fraction into digits, so name it as a number word.
     text = re.sub(_FRACTION, " half ", text)
     parts = unicodedata.normalize("NFKD", text)
     folded = "".join(c for c in parts if unicodedata.category(c) != "Mn")
-    return _SPACES.sub(" ", _DASHES.sub("-", folded))
+    return _DASHES.sub("-", folded.translate(_QUOTES))
+
+
+def normalize(text: str) -> str:
+    """The text every check runs on: folded, with every space mapped to " "."""
+    return _SPACES.sub(" ", _fold(text))
+
+
+def _without_server_sentences(reply: str) -> str:
+    for sentence in _SAFETY_SENTENCES:
+        reply = reply.replace(sentence, " ")
+    return reply
 
 
 def _squash(text: str) -> str:
@@ -269,23 +286,29 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     word = money = False
     for m in _TOKEN.finditer(reply):
         before = reply[max(0, m.start() - 20) : m.start()]
-        if m["big"] or m["ad"]:
+        if m["big"]:
             word = True
-            money = money or bool(m["ad"])
         elif m["bare"]:
-            money = True
+            word = money = True  # a money unit with no adjacent number
         elif m["dw"]:
             word = money = True
         elif m["usd"] or m["usdn"] or m["mn"]:
             money = True
-            raw = m["usd"] or m["usdn"] or m["mn"]
-            amount = _number(raw)
-            text = str(amount) if raw[0].isalpha() else raw.replace(",", "")
             msign = m["s1"] or m["s2"] or m["s3"] or m["s4"]
-            cents = amount * (1 if m["cents"] else 100)
-            if not _grounded("money", cents, msign, False, facts):
-                label = text if m["cents"] else f"${text}"
-                unmatched.append(f"{msign or ''}{label}")
+            amounts = (
+                m["usd"] or m["usdn"] or m["mn"],
+                m["usd2"] or m["usdn2"] or m["mn2"],
+            )
+            for index, raw in enumerate(amounts):
+                if raw is None:
+                    continue
+                amount = _number(raw)
+                text = str(amount) if raw[0].isalpha() else raw.replace(",", "")
+                sign = msign if index == 0 else None
+                cents = amount * (1 if m["cents"] else 100)
+                if not _grounded("money", cents, sign, False, facts):
+                    label = text if m["cents"] else f"${text}"
+                    unmatched.append(f"{sign or ''}{label}")
         elif (
             m["n1"].lower() == "one"
             and not any(m[name] for name in _KINDS)
@@ -307,11 +330,11 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
 
 
 def validate(reply: str, facts: FactSet) -> Verdict:
-    text = normalize(reply)
-    if _UNSUPPORTED.search(text):
+    if _UNSUPPORTED.search(_fold(reply)):
         return Verdict(False, ("unsupported_character",), (), False)
+    text = normalize(reply)
     unmatched, word, money = _scan(text, facts)
-    claims = _GLUTEN_INGREDIENTS.sub(" ", text.replace(_SAFETY_SENTENCE, " "))
+    claims = normalize(_without_server_sentences(reply))
     checks = (
         ("empty", not text.strip()),
         ("too_long", len(reply) > MAX_REPLY_CHARS),
