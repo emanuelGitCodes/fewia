@@ -141,6 +141,57 @@ def test_trace_inputs_hold_validated_values_only() -> None:
     assert _SECRET not in json.dumps(trace)
 
 
+def test_price_lines_trace_inputs_mark_invalid_recipe_ids() -> None:
+    trace: list[dict[str, object]] = []
+    call = ToolCall(
+        "pl1", PRICE_TOOL, {"meals": [{"recipe_id": _SECRET, "servings": 1}]}
+    )
+    dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert trace[0]["inputs"] == {"recipe_ids": ["invalid"]}
+    assert _SECRET not in json.dumps(trace)
+
+
+def test_substitute_trace_inputs_for_question_and_scale_payloads() -> None:
+    trace: list[dict[str, object]] = []
+    scale: dict[str, object] = {
+        "recipe_id": "chicken_tacos",
+        "servings": 2,
+        "scale_ingredient_id": "chicken_breast",
+        "scale_factor_percent": 50,
+    }
+    calls = (
+        ToolCall(
+            "q1", SUBSTITUTE_TOOL, {"recipe_id": "bean_tacos", "with_food": "pork"}
+        ),
+        ToolCall(
+            "q2",
+            SUBSTITUTE_TOOL,
+            {"recipe_id": "chicken_lentil_stew", "with_food": "beef"},
+        ),
+        ToolCall("s1", SUBSTITUTE_TOOL, scale),
+    )
+    payloads = [
+        dispatch(call, budget(), PERIOD, 1, "fixture", trace)[0] for call in calls
+    ]
+    assert trace[0]["inputs"] == {
+        "recipe_id": "bean_tacos",
+        "status": "needs_food_choice",
+    }
+    assert trace[1]["inputs"] == {
+        "recipe_id": "chicken_lentil_stew",
+        "status": "needs_ingredient_choice",
+    }
+    scaled = payloads[2]
+    assert scaled is not None and scaled["status"] == "swapped"
+    assert trace[2]["inputs"] == {
+        "recipe_id": "chicken_tacos",
+        "status": "swapped",
+        "scale_ingredient_id": "chicken_breast",
+        "servings": 2,
+        "servings_source": scaled["servings_source"],
+    }
+
+
 def test_get_plan_and_get_meal_invalid_arguments_return_static_error() -> None:
     trace: list[dict[str, object]] = []
     for name, args in (("get_plan", {"x": 1}), ("get_meal", {})):
