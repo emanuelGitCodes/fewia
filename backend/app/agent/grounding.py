@@ -14,7 +14,13 @@ the check. The only whitespace allowed is space, newline, and tab.
 
 Exemption rule: the only exemptions are the exact sentences of the server safety
 note (`_SAFETY`), removed verbatim from the raw reply before any normalization,
-for the claim check only. No exemption depends on nearby words.
+for the claim check only, and only at the start of the reply or right after a
+sentence end ([.!?] and whitespace). No exemption depends on nearby words.
+
+Token boundary rule: a number must be followed by the end of the text, whitespace,
+punctuation from the allowed set, or a recognized unit (see _UNITS). A number
+directly followed by any other letter ("12k", "2x", "3K") is `unmatched_number`.
+Mass units: "mg" must match a milligram fact, "kg" is grams times 1000.
 """
 
 import re
@@ -61,10 +67,17 @@ _TOKEN = re.compile(
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
     rf"(?:\s*(?:to|-)\s*(?P<n2>{_NUM}))?"
     r"(?:\s*(?:(?P<en>kcal|calories|calorie|cal)\b|(?P<ms>grams|gram|g)\b"
-    r"|(?P<pc>%|percent\b)))?",
+    r"|(?P<mm>mg)\b|(?P<kg>kg)\b|(?P<pc>%|percent\b)))?",
     re.IGNORECASE,
 )
-_KINDS = {"en": "energy", "ms": "mass", "pc": "percent"}
+_KINDS = {"en": "energy", "ms": "mass", "mm": "milli", "kg": "mass", "pc": "percent"}
+_UNITS = frozenset(
+    "kcal calories calorie cal g gram grams mg kg percent dollars dollar cents cent"
+    " usd buck bucks serving servings meal meals ounce ounces oz lb lbs pound pounds"
+    " package packages".split()
+)
+# A number glued to letters: only a recognized unit may follow it directly.
+_ATTACHED = re.compile(rf"({_NUM})([A-Za-z]+)")
 _PERCENT_AFTER = re.compile(r"\s*(?:%|percent\b)", re.IGNORECASE)
 _APPROX = re.compile(r"\b(?:about|around|roughly|approximately)\s+$", re.IGNORECASE)
 _DETERMINER = re.compile(
@@ -93,7 +106,11 @@ _FORBIDDEN = re.compile(
 )
 # The server safety note names the claims it refuses; each exact sentence is removed
 # verbatim from the raw reply before the claim check, and nothing else is exempt.
-_SAFETY_SENTENCES = tuple(re.split(r"(?<=\.) ", _SAFETY))
+_SERVER_SENTENCE = re.compile(
+    r"(?:\A\s*|(?<=[.!?])\s+)(?:"
+    + "|".join(re.escape(s) for s in re.split(r"(?<=\.) ", _SAFETY))
+    + ")"
+)
 
 
 @dataclass
@@ -101,6 +118,7 @@ class FactSet:
     money: set[Decimal] = field(default_factory=set)
     energy: set[Decimal] = field(default_factory=set)
     mass: set[Decimal] = field(default_factory=set)
+    milli: set[Decimal] = field(default_factory=set)
     percent: set[Decimal] = field(default_factory=set)
     count: set[Decimal] = field(default_factory=set)
     generic: set[Decimal] = field(default_factory=set)
@@ -130,7 +148,7 @@ def _kinds(
         return [("money", value)]
     if low.endswith("_mg"):
         tenth = (value / 1000).quantize(Decimal("0.1"), ROUND_HALF_UP)
-        return [("mass", _whole_grams(number)), ("mass", tenth)]
+        return [("mass", _whole_grams(number)), ("mass", tenth), ("milli", value)]
     if "kcal" in low:
         return [("energy", value)]
     if "percent" in low:
@@ -153,9 +171,7 @@ def normalize(text: str) -> str:
 
 
 def _without_server_sentences(reply: str) -> str:
-    for sentence in _SAFETY_SENTENCES:
-        reply = reply.replace(sentence, " ")
-    return reply
+    return _SERVER_SENTENCE.sub(" ", reply)
 
 
 def _squash(text: str) -> str:
@@ -323,9 +339,13 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                 if raw is None:
                     continue
                 nsign = m["sign"] if index == 0 else None
-                if not _grounded(kind, _number(raw), nsign, approx, facts):
+                value = _number(raw) * (1000 if m["kg"] else 1)
+                if not _grounded(kind, value, nsign, approx, facts):
                     shown = str(int(_number(raw))) if raw[0].isalpha() else raw
                     unmatched.append(f"{nsign or ''}{shown}")
+    unmatched.extend(
+        m[1] for m in _ATTACHED.finditer(reply) if m[2].lower() not in _UNITS
+    )
     return list(dict.fromkeys(unmatched)), word, money
 
 

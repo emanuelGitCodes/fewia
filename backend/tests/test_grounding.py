@@ -469,7 +469,11 @@ def test_delta_subtree_adds_no_strings_floats_or_key_names() -> None:
     )
     assert facts.generic == set()
     assert facts.percent == set()
-    assert facts.deltas == {("mass", Decimal(11)), ("mass", Decimal("11.0"))}
+    assert facts.deltas == {
+        ("mass", Decimal(11)),
+        ("mass", Decimal("11.0")),
+        ("milli", Decimal(11_000)),
+    }
     assert validate("Protein changes by +11 g.", facts).ok
     for reply in ("Use 30 g.", "Use 2.5 servings.", "Use 7 g.", "Use 45 g."):
         assert not validate(reply, facts).ok, reply
@@ -1024,6 +1028,120 @@ def test_catalog_static_templates_are_grounded() -> None:
     facts = facts_from_payloads([(TOOL_NAME, payload)])
     verdict = validate(catalog_answer(payload), facts)
     assert verdict.ok, verdict
+
+
+def test_number_glued_to_other_letters_fails() -> None:
+    facts = _facts(price_cents=1_200, energy_kcal=2, servings=2, a=3, b=1)
+    for reply in (
+        "$12k",
+        "Your groceries cost $12k.",
+        "2k kcal",
+        "2x the protein",
+        "3K",
+        "1M",
+        "It is 2nd.",
+    ):
+        verdict = validate(reply, facts)
+        assert verdict.reasons == ("unmatched_number",), reply
+        assert verdict.unmatched and all(t.isdigit() for t in verdict.unmatched)
+    assert validate("Your groceries cost $12k.", facts).unmatched == ("12",)
+    assert validate("Your groceries cost $12k.", facts).has_money
+
+
+def test_number_followed_by_a_recognized_unit_or_punctuation_passes() -> None:
+    facts = _facts(
+        protein_mg=26_000, price_cents=1_200, energy_kcal=474, servings=2, p_percent=50
+    )
+    for reply in (
+        "26g",
+        "26G.",
+        "474kcal",
+        "50%",
+        "50percent",
+        "12USD",
+        "12dollars",
+        "2servings",
+        "Ends with 2.",
+        "(2), [2]; 2: 2!",
+    ):
+        assert validate(reply, facts).ok, reply
+
+
+def test_server_sentences_are_exempt_only_at_a_sentence_start() -> None:
+    note = "Gluten-free ingredients describes the ingredients only."
+    inline = validate(f"These tacos are {note}", FactSet())
+    assert inline.reasons == ("forbidden_claim",)
+    assert validate(f"Tacos are here. {note}", FactSet()).ok
+    assert validate(f"Which one? {note}", FactSet()).ok
+    no_gap = validate(f"Tacos are here.{note}", FactSet())
+    assert no_gap.reasons == ("forbidden_claim",)
+    claim = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+    assert validate(f"Hello, {claim}", FactSet()).reasons == ("forbidden_claim",)
+    assert validate(f"Tacos! {claim}", FactSet()).ok
+
+
+def test_mg_must_match_a_milligram_fact_and_kg_is_grams_times_1000() -> None:
+    sodium = _facts(sodium_mg=2_300)
+    assert sodium.milli == {Decimal(2_300)}
+    assert validate("It has 2300 mg sodium.", sodium).ok
+    assert validate("It has 2300mg sodium.", sodium).ok
+    assert validate("It has 2.3 g sodium.", sodium).ok
+    wrong = validate("It has 2 mg sodium.", sodium)
+    assert wrong.reasons == ("unmatched_number",) and wrong.unmatched == ("2",)
+    # A gram fact with one decimal is not a milligram fact.
+    assert not validate("It has 2 mg protein.", _facts(protein_mg=2_000)).ok
+    assert not validate("It has 2000 mg protein.", _facts(protein_mg=2_001)).ok
+    assert validate("It has 2 mg of salt.", _facts(salt_mg=2)).ok
+    flour = _facts(flour_mg=1_500_000)
+    assert validate("Buy 1.5 kg of flour.", flour).ok
+    assert validate("Buy 1500 g of flour.", flour).ok
+    assert validate("Buy 2 kg of flour.", flour).unmatched == ("2",)
+    assert not validate("Buy 1.5 kg of flour.", _facts(flour_mg=1_500)).ok
+
+
+def test_signed_milligram_change_must_match_a_real_delta() -> None:
+    facts = _facts(
+        before={"sodium_mg": 2_000},
+        after={"sodium_mg": 1_500},
+    )
+    assert validate("Sodium changes by -500 mg.", facts).ok
+    assert not validate("Sodium changes by +500 mg.", facts).ok
+
+
+def test_substitute_missing_choice_and_unknown_food_are_grounded() -> None:
+    names = [{"name": "ground beef"}, {"name": "beef chuck"}, {"name": "beef steak"}]
+    for status in ("needs_food_choice", "unknown_food"):
+        payload: dict[str, object] = {"status": status, "candidates": names}
+        answer, _ = _grounded(SUBSTITUTE_TOOL, payload)
+        assert answer.startswith("Which one" if "choice" in status else "I cannot")
+    empty: dict[str, object] = {"status": "unknown_food", "candidates": []}
+    _grounded(SUBSTITUTE_TOOL, empty)
+    ingredient: dict[str, object] = {
+        "status": "needs_ingredient_choice",
+        "recipe_id": "chicken_tacos",
+        "candidates": names,
+    }
+    answer, _ = _grounded(SUBSTITUTE_TOOL, ingredient)
+    assert answer.startswith("Which ingredient in")
+
+
+def test_substitute_incomplete_sample_price_is_grounded() -> None:
+    real = execute_substitute(_REAL_SWAP, _BUDGET)
+    payload = {**real, "price": {"before": {}, "after": {}, "delta_cents": None}}
+    answer, verdict = _grounded(SUBSTITUTE_TOOL, payload)
+    assert answer.endswith("The sample price is incomplete.")
+    assert not verdict.has_money
+
+
+def test_get_meal_with_several_meals_is_grounded() -> None:
+    results: list[tuple[str, dict[str, object]]] = [
+        (GET_MEAL_TOOL, execute_get_meal({"recipe_id": recipe_id}))
+        for recipe_id in ("chicken_tacos", "bean_tacos")
+    ]
+    answer = read_tool_answer(results)
+    assert answer is not None and answer.count("per serving") == 2
+    verdict = validate(answer, facts_from_payloads(results))
+    assert verdict.ok, (answer, verdict)
 
 
 def test_with_notice_appends_once() -> None:
