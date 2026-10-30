@@ -3,9 +3,11 @@
 import argparse
 import json
 import re
+import threading
 import time
 import unicodedata
 from collections.abc import Callable, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -187,6 +189,7 @@ class KrogerClient:
         self._today = today
         self._owns_client = client is None
         self._client = build_http_client(self._base_url) if client is None else client
+        self._lock = threading.Lock()
         self._token: str | None = None
         self._token_expires_at = 0.0
         self._cooldown_until: float | None = None
@@ -203,13 +206,14 @@ class KrogerClient:
             raise KrogerUnavailable()
 
     def _spend(self, kind: str) -> None:
-        day = self._today()
-        if day != self._budget_day:
-            self._budget_day = day
-            self._counts = {}
-        if self._counts.get(kind, 0) >= DAILY_LIMITS[kind]:
-            raise KrogerUnavailable()
-        self._counts[kind] = self._counts.get(kind, 0) + 1
+        with self._lock:
+            day = self._today()
+            if day != self._budget_day:
+                self._budget_day = day
+                self._counts = {}
+            if self._counts.get(kind, 0) >= DAILY_LIMITS[kind]:
+                raise KrogerUnavailable()
+            self._counts[kind] = self._counts.get(kind, 0) + 1
 
     def _send(
         self,
@@ -220,6 +224,7 @@ class KrogerClient:
         auth: tuple[str, str] | None = None,
         data: dict[str, str] | None = None,
         params: dict[str, str] | None = None,
+        locked: bool = False,
     ) -> httpx.Response:
         self._check_cooldown()
         response: httpx.Response | None = None
@@ -238,48 +243,55 @@ class KrogerClient:
             pass
         if response is None:
             raise KrogerUnavailable()
-        if response.status_code == 401:
-            self._token = None
-        if response.status_code == 429:
-            self._cooldown_until = self._clock() + COOLDOWN_SECONDS
+        with nullcontext() if locked else self._lock:
+            if response.status_code == 401:
+                self._token = None
+            if response.status_code == 429:
+                self._cooldown_until = self._clock() + COOLDOWN_SECONDS
         if response.status_code != 200:
             raise KrogerUnavailable()
         return response
 
     @staticmethod
     def _json(response: httpx.Response) -> object:
+        payload: object = None
+        failed = False
         try:
-            payload: object = json.loads(response.content)
+            payload = json.loads(response.content)
         except Exception:  # noqa: BLE001
-            raise KrogerUnavailable() from None
+            failed = True
+        if failed:
+            raise KrogerUnavailable()
         return payload
 
     def _app_token(self) -> str:
-        if self._token is not None and self._clock() < self._token_expires_at:
-            return self._token
-        self._token = None
-        response = self._send(
-            "POST",
-            TOKEN_PATH,
-            {"Accept": "application/json"},
-            auth=self._auth,
-            data={"grant_type": "client_credentials", "scope": "product.compact"},
-        )
-        payload = self._json(response)
-        if not isinstance(payload, dict):
-            raise KrogerUnavailable()
-        token = payload.get("access_token")
-        expires_in = payload.get("expires_in")
-        if not isinstance(token, str) or not token.strip():
-            raise KrogerUnavailable()
-        if isinstance(expires_in, bool) or not isinstance(expires_in, int):
-            raise KrogerUnavailable()
-        if expires_in <= TOKEN_MARGIN_SECONDS:
-            raise KrogerUnavailable()
-        self.cache_control["token"] = response.headers.get("cache-control")
-        self._token = token
-        self._token_expires_at = self._clock() + expires_in - TOKEN_MARGIN_SECONDS
-        return token
+        with self._lock:
+            if self._token is not None and self._clock() < self._token_expires_at:
+                return self._token
+            self._token = None
+            response = self._send(
+                "POST",
+                TOKEN_PATH,
+                {"Accept": "application/json"},
+                auth=self._auth,
+                data={"grant_type": "client_credentials", "scope": "product.compact"},
+                locked=True,
+            )
+            payload = self._json(response)
+            if not isinstance(payload, dict):
+                raise KrogerUnavailable()
+            token = payload.get("access_token")
+            expires_in = payload.get("expires_in")
+            if not isinstance(token, str) or not token.strip():
+                raise KrogerUnavailable()
+            if isinstance(expires_in, bool) or not isinstance(expires_in, int):
+                raise KrogerUnavailable()
+            if expires_in <= TOKEN_MARGIN_SECONDS:
+                raise KrogerUnavailable()
+            self.cache_control["token"] = response.headers.get("cache-control")
+            self._token = token
+            self._token_expires_at = self._clock() + expires_in - TOKEN_MARGIN_SECONDS
+            return token
 
     def _get(self, kind: str, path: str, params: dict[str, str]) -> httpx.Response:
         self._check_cooldown()

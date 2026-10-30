@@ -2,6 +2,7 @@
 
 import base64
 import logging
+import threading
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -352,11 +353,42 @@ def test_data_redirect_not_followed() -> None:
         return httpx.Response(302, headers={"Location": f"{BASE}/elsewhere"})
 
     calls: list[httpx.Request] = []
-    http = httpx.Client(transport=httpx.MockTransport(handler))
+    http = httpx.Client(follow_redirects=True, transport=httpx.MockTransport(handler))
     client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
     with pytest.raises(KrogerUnavailable):
         client.find_stores(ZIP)
     assert all(r.url.path != "/elsewhere" for r in calls)
+
+
+def test_truncated_token_body_has_no_cause_or_context() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b'{"access_token": "abc')
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+    with pytest.raises(KrogerUnavailable) as exc_info:
+        client.find_stores(ZIP)
+    assert exc_info.value.__context__ is None
+    assert exc_info.value.__cause__ is None
+
+
+def test_concurrent_find_stores_makes_one_token_request() -> None:
+    server = Server()
+    server.locations = {"data": [_store()]}
+    client, _ = _make(server)
+    results: list[int] = []
+
+    def work() -> None:
+        results.append(len(client.find_stores(ZIP)))
+
+    threads = [threading.Thread(target=work) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert results == [1] * 8
+    assert server.count("/v1/connect/oauth2/token") == 1
+    assert server.count("/v1/locations") == 8
 
 
 def test_transport_error_and_invalid_json() -> None:

@@ -8,10 +8,12 @@ from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
     TokenFileResolver,
+    load_kroger_credentials,
     read_secret_file,
 )
 from app.providers.bedrock import BedrockConverseProvider
 from app.providers.instacart import InstacartDevelopmentProvider
+from app.providers.kroger import KrogerClient, kroger_base_url
 from app.providers.plaid import PlaidSandboxProvider
 from app.providers.spoonacular import SpoonacularEstimateProvider
 
@@ -96,6 +98,24 @@ def build_spoonacular(
     if provider is None:
         raise ProviderConfigurationError()
     return provider
+
+
+def build_kroger(settings: GroceryProviderSettings) -> KrogerClient | None:
+    if settings.kroger_client_id_file is None or settings.kroger_secret_file is None:
+        return None
+    client_id, secret = load_kroger_credentials(settings)
+    client: KrogerClient | None = None
+    try:
+        client = KrogerClient(
+            client_id.get_secret_value(),
+            secret.get_secret_value(),
+            base_url=kroger_base_url(settings.kroger_environment),
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    if client is None:
+        raise ProviderConfigurationError()
+    return client
 
 
 def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
