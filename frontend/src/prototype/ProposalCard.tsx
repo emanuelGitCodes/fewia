@@ -107,16 +107,15 @@ export function ProposalCard(props: {
       return;
     }
     const snapshot = preview;
-    const signal = new AbortController().signal;
     setBusy(true);
     setNote("");
-    let outcome: ProposalStatus | "unknown" = "unknown";
+    let outcome: ProposalStatus | "unknown";
     try {
-      await applyProposal(proposalId, signal);
+      await applyProposal(proposalId, new AbortController().signal);
       outcome = "applied";
     } catch {
       try {
-        outcome = (await fetchProposal(proposalId, signal)).status;
+        outcome = (await fetchProposal(proposalId, new AbortController().signal)).status;
       } catch {
         outcome = "unknown";
       }
