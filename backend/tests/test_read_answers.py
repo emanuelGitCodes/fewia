@@ -1006,6 +1006,22 @@ def test_real_proposal_reply_names_each_change_and_the_sample_prices() -> None:
     )
 
 
+def test_stale_proposal_reply_warns_after_the_money_like_other_templates() -> None:
+    payload = _proposed(*_ALL_OPS)
+    before, after = _prices(payload)
+    assert read_tool_answer([(PROPOSAL_TOOL, payload)], stale=True) == (
+        "Proposed: add Vegetable pasta (3 servings), remove Bean tacos, "
+        "set Chicken tacos to 4 servings, mark chicken breast as owned. "
+        f"Sample meal price: {_usd(before)} to {_usd(after)} "
+        f"({_delta(before, after)}). {STALE_SPENDING_WARNING} "
+        f"Apply it in the plan panel. {_NOTICE}"
+    )
+    side = cast(dict[str, object], payload["after"])
+    cast(dict[str, object], side["estimate"])["total_cents"] = None
+    incomplete = read_tool_answer([(PROPOSAL_TOOL, payload)], stale=True)
+    assert incomplete is not None and STALE_SPENDING_WARNING not in incomplete
+
+
 def test_real_proposal_reply_uses_singular_servings_and_not_owned() -> None:
     payload = _proposed(
         {"op": "set_servings", "recipe_id": "chicken_tacos", "servings": 1},

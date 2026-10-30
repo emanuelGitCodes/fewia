@@ -1280,6 +1280,38 @@ def test_more_multipliers_are_unmatched(reply: str) -> None:
     assert not verdict.ok
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I added Vegetable pasta to your plan.",
+        "I removed Bean tacos from your plan.",
+        "I updated your plan.",
+        "I changed your plan.",
+        "Your plan now has Vegetable pasta.",
+        "Your plan is now updated.",
+        "I added it.",
+        "I removed it.",
+        "Y.o.u.r p.l.a.n i.s n.o.w done.",
+        "I A.D.D.E.D i.t for you.",
+    ],
+)
+def test_claims_that_the_plan_already_changed_are_forbidden(reply: str) -> None:
+    verdict = validate(reply, FactSet())
+    assert "forbidden_claim" in verdict.reasons
+    assert not verdict.ok
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Apply it in the plan panel.",
+        "Proposed: add Vegetable pasta. Apply it in the plan panel.",
+    ],
+)
+def test_the_apply_it_prompt_is_not_a_changed_claim(reply: str) -> None:
+    assert validate(reply, FactSet()).ok
+
+
 def test_a_model_copy_of_the_stale_warning_is_a_forbidden_claim() -> None:
     facts = _facts(total_cents=1_200)
     plain = validate("The sample total is $12.00.", facts)

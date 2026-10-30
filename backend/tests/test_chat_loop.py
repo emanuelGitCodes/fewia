@@ -51,6 +51,7 @@ from app.agent.plan_tools import (
 )
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines, price_tool_spec
+from app.agent.proposal_tool import PROPOSAL_ONCE, PROPOSAL_TOOL, proposal_tool_spec
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
     execute_substitute,
@@ -59,6 +60,7 @@ from app.agent.substitute_tool import (
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
+from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
 from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
@@ -232,8 +234,8 @@ def _reply(
     return body
 
 
-def _chat_tools() -> list[dict[str, object]]:
-    return [
+def _chat_tools(*, with_proposal: bool = False) -> list[dict[str, object]]:
+    tools = [
         planner_tool_spec(),
         budget_tool_spec(),
         catalog_tool_spec(),
@@ -243,6 +245,7 @@ def _chat_tools() -> list[dict[str, object]]:
         price_tool_spec(),
         ingredient_tool_spec(),
     ]
+    return [*tools, proposal_tool_spec()] if with_proposal else tools
 
 
 def _budget_block(
@@ -881,6 +884,210 @@ def test_run_chat_gives_the_provider_the_plan_meals() -> None:
     run_chat(bare, "hello", budget(), PERIOD, heartbeat=_noop)
     bare_messages = cast(list[dict[str, Any]], bare.requests[0]["messages"])
     assert json.loads(bare_messages[-1]["content"][0]["text"])["plan_meals"] is None
+
+
+_PROPOSE_OP: dict[str, object] = {
+    "op": "add",
+    "recipe_id": "vegetable_pasta",
+    "servings": 3,
+}
+_PROPOSED_ANSWER_START = "Proposed: add Vegetable pasta (3 servings)."
+
+
+class Proposer:
+    def __init__(self) -> None:
+        self.calls: list[list[dict[str, object]]] = []
+
+    def __call__(self, operations: list[dict[str, object]]) -> str:
+        self.calls.append(operations)
+        return f"proposal-{len(self.calls)}"
+
+
+def _two_meal_revision() -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [
+                    {"recipe_id": "chicken_tacos", "servings": 2},
+                    {"recipe_id": "bean_tacos", "servings": 2},
+                ],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def _propose_block(tool_id: str, *ops: dict[str, object]) -> dict[str, object]:
+    return _tool_block(tool_id, name=PROPOSAL_TOOL, payload={"operations": list(ops)})
+
+
+def _propose_run(
+    replies: list[dict[str, object] | BaseException],
+    proposer: Proposer,
+    *,
+    model_prose: bool = False,
+) -> tuple[dict[str, object], FakeLLM]:
+    provider = FakeLLM(replies)
+    result = run_chat(
+        provider,
+        "add vegetable pasta",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=_two_meal_revision(),
+        propose=proposer,
+        model_prose=model_prose,
+    )
+    return result, provider
+
+
+def _proposal_replies(final: str) -> list[dict[str, object] | BaseException]:
+    return [
+        _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+        _reply([_text_block(final)], "end_turn"),
+    ]
+
+
+def test_proposal_tool_is_offered_only_with_a_plan_revision_and_propose() -> None:
+    proposer = Proposer()
+    offered: list[list[dict[str, object]]] = []
+    cases: list[tuple[PlanRevisionInput | None, Proposer | None]] = [
+        (_two_meal_revision(), proposer),
+        (_two_meal_revision(), None),
+        (None, proposer),
+        (None, None),
+    ]
+    for revision, propose in cases:
+        provider = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+        run_chat(
+            provider,
+            "hello",
+            budget(),
+            PERIOD,
+            heartbeat=_noop,
+            plan_revision=revision,
+            propose=propose,
+        )
+        offered.append(cast(list[dict[str, object]], provider.requests[0]["tools"]))
+    assert offered[0] == _chat_tools(with_proposal=True)
+    assert offered[1:] == [_chat_tools()] * 3
+    assert proposer.calls == []
+
+
+def test_evaluation_callers_get_the_same_tool_list() -> None:
+    provider = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+    run_chat(provider, "hello", budget(), PERIOD, heartbeat=_noop)
+    assert provider.requests[0]["tools"] == _chat_tools()
+    names = [
+        cast(dict[str, dict[str, object]], tool)["toolSpec"]["name"]
+        for tool in cast(list[object], provider.requests[0]["tools"])
+    ]
+    assert PROPOSAL_TOOL not in names
+
+
+def test_a_proposal_run_stores_once_and_returns_the_proposal_id() -> None:
+    proposer = Proposer()
+    result, provider = _propose_run(_proposal_replies("done"), proposer)
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert result["reply_source"] == "template"
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [(item["tool"], item["outcome"]) for item in trace] == [
+        (PROPOSAL_TOOL, "success")
+    ]
+    assert trace[0]["inputs"] == {
+        "status": "proposed",
+        "proposal_id": "proposal-1",
+        "operations": [_PROPOSE_OP],
+    }
+    _assert_public(result)
+
+
+def test_a_run_without_a_proposal_has_no_proposal_id() -> None:
+    result, _ = _propose_run([_reply([_text_block("hello")], "end_turn")], Proposer())
+    assert "proposal_id" not in result
+
+
+def test_a_passing_model_reply_after_the_tool_keeps_the_proposal_id() -> None:
+    proposer = Proposer()
+    reply = "Apply it in the plan panel."
+    result, _ = _propose_run(_proposal_replies(reply), proposer, model_prose=True)
+    assert result["reply_source"] == "model"
+    assert result["answer"] == reply
+    assert result["reply_check"] == {"ok": True, "reasons": [], "unmatched": []}
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_a_changed_plan_claim_falls_back_to_the_template() -> None:
+    reply = "I added Vegetable pasta to your plan."
+    result, _ = _propose_run(_proposal_replies(reply), Proposer(), model_prose=True)
+    assert result["reply_source"] == "template"
+    assert cast(dict[str, object], result["reply_check"])["reasons"] == [
+        "forbidden_claim"
+    ]
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_an_invalid_operation_stores_nothing_and_shows_a_fixed_error() -> None:
+    proposer = Proposer()
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    result, provider = _propose_run(
+        [
+            _reply([_propose_block("q1", bad)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+    )
+    assert proposer.calls == []
+    assert "proposal_id" not in result
+    seen = json.dumps(provider.requests[1]["messages"])
+    assert INVALID_PROPOSAL_MESSAGE in seen
+    assert "not_a_meal" not in json.dumps(result)
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [(item["tool"], item["outcome"]) for item in trace] == [
+        (PROPOSAL_TOOL, "error")
+    ]
+
+
+def test_a_second_proposal_in_one_run_is_refused() -> None:
+    proposer = Proposer()
+    second = {"op": "remove", "recipe_id": "bean_tacos"}
+    result, provider = _propose_run(
+        [
+            _reply(
+                [
+                    _propose_block("q1", _PROPOSE_OP),
+                    _propose_block("q2", second),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+    )
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    assert PROPOSAL_ONCE in json.dumps(provider.requests[1]["messages"])
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [item["outcome"] for item in trace] == ["success", "error"]
+
+
+def test_a_failed_proposal_may_be_retried_and_counts_once_when_stored() -> None:
+    proposer = Proposer()
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    result, _ = _propose_run(
+        [
+            _reply([_propose_block("q1", bad)], "tool_use"),
+            _reply([_propose_block("q2", _PROPOSE_OP)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+    )
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
 
 
 def test_trace_records_the_validated_swap_inputs() -> None:
@@ -1649,7 +1856,7 @@ def test_system_prompt_requires_restriction_clarification() -> None:
 
 def test_prompt_and_all_schemas_stay_under_interim_budget() -> None:
     serialized = json.dumps(
-        {"system": SYSTEM_PROMPT, "tools": _chat_tools()},
+        {"system": SYSTEM_PROMPT, "tools": _chat_tools(with_proposal=True)},
         sort_keys=True,
         separators=(",", ":"),
     )

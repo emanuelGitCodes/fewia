@@ -114,6 +114,8 @@ _FORBIDDEN = re.compile(
     r"|diagnos|glutenfree"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
+    r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
+    r"|yourplanisnow|iaddedit|iremovedit"
 )
 # A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein",
 # "3 times", "3-fold", "two x").

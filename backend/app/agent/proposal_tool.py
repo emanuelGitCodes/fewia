@@ -81,12 +81,23 @@ def execute_propose(
     plan: PlanRevisionInput,
     propose: Propose,
 ) -> dict[str, object]:
+    """Validate and price the change, then store it once.
+
+    The payload is built before `propose` runs, so a failure while building
+    stores nothing. Only a successful proposal counts toward the one-per-run
+    limit (the dispatcher checks the trace), so a failed call may be retried.
+    """
     if type(arguments) is not dict or set(arguments) != {"operations"}:
         raise ProposalToolError(INVALID_PROPOSAL_MESSAGE)
     try:
         ops = parse_operations(arguments["operations"])
         after = apply_operations(plan.snapshot, ops)
-        operations: list[dict[str, object]] = [op.model_dump(mode="json") for op in ops]
+    except ProposalInvalid:
+        raise ProposalToolError(INVALID_PROPOSAL_MESSAGE) from None
+    operations: list[dict[str, object]] = [op.model_dump(mode="json") for op in ops]
+    before_side = _side(plan.snapshot, budget)
+    after_side = _side(after, budget)
+    try:
         proposal_id = propose(operations)
     except ProposalInvalid:
         raise ProposalToolError(INVALID_PROPOSAL_MESSAGE) from None
@@ -94,6 +105,6 @@ def execute_propose(
         "status": "proposed",
         "proposal_id": proposal_id,
         "operations": operations,
-        "before": _side(plan.snapshot, budget),
-        "after": _side(after, budget),
+        "before": before_side,
+        "after": after_side,
     }

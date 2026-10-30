@@ -297,7 +297,7 @@ def _operation(item: object) -> str:
     raise ValueError("payload is invalid")
 
 
-def _proposal(payload: dict[str, object]) -> str:
+def _proposal(payload: dict[str, object], stale: bool) -> str:
     if payload.get("status") != "proposed":
         raise ValueError("payload is invalid")
     changes = ", ".join(_operation(item) for item in _d_list(payload["operations"]))
@@ -306,12 +306,15 @@ def _proposal(payload: dict[str, object]) -> str:
         for side in ("before", "after")
     )
     text = f"Proposed: {changes}."
-    shown = type(before) is int and type(after) is int
+    shown = False
     if type(before) is int and type(after) is int:
+        shown = True
         text += (
             f" Sample meal price: {_usd(before)} to {_usd(after)} "
             f"({_signed_usd(after - before)})."
         )
+        if stale:
+            text += f" {STALE_SPENDING_WARNING}"
     else:
         text += " The sample price is incomplete."
     return _with_notice(f"{text} Apply it in the plan panel.", shown)
@@ -319,7 +322,7 @@ def _proposal(payload: dict[str, object]) -> str:
 
 def _render(name: str, payload: dict[str, object], stale: bool) -> str:
     if name == PROPOSAL_TOOL:
-        return _proposal(payload)
+        return _proposal(payload, stale)
     if name == SUBSTITUTE_TOOL:
         return _substitute(payload)
     if name == PRICE_TOOL:

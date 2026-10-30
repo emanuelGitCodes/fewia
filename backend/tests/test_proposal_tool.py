@@ -207,6 +207,19 @@ def test_the_error_never_echoes_model_text() -> None:
     assert proposer.calls == []
 
 
+def test_a_payload_build_failure_stores_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def broken(*_: object) -> dict[str, object]:
+        raise RuntimeError("build failed")
+
+    monkeypatch.setattr("app.agent.proposal_tool._side", broken)
+    proposer = Proposer()
+    with pytest.raises(RuntimeError):
+        execute_propose({"operations": [_ADD]}, _BUDGET, _plan(), proposer)
+    assert proposer.calls == []
+
+
 def test_a_proposer_rejection_becomes_the_fixed_tool_error() -> None:
     def refuse(_: list[dict[str, object]]) -> str:
         raise ProposalInvalid(_SECRET)
