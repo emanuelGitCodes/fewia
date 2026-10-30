@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import NoReturn
 
+from app.agent.chat_loop import PROSE_PROMPT_SUFFIX
 from app.agent.provider import LLMProvider
 from app.evaluation_conversation import ProviderFor, run_conversation_suite
 from app.evaluation_conversation_corpus import ConversationCorpus, Scenario, Turn
@@ -133,6 +134,9 @@ def main(
             "model_config": profile.model_config,
             "revision": args.revision,
             "evidence_class": evidence,
+            "prose_prompt_sha256": hashlib.sha256(
+                PROSE_PROMPT_SUFFIX.encode("utf-8")
+            ).hexdigest(),
         }
         manifest["manifest_hash"] = _hash(manifest)
     except (ValueError, OSError):

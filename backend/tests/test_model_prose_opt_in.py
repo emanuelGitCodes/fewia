@@ -74,6 +74,30 @@ def _sha(text: object) -> str:
     return hashlib.sha256(cast(str, text).encode()).hexdigest()
 
 
+def _system(provider: FakeLLM) -> str:
+    return cast(str, provider.requests[0]["system"])
+
+
+def test_prose_rules_are_appended_only_when_model_prose_is_on() -> None:
+    text = [_reply([_text_block("ok")], "end_turn")]
+    _, on = _run(list(text), model_prose=True)
+    _, off = _run(list(text), model_prose=False)
+    assert _system(on) == chat_loop.SYSTEM_PROMPT + chat_loop.PROSE_PROMPT_SUFFIX
+    assert _system(off) == chat_loop.SYSTEM_PROMPT
+    assert chat_loop.PROSE_PROMPT_SUFFIX not in chat_loop.SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize("model_prose", [True, False])
+def test_prose_rules_follow_the_proposal_suffix(model_prose: bool) -> None:
+    _, provider = _propose_run(
+        _proposal_replies(GROUNDED_PLAIN), Proposer(), model_prose=model_prose
+    )
+    expected = chat_loop.SYSTEM_PROMPT + chat_loop.PROPOSAL_PROMPT_SUFFIX
+    if model_prose:
+        expected += chat_loop.PROSE_PROMPT_SUFFIX
+    assert _system(provider) == expected
+
+
 def test_grounded_reply_with_money_becomes_the_answer_with_notice() -> None:
     result, provider = _run(_swap(GROUNDED_MONEY))
     assert len(provider.requests) == 2

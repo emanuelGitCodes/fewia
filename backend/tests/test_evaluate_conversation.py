@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app import evaluate_conversation as cli
+from app.agent.chat_loop import PROSE_PROMPT_SUFFIX
 from app.evaluation_conversation_corpus import load_conversation_corpus
 from app.providers import bedrock
 
@@ -61,6 +62,14 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     found = {t["name"]: t["status"] for t in report["targets"]}
     for name in ("latency_p50_ms", "latency_p95_ms", "cost_per_turn_usd"):
         assert found[name] == "not_applicable"
+
+
+def test_the_manifest_records_the_prose_prompt_hash(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    assert cli.main(_argv(out)) == 0
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    digest = hashlib.sha256(PROSE_PROMPT_SUFFIX.encode("utf-8")).hexdigest()
+    assert report["manifest"]["prose_prompt_sha256"] == digest
 
 
 def test_the_manifest_hashes_the_bytes_that_were_parsed(
