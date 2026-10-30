@@ -77,7 +77,7 @@ def _registered_tool_names() -> frozenset[str]:
             recorder,
             "What does my plan cost?",
             budget,
-            date(2026, 9, 6),
+            date(2026, 9, 1),
             plan_revision=plan,
             propose=lambda operations: "proposal-fixture",
         )
