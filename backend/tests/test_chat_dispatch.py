@@ -4,6 +4,7 @@ from typing import Any, cast, get_args
 
 import pytest
 
+from app.agent import ingredient_tool
 from app.agent.budget_tool import (
     TOOL_NAME as BUDGET_TOOL_NAME,
 )
@@ -14,7 +15,6 @@ from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.catalog_tool import execute_catalog_search
-from app.agent import ingredient_tool
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.ingredient_tool import INGREDIENT_TOOL, execute_ingredient_facts
@@ -25,8 +25,8 @@ from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 from app.domain.nutrition import NutritionFacts
-from app.providers.usda_live import LiveFood
 from app.domain.plan_revision import PlanRevisionInput
+from app.providers.usda_live import LiveFood
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"

@@ -75,7 +75,7 @@ def test_parses_branded_and_sr_legacy_items() -> None:
     branded = _food(200, "PANEER CHEESE", brandOwner="Acme Dairy", dataType="Branded")
     foods = _client(_ok([_food(), branded])).search("paneer")
     assert [f.fdc_id for f in foods] == [100, 200]
-    assert foods[0].name == "cheese, paneer"
+    assert foods[0].name == "cheese (paneer)"
     assert foods[0].brand is None
     assert foods[0].data_type == "SR Legacy"
     assert foods[0].facts == NutritionFacts(100, 321, 18400, 25000, 3040, 600)
