@@ -24,6 +24,11 @@ directly followed by any other letter ("12k", "2x", "3K") is `unmatched_number`.
 So is a number, whitespace, and a scale word or multiplier ("$12 K", "2 x").
 Mass units: "mg" must match a milligram fact, "kg" is grams times 1000.
 
+Direction rule: an unsigned energy, mass, milli, or percent token with its unit,
+directly followed by more, higher, extra, up (+) or less, fewer, lower, down (-),
+takes that sign ("2.5 g more fat" is +2.5). It is then checked like a signed token,
+against this turn's deltas only. Money, counts, and ranges are never bound.
+
 Digit rule: any digit, number, or letter-number character other than ASCII 0-9
 (superscripts, circled or fullwidth digits, other scripts, "Ⅻ") fails with
 `unsupported_character` before folding. Vulgar fractions are the exception.
@@ -99,6 +104,11 @@ _PERCENT_AFTER = re.compile(r"\s*(?:%|percent\b)", re.IGNORECASE)
 _APPROX = re.compile(r"\b(?:about|around|roughly|approximately)\s+$", re.IGNORECASE)
 _DETERMINER = re.compile(
     r"\b(?:which|this|that|the|any|no|each|every|another|a|an)\s+$", re.IGNORECASE
+)
+# A direction word right after a unit gives an unsigned change its sign.
+_DIRECTION = re.compile(
+    r"\s*\b(?:(?P<up>more|higher|extra|up)|(?P<down>less|fewer|lower|down))\b",
+    re.IGNORECASE,
 )
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
 # "which one do you mean": "one" is a pronoun only at the end of a clause or before
@@ -425,10 +435,15 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
         else:
             kind = next((_KINDS[name] for name in _KINDS if m[name]), "count")
             approx = bool(_APPROX.search(before))
+            bound = None
+            if kind != "count" and not (m["sign"] or m["n2"]):
+                bound = _DIRECTION.match(reply, m.end())
             for index, raw in enumerate((m["n1"], m["n2"])):
                 if raw is None:
                     continue
                 nsign = m["sign"] if index == 0 else None
+                if bound:
+                    nsign = _MINUS if bound["down"] else "+"
                 value = _number(raw) * (1000 if m["kg"] else 1)
                 if not _grounded(kind, value, nsign, approx, facts):
                     shown = str(int(_number(raw))) if raw[0].isalpha() else raw

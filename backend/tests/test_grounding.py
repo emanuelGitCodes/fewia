@@ -460,6 +460,53 @@ def test_explicit_delta_keys_are_signed_facts_only() -> None:
     assert not validate("Energy is 4%.", facts).ok
 
 
+def _changes(*deltas: tuple[str, int]) -> FactSet:
+    return FactSet(deltas={(kind, Decimal(value)) for kind, value in deltas})
+
+
+def test_direction_word_binds_an_unsigned_change_to_a_signed_delta() -> None:
+    facts = FactSet(deltas={("mass", Decimal("2.5")), ("energy", Decimal(38))})
+    reply = "About 2.5 g more fat and 38 kcal more energy."
+    assert validate(reply.lower(), facts).ok
+    assert validate("about 2.5 g more fat and 38 kcal more energy", facts).ok
+    assert validate("**2.5 g more fat**", facts).ok
+    assert validate("2.5 g Higher fat, 38 kcal EXTRA.", facts).ok
+
+
+def test_bound_change_takes_the_sign_of_its_direction_word() -> None:
+    facts = FactSet(deltas={("mass", Decimal("2.5"))})
+    verdict = validate("2.5 g less fat", facts)
+    assert verdict.reasons == ("unmatched_number",)
+    assert verdict.unmatched == ("-2.5",)
+    assert validate("2.5 g more fat", facts).ok
+    carbs = _changes(("mass", -5))
+    assert validate("5 g fewer carbs", carbs).ok
+    assert not validate("5 g more carbs", carbs).ok
+    assert validate("9% lower", _changes(("percent", -9))).ok
+
+
+def test_bound_change_never_matches_the_absolute_pool() -> None:
+    facts = FactSet(mass={Decimal("2.5")}, generic={Decimal("2.5")})
+    assert validate("2.5 g of fat", facts).ok
+    assert not validate("2.5 g more fat", facts).ok
+    assert not validate("2.5 g less fat", facts).ok
+    assert not validate("about 40 kcal more", FactSet(energy={Decimal(38)})).ok
+
+
+def test_bound_decrease_may_match_a_negative_pool_value() -> None:
+    assert validate("5 g less", FactSet(mass={Decimal(-5)})).ok
+
+
+def test_direction_word_binds_only_a_unit_number_directly_before_it() -> None:
+    facts = FactSet(mass={Decimal(5)}, count={Decimal(2)}, money={Decimal(200)})
+    assert validate("Add 5 g, and more fat later.", facts).ok
+    assert validate("Make 2 servings more often.", facts).ok
+    assert validate("It costs $2 more.", facts).ok
+    assert validate("That is up from 5 g.", facts).ok
+    assert not validate("That is 3 g more.", facts).ok
+    assert validate("Look for more options.", facts).ok
+
+
 def test_negative_plain_fact_matches_only_a_minus_sign() -> None:
     facts = _facts(remaining_cents=-120)
     assert validate("Remaining: USD -$1.20.", facts).ok
