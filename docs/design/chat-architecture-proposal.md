@@ -744,12 +744,29 @@ Spoonacular pull request 2.7 is gone.
 | 2b.5 | Remove Spoonacular: `providers/spoonacular.py`, `services/supermarket_overlay.py`, `domain/supermarket_estimate.py`, `domain/spoonacular_catalog.py`, `compose.spoonacular.yaml`, the read-time attach in `api/chat.py` and `api/grocery.py`, `estimate-line-spoonacular` rows in `frontend/src/Estimate.tsx`, and `spoonacular_key_file` in `provider_settings.py` | deletions |
 | 4b.1 | `kroger_customer_tokens` migration with Fernet encryption; connect and callback endpoints; `state` nonce | 150 |
 | 4b.2 | Refresh on use; Profile call; "Connect Kroger" and "Disconnect" in the plan panel | 120 |
-| 4b.3 | `propose_cart` tool and `cart_proposals` row; the API `PUT /v1/cart/add` on user click; outcome-unknown handling on timeout | 150 |
-| 4b.4 | Retire Instacart: remove `providers/instacart.py`, `handoff_dispatch.py`, `api/handoff.py`, the handoff button, and `instacart_key_file`; keep the `shopping_handoffs` table | deletions |
+| 4b.3 | Cart preview and send on user click; the API `PUT /v1/cart/add`; outcome-unknown handling on timeout. No model tool and no stored row (see below). | 150 |
+| 4b.4 | Retire Instacart: remove `providers/instacart.py`, `handoff_dispatch.py`, `api/handoff.py`, the handoff button, and `instacart_key_file`; keep the `shopping_handoffs` table. Deferred past phase 5 (see below). | deletions |
 
-Cart adds can time out with the item already added. PR 4b.3 reuses the
-"uncertain" pattern from `handoff_dispatch.py`: show the user a visible
-retry choice, never replay blindly.
+PR 4b.3 replaces the `propose_cart` tool in section 6.4. A
+`cart_proposals` row of UPC, label, and cents is a stored copy of Kroger
+content, which the terms (section 5e) forbid without a cache header. The
+owner chose a click-only flow on 2026-10-30:
+
+- The model gets no cart tool. The model keeps the `purchase` decline.
+- "Preview cart" asks the API to match each plan line against Kroger
+  Products at the chosen store. The API returns the items and stores
+  nothing.
+- "Send to Kroger cart" posts the `upc` and `quantity` list that the user
+  confirmed. The API checks the UPC shape and the quantity bounds and
+  calls `PUT /v1/cart/add` with the customer token.
+- The Cart API cannot read the cart. On a timeout the UI says "Check your
+  Kroger cart before you retry" and shows a retry button. The API never
+  replays the add.
+
+PR 4b.4 changes the estimate notice, which names Instacart, and the claim
+parser `_ATOMIC` in `backend/app/evaluation_claim_propositions.py` (section
+7, rule 3). That changes claim scoring on `grocery-eval-v1`. The owner
+deferred 4b.4 until after phase 5 on 2026-10-30.
 
 Owner decisions for this layer:
 
@@ -1008,10 +1025,17 @@ Deferred, with the reason:
   after the phase 5 grounding scorer. Nine evaluation modules score the
   current refusal path, and a trimmed prompt needs a measured batch.
 - PR 4.3 (memory past eight turns): until a live check shows the gap.
-- Phase 5: the owner decides how the frozen scenario corpus changes. The
-  code holds 30 scenarios; the course documents cite 33.
-- Phase 4b: needs a registered redirect URI and an approved encryption
-  dependency.
+- PR 4b.4 (retire Instacart): after phase 5, because it changes claim
+  scoring on `grocery-eval-v1`.
+
+Phase 5 decision (owner, 2026-10-30): the conversation scenarios form a
+separate suite. The frozen `grocery-eval-v1` corpus keeps its 30 scenarios
+and its 138-slot batch. The 33 in the course documents counts
+`tool_enabled` slots: 11 model scenarios, 3 repeats each.
+
+Phase 4b inputs (2026-10-30): the owner registered the redirect URI
+`http://localhost:8010/grocery/kroger/callback` and approved the
+`cryptography` dependency.
 
 ## 10. Risks, open questions, and decisions
 
