@@ -662,6 +662,23 @@ def test_ingredient_facts_live_others_use_brand_to_tell_equal_names_apart() -> N
     assert answer.endswith("Other USDA matches: tofu (A), tofu (USDA FDC 3).")
 
 
+def test_ingredient_facts_live_others_with_same_name_and_brand_add_the_id() -> None:
+    payload = {
+        "status": "live",
+        "name": "x",
+        "live": [
+            _live("paneer", 1, None),
+            _live("tofu", 2, "A"),
+            _live("tofu", 3, "A"),
+        ],
+    }
+    answer = read_tool_answer([(INGREDIENT_TOOL, payload)])
+    assert answer is not None
+    assert answer.endswith(
+        "Other USDA matches: tofu (A) USDA FDC 2, tofu (A) USDA FDC 3."
+    )
+
+
 def test_ingredient_facts_live_single_match_has_no_other_matches() -> None:
     payload = {"status": "live", "name": "x", "live": [_live("tofu", 5, None)]}
     answer = read_tool_answer([(INGREDIENT_TOOL, payload)])

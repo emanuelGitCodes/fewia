@@ -167,6 +167,13 @@ def test_includes_is_stripped_in_any_case() -> None:
     assert display_name("Beef (INCLUDES x), raw") == "beef (raw)"
 
 
+def test_includes_stripping_survives_characters_that_change_length_when_lowered() -> (
+    None
+):
+    assert usda_foods._strip_includes("İ" * 9 + "(includes x)") == "İ" * 9
+    assert usda_foods._strip_includes("ŞİĞ stew (Includes y), raw") == "ŞİĞ stew , raw"
+
+
 def test_a_cut_never_lands_inside_a_word() -> None:
     assert display_name("Soup, alphabetagamma", limit=10) == "soup"
     assert display_name("Soup, composite of x, alphabetagamma", limit=10) == (

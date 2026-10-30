@@ -58,7 +58,8 @@ def _fail(message: str) -> ValueError:
 
 
 def _strip_includes(text: str) -> str:
-    while (start := text.lower().find("(includes")) != -1:
+    while found := re.search(r"\(includes", text, re.IGNORECASE):
+        start = found.start()
         depth, end = 0, len(text)
         for index in range(start, len(text)):
             depth += {"(": 1, ")": -1}.get(text[index], 0)

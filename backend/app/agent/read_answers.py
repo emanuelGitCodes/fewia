@@ -193,9 +193,19 @@ def _or(names: list[str]) -> str:
     return f"{', '.join(names[:-1])}, or {names[-1]}"
 
 
-def _live_other(item: dict[str, object]) -> str:
-    detail = item.get("brand") or f"USDA FDC {_int(item['fdc_id'])}"
-    return f"{item['name']} ({detail})"
+def _live_others(items: list[dict[str, object]]) -> list[str]:
+    labels = [
+        f"{item['name']} ({item['brand']})"
+        if item.get("brand")
+        else f"{item['name']} (USDA FDC {_int(item['fdc_id'])})"
+        for item in items
+    ]
+    return [
+        f"{label} USDA FDC {_int(item['fdc_id'])}"
+        if labels.count(label) > 1 and item.get("brand")
+        else label
+        for label, item in zip(labels, items, strict=True)
+    ]
 
 
 def _live_facts(foods: list[object]) -> str:
@@ -210,7 +220,7 @@ def _live_facts(foods: list[object]) -> str:
         f"{_macro_line(_d(first['per_100g']))} (USDA FDC {_int(first['fdc_id'])}). "
         "FEWIA cannot add this food to a meal yet."
     )
-    others = [_live_other(_d(item)) for item in foods[1:]]
+    others = _live_others([_d(item) for item in foods[1:]])
     if others:
         text += f" Other USDA matches: {', '.join(others)}."
     return text

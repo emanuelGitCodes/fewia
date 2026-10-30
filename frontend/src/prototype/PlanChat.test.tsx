@@ -384,15 +384,18 @@ describe("PlanChat", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Find stores" }));
     });
-    fireEvent.click(await screen.findByRole("button", { name: /^Main Street, 1 Test Way/ }));
-    expect(onKrogerChoose).toHaveBeenCalledWith({
-      locationId: "01400943",
-      name: "Main Street",
-      addressLine: "1 Test Way",
-      city: "Springfield",
-      state: "OH",
-    });
-    vi.unstubAllGlobals();
+    try {
+      fireEvent.click(await screen.findByRole("button", { name: /^Main Street, 1 Test Way/ }));
+      expect(onKrogerChoose).toHaveBeenCalledWith({
+        locationId: "01400943",
+        name: "Main Street",
+        addressLine: "1 Test Way",
+        city: "Springfield",
+        state: "OH",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("hides the store picker when chat is off", () => {
