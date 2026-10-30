@@ -18,6 +18,7 @@ RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
         "plan_revisions": "SELECT, INSERT",
+        "plan_proposals": "SELECT, INSERT, UPDATE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
@@ -68,15 +69,16 @@ SELECT
                 n.nspname = 'public' AND (
                     (p.priv = 'SELECT' AND c.relname IN (
                         'users', 'jobs', 'job_outbox', 'shopping_handoffs',
-                        'grocery_evidence', 'plan_revisions', 'plaid_items',
-                        'plaid_transactions'
+                        'grocery_evidence', 'plan_revisions', 'plan_proposals',
+                        'plaid_items', 'plaid_transactions'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
-                        'grocery_evidence', 'plan_revisions'
+                        'grocery_evidence', 'plan_revisions', 'plan_proposals'
                     ))
                     OR (p.priv = 'UPDATE' AND c.relname IN (
-                        'jobs', 'job_outbox', 'shopping_handoffs'
+                        'jobs', 'job_outbox', 'shopping_handoffs',
+                        'plan_proposals'
                     ))
                 )
             )

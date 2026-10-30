@@ -28,6 +28,7 @@ _TABLE_GRANTS: dict[str, frozenset[str]] = {
     "shopping_handoffs": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "grocery_evidence": frozenset({"SELECT", "INSERT"}),
     "plan_revisions": frozenset({"SELECT", "INSERT"}),
+    "plan_proposals": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "plaid_items": frozenset({"SELECT"}),
     "plaid_transactions": frozenset({"SELECT"}),
     "daily_finance": frozenset(),
@@ -100,6 +101,7 @@ def test_runtime_grants_are_exact_and_immutable() -> None:
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
         "plan_revisions": "SELECT, INSERT",
+        "plan_proposals": "SELECT, INSERT, UPDATE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
