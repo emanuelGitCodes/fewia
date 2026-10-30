@@ -79,7 +79,12 @@ def test_grounded_reply_with_money_becomes_the_answer_with_notice() -> None:
     assert len(provider.requests) == 2
     assert result["answer"] == f"{GROUNDED_MONEY} {SAMPLE_ESTIMATE_NOTICE}"
     assert result["reply_source"] == "model"
-    assert result["reply_check"] == {"ok": True, "reasons": [], "unmatched": []}
+    assert result["reply_check"] == {
+        "ok": True,
+        "reasons": [],
+        "unmatched": [],
+        "gate": "clean",
+    }
     assert result["status"] == "clarification"
     assert result["reply_sha256"] == _sha(result["answer"])
 
@@ -104,7 +109,7 @@ def test_needs_revision_keeps_the_template_status_plan_and_answer() -> None:
     assert result["plan"] == expected["plan"]
     assert result["answer"] == render_public_answer(expected)
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "planner"}
     assert SENTINEL not in json.dumps(result)
 
 
@@ -139,7 +144,7 @@ def test_planner_conflict_or_clarification_uses_the_template(name: str) -> None:
     assert "Your plan is ready." not in cast(str, result["answer"])
     assert result["status"] == template["status"]
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "tool_failed"}
 
 
 def test_an_earlier_failed_tool_forces_the_template_even_after_a_good_one() -> None:
@@ -154,7 +159,7 @@ def test_an_earlier_failed_tool_forces_the_template_even_after_a_good_one() -> N
     result, _ = _run(replies)
     assert result["answer"] == _SWAP_ANSWER
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "tool_failed"}
 
 
 def test_a_failed_tool_beside_a_good_one_forces_the_template() -> None:
@@ -171,7 +176,7 @@ def test_a_failed_tool_beside_a_good_one_forces_the_template() -> None:
     ]
     result, _ = _run(replies)
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "tool_failed"}
     assert GROUNDED_PLAIN not in cast(str, result["answer"])
 
 
@@ -200,7 +205,7 @@ def test_a_question_status_from_a_read_tool_uses_the_template(
     assert result["answer"] == template["answer"]
     assert text not in cast(str, result["answer"])
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "not_final"}
 
 
 @pytest.mark.parametrize("text", ["Use Ⅲ eggs.", "10³ kcal", "①"])
@@ -212,6 +217,7 @@ def test_non_ascii_digits_reach_the_validator_unfolded(text: str) -> None:
         "ok": False,
         "reasons": ["unsupported_character"],
         "unmatched": [],
+        "gate": "clean",
     }
 
 
@@ -354,6 +360,7 @@ def test_ungrounded_reply_falls_back_to_the_template_and_is_never_stored() -> No
         "ok": False,
         "reasons": ["unmatched_number"],
         "unmatched": ["999"],
+        "gate": "clean",
     }
     assert result["reply_sha256"] == _sha(_SWAP_ANSWER)
     assert SENTINEL not in json.dumps(result)
@@ -397,7 +404,7 @@ def test_no_tool_means_no_check_and_todays_answer() -> None:
     off, _ = _run([_reply([_text_block(text)], "end_turn")], model_prose=False)
     assert on["answer"] == off["answer"]
     assert on["reply_source"] == "template"
-    assert on["reply_check"] is None
+    assert on["reply_check"] == {"gate": "no_tools"}
 
 
 def test_failed_tool_means_no_check() -> None:
@@ -408,7 +415,7 @@ def test_failed_tool_means_no_check() -> None:
     ]
     on, _ = _run(replies)
     assert on["reply_source"] == "template"
-    assert on["reply_check"] is None
+    assert on["reply_check"] == {"gate": "tool_failed"}
     assert SENTINEL not in json.dumps(on)
 
 

@@ -236,7 +236,7 @@ def test_chat_job_opts_in_to_validated_model_prose(
     )
     assert seen == [True]
     assert result["reply_source"] == "template"
-    assert result["reply_check"] is None
+    assert result["reply_check"] == {"gate": "no_tools"}
 
 
 def test_chat_job_stores_snapshot_before_return(
