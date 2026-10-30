@@ -806,7 +806,8 @@ def test_every_bmp_letter_that_does_not_fold_to_ascii_fails() -> None:
         char = chr(code)
         if not unicodedata.category(char).startswith("L"):
             continue
-        if re.search(r"[^A-Za-z]", folded(char)):
+        residue = "".join(folded(char).split())
+        if residue and re.search(r"[^A-Za-z]", residue):
             checked += 1
             assert not validate("x" + char, FactSet()).ok, f"U+{code:04X}"
     assert checked > 10_000

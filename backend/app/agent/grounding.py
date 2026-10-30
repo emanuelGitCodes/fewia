@@ -5,7 +5,7 @@ energy fact is within 9 of N (see APPROX_WINDOW).
 
 Character rule: the reply is folded (NFKD, no combining marks) and then every
 character must be in the allowed set (see _UNSUPPORTED): ASCII letters, digits,
-space, newline, tab, the punctuation . , ; : ! ? ' " ( ) [ ] $ % / + - & * #,
+space, newline, tab, the punctuation . , ; : ! ? ' " ( ) [ ] $ % / + - & * # _,
 and the cent sign. The server templates emit nothing else. Any other character
 fails with `unsupported_character`; nothing is deleted without being classified,
 so no character can hide a claim. Dashes and Unicode spaces are mapped, and
@@ -30,7 +30,7 @@ _SIGN = r"[+\-]"
 _MINUS = "-"
 _DASHES = re.compile("[‐-―−﹣－]")
 _SPACES = re.compile(r"\s")
-_UNSUPPORTED = re.compile(r"[^A-Za-z0-9 \n\t.,;:!?'\"()\[\]$%/+\-&*#¢]")
+_UNSUPPORTED = re.compile(r"[^A-Za-z0-9 \n\t.,;:!?'\"()\[\]$%/+\-&*#_¢]")
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
 _WORD = rf"\b(?:{'|'.join(_SMALL)})\b"
 _BIG = (
