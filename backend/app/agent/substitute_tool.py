@@ -54,7 +54,7 @@ def substitute_tool_spec() -> dict[str, object]:
             "recipe_id": {"type": "string", "enum": list(SUPPORTED_RECIPE_IDS)},
             "servings": {"type": "integer", "minimum": 1, "maximum": 8},
             "replace_ingredient_id": ingredient,
-            "with_food": {"type": "string", "minLength": 1, "maxLength": 64},
+            "with_food": {"type": "string", "minLength": 1, "maxLength": 160},
             "with_ingredient_id": ingredient,
             "quantity_per_serving": {
                 "type": "integer",

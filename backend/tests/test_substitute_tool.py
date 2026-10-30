@@ -108,7 +108,7 @@ def test_spec_declares_schema_without_extra_keys() -> None:
         "scale_ingredient_id",
         "scale_factor_percent",
     }
-    assert props["with_food"] == {"type": "string", "minLength": 1, "maxLength": 64}
+    assert props["with_food"] == {"type": "string", "minLength": 1, "maxLength": 160}
     assert "with_food" in spec["description"]
     assert "protein" in spec["description"]
     assert props["recipe_id"]["enum"] == list(SUPPORTED_RECIPE_IDS)
@@ -818,7 +818,7 @@ def test_with_food_and_a_replacement_in_a_meal_without_protein_swaps() -> None:
     [
         food_swap(with_ingredient_id="ground_beef_80"),
         food_swap(with_food=""),
-        food_swap(with_food="a" * 65),
+        food_swap(with_food="a" * 161),
         food_swap(with_food="   "),
         food_swap(with_food=None),
         food_swap(with_food=5),
@@ -862,8 +862,9 @@ def test_other_invalid_arguments_error_before_a_food_question(
 
 def test_with_food_length_edges_are_accepted() -> None:
     short = execute_substitute(food_swap(with_food="a"))
-    assert short["status"] in {"swapped", "needs_food_choice", "unknown_food"}
-    long = execute_substitute(food_swap(with_food="a" * 64))
+    expected = "needs_food_choice" if USDA_FOODS else "unknown_food"
+    assert short["status"] == expected
+    long = execute_substitute(food_swap(with_food="a" * 160))
     assert long["status"] == "unknown_food"
 
 

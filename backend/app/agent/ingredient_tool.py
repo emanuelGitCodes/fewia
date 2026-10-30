@@ -30,7 +30,7 @@ def ingredient_tool_spec() -> dict[str, object]:
         "candidates. Use the ID in what_if_substitute and price_lines. "
         "Use it only for a question about one food on its own. To change a "
         "food in a meal, call what_if_substitute with with_food.",
-        {"name": {"type": "string", "minLength": 1, "maxLength": 64}},
+        {"name": {"type": "string", "minLength": 1, "maxLength": 160}},
         ["name"],
     )
 
@@ -100,7 +100,7 @@ class FoodResolution:
 
 
 def resolve_food(name: object) -> FoodResolution:
-    if type(name) is not str or not 1 <= len(name) <= 64:
+    if type(name) is not str or not 1 <= len(name) <= 160:
         raise IngredientToolError("arguments are invalid")
     query = normalize_term(name)
     if not query:

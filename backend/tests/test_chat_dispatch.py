@@ -373,10 +373,10 @@ def test_get_ingredient_facts_unknown_name_is_a_successful_lookup() -> None:
     [
         {},
         {"name": ""},
-        {"name": "a" * 65},
+        {"name": "a" * 161},
         {"name": 1},
         {"name": "x", "note": _SECRET},
-        {"name": _SECRET * 4},
+        {"name": _SECRET * (161 // len(_SECRET) + 1)},
     ],
 )
 def test_get_ingredient_facts_invalid_arguments_return_static_error(

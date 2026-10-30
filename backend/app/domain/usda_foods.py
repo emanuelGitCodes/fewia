@@ -25,6 +25,7 @@ COLUMNS = [
 ]
 BUNDLE_PATH = Path(__file__).with_name("usda_foods.json.gz")
 DEFAULTS_PATH = Path(__file__).with_name("usda_defaults.json")
+KEPT_CATEGORIES = frozenset({1, 2, 4, 5, 7, 9, 10, 11, 12, 13, 15, 16, 17, 20})
 _VEGAN_CATEGORIES = frozenset({9, 11, 12, 16, 20})
 _VEGETARIAN_CATEGORIES = _VEGAN_CATEGORIES | {1}
 _MAX_CANDIDATES = 3
@@ -86,7 +87,7 @@ def _food(row: object) -> UsdaFood:
         or fdc_id <= 0
         or type(description) is not str
         or not description.strip()
-        or not _count(category)
+        or category not in KEPT_CATEGORIES
         or not all(_count(amount) for amount in amounts)
     ):
         raise _fail("row has invalid values")

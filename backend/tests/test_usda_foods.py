@@ -215,6 +215,10 @@ def _row_field(index: int, value: object) -> Mutation:
         _row_field(1, ""),
         _row_field(1, 5),
         _row_field(2, 1.5),
+        _row_field(2, 0),
+        _row_field(2, 3),
+        _row_field(2, 14),
+        _row_field(2, 21),
         _row_field(3, -1),
         _row_field(4, 2.0),
         _row_field(5, True),
@@ -466,6 +470,35 @@ def test_the_real_bundle_is_valid_and_excludes_curated_foods() -> None:
 def test_every_default_points_to_a_bundled_food() -> None:
     for term, fdc_id in USDA_DEFAULTS.items():
         assert ALL_NUTRITION[f"usda_{fdc_id}"].fdc_id == fdc_id, term
+
+
+@needs_bundle
+def test_every_real_display_name_resolves_back_to_its_food() -> None:
+    from app.agent.ingredient_tool import resolve_food
+    from app.domain.catalog import INGREDIENTS
+    from app.domain.curated_foods import CURATED_INGREDIENTS, CURATED_SYNONYMS
+    from app.domain.meal_tags import normalize_term
+
+    shadowed = 0
+    for food in usda_foods.USDA_FOODS:
+        found = resolve_food(food.ingredient.name)
+        query = normalize_term(food.ingredient.name)
+        owners = [
+            item
+            for pool in (INGREDIENTS, CURATED_INGREDIENTS)
+            for item in pool
+            if query in (item, ALL_INGREDIENTS[item].name.lower())
+        ] or [item for item, terms in CURATED_SYNONYMS.items() if query in terms]
+        if owners:
+            shadowed += 1
+            assert (found.status, found.ids) == ("found", (owners[0],)), (
+                food.ingredient.id
+            )
+            continue
+        assert (found.status, found.ids) == ("found", (food.ingredient.id,)), (
+            food.ingredient.id
+        )
+    assert shadowed <= 25, f"{shadowed} USDA names are shadowed by catalog or curated"
 
 
 @needs_bundle

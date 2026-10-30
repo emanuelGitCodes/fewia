@@ -46,7 +46,7 @@ def test_spec_declares_a_bounded_name() -> None:
     assert schema["required"] == ["name"]
     assert schema["additionalProperties"] is False
     assert schema["properties"] == {
-        "name": {"type": "string", "minLength": 1, "maxLength": 64}
+        "name": {"type": "string", "minLength": 1, "maxLength": 160}
     }
 
 
@@ -173,7 +173,7 @@ def test_catalog_match_wins_over_a_curated_synonym() -> None:
         "beef",
         {},
         {"name": ""},
-        {"name": "a" * 65},
+        {"name": "a" * 161},
         {"name": None},
         {"name": 5},
         {"name": True},
@@ -191,8 +191,15 @@ def test_invalid_arguments_raise_a_static_error(arguments: object) -> None:
 
 
 def test_name_length_edges_are_accepted() -> None:
-    assert lookup("a")["status"] in {"found", "ambiguous", "unknown"}
-    assert lookup("a" * 64)["status"] == "unknown"
+    one = resolve_food("a")
+    if USDA_FOODS:
+        # "a" is a whole word in several USDA descriptions (for example "vitamin A").
+        assert one.status == "ambiguous"
+        assert len(one.ids) == 3
+        assert all(item.startswith("usda_") for item in one.ids)
+    else:
+        assert (one.status, one.ids) == ("unknown", ())
+    assert lookup("a" * 160)["status"] == "unknown"
 
 
 def test_secret_name_is_not_an_error() -> None:
@@ -268,11 +275,16 @@ def test_foods_outside_the_bundle_stay_unknown(raw: str) -> None:
 @pytest.mark.parametrize("raw", ["chicken thigh", "beans", "cheese, cheddar"])
 def test_every_ambiguous_candidate_resolves_back_to_itself(raw: str) -> None:
     resolution = resolve_food(raw)
-    if raw != "cheese, cheddar":
-        assert resolution.status == "ambiguous"
-    if resolution.status != "ambiguous":
+    if raw == "cheese, cheddar":
+        # normalize_term keeps the comma form as the exact description.
+        assert resolution.status in {"found", "ambiguous"}
+        assert 1 <= len(resolution.ids) <= 3
+        for ingredient_id in resolution.ids:
+            again = resolve_food(ALL_INGREDIENTS[ingredient_id].name)
+            assert (again.status, again.ids) == ("found", (ingredient_id,))
         return
-    assert 1 <= len(resolution.ids) <= 3
+    assert resolution.status == "ambiguous"
+    assert len(resolution.ids) == 3
     for ingredient_id in resolution.ids:
         by_id = lookup(ingredient_id)
         assert (by_id["status"], by_id["ingredient_id"]) == ("found", ingredient_id)
@@ -307,7 +319,7 @@ def test_resolve_food_reports_found_ambiguous_and_unknown() -> None:
     assert resolve_food("beef zzqx").ids[0] == "ground_beef_80"
 
 
-@pytest.mark.parametrize("name", [None, 5, ["beef"], "", "a" * 65, "   "])
+@pytest.mark.parametrize("name", [None, 5, ["beef"], "", "a" * 161, "   "])
 def test_resolve_food_rejects_invalid_names_with_a_static_error(name: object) -> None:
     with pytest.raises(IngredientToolError) as caught:
         resolve_food(name)
