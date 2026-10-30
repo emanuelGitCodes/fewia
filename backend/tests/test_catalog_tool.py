@@ -165,15 +165,23 @@ def test_word_after_without_or_no_is_not_a_search_word() -> None:
 @pytest.mark.parametrize(
     ("query", "tag", "note"),
     [
-        ("keto pasta", "lower_carb", KETO_NOTE),
+        ("keto chicken", "lower_carb", KETO_NOTE),
         ("chicken lentils", "chicken", CARNIVORE_NOTE),
     ],
 )
 def test_note_needs_every_returned_meal_to_have_the_tag(
-    query: str, tag: str, note: str
+    monkeypatch: pytest.MonkeyPatch, query: str, tag: str, note: str
 ) -> None:
+    keep = ids(search(query))[0]
+    tags = {
+        rid: found if rid == keep else tuple(t for t in found if t != tag)
+        for rid, found in MEAL_TAGS.items()
+    }
+    monkeypatch.setattr(catalog_tool, "MEAL_TAGS", tags)
     payload = search(query)
-    assert any(tag not in MEAL_TAGS[rid] for rid in ids(payload))
+    assert keep in ids(payload)
+    assert tag in tags[keep]
+    assert any(tag not in tags[rid] for rid in ids(payload))
     assert note not in catalog_answer(payload)
 
 
