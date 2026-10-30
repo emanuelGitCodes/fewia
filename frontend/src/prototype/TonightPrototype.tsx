@@ -14,6 +14,7 @@ import {
 } from "./planModel";
 import { PlanChat } from "./PlanChat";
 import { PantryPanel, PlanPanel, PrototypeNav } from "./PrototypePanels";
+import { useKrogerStore } from "./useKrogerStore";
 import "./tonight.css";
 
 // Below 1180 px Ask FEWIA is a sheet; below 720 px it covers the whole plan under the pinned total.
@@ -41,6 +42,7 @@ function useMediaQuery(query: string, fallback: boolean): boolean {
 
 export function TonightPrototype(): JSX.Element {
   const [state, setState] = useState<PlanState>(initialPlanState);
+  const kroger = useKrogerStore();
   const previousView = useRef(state.view);
   const canvasRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -194,6 +196,9 @@ export function TonightPrototype(): JSX.Element {
             open={sheetOpen}
             onHide={closeSheet}
             onReply={onReply}
+            krogerStore={kroger.store}
+            onKrogerChoose={kroger.choose}
+            onKrogerClear={kroger.clear}
             onToggleIdea={(id, servings, inPlan) => {
               setState((current) =>
                 inPlan ? removeMeal(current, id) : addMeal(current, id, servings),

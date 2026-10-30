@@ -5,7 +5,9 @@ import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import type { KrogerStore } from "../chatTypes";
 import { ChatIdeaCard } from "./ChatIdeaCard";
+import type { KrogerStoreOption } from "../krogerApi";
 import { KrogerQuoteLine } from "./KrogerQuoteLine";
+import { KrogerStorePicker } from "./KrogerStorePicker";
 import { chatBudget, planChatPrefix, retainChatReplies, type ChatReply } from "./planChatModel";
 import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
@@ -35,6 +37,8 @@ export function PlanChat(props: {
   onHide?: () => void;
   onReply?: () => void;
   krogerStore?: KrogerStore | null;
+  onKrogerChoose?: (option: KrogerStoreOption) => void;
+  onKrogerClear?: () => void;
 }): JSX.Element {
   const { state, onReply } = props;
   const krogerStore = props.krogerStore ?? null;
@@ -296,6 +300,13 @@ export function PlanChat(props: {
             );
           })}
         </ol>
+      ) : null}
+      {on && props.onKrogerChoose !== undefined && props.onKrogerClear !== undefined ? (
+        <KrogerStorePicker
+          store={krogerStore}
+          onChoose={props.onKrogerChoose}
+          onClear={props.onKrogerClear}
+        />
       ) : null}
       {on ? (
         <form

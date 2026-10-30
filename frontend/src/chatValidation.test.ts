@@ -118,6 +118,8 @@ describe("parseChatResult Kroger overlay", () => {
       { regular_cents: -1 }, { promo_cents: -1 }, { promo_cents: "1" }, { stock_level: 5 },
       { location_id: "0140094" }, { location_id: "0140094!" }, { retrieved_at: "2026-09-01 12:00:00" },
       { retrieved_at: "2026-09-01T12:00:00+00:00" }, { extra: true },
+      { retrieved_at: "2026-13-45T99:99:99Z" }, { brand: "x".repeat(161) },
+      { location_id: "014009430" },
     ];
     for (const overrides of bad) {
       expectShapeError(candidate({ kroger_quote: krogerQuote(overrides) }));

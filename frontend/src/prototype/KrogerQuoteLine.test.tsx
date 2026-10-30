@@ -52,6 +52,19 @@ describe("KrogerQuoteLine", () => {
     expect(screen.getByText(/^Live price from Kroger - Kroger On the Rhine as of /)).toBeTruthy();
   });
 
+  it("says Kroger alone when the quote is from an earlier store", () => {
+    render(
+      <KrogerQuoteLine quote={quote} degraded={false} store={{ locationId: "09999999", name: "New Place" }} />,
+    );
+    const text = screen.getByText(/^Live price from Kroger as of /).textContent ?? "";
+    expect(text).not.toContain("New Place");
+  });
+
+  it("shows no sale part when the promotion is 0", () => {
+    render(<KrogerQuoteLine quote={{ ...quote, promo_cents: 0 }} degraded={false} store={store} />);
+    expect(screen.getByText(/^Live price from /).textContent).not.toContain("sale");
+  });
+
   it("shows the fixed sentence when degraded and nothing otherwise", () => {
     const { container, rerender } = render(<KrogerQuoteLine quote={null} degraded store={store} />);
     expect(screen.getByText(KROGER_DEGRADED_LINE)).toBeTruthy();

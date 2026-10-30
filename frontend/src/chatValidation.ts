@@ -39,7 +39,8 @@ function copyKrogerQuote(value: unknown): KrogerQuote | null {
     !isSafeInteger(regular) || regular <= 0 ||
     (promo !== null && (!isSafeInteger(promo) || promo < 0)) ||
     !isString(value.location_id) || !LOCATION_ID.test(value.location_id) ||
-    !isString(value.retrieved_at) || !RETRIEVED_AT.test(value.retrieved_at)
+    !isString(value.retrieved_at) || !RETRIEVED_AT.test(value.retrieved_at) ||
+    !Number.isFinite(Date.parse(value.retrieved_at))
   ) {
     return null;
   }

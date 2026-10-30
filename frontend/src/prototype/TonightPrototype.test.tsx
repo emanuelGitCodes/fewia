@@ -1155,6 +1155,23 @@ describe("Ask FEWIA on the prototype", () => {
     expect(summaryText()).toBe(before);
   });
 
+  it("shows the stored Kroger store in the panel, passes its id to the chat, and removes it", () => {
+    window.localStorage.setItem(
+      "fewia.krogerStore.v1",
+      JSON.stringify({ locationId: "01400943", name: "Main Street" }),
+    );
+    try {
+      mount();
+      expect(screen.getByText("Kroger store: Main Street")).toBeTruthy();
+      expect(vi.mocked(useChatJob)).toHaveBeenCalledWith("01400943");
+      click("Remove");
+      expect(screen.getByRole("button", { name: "Choose a Kroger store for live prices" })).toBeTruthy();
+      expect(window.localStorage.getItem("fewia.krogerStore.v1")).toBeNull();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
   it("shows the chat on the Pantry page and keeps the draft across views", () => {
     mount();
     fireEvent.change(screen.getByLabelText("Ask for a meal"), { target: { value: "Draft" } });

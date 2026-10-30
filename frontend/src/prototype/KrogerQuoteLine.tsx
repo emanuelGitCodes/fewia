@@ -17,14 +17,15 @@ export function krogerQuoteSentence(quote: KrogerQuote, store: KrogerStore | nul
     parts.push(quote.size);
   }
   parts.push(`regular ${formatDollars(quote.regular_cents)}`);
-  if (quote.promo_cents !== null) {
+  if (quote.promo_cents !== null && quote.promo_cents > 0) {
     parts.push(`sale ${formatDollars(quote.promo_cents)}`);
   }
   if (quote.stock_level !== null && quote.stock_level.length > 0) {
     parts.push(`stock ${quote.stock_level.toLowerCase().replace(/_/g, " ")}`);
   }
+  // A quote from an earlier store must not get the new store's name.
   const name =
-    store === null
+    store === null || store.locationId !== quote.location_id
       ? "Kroger"
       : /^kroger/i.test(store.name)
         ? store.name

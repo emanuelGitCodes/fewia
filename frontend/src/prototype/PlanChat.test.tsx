@@ -355,6 +355,26 @@ describe("PlanChat", () => {
     expect(screen.getByText(SAMPLE_ESTIMATE_NOTICE)).toBeTruthy();
   });
 
+  it("shows the picked store in the panel above the form and passes the handlers through", () => {
+    const onKrogerChoose = vi.fn();
+    const onKrogerClear = vi.fn();
+    mount(initialPlanState(), {
+      krogerStore: { locationId: "01400943", name: "Main Street" },
+      onKrogerChoose,
+      onKrogerClear,
+    });
+    const picker = screen.getByText("Kroger store: Main Street");
+    expect(picker.compareDocumentPosition(box()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(onKrogerClear).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the store picker when chat is off", () => {
+    setProviders(false);
+    mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });
+    expect(screen.queryByRole("button", { name: "Choose a Kroger store for live prices" })).toBeNull();
+  });
+
   it("shows the fixed sentence when Kroger is degraded and nothing without a quote", async () => {
     jobState.submit.mockImplementation(async () => {
       const job = chatJob("job-1", "clarification", "Which meals?");
