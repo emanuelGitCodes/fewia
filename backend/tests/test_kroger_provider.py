@@ -239,16 +239,16 @@ def test_find_stores_rejects_bad_radius(radius: object) -> None:
 @pytest.mark.parametrize(
     ("name", "chain", "expected"),
     [
-        ("Kroger - Kroger On the Rhine", "Kroger", "Kroger On the Rhine"),
-        ("Kroger - - Orlando Spoke", "Kroger", "Orlando Spoke"),
+        ("Kroger - Kroger On the Rhine", "KROGER", "Kroger On the Rhine"),
+        ("Kroger - - Orlando Spoke", "KROGER", "Orlando Spoke"),
         (
             "Harris Teeter - Forecast Shed - HT Trans",
-            "Harris Teeter",
+            "HART",
             "Forecast Shed - HT Trans",
         ),
-        ("Kroger - -", "Kroger", "Kroger - -"),
-        ("Kroger", "Kroger", "Kroger"),
-        ("Test Market", "Kroger", "Test Market"),
+        ("Kroger - -", "KROGER", "Kroger - -"),
+        ("Kroger", "KROGER", "Kroger"),
+        ("Test Market", "KROGER", "Test Market"),
     ],
 )
 def test_store_names_are_cleaned(name: str, chain: str, expected: str) -> None:

@@ -123,9 +123,8 @@ def _parse_store(entry: object) -> KrogerStore | None:
         or zip_code is None
     ):
         return None
-    prefix = re.match(rf"{re.escape(chain)}(?:\s+-)+\s+", name)
-    if prefix:
-        name = name[prefix.end() :].strip("- \t\r\n") or name
+    if " - " in name:
+        name = name.split(" - ", 1)[1].lstrip("- \t\r\n") or name
     return KrogerStore(raw_id, name, chain, line, city, state, zip_code)
 
 
