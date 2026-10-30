@@ -110,17 +110,19 @@ The conversation suite is separate from the benchmark above (owner decision, 202
 - **Scores.** [`evaluation_conversation_score.py`](../backend/app/evaluation_conversation_score.py) scores tools, outcome, gold facts, and grounding (`grounded_replies / prose_attempts`, unsupported numbers, fallbacks by gate reason), and reports p50 and p95 latency and cost per turn. Targets are reported, not enforced: grounded 99%, unsupported 0, p50 under 5 s, p95 under 12 s, cost under USD 0.006 per turn. A fixture run reports the cost and latency targets as `not_applicable`.
 - **Profiles.** [`evaluation_profiles.py`](../backend/app/evaluation_profiles.py) allows `nova-2-lite`, `nova-2-pro`, and `claude-haiku`. Only Nova models are approved in the AWS account, so `claude-haiku` MUST NOT be run live. The `nova-2-pro` model ID is not verified.
 
-Fixture run:
+Fixture run, from `backend/`:
 
 ```bash
-uv run --project backend python -m app.evaluate_conversation \
-  --corpus backend/tests/evaluation/conversation.json \
+uv run python -m app.evaluate_conversation \
+  --corpus tests/evaluation/conversation.json \
   --output-dir /tmp/conversation-fixture \
   --profile nova-2-lite --region us-east-1 \
   --revision "$(git rev-parse HEAD)" --fixture
 ```
 
-A live run replaces `--fixture` with `--live-bedrock` and adds `--rates`. It spends money and needs the owner's approval.
+A live run replaces `--fixture` with `--live-bedrock` and adds `--rates`. It spends money and needs the owner's approval. Set `AWS_SHARED_CREDENTIALS_FILE` to the file that `infra/bedrock_session.py` writes and `AWS_PROFILE` to `fewia-bedrock-dev`.
+
+First live batch (2026-10-30, Nova 2 Lite, revision `95cfbea3`): [report](../eval/results/artifacts/conversation-20261030/report.md). It recorded 66 of 66 turns. The validator accepted 9 of 36 prose attempts (25%), with 59 unsupported numbers. Latency p50 was 4.6 s and p95 was 16.4 s. Cost was USD 0.0057 per turn.
 
 ## Component boundaries
 
