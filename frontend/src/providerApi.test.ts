@@ -10,7 +10,6 @@ function capabilities(overrides: Record<string, unknown> = {}): Record<string, u
   return {
     chat_configured: true,
     plaid_configured: false,
-    instacart_configured: true,
     spending_source: "fixture",
     ...overrides,
   };
@@ -49,7 +48,6 @@ describe("parseProviders", () => {
     expect(parseProviders(capabilities())).toEqual({
       chat_configured: true,
       plaid_configured: false,
-      instacart_configured: true,
       spending_source: "fixture",
     });
     expect(parseProviders(capabilities({ spending_source: "plaid_sandbox" })).spending_source).toBe(
@@ -62,7 +60,7 @@ describe("parseProviders", () => {
     expect(() => parseProviders(capabilities({ spending_source: "plaid" }))).toThrow(SHAPE_ERROR);
     expect(() => parseProviders(capabilities({ chat_configured: 1 }))).toThrow(SHAPE_ERROR);
     expect(() => parseProviders(capabilities({ plaid_configured: "true" }))).toThrow(SHAPE_ERROR);
-    expect(() => parseProviders(capabilities({ instacart_configured: null }))).toThrow(SHAPE_ERROR);
+    expect(() => parseProviders(capabilities({ instacart_configured: true }))).toThrow(SHAPE_ERROR);
     expect(() => parseProviders(capabilities({ client_id: RAW }))).toThrow(SHAPE_ERROR);
     const missing = capabilities();
     delete missing.plaid_configured;

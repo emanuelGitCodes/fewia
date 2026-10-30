@@ -107,7 +107,6 @@ export type GroceryConfig = {
 export type ProviderCapabilities = {
   chat_configured: boolean;
   plaid_configured: boolean;
-  instacart_configured: boolean;
   spending_source: SpendingSource;
 };
 

@@ -80,7 +80,6 @@ function setProviders(configured: boolean, failed = false): void {
       : {
           chat_configured: configured,
           plaid_configured: false,
-          instacart_configured: false,
           spending_source: "manual",
         },
     pending: false,

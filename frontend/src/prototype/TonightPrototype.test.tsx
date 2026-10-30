@@ -31,7 +31,6 @@ function setChatConfigured(configured: boolean): void {
     capabilities: {
       chat_configured: configured,
       plaid_configured: false,
-      instacart_configured: false,
       spending_source: "manual",
     },
     pending: false,

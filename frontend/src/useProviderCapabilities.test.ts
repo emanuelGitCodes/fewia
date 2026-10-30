@@ -13,14 +13,12 @@ const RAW = "do-not-echo-this";
 const loaded: ProviderCapabilities = {
   chat_configured: true,
   plaid_configured: false,
-  instacart_configured: true,
   spending_source: "fixture",
 };
 
 const stale: ProviderCapabilities = {
   chat_configured: false,
   plaid_configured: true,
-  instacart_configured: false,
   spending_source: "plaid_sandbox",
 };
 

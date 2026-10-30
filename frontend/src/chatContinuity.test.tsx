@@ -135,7 +135,6 @@ describe("chat continuity", () => {
       capabilities: {
         chat_configured: true,
         plaid_configured: false,
-        instacart_configured: false,
         spending_source: "fixture",
       },
       pending: false,

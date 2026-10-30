@@ -94,7 +94,6 @@ describe("isSpendingSource", () => {
       parseProviders({
         chat_configured: true,
         plaid_configured: false,
-        instacart_configured: false,
         spending_source: "manual",
       }).spending_source,
     ).toBe("manual");
@@ -104,7 +103,6 @@ describe("isSpendingSource", () => {
       parseProviders({
         chat_configured: true,
         plaid_configured: false,
-        instacart_configured: false,
         spending_source: "bedrock",
       }),
     ).toThrow(SHAPE_ERROR);
