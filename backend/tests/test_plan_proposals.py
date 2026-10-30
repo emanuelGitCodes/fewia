@@ -308,11 +308,13 @@ def test_discarding_an_applied_proposal_is_409(
     )
 
 
-def test_stale_base_snapshot_is_409_and_not_echoed(
+@pytest.mark.parametrize("first", ["get", "apply"])
+def test_stale_pending_proposal_is_409_and_becomes_discarded(
     client: TestClient,
     session: Session,
     seed_user: UserSeeder,
     monkeypatch: pytest.MonkeyPatch,
+    first: str,
 ) -> None:
     seed_user()
     proposal_id = make_proposal(session)
@@ -322,22 +324,50 @@ def test_stale_base_snapshot_is_409_and_not_echoed(
         "SUPPORTED_RECIPE_IDS",
         tuple(item for item in SUPPORTED_RECIPE_IDS if item != RECIPE_A),
     )
+    path = f"/grocery/proposals/{proposal_id}"
 
-    responses = [
-        client.get(f"/grocery/proposals/{proposal_id}"),
-        client.post(f"/grocery/proposals/{proposal_id}/apply"),
-    ]
+    response = client.get(path) if first == "get" else client.post(f"{path}/apply")
 
-    for response in responses:
-        assert response.status_code == 409
-        body = response.json()
-        assert body["error"]["code"] == "conflict"
-        assert body["error"]["message"] == proposals_api.PROPOSAL_STALE_MESSAGE
-        assert RECIPE_A not in response.text
+    assert response.status_code == 409
+    body = response.json()
+    assert body["error"]["code"] == "conflict"
+    assert body["error"]["message"] == proposals_api.PROPOSAL_STALE_MESSAGE
+    assert RECIPE_A not in response.text
     assert revision_count(session) == before
     row = session.get(PlanProposal, proposal_id)
     assert row is not None
-    assert row.status == "pending"
+    assert row.status == "discarded"
+
+    again = client.get(path)
+
+    assert again.status_code == 200
+    assert again.json()["status"] == "discarded"
+    assert again.json()["preview"] is None
+    assert client.post(f"{path}/apply").status_code == 409
+    assert revision_count(session) == before
+
+
+def test_stale_discard_leaves_an_applied_proposal_alone(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    assert client.post(f"/grocery/proposals/{proposal_id}/apply").status_code == 200
+    monkeypatch.setattr(
+        plan_revision,
+        "SUPPORTED_RECIPE_IDS",
+        tuple(item for item in SUPPORTED_RECIPE_IDS if item != RECIPE_A),
+    )
+
+    client.get(f"/grocery/proposals/{proposal_id}")
+
+    row = session.get(PlanProposal, proposal_id)
+    assert row is not None
+    session.refresh(row)
+    assert row.status == "applied"
 
 
 @pytest.mark.parametrize("action", ["apply", "discard"])

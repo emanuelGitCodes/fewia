@@ -396,6 +396,7 @@ def run_chat(
                     )
                     continue
                 revisions += 1
+            extra: dict[str, Propose] = {} if propose is None else {"propose": propose}
             payload, block = dispatch(
                 call,
                 budget,
@@ -405,7 +406,7 @@ def run_chat(
                 trace,
                 record_evidence=record_evidence,
                 plan=plan_revision,
-                propose=propose,
+                **extra,
             )
             error = _tool_error_payload(block)
             tool_result = block.get("toolResult")

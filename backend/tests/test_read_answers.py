@@ -4,6 +4,7 @@ from typing import cast
 import pytest
 
 from app.agent.chat_answer import _usd
+from app.agent.grounding import facts_from_payloads, validate
 from app.agent.ingredient_tool import INGREDIENT_TOOL, execute_ingredient_facts
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
@@ -12,6 +13,7 @@ from app.agent.plan_tools import (
     execute_get_plan,
 )
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
+from app.agent.proposal_tool import PROPOSAL_TOOL, execute_propose
 from app.agent.read_answers import TOOL_FAILED, read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
@@ -965,3 +967,116 @@ def test_real_get_plan_without_meals() -> None:
         assert read_tool_answer([(GET_PLAN_TOOL, payload)]) == (
             "Your plan has no meals yet."
         )
+
+
+def _proposed(*ops: dict[str, object]) -> dict[str, object]:
+    meals = [_TACOS, {"recipe_id": "bean_tacos", "servings": 1}]
+    return execute_propose(
+        {"operations": list(ops)}, _BUDGET, _revision(meals), lambda _: "p-1"
+    )
+
+
+def _prices(payload: dict[str, object]) -> tuple[int, int]:
+    before = cast(int, _at(payload, "before", "estimate", "total_cents"))
+    after = cast(int, _at(payload, "after", "estimate", "total_cents"))
+    return before, after
+
+
+def _delta(before: int, after: int) -> str:
+    sign = "-" if after < before else "+"
+    return f"{sign}{_usd(abs(after - before))}"
+
+
+_ALL_OPS: list[dict[str, object]] = [
+    {"op": "add", "recipe_id": "vegetable_pasta", "servings": 3},
+    {"op": "remove", "recipe_id": "bean_tacos"},
+    {"op": "set_servings", "recipe_id": "chicken_tacos", "servings": 4},
+    {"op": "set_pantry", "ingredient_id": "chicken_breast", "owned": True},
+]
+
+
+def test_real_proposal_reply_names_each_change_and_the_sample_prices() -> None:
+    payload = _proposed(*_ALL_OPS)
+    before, after = _prices(payload)
+    assert read_tool_answer([(PROPOSAL_TOOL, payload)]) == (
+        "Proposed: add Vegetable pasta (3 servings), remove Bean tacos, "
+        "set Chicken tacos to 4 servings, mark chicken breast as owned. "
+        f"Sample meal price: {_usd(before)} to {_usd(after)} "
+        f"({_delta(before, after)}). Apply it in the plan panel. {_NOTICE}"
+    )
+
+
+def test_real_proposal_reply_uses_singular_servings_and_not_owned() -> None:
+    payload = _proposed(
+        {"op": "set_servings", "recipe_id": "chicken_tacos", "servings": 1},
+        {"op": "set_pantry", "ingredient_id": "chicken_breast", "owned": False},
+    )
+    answer = read_tool_answer([(PROPOSAL_TOOL, payload)])
+    assert answer is not None
+    assert answer.startswith(
+        "Proposed: set Chicken tacos to 1 serving, mark chicken breast as not owned. "
+    )
+
+
+def test_proposal_reply_with_an_incomplete_price_has_no_money_and_no_notice() -> None:
+    payload = _proposed(*_ALL_OPS)
+    after = cast(dict[str, object], payload["after"])
+    estimate = cast(dict[str, object], after["estimate"])
+    after["estimate"] = {**estimate, "total_cents": None}
+    answer = read_tool_answer([(PROPOSAL_TOOL, payload)])
+    assert answer == (
+        "Proposed: add Vegetable pasta (3 servings), remove Bean tacos, "
+        "set Chicken tacos to 4 servings, mark chicken breast as owned. "
+        "The sample price is incomplete. Apply it in the plan panel."
+    )
+    assert "$" not in answer and _NOTICE not in answer
+
+
+def test_proposal_reply_is_the_template_even_with_model_text_in_the_payload() -> None:
+    payload = _proposed(*_ALL_OPS)
+    payload["note"] = "Zephyrword says the plan changed"
+    payload["operations"] = [
+        {**cast(dict[str, object], op), "reason": "Zephyrword"}
+        for op in cast(list[object], payload["operations"])
+    ]
+    answer = read_tool_answer([(PROPOSAL_TOOL, payload)])
+    assert answer is not None and answer.startswith("Proposed: add Vegetable pasta")
+    assert "Zephyrword" not in answer
+
+
+def test_proposal_reply_outranks_other_reads_and_takes_the_failure_flag() -> None:
+    payload = _proposed(*_ALL_OPS)
+    plain = read_tool_answer([(PROPOSAL_TOOL, payload)])
+    meal = execute_get_meal({"recipe_id": "chicken_tacos"})
+    swap = execute_substitute(_REAL_SWAP, _BUDGET)
+    results = [
+        (GET_MEAL_TOOL, meal),
+        (SUBSTITUTE_TOOL, swap),
+        (PROPOSAL_TOOL, payload),
+    ]
+    assert read_tool_answer(results) == plain
+    assert read_tool_answer(results, failed=True) == f"{plain} {TOOL_FAILED}"
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        {"status": "queued"},
+        {"operations": [{"op": "substitute", "recipe_id": "bean_tacos"}]},
+        {"operations": [{"op": "set_pantry", "ingredient_id": "nope", "owned": True}]},
+        {"operations": "remove"},
+        {"after": {"meals": []}},
+    ],
+)
+def test_malformed_proposal_payload_returns_none(damage: dict[str, object]) -> None:
+    payload = {**_proposed(*_ALL_OPS), **damage}
+    assert read_tool_answer([(PROPOSAL_TOOL, payload)]) is None
+
+
+def test_proposal_reply_passes_the_grounding_validator() -> None:
+    payload = _proposed(*_ALL_OPS)
+    answer = read_tool_answer([(PROPOSAL_TOOL, payload)])
+    assert answer is not None
+    verdict = validate(answer, facts_from_payloads([(PROPOSAL_TOOL, payload)]))
+    assert verdict.ok, (answer, verdict)
+    assert verdict.has_money

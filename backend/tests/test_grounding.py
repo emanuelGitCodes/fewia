@@ -67,11 +67,17 @@ def _revision(meals: list[dict[str, object]]) -> PlanRevisionInput:
     )
 
 
+def _without_warning(answer: str) -> str:
+    # The server appends the warning after validation; a model reply never has it.
+    return answer.replace(STALE_SPENDING_WARNING, "").strip()
+
+
 def _grounded(
     tool: str, payload: dict[str, object], *, stale: bool = False
 ) -> tuple[str, Verdict]:
     answer = read_tool_answer([(tool, payload)], stale=stale)
     assert answer is not None
+    answer = _without_warning(answer)
     verdict = validate(answer, facts_from_payloads([(tool, payload)]))
     assert verdict.ok, (answer, verdict)
     return answer, verdict
@@ -136,6 +142,10 @@ def test_price_lines_are_grounded() -> None:
     assert verdict.has_money
     swapped = execute_price_lines({"meals": [_REAL_SWAP]}, _BUDGET, 500)
     _grounded(PRICE_TOOL, swapped, stale=True)
+    unstripped = read_tool_answer([(PRICE_TOOL, swapped)], stale=True)
+    assert unstripped is not None and STALE_SPENDING_WARNING in unstripped
+    facts = facts_from_payloads([(PRICE_TOOL, swapped)])
+    assert not validate(unstripped, facts).ok
     scaled = execute_price_lines({"meals": [_SCALE]}, _BUDGET, None)
     _grounded(PRICE_TOOL, scaled)
     bean: dict[str, object] = {"meals": [{"recipe_id": "bean_tacos"}]}
@@ -222,8 +232,11 @@ def test_budget_summary_is_grounded() -> None:
     payload = execute_budget_summary(
         {}, budget, date(2026, 9, 1), spending_source="manual"
     )
-    answer = budget_summary_answer(budget, date(2026, 9, 1), spending_source="manual")
-    verdict = validate(answer, facts_from_payloads([("get_budget_summary", payload)]))
+    raw = budget_summary_answer(budget, date(2026, 9, 1), spending_source="manual")
+    facts = facts_from_payloads([("get_budget_summary", payload)])
+    if STALE_SPENDING_WARNING in raw:
+        assert not validate(raw, facts).ok
+    verdict = validate(_without_warning(raw), facts)
     assert verdict.ok, verdict
     assert verdict.has_money
 
@@ -243,8 +256,12 @@ def test_planned_answer_is_grounded(
     plan: dict[str, object], budget: dict[str, object]
 ) -> None:
     candidate: dict[str, object] = {"plan": plan, "budget": budget}
-    answer = render_public_answer(candidate)
-    verdict = validate(answer, facts_from_payloads([("plan_groceries", candidate)]))
+    raw = render_public_answer(candidate)
+    facts = facts_from_payloads([("plan_groceries", candidate)])
+    if STALE_SPENDING_WARNING in raw:
+        assert not validate(raw, facts).ok
+    answer = _without_warning(raw)
+    verdict = validate(answer, facts)
     assert verdict.ok, (answer, verdict)
     assert verdict.has_money == (plan["total_cents"] is not None)
     assert SAMPLE_ESTIMATE_NOTICE in answer

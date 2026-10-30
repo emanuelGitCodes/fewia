@@ -383,6 +383,20 @@ def test_build_chat_result_records_the_reply_source_check_and_utf8_hash() -> Non
     assert result["reply_sha256"] == hashlib.sha256("café".encode()).hexdigest()
 
 
+def test_build_chat_result_adds_the_proposal_id_only_when_there_is_one() -> None:
+    without = build_chat_result("clarification", "ok", None, "ledger", [], 1, 0)
+    assert "proposal_id" not in without
+    none_given = build_chat_result(
+        "clarification", "ok", None, "ledger", [], 1, 0, proposal_id=None
+    )
+    assert "proposal_id" not in none_given
+    given = build_chat_result(
+        "clarification", "ok", None, "ledger", [], 1, 0, proposal_id="p-1"
+    )
+    assert given["proposal_id"] == "p-1"
+    assert {k: v for k, v in given.items() if k != "proposal_id"} == without
+
+
 def test_reasoning_block_beside_text_yields_only_the_text() -> None:
     message = {
         "role": "assistant",

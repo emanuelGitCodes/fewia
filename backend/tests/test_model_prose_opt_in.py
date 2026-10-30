@@ -1,5 +1,6 @@
 import hashlib
 import json
+from collections.abc import Callable
 from typing import Any, cast
 
 import pytest
@@ -258,9 +259,14 @@ def test_a_model_copy_of_the_stale_warning_is_a_forbidden_claim() -> None:
 def test_a_stale_tool_payload_adds_the_warning_when_the_budget_is_fresh(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    real = chat_loop.dispatch
+    real = cast(
+        Callable[..., tuple[dict[str, object] | None, dict[str, object]]],
+        chat_loop.dispatch,
+    )
 
-    def stale_dispatch(*args: Any, **kwargs: Any) -> Any:
+    def stale_dispatch(
+        *args: object, **kwargs: object
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
         payload, block = real(*args, **kwargs)
         assert payload is not None
         payload["stale"] = True

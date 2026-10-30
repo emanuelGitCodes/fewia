@@ -20,11 +20,13 @@ from app.agent.chat_messages import ChatProtocolError, ToolCall
 from app.agent.ingredient_tool import INGREDIENT_TOOL, execute_ingredient_facts
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
+from app.agent.proposal_tool import PROPOSAL_ONCE, PROPOSAL_TOOL
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 from app.domain.nutrition import NutritionFacts
+from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
 from app.domain.plan_revision import PlanRevisionInput
 from app.providers.usda_live import LiveFood
 
@@ -1636,3 +1638,165 @@ def test_discovery_dispatch_has_bounded_result_and_no_evidence(invalid: bool) ->
         ToolCall("p1", TOOL_NAME, arguments()), budget(), PERIOD, 1, "fixture", trace
     )
     assert trace[1]["revision_index"] == 1
+
+
+_ADD_PASTA: dict[str, object] = {
+    "op": "add",
+    "recipe_id": "vegetable_pasta",
+    "servings": 3,
+}
+
+
+class _Proposer:
+    def __init__(self) -> None:
+        self.calls: list[list[dict[str, object]]] = []
+
+    def __call__(self, operations: list[dict[str, object]]) -> str:
+        self.calls.append(operations)
+        return f"proposal-{len(self.calls)}"
+
+
+def _two_meal_plan() -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [
+                    {"recipe_id": "chicken_tacos", "servings": 2},
+                    {"recipe_id": "bean_tacos", "servings": 2},
+                ],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def _propose_call(tool_use_id: str, operations: object) -> ToolCall:
+    return ToolCall(tool_use_id, PROPOSAL_TOOL, {"operations": operations})
+
+
+def test_propose_dispatch_stores_once_and_traces_validated_inputs_only() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        _propose_call("q1", [_ADD_PASTA]),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=_two_meal_plan(),
+        propose=proposer,
+    )
+    assert payload is not None
+    assert payload["status"] == "proposed" and payload["proposal_id"] == "proposal-1"
+    assert proposer.calls == [[_ADD_PASTA]]
+    assert _tool_json(block) == payload
+    assert block["toolResult"]["status"] == "success"
+    assert trace == [
+        {
+            "tool": PROPOSAL_TOOL,
+            "outcome": "success",
+            "tool_use_id": "q1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {
+                "status": "proposed",
+                "proposal_id": "proposal-1",
+                "operations": [_ADD_PASTA],
+            },
+        }
+    ]
+
+
+def test_propose_dispatch_invalid_operations_store_nothing_and_leave_no_text() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    bad = [{"op": "remove", "recipe_id": _SECRET}]
+    payload, block = dispatch(
+        _propose_call("q1", bad),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=_two_meal_plan(),
+        propose=proposer,
+    )
+    assert payload is None
+    assert proposer.calls == []
+    assert _tool_json(block) == {"error": INVALID_PROPOSAL_MESSAGE}
+    assert block["toolResult"]["status"] == "error"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(PROPOSAL_TOOL, "error")]
+    assert trace[0]["inputs"] == {}
+    assert _SECRET not in json.dumps([block, trace])
+
+
+def test_propose_dispatch_refuses_a_second_call_in_the_same_run() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    plan = _two_meal_plan()
+
+    def call(
+        tool_use_id: str, operations: object
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        return dispatch(
+            _propose_call(tool_use_id, operations),
+            budget(),
+            PERIOD,
+            1,
+            "fixture",
+            trace,
+            plan=plan,
+            propose=proposer,
+        )
+
+    first, _ = call("q1", [_ADD_PASTA])
+    second, block = call("q2", [{"op": "remove", "recipe_id": "bean_tacos"}])
+    assert first is not None and second is None
+    assert _tool_json(block) == {"error": PROPOSAL_ONCE}
+    assert proposer.calls == [[_ADD_PASTA]]
+    assert [t["outcome"] for t in trace] == ["success", "error"]
+    assert trace[1]["inputs"] == {}
+
+
+def test_propose_dispatch_allows_a_retry_after_an_invalid_call() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    plan = _two_meal_plan()
+    payload: dict[str, object] | None = None
+    for tool_use_id, operations in (("q1", []), ("q2", [_ADD_PASTA])):
+        payload, _ = dispatch(
+            _propose_call(tool_use_id, operations),
+            budget(),
+            PERIOD,
+            1,
+            "fixture",
+            trace,
+            plan=plan,
+            propose=proposer,
+        )
+    assert payload is not None and payload["proposal_id"] == "proposal-1"
+    assert [t["outcome"] for t in trace] == ["error", "success"]
+
+
+@pytest.mark.parametrize("offered", ["no_plan", "no_propose"])
+def test_propose_dispatch_without_a_plan_or_proposer_is_unsupported(
+    offered: str,
+) -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        _propose_call("q1", [_ADD_PASTA]),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=None if offered == "no_plan" else _two_meal_plan(),
+        propose=None if offered == "no_propose" else proposer,
+    )
+    assert payload is None
+    assert _tool_json(block) == {"error": "unsupported tool"}
+    assert [(t["tool"], t["outcome"]) for t in trace] == [("unsupported", "error")]
+    assert proposer.calls == []
