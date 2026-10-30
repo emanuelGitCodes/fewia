@@ -4,6 +4,7 @@ import json
 import unicodedata
 from pathlib import Path
 from typing import Literal, NoReturn
+from urllib.parse import urlsplit
 
 from pydantic import SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +45,30 @@ class GroceryProviderSettings(BaseSettings):
     kroger_client_id_file: Path | None = None
     kroger_secret_file: Path | None = None
     kroger_environment: Literal["certification", "production"] = "certification"
+    kroger_token_key_file: Path | None = None
+    kroger_redirect_uri: str = "http://localhost:8010/grocery/kroger/callback"
+    kroger_return_url: str = "http://127.0.0.1:5173/prototype"
+
+    @field_validator("kroger_redirect_uri", "kroger_return_url")
+    @classmethod
+    def _require_absolute_http_url(cls, value: str) -> str:
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in ("http", "https")
+            or not parts.hostname
+            or parts.fragment
+            or _has_control(value)
+            or value != value.strip()
+        ):
+            raise ValueError("URL MUST be absolute http or https without a fragment")
+        return value
+
+    @field_validator("kroger_return_url")
+    @classmethod
+    def _forbid_return_url_query(cls, value: str) -> str:
+        if urlsplit(value).query or value.endswith("?"):
+            raise ValueError("return URL MUST NOT have a query string")
+        return value
 
     @field_validator("bedrock_model_id", "aws_profile", mode="before")
     @classmethod
@@ -75,6 +100,7 @@ class GroceryProviderSettings(BaseSettings):
         "usda_fdc_key_file",
         "kroger_client_id_file",
         "kroger_secret_file",
+        "kroger_token_key_file",
         mode="before",
     )
     @classmethod

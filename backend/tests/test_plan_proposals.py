@@ -453,6 +453,31 @@ def test_migration_0009_compiles_and_downgrades() -> None:
         assert expected in sql
 
 
+def test_migration_0010_compiles_and_downgrades() -> None:
+    path = MIGRATION_PATH.with_name("0010_add_kroger_customer_tokens.py")
+    spec = importlib.util.spec_from_file_location("alembic_rev_0010", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.revision == "0010"
+    assert module.down_revision == "0009"
+    for direction, expected in (("upgrade", "CREATE TABLE"), ("downgrade", "DROP")):
+        buffer = StringIO()
+        context = MigrationContext.configure(
+            dialect=postgresql.dialect(),
+            opts={"as_sql": True, "output_buffer": buffer, "literal_binds": True},
+        )
+        with Operations.context(context):
+            getattr(module, direction)()
+        sql = buffer.getvalue()
+        assert "kroger_customer_tokens" in sql
+        assert expected in sql
+        if direction == "upgrade":
+            assert "BYTEA" in sql
+            assert "REFERENCES users (id)" in sql
+
+
 @pytest.fixture()
 def postgres_engine() -> Iterator[Engine]:
     url = require_test_database_url()

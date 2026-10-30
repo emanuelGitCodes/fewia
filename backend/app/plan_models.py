@@ -7,6 +7,9 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.kroger_models import KrogerCustomerToken  # noqa: F401
+
+# alembic/env.py imports this module for metadata, so the Kroger table registers here.
 
 
 class PlanRevision(Base):

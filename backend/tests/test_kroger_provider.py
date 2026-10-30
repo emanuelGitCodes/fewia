@@ -740,3 +740,117 @@ def test_smoke_exits_2_when_unconfigured_or_unavailable(
     assert "Kroger is unavailable" in out
     for sentinel in (CLIENT_ID, SECRET, TOKEN, ZIP):
         assert sentinel not in out
+
+
+REDIRECT = "http://localhost:8010/grocery/kroger/callback"
+REFRESH = "SENTINEL-REFRESH-TOKEN"
+CODE = "SENTINEL-AUTH-CODE"
+
+
+def _customer(server: Server) -> KrogerClient:
+    http = httpx.Client(transport=httpx.MockTransport(server))
+    return KrogerClient(
+        CLIENT_ID, SECRET, base_url=kroger.HOSTS["certification"], client=http
+    )
+
+
+def test_authorize_url_shape() -> None:
+    url = _customer(Server()).authorize_url(REDIRECT, "state value+/=")
+    base, _, query = url.partition("?")
+    assert base == "https://api-ce.kroger.com/v1/connect/oauth2/authorize"
+    assert "+" not in query.replace("%2B", "")
+    assert parse_qs(query) == {
+        "scope": ["cart.basic:write profile.compact"],
+        "response_type": ["code"],
+        "client_id": [CLIENT_ID],
+        "redirect_uri": [REDIRECT],
+        "state": ["state value+/="],
+    }
+
+
+def test_authorize_url_requires_a_kroger_host() -> None:
+    client, _ = _make(Server())
+    with pytest.raises(ValueError):
+        client.authorize_url(REDIRECT, "s")
+    production = KrogerClient(
+        CLIENT_ID, SECRET, base_url=kroger.HOSTS["production"] + "/"
+    )
+    assert production.authorize_url(REDIRECT, "s").startswith(
+        "https://api.kroger.com/v1/connect/oauth2/authorize?"
+    )
+    production.close()
+
+
+def test_exchange_code_request_and_result() -> None:
+    server = Server()
+    server.token_body = {
+        "access_token": TOKEN,
+        "refresh_token": REFRESH,
+        "expires_in": 1800,
+    }
+    client = _customer(server)
+    tokens = client.exchange_code(CODE, REDIRECT)
+    assert (tokens.access_token, tokens.refresh_token) == (TOKEN, REFRESH)
+    assert tokens.expires_in == 1800
+    for secret in (TOKEN, REFRESH):
+        assert secret not in repr(tokens)
+    request = server.requests[0]
+    expected = base64.b64encode(f"{CLIENT_ID}:{SECRET}".encode()).decode()
+    assert request.method == "POST"
+    assert request.url.path == "/v1/connect/oauth2/token"
+    assert request.headers["authorization"] == f"Basic {expected}"
+    assert parse_qs(request.content.decode()) == {
+        "grant_type": ["authorization_code"],
+        "code": [CODE],
+        "redirect_uri": [REDIRECT],
+    }
+
+
+def test_exchange_code_leaves_app_token_and_budgets_alone() -> None:
+    server = Server()
+    server.token_body = {
+        "access_token": TOKEN,
+        "refresh_token": REFRESH,
+        "expires_in": 1800,
+    }
+    client = _customer(server)
+    client.exchange_code(CODE, REDIRECT)
+    assert client._token is None
+    assert client._counts == {}
+    client.find_stores(ZIP)
+    assert server.count("/v1/connect/oauth2/token") == 2
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        {},
+        {"access_token": TOKEN, "expires_in": 1800},
+        {"access_token": TOKEN, "refresh_token": " ", "expires_in": 1800},
+        {"access_token": "", "refresh_token": REFRESH, "expires_in": 1800},
+        {"access_token": 5, "refresh_token": REFRESH, "expires_in": 1800},
+        {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": 60},
+        {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": "1800"},
+        {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": True},
+    ],
+)
+def test_exchange_code_rejects_bad_payloads(body: object) -> None:
+    server = Server()
+    server.token_body = body  # type: ignore[assignment]  # deliberately malformed
+    with pytest.raises(KrogerUnavailable):
+        _customer(server).exchange_code(CODE, REDIRECT)
+
+
+@pytest.mark.parametrize("status", [400, 401, 429, 500])
+def test_exchange_code_non_200_is_unavailable(
+    status: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    server = Server()
+    server.token_status = status
+    with pytest.raises(KrogerUnavailable) as exc_info:
+        _customer(server).exchange_code(CODE, REDIRECT)
+    rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
+    for sentinel in (CODE, CLIENT_ID, SECRET):
+        assert sentinel not in rendered

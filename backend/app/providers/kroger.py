@@ -8,9 +8,10 @@ import time
 import unicodedata
 from collections.abc import Callable, Sequence
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -26,6 +27,8 @@ HOSTS = {
     "production": "https://api.kroger.com",
 }
 TOKEN_PATH = "/v1/connect/oauth2/token"
+AUTHORIZE_PATH = "/v1/connect/oauth2/authorize"
+CUSTOMER_SCOPE = "cart.basic:write profile.compact"
 LOCATIONS_PATH = "/v1/locations"
 PRODUCTS_PATH = "/v1/products"
 TIMEOUT = httpx.Timeout(5.0, connect=3.0, read=5.0)
@@ -71,6 +74,13 @@ class KrogerProduct:
 class KrogerSearch:
     products: list[KrogerProduct]
     cache_control: str | None
+
+
+@dataclass(frozen=True)
+class CustomerTokens:
+    access_token: str = field(repr=False)
+    refresh_token: str = field(repr=False)
+    expires_in: int
 
 
 def kroger_base_url(environment: str) -> str:
@@ -295,6 +305,49 @@ class KrogerClient:
             self._token = token
             self._token_expires_at = self._clock() + expires_in - TOKEN_MARGIN_SECONDS
             return token
+
+    def authorize_url(self, redirect_uri: str, state: str) -> str:
+        if self._base_url not in HOSTS.values():
+            raise ValueError("authorize host MUST be a Kroger host")
+        query = urlencode(
+            {
+                "scope": CUSTOMER_SCOPE,
+                "response_type": "code",
+                "client_id": self._auth[0],
+                "redirect_uri": redirect_uri,
+                "state": state,
+            },
+            quote_via=quote,
+        )
+        return f"{self._base_url}{AUTHORIZE_PATH}?{query}"
+
+    def exchange_code(self, code: str, redirect_uri: str) -> CustomerTokens:
+        response = self._send(
+            "POST",
+            TOKEN_PATH,
+            {"Accept": "application/json"},
+            auth=self._auth,
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": redirect_uri,
+            },
+        )
+        payload = self._json(response)
+        if not isinstance(payload, dict):
+            raise KrogerUnavailable()
+        access = payload.get("access_token")
+        refresh = payload.get("refresh_token")
+        expires_in = payload.get("expires_in")
+        if not isinstance(access, str) or not access.strip():
+            raise KrogerUnavailable()
+        if not isinstance(refresh, str) or not refresh.strip():
+            raise KrogerUnavailable()
+        if isinstance(expires_in, bool) or not isinstance(expires_in, int):
+            raise KrogerUnavailable()
+        if expires_in <= TOKEN_MARGIN_SECONDS:
+            raise KrogerUnavailable()
+        return CustomerTokens(access, refresh, expires_in)
 
     def _get(
         self, kind: str, path: str, params: dict[str, str]

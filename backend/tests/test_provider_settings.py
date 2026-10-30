@@ -55,6 +55,76 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.kroger_client_id_file is None
     assert settings.kroger_secret_file is None
     assert settings.kroger_environment == "certification"
+    assert settings.kroger_token_key_file is None
+    assert (
+        settings.kroger_redirect_uri == "http://localhost:8010/grocery/kroger/callback"
+    )
+    assert settings.kroger_return_url == "http://127.0.0.1:5173/prototype"
+
+
+def test_kroger_token_key_file_and_urls_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = tmp_path / "token-key"
+    key.write_text(f"  {SECRET_MARKER}\n", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_KROGER_TOKEN_KEY_FILE", f" {key} ")
+    monkeypatch.setenv("FEWIA_KROGER_REDIRECT_URI", "https://app.test/cb")
+    monkeypatch.setenv("FEWIA_KROGER_RETURN_URL", "http://app.test:5173/done")
+    settings = load_provider_settings()
+    assert settings.kroger_token_key_file == key
+    assert settings.kroger_redirect_uri == "https://app.test/cb"
+    assert settings.kroger_return_url == "http://app.test:5173/done"
+    assert read_secret_file(key).get_secret_value() == SECRET_MARKER
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "http://app.test:5173/done?x=1",
+        "http://app.test:5173/done?",
+        "http://app.test:5173?kroger=connected",
+    ],
+)
+def test_kroger_return_url_rejects_a_query_string(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_RETURN_URL", value)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value, value)
+
+
+def test_load_rejects_blank_kroger_token_key_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_TOKEN_KEY_FILE", "   ")
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value)
+
+
+@pytest.mark.parametrize("name", ["REDIRECT_URI", "RETURN_URL"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "/relative/path",
+        "localhost:8010/cb",
+        "ftp://app.test/cb",
+        "javascript:alert(1)",
+        "http:///nohost",
+        "http://app.test/cb#frag",
+        "http://app.test/cb\n",
+        " http://app.test/cb",
+    ],
+)
+def test_kroger_urls_reject_unsafe_values(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(f"FEWIA_KROGER_{name}", value)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value, value or "unused-marker")
 
 
 @pytest.mark.parametrize(("raw", "expected"), [("true", True), ("false", False)])

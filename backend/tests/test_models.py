@@ -1,6 +1,6 @@
 """Tests for the SQLAlchemy metadata. No database connection runs here."""
 
-from sqlalchemy import CheckConstraint, UniqueConstraint
+from sqlalchemy import CheckConstraint, LargeBinary, UniqueConstraint
 
 from app import evidence_models, handoff_models, models, plaid_models
 from app.db import Base
@@ -20,6 +20,7 @@ EXPECTED_TABLES = {
     evidence_models.GroceryEvidence.__tablename__,
     "plan_revisions",
     "plan_proposals",
+    "kroger_customer_tokens",
 }
 
 
@@ -77,3 +78,13 @@ def test_model_runs_model_version_is_unique() -> None:
     assert any(
         constraint.name == "uq_model_runs_model_version" for constraint in constraints
     )
+
+
+def test_kroger_customer_tokens_hold_ciphertext_for_one_user() -> None:
+    table = Base.metadata.tables["kroger_customer_tokens"]
+    assert [column.name for column in table.primary_key.columns] == ["user_id"]
+    assert {fk.target_fullname for fk in table.foreign_keys} == {"users.id"}
+    for name in ("access_token", "refresh_token"):
+        assert isinstance(table.c[name].type, LargeBinary)
+        assert table.c[name].nullable is False
+    assert table.c.access_expires_at.nullable is False

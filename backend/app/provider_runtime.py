@@ -2,6 +2,8 @@
 
 from typing import TypedDict
 
+from cryptography.fernet import Fernet
+
 from app.agent.provider import LLMProvider
 from app.domain.budget import SpendingSource
 from app.provider_settings import (
@@ -99,6 +101,21 @@ def build_kroger(settings: GroceryProviderSettings) -> KrogerClient | None:
     if client is None:
         raise ProviderConfigurationError()
     return client
+
+
+def build_kroger_cipher(settings: GroceryProviderSettings) -> Fernet | None:
+    key_file = settings.kroger_token_key_file
+    if key_file is None:
+        return None
+    key = read_secret_file(key_file)
+    cipher: Fernet | None = None
+    try:
+        cipher = Fernet(key.get_secret_value())
+    except ValueError:
+        pass
+    if cipher is None:
+        raise ProviderConfigurationError()
+    return cipher
 
 
 def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:

@@ -1,16 +1,18 @@
 x-kroger: &kroger
-  environment:
+  environment: &kroger-environment
     FEWIA_KROGER_CLIENT_ID_FILE: /run/fewia/kroger-client-id
     FEWIA_KROGER_SECRET_FILE: /run/fewia/kroger-secret
     FEWIA_KROGER_ENVIRONMENT: "${FEWIA_KROGER_ENVIRONMENT:-certification}"
   volumes:
-    - type: bind
+    - &kroger-client-id-volume
+      type: bind
       source: "${FEWIA_KROGER_CLIENT_ID_FILE:?FEWIA_KROGER_CLIENT_ID_FILE MUST be an absolute path}"
       target: /run/fewia/kroger-client-id
       read_only: true
       bind:
         create_host_path: false
-    - type: bind
+    - &kroger-secret-volume
+      type: bind
       source: "${FEWIA_KROGER_SECRET_FILE:?FEWIA_KROGER_SECRET_FILE MUST be an absolute path}"
       target: /run/fewia/kroger-secret
       read_only: true
@@ -20,5 +22,19 @@ x-kroger: &kroger
 services:
   api:
     <<: *kroger
+    environment:
+      <<: *kroger-environment
+      FEWIA_KROGER_TOKEN_KEY_FILE: /run/fewia/kroger-token-key
+      FEWIA_KROGER_REDIRECT_URI: "${FEWIA_KROGER_REDIRECT_URI:-http://localhost:8010/grocery/kroger/callback}"
+      FEWIA_KROGER_RETURN_URL: "${FEWIA_KROGER_RETURN_URL:-http://127.0.0.1:5173/prototype}"
+    volumes:
+      - *kroger-client-id-volume
+      - *kroger-secret-volume
+      - type: bind
+        source: "${FEWIA_KROGER_TOKEN_KEY_FILE:?FEWIA_KROGER_TOKEN_KEY_FILE MUST be an absolute path}"
+        target: /run/fewia/kroger-token-key
+        read_only: true
+        bind:
+          create_host_path: false
   worker:
     <<: *kroger

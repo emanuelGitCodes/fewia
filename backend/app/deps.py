@@ -4,11 +4,12 @@ import functools
 import threading
 from collections.abc import Iterator
 
+from cryptography.fernet import Fernet
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.provider_runtime import build_kroger
+from app.provider_runtime import build_kroger, build_kroger_cipher
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
@@ -58,3 +59,20 @@ def get_kroger_client() -> KrogerClient | None:
 
 
 get_kroger_client.cache_clear = _build_kroger_client.cache_clear  # type: ignore[attr-defined]
+
+
+@functools.cache
+def _build_kroger_cipher() -> Fernet | None:
+    try:
+        return build_kroger_cipher(load_provider_settings())
+    except ProviderConfigurationError:
+        return None
+
+
+def get_kroger_cipher() -> Fernet | None:
+    """Return the process-wide Kroger token cipher, or None."""
+    with _kroger_lock:
+        return _build_kroger_cipher()
+
+
+get_kroger_cipher.cache_clear = _build_kroger_cipher.cache_clear  # type: ignore[attr-defined]
