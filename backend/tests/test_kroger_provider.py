@@ -831,6 +831,8 @@ def test_exchange_code_leaves_app_token_and_budgets_alone() -> None:
         {"access_token": "", "refresh_token": REFRESH, "expires_in": 1800},
         {"access_token": 5, "refresh_token": REFRESH, "expires_in": 1800},
         {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": 60},
+        {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": 86_401},
+        {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": 10**12},
         {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": "1800"},
         {"access_token": TOKEN, "refresh_token": REFRESH, "expires_in": True},
     ],

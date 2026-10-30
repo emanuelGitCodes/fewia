@@ -12,9 +12,11 @@ from conftest import UserSeeder
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import kroger_customer
+from app.api import kroger as kroger_routes
 from app.demo import DEMO_USER_ID
 from app.deps import get_kroger_cipher, get_kroger_client, get_provider_settings
 from app.kroger_customer import (
@@ -23,6 +25,7 @@ from app.kroger_customer import (
     STATE_TTL_SECONDS,
     make_state,
     new_nonce,
+    redact_access_log,
     state_matches,
 )
 from app.kroger_models import KrogerCustomerToken
@@ -233,13 +236,18 @@ class Rig:
     key: bytes
     cipher: Fernet
     token_status: int = 200
+    expires_in: int = 1800
     token_calls: list[httpx.Request] = field(default_factory=list)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         self.token_calls.append(request)
         if self.token_status != 200:
             return httpx.Response(self.token_status)
-        body = {"access_token": ACCESS, "refresh_token": REFRESH, "expires_in": 1800}
+        body = {
+            "access_token": ACCESS,
+            "refresh_token": REFRESH,
+            "expires_in": self.expires_in,
+        }
         return httpx.Response(200, json=body)
 
 
@@ -386,9 +394,57 @@ def _assert_failed(rig: Rig, response: httpx.Response, *, exchanges: int) -> Non
     assert len(rig.token_calls) == exchanges
 
 
-def test_callback_without_a_cookie_fails(rig: Rig) -> None:
-    _, state = _begin(rig)
-    _assert_failed(rig, _callback(rig, None, code=CODE, state=state), exchanges=0)
+def test_replayed_callback_without_the_cookie_fails(rig: Rig) -> None:
+    nonce, state = _begin(rig)
+    first = _callback(rig, nonce, code=CODE, state=state)
+    assert first.headers["location"] == f"{RETURN_URL}?kroger=connected"
+    rig.api.cookies.clear()
+    replay = _callback(rig, None, code=CODE, state=state)
+    assert replay.status_code == 302
+    assert replay.headers["location"] == f"{RETURN_URL}?kroger=error"
+    assert _row_count(rig) == 1
+    row = rig.session.get(KrogerCustomerToken, DEMO_USER_ID)
+    assert row is not None
+    assert rig.cipher.decrypt(row.access_token).decode() == ACCESS
+    assert rig.cipher.decrypt(row.refresh_token).decode() == REFRESH
+    assert len(rig.token_calls) == 1
+
+
+@pytest.mark.parametrize("missing", [get_kroger_client, get_kroger_cipher])
+def test_callback_is_an_error_when_not_configured(rig: Rig, missing: object) -> None:
+    nonce, state = _begin(rig)
+    app.dependency_overrides[missing] = lambda: None
+    _assert_failed(rig, _callback(rig, nonce, code=CODE, state=state), exchanges=0)
+
+
+def test_callback_fails_when_the_token_expiry_is_absurd(rig: Rig) -> None:
+    nonce, state = _begin(rig)
+    rig.expires_in = 10**12
+    _assert_failed(rig, _callback(rig, nonce, code=CODE, state=state), exchanges=1)
+
+
+def test_callback_fails_when_the_database_write_fails(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*args: object, **kwargs: object) -> None:
+        raise SQLAlchemyError("invented failure")
+
+    monkeypatch.setattr(kroger_routes, "store_tokens", broken)
+    nonce, state = _begin(rig)
+    _assert_failed(rig, _callback(rig, nonce, code=CODE, state=state), exchanges=1)
+    assert rig.api.get(CONNECTION).json() == {"connected": False}
+
+
+def test_connect_marks_the_state_cookie_secure_for_an_https_redirect(rig: Rig) -> None:
+    settings = GroceryProviderSettings(
+        kroger_redirect_uri="https://localhost:8443/grocery/kroger/callback",
+        kroger_return_url=RETURN_URL,
+    )
+    app.dependency_overrides[get_provider_settings] = lambda: settings
+    response = _connect(rig, "localhost:8443")
+    assert response.status_code == 302
+    attributes = [a.strip().lower() for a in response.headers["set-cookie"].split(";")]
+    assert "secure" in attributes
 
 
 def test_callback_with_a_mismatched_cookie_fails(rig: Rig) -> None:
@@ -459,6 +515,17 @@ def test_sign_in_never_logs_or_echoes_secrets(
     failed = _callback(rig, second_nonce, code=second_code, state=second_state)
     assert connected.headers["location"].endswith("kroger=connected")
     assert failed.headers["location"].endswith("kroger=error")
+    redact_access_log()
+    caplog.set_level(logging.INFO, logger="uvicorn.access")
+    for response in (connected, failed):
+        target = response.request.url.raw_path.decode()
+        assert "code=" in target
+        logging.getLogger("uvicorn.access").info(
+            '%s - "%s %s HTTP/%s" %d', "127.0.0.1:5000", "GET", target, "1.1", 302
+        )
+    access = [r for r in caplog.records if r.name == "uvicorn.access"]
+    assert len(access) == 2
+    assert all(CALLBACK in r.getMessage() for r in access)
     assert caplog.records
     haystack = [
         caplog.text,

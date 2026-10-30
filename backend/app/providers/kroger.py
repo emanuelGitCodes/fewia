@@ -33,6 +33,7 @@ LOCATIONS_PATH = "/v1/locations"
 PRODUCTS_PATH = "/v1/products"
 TIMEOUT = httpx.Timeout(5.0, connect=3.0, read=5.0)
 TOKEN_MARGIN_SECONDS = 60
+MAX_EXPIRES_IN_SECONDS = 86_400
 COOLDOWN_SECONDS = 600
 DAILY_LIMITS = {"products": 10_000, "locations": 1_600}
 MAX_TEXT = 160
@@ -345,7 +346,7 @@ class KrogerClient:
             raise KrogerUnavailable()
         if isinstance(expires_in, bool) or not isinstance(expires_in, int):
             raise KrogerUnavailable()
-        if expires_in <= TOKEN_MARGIN_SECONDS:
+        if not TOKEN_MARGIN_SECONDS < expires_in <= MAX_EXPIRES_IN_SECONDS:
             raise KrogerUnavailable()
         return CustomerTokens(access, refresh, expires_in)
 
