@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from datetime import date
 from decimal import Decimal
 
@@ -13,6 +14,7 @@ from app.agent.grounding import (
     Verdict,
     _whole_grams,
     facts_from_payloads,
+    normalize,
     validate,
     with_notice,
 )
@@ -670,13 +672,9 @@ def test_forbidden_claims_fail(reply: str) -> None:
         ("These are safe  for you.", "forbidden_claim"),
         ("These are gluten- free.", "forbidden_claim"),
         ("These are gluten -free.", "forbidden_claim"),
-        ("These are gluten-​free.", "forbidden_claim"),
         ("These are gluten-\nfree.", "forbidden_claim"),
         ("It is allergy  free.", "forbidden_claim"),
-        ("It is allergen⁠free.", "forbidden_claim"),
-        ("It is celiac­safe.", "forbidden_claim"),
         ("Gluten-free ingredients, and gluten-free tacos.", "forbidden_claim"),
-        ("Kr​oger sells it.", "store_price"),
         ("Kro ger sells it.", "store_price"),
         ("K-r-o-g-e-r sells it.", "store_price"),
     ],
@@ -685,14 +683,27 @@ def test_claims_match_on_squashed_letters(reply: str, reason: str) -> None:
     assert validate(reply, FactSet()).reasons == (reason,)
 
 
-def test_format_characters_are_stripped_before_numbers() -> None:
-    facts = _facts(protein_mg=26_000)
-    assert validate("It has 2​6 g of protein.", facts).ok
-    assert validate("It has 2​7 g of protein.", facts).unmatched == ("27",)
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "These are gluten-​free.",
+        "It is allergen⁠free.",
+        "It is celiac­safe.",
+        "Kr​oger sells it.",
+        "It has 2​6 g of protein.",
+        "It is safe‍for you.",
+        "​",
+    ],
+)
+def test_format_characters_fail_as_unsupported(reply: str) -> None:
+    verdict = validate(reply, _facts(protein_mg=26_000))
+    assert verdict.reasons == ("unsupported_character",)
+    assert verdict.unmatched == () and not verdict.has_money
 
 
 def test_too_long_measures_the_raw_reply() -> None:
-    padded = "a" * MAX_REPLY_CHARS + "​"
+    padded = "a" * MAX_REPLY_CHARS + "́"
+    assert normalize(padded) == "a" * MAX_REPLY_CHARS
     assert validate(padded, FactSet()).reasons == ("too_long",)
 
 
@@ -757,12 +768,48 @@ def test_accents_are_folded_before_claims() -> None:
     assert validate("Add jalapeño slices.", FactSet()).ok
 
 
-def test_mixed_script_words_fail_but_single_script_words_do_not() -> None:
-    cyrillic_e = "glutеn"
-    verdict = validate(f"These are {cyrillic_e}-free.", FactSet())
-    assert verdict.reasons == ("mixed_script",)
-    assert validate("Это просто текст.", FactSet()).ok
-    assert validate("Add jalapeño slices.", FactSet()).ok
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Add smørrebrød.",
+        "These are ɡluten free.",
+        "Celiıac safe.",
+        "Krøger sells it.",
+        "Kʀoger sells it.",
+        "ᴋʀᴏɢᴇʀ sells it.",
+        "These are glutеn-free.",
+        "Это просто текст.",
+        "Tasty \U0001f32e tacos.",
+        "Tasty ❤️ tacos.",
+        "Use a ٣ g portion.",
+        "Use x = 3.",
+    ],
+)
+def test_characters_outside_the_allowed_set_fail(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("unsupported_character",)
+
+
+def test_accented_latin_folds_to_ascii_and_passes() -> None:
+    assert validate("Add jalapeño slices and crème.", FactSet()).ok
+    assert validate("Add jalapeño slices.", FactSet()).ok
+    assert normalize("jalapeño") == "jalapeno"
+    assert normalize("a b c‑d−e\n") == "a b c-d-e "
+
+
+def test_every_bmp_letter_that_does_not_fold_to_ascii_fails() -> None:
+    def folded(char: str) -> str:
+        parts = unicodedata.normalize("NFKD", "x" + char)
+        return "".join(c for c in parts if unicodedata.category(c) != "Mn")
+
+    checked = 0
+    for code in range(0x10000):
+        char = chr(code)
+        if not unicodedata.category(char).startswith("L"):
+            continue
+        if re.search(r"[^A-Za-z]", folded(char)):
+            checked += 1
+            assert not validate("x" + char, FactSet()).ok, f"U+{code:04X}"
+    assert checked > 10_000
 
 
 @pytest.mark.parametrize(
@@ -811,6 +858,42 @@ def test_one_with_a_hyphenated_unit_is_checked_like_a_digit() -> None:
     assert validate(reply, _facts(servings=1)).ok
     assert validate("Buy a one pound package.", FactSet()).unmatched == ("1",)
     assert validate("Which one do you want?", FactSet()).ok
+
+
+def test_dot_amounts_and_trailing_dollar_sign_are_money() -> None:
+    facts = _facts(price_cents=50, other_cents=1_200)
+    for reply in ("It costs $.50.", "It costs $ .50.", "It costs 12 $.", "It is 12 $"):
+        verdict = validate(reply, facts)
+        assert verdict.ok and verdict.has_money, reply
+    wrong = validate("It costs $.51.", facts)
+    assert wrong.unmatched == ("$.51",) and wrong.has_money
+    wrong = validate("It costs 13 $.", facts)
+    assert wrong.unmatched == ("$13",) and wrong.has_money
+    # "12 $5" is a count then an amount, not "12 $" followed by 5.
+    assert validate("It costs 12 $5.", facts).unmatched == ("12", "$5")
+
+
+def test_dollar_sign_before_a_number_word_is_money_and_a_number_word() -> None:
+    for reply in ("It costs $ twelve.", "It costs $twelve.", "It costs $ twenty."):
+        verdict = validate(reply, _facts(price_cents=1_200, servings=12))
+        assert verdict.reasons == ("number_word",), reply
+        assert verdict.has_money, reply
+
+
+def test_one_before_a_noun_after_a_determiner_is_checked_like_a_digit() -> None:
+    for reply in ("Use the one onion.", "Add a one egg omelet.", "Add the one egg."):
+        assert validate(reply, FactSet()).unmatched == ("1",), reply
+        assert validate(reply, _facts(servings=1)).ok, reply
+    for reply in (
+        "Which one do you mean?",
+        "Which one should I plan?",
+        "This one works.",
+        "Is it the one?",
+        "That one, please.",
+        "Pick one of them.",
+        "The one that fits.",
+    ):
+        assert validate(reply, FactSet()).ok, reply
 
 
 def test_with_notice_appends_once() -> None:

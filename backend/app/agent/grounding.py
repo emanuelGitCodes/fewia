@@ -2,6 +2,14 @@
 
 An "about N" energy token, with N a multiple of 10, also passes when some
 energy fact is within 9 of N (see APPROX_WINDOW).
+
+Character rule: the reply is folded (NFKD, no combining marks) and then every
+character must be in the allowed set (see _UNSUPPORTED): ASCII letters, digits,
+space, newline, tab, the punctuation . , ; : ! ? ' " ( ) [ ] $ % / + - & * #,
+and the cent sign. The server templates emit nothing else. Any other character
+fails with `unsupported_character`; nothing is deleted without being classified,
+so no character can hide a claim. Dashes and Unicode spaces are mapped, and
+vulgar fractions are named as the number word "half", before the check.
 """
 
 import re
@@ -17,11 +25,12 @@ from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 MAX_REPLY_CHARS = 1200
 APPROX_WINDOW = 10
 _NUM = r"\d+(?:,\d{3})*(?:\.\d+)?"
-# _normalize maps every dash and minus sign to a hyphen-minus first.
+# normalize maps every dash and minus sign to a hyphen-minus first.
 _SIGN = r"[+\-]"
 _MINUS = "-"
 _DASHES = re.compile("[‐-―−﹣－]")
 _SPACES = re.compile(r"\s")
+_UNSUPPORTED = re.compile(r"[^A-Za-z0-9 \n\t.,;:!?'\"()\[\]$%/+\-&*#¢]")
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
 _WORD = rf"\b(?:{'|'.join(_SMALL)})\b"
 _BIG = (
@@ -34,12 +43,14 @@ _BIG = (
 # Vulgar fractions U+00BC-U+00BE, U+2150-U+215E, and U+2189.
 _FRACTION = r"[¼-¾⅐-⅞↉]"
 _TOKEN = re.compile(
-    rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s*(?P<usd>{_NUM})"
+    rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s*"
+    rf"(?P<usd>{_NUM}|\.\d+)"
     rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s*(?P<s4>{_SIGN})?\s*(?P<usdn>{_NUM})"
     rf"|(?P<mn>{_NUM}|{_WORD})[\s-]*"
-    r"(?:(?P<mu>dollars?|USD|bucks?)\b|(?P<cents>cents?\b|¢)))"
-    r"|(?P<ad>\ba\s+(?:dollar|buck)\b)|(?P<bare>\b(?:dollars?|bucks?)\b)"
-    rf"|(?P<big>\b{_BIG}\b|{_FRACTION})"
+    r"(?:(?P<mu>dollars?|USD|bucks?)\b|(?P<cents>cents?\b|¢)|(?P<sym>\$(?!\s*\.?\d))))"
+    rf"|(?P<ad>\ba\s+(?:dollar|buck)\b)|(?P<bare>\b(?:dollars?|bucks?)\b)"
+    rf"|(?P<dw>\$\s*(?=\b(?:{'|'.join(_SMALL)})\b|\b{_BIG}\b))"
+    rf"|(?P<big>\b{_BIG}\b)"
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
     rf"(?:\s*(?:to|-)\s*(?P<n2>{_NUM}))?"
     r"(?:\s*(?:(?P<en>kcal|calories|calorie|cal)\b|(?P<ms>grams|gram|g)\b"
@@ -53,11 +64,13 @@ _DETERMINER = re.compile(
     r"\b(?:which|this|that|the|any|no|each|every|another|a|an)\s+$", re.IGNORECASE
 )
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
-# "a one-pound package": a unit word after "one" makes it a quantity, not a pronoun.
-_UNIT_AFTER = re.compile(
-    r"[\s-]*(?:pound|lb|ounce|oz|serving|meal|package|pack|cup|slice|piece|portion"
-    r"|gram|kg|kilogram|liter|ml|tbsp|tablespoon|tsp|teaspoon|calorie|kcal|percent"
-    r"|dollar|buck|cent)s?\b",
+# "which one do you mean": "one" is a pronoun only at the end of a clause or before
+# a function word. Any other noun or unit ("a one egg omelet", "a one-pound pack")
+# makes it a quantity, which is checked like a digit.
+_ONE_TAIL = re.compile(
+    r"\s*(?:[^\w\s-]|$|(?:of|do|does|did|should|would|could|can|will|is|are|was"
+    r"|were|you|i|we|they|it|that|which|to|for|with|in|on|and|or|but|if|so|as|than"
+    r"|works|fits|looks|sounds|suits|has|have|had|costs|instead|more|less|please)\b)",
     re.IGNORECASE,
 )
 # UUIDs, long hex hashes, and ISO dates or datetimes carry no quantity.
@@ -73,7 +86,6 @@ _FORBIDDEN = re.compile(
 )
 # Only this phrase may name gluten-free (the catalog tag describes ingredients).
 _GLUTEN_INGREDIENTS = re.compile(r"gluten[-\s]free\s+ingredients", re.IGNORECASE)
-_LETTER_KINDS = ("Ll", "Lu", "Lt", "Lo")
 # The one server sentence that names the claims it refuses; removed before the check.
 _SAFETY_SENTENCE = _SAFETY.rsplit(". ", 1)[-1]
 
@@ -120,35 +132,18 @@ def _kinds(
     return [("count", value), *([("mass", value)] if low.endswith("_g") else [])]
 
 
-def _normalize(text: str) -> str:
-    # NFKC would turn a vulgar fraction into digits, so name it as a number word first.
+def normalize(text: str) -> str:
+    """The text every check runs on: folded, with dashes and spaces mapped."""
+    # NFKD would turn a vulgar fraction into digits, so name it as a number word.
     text = re.sub(_FRACTION, " half ", text)
-    folded = _DASHES.sub("-", unicodedata.normalize("NFKC", text))
-    shown = "".join(c for c in folded if unicodedata.category(c) != "Cf")
-    return _SPACES.sub(" ", shown)
-
-
-def _fold(text: str) -> str:
-    """Drop accents (NFKD, no combining marks), then lowercase."""
     parts = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in parts if unicodedata.category(c) != "Mn").lower()
+    folded = "".join(c for c in parts if unicodedata.category(c) != "Mn")
+    return _SPACES.sub(" ", _DASHES.sub("-", folded))
 
 
 def _squash(text: str) -> str:
-    return re.sub(r"[^a-z]", "", _fold(text))
-
-
-def _mixed_script(text: str) -> bool:
-    """True when one word mixes Latin letters with letters of another script."""
-    for word in re.findall(r"[^\W\d_]+", _fold(text)):
-        scripts = {
-            unicodedata.name(c, "?").split()[0]
-            for c in word
-            if unicodedata.category(c) in _LETTER_KINDS
-        }
-        if "LATIN" in scripts and len(scripts) > 1:
-            return True
-    return False
+    """Letters only; the text holds ASCII letters, so no letter is ever removed."""
+    return re.sub(r"[^a-z]", "", text.lower())
 
 
 def _is_id(low: str) -> bool:
@@ -279,6 +274,8 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             money = money or bool(m["ad"])
         elif m["bare"]:
             money = True
+        elif m["dw"]:
+            word = money = True
         elif m["usd"] or m["usdn"] or m["mn"]:
             money = True
             raw = m["usd"] or m["usdn"] or m["mn"]
@@ -293,7 +290,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             m["n1"].lower() == "one"
             and not any(m[name] for name in _KINDS)
             and (_DETERMINER.search(before) or _OF.match(reply, m.end()))
-            and not _UNIT_AFTER.match(reply, m.end())
+            and _ONE_TAIL.match(reply, m.end())
         ):
             continue
         else:
@@ -310,7 +307,9 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
 
 
 def validate(reply: str, facts: FactSet) -> Verdict:
-    text = _normalize(reply)
+    text = normalize(reply)
+    if _UNSUPPORTED.search(text):
+        return Verdict(False, ("unsupported_character",), (), False)
     unmatched, word, money = _scan(text, facts)
     claims = _GLUTEN_INGREDIENTS.sub(" ", text.replace(_SAFETY_SENTENCE, " "))
     checks = (
@@ -318,7 +317,6 @@ def validate(reply: str, facts: FactSet) -> Verdict:
         ("too_long", len(reply) > MAX_REPLY_CHARS),
         ("store_price", "kroger" in _squash(text)),
         ("forbidden_claim", _FORBIDDEN.search(_squash(claims)) is not None),
-        ("mixed_script", _mixed_script(text)),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
     )
