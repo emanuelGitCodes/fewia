@@ -5,6 +5,7 @@ energy fact is within 9 of N (see APPROX_WINDOW).
 """
 
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
@@ -16,9 +17,11 @@ from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 MAX_REPLY_CHARS = 1200
 APPROX_WINDOW = 10
 _NUM = r"\d+(?:,\d{3})*(?:\.\d+)?"
-# Hyphen-minus, minus sign U+2212, and en dash U+2013.
-_SIGN = r"[+\-−–]"
-_MINUS = "-−–"
+# _normalize maps every dash and minus sign to a hyphen-minus first.
+_SIGN = r"[+\-]"
+_MINUS = "-"
+_DASHES = re.compile("[‐-―−﹣－]")
+_SPACES = re.compile(r"\s")
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
 _WORD = rf"\b(?:{'|'.join(_SMALL)})\b"
 _BIG = (
@@ -34,7 +37,7 @@ _TOKEN = re.compile(
     rf"|(?P<mn>{_NUM}|{_WORD})\s*(?:(?P<mu>dollars?|USD)|(?P<cents>cents?))\b)"
     rf"|(?P<big>\b{_BIG}\b|{_FRACTION})"
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
-    rf"(?:\s*(?:to|-|–)\s*(?P<n2>{_NUM}))?"
+    rf"(?:\s*(?:to|-)\s*(?P<n2>{_NUM}))?"
     r"(?:\s*(?:(?P<en>kcal|calories|calorie|cal)\b|(?P<ms>grams|gram|g)\b"
     r"|(?P<pc>%|percent\b)))?",
     re.IGNORECASE,
@@ -55,9 +58,11 @@ _OPAQUE = re.compile(
 _FORBIDDEN = re.compile(
     r"\bsafe for\b|\ballerg(?:y|en)[- ]free\b|\bceliac[- ]safe\b|\bmedical"
     r"|\bcures\b|\btreats\b|\bprevents\b|\bdiagnos"
-    r"|(?<!cannot claim )\bgluten[- ]free\b(?! ingredients)",
+    r"|\bgluten[- ]free\b(?! ingredients)",
     re.IGNORECASE,
 )
+# The one server sentence that names the claims it refuses; removed before the check.
+_SAFETY_SENTENCE = _SAFETY.rsplit(". ", 1)[-1]
 
 
 @dataclass
@@ -102,9 +107,21 @@ def _kinds(
     return [("count", value), *([("mass", value)] if low.endswith("_g") else [])]
 
 
+def _normalize(text: str) -> str:
+    folded = _DASHES.sub("-", unicodedata.normalize("NFKC", text))
+    return _SPACES.sub(" ", folded)
+
+
+def _is_id(low: str) -> bool:
+    return low == "id" or low.endswith(("_id", "_ids"))
+
+
+def _is_delta(low: str) -> bool:
+    return low == "delta" or low.startswith("delta_")
+
+
 def _add_text(text: str, facts: FactSet, *, scan_percent: bool = True) -> None:
-    if _OPAQUE.fullmatch(text.strip()):
-        return
+    text = _OPAQUE.sub(" ", text)
     for match in re.finditer(_NUM, text):
         value = Decimal(match.group().replace(",", ""))
         facts.generic.add(value)
@@ -117,6 +134,8 @@ def _changes(
 ) -> None:
     """Record after minus before for every numeric key that both sides share."""
     for name in before.keys() & after.keys():
+        if _is_id(str(name).lower()):
+            continue
         old, new = before[name], after[name]
         if isinstance(old, Mapping) and isinstance(new, Mapping):
             _changes(old, new, facts)
@@ -138,9 +157,9 @@ def _walk(
     low = key.lower()
     if isinstance(value, bool) or value is None:
         return
-    if (low == "id" or low.endswith(("_id", "_ids"))) and low != "fdc_id":
+    if _is_id(low) and low != "fdc_id":
         return
-    if low == "delta" or low.startswith("delta_"):
+    if _is_delta(low):
         delta, forced = True, "percent" if "percent" in low else forced
     if isinstance(value, int):
         for kind, number in _kinds(key, value, forced):
@@ -148,6 +167,8 @@ def _walk(
                 facts.deltas.add((kind, number))
             else:
                 getattr(facts, kind).add(number)
+    elif delta and isinstance(value, float | str):
+        pass  # a delta subtree holds signed ints only
     elif isinstance(value, float):
         facts.generic.add(Decimal(str(value)))
     elif isinstance(value, str):
@@ -158,7 +179,8 @@ def _walk(
         ):
             _changes(value["before"], value["after"], facts)
         for name, item in value.items():
-            _add_text(str(name), facts, scan_percent=False)
+            if not (delta or _is_delta(str(name).lower())):
+                _add_text(str(name), facts, scan_percent=False)
             _walk(item, str(name), facts, delta, forced)
     elif isinstance(value, Sequence):
         for item in value:
@@ -198,7 +220,7 @@ def _grounded(
         signed = -value if sign in _MINUS else value
         return (kind, signed) in facts.deltas or (signed < 0 and signed in pool)
     if kind == "energy":
-        # "about 480 kcal" may stand for a fact within 10 of a multiple of ten.
+        # "about 480 kcal" may stand for an energy fact within 9 of 480.
         near = (
             approx
             and value % 10 == 0
@@ -245,12 +267,14 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
 
 
 def validate(reply: str, facts: FactSet) -> Verdict:
-    unmatched, word, money = _scan(reply, facts)
+    text = _normalize(reply)
+    unmatched, word, money = _scan(text, facts)
+    claims = text.replace(_SAFETY_SENTENCE, " ")
     checks = (
-        ("empty", not reply.strip()),
-        ("too_long", len(reply) > MAX_REPLY_CHARS),
-        ("store_price", "kroger" in reply.lower()),
-        ("forbidden_claim", _FORBIDDEN.search(reply) is not None),
+        ("empty", not text.strip()),
+        ("too_long", len(text) > MAX_REPLY_CHARS),
+        ("store_price", "kroger" in text.lower()),
+        ("forbidden_claim", _FORBIDDEN.search(claims) is not None),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
     )

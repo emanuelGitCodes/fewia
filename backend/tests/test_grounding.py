@@ -454,6 +454,73 @@ def test_real_substitute_delta_is_a_signed_fact() -> None:
     assert validate(f"Protein changes by {sign}{abs(grams)} g.", facts).ok
 
 
+def test_delta_subtree_adds_no_strings_floats_or_key_names() -> None:
+    facts = _facts(
+        delta={
+            "note 7 g": "30 g or more",
+            "ratio": 2.5,
+            "per_serving": {"protein_mg": 11_000, "label 9": "80% lean"},
+        },
+        delta_note="45 g",
+    )
+    assert facts.generic == set()
+    assert facts.percent == set()
+    assert facts.deltas == {("mass", Decimal(11)), ("mass", Decimal("11.0"))}
+    assert validate("Protein changes by +11 g.", facts).ok
+    for reply in ("Use 30 g.", "Use 2.5 servings.", "Use 7 g.", "Use 45 g."):
+        assert not validate(reply, facts).ok, reply
+
+
+def test_changes_skip_id_keys() -> None:
+    facts = _facts(
+        before={"recipe_id": 10, "per_serving": {"protein_mg": 26_000}},
+        after={"recipe_id": 3, "per_serving": {"protein_mg": 15_000}},
+    )
+    assert ("count", Decimal(-7)) not in facts.deltas
+    assert not validate("Changes by -7 servings.", facts).ok
+    assert validate("Protein changes by -11 g.", facts).ok
+
+
+def test_ids_embedded_in_longer_strings_ground_no_numbers() -> None:
+    facts = _facts(
+        note="Revision 3f2a9c41-0000-4000-8000-000000000041 for 2 servings",
+        when="Planned on 2026-09-01 for 3 meals",
+        digest="sha 0123456789abcdef0123 done",
+    )
+    assert facts.generic == {2, 3}
+    assert not validate("It has 41 g.", facts).ok
+    assert not validate("It has 2026 g.", facts).ok
+    assert validate("That is 2 servings.", facts).ok
+
+
+def test_unicode_dashes_and_spaces_are_normalized() -> None:
+    nbsp, thin = " ", " "
+    for reply in (
+        "These are gluten‑free.",
+        "It is celiac‑safe.",
+        f"It is allergy{nbsp}free.",
+        f"It is safe{nbsp}for you.",
+        f"It is safe{thin}for you.",
+        "It is gluten–free.",
+        "It is gluten−free.",
+        "It is allergen‐free.",
+    ):
+        assert validate(reply, FactSet()).reasons == ("forbidden_claim",), reply
+    money = validate("It costs ＄12.", _facts(price_cents=1_200))
+    assert money.ok and money.has_money
+    assert validate("It costs ＄12.", FactSet()).unmatched == ("$12",)
+    assert validate(f"It has 26{nbsp}g.", _facts(protein_mg=26_000)).ok
+
+
+def test_only_the_exact_server_safety_sentence_is_exempt() -> None:
+    reply = "I cannot claim gluten-free status, but these tacos are gluten-free."
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+    sentence = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+    assert validate(sentence, FactSet()).ok
+    assert not validate(f"{sentence} These tacos are gluten-free.", FactSet()).ok
+    assert not validate(sentence.replace("celiac", "coeliac"), FactSet()).ok
+
+
 def test_minus_sign_and_en_dash_are_signs() -> None:
     facts = _facts(**_swap(26_000, 15_000), delta_cents=-250)
     for sign in ("-", "−", "–"):
