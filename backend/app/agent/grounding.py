@@ -5,20 +5,25 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 
+from app.agent.catalog_tool import _SAFETY, TOOL_NAME
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
 MAX_REPLY_CHARS = 1200
 _NUM = r"\d+(?:,\d{3})*(?:\.\d+)?"
+_SIGN = r"[+\-−]"
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
 _BIG = (
     r"(?:(?:thir|four|fif|six|seven|eigh|nine)teen|twenty|thirty|forty|fifty|sixty"
-    r"|seventy|eighty|ninety|hundred|thousand|million|dozen|half|couple)"
+    r"|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|half|couple"
+    r"|zero|twice|double|triple|quadruple|quarter|once)"
 )
 _TOKEN = re.compile(
-    rf"\$\s?(?P<usd>{_NUM})"
-    rf"|(?P<dnum>{_NUM})\s+dollars?\b"
+    rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s?(?P<usd>{_NUM})"
+    rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s+(?P<usdn>{_NUM})"
+    rf"|(?P<mn>{_NUM})\s+(?:(?P<mu>dollars?|USD)|(?P<cents>cents?))\b)"
     rf"|\b(?P<big>{_BIG})\b"
-    rf"|(?:(?<!\w)(?P<sign>[+\-−]))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
+    rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
     rf"(?:\s*(?:to|-|–)\s*(?P<n2>{_NUM}))?"
     r"(?:\s*(?:(?P<en>kcal|calories|calorie|cal)\b|(?P<ms>grams|gram|g)\b"
     r"|(?P<pc>%|percent\b)))?",
@@ -31,24 +36,30 @@ _DETERMINER = re.compile(
     r"\b(?:which|this|that|the|any|no|each|every|another|a|an)\s+$", re.IGNORECASE
 )
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
+# UUIDs, long hex hashes, and ISO dates or datetimes carry no quantity.
+_OPAQUE = re.compile(
+    r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}|[0-9a-f]{16,}"
+    r"|\d{4}-\d{2}-\d{2}(?:[T ][\d:.+\-Z]*)?",
+    re.IGNORECASE,
+)
 _FORBIDDEN = re.compile(
     r"\bsafe for\b|\ballerg(?:y|en)[- ]free\b|\bceliac[- ]safe\b|\bmedical"
     r"|\bcures\b|\btreats\b|\bprevents\b|\bdiagnos"
-    r"|\b(?:is|are)\s+(?:\w+\s+)?gluten[- ]free\b"
-    r"|\bgluten[- ]free\s+(?:meal|dish|recipe|plan|option|choice)",
+    r"|(?<!cannot claim )\bgluten[- ]free\b(?! ingredients)",
     re.IGNORECASE,
 )
 
 
 @dataclass
 class FactSet:
-    money: set[int] = field(default_factory=set)
+    money: set[Decimal] = field(default_factory=set)
     energy: set[Decimal] = field(default_factory=set)
     mass: set[Decimal] = field(default_factory=set)
-    whole_grams: set[Decimal] = field(default_factory=set)
     percent: set[Decimal] = field(default_factory=set)
     count: set[Decimal] = field(default_factory=set)
     generic: set[Decimal] = field(default_factory=set)
+    # Signed changes as (kind, value); only a signed token may match these.
+    deltas: set[tuple[str, Decimal]] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,26 +70,31 @@ class Verdict:
     has_money: bool
 
 
-def _add_int(key: str, number: int, facts: FactSet) -> None:
+def _whole_grams(mg: int) -> Decimal:
+    return Decimal((abs(mg) * 2 + 1000) // 2000 * (-1 if mg < 0 else 1))
+
+
+def _kinds(
+    key: str, number: int, forced: str | None = None
+) -> list[tuple[str, Decimal]]:
     low, value = key.lower(), Decimal(number)
+    if forced:
+        return [(forced, value)]
     if low.endswith("_cents"):
-        facts.money.add(number)
-    elif low.endswith("_mg"):
-        whole = Decimal((number + 500) // 1000)
-        one_decimal = (value / 1000).quantize(Decimal("0.1"), ROUND_HALF_UP)
-        facts.whole_grams.add(whole)
-        facts.mass.update((whole, one_decimal))
-    elif "kcal" in low:
-        facts.energy.add(value)
-    elif "percent" in low:
-        facts.percent.add(value)
-    else:
-        facts.count.add(value)
-        if low.endswith("_g"):
-            facts.mass.add(value)
+        return [("money", value)]
+    if low.endswith("_mg"):
+        tenth = (value / 1000).quantize(Decimal("0.1"), ROUND_HALF_UP)
+        return [("mass", _whole_grams(number)), ("mass", tenth)]
+    if "kcal" in low:
+        return [("energy", value)]
+    if "percent" in low:
+        return [("percent", value)]
+    return [("count", value), *([("mass", value)] if low.endswith("_g") else [])]
 
 
 def _add_text(text: str, facts: FactSet, *, scan_percent: bool = True) -> None:
+    if _OPAQUE.fullmatch(text.strip()):
+        return
     for match in re.finditer(_NUM, text):
         value = Decimal(match.group().replace(",", ""))
         facts.generic.add(value)
@@ -86,27 +102,65 @@ def _add_text(text: str, facts: FactSet, *, scan_percent: bool = True) -> None:
             facts.percent.add(value)
 
 
-def _walk(value: object, key: str, facts: FactSet) -> None:
+def _changes(
+    before: Mapping[object, object], after: Mapping[object, object], facts: FactSet
+) -> None:
+    """Record after minus before for every numeric key that both sides share."""
+    for name in before.keys() & after.keys():
+        old, new = before[name], after[name]
+        if isinstance(old, Mapping) and isinstance(new, Mapping):
+            _changes(old, new, facts)
+        elif type(old) is int and type(new) is int:
+            now, was = _kinds(str(name), new), _kinds(str(name), old)
+            facts.deltas.update((k, a - b) for (k, a), (_, b) in zip(now, was))
+            facts.deltas.update(_kinds(str(name), new - old))
+
+
+def _walk(
+    value: object,
+    key: str,
+    facts: FactSet,
+    delta: bool = False,
+    forced: str | None = None,
+) -> None:
+    low = key.lower()
     if isinstance(value, bool) or value is None:
         return
+    if (low == "id" or low.endswith(("_id", "_ids"))) and low != "fdc_id":
+        return
+    if low.startswith("delta_"):
+        delta, forced = True, "percent" if "percent" in low else forced
     if isinstance(value, int):
-        _add_int(key, abs(value), facts)
+        for kind, number in _kinds(key, value, forced):
+            if delta:
+                facts.deltas.add((kind, number))
+            else:
+                getattr(facts, kind).add(number)
+    elif isinstance(value, float):
+        facts.generic.add(Decimal(str(value)))
     elif isinstance(value, str):
         _add_text(value, facts)
     elif isinstance(value, Mapping):
+        if isinstance(value.get("before"), Mapping) and isinstance(
+            value.get("after"), Mapping
+        ):
+            _changes(value["before"], value["after"], facts)
         for name, item in value.items():
             _add_text(str(name), facts, scan_percent=False)
-            _walk(item, str(name), facts)
+            _walk(item, str(name), facts, delta, forced)
     elif isinstance(value, Sequence):
         for item in value:
-            _walk(item, key, facts)
+            _walk(item, key, facts, delta, forced)
 
 
 def facts_from_payloads(
     payloads: Sequence[tuple[str, Mapping[str, object]]],
 ) -> FactSet:
     facts = FactSet()
-    for _tool, payload in payloads:
+    for tool, payload in payloads:
+        if tool == TOOL_NAME:
+            for note in (_SAFETY, KETO_NOTE, CARNIVORE_NOTE):
+                _add_text(note, facts)
         _walk(payload, "", facts)
     return facts
 
@@ -124,32 +178,18 @@ def _number(raw: str) -> Decimal:
     return Decimal(raw.replace(",", ""))
 
 
-def _differs(pool: set[Decimal], value: Decimal) -> bool:
-    return any(abs(a - b) == value for a in pool for b in pool)
-
-
 def _grounded(
-    kind: str, value: Decimal, signed: bool, approx: bool, facts: FactSet
+    kind: str, value: Decimal, sign: str | None, approx: bool, facts: FactSet
 ) -> bool:
+    pool: set[Decimal] = getattr(facts, kind)
+    if sign:
+        signed = -value if sign in "-−" else value
+        return (kind, signed) in facts.deltas or (signed < 0 and signed in pool)
     if kind == "energy":
         # "about 480 kcal" may stand for a fact within 10 of a multiple of ten.
-        near = (
-            approx
-            and value % 10 == 0
-            and any(abs(value - fact) < 10 for fact in facts.energy)
-        )
-        return (
-            value in facts.energy or near or (signed and _differs(facts.energy, value))
-        )
-    if kind == "mass":
-        return (
-            value in facts.mass
-            or value in facts.generic
-            or (signed and _differs(facts.whole_grams, value))
-        )
-    if kind == "percent":
-        return value in facts.percent
-    return value in facts.count or value in facts.generic
+        near = approx and value % 10 == 0 and any(abs(value - f) < 10 for f in pool)
+        return value in pool or near
+    return value in pool or (kind in ("mass", "count") and value in facts.generic)
 
 
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
@@ -159,25 +199,28 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
         before = reply[max(0, m.start() - 20) : m.start()]
         if m["big"]:
             word = True
-        elif m["usd"] or m["dnum"]:
+        elif m["usd"] or m["usdn"] or m["mn"]:
             money = True
-            text = (m["usd"] or m["dnum"]).replace(",", "")
-            cents = Decimal(text) * 100
-            if cents != cents.to_integral_value() or int(cents) not in facts.money:
-                unmatched.append(f"${text}")
+            text = (m["usd"] or m["usdn"] or m["mn"]).replace(",", "")
+            msign = m["s1"] or m["s2"] or m["s3"]
+            cents = Decimal(text) * (1 if m["cents"] else 100)
+            if not _grounded("money", cents, msign, False, facts):
+                label = text if m["cents"] else f"${text}"
+                unmatched.append(f"{msign or ''}{label}")
         elif m["n1"].lower() == "one" and (
             _DETERMINER.search(before) or _OF.match(reply, m.end())
         ):
             continue
         else:
             kind = next((_KINDS[name] for name in _KINDS if m[name]), "count")
-            signed, approx = bool(m["sign"]), bool(_APPROX.search(before))
-            for raw in (m["n1"], m["n2"]):
+            approx = bool(_APPROX.search(before))
+            for index, raw in enumerate((m["n1"], m["n2"])):
                 if raw is None:
                     continue
-                value = _number(raw)
-                if not _grounded(kind, value, signed, approx, facts):
-                    unmatched.append(str(int(value)) if raw[0].isalpha() else raw)
+                nsign = m["sign"] if index == 0 else None
+                if not _grounded(kind, _number(raw), nsign, approx, facts):
+                    shown = str(int(_number(raw))) if raw[0].isalpha() else raw
+                    unmatched.append(f"{nsign or ''}{shown}")
     return list(dict.fromkeys(unmatched)), word, money
 
 
