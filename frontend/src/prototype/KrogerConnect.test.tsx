@@ -103,6 +103,42 @@ describe("KrogerConnect", () => {
     expect((screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("clears the return message when Disconnect starts", async () => {
+    window.history.replaceState(null, "", "/prototype?kroger=connected");
+    let connected = true;
+    stub(async (_url, init) => {
+      if (init?.method === "DELETE") {
+        connected = false;
+        return { ok: true, status: 204 };
+      }
+      return status(connected);
+    });
+    render(<KrogerConnect />);
+    expect(await screen.findByText("Kroger account connected.")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+    expect(await screen.findByRole("link", { name: "Connect Kroger" })).toBeTruthy();
+    expect(screen.queryByText("Kroger account connected.")).toBeNull();
+  });
+
+  it("does not read the status again when Disconnect finishes after unmount", async () => {
+    let finish: () => void = () => undefined;
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+      init?.method === "DELETE"
+        ? new Promise<Partial<Response>>((resolve) => {
+            finish = () => { resolve({ ok: true, status: 204 }); };
+          })
+        : status(true),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const view = render(<KrogerConnect />);
+    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+    view.unmount();
+    const calls = fetchMock.mock.calls.length;
+    await act(async () => { finish(); });
+    await settle();
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+
   it("shows the sign-in result and removes only the kroger parameter", async () => {
     window.history.replaceState(null, "", "/prototype?a=1&kroger=error&b=2");
     stub(() => status(false));

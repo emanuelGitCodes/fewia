@@ -18,10 +18,13 @@ function readReturnMessage(): string {
 export function KrogerConnect(): JSX.Element | null {
   // The connection state lives only in component state; the browser stores nothing.
   const [connected, setConnected] = useState<boolean | null>(null);
-  const [message] = useState(readReturnMessage);
+  const [returned] = useState(readReturnMessage);
+  // The live region renders first and receives its text after mount so it is announced.
+  const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
 
   const refresh = (): void => {
     controller.current?.abort();
@@ -47,28 +50,36 @@ export function KrogerConnect(): JSX.Element | null {
       url.searchParams.delete("kroger");
       window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
     }
+    mounted.current = true;
+    setMessage(returned);
     refresh();
     return () => {
+      mounted.current = false;
       controller.current?.abort();
     };
-  }, []);
+  }, [returned]);
 
   const disconnect = (): void => {
+    setMessage("");
     setFailed(false);
     setBusy(true);
     disconnectKroger().then(
       () => {
-        setBusy(false);
-        refresh();
+        if (mounted.current) {
+          setBusy(false);
+          refresh();
+        }
       },
       () => {
-        setBusy(false);
-        setFailed(true);
+        if (mounted.current) {
+          setBusy(false);
+          setFailed(true);
+        }
       },
     );
   };
 
-  if (connected === null && message === "") {
+  if (connected === null && returned === "") {
     return null;
   }
   return (
