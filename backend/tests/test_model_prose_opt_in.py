@@ -20,11 +20,15 @@ from app.evaluation_inputs import prepare_case
 from app.evaluation_model_turn import observe_model_turn
 from tests.test_chat_loop import (
     _LIMIT,
+    _PROPOSED_ANSWER_START,
     _SWAP_ANSWER,
     _SWAP_ARGS,
     PERIOD,
     FakeLLM,
+    Proposer,
     _discovery_block,
+    _proposal_replies,
+    _propose_run,
     _reply,
     _text_block,
     _tool_block,
@@ -215,6 +219,57 @@ def test_the_stored_reply_is_the_normalized_text_after_a_pass() -> None:
     result, _ = _run(_swap(f"  {GROUNDED_PLAIN}\n"))
     assert result["answer"] == GROUNDED_PLAIN
     assert result["reply_source"] == "model"
+
+
+def test_a_reply_with_list_lines_is_stored_with_its_newlines() -> None:
+    text = f"{GROUNDED_PLAIN}\n- Fits the plan.\n- Easy swap."
+    result, _ = _run(_swap(text))
+    assert result["answer"] == text
+    assert result["reply_source"] == "model"
+    assert result["reply_sha256"] == _sha(text)
+
+
+def test_a_claim_split_across_lines_still_falls_back_to_the_template() -> None:
+    result, _ = _run(_swap("These are gluten-\nfree."))
+    assert result["answer"] == _SWAP_ANSWER
+    assert result["reply_source"] == "template"
+    assert cast(dict[str, object], result["reply_check"])["reasons"] == [
+        "forbidden_claim"
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The tofu version also becomes vegan-friendly, while the original bean "
+        "version is vegetarian.",
+        "These are vegan.",
+    ],
+)
+def test_a_diet_claim_falls_back_to_the_template(text: str) -> None:
+    result, _ = _run(_swap(text))
+    assert result["answer"] == _SWAP_ANSWER
+    assert result["reply_source"] == "template"
+    assert cast(dict[str, object], result["reply_check"])["reasons"] == [
+        "forbidden_claim"
+    ]
+
+
+@pytest.mark.parametrize("final", ["Done.", "Your plan has been updated."])
+def test_a_proposal_run_gets_the_template_whatever_the_model_says(final: str) -> None:
+    result, _ = _propose_run(_proposal_replies(final), Proposer(), model_prose=True)
+    assert result["reply_source"] == "template"
+    assert result["proposal_id"] == "proposal-1"
+    answer = cast(str, result["answer"])
+    assert answer.startswith(_PROPOSED_ANSWER_START)
+    assert "Apply it in the plan panel." in answer
+
+
+def test_system_prompt_asks_for_whole_grams() -> None:
+    assert (
+        "Tool masses are in milligrams; in replies write grams rounded to the "
+        "nearest whole gram (14484 mg is 14 g)."
+    ) in chat_loop.SYSTEM_PROMPT
 
 
 def _price_run(

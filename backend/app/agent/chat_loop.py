@@ -123,6 +123,8 @@ SYSTEM_PROMPT = (
     "call what_if_substitute. It does not change the plan. "
     "To price meals with or without a swap, call price_lines. "
     "Prices are sample estimates. "
+    "Tool masses are in milligrams; in replies write grams rounded to the "
+    "nearest whole gram (14484 mg is 14 g). "
     "Call get_ingredient_facts only for a question about one food on its own."
 )
 _PLAN_READ_TOOLS = (
@@ -260,13 +262,16 @@ def run_chat(
     proposal_id: str | None = None
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
+    proposal_read: list[tuple[str, dict[str, object]]] = []
     run_payloads: list[tuple[str, dict[str, object]]] = []
 
     def answer() -> str:
         if not catalog_batch:
             if candidate is None and last_error is None:
                 read = read_tool_answer(
-                    read_results, stale=budget.stale, failed=other_failed
+                    [*read_results, *proposal_read],
+                    stale=budget.stale,
+                    failed=other_failed,
                 )
                 if read is not None:
                     return read
@@ -343,6 +348,7 @@ def run_chat(
                 status = _end_status(candidate)
                 clean = (
                     model_prose
+                    and proposal_id is None
                     and bool(run_payloads)
                     and run_ok
                     and not (other_failed or discovery_failed or last_error)
@@ -421,6 +427,7 @@ def run_chat(
                 run_payloads.append((call.name, payload))
                 if call.name == PROPOSAL_TOOL:
                     proposal_id = str(payload["proposal_id"])
+                    proposal_read = [(call.name, payload)]
             if call.name == TOOL_NAME and _end_status(payload) != "planned":
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:

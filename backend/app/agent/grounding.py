@@ -38,7 +38,9 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.agent.catalog_tool import _SAFETY, TOOL_NAME
+from app.agent.chat_answer import _DIET, _diet_conflict_answer
 from app.domain.budget import STALE_SPENDING_WARNING
+from app.domain.catalog import RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
@@ -49,7 +51,8 @@ _NUM = r"(?:\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)"
 _SIGN = r"[+\-]"
 _MINUS = "-"
 _DASHES = re.compile("[‐-―−﹣－]")
-_SPACES = re.compile(r"\s")
+_SPACES = re.compile(r"[^\S\n]")
+_SPACE_RUNS = re.compile(r" {2,}")
 _QUOTES = str.maketrans("‘’“”", "''\"\"")
 _UNSUPPORTED = re.compile(r"[^A-Za-z0-9 \n\t.,;:!?'\"()\[\]$%/+\-&*#_¢]")
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
@@ -114,8 +117,11 @@ _FORBIDDEN = re.compile(
     r"|diagnos|glutenfree"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
-    r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
+    r"|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
+    # Diet labels: only the catalog's own sentences (see _SERVER_SENTENCE) may use them.
+    r"|vegan|vegetarian|plantbased|dairyfree|lactosefree|nutfree|eggfree|soyfree"
+    r"|keto|paleo|whole30|halal|kosher|lowsodium|sugarfree|lowfat|highfiber"
 )
 # A number, whitespace, then a scale word or multiplier ("$12 K", "2 x the protein",
 # "3 times", "3-fold", "two x").
@@ -124,11 +130,35 @@ _SCALED = re.compile(
     r"|billion|trillion|x|times)|\s*-\s*fold)\b",
     re.IGNORECASE,
 )
-# The server safety note names the claims it refuses; each exact sentence is removed
-# verbatim from the raw reply before the claim check, and nothing else is exempt.
+
+
+def _diet_sentences() -> set[str]:
+    """The exact sentences that the server templates print with a diet label."""
+    first = {re.split(r"(?<=\.) ", text)[0] for text in (KETO_NOTE, _DIET)}
+    for recipe_id, recipe in RECIPES.items():
+        for ingredient_id, _quantity in recipe.ingredients:
+            for diet in ("vegetarian", "vegan"):
+                error: dict[str, object] = {
+                    "error_code": "diet_conflict",
+                    "recipe_id": recipe_id,
+                    "ingredient_id": ingredient_id,
+                    "diet": diet,
+                }
+                answer = _diet_conflict_answer(error)
+                if answer is not None:
+                    first.add(re.split(r"(?<=\.) ", answer)[0])
+    return first
+
+
+# The server notes name the claims they refuse and the diets they state; each exact
+# sentence is removed verbatim from the raw reply before the claim check, and nothing
+# else is exempt.
 _SERVER_SENTENCE = re.compile(
     r"(?:\A\s*|(?<=[.!?])\s+)(?:"
-    + "|".join(re.escape(s) for s in re.split(r"(?<=\.) ", _SAFETY))
+    + "|".join(
+        re.escape(s)
+        for s in (*re.split(r"(?<=\.) ", _SAFETY), *sorted(_diet_sentences()))
+    )
     + ")"
 )
 # A sentence end is a word of 3+ letters or digits, then one of .!? ("Dr.", "No.",
@@ -189,8 +219,8 @@ def _fold(text: str) -> str:
 
 
 def normalize(text: str) -> str:
-    """The text every check runs on: folded, with every space mapped to " "."""
-    return _SPACES.sub(" ", _fold(text))
+    """The text every check runs on: folded, with each space run mapped to " "."""
+    return _SPACE_RUNS.sub(" ", _SPACES.sub(" ", _fold(text)))
 
 
 def _without_server_sentences(reply: str) -> str:

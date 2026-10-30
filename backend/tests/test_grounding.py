@@ -1312,6 +1312,71 @@ def test_the_apply_it_prompt_is_not_a_changed_claim(reply: str) -> None:
     assert validate(reply, FactSet()).ok
 
 
+def test_servings_from_your_plan_is_not_a_changed_claim() -> None:
+    verdict = validate("Servings from your plan: 2.", _facts(servings=2))
+    assert verdict.ok, verdict
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "The tofu version also becomes vegan-friendly, while the original bean "
+        "version is vegetarian.",
+        "These are vegan.",
+        "It is Plant-Based.",
+        "It is dairy free and nut-free.",
+        "It is lactose free, egg free, and soy free.",
+        "A keto, paleo, or Whole30 meal.",
+        "It is halal and kosher.",
+        "It is low sodium, sugar free, low fat, and high fiber.",
+        "These are vegetar-\nian.",
+        "Bean tacos are not vegan.",
+    ],
+)
+def test_diet_claims_in_model_prose_fail(reply: str) -> None:
+    verdict = validate(reply, FactSet())
+    assert verdict.reasons == ("forbidden_claim",), reply
+
+
+def test_the_server_diet_sentences_still_pass() -> None:
+    conflict = "Chicken tacos are not vegan. Change the recipe or the restriction."
+    assert (
+        chat_answer._diet_conflict_answer(
+            {
+                "error_code": "diet_conflict",
+                "recipe_id": "chicken_tacos",
+                "ingredient_id": "chicken_breast",
+                "diet": "vegan",
+            }
+        )
+        == conflict
+    )
+    for reply in (conflict, chat_answer._DIET, KETO_NOTE):
+        verdict = validate(reply, facts_from_payloads([(TOOL_NAME, {})]))
+        assert verdict.ok, (reply, verdict)
+    # The exemption is the whole sentence at a sentence start, nothing near it.
+    assert not validate(
+        "These are keto. No meal in this catalog is keto.", FactSet()
+    ).ok
+    assert not validate(
+        "Choose no preference, vegetarian, or vegan food.", FactSet()
+    ).ok
+
+
+def test_whole_grams_match_a_milligram_fact() -> None:
+    facts = _facts(protein_mg=14_484)
+    assert validate("Protein is 14 g.", facts).ok
+    assert not validate("Protein is 15 g.", facts).ok
+
+
+def test_list_lines_pass_and_a_claim_split_across_lines_still_fails() -> None:
+    facts = _facts(protein_mg=14_484)
+    listed = "Protein:\n- 14 g\n- Easy swap."
+    assert validate(listed, facts).ok
+    assert validate("These are gluten-\nfree.", facts).reasons == ("forbidden_claim",)
+    assert validate("These are gluten\n-\nfree.", facts).reasons == ("forbidden_claim",)
+
+
 def test_a_model_copy_of_the_stale_warning_is_a_forbidden_claim() -> None:
     facts = _facts(total_cents=1_200)
     plain = validate("The sample total is $12.00.", facts)

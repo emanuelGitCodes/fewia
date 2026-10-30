@@ -1008,7 +1008,7 @@
 }
 .tonight-ask-text {
   margin: 0.15rem 0 0;
-  white-space: pre-wrap;
+  white-space: pre-line;
 }
 .tonight-ask-ideas {
   display: grid;

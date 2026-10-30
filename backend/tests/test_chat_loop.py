@@ -1010,13 +1010,13 @@ def test_a_run_without_a_proposal_has_no_proposal_id() -> None:
     assert "proposal_id" not in result
 
 
-def test_a_passing_model_reply_after_the_tool_keeps_the_proposal_id() -> None:
+def test_a_passing_model_reply_after_the_tool_still_gets_the_template() -> None:
     proposer = Proposer()
     reply = "Apply it in the plan panel."
     result, _ = _propose_run(_proposal_replies(reply), proposer, model_prose=True)
-    assert result["reply_source"] == "model"
-    assert result["answer"] == reply
-    assert result["reply_check"] == {"ok": True, "reasons": [], "unmatched": []}
+    assert result["reply_source"] == "template"
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert result["reply_check"] is None
     assert result["proposal_id"] == "proposal-1"
 
 
@@ -1024,9 +1024,7 @@ def test_a_changed_plan_claim_falls_back_to_the_template() -> None:
     reply = "I added Vegetable pasta to your plan."
     result, _ = _propose_run(_proposal_replies(reply), Proposer(), model_prose=True)
     assert result["reply_source"] == "template"
-    assert cast(dict[str, object], result["reply_check"])["reasons"] == [
-        "forbidden_claim"
-    ]
+    assert result["reply_check"] is None
     assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
     assert result["proposal_id"] == "proposal-1"
 
