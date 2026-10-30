@@ -1,4 +1,8 @@
-"""Check a model-written reply against the facts that tools returned (0022)."""
+"""Check a model-written reply against the facts that tools returned (0022).
+
+An "about N" energy token, with N a multiple of 10, also passes when some
+energy fact is within 9 of N (see APPROX_WINDOW).
+"""
 
 import re
 from collections.abc import Mapping, Sequence
@@ -10,19 +14,25 @@ from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
 MAX_REPLY_CHARS = 1200
+APPROX_WINDOW = 10
 _NUM = r"\d+(?:,\d{3})*(?:\.\d+)?"
-_SIGN = r"[+\-−]"
+# Hyphen-minus, minus sign U+2212, and en dash U+2013.
+_SIGN = r"[+\-−–]"
+_MINUS = "-−–"
 _SMALL = "one two three four five six seven eight nine ten eleven twelve".split()
+_WORD = rf"\b(?:{'|'.join(_SMALL)})\b"
 _BIG = (
     r"(?:(?:thir|four|fif|six|seven|eigh|nine)teen|twenty|thirty|forty|fifty|sixty"
-    r"|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|half|couple"
-    r"|zero|twice|double|triple|quadruple|quarter|once)"
+    r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|half"
+    r"|halves|couple|zero|twice|double|triple|quadruple|quarters?|once|tens)"
 )
+# Vulgar fractions U+00BC-U+00BE, U+2150-U+215E, and U+2189.
+_FRACTION = r"[¼-¾⅐-⅞↉]"
 _TOKEN = re.compile(
     rf"(?:(?<!\w)(?P<s1>{_SIGN}))?(?:\bUSD\s*)?(?P<s2>{_SIGN})?\$\s?(?P<usd>{_NUM})"
-    rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s+(?P<usdn>{_NUM})"
-    rf"|(?P<mn>{_NUM})\s+(?:(?P<mu>dollars?|USD)|(?P<cents>cents?))\b)"
-    rf"|\b(?P<big>{_BIG})\b"
+    rf"|(?:(?<!\w)(?P<s3>{_SIGN}))?(?:\bUSD\s*(?P<usdn>{_NUM})"
+    rf"|(?P<mn>{_NUM}|{_WORD})\s*(?:(?P<mu>dollars?|USD)|(?P<cents>cents?))\b)"
+    rf"|(?P<big>\b{_BIG}\b|{_FRACTION})"
     rf"|(?:(?<!\w)(?P<sign>{_SIGN}))?(?P<n1>{_NUM}|\b(?:{'|'.join(_SMALL)})\b)"
     rf"(?:\s*(?:to|-|–)\s*(?P<n2>{_NUM}))?"
     r"(?:\s*(?:(?P<en>kcal|calories|calorie|cal)\b|(?P<ms>grams|gram|g)\b"
@@ -130,7 +140,7 @@ def _walk(
         return
     if (low == "id" or low.endswith(("_id", "_ids"))) and low != "fdc_id":
         return
-    if low.startswith("delta_"):
+    if low == "delta" or low.startswith("delta_"):
         delta, forced = True, "percent" if "percent" in low else forced
     if isinstance(value, int):
         for kind, number in _kinds(key, value, forced):
@@ -185,11 +195,15 @@ def _grounded(
 ) -> bool:
     pool: set[Decimal] = getattr(facts, kind)
     if sign:
-        signed = -value if sign in "-−" else value
+        signed = -value if sign in _MINUS else value
         return (kind, signed) in facts.deltas or (signed < 0 and signed in pool)
     if kind == "energy":
         # "about 480 kcal" may stand for a fact within 10 of a multiple of ten.
-        near = approx and value % 10 == 0 and any(abs(value - f) < 10 for f in pool)
+        near = (
+            approx
+            and value % 10 == 0
+            and any(abs(value - f) < APPROX_WINDOW for f in pool)
+        )
         return value in pool or near
     return value in pool or (kind in ("mass", "count") and value in facts.generic)
 
@@ -203,14 +217,18 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             word = True
         elif m["usd"] or m["usdn"] or m["mn"]:
             money = True
-            text = (m["usd"] or m["usdn"] or m["mn"]).replace(",", "")
+            raw = m["usd"] or m["usdn"] or m["mn"]
+            amount = _number(raw)
+            text = str(amount) if raw[0].isalpha() else raw.replace(",", "")
             msign = m["s1"] or m["s2"] or m["s3"]
-            cents = Decimal(text) * (1 if m["cents"] else 100)
+            cents = amount * (1 if m["cents"] else 100)
             if not _grounded("money", cents, msign, False, facts):
                 label = text if m["cents"] else f"${text}"
                 unmatched.append(f"{msign or ''}{label}")
-        elif m["n1"].lower() == "one" and (
-            _DETERMINER.search(before) or _OF.match(reply, m.end())
+        elif (
+            m["n1"].lower() == "one"
+            and not any(m[name] for name in _KINDS)
+            and (_DETERMINER.search(before) or _OF.match(reply, m.end()))
         ):
             continue
         else:

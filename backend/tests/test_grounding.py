@@ -11,6 +11,7 @@ from app.agent.grounding import (
     MAX_REPLY_CHARS,
     FactSet,
     Verdict,
+    _whole_grams,
     facts_from_payloads,
     validate,
     with_notice,
@@ -27,6 +28,7 @@ from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
+from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 from app.domain.plan_revision import PlanRevisionInput
 
 _BUDGET = BudgetResult(10_000, 0, False, ())
@@ -186,12 +188,22 @@ def test_ingredient_facts_live_is_grounded() -> None:
     assert "321 kcal" in answer and "(USDA FDC 11)" in answer
 
 
-@pytest.mark.parametrize("query", ["tacos", "low carb"])
-def test_catalog_answer_is_grounded(query: str) -> None:
-    payload = execute_catalog_search({"query": query})
-    facts = facts_from_payloads([(TOOL_NAME, payload)])
-    verdict = validate(catalog_answer(payload), facts)
-    assert verdict.ok, verdict
+@pytest.mark.parametrize(
+    ("query", "note"),
+    [
+        ("tacos", None),
+        ("low carb", KETO_NOTE),
+        ("keto", KETO_NOTE),
+        ("chicken", CARNIVORE_NOTE),
+    ],
+)
+def test_catalog_answer_is_grounded(query: str, note: str | None) -> None:
+    payload = execute_catalog_search({"query": query, "limit": 1})
+    answer = catalog_answer(payload)
+    if note is not None:
+        assert note in answer
+    verdict = validate(answer, facts_from_payloads([(TOOL_NAME, payload)]))
+    assert verdict.ok, (answer, verdict)
 
 
 def test_catalog_server_notes_only_ground_for_the_search_tool() -> None:
@@ -404,6 +416,54 @@ def test_money_words_set_has_money_and_match_cents() -> None:
         assert verdict.unmatched and verdict.has_money, reply
 
 
+def test_delta_key_holds_signed_facts_only() -> None:
+    payload = {
+        "status": "swapped",
+        "servings": 2,
+        "delta": {
+            "per_serving": _macros(0, 11_000, 0, 0),
+            "total": _macros(0, 22_000, 0, 0),
+        },
+        "delta_percent": {"protein_mg": 43},
+    }
+    facts = _facts(**payload)
+    assert facts.mass == set()
+    assert facts.percent == set()
+    assert validate("Protein changes by +11 g.", facts).ok
+    assert validate("The total changes by +22 g.", facts).ok
+    assert validate("Protein changes by +43%.", facts).ok
+    assert not validate("Protein changes by -11 g.", facts).ok
+    wrong = validate("This meal has 11 g of protein.", facts)
+    assert wrong.reasons == ("unmatched_number",)
+    assert wrong.unmatched == ("11",)
+    assert not validate("This meal has 43% protein.", facts).ok
+
+
+def test_real_substitute_delta_is_a_signed_fact() -> None:
+    payload = execute_substitute(_REAL_SWAP, _BUDGET)
+    delta = payload["delta"]
+    assert isinstance(delta, dict)
+    per_serving = delta["per_serving"]
+    assert isinstance(per_serving, dict)
+    protein_mg = per_serving["protein_mg"]
+    assert isinstance(protein_mg, int) and protein_mg != 0
+    facts = facts_from_payloads([(SUBSTITUTE_TOOL, payload)])
+    grams = _whole_grams(protein_mg)
+    assert ("mass", grams) in facts.deltas
+    sign = "+" if grams > 0 else "-"
+    assert validate(f"Protein changes by {sign}{abs(grams)} g.", facts).ok
+
+
+def test_minus_sign_and_en_dash_are_signs() -> None:
+    facts = _facts(**_swap(26_000, 15_000), delta_cents=-250)
+    for sign in ("-", "−", "–"):
+        assert validate(f"Protein changes by {sign}11 g.", facts).ok, sign
+        assert validate(f"That is {sign}$2.50 less.", facts).ok, sign
+        assert not validate(f"Protein changes by {sign}12 g.", facts).ok, sign
+    assert not validate("Protein changes by +11 g.", facts).ok
+    assert not validate("Protein changes by – 11 g.", facts).ok
+
+
 def test_ranges_share_the_unit() -> None:
     facts = _facts(a_kcal=474, b_kcal=489)
     assert validate("From 474 to 489 kcal.", facts).ok
@@ -416,9 +476,60 @@ def test_which_one_is_not_a_number_but_one_serving_is() -> None:
     assert validate("Add one serving.", FactSet()).unmatched == ("1",)
 
 
+def test_one_with_a_unit_is_checked_like_a_digit() -> None:
+    cases = {
+        "It has one gram of sugar.": (_facts(sugar_mg=1_000), "1"),
+        "That is a one percent change.": (_facts(scale_factor_percent=1), "1"),
+        "Add one kcal.": (_facts(energy_kcal=1), "1"),
+        "It costs one dollar.": (_facts(price_cents=100), "$1"),
+    }
+    for reply, (facts, token) in cases.items():
+        assert validate(reply, facts).ok, reply
+        empty = validate(reply, FactSet())
+        assert empty.reasons == ("unmatched_number",), reply
+        assert empty.unmatched == (token,), reply
+
+
+def test_number_words_before_money_units_are_money() -> None:
+    facts = _facts(a_cents=500, b_cents=3, c_cents=1_200)
+    for reply in ("five dollars", "three cents", "twelve USD", "twelve dollars"):
+        verdict = validate(f"It costs {reply}.", facts)
+        assert verdict.ok and verdict.has_money, reply
+    for reply in ("six dollars", "four cents", "eleven USD"):
+        verdict = validate(f"It costs {reply}.", facts)
+        assert verdict.reasons == ("unmatched_number",), reply
+        assert verdict.has_money, reply
+    assert validate("It costs six dollars.", facts).unmatched == ("$6",)
+    assert validate("It costs four cents.", facts).unmatched == ("4",)
+
+
+def test_usd_without_a_space_is_money() -> None:
+    facts = _facts(price_cents=1_200)
+    for reply in ("USD12", "12USD", "USD 12", "usd12"):
+        verdict = validate(f"It costs {reply}.", facts)
+        assert verdict.ok and verdict.has_money, reply
+    for reply in ("USD13", "13USD"):
+        verdict = validate(f"It costs {reply}.", facts)
+        assert verdict.unmatched == ("$13",), reply
+        assert verdict.has_money, reply
+
+
+@pytest.mark.parametrize("fraction", ["½", "¼", "¾", "⅓", "⅞"])
+def test_vulgar_fractions_fail_as_number_words(fraction: str) -> None:
+    assert validate(f"Add {fraction} cup.", FactSet()).reasons == ("number_word",)
+    mixed = validate(f"Add 1{fraction} cups.", _facts(servings=1))
+    assert mixed.reasons == ("number_word",)
+
+
 @pytest.mark.parametrize(
     "word",
     [
+        "hundreds",
+        "dozens",
+        "thousands",
+        "halves",
+        "millions",
+        "tens",
         "twenty",
         "hundred",
         "dozen",
