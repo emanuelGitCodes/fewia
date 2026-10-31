@@ -109,7 +109,9 @@ class BedrockChatStack(Stack):
             ),
         )
         version = bedrock.CfnGuardrailVersion(
-            self, "GuardrailVersion", guardrail_identifier=guardrail.attr_guardrail_id
+            self,
+            "GuardrailVersionResource",
+            guardrail_identifier=guardrail.attr_guardrail_id,
         )
         role = iam.Role(
             self,
