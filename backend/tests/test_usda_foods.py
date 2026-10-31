@@ -395,10 +395,6 @@ def test_unknown_mixed_preparations_do_not_inherit_plant_diet_flags(
         ),
         ("Mushrooms, oyster, raw", 11),
         ("Oyster mushrooms, raw", 11),
-        ("Chicken, meatless", 16),
-        ("Bacon, meatless", 16),
-        ("Meatless chicken", 16),
-        ("Meatless bacon", 16),
         ("Pasta, without egg", 20),
         ("Pasta, without eggs", 20),
         ("Pasta, egg-free", 20),
@@ -411,6 +407,18 @@ def test_plain_plants_and_bounded_alternatives_keep_diet_flags(
     [food] = parse_bundle(bundle([row(1, description, category)]))
     assert food.ingredient.vegetarian is True
     assert food.ingredient.vegan is True
+
+
+@pytest.mark.parametrize(
+    "description",
+    ["Chicken, meatless", "Bacon, meatless", "Meatless chicken", "Meatless bacon"],
+)
+def test_meatless_preparations_stay_vegetarian_but_not_vegan(
+    description: str,
+) -> None:
+    [food] = parse_bundle(bundle([row(1, description, 16)]))
+    assert food.ingredient.vegetarian is True
+    assert food.ingredient.vegan is False
 
 
 @pytest.mark.parametrize(

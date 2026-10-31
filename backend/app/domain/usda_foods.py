@@ -223,18 +223,19 @@ def _diet_flags(description: str, category: int) -> tuple[bool, bool]:
     Mixed dishes need more evidence than a plant category. These bounded rules
     do not establish allergy or cross-contact safety.
     """
-    text = " ".join(description.lower().replace("-", " ").split())
-    text = _PLANT_PHRASES.sub("plant food", text)
+    raw = " ".join(description.lower().replace("-", " ").split())
+    text = _PLANT_PHRASES.sub("plant food", raw)
     text = _EGG_FREE.sub("", text)
     if _MEAT_INGREDIENTS.search(text):
         return False, False
     vegetarian = category in _VEGETARIAN_CATEGORIES
     vegan = category in _VEGAN_CATEGORIES and not _VEGAN_INGREDIENTS.search(text)
     # Fail closed: these preparations usually hold egg, milk, butter, or lard,
-    # and these cheeses use animal rennet.
-    vegan = vegan and not _ANIMAL_PREPARATIONS.search(text)
-    if _RENNET_CHEESES.search(text) or _LARD_FAT.search(
-        _VEGETABLE_SHORTENING.sub("", text)
+    # and these cheeses use animal rennet. Check them before the plant-phrase
+    # and egg-free rewrites can remove the evidence.
+    vegan = vegan and not _ANIMAL_PREPARATIONS.search(raw)
+    if _RENNET_CHEESES.search(raw) or _LARD_FAT.search(
+        _VEGETABLE_SHORTENING.sub("", raw)
     ):
         vegetarian = False
     preparation = _DAIRY_EGG_PREPARATION.sub("", _PLAIN_PREPARATION.sub("", text))
