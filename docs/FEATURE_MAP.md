@@ -364,7 +364,7 @@ One line per folder, grouped by layer. Tests sit next to their code:
 - `plan_templates.py`: `POST /grocery/templates`.
 - `evidence.py`: `GET /grocery/evidence/{revision_id}`.
 - `sync.py`: `POST /grocery/sync/jobs`, `GET /grocery/sync/jobs/{id}`.
-- `main.py`: the app, `/healthz`, and the six routers.
+- `main.py`: the app, `/healthz`, and the eight routers.
 
 **Agent, `backend/app/agent/`**
 
@@ -399,8 +399,8 @@ One line per folder, grouped by layer. Tests sit next to their code:
   publisher thread.
 - `backend/app/consume_jobs.py`, `publish_jobs.py`: the consumer and
   publisher entry points.
-- `backend/app/providers/`: `bedrock.py`, `instacart.py` (exceptions and `validate_link_url` only), `plaid.py`,
-  `plaid_contract.py`, `kroger.py`, `http_client.py`,
+- `backend/app/providers/`: `bedrock.py`, `instacart.py` (exceptions and
+  `validate_link_url` only), `plaid.py`, `plaid_contract.py`, `kroger.py`, `http_client.py`,
   `local_sqs*.py`, `aws_sqs_*.py`, `local_artifacts.py`,
   `aws_artifacts.py`, `job_transport*.py`.
 

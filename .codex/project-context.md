@@ -55,8 +55,8 @@ Use versioned sample prices. Always label estimates:
 > Estimated from the demo price catalog. Instacart prices, availability,
 > taxes, delivery fees, and tips are not verified.
 
-Missing prices produce incomplete estimates. Validate vegetarian/vegan preferences and ingredient
-exclusions against catalog facts. Clarify unknown restrictions. Do not certify
+Missing prices produce incomplete estimates. Validate vegetarian/vegan
+preferences and ingredient exclusions against catalog facts. Clarify unknown restrictions. Do not certify
 retailer products or cross-contact safety. Spending older than 24 hours requires
 refresh or an explicit temporary cap before finalization.
 
@@ -70,7 +70,9 @@ or raw bank records to the model. Validate retailer URLs before navigation.
 
 PostgreSQL owns jobs and outbox state. Handle duplicate SQS delivery, leases,
 crashes, visibility extension, retries, and dead letters. Serialize Plaid Item
-syncs. Apply changes and the final cursor atomically. Evidence snapshots need immutable revisions.
+syncs. Apply changes and the final cursor atomically. An uncertain retailer
+write needs a visible retry choice, not blind replay. Evidence snapshots need
+immutable revisions.
 
 Use 30 scenarios repeated three times: spending/budget 5, meal planning 7,
 follow-up/pantry 5, missing/impossible requests 4, provider failures 5, and

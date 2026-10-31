@@ -2,7 +2,7 @@
 
 ## Scope
 
-FEWIA runs a local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and Floci SQS and S3. Real Bedrock calls use `LLMProvider`. The first-release provider boundary includes Plaid Sandbox and the Kroger cart. [Decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md) retires the Instacart adapter; the frozen suite keeps its fixture handoff scenario (P02). This benchmark supplies Bedrock evidence only; Plaid Sandbox evidence remains open. The product uses a manual budget and sample catalog prices. The product does not place orders or check out.
+FEWIA runs a local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and Floci SQS and S3. Real Bedrock calls use `LLMProvider`. The first-release provider boundary includes Plaid Sandbox and the Kroger cart. [Decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md) retires the Instacart adapter; the frozen suite keeps its fixture handoff scenario (P02). This benchmark supplies Bedrock evidence only; Plaid Sandbox and live Instacart evidence remain open. The product uses a manual budget and sample catalog prices. The product does not place orders or check out.
 
 The product supports 40 meals under [decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) and the [current project scope](../.codex/project-context.md). A request supports one to three (1-3) meals. Each meal supports one to eight (1-8) servings. This benchmark does not provide exhaustive catalog coverage.
 
