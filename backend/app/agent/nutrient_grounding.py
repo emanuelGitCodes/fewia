@@ -23,6 +23,11 @@ NUTRIENT_KEYS = {
     "fat_mg": "fat",
 }
 NutrientFact = tuple[str, str, bool, Decimal]
+# A fact with the basis and side of its payload path: (subject, kind, is_delta, value,
+# basis, side). The subject is a nutrient or "energy".
+TaggedFact = tuple[str, str, bool, Decimal, str | None, str | None]
+BASIS_KEYS = {"per_serving": "serving", "total": "total", "per_100g": "100g"}
+SIDE_KEYS = {"before": "before", "after": "after"}
 _ALIASES = {
     "protein": "protein",
     "proteins": "protein",
@@ -45,7 +50,8 @@ _LABEL = re.compile(
 _H = r"[^\S\n]"
 _PREFIX = re.compile(
     rf"{_H}*(?::{_H}*)?(?:(?:is|are|was|were|has|contains|provides|changes?|by|from"
-    rf"|to|{UP_VERBS}|{DOWN_VERBS}|about|around|roughly|approximately){_H}+)*"
+    rf"|to|used{_H}+to{_H}+(?:be|have)|stay(?:s|ed)?|remain(?:s|ed)?|at|{UP_VERBS}"
+    rf"|{DOWN_VERBS}|about|around|roughly|approximately){_H}+)*"
     r"(?:\n[ \t]*-\s+)?\Z",
     re.IGNORECASE,
 )
@@ -55,7 +61,7 @@ _SUFFIX = re.compile(
 # A word before a label that is not a qualifier of _LABEL leaves the label unbound.
 _LEFT_OK = frozenset(
     "the its their this that and or of with in has have had gives contains"
-    " provides".split()
+    " provides previously originally".split()
 )
 _LEFT_WORD = re.compile(r"[A-Za-z0-9'-]+\Z")
 # A label then "by", for "protein by 5 g" (no verb) and "reduces calories by 20 kcal".
@@ -84,12 +90,28 @@ _MACRO_JOIN = re.compile(
     rf"|[/&(]{_H}*)\Z",
     re.IGNORECASE,
 )
+# A basis phrase right after a claim; _basis_name reads which basis it names.
 _BASIS = re.compile(
-    r"\s*(?:per\s+(?:servings?|meals?|\d+(?:\.\d+)?\s*"
-    r"(?:g|grams?|mg|milligrams?|kg|kilograms?))"
-    r"|for\s+\d+\s+(?:servings?|meals?))\b",
+    r"\s*(?:(?P<serving>per\s+(?:servings?|meals?))"
+    r"|per\s+(?P<qty>\d+(?:\.\d+)?)\s*"
+    r"(?P<unit>g|grams?|mg|milligrams?|kg|kilograms?)"
+    r"|(?P<total>in\s+total|total|for\s+(?:the\s+meal|all\s+servings"
+    r"|(?P<n>\d+)\s+(?:servings?|meals?))))\b",
     re.IGNORECASE,
 )
+# The change that follows an "X to Y" pair, "(+5 g)", after an optional basis phrase.
+_PAIR_DELTA = re.compile(rf"(?:{_BASIS.pattern})?\s*\(\s*\Z", re.IGNORECASE)
+# What may stand between a claim and its basis phrase: a direction word, "of", a label.
+_CLAIM_LEAD = re.compile(
+    rf"{_H}*(?:(?:{UP_WORDS}|{DOWN_WORDS}){_H}+)?(?:of{_H}+)?(?:{_LABEL.pattern})?",
+    re.IGNORECASE,
+)
+_CLAUSE = re.compile(r"[!?;\n]|\.(?!\d)|,(?!\d{3}\b)")
+_BEFORE = re.compile(
+    r"\b(?:from|was|were|before|original(?:ly)?|previously|used\s+to|had)\b",
+    re.IGNORECASE,
+)
+_SCALE = {"k": Decimal(1000), "m": Decimal("0.001")}
 
 
 def _between(
@@ -103,6 +125,12 @@ def _within(points: Sequence[int], left: int, right: int) -> bool:
     """Whether a sorted position falls in [left, right)."""
     at = bisect_left(points, left)
     return at < len(points) and points[at] < right
+
+
+def pair_delta(plain: str, pair: re.Match[str], change: re.Match[str]) -> bool:
+    """Whether `change` is the signed "(+5 g)" that follows the "X to Y" token `pair`."""
+    between = plain[pair.end() : change.start()]
+    return bool(pair["n2"] and change["sign"] and _PAIR_DELTA.fullmatch(between))
 
 
 def _left_ok(plain: str, label: re.Match[str]) -> bool:
@@ -161,6 +189,12 @@ def _claim_tail_allowed(
         local_end = min(next_start, clause_end)
     gap = plain[tail_start:local_end]
     if local_end == clause_end and _TAIL_END.fullmatch(gap):
+        return True
+    if (
+        next_token is not None
+        and not next_token["en"]
+        and pair_delta(plain, tokens[index], next_token)
+    ):
         return True
     if next_start >= clause_end:
         return False
@@ -259,6 +293,14 @@ def nutrient_bindings(
             bindings[previous.start()] = None
     for previous, token in zip(tokens, tokens[1:], strict=False):
         if (
+            bindings.get(previous.start()) is not None
+            and token.start() not in bindings
+            and not token["en"]
+            and pair_delta(plain, previous, token)
+        ):
+            bindings[token.start()] = bindings[previous.start()]  # "20 to 25 g (+5 g)"
+    for previous, token in zip(tokens, tokens[1:], strict=False):
+        if (
             previous.start() not in bindings
             or token.start() in bindings
             or not token["n1"]
@@ -297,19 +339,80 @@ def nutrient_bindings(
     return bindings
 
 
+def _basis_name(match: re.Match[str]) -> str:
+    if match["serving"] or match["n"] == "1":
+        return "serving"
+    if match["total"]:
+        return "total"
+    grams = Decimal(match["qty"]) * _SCALE.get(match["unit"][0].lower(), Decimal(1))
+    return "100g" if grams == 100 else "other"
+
+
+def _basis_match(plain: str, end: int) -> re.Match[str] | None:
+    stop = _TAIL_BOUNDARY.search(plain, end)
+    lead = _CLAIM_LEAD.match(plain, end)
+    start = lead.end() if lead else end
+    return _BASIS.match(plain, start, stop.start() if stop else len(plain))
+
+
+def claim_basis(plain: str, end: int) -> str | None:
+    """The basis a claim names right after its number: "serving", "total", "100g"."""
+    match = _basis_match(plain, end)
+    return _basis_name(match) if match else None
+
+
+def basis_count(plain: str, end: int) -> int | None:
+    """Where the N of a "for N servings" basis phrase starts after a claim, else None."""
+    match = _basis_match(plain, end)
+    return match.start("n") if match and match["n"] else None
+
+
+def before_marker(plain: str, start: int) -> bool:
+    """Whether the clause around a claim holds a word that places it before a swap."""
+    head = _CLAUSE.split(plain[max(0, start - 200) : start])[-1]
+    tail = _CLAUSE.split(plain[start : start + 200], 1)[0]
+    return _BEFORE.search(head + tail) is not None
+
+
+def tag_ok(
+    tagged: set[TaggedFact], fact: NutrientFact, basis: str | None, before: bool
+) -> bool:
+    """Whether a fact has a basis and side that a claim may use.
+
+    A claim with a basis matches a fact of that basis or of none. A fact that is only
+    on the before side matches only a claim whose clause has a before marker. A fact
+    with no tag at all (a hand-built FactSet) has no basis and no side.
+    """
+    pairs = [(f[4], f[5]) for f in tagged if f[:4] == fact]
+    return not pairs or any(
+        basis in (None, have) or have is None
+        for have, side in pairs
+        if before or side != "before"
+    )
+
+
 def nutrient_grounded(
     nutrient: str | None,
     kind: str,
     value: Decimal,
     sign: str | None,
     facts: set[NutrientFact],
+    tagged: set[TaggedFact] | None = None,
+    basis: str | None = None,
+    before: bool = False,
 ) -> bool:
-    """Match only the bound nutrient, unit, and absolute or signed value."""
+    """Match only the bound nutrient, unit, signed or absolute value, basis, side."""
     if nutrient is None:
         return False
+
+    def usable(fact: NutrientFact) -> bool:
+        if fact not in facts:
+            return False
+        return tagged is None or tag_ok(tagged, fact, basis, before)
+
     if sign:
         signed = -value if sign == "-" else value
-        return (nutrient, kind, True, signed) in facts or (
-            signed < 0 and (nutrient, kind, False, signed) in facts
+        return usable((nutrient, kind, True, signed)) or (
+            signed < 0 and usable((nutrient, kind, False, signed))
         )
-    return (nutrient, kind, False, value) in facts
+    return usable((nutrient, kind, False, value))

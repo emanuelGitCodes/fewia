@@ -1520,6 +1520,166 @@ def test_mg_must_match_a_milligram_fact_and_kg_is_grams_times_1000() -> None:
     assert not validate("Buy 1.5 kg of flour.", _facts(flour_mg=1_500)).ok
 
 
+def _side_macros(kcal: int, protein: int, carbs: int, fat: int) -> dict[str, object]:
+    each = {
+        "energy_kcal": kcal,
+        "protein_mg": protein,
+        "carbohydrate_mg": carbs,
+        "fat_mg": fat,
+    }
+    return {"per_serving": each, "total": {k: v * 4 for k, v in each.items()}}
+
+
+def _pf01_payload() -> dict[str, object]:
+    before = _side_macros(500, 20_000, 40_000, 11_000)
+    after = _side_macros(480, 25_000, 40_000, 8_000)
+    delta = {
+        basis: {
+            key: after[basis][key] - before[basis][key]  # type: ignore[index]
+            for key in ("energy_kcal", "protein_mg", "carbohydrate_mg", "fat_mg")
+        }
+        for basis in ("per_serving", "total")
+    }
+    return {
+        "servings": 4,
+        "before": before,
+        "after": after,
+        "delta": delta,
+        "delta_percent": {"protein_mg": 25, "fat_mg": -27},
+    }
+
+
+@pytest.mark.parametrize(
+    ("reply", "ok"),
+    [
+        ("Protein is 100 g per serving.", False),
+        ("Protein is 100 g in total.", True),
+        ("Protein is 25 g per serving.", True),
+        ("After the swap, protein is 20 g per serving.", False),
+        ("After the swap, protein is 20 g.", False),
+        ("Before the swap, protein was 20 g per serving.", True),
+        ("The original meal had 20 g protein per serving.", True),
+        ("Protein rises by 20 g per serving.", False),
+        ("Protein rises by 20 g in total.", True),
+        ("Protein rises by 5 g per serving.", True),
+        ("The meal has 480 kcal per serving.", True),
+        ("The meal has 1920 kcal per serving.", False),
+        ("The meal has 1920 kcal in total.", True),
+        ("The meal had 500 kcal per serving before the swap.", True),
+        ("Carbs stay at 40 g per serving.", True),
+        # Contract 3: a claim with no basis phrase matches any basis.
+        ("Protein is 100 g.", True),
+        ("Protein is 25 g.", True),
+        ("The meal has 1920 kcal.", True),
+        # Contract 3: the other total phrases, and "for 1 serving" names the serving.
+        ("Protein is 100 g for the meal.", True),
+        ("Protein is 100 g for all servings.", True),
+        ("Protein is 100 g for 4 servings.", True),
+        ("Protein is 25 g for 1 serving.", True),
+        ("Protein is 100 g for 1 serving.", False),
+        ("Protein is 25 g in total.", False),
+        ("Protein is 25 g per 100 g.", False),
+        # Contract 4: a before-only value needs a marker in its own clause.
+        ("Protein was 80 g in total.", True),
+        ("It was great. After the swap, protein is 20 g per serving.", False),
+        ("Previously protein was 20 g per serving.", True),
+        ("Protein used to be 20 g per serving.", True),
+        ("Calories are 500 kcal per serving.", False),
+        ("Calories were 500 kcal per serving.", True),
+        ("The meal is 1.5 kg of fish and has 480 kcal per serving.", False),
+        # Contract 5: a delta carries its basis too.
+        ("Fat drops by 3 g per serving.", True),
+        ("Fat drops by 12 g in total.", True),
+        ("Fat drops by 12 g per serving.", False),
+        ("Calories drop by 20 kcal per serving.", True),
+        ("Calories drop by 80 kcal in total.", True),
+        ("Calories drop by 80 kcal per serving.", False),
+        # The server template reads "X to Y" as a before and after pair.
+        ("Protein 20 to 25 g per serving (+5 g).", True),
+        ("Protein 80 to 100 g in total (+20 g).", True),
+        ("Protein 80 to 100 g per serving.", False),
+        ("Protein 20 to 25 g per serving (+20 g).", False),
+        ("Protein 80 to 100 g in total (+5 g).", False),
+        ("Protein is 100 g for 3 servings.", False),
+        ("Protein 25 to 20 g.", False),
+        ("Per serving 500 to 480 kcal (-20 kcal).", True),
+        ("Protein changes from 20 g to 25 g.", True),
+        ("Protein changes from 20 g to 25 g per serving.", True),
+        ("Protein changes from 80 g to 100 g per serving.", False),
+    ],
+)
+def test_basis_and_side_decide_a_swap_claim(reply: str, ok: bool) -> None:
+    assert validate(reply, _facts(**_pf01_payload())).ok is ok, reply
+
+
+def test_facts_record_the_basis_and_side_of_their_payload_path() -> None:
+    tagged = _facts(**_pf01_payload()).tagged
+    assert {
+        ("protein", "mass", False, Decimal(20), "serving", "before"),
+        ("protein", "mass", False, Decimal(80), "total", "before"),
+        ("protein", "mass", False, Decimal(25), "serving", "after"),
+        ("protein", "mass", False, Decimal(100), "total", "after"),
+        ("protein", "mass", True, Decimal(5), "serving", None),
+        ("protein", "mass", True, Decimal(20), "total", None),
+        ("protein", "percent", True, Decimal(25), None, None),
+        ("energy", "energy", False, Decimal(500), "serving", "before"),
+        ("energy", "energy", False, Decimal(1920), "total", "after"),
+        ("energy", "energy", True, Decimal(-20), "serving", None),
+        ("energy", "energy", True, Decimal(-80), "total", None),
+    } <= tagged
+    assert ("protein", "mass", False, Decimal(100), "serving", "after") not in tagged
+    assert ("protein", "mass", True, Decimal(20), "serving", None) not in tagged
+
+
+def test_per_100g_facts_are_tagged_100g() -> None:
+    payload = execute_ingredient_facts({"name": "chicken breast"})
+    tagged = facts_from_payloads([(INGREDIENT_TOOL, payload)]).tagged
+    assert ("protein", "mass", False, Decimal(23), "100g", None) in tagged
+    facts = facts_from_payloads([(INGREDIENT_TOOL, payload)])
+    assert validate("Chicken breast has 23 g protein per 100 g.", facts).ok
+    assert not validate("Chicken breast has 23 g protein per serving.", facts).ok
+    assert not validate("Chicken breast has 23 g protein in total.", facts).ok
+
+
+def test_every_nutrition_and_energy_fact_has_a_tagged_entry() -> None:
+    swap = execute_substitute(_REAL_SWAP, _BUDGET)
+    meals = [_TACOS, {"recipe_id": "bean_tacos", "servings": 1}]
+    payloads: list[tuple[str, dict[str, object]]] = [
+        ("pf01", _pf01_payload()),
+        (SUBSTITUTE_TOOL, swap),
+        (GET_PLAN_TOOL, execute_get_plan({}, _revision(meals), _BUDGET)),
+        (GET_MEAL_TOOL, execute_get_meal({"recipe_id": "chicken_tacos"})),
+        (INGREDIENT_TOOL, execute_ingredient_facts({"name": "chicken breast"})),
+        ("plain", {"energy_kcal": 474, "delta": {"energy_kcal": 5, "fat_mg": 2_500}}),
+    ]
+    for tool, payload in payloads:
+        facts = facts_from_payloads([(tool, payload)])
+        keys = {t[:4] for t in facts.tagged}
+        assert facts.nutrition <= keys, tool
+        assert {("energy", "energy", False, v) for v in facts.energy} <= keys, tool
+        energy_deltas = {
+            ("energy", k, True, v) for k, v in facts.deltas if k == "energy"
+        }
+        assert energy_deltas <= keys, tool
+
+
+def test_a_fact_without_a_tag_has_no_basis_and_no_side() -> None:
+    nutrition = {("protein", "mass", False, Decimal(20))}
+    plain = FactSet(nutrition=nutrition, energy={Decimal(500)})
+    assert validate("Protein is 20 g per serving.", plain).ok
+    assert validate("Protein is 20 g in total.", plain).ok
+    assert validate("After the swap, protein is 20 g.", plain).ok
+    assert validate("The meal has 500 kcal per serving.", plain).ok
+
+
+def test_the_before_marker_must_be_in_the_claims_own_clause() -> None:
+    facts = _facts(**_pf01_payload())
+    assert validate("Protein was 20 g per serving.", facts).ok
+    assert not validate("Protein was 25 g. After the swap, protein is 20 g.", facts).ok
+    assert not validate("It had no change; protein is 20 g per serving.", facts).ok
+    assert not validate("Protein was fine, protein is 20 g per serving.", facts).ok
+
+
 def test_signed_milligram_change_must_match_a_real_delta() -> None:
     facts = _facts(
         before={"protein_mg": 2_000},

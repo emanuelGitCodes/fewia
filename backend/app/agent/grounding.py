@@ -38,6 +38,26 @@ before "from" (back to a sentence end, ";", or a line break) must agree with Y -
 in that clause fail. That holds when such a word, "changes", "changed", "went", or
 "goes" leads the "from", or when this turn recorded a pair for that subject. Any other
 "from X to Y" is a range: both values must be facts of that kind.
+Basis rule: every energy and nutrient fact, absolute or delta, records its basis from
+the nearest basis key on its payload path: "serving" under `per_serving`, "total"
+under `total`, "100g" under `per_100g`, else None (FactSet.tagged). A basis phrase
+right after a claim ("per serving", "per 100 g", "in total", "total", "for the meal",
+"for all servings", "for N servings") gives the claim that basis, and it then matches
+only a fact of that basis or of none. "for 1 serving" and "per meal" name the serving;
+the 1 of "for 1 serving" is no count, but the N of "for N servings" must be a count
+fact (the plan's servings). A signed "(+5 g)" right after an "X to Y" pair, and after
+the pair's own basis phrase, has the basis of that pair.
+A claim with no basis phrase matches any basis.
+Side rule: every absolute energy and nutrient fact records its side: "before" under a
+`before` key, "after" under an `after` key, else None. A value that exists only as a
+before-side fact matches only when its clause (split at . ! ? ; a line break, and a
+comma) holds one of: from, was, were, before, original, originally, previously, used
+to, had ("Previously protein was" and "protein used to be" still bind the label).
+Otherwise a claim matches only after-side and side-None facts. A value on
+both sides matches. In "X to Y" an unsigned X also counts as before-side when X and Y
+are a recorded pair (FactSet.moves): the server templates print "protein 26 to 15 g".
+Signed changes have no side. A fact with no tag (a hand-built FactSet) has no basis
+and no side.
 A reply over MAX_REPLY_CHARS fails with `too_long` before any scan.
 
 Medical rule: a reply that names a health condition or marker fails with
@@ -64,15 +84,23 @@ from decimal import ROUND_HALF_UP, Decimal
 from app.agent.catalog_tool import _SAFETY, TOOL_NAME
 from app.agent.chat_answer import _DIET, _diet_conflict_answer
 from app.agent.nutrient_grounding import (
+    BASIS_KEYS,
     DOWN_VERBS,
     DOWN_WORDS,
     LABEL_BY,
     NUTRIENT_KEYS,
+    SIDE_KEYS,
     UP_VERBS,
     UP_WORDS,
     NutrientFact,
+    TaggedFact,
+    basis_count,
+    before_marker,
+    claim_basis,
     nutrient_bindings,
     nutrient_grounded,
+    pair_delta,
+    tag_ok,
 )
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import RECIPES
@@ -286,6 +314,10 @@ class FactSet:
     # Each before and after pair of one key as (nutrient or "energy", kind, before,
     # after); a "from X to Y" claim must read one of them.
     moves: set[tuple[str, str, Decimal, Decimal]] = field(default_factory=set)
+    # Every nutrient and energy fact again, with the basis ("serving", "total",
+    # "100g") and side ("before", "after") of its payload path; None when the path
+    # names none.
+    tagged: set[TaggedFact] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,8 +412,27 @@ def _add_text(text: str, facts: FactSet, *, scan_percent: bool = True) -> None:
             facts.percent.add(value)
 
 
+def _tag(
+    facts: FactSet,
+    subject: str,
+    entries: Sequence[tuple[str, Decimal]],
+    delta: bool,
+    basis: str | None,
+    side: str | None,
+) -> None:
+    """Tag nutrient facts, or the energy ones when the subject is "energy"."""
+    facts.tagged.update(
+        (subject, kind, delta, number, basis, side)
+        for kind, number in entries
+        if subject != "energy" or kind == "energy"
+    )
+
+
 def _changes(
-    before: Mapping[object, object], after: Mapping[object, object], facts: FactSet
+    before: Mapping[object, object],
+    after: Mapping[object, object],
+    facts: FactSet,
+    basis: str | None = None,
 ) -> None:
     """Record after minus before for every numeric key that both sides share."""
     for name in before.keys() & after.keys():
@@ -389,7 +440,7 @@ def _changes(
             continue
         old, new = before[name], after[name]
         if isinstance(old, Mapping) and isinstance(new, Mapping):
-            _changes(old, new, facts)
+            _changes(old, new, facts, BASIS_KEYS.get(str(name).lower(), basis))
         elif type(old) is int and type(new) is int:
             now, was = _kinds(str(name), new), _kinds(str(name), old)
             subject = NUTRIENT_KEYS.get(str(name))
@@ -398,21 +449,14 @@ def _changes(
                 for (k, a), (_, b) in zip(now, was, strict=False)
                 if subject or k == "energy"
             )
-            if str(name) in NUTRIENT_KEYS:
-                nutrient = NUTRIENT_KEYS[str(name)]
-                facts.nutrition.update(
-                    (nutrient, k, True, a - b)
-                    for (k, a), (_, b) in zip(now, was, strict=False)
-                )
-                facts.nutrition.update(
-                    (nutrient, k, True, number)
-                    for k, number in _kinds(str(name), new - old)
-                )
+            changed = [(k, a - b) for (k, a), (_, b) in zip(now, was, strict=False)]
+            changed.extend(_kinds(str(name), new - old))
+            if subject:
+                facts.nutrition.update((subject, k, True, n) for k, n in changed)
+                _tag(facts, subject, changed, True, basis, None)
                 continue
-            facts.deltas.update(
-                (k, a - b) for (k, a), (_, b) in zip(now, was, strict=False)
-            )
-            facts.deltas.update(_kinds(str(name), new - old))
+            facts.deltas.update(changed)
+            _tag(facts, "energy", changed, True, basis, None)
 
 
 def _walk(
@@ -421,8 +465,11 @@ def _walk(
     facts: FactSet,
     delta: bool = False,
     forced: str | None = None,
+    basis: str | None = None,
+    side: str | None = None,
 ) -> None:
     low = key.lower()
+    basis, side = BASIS_KEYS.get(low, basis), SIDE_KEYS.get(low, side)
     if isinstance(value, bool) or value is None:
         return
     if _is_id(low) and low != "fdc_id":
@@ -432,17 +479,19 @@ def _walk(
     if key in NUTRIENT_KEYS and type(value) is not int:
         return
     if isinstance(value, int):
+        entries = _kinds(key, value, forced)
         if key in NUTRIENT_KEYS:
             facts.nutrition.update(
-                (NUTRIENT_KEYS[key], kind, delta, number)
-                for kind, number in _kinds(key, value, forced)
+                (NUTRIENT_KEYS[key], kind, delta, number) for kind, number in entries
             )
+            _tag(facts, NUTRIENT_KEYS[key], entries, delta, basis, side)
             return
-        for kind, number in _kinds(key, value, forced):
+        for kind, number in entries:
             if delta:
                 facts.deltas.add((kind, number))
             else:
                 getattr(facts, kind).add(number)
+        _tag(facts, "energy", entries, delta, basis, side)
     elif delta and isinstance(value, float | str):
         pass  # a delta subtree holds signed ints only
     elif isinstance(value, float):
@@ -453,14 +502,14 @@ def _walk(
         if isinstance(value.get("before"), Mapping) and isinstance(
             value.get("after"), Mapping
         ):
-            _changes(value["before"], value["after"], facts)
+            _changes(value["before"], value["after"], facts, basis)
         for name, item in value.items():
             if not (delta or _is_delta(str(name).lower())):
                 _add_text(str(name), facts, scan_percent=False)
-            _walk(item, str(name), facts, delta, forced)
+            _walk(item, str(name), facts, delta, forced, basis, side)
     elif isinstance(value, Sequence):
         for item in value:
-            _walk(item, key, facts, delta, forced)
+            _walk(item, key, facts, delta, forced, basis, side)
 
 
 def facts_from_payloads(
@@ -489,20 +538,34 @@ def _number(raw: str) -> Decimal:
 
 
 def _grounded(
-    kind: str, value: Decimal, sign: str | None, approx: bool, facts: FactSet
+    kind: str,
+    value: Decimal,
+    sign: str | None,
+    approx: bool,
+    facts: FactSet,
+    basis: str | None = None,
+    before: bool = False,
 ) -> bool:
     pool: set[Decimal] = getattr(facts, kind)
+
+    def fits(delta: bool, number: Decimal) -> bool:
+        """An energy fact must also have the claim's basis and side."""
+        fact = ("energy", kind, delta, number)
+        return kind != "energy" or tag_ok(facts.tagged, fact, basis, before)
+
     if sign:
         signed = -value if sign in _MINUS else value
-        return (kind, signed) in facts.deltas or (signed < 0 and signed in pool)
+        return ((kind, signed) in facts.deltas and fits(True, signed)) or (
+            signed < 0 and signed in pool and fits(False, signed)
+        )
     if kind == "energy":
         # "about 480 kcal" may stand for an energy fact within 9 of 480.
         near = (
             approx
             and value % 10 == 0
-            and any(abs(value - f) < APPROX_WINDOW for f in pool)
+            and any(abs(value - f) < APPROX_WINDOW and fits(False, f) for f in pool)
         )
-        return value in pool or near
+        return (value in pool and fits(False, value)) or near
     return value in pool or (kind in ("mass", "count") and value in facts.generic)
 
 
@@ -630,13 +693,16 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     plain = re.sub(r"[*_#]", " ", reply)
     lead = _verb_signs(plain)
     tokens = list(_TOKEN.finditer(plain))
-    nutrients = nutrient_bindings(_without_server_sentences(reply, mask=True), tokens)
+    safe = _without_server_sentences(reply, mask=True)
+    nutrients = nutrient_bindings(safe, tokens)
+    claims = re.sub(r"[*_#]", " ", safe)  # same offsets as plain, no server sentence
     moves = _from_to(plain, tokens, nutrients, facts)
     plan_counts = {
         match.start(1)
         for match in re.finditer(r"Servings from your plan: (\d+)\.", reply)
     }
-    for m in tokens:
+    served: set[int] = set()  # the N of "for N servings" after a claim
+    for index, m in enumerate(tokens):
         before = plain[max(0, m.start() - 20) : m.start()]
         if m["big"]:
             word = True
@@ -668,6 +734,8 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             and _ONE_TAIL.match(reply, m.end())
         ):
             continue
+        elif m.start() in served and _number(m["n1"]) == 1:
+            continue  # "for 1 serving" names the serving; it states no count
         else:
             kind = next((_KINDS[name] for name in _KINDS if m[name]), "count")
             approx = bool(_APPROX.search(before))
@@ -675,6 +743,16 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             bound = None
             if kind != "count" and not (m["sign"] or m["n2"]):
                 bound = _DIRECTION.match(plain, m.end())
+            subject = nutrients[m.start()] if m.start() in nutrients else None
+            subject = "energy" if kind == "energy" and not subject else subject
+            basis = claim_basis(claims, m.end()) if subject else None
+            if subject and index and basis is None:
+                # "(+5 g)" after "20 to 25 g per serving" has the basis of the pair.
+                if pair_delta(claims, tokens[index - 1], m):
+                    basis = claim_basis(claims, tokens[index - 1].end())
+            if subject and (own := basis_count(claims, m.end())) is not None:
+                served.add(own)
+            marker = bool(subject) and before_marker(claims, m.start())
             for index, raw in enumerate((m["n1"], m["n2"])):
                 if raw is None:
                     continue
@@ -689,12 +767,27 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                         kind == "count" and nsign is None and value in facts.count
                     )
                 else:
+                    # In "X to Y" the X may be the before side of a recorded pair.
+                    upper = _number(m["n2"] or "0") * (1000 if m["kg"] else 1)
+                    early = marker or bool(
+                        index == 0
+                        and m["n2"]
+                        and not nsign
+                        and (subject, kind, value, upper) in facts.moves
+                    )
                     grounded = (
                         nutrient_grounded(
-                            nutrients[m.start()], kind, value, nsign, facts.nutrition
+                            nutrients[m.start()],
+                            kind,
+                            value,
+                            nsign,
+                            facts.nutrition,
+                            facts.tagged,
+                            basis,
+                            early,
                         )
                         if m.start() in nutrients
-                        else _grounded(kind, value, nsign, approx, facts)
+                        else _grounded(kind, value, nsign, approx, facts, basis, early)
                     )
                     if kind == "count" and m.start() in moves:
                         grounded = moves[m.start()]  # "from 500 kcal to 480"
