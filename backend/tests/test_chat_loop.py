@@ -4003,6 +4003,6 @@ def test_a_clean_run_keeps_the_verdict_keys_and_adds_the_clean_gate() -> None:
     assert failed["reply_check"] == {
         "ok": False,
         "reasons": ["unmatched_number"],
-        "unmatched": ["999"],
+        "unmatched": ["+999"],
         "gate": "clean",
     }

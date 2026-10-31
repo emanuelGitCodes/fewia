@@ -359,7 +359,7 @@ def test_ungrounded_reply_falls_back_to_the_template_and_is_never_stored() -> No
     assert result["reply_check"] == {
         "ok": False,
         "reasons": ["unmatched_number"],
-        "unmatched": ["999"],
+        "unmatched": ["+999"],
         "gate": "clean",
     }
     assert result["reply_sha256"] == _sha(_SWAP_ANSWER)
@@ -501,7 +501,7 @@ def test_reasoning_block_never_reaches_the_answer_or_next_request() -> None:
     assert "reasoningContent" not in stored
     assert secret not in json.dumps(provider.requests[1]["messages"])
     # The check can fail: a reply that quotes the sentinel is stored in the result.
-    quoted, _ = _run(_swap(f"{secret} adds 384 kcal.", reasoning=hidden))
+    quoted, _ = _run(_swap(f"{secret} has 384 kcal.", reasoning=hidden))
     assert secret in json.dumps(quoted)
 
 

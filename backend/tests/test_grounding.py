@@ -565,6 +565,22 @@ def test_direction_verb_run_ends_at_but_and_never_binds_counts() -> None:
     assert validate("Add 5 g, and more fat later.", FactSet(mass={Decimal(5)})).ok
 
 
+def test_a_run_ends_at_a_run_end_word_inside_the_gap() -> None:
+    facts = FactSet(deltas={("mass", Decimal("2.5"))}, energy={Decimal(38)})
+    reply = "gains 2.5 g fat while protein and 38 kcal"
+    assert validate(reply, facts).ok
+    assert not validate(reply, FactSet(deltas=facts.deltas)).ok
+
+
+def test_a_count_after_a_direction_verb_is_not_bound() -> None:
+    assert validate("The swap adds 2 servings", FactSet(count={Decimal(2)})).ok
+
+
+def test_a_range_after_a_direction_verb_is_not_bound() -> None:
+    facts = FactSet(energy={Decimal(559), Decimal(587)})
+    assert validate("Energy rises by 559 to 587 kcal", facts).ok
+
+
 def test_trailing_direction_word_wins_over_a_leading_verb() -> None:
     facts = _changes(("mass", 5))
     assert validate("It drops 5 g more", facts).ok
