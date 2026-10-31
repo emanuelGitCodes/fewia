@@ -122,9 +122,11 @@ Converse request does not change. Setting only one is a configuration error.
 Then recreate `api` and `worker` as in the credentials steps above. The
 guardrail adds a per-text-unit charge.
 
-A policy edit needs a new guardrail version. After the owner deploys it,
-update `FEWIA_BEDROCK_GUARDRAIL_VERSION` to the new `GuardrailVersion`
-output and recreate `api` and `worker`.
+A policy edit produces a new guardrail version on deploy. The version
+description is `policy <digest>`, a SHA-256 prefix over the topics, filters,
+and blocked messages, so any policy change replaces the version. After the
+owner deploys, read the `GuardrailVersion` output, update
+`FEWIA_BEDROCK_GUARDRAIL_VERSION` to it, and recreate `api` and `worker`.
 
 ## Local ignored `.env`
 

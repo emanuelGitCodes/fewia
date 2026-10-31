@@ -1,6 +1,9 @@
 """Development IAM role for nonstreaming Bedrock Converse."""
 
+import hashlib
+import json
 import re
+from typing import Any
 
 from aws_cdk import CfnOutput, Duration, Environment, Stack, Tags
 from aws_cdk import aws_bedrock as bedrock
@@ -58,6 +61,17 @@ _FILTERS = {kind: ("MEDIUM", "MEDIUM") for kind in _STANDARD} | {
 }
 
 
+def policy_digest(
+    topics: dict[str, Any] = _TOPICS,
+    filters: dict[str, Any] = _FILTERS,
+    blocked: str = _BLOCKED,
+) -> str:
+    """Return 12 hex chars identifying the guardrail policy."""
+    policy = {"topics": topics, "filters": filters, "in": blocked, "out": blocked}
+    dump = json.dumps(policy, sort_keys=True)
+    return hashlib.sha256(dump.encode()).hexdigest()[:12]
+
+
 class BedrockChatStack(Stack):
     def __init__(
         self,
@@ -112,6 +126,7 @@ class BedrockChatStack(Stack):
             self,
             "GuardrailVersionResource",
             guardrail_identifier=guardrail.attr_guardrail_id,
+            description=f"policy {policy_digest()}",
         )
         role = iam.Role(
             self,
