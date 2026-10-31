@@ -26,7 +26,7 @@ The completed fixture and live batches each contain 138 records: 90 primary, 33 
 
 ## Run the CLI
 
-Use the checkout at source revision `4b877d470258561cedd3375e38efc02362ce5f22` for this replay example. Configure Bedrock access outside the command. Keep credentials out of source, model inputs, and logs.
+Use the checkout at source revision `4b877d470258561cedd3375e38efc02362ce5f22` for this replay example. The archived corpus is `grocery-eval-v1`; the current matrix accepts only `grocery-eval-v1.1` (decision 0024), so this replay works only at that revision. Configure Bedrock access outside the command. Keep credentials out of source, model inputs, and logs.
 
 ```sh
 cd backend

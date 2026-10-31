@@ -2,7 +2,8 @@
 
 - Date: 2026-10-30
 - Status: accepted
-- Follows: [0023](0023-retire-instacart-adapter.md)
+- Follows: [0023](0023-retire-instacart-adapter.md). Amends its first rule: the
+  notice change edits the corpus and the matrix version check.
 
 ## Decision
 

@@ -739,7 +739,7 @@ Spoonacular pull request 2.7 is gone.
 | 4b.1 | `kroger_customer_tokens` migration with Fernet encryption; connect and callback endpoints; `state` nonce | 150 |
 | 4b.2 | Refresh on use; Profile call; "Connect Kroger" and "Disconnect" in the plan panel | 120 |
 | 4b.3 | Cart preview and send on user click; the API `PUT /v1/cart/add`; outcome-unknown handling on timeout. No model tool and no stored row (see below). | 150 |
-| 4b.4 | Retire Instacart. Built under decision 0023 with the scope "retire adapter, keep suite": removed `api/handoff.py`, the handoff UI, `instacart_key_file`, the `instacart_configured` flag, and the HTTP client in `providers/instacart.py`. Kept the exceptions, `validate_link_url`, the handoff services, and the `shopping_handoffs` table, which the frozen suite uses. The notice change stays open under D13. | deletions |
+| 4b.4 | Retire Instacart. Built under decision 0023 with the scope "retire adapter, keep suite": removed `api/handoff.py`, the handoff UI, `instacart_key_file`, the `instacart_configured` flag, and the HTTP client in `providers/instacart.py`. Kept the exceptions, `validate_link_url`, the handoff services, and the `shopping_handoffs` table, which the frozen suite uses. The notice change shipped under decision 0024 (D13). | deletions |
 
 PR 4b.3 replaces the `propose_cart` tool in section 6.4. A
 `cart_proposals` row of UPC, label, and cents is a stored copy of Kroger
@@ -757,10 +757,10 @@ owner chose a click-only flow on 2026-10-30:
   Kroger cart before you retry" and shows a retry button. The API never
   replays the add.
 
-PR 4b.4 changes the estimate notice, which names Instacart, and the claim
-parser `_ATOMIC` in `backend/app/evaluation_claim_propositions.py` (section
-7, rule 3). That changes claim scoring on `grocery-eval-v1`. The owner
-deferred 4b.4 until after phase 5 on 2026-10-30.
+The estimate notice named Instacart, and the claim parser `_ATOMIC` in
+`backend/app/evaluation_claim_propositions.py` keys on it (section 7, rule
+3). Decision 0023 retired the adapter after phase 5. Decision 0024 changed
+the notice and labeled the corpus `grocery-eval-v1.1`.
 
 Owner decisions for this layer:
 
@@ -797,7 +797,8 @@ Owner decisions for this layer:
   `SAMPLE_ESTIMATE_NOTICE` in `grocery.py`, the parser `_ATOMIC` entry, the
   frontend constant, `.codex/project-context.md`, and `docs/EVALUATION.md`
   together. An evaluation batch after that change does not compare with
-  one before it.
+  one before it. Built under decision 0024 with the wording "Store prices,
+  availability, taxes, delivery fees, and tips are not verified."
 
 Risks specific to this layer: the Acceptable Use Policy is unread; the
 Products nutrition field is unverified; Certification data may differ from
@@ -1028,8 +1029,8 @@ Deferred, with the reason:
   after the phase 5 grounding scorer. Nine evaluation modules score the
   current refusal path, and a trimmed prompt needs a measured batch.
 - PR 4.3 (memory past eight turns): until a live check shows the gap.
-- PR 4b.4 (retire Instacart): after phase 5, because it changes claim
-  scoring on `grocery-eval-v1`.
+- PR 4b.4 (retire Instacart): built after phase 5 under decisions 0023 and
+  0024.
 
 Phase 5 decision (owner, 2026-10-30): the conversation scenarios form a
 separate suite. The frozen `grocery-eval-v1` corpus keeps its 30 scenarios

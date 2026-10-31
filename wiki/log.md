@@ -4545,3 +4545,12 @@ approves new wording.
 Gates on the stack: backend 11,048 passed; frontend lint, tests, and build
 passed. `claude-opus-5-5` approved each code item on its reviewed head.
 Grounding stays near 25% and needs a different design.
+
+[Decision 0024](decisions/0024-store-neutral-estimate-notice.md) sets the
+notice to "Estimated from the demo price catalog. Store prices,
+availability, taxes, delivery fees, and tips are not verified." The
+benchmark corpus becomes `grocery-eval-v1.1` with the same 30 scenarios and
+138 slots. The corpus hash and the baseline system prompt hash change; the
+chat `SYSTEM_PROMPT` and the conversation corpus do not. Archived results
+and course evidence are unchanged. Gates at `28ff010`: backend 11,050
+passed; frontend lint, tests, and build passed.

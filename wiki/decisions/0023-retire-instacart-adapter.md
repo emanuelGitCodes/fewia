@@ -31,8 +31,9 @@ wording (design decision D13).
 
 ## Rules
 
-- No file in `backend/app/evaluation_*.py` or `backend/tests/evaluation/`
-  changes.
+- The adapter retirement changes no file in `backend/app/evaluation_*.py`
+  or `backend/tests/evaluation/`. Decision 0024 later changes the notice in
+  the corpus and the matrix version check.
 - Production code MUST NOT call an Instacart API.
 
 ## Basis
