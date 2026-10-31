@@ -631,7 +631,11 @@ def test_tool_input_leak_and_provider_error_are_redacted() -> None:
 
 def test_ordinary_failure_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     def broken_answer(
-        candidate: dict[str, object] | None, error: dict[str, object] | None
+        candidate: dict[str, object] | None,
+        tool_error: dict[str, object] | None = None,
+        discovery: dict[str, object] | None = None,
+        *,
+        meal_type: bool = False,
     ) -> str:
         raise RuntimeError(f"{MARKER} {PRIVATE}")
 
@@ -797,7 +801,11 @@ def test_returned_result_leak_is_detected_when_capture_scan_fails(
         raise ValueError(PRIVATE)
 
     def leaking_answer(
-        candidate: dict[str, object] | None, error: dict[str, object] | None
+        candidate: dict[str, object] | None,
+        tool_error: dict[str, object] | None = None,
+        discovery: dict[str, object] | None = None,
+        *,
+        meal_type: bool = False,
     ) -> str:
         return MARKER
 
