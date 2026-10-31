@@ -154,8 +154,8 @@ Unsupported numbers fell from 59 to 49. The remaining rejections are
 ## Out of scope
 
 - The guardrail (3.4). C09 gave diabetes diet advice that passed the
-  validator. `forbidden_claim` caught 2 or 3 replies per batch. This design
-  does not change that class.
+  validator. Decision 0025 adds the `medical_claim` check and an optional
+  Bedrock guardrail for that class.
 - Section 4.6 says the context block carries the last two turns' facts.
   The built context carries `previous_request` and text history only. This
   design keeps it that way: only this turn's facts are numbered.

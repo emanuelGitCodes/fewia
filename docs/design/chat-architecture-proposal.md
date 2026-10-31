@@ -978,7 +978,7 @@ every number checked.
 | 3.1 | Validator: token extraction, fact matching, forbidden phrases, notice check | 150 |
 | 3.2 | Loop: final prose turn after the tool batch, validator gate, fallback, trace reason | 120 |
 | 3.3 | `decline` tool; remove the JSON refusal protocol; persona prompt | 90 |
-| 3.4 | Provider: optional `guardrailConfig`; map `guardrail_intervened` to a decline | 70 |
+| 3.4 | Provider: optional `guardrailConfig`; map `guardrail_intervened` to a decline. Built under decision 0025, with a validator `medical_claim` check and the guardrail in the CDK stack. | 70 |
 | 3.5 | Reasoning off on the prose turn; `cachePoint` on the system block | 60 |
 
 Delete or replace: `render_public_answer` and `CLARIFICATION` as the default
@@ -1025,8 +1025,8 @@ The work items differ from the pull request rows above:
 
 Deferred, with the reason:
 
-- PR 3.3 (`decline` tool) and the prompt trim, and PR 3.4 (guardrail):
-  after the phase 5 grounding scorer. Nine evaluation modules score the
+- PR 3.3 (`decline` tool) and the prompt trim: after the phase 5 grounding
+  scorer. PR 3.4 (guardrail) is built under decision 0025. Nine evaluation modules score the
   current refusal path, and a trimmed prompt needs a measured batch.
 - PR 4.3 (memory past eight turns): until a live check shows the gap.
 - PR 4b.4 (retire Instacart): built after phase 5 under decisions 0023 and
