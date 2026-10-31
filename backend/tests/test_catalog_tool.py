@@ -12,6 +12,7 @@ from app.agent.catalog_tool import (
     TOOL_NAME,
     CatalogToolError,
     catalog_answer,
+    catalog_choices,
     catalog_tool_spec,
     execute_catalog_search,
 )
@@ -37,6 +38,33 @@ TAG_TYPES = [
     "vegetarian",
     "vegan",
 ]
+
+
+def test_catalog_choices_returns_ids_of_a_rechecked_ok_payload() -> None:
+    payload = execute_catalog_search({"query": "lentils"})
+    assert payload["status"] == "ok"
+    assert catalog_choices(payload) == payload["recipe_ids"]
+    assert catalog_choices(payload) is not payload["recipe_ids"]
+
+
+def test_catalog_choices_is_empty_for_a_forged_payload() -> None:
+    payload = execute_catalog_search({"query": "lentils"})
+    extra = next(r for r in SUPPORTED_RECIPE_IDS if r not in payload["recipe_ids"])
+    ids = cast(list[str], payload["recipe_ids"])
+    forged_ids = {**payload, "recipe_ids": [*ids, extra]}
+    forged_applied = {**payload, "applied": ["vegan"]}
+    assert catalog_choices(forged_ids) == []
+    assert catalog_choices(forged_applied) == []
+    assert catalog_choices({**payload, "request": "x"}) == []
+    assert catalog_choices({}) == []
+
+
+def test_catalog_choices_is_empty_unless_the_status_is_ok() -> None:
+    for query in ("keto", SENTINEL):
+        payload = execute_catalog_search({"query": query})
+        assert payload["status"] != "ok"
+        assert catalog_choices(payload) == []
+    assert catalog_choices({**payload, "status": "ok"}) == []
 
 
 def protein_mg(rid: str) -> int:

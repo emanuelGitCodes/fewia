@@ -11,7 +11,7 @@ from app.agent.budget_tool import (
     budget_summary_answer,
     budget_tool_spec,
 )
-from app.agent.catalog_tool import DISCOVERY_ERROR, catalog_tool_spec
+from app.agent.catalog_tool import DISCOVERY_ERROR, catalog_choices, catalog_tool_spec
 from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
@@ -334,7 +334,12 @@ def run_chat(
         plan: dict[str, object] | None,
         reply_source: str = "template",
         reply_check: dict[str, object] | None = None,
+        public: bool = False,
     ) -> dict[str, object]:
+        # Only a public answer holds the catalog reply that rest() renders.
+        shown = (
+            public and catalog_batch and discovery is not None and not discovery_failed
+        )
         if pending_results is not None and observe_terminal_tool_results is not None:
             observe_terminal_tool_results(pending_results)
         result = msgs.build_chat_result(
@@ -348,6 +353,7 @@ def run_chat(
             reply_source=reply_source,
             reply_check=reply_check,
             proposal_id=proposal_id,
+            choices=catalog_choices(discovery) if shown and discovery else None,
         )
         result["usage"] = usage
         return result
@@ -403,9 +409,12 @@ def run_chat(
                 ):
                     gate = "not_final"
                 if not model_prose:
-                    return out(status, answer(), candidate)
+                    return out(status, answer(), candidate, public=True)
                 if gate is not None:
-                    return out(status, answer(), candidate, "template", {"gate": gate})
+                    shown_gate = {"gate": gate}
+                    return out(
+                        status, answer(), candidate, "template", shown_gate, True
+                    )
                 verdict = grounding.validate(
                     text, grounding.facts_from_payloads(run_payloads)
                 )
@@ -416,7 +425,7 @@ def run_chat(
                     "gate": "clean",
                 }
                 if not verdict.ok:
-                    return out(status, answer(), candidate, "template", check)
+                    return out(status, answer(), candidate, "template", check, True)
                 reply = grounding.normalize(text).strip()
                 stale = budget.stale or any(_has_stale(p) for _, p in run_payloads)
                 if stale and STALE_SPENDING_WARNING not in reply:
@@ -514,7 +523,7 @@ def run_chat(
             return out("limit", _LIMIT, None, "template", why("limit"))
         if batch_ok and candidate is not None and _end_status(candidate) == "planned":
             reason = why("planned_terminal")
-            return out("planned", answer(), candidate, "template", reason)
+            return out("planned", answer(), candidate, "template", reason, True)
         if (
             batch_ok
             and candidate is None
@@ -524,5 +533,5 @@ def run_chat(
             and discovery is not None
         ):
             reason = why("discovery_terminal")
-            return out("clarification", answer(), None, "template", reason)
+            return out("clarification", answer(), None, "template", reason, True)
     return out("limit", _LIMIT, None, "template", why("limit"))

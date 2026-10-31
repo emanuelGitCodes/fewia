@@ -349,7 +349,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     }
 
 
-def catalog_answer(payload: dict[str, object]) -> str:
+def _revalidated(payload: dict[str, object]) -> dict[str, object] | None:
     request = payload.get("request")
     unresolved = payload.get("unresolved_exclusions")
     if (
@@ -362,8 +362,20 @@ def catalog_answer(payload: dict[str, object]) -> str:
     try:
         validated = execute_catalog_search(request)
     except CatalogToolError:
-        return DISCOVERY_ERROR
-    if payload != validated:
+        return None
+    return validated if payload == validated else None
+
+
+def catalog_choices(payload: dict[str, object]) -> list[str]:
+    validated = _revalidated(payload)
+    if validated is None or validated["status"] != "ok":
+        return []
+    return list(cast(list[str], validated["recipe_ids"]))
+
+
+def catalog_answer(payload: dict[str, object]) -> str:
+    validated = _revalidated(payload)
+    if validated is None:
         return DISCOVERY_ERROR
     if validated["status"] == "unknown_exclusion":
         return _UNKNOWN_EXCLUSION

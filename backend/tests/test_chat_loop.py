@@ -31,6 +31,7 @@ from app.agent.catalog_tool import (
 from app.agent.chat_answer import (
     _UNKNOWN_RESTRICTION,
     CLARIFICATION,
+    TYPE_CLARIFICATION,
     render_public_answer,
 )
 from app.agent.chat_dispatch import EvidenceRecorder
@@ -66,6 +67,7 @@ from app.agent.substitute_tool import (
 )
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
+from app.evaluation_shapes import valid_public_result
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
 from app.domain.plan_revision import PlanRevisionInput
@@ -3484,6 +3486,92 @@ def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
     assert "hidden-discovery" not in dumped
     assert "injected-model-prose" not in dumped
     assert "reasoningContent" not in dumped
+
+
+def test_a_search_reply_carries_the_checked_choices() -> None:
+    expected = execute_catalog_search({"query": "lentils"})
+    ids = cast(list[str], expected["recipe_ids"])
+    assert expected["status"] == "ok" and ids
+    replies = [
+        _reply(
+            [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "lentils"})],
+            "tool_use",
+        )
+    ]
+    result, _ = _run(replies, message="lentil meals")
+    assert result["choices"] == [{"recipe_id": rid} for rid in ids]
+    assert result["answer"] == catalog_answer(expected)
+    assert valid_public_result(result)
+
+
+def test_a_search_with_text_after_it_keeps_the_choices() -> None:
+    expected = execute_catalog_search({"query": "lentils"})
+    replies = [
+        _reply(
+            [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "lentils"})],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, _ = _run(replies, message="lentil meals")
+    assert result["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
+
+
+@pytest.mark.parametrize("query", ["keto", "zqxsentinel"])
+def test_a_search_without_choices_has_no_choices_key(query: str) -> None:
+    replies = [
+        _reply(
+            [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": query})],
+            "tool_use",
+        )
+    ]
+    result, _ = _run(replies, message="meals")
+    assert "choices" not in result
+    assert valid_public_result(result)
+
+
+def test_planner_and_limit_results_have_no_choices() -> None:
+    planned, _ = _run(_planner_then_final())
+    assert planned["status"] == "planned"
+    plain, _ = _run([_reply([_text_block("hi")], "end_turn")])
+    limit, _ = _run(
+        [_reply([_tool_block(f"p{i}", payload={})], "tool_use") for i in range(5)]
+    )
+    assert limit["status"] == "limit"
+    for result in (planned, plain, limit):
+        assert "choices" not in result
+
+
+def _typed_batch_run(message: str) -> str:
+    bad_plan = plan_args(meals=[{"recipe_id": "not_a_catalog_meal", "servings": 2}])
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "keto"}),
+                _tool_block("p1", payload=bad_plan),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, _ = _run(replies, message=message)
+    assert "choices" not in result
+    return str(result["answer"])
+
+
+def test_a_typed_catalog_batch_with_an_unsupported_recipe_names_no_recipe() -> None:
+    answer = _typed_batch_run("keto dinner")
+    assert TYPE_CLARIFICATION in answer
+    assert "That recipe is not in the catalog." in answer
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        assert recipe_id.replace("_", " ") not in answer
+    assert "Examples:" not in answer
+
+
+def test_a_catalog_batch_with_an_unsupported_recipe_gives_examples_otherwise() -> None:
+    answer = _typed_batch_run("plan pad thai for 2")
+    assert "Examples:" in answer
+    assert TYPE_CLARIFICATION not in answer
 
 
 @pytest.mark.parametrize("discovery_position", [0, 1, 2])
