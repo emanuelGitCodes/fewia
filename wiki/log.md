@@ -4518,3 +4518,30 @@ local and ignored under `graphify-out/`.
 
 Semantic token usage and dollar cost are unavailable. AST extraction uses
 no LLM. The graph refresh does not merge or deploy PR 460.
+
+## 2026-10-30 — PR 460: conversation batches, grounding fix, Instacart retired
+
+Two live Nova 2 Lite batches ran on `conversation-eval-v1` (12 scenarios,
+3 repeats, 66 turns), each with owner approval. At `95cfbea` the validator
+accepted 9 of 36 prose replies (0.25). At `cec2719` it accepted 8 of 33
+(0.24). p50 latency was 4.6 s and 3.9 s, so streaming is not needed. Cost
+was USD 0.0057 and 0.0052 per turn. The records hold hashes, not reply text.
+
+A 14-turn diagnostic printed rejected replies to the terminal only. It
+found 3 model errors, 1 validator gap, 2 rejections by design, and 1 echo of
+the user's words. p6-01 binds a direction word to an unsigned change
+("2.5 g more fat" matches +2.5 g). p6-02 added prose rules to the system
+prompt. The second batch showed no gain, and C11 turn 1 called the planner
+in 3 of 3 repeats, so the owner reverted p6-02 at `6fcd898`.
+
+[Decision 0023](decisions/0023-retire-instacart-adapter.md) retires the
+Instacart adapter and keeps the frozen `grocery-eval-v1` suite. The handoff
+routes, the frontend handoff controls, `instacart_key_file`, the
+`instacart_configured` flag, and the HTTP client are gone. The handoff
+services stay with the frozen suite as their only caller. The estimate
+notice still names Instacart; a later item changes it after the owner
+approves new wording.
+
+Gates on the stack: backend 11,048 passed; frontend lint, tests, and build
+passed. `claude-opus-5-5` approved each code item on its reviewed head.
+Grounding stays near 25% and needs a different design.

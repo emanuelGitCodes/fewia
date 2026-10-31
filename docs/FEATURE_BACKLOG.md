@@ -125,7 +125,7 @@ catalog coverage. Retired health and activity planning remains historical.
 | Nutrition | USDA FoodData Central facts per meal and per plan. Live Kroger price on the chat read, never stored. | decisions 0010 and 0016; proposal D6 |
 | Jobs | PostgreSQL jobs, outbox, leases, duplicate-delivery handling, dead letters, evidence revisions. Floci queues `fewia-sync` and `fewia-agent` with dead-letter queues, bucket `fewia-eval`. | `backend/app/services/`, `infra/floci_bootstrap.py` |
 | Providers | `BedrockConverseProvider` for us-east-1 and us-west-2, active only when `FEWIA_BEDROCK_MODEL_ID` is set. `PlaidSandboxProvider` and `sync_item`. `InstacartDevelopmentProvider` with `POST /grocery/handoffs`, `GET`, and `/retry`, hidden in the UI unless `instacart_configured`. | `backend/app/providers/`, `backend/app/api/handoff.py` |
-| Frontend | App, BudgetForm, Conversation, ChatPanel, ChatWorkspace, Estimate, Nutrition, TemplatePicker, HandoffControls (hidden). Manual-plan to chat context transfer. | `frontend/src/`, 492 tests |
+| Frontend | App, BudgetForm, Conversation, ChatPanel, ChatWorkspace, Estimate, Nutrition, TemplatePicker. Manual-plan to chat context transfer. | `frontend/src/`, 492 tests |
 | Evaluation components | 60 `evaluation_*.py` modules plus `evaluate.py`: inputs, manifest, capture, adversarial scenarios, fault provider, plan facts and scoring, claim scoring, outcome scoring, refusal actions, telemetry, cost, matrix, summaries, model and no-tool observers, duplicate and handoff and refresh drivers, SQLite evidence, JSON output. | `backend/app/evaluation_*.py` |
 | Legacy runner | `run_evaluation` scores the deterministic groups: 42 scored, 48 unassessed. | `backend/app/evaluation_runner.py` |
 | Live benchmark | Two 138-slot live batches on Nova 2 Lite with archived artifacts and SHA-256 manifests. The fresh batch reports task 25/33 and claims 109/112. Release is not certified. | `eval/results/artifacts/benchmark-20261003/`, `eval/results/artifacts/benchmark-20261005/` |
@@ -321,7 +321,7 @@ Every grocery estimate MUST show this exact notice:
 - **Add `gpt-6-astra` to the writer ladder** in [docs/DELEGATION.md](DELEGATION.md) and `docs/DEV_SUPERVISOR.md` before a writer run names it. Owner decision.
 - **Secret scanning and push protection.** Gitleaks runs in pre-commit and in the `Secrets` workflow since #396. The GitHub repository setting is separate. The owner turns it on. The repository API did not return the `security_and_analysis` field to this token on 2026-10-05, so the setting is unverified from the CLI.
 - **Renew the AWS MFA session** before G3 and before any F2 step. Owner action. `infra/bedrock_session.py` renews it. The G3 wrapper exits 3 on an expired session before any provider call.
-- **Instacart handoff.** Parked until the Instacart Developer Platform reopens. C4 built the flow against a fixture only.
+- **Instacart handoff.** Retired by [decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md). The frozen suite keeps a fixture handoff scenario (P02).
 - **Health-era Phases 4 to 9** in `project-plan.md`. Historical. Do not resume.
 - **Comparison tool** from decision 0012. Build only after a measured need.
 - **Broader browser scope** from B4. Open, no owner yet.
