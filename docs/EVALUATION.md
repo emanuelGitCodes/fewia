@@ -20,7 +20,7 @@ Every grocery estimate MUST show this notice:
 
 [`run_evaluation`](../backend/app/evaluation_runner.py) remains a fixture-only legacy API. Its earlier component smoke recorded 42 scored passes and 48 unassessed slots. Those counts are historical component evidence, not the completed batch's live quality.
 
-[`prepare_matrix`](../backend/app/evaluation_matrix.py) validates the finite `grocery-eval-v1.1` corpus and returns isolated execution slots. It does not execute them.
+[`prepare_matrix`](../backend/app/evaluation_matrix.py) validates the finite `grocery-eval-v1.1` corpus (decision 0024) and returns isolated execution slots. It does not execute them.
 
 The completed fixture and live batches each contain 138 records: 90 primary, 33 `no_tool`, and 15 structured references. The live batch contains 66 real model observations. Its other records remain fixture or local PostgreSQL evidence. See the [readout](../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) and [live integrity record](../eval/results/artifacts/benchmark-20261003/live-integrity.json).
 
@@ -104,7 +104,7 @@ uv run python -m app.evaluate \
 
 ## Conversation suite (`conversation-eval-v1`)
 
-The conversation suite is separate from the benchmark above (owner decision, 2026-10-30). The benchmark corpus (`grocery-eval-v1.1`) keeps its 30 scenarios, and its batch keeps 138 slots. The benchmark CLI accepts only Nova 2 Lite.
+The conversation suite is separate from the benchmark above (owner decision, 2026-10-30). The benchmark corpus (`grocery-eval-v1.1`, decision 0024) keeps its 30 scenarios, and its batch keeps 138 slots. The benchmark CLI accepts only Nova 2 Lite.
 
 - **Corpus.** [`conversation.json`](../backend/tests/evaluation/conversation.json) holds 12 scenarios (C01 to C12), 22 turns in all, with three repeats: substitutions, a follow-up, a false premise, a budget question, a proposal and an apply, off-topic and medical requests, a prompt injection, a nine-turn thread, and a purchase-override attempt. A test regenerates every gold value from the deterministic tools.
 - **Runner.** [`evaluation_conversation.py`](../backend/app/evaluation_conversation.py) runs `run_chat` with validated model prose on, an in-memory plan revision, and a stub `propose`. Nothing writes the database.
