@@ -87,14 +87,10 @@ def catalog_tool_spec() -> dict[str, object]:
         "toolSpec": {
             "name": TOOL_NAME,
             "description": (
-                "Search catalog meals by free text, such as a meal, ingredient, "
-                "or tag. Returns up to three recipe IDs and the words that "
-                "matched nothing. max_cents_per_serving is the sample grocery "
-                "cost for one serving, in whole packages. "
-                "tags filter: every returned meal has every tag. "
-                "Put exclusions in exclude, not query. "
-                "Not for a meal the user names or has in the plan. "
-                "Ask before planning an alternative; plan_groceries validates."
+                "max_cents_per_serving: sample grocery cost for one serving, "
+                "in whole packages. Tags and query types are ANDed; "
+                "exclusions go in exclude. "
+                "Not for named/planned meals; plan_groceries validates."
             ),
             "inputSchema": {
                 "json": {
@@ -105,7 +101,6 @@ def catalog_tool_spec() -> dict[str, object]:
                         "tags": {
                             "type": "array",
                             "uniqueItems": True,
-                            "maxItems": 10,
                             "items": {"type": "string", "enum": list(_FACETS)},
                         },
                         "exclude": {

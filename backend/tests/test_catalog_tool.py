@@ -82,14 +82,15 @@ def test_schema_is_bounded() -> None:
         "max_cents_per_serving",
         "limit",
     }
-    assert properties["tags"]["maxItems"] == 10
+    assert "maxItems" not in properties["tags"]
     assert properties["tags"]["uniqueItems"] is True
     assert cast(dict[str, object], properties["tags"]["items"])["enum"] == [
         *TAG_ORDER,
         "vegetarian",
         "vegan",
     ]
-    assert "every returned meal has every tag" in cast(str, spec["description"])
+    assert "Tags and query types are ANDed" in cast(str, spec["description"])
+    assert "exclusions go in exclude" in cast(str, spec["description"])
     assert properties["query"]["maxLength"] == 120
     assert properties["exclude"]["maxItems"] == 22
     assert properties["limit"]["maximum"] == 3
