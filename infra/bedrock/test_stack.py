@@ -7,7 +7,7 @@ import pytest
 from aws_cdk import App, Environment
 from aws_cdk.assertions import Template
 
-from stack import _TOPICS, BedrockChatStack, policy_digest
+from stack import BedrockChatStack, guardrail_topics, policy_digest
 
 _ACCOUNT = "111122223333"
 _OTHER_ACCOUNT = "999999999999"
@@ -326,13 +326,21 @@ def test_guardrail_version_description_carries_policy_digest() -> None:
 def test_policy_digest_changes_with_topic_definition() -> None:
     digest = policy_digest()
     assert re.fullmatch(r"[0-9a-f]{12}", digest)
-    changed = copy.deepcopy(_TOPICS)
-    name = next(iter(changed))
-    definition, examples = changed[name]
-    changed[name] = (f"{definition} Changed.", examples)
+    changed = copy.deepcopy(guardrail_topics())
+    changed[0]["definition"] = f"{changed[0]['definition']} Changed."
     other = policy_digest(topics=changed)
     assert re.fullmatch(r"[0-9a-f]{12}", other)
     assert other != digest
+    assert policy_digest() == digest
+
+
+def test_policy_digest_changes_with_topic_input_enabled() -> None:
+    digest = policy_digest()
+    changed = copy.deepcopy(guardrail_topics())
+    medical = next(item for item in changed if item["name"] == "MedicalAdvice")
+    assert medical["input_enabled"] is False
+    medical["input_enabled"] = True
+    assert policy_digest(topics=changed) != digest
     assert policy_digest() == digest
 
 

@@ -61,13 +61,42 @@ _FILTERS = {kind: ("MEDIUM", "MEDIUM") for kind in _STANDARD} | {
 }
 
 
+def guardrail_topics() -> list[dict[str, Any]]:
+    """Return the guardrail topic policy as plain data."""
+    return [
+        {
+            "name": name,
+            "definition": definition,
+            "examples": list(examples),
+            "type": "DENY",
+            "input_enabled": name != "MedicalAdvice",
+            "output_enabled": True,
+        }
+        for name, (definition, examples) in _TOPICS.items()
+    ]
+
+
+def guardrail_filters() -> list[dict[str, Any]]:
+    """Return the guardrail content filter policy as plain data."""
+    return [
+        {"type": kind, "input_strength": inp, "output_strength": out}
+        for kind, (inp, out) in _FILTERS.items()
+    ]
+
+
 def policy_digest(
-    topics: dict[str, Any] = _TOPICS,
-    filters: dict[str, Any] = _FILTERS,
-    blocked: str = _BLOCKED,
+    topics: list[dict[str, Any]] | None = None,
+    filters: list[dict[str, Any]] | None = None,
+    blocked_input: str = _BLOCKED,
+    blocked_output: str = _BLOCKED,
 ) -> str:
     """Return 12 hex chars identifying the guardrail policy."""
-    policy = {"topics": topics, "filters": filters, "in": blocked, "out": blocked}
+    policy = {
+        "topics": guardrail_topics() if topics is None else topics,
+        "filters": guardrail_filters() if filters is None else filters,
+        "in": blocked_input,
+        "out": blocked_output,
+    }
     dump = json.dumps(policy, sort_keys=True)
     return hashlib.sha256(dump.encode()).hexdigest()[:12]
 
@@ -102,23 +131,14 @@ class BedrockChatStack(Stack):
             blocked_outputs_messaging=_BLOCKED,
             topic_policy_config=bedrock.CfnGuardrail.TopicPolicyConfigProperty(
                 topics_config=[
-                    bedrock.CfnGuardrail.TopicConfigProperty(
-                        name=name,
-                        definition=definition,
-                        examples=examples,
-                        type="DENY",
-                        input_enabled=name != "MedicalAdvice",
-                        output_enabled=True,
-                    )
-                    for name, (definition, examples) in _TOPICS.items()
+                    bedrock.CfnGuardrail.TopicConfigProperty(**topic)
+                    for topic in guardrail_topics()
                 ]
             ),
             content_policy_config=bedrock.CfnGuardrail.ContentPolicyConfigProperty(
                 filters_config=[
-                    bedrock.CfnGuardrail.ContentFilterConfigProperty(
-                        type=kind, input_strength=inp, output_strength=out
-                    )
-                    for kind, (inp, out) in _FILTERS.items()
+                    bedrock.CfnGuardrail.ContentFilterConfigProperty(**item)
+                    for item in guardrail_filters()
                 ]
             ),
         )
