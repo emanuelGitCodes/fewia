@@ -45,7 +45,7 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
 
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     ids = [s.id for s in corpus.scenarios]
-    assert len(ids) == 12
+    assert len(ids) == 18
     assert [row["scenario_id"] for row in report["scenarios"]] == ids
     assert report["counts"]["turns_recorded"] == expected
     assert report["manifest"]["evidence_class"] == "deterministic_fake_provider"

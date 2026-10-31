@@ -54,7 +54,7 @@ def _turn(data: Json, scenario: int, turn: int = 0) -> Json:
 
 
 def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
-    assert corpus.version == "conversation-eval-v1"
+    assert corpus.version == "conversation-eval-v1.1"
     assert corpus.repeats == 3
     assert corpus.catalog_version == CATALOG_VERSION
     assert tuple(scenario.id for scenario in corpus.scenarios) == SCENARIO_IDS
@@ -176,7 +176,7 @@ _RULES: dict[str, Callable[[Json], None]] = {
     "version": _set([], "version", "grocery-eval-v1"),
     "repeats": _set([], "repeats", 2),
     "catalog_version": _set([], "catalog_version", "sample-prices-v1"),
-    "eleven_scenarios": _drop_last_scenario,
+    "seventeen_scenarios": _drop_last_scenario,
     "duplicate_id": _set(["scenarios", 1], "id", "C01"),
     "out_of_order": _swap_first_two,
     "unknown_recipe": _set(
@@ -195,7 +195,6 @@ _RULES: dict[str, Callable[[Json], None]] = {
         ["scenarios", 3, "turns", 1], "apply_proposal_before", True
     ),
     "apply_twice_for_one_proposal": _apply_twice_for_one_proposal,
-    "no_meals": _set(["scenarios", 0, "plan"], "meals", []),
     "four_meals": _set(["scenarios", 0, "plan"], "meals", _FOUR_MEALS),
     "plan_cap_not_in_plan": _set(["scenarios", 5, "plan"], "plan_cap_cents", None),
     "plan_cap_not_in_inputs": _set(["scenarios", 5, "inputs"], "plan_cap_cents", None),

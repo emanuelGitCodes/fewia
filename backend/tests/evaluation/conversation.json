@@ -1,5 +1,5 @@
 {
-  "version": "conversation-eval-v1",
+  "version": "conversation-eval-v1.1",
   "repeats": 3,
   "catalog_version": "sample-prices-v2",
   "scenarios": [
@@ -562,6 +562,199 @@
             "tools_forbidden": ["propose_plan_change", "plan_groceries"],
             "outcomes": ["clarification", "template"],
             "gold": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "C13",
+      "title": "Gluten-free meal type request",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "Plan a gluten-free dinner for 2.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "gluten-free dinner"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "gluten-free dinner"}, "path": "applied.0", "value": "gluten_free_ingredients"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C14",
+      "title": "Keto request maps to the lower-carb type",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "Anything keto for tonight?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "keto"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "keto"}, "path": "applied.0", "value": "lower_carb"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C15",
+      "title": "High-protein vegetarian request with two types",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "I want a high protein vegetarian meal.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "high protein vegetarian"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "high protein vegetarian"}, "path": "applied.0", "value": "high_protein"},
+              {"tool": "search_meals", "input": {"query": "high protein vegetarian"}, "path": "applied.1", "value": "vegetarian"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C16",
+      "title": "Cheap vegetarian dinner request",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "Find me a cheap vegetarian dinner.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "vegetarian dinner"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "vegetarian dinner"}, "path": "applied.0", "value": "vegetarian"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C17",
+      "title": "Dairy-free request the catalog cannot check",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "Do you have dairy-free meals?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "status", "value": "unsupported_facet"},
+              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "unsupported.0", "value": "dairy-free"}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C18",
+      "title": "Gluten-free request with a word no meal matches",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "Gluten-free pasta, please.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "dropped.0", "value": "pasta"}
+            ]
           }
         }
       ]
