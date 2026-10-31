@@ -12,6 +12,7 @@ from app.domain.meal_tags import (
     MEAL_TAGS,
     SEARCH_TERMS,
     TAG_ORDER,
+    UNCHECKED_DIET,
     _per_serving_grams,
     names_meal_type,
     normalize_term,
@@ -43,6 +44,15 @@ from app.domain.meal_tags import (
 )
 def test_names_meal_type(text: str, expected: bool) -> None:
     assert names_meal_type(text) is expected
+
+
+def test_unchecked_diet_finds_the_labels_and_the_resolver_splits_them() -> None:
+    text = "keto paleo dairy free nut-free plant based low fat"
+    found = [m.group().lower() for m in UNCHECKED_DIET.finditer(text)]
+    expected = ["keto", "paleo", "dairy free", "nut-free", "plant based", "low fat"]
+    assert found == expected
+    checkable = [term for term in found if resolve_meal_term(term) is not None]
+    assert checkable == ["keto", "plant based"]
 
 
 def test_thresholds_and_gluten_ingredients() -> None:

@@ -76,11 +76,20 @@ def test_schema_is_bounded() -> None:
     assert set(properties) == {
         "query",
         "diet",
+        "tags",
         "exclude",
         "min_protein_g",
         "max_cents_per_serving",
         "limit",
     }
+    assert properties["tags"]["maxItems"] == 10
+    assert properties["tags"]["uniqueItems"] is True
+    assert cast(dict[str, object], properties["tags"]["items"])["enum"] == [
+        *TAG_ORDER,
+        "vegetarian",
+        "vegan",
+    ]
+    assert "every returned meal has every tag" in cast(str, spec["description"])
     assert properties["query"]["maxLength"] == 120
     assert properties["exclude"]["maxItems"] == 22
     assert properties["limit"]["maximum"] == 3
@@ -123,12 +132,139 @@ def test_keto_and_low_carb_use_the_tag_with_note() -> None:
         assert KETO_NOTE in catalog_answer(payload)
 
 
-def test_meat_is_not_a_chicken_search() -> None:
-    payload = search("meat")
-    assert payload["status"] == "no_match"
-    assert payload["unmatched"] == ["meat"]
-    assert CARNIVORE_NOTE not in catalog_answer(payload)
-    assert search("carnivore")["status"] == "no_match"
+@pytest.mark.parametrize("query", ["meat", "carnivore"])
+def test_meat_and_carnivore_are_a_chicken_search(query: str) -> None:
+    payload = search(query)
+    assert payload["status"] == "ok"
+    assert payload["applied"] == ["chicken"]
+    assert payload["unmatched"] == []
+    assert ids(payload)
+    assert all("chicken" in MEAL_TAGS[rid] for rid in ids(payload))
+    assert CARNIVORE_NOTE in catalog_answer(payload)
+
+
+@pytest.mark.parametrize(
+    ("query", "texts"),
+    [
+        ("dairy free dinner", ["dairy free"]),
+        ("paleo", ["paleo"]),
+        ("nut-free lunch", ["nut-free"]),
+        ("paleo and dairy free", ["paleo", "dairy free"]),
+        ("keto dairy-free", ["dairy-free"]),
+    ],
+)
+def test_a_type_the_system_cannot_check_fails_closed(
+    query: str, texts: list[str]
+) -> None:
+    payload = search(query)
+    assert payload["status"] == "unsupported_facet"
+    assert payload["unsupported"] == texts
+    assert ids(payload) == []
+    answer = catalog_answer(payload)
+    assert answer == (
+        f"I cannot check {', '.join(texts)} in this catalog. I can search by: "
+        "high protein, lower carb, gluten-free ingredients, vegetarian, vegan, "
+        "chicken, egg, beans, lentils, or chickpeas."
+    )
+    assert "No catalog meal matches" not in answer
+
+
+def test_unknown_exclusion_is_checked_before_an_unsupported_type() -> None:
+    payload = search("paleo", exclude=["nightshades"])
+    assert payload["status"] == "unknown_exclusion"
+    assert payload["unsupported"] == ["paleo"]
+    assert "I could not match an ingredient to exclude" in catalog_answer(payload)
+
+
+def test_checkable_types_are_not_unsupported() -> None:
+    for query in ("keto", "plant based", "plant-based", "tacos"):
+        assert search(query)["unsupported"] == []
+    assert search("keto")["status"] == "ok"
+    assert "lower_carb" in cast(list[str], search("keto")["applied"])
+    assert search("plant-based")["applied"] == ["vegan"]
+
+
+def test_tags_are_hard_filters_and_echoed_in_order() -> None:
+    payload = search("dinner", tags=["high_protein", "vegetarian"])
+    both = [
+        rid
+        for rid in SUPPORTED_RECIPE_IDS
+        if "high_protein" in MEAL_TAGS[rid] and "vegetarian" in MEAL_DIETS[rid]
+    ]
+    assert payload["status"] == ("ok" if both else "no_match")
+    assert payload["applied"] == ["high_protein", "vegetarian"]
+    assert ids(payload) == both[:3]
+    vegan = search("dinner", tags=["vegan"])
+    assert vegan["status"] == "ok" and vegan["applied"] == ["vegan"]
+    assert all("vegan" in MEAL_DIETS[rid] for rid in ids(vegan))
+    request = cast(dict[str, object], payload["request"])
+    assert request["tags"] == ["high_protein", "vegetarian"]
+    reordered = search("dinner", tags=["vegetarian", "high_protein"])
+    assert reordered == payload
+    assert cast(dict[str, object], search("dinner")["request"])["tags"] == []
+
+
+def test_a_tag_joins_the_facets_found_in_the_query() -> None:
+    payload = search("chickpea", tags=["gluten_free_ingredients"], diet="vegan")
+    assert payload["applied"] == ["gluten_free_ingredients", "vegan"]
+    assert search("high protein", tags=["high_protein"])["applied"] == ["high_protein"]
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        ["paleo"],
+        ["vegan", "vegan"],
+        ["omnivore"],
+        [1],
+        [None],
+        ["vegan", 1],
+        "vegan",
+        None,
+        ["High_Protein"],
+        list(TAG_ORDER) + ["vegetarian", "vegan", "vegan"],
+    ],
+)
+def test_invalid_tags_fail(tags: object) -> None:
+    with pytest.raises(CatalogToolError, match="^arguments are invalid$"):
+        execute_catalog_search({"query": "dinner", "tags": tags})
+
+
+def test_every_tag_value_is_accepted_and_ten_tags_fit() -> None:
+    everything = [*TAG_ORDER, "vegetarian", "vegan"]
+    assert len(everything) == 10
+    payload = search("dinner", tags=everything)
+    request = cast(dict[str, object], payload["request"])
+    assert request["tags"] == everything
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"query": "dairy free dinner"},
+        {"query": "paleo"},
+        {"query": "nut-free lunch"},
+        {"query": "keto"},
+        {"query": "meat"},
+        {"query": "dinner", "tags": ["vegetarian", "high_protein"]},
+    ],
+)
+def test_answer_round_trips_from_the_request(arguments: dict[str, object]) -> None:
+    payload = execute_catalog_search(arguments)
+    assert execute_catalog_search(payload["request"]) == payload
+    assert catalog_answer(payload) == catalog_answer(
+        execute_catalog_search(payload["request"])
+    )
+    assert catalog_answer(payload) != DISCOVERY_ERROR
+
+
+def test_forged_unsupported_cannot_render_choices() -> None:
+    payload = search("paleo")
+    payload["unsupported"] = []
+    assert catalog_answer(payload) == DISCOVERY_ERROR
+    payload = search("egg")
+    payload["unsupported"] = ["paleo"]
+    assert catalog_answer(payload) == DISCOVERY_ERROR
 
 
 def test_chicken_adds_carnivore_note() -> None:
@@ -352,6 +488,7 @@ def test_request_is_normalized_and_revalidates() -> None:
     assert request == {
         "query": "egg chickpea",
         "diet": "vegan",
+        "tags": [],
         "exclude": ["olive_oil"],
         "min_protein_g": None,
         "max_cents_per_serving": None,
@@ -434,6 +571,28 @@ def test_every_returned_meal_has_every_applied_facet_and_text_word(diet: str) ->
             for rid in ids(payload):
                 assert all(has_facet(f, rid) for f in applied), (tag, word, rid)
                 assert all(catalog_tool._has_word(w, rid) for w in kept), (tag, word)
+
+
+@pytest.mark.parametrize("diet", ["omnivore", "vegetarian", "vegan"])
+def test_every_returned_meal_has_every_tag_and_text_word(diet: str) -> None:
+    facets = [*TAG_ORDER, "vegetarian", "vegan"]
+    for size in (1, 2):
+        for chosen in combinations(facets, size):
+            for word in INGREDIENT_WORDS[::7]:
+                payload = search(word, diet=diet, tags=list(chosen))
+                applied = cast(list[str], payload["applied"])
+                dropped = cast(list[str], payload["dropped"])
+                assert set(chosen) <= set(applied), (chosen, word)
+                assert applied == [f for f in facets if f in applied]
+                request = cast(dict[str, object], payload["request"])
+                assert request["tags"] == [f for f in facets if f in chosen]
+                kept = [] if catalog_tool._facet(word) or word in dropped else [word]
+                for rid in ids(payload):
+                    assert all(has_facet(f, rid) for f in applied), (chosen, word)
+                    assert all(catalog_tool._has_word(w, rid) for w in kept)
+                assert catalog_answer(payload) == catalog_answer(
+                    execute_catalog_search(request)
+                )
 
 
 def test_gluten_free_pasta_keeps_the_facet_and_drops_the_word() -> None:

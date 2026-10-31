@@ -76,7 +76,7 @@ def resolve_meal_term(value: str) -> str | None:
 
 _INGREDIENT_TAGS = frozenset({"chicken", "egg", "beans", "lentils", "chickpeas"})
 # Diet labels the system cannot check; the same vocabulary as grounding.py.
-_UNCHECKED_DIET = re.compile(
+UNCHECKED_DIET = re.compile(
     r"\b(?:keto|paleo|halal|kosher|plant[- ]?based"
     r"|(?:dairy|lactose|nut|egg|soy|sugar)[- ]?free"
     r"|low[- ]?(?:sodium|fat)|high[- ]?fiber)\b",
@@ -86,7 +86,7 @@ _WORD = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)*")
 
 
 def names_meal_type(text: str) -> bool:
-    if _UNCHECKED_DIET.search(text) is not None:
+    if UNCHECKED_DIET.search(text) is not None:
         return True
     words = _WORD.findall(text.lower())
     pairs = (f"{a} {b}" for a, b in zip(words, words[1:], strict=False))
