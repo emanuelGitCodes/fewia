@@ -188,6 +188,24 @@ def test_from_to_pair_without_recorded_basis(text: str, expected: bool) -> None:
     assert validate(text, _NO_BASIS_FACTS).ok == expected
 
 
+_MIXED_FACTS = facts_from_payloads(
+    [
+        ("get_meal", {"per_serving": {"energy_kcal": 2000}}),
+        ("what_if_substitute", _PAYLOAD),
+    ]
+)
+
+MIXED_BASIS_ROWS = [
+    ("Calories fell from 2000 kcal per serving to 1920.", False),
+    ("Calories fell from 2000 kcal to 1920 in total.", True),
+]
+
+
+@pytest.mark.parametrize(("text", "expected"), MIXED_BASIS_ROWS)
+def test_from_to_basis_needs_the_recorded_pair(text: str, expected: bool) -> None:
+    assert validate(text, _MIXED_FACTS).ok == expected
+
+
 @pytest.mark.parametrize("text", ADVERSARIAL)
 def test_adversarial_reply_validates_quickly(text: str) -> None:
     assert len(text) <= 1200
