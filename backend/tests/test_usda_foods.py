@@ -959,6 +959,24 @@ def test_cheddar_keeps_its_base_flags() -> None:
 def test_romano_beans_are_not_a_cheese() -> None:
     assert usda_foods._diet_flags("Beans, romano, raw", 11) == (True, True)
 
+
+@pytest.mark.parametrize(
+    ("description", "category"),
+    [
+        ("Tofu, raw, firm", 16),
+        ("Lentils, mature seeds, cooked, boiled, without salt", 16),
+        ("Rice, white, long-grain, regular, cooked", 20),
+        ("Spaghetti, dry, enriched", 20),
+    ],
+)
+def test_plain_plant_staples_stay_vegetarian_and_vegan(
+    description: str, category: int
+) -> None:
+    assert usda_foods._diet_flags(description, category) == (True, True)
+
+
+@needs_bundle
+def test_every_default_points_to_a_bundled_food() -> None:
     for term, fdc_id in USDA_DEFAULTS.items():
         assert ALL_NUTRITION[f"usda_{fdc_id}"].fdc_id == fdc_id, term
 
