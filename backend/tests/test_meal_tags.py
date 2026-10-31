@@ -13,10 +13,32 @@ from app.domain.meal_tags import (
     SEARCH_TERMS,
     TAG_ORDER,
     _per_serving_grams,
+    names_meal_type,
     normalize_term,
     resolve_ingredient,
     resolve_meal_term,
 )
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Plan a gluten-free meal for 2 servings", True),
+        ("keto dinner", True),
+        ("dairy free dinner", True),
+        ("something high protein", True),
+        ("a vegetarian dinner", True),
+        ("plant-based lunch", True),
+        ("Paleo please", True),
+        ("Plan chicken tacos for 2", False),
+        ("Plan dinner", False),
+        ("I have tofu", False),
+        ("Plan lentil soup", False),
+        ("What is in my plan?", False),
+    ],
+)
+def test_names_meal_type(text: str, expected: bool) -> None:
+    assert names_meal_type(text) is expected
 
 
 def test_thresholds_and_gluten_ingredients() -> None:

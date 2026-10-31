@@ -34,6 +34,7 @@ from app.agent.read_answers import read_tool_answer
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
+from app.domain.meal_tags import names_meal_type
 from app.domain.plan_revision import PlanRevisionInput
 
 MAX_MODEL_TURNS = 8
@@ -112,7 +113,7 @@ SYSTEM_PROMPT = (
     "You MUST NOT translate a restriction group such as nightshades into catalog IDs. "
     "The tool rejects unknown terms and asks the user. "
     "Ask the user before you choose an alternative. "
-    "To find new meals by free-text search, call search_meals. "
+    "For a meal type or an open request, call search_meals. "
     "You MUST NOT call it for a meal the user names or has in the plan. "
     "Include effective diet and exact exclusions from the latest user message "
     "and validated prior request. Do not infer hidden preferences. "
@@ -121,8 +122,6 @@ SYSTEM_PROMPT = (
     "No meal in this catalog is keto. No meal is strictly carnivore. "
     "gluten_free_ingredients describes the ingredients only. "
     "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe. "
-    "When the user asks for a meal type, name up to three catalog meals "
-    "with that tag and ask which one to plan. "
     "Call get_plan for the plan's totals and prices. "
     "Call get_meal to read one catalog meal's ingredients and macros. "
     "To compare a swap or a smaller or larger portion of one ingredient, "
@@ -240,6 +239,7 @@ def run_chat(
             for meal in plan_revision.snapshot.meals
         ],
     )
+    meal_type = names_meal_type(message)
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
     candidate: dict[str, object] | None = None
@@ -304,21 +304,29 @@ def run_chat(
                 return budget_summary_answer(
                     budget, period, spending_source=spending_source
                 )
-            return render_public_answer(candidate, last_error)
+            return render_public_answer(candidate, last_error, meal_type=meal_type)
         parts: list[str] = []
         if candidate is not None or last_error is not None:
-            parts.append(render_public_answer(candidate, last_error))
+            parts.append(
+                render_public_answer(candidate, last_error, meal_type=meal_type)
+            )
         if discovery_failed:
             parts.append(DISCOVERY_ERROR)
         elif discovery is not None:
-            parts.append(render_public_answer(None, discovery=discovery))
+            parts.append(
+                render_public_answer(None, discovery=discovery, meal_type=meal_type)
+            )
         if summary_ok:
             parts.append(
                 budget_summary_answer(budget, period, spending_source=spending_source)
             )
         if other_failed and parts:
             parts.append("A tool call failed. Check the request.")
-        return " ".join(parts) if parts else render_public_answer(None)
+        return (
+            " ".join(parts)
+            if parts
+            else render_public_answer(None, meal_type=meal_type)
+        )
 
     def out(
         status: str,

@@ -1,5 +1,6 @@
 """Meal tags and search terms for the agent, the catalog export, and /prototype."""
 
+import re
 from datetime import date
 
 from app.domain.catalog import INGREDIENTS, RECIPES
@@ -70,6 +71,30 @@ def resolve_meal_term(value: str) -> str | None:
         if spaced == key.replace("-", " "):
             return target
     return None
+
+
+_INGREDIENT_TAGS = frozenset({"chicken", "egg", "beans", "lentils", "chickpeas"})
+# Diet labels the system cannot check; the same vocabulary as grounding.py.
+_UNCHECKED_DIET = re.compile(
+    r"\b(?:keto|paleo|halal|kosher|plant[- ]?based"
+    r"|(?:dairy|lactose|nut|egg|soy|sugar)[- ]?free"
+    r"|low[- ]?(?:sodium|fat)|high[- ]?fiber)\b",
+    re.IGNORECASE,
+)
+_WORD = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)*")
+
+
+def names_meal_type(text: str) -> bool:
+    if _UNCHECKED_DIET.search(text) is not None:
+        return True
+    words = _WORD.findall(text.lower())
+    pairs = (f"{a} {b}" for a, b in zip(words, words[1:], strict=False))
+    skipped = _INGREDIENT_TAGS | {"omnivore"}
+    for term in (*words, *pairs):
+        target = resolve_meal_term(term)
+        if target is not None and target not in skipped:
+            return True
+    return False
 
 
 def resolve_ingredient(value: str) -> str | None:

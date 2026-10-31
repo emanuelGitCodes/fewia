@@ -786,7 +786,7 @@ def test_prompt_leads_with_the_swap_rule_and_the_plan_meals() -> None:
         "recipe_id and with_food set to the new food."
     )
     facts = "Call get_ingredient_facts only for a question about one food on its own."
-    discovery = "To find new meals by free-text search, call search_meals."
+    discovery = "For a meal type or an open request, call search_meals."
     assert SYSTEM_PROMPT.startswith(
         "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
         "lists the meals in the user's plan. When the user names a plan meal or "
@@ -2052,10 +2052,18 @@ def test_system_prompt_states_the_honest_tag_caveats() -> None:
         "gluten_free_ingredients describes the ingredients only. "
         "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe."
     ) in SYSTEM_PROMPT
-    assert (
-        "When the user asks for a meal type, name up to three catalog meals "
-        "with that tag and ask which one to plan."
-    ) in SYSTEM_PROMPT
+    assert "name up to three catalog meals" not in SYSTEM_PROMPT
+
+
+def test_meal_type_fallback_names_no_recipe() -> None:
+    reply = [_reply([_text_block("Try vegetable pasta.")], "end_turn")]
+    result, _provider = _run(reply, message="Plan a gluten-free meal for 2 servings")
+    answer = str(result["answer"])
+    assert "I did not search the catalog for that meal type" in answer
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        assert recipe_id.replace("_", " ") not in answer
+    plain, _provider = _run(reply, message="Plan dinner")
+    assert "bean tacos" in str(plain["answer"])
 
 
 def test_unknown_restrictions_use_tool_clarification() -> None:
