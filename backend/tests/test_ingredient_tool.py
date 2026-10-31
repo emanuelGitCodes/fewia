@@ -318,6 +318,63 @@ def test_tofu_facts_carry_the_usda_name_and_diet_flags() -> None:
 
 
 @needs_bundle
+@pytest.mark.parametrize("fdc_id", [173732, 173733, 175185, 173761, 175183])
+def test_meat_bean_facts_reject_both_diets_without_a_live_lookup(
+    fdc_id: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = _FakeLive([_live_food(1, "unused")])
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: fake)
+    ingredient_id = f"usda_{fdc_id}"
+    food = next(item for item in USDA_FOODS if item.ingredient.id == ingredient_id)
+    for query in (ingredient_id, food.ingredient.name, food.description):
+        result = lookup(query)
+        assert result["status"] == "found"
+        assert result["ingredient_id"] == ingredient_id
+        assert result["source"] == "usda"
+        assert result["vegetarian"] is False
+        assert result["vegan"] is False
+        assert result["price_cents"] is None
+    assert fake.queries == []
+
+
+@needs_bundle
+@pytest.mark.parametrize(
+    "fdc_id",
+    [
+        167722,
+        169083,
+        173778,
+        173779,
+        173780,
+        173781,
+        175225,
+        175226,
+        175227,
+        175228,
+        175229,
+        175230,
+    ],
+)
+def test_soy_dairy_substitute_facts_keep_both_diets_without_a_live_lookup(
+    fdc_id: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = _FakeLive([_live_food(1, "unused")])
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: fake)
+    ingredient_id = f"usda_{fdc_id}"
+    food = next(item for item in USDA_FOODS if item.ingredient.id == ingredient_id)
+    for query in (ingredient_id, food.ingredient.name, food.description):
+        result = lookup(query)
+        assert result["status"] == "found"
+        assert result["ingredient_id"] == ingredient_id
+        assert result["source"] == "usda"
+        assert result["fdc_id"] == fdc_id
+        assert result["vegetarian"] is True
+        assert result["vegan"] is True
+        assert result["price_cents"] is None
+    assert fake.queries == []
+
+
+@needs_bundle
 @pytest.mark.parametrize(
     ("raw", "ingredient_id", "source"),
     [

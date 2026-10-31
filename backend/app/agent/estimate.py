@@ -2,9 +2,9 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 
 from app.domain.budget import BudgetResult
-from app.domain.catalog import RECIPES, Recipe
+from app.domain.catalog import CATALOG_VERSION, RECIPES, Recipe
 from app.domain.curated_foods import ALL_INGREDIENTS
-from app.domain.grocery import GroceryRequest, MealRequest
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
 from app.services.grocery_planner import PlanEstimate, plan_groceries
 
 _NO_PERIOD = date.min
@@ -42,6 +42,13 @@ def priced_estimate(
     available_cents = budget.available_cents
     if plan_cap_cents is not None:
         available_cents = min(available_cents, plan_cap_cents)
+    if not meals:
+        return estimate_payload(
+            PlanEstimate(
+                (), 0, True, budget.warnings, CATALOG_VERSION, SAMPLE_ESTIMATE_NOTICE
+            ),
+            available_cents,
+        )
     request = GroceryRequest(
         meals=[MealRequest(recipe_id=item, servings=count) for item, count in meals],
         budget_period=_NO_PERIOD,

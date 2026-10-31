@@ -1017,6 +1017,76 @@ def test_a_proposal_run_stores_once_and_returns_the_proposal_id() -> None:
     _assert_public(result)
 
 
+def test_first_meal_chat_proposes_once_from_an_empty_saved_plan() -> None:
+    operation: dict[str, object] = {
+        "op": "add",
+        "recipe_id": "bean_tacos",
+        "servings": 2,
+    }
+    revision = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [],
+                "pantry_ingredient_ids": ["salt", "black_beans"],
+                "plan_cap_cents": 5_000,
+            },
+        }
+    )
+    original = revision.model_dump(mode="json")
+    proposer = Proposer()
+    provider = FakeLLM(
+        [
+            _reply([_propose_block("first-meal", operation)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "add bean tacos for two",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=revision,
+        propose=proposer,
+    )
+    assert proposer.calls == [[operation]]
+    assert revision.model_dump(mode="json") == original
+    assert len(provider.requests) == 2
+    assert result["proposal_id"] == "proposal-1"
+    assert result["reply_source"] == "template"
+    assert cast(str, result["answer"]).startswith(
+        "Proposed: add Bean tacos (2 servings)."
+    )
+    assert "Apply it in the plan panel." in cast(str, result["answer"])
+    messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    tool_result = messages[-1]["content"][0]["toolResult"]
+    assert tool_result["status"] == "success"
+    payload = tool_result["content"][0]["json"]
+    assert payload["status"] == "proposed"
+    assert payload["before"] == {
+        "meals": [],
+        "pantry_ingredient_ids": ["salt", "black_beans"],
+        "nutrition": [],
+        "estimate": {
+            "lines": [],
+            "total_cents": 0,
+            "price_complete": True,
+            "available_cents": 5_000,
+            "accepted": True,
+            "notice": SAMPLE_ESTIMATE_NOTICE,
+        },
+    }
+    assert payload["after"]["meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
+    assert payload["after"]["estimate"]["total_cents"] > 0
+    assert payload["after"]["nutrition"][0]["per_serving"]["energy_kcal"] > 0
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [(item["tool"], item["outcome"]) for item in trace] == [
+        (PROPOSAL_TOOL, "success")
+    ]
+    _assert_public(result)
+
+
 def test_a_run_without_a_proposal_has_no_proposal_id() -> None:
     result, _ = _propose_run([_reply([_text_block("hello")], "end_turn")], Proposer())
     assert "proposal_id" not in result

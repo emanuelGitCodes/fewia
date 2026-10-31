@@ -63,7 +63,11 @@ def proposal_tool_spec() -> dict[str, object]:
 def _side(snapshot: PlanSnapshot, budget: BudgetResult) -> dict[str, object]:
     pairs = [(meal.recipe_id, meal.servings) for meal in snapshot.meals]
     meals = [MealRequest(recipe_id=item, servings=count) for item, count in pairs]
-    nutrition = meal_nutrition(GroceryRequest(meals=meals, budget_period=date.min))
+    nutrition = (
+        meal_nutrition(GroceryRequest(meals=meals, budget_period=date.min)).meals
+        if meals
+        else []
+    )
     return {
         "meals": [{"recipe_id": item, "servings": count} for item, count in pairs],
         "pantry_ingredient_ids": list(snapshot.pantry_ingredient_ids),
@@ -72,7 +76,7 @@ def _side(snapshot: PlanSnapshot, budget: BudgetResult) -> dict[str, object]:
         ),
         "nutrition": [
             {"recipe_id": meal.recipe_id, "per_serving": asdict(meal.per_serving)}
-            for meal in nutrition.meals
+            for meal in nutrition
         ],
     }
 

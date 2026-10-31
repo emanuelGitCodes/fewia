@@ -29,6 +29,43 @@ DEFAULTS_PATH = Path(__file__).with_name("usda_defaults.json")
 KEPT_CATEGORIES = frozenset({1, 2, 4, 5, 7, 9, 10, 11, 12, 13, 15, 16, 17, 20})
 _VEGAN_CATEGORIES = frozenset({9, 11, 12, 16, 20})
 _VEGETARIAN_CATEGORIES = _VEGAN_CATEGORIES | {1}
+_MEAT_INGREDIENTS = re.compile(
+    r"\b(?:pork|beef|chicken|turkey|duck|goose|geese|lamb|veal|venison|bison|"
+    r"buffalo|rabbit|goat|meat|poultry|"
+    r"bacon|ham|sausage|frankfurter|pepperoni|salami|lard|tallow|gelatin|"
+    r"fish|tuna|salmon|cod|anchov(?:y|ies)|sardines?|tilapia|haddock|pollock|"
+    r"mackerel|herring|shrimp|prawns?|crab|lobster|clams?|oysters?|mussels?|"
+    r"scallops?|squid|octopus|broth|stock)\b"
+)
+_VEGAN_INGREDIENTS = re.compile(
+    r"\b(?:milk|buttermilk|butter|cream|cheese|yogurt|yoghurt|whey|casein|"
+    r"caseinate|eggs?|albumen|honey)\b"
+)
+_PLANT_PHRASES = re.compile(
+    r"\b(?:coconut milk, (?:raw,? |canned )?"
+    r"\(?liquid expressed from grated meat and water\)?|"
+    r"(?:peanut|almond|cashew|sunflower seed) butter|"
+    r"(?:coconut|soy|soya|almond|oat|rice) milk|coconut cream|coconut meat|"
+    r"(?:tofu|soy) yogurt|soybean, curd cheese|"
+    r"oyster mushrooms?|mushrooms?, oyster|(?:vegetable|vegetarian) (?:broth|stock)|"
+    r"(?:chicken|bacon|frankfurter),? meatless|"
+    r"meatless (?:chicken|bacon|frankfurter))\b"
+)
+_EGG_FREE = re.compile(r"\b(?:without eggs?|no eggs?|egg free|eggless)\b")
+_PLAIN_PREPARATION = re.compile(
+    r"\b(?:prepared with (?:calcium sulfate(?: and magnesium chloride)?|"
+    r"magnesium chloride|nigari|water)|with(?: added)? salt|solids and liquids)\b"
+)
+_DAIRY_EGG_PREPARATION = re.compile(
+    r"\bwith (?:milk|buttermilk|butter|cream|cheese|yogurt|yoghurt|whey|"
+    r"casein|caseinate|eggs?|albumen|honey)"
+    r"(?: and (?:milk|buttermilk|butter|cream|cheese|yogurt|yoghurt|whey|"
+    r"casein|caseinate|eggs?|albumen|honey|salt))*\b"
+)
+_MIXED_DESCRIPTION = re.compile(
+    r"\b(?:with|prepared|recipe|and|mixed|mixture|soup|stew|salad|sauce|dinner|entree|"
+    r"refried|flavored|flavoured|stuffed|filling)\b|\bbeans,? baked\b"
+)
 _MAX_CANDIDATES = 3
 _SHORT_LIMIT = 60
 _LONG_LIMIT = 90
@@ -169,6 +206,25 @@ def _count(value: object) -> bool:
     return type(value) is int and value >= 0
 
 
+def _diet_flags(description: str, category: int) -> tuple[bool, bool]:
+    """Classify described ingredients, without inferring an unlisted recipe.
+
+    Mixed dishes need more evidence than a plant category. These bounded rules
+    do not establish allergy or cross-contact safety.
+    """
+    text = " ".join(description.lower().replace("-", " ").split())
+    text = _PLANT_PHRASES.sub("plant food", text)
+    text = _EGG_FREE.sub("", text)
+    if _MEAT_INGREDIENTS.search(text):
+        return False, False
+    vegetarian = category in _VEGETARIAN_CATEGORIES
+    vegan = category in _VEGAN_CATEGORIES and not _VEGAN_INGREDIENTS.search(text)
+    preparation = _DAIRY_EGG_PREPARATION.sub("", _PLAIN_PREPARATION.sub("", text))
+    if _MIXED_DESCRIPTION.search(preparation):
+        return False, False
+    return vegetarian, vegan
+
+
 def _food(row: object) -> UsdaFood:
     if not isinstance(row, list) or len(row) != len(COLUMNS):
         raise _fail("row has unexpected fields")
@@ -182,14 +238,15 @@ def _food(row: object) -> UsdaFood:
         or not all(_count(amount) for amount in amounts)
     ):
         raise _fail("row has invalid values")
+    vegetarian, vegan = _diet_flags(description, category)
     ingredient = Ingredient(
         f"usda_{fdc_id}",
         display_name(description),
         "g",
         454,
         None,
-        category in _VEGETARIAN_CATEGORIES,
-        category in _VEGAN_CATEGORIES,
+        vegetarian,
+        vegan,
         False,
     )
     return UsdaFood(

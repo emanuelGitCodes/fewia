@@ -1,7 +1,10 @@
 import json
+from dataclasses import asdict
+from datetime import date
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
 from app.agent.estimate import priced_estimate
 from app.agent.proposal_tool import (
@@ -11,8 +14,11 @@ from app.agent.proposal_tool import (
     proposal_tool_spec,
 )
 from app.domain.budget import BudgetResult
+from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
 from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE, ProposalInvalid
 from app.domain.plan_revision import PlanRevisionInput
+from app.services.grocery_planner import plan_groceries
+from app.services.meal_nutrition import meal_nutrition
 
 _BUDGET = BudgetResult(10_000, 0, False, ())
 _SECRET = "do-not-echo-raw-input"
@@ -31,6 +37,19 @@ def _plan(pantry: list[str] | None = None) -> PlanRevisionInput:
                 ],
                 "pantry_ingredient_ids": [] if pantry is None else pantry,
                 "plan_cap_cents": 5_000,
+            },
+        }
+    )
+
+
+def _empty_plan(pantry: list[str], cap: int | None) -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [],
+                "pantry_ingredient_ids": pantry,
+                "plan_cap_cents": cap,
             },
         }
     )
@@ -153,6 +172,137 @@ def test_the_tool_leaves_the_plan_revision_unchanged() -> None:
     before = plan.model_dump(mode="json")
     execute_propose({"operations": [_ADD]}, _BUDGET, plan, Proposer())
     assert plan.model_dump(mode="json") == before
+
+
+@pytest.mark.parametrize("pantry", [[], [_BEANS, "salt"]])
+@pytest.mark.parametrize("cap", [None, 0, 2_500, 20_000])
+def test_first_meal_proposal_prices_both_sides_and_stores_once(
+    pantry: list[str], cap: int | None
+) -> None:
+    plan = _empty_plan(pantry, cap)
+    original = plan.model_dump(mode="json")
+    proposer = Proposer()
+    operation = {"op": "add", "recipe_id": "bean_tacos", "servings": 2}
+    payload = execute_propose({"operations": [operation]}, _BUDGET, plan, proposer)
+    available = min(_BUDGET.available_cents, cap) if cap is not None else 10_000
+    assert payload["status"] == "proposed"
+    assert payload["proposal_id"] == "proposal-1"
+    assert payload["operations"] == [operation]
+    assert proposer.calls == [[operation]]
+    assert plan.model_dump(mode="json") == original
+    assert _side(payload, "before") == {
+        "meals": [],
+        "pantry_ingredient_ids": pantry,
+        "nutrition": [],
+        "estimate": {
+            "lines": [],
+            "total_cents": 0,
+            "price_complete": True,
+            "available_cents": available,
+            "accepted": True,
+            "notice": SAMPLE_ESTIMATE_NOTICE,
+        },
+    }
+    request = GroceryRequest(
+        meals=[MealRequest(recipe_id="bean_tacos", servings=2)],
+        budget_period=date.min,
+        plan_cap_cents=cap,
+        pantry_ingredients=pantry,
+    )
+    expected_price = plan_groceries(request, BudgetResult(available, 0, False, ()))
+    assert expected_price.total_cents is not None and expected_price.total_cents > 0
+    after = _side(payload, "after")
+    assert after["meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
+    assert after["pantry_ingredient_ids"] == pantry
+    assert after["estimate"] == {
+        "lines": [
+            {
+                "ingredient_id": line.ingredient_id,
+                "quantity": line.quantity,
+                "unit": line.unit,
+                "packages": line.packages,
+                "cost_cents": line.cost_cents,
+                "from_pantry": line.from_pantry,
+            }
+            for line in expected_price.lines
+        ],
+        "total_cents": expected_price.total_cents,
+        "price_complete": True,
+        "available_cents": available,
+        "accepted": expected_price.accepted,
+        "notice": SAMPLE_ESTIMATE_NOTICE,
+    }
+    assert after["nutrition"] == [
+        {"recipe_id": item.recipe_id, "per_serving": asdict(item.per_serving)}
+        for item in meal_nutrition(request).meals
+    ]
+    if pantry:
+        bean_line = next(
+            line for line in expected_price.lines if line.ingredient_id == _BEANS
+        )
+        assert bean_line.from_pantry is True
+        assert bean_line.cost_cents == 0
+    json.dumps(payload)
+
+
+@pytest.mark.parametrize("cap", [None, 0, 2_500, 20_000])
+def test_empty_estimate_respects_budget_and_cap(cap: int | None) -> None:
+    for available in (0, 10_000):
+        result = priced_estimate(
+            [], ["salt"], BudgetResult(available, 0, False, ()), cap
+        )
+        assert result == {
+            "lines": [],
+            "total_cents": 0,
+            "price_complete": True,
+            "available_cents": min(available, cap) if cap is not None else available,
+            "accepted": True,
+            "notice": SAMPLE_ESTIMATE_NOTICE,
+        }
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        {"op": "add", "recipe_id": "bean_tacos", "servings": 0},
+        {"op": "add", "recipe_id": "bean_tacos", "servings": 9},
+        {"op": "add", "recipe_id": "bean_tacos", "servings": True},
+        {"op": "add", "recipe_id": "unknown", "servings": 2},
+        {"op": "remove", "recipe_id": "bean_tacos"},
+        {"op": "set_pantry", "ingredient_id": "salt", "owned": True},
+    ],
+)
+def test_invalid_first_meal_proposal_stores_nothing(
+    operation: dict[str, object],
+) -> None:
+    plan = _empty_plan(["salt"], 0)
+    original = plan.model_dump(mode="json")
+    proposer = Proposer()
+    with pytest.raises(ProposalToolError, match=INVALID_PROPOSAL_MESSAGE):
+        execute_propose({"operations": [operation]}, _BUDGET, plan, proposer)
+    assert proposer.calls == []
+    assert plan.model_dump(mode="json") == original
+
+
+def test_removing_the_final_meal_still_stores_nothing() -> None:
+    plan = _plan()
+    plan.snapshot.meals = plan.snapshot.meals[:1]
+    original = plan.model_dump(mode="json")
+    proposer = Proposer()
+    with pytest.raises(ProposalToolError, match=INVALID_PROPOSAL_MESSAGE):
+        execute_propose(
+            {"operations": [{"op": "remove", "recipe_id": "chicken_tacos"}]},
+            _BUDGET,
+            plan,
+            proposer,
+        )
+    assert proposer.calls == []
+    assert plan.model_dump(mode="json") == original
+
+
+def test_grocery_requests_still_require_a_meal() -> None:
+    with pytest.raises(ValidationError):
+        GroceryRequest(meals=[], budget_period=date.min)
 
 
 @pytest.mark.parametrize(

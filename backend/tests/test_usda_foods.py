@@ -300,6 +300,197 @@ def test_diet_flags_follow_the_category(category: int) -> None:
     assert food.ingredient.vegetarian is (category in _VEGETARIAN)
 
 
+@pytest.mark.parametrize(
+    "animal",
+    [
+        "pork",
+        "beef",
+        "bison",
+        "chicken",
+        "turkey",
+        "bacon",
+        "ham",
+        "sausage",
+        "lard",
+        "gelatin",
+        "fish",
+        "tilapia",
+        "squid",
+        "anchovies",
+        "shrimp",
+        "beef broth",
+        "chicken stock",
+    ],
+)
+@pytest.mark.parametrize("category", [1, 9, 11, 12, 16, 20])
+def test_animal_ingredients_override_diet_categories(
+    animal: str, category: int
+) -> None:
+    [food] = parse_bundle(bundle([row(1, f"Beans, canned, with {animal}", category)]))
+    assert food.ingredient.vegetarian is False
+    assert food.ingredient.vegan is False
+
+
+@pytest.mark.parametrize(
+    "addition",
+    [
+        "milk",
+        "butter",
+        "cream",
+        "cheese",
+        "whey",
+        "egg",
+        "eggs",
+        "honey",
+        "milk and eggs",
+        "butter and salt",
+    ],
+)
+def test_dairy_egg_and_honey_additions_disqualify_only_vegan(addition: str) -> None:
+    [food] = parse_bundle(bundle([row(1, f"Beans, with {addition}", 16)]))
+    assert food.ingredient.vegetarian is True
+    assert food.ingredient.vegan is False
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Beans, refried, canned, traditional style",
+        "Beans, baked, canned, plain or vegetarian",
+        "Beans, prepared from recipe",
+        "Beans, from recipe",
+        "Beans and rice",
+        "Vegetables, mixed dish",
+        "Vegetables, with special dressing",
+        "Potato salad, home prepared",
+    ],
+)
+def test_unknown_mixed_preparations_do_not_inherit_plant_diet_flags(
+    description: str,
+) -> None:
+    [food] = parse_bundle(bundle([row(1, description, 16)]))
+    assert food.ingredient.vegetarian is False
+    assert food.ingredient.vegan is False
+
+
+@pytest.mark.parametrize(
+    ("description", "category"),
+    [
+        ("Beans, kidney, mature seeds, raw", 16),
+        ("Beans, pinto, cooked, boiled, with salt", 16),
+        ("Beans, kidney, canned, solids and liquids", 16),
+        ("Tofu, raw, firm, prepared with calcium sulfate", 16),
+        ("Tofu yogurt", 16),
+        ("Soybean, curd cheese", 16),
+        ("SILK Plain soy yogurt", 16),
+        ("SILK Vanilla soy yogurt", 16),
+        ("Nuts, almonds", 12),
+        ("Nuts, almond butter, plain, without salt added", 12),
+        ("Peanut butter, smooth style, with salt", 16),
+        ("Nuts, coconut milk, raw", 12),
+        ("Nuts, coconut milk, liquid expressed from grated meat and water", 12),
+        (
+            "Nuts, coconut milk, canned (liquid expressed from grated meat and water)",
+            12,
+        ),
+        ("Mushrooms, oyster, raw", 11),
+        ("Oyster mushrooms, raw", 11),
+        ("Chicken, meatless", 16),
+        ("Bacon, meatless", 16),
+        ("Meatless chicken", 16),
+        ("Meatless bacon", 16),
+        ("Pasta, without egg", 20),
+        ("Pasta, without eggs", 20),
+        ("Pasta, egg-free", 20),
+        ("Pasta, eggless", 20),
+    ],
+)
+def test_plain_plants_and_bounded_alternatives_keep_diet_flags(
+    description: str, category: int
+) -> None:
+    [food] = parse_bundle(bundle([row(1, description, category)]))
+    assert food.ingredient.vegetarian is True
+    assert food.ingredient.vegan is True
+
+
+@pytest.mark.parametrize(
+    ("description", "vegetarian"),
+    [
+        ("Meatless chicken, with egg", True),
+        ("Meatless bacon, with cheese", True),
+        ("Peanut butter, with honey", True),
+        ("Coconut milk, with milk", True),
+        ("Oyster mushrooms, with oysters", False),
+        ("Pasta, without egg, with chicken", False),
+        ("Beans, without eggs, with bacon", False),
+        ("Beans, liquid expressed from grated meat and water", False),
+    ],
+)
+def test_plant_exceptions_do_not_mask_separate_animal_ingredients(
+    description: str, vegetarian: bool
+) -> None:
+    [food] = parse_bundle(bundle([row(1, description, 16)]))
+    assert food.ingredient.vegetarian is vegetarian
+    assert food.ingredient.vegan is False
+
+
+@pytest.mark.parametrize(
+    "description", ["Tofu yogurt", "Soybean, curd cheese", "SILK Plain soy yogurt"]
+)
+@pytest.mark.parametrize(
+    ("addition", "vegetarian"),
+    [
+        ("milk", True),
+        ("cheese", True),
+        ("whey", True),
+        ("honey", True),
+        ("egg", True),
+        ("chicken", False),
+        ("pork", False),
+        ("gelatin", False),
+    ],
+)
+def test_soy_substitutes_do_not_mask_later_animal_ingredients(
+    description: str, addition: str, vegetarian: bool
+) -> None:
+    [food] = parse_bundle(bundle([row(1, f"{description}, with {addition}", 16)]))
+    assert food.ingredient.vegetarian is vegetarian
+    assert food.ingredient.vegan is False
+
+
+@pytest.mark.parametrize(
+    "description",
+    ["Tofu, yogurt", "Soybean, curd, cheese", "Yogurt, soy", "Soy yogurt cheese"],
+)
+def test_soy_substitute_exceptions_require_the_bounded_phrase(description: str) -> None:
+    [food] = parse_bundle(bundle([row(1, description, 16)]))
+    assert food.ingredient.vegetarian is True
+    assert food.ingredient.vegan is False
+
+
+@pytest.mark.parametrize(
+    "description", ["Tofu yogurt", "Soybean, curd cheese", "SILK Plain soy yogurt"]
+)
+def test_soy_substitutes_with_unknown_preparations_stay_unclassified(
+    description: str,
+) -> None:
+    [food] = parse_bundle(bundle([row(1, f"{description}, with special dressing", 16)]))
+    assert food.ingredient.vegetarian is False
+    assert food.ingredient.vegan is False
+
+
+def test_diet_flags_use_the_full_description_before_name_truncation() -> None:
+    description = (
+        "Beans, with pork, "
+        "mature seeds canned solids and liquids with a long preparation qualifier"
+    )
+    [food] = parse_bundle(bundle([row(1, description, 16)]))
+    assert "pork" not in food.ingredient.name
+    assert food.description == description
+    assert food.ingredient.vegetarian is False
+    assert food.ingredient.vegan is False
+
+
 def test_meat_fish_fats_and_spices_are_neither_vegetarian_nor_vegan() -> None:
     for category in (2, 4, 5, 7, 10, 13, 15, 17):
         [food] = parse_bundle(bundle([row(1, "Thing, x", category)]))
@@ -584,6 +775,38 @@ def test_fixture_foods_do_not_include_any_curated_fdc_id() -> None:
 # --- the real bundle ----------------------------------------------------------------
 
 needs_bundle = pytest.mark.skipif(not usda_foods.USDA_FOODS, reason="no USDA bundle")
+
+
+@needs_bundle
+@pytest.mark.parametrize("fdc_id", [173732, 173733, 175185, 173761, 175183])
+def test_bundled_beans_with_meat_are_neither_vegetarian_nor_vegan(fdc_id: int) -> None:
+    ingredient = usda_foods.USDA_INGREDIENTS[f"usda_{fdc_id}"]
+    assert ingredient.vegetarian is False
+    assert ingredient.vegan is False
+
+
+@needs_bundle
+@pytest.mark.parametrize(
+    "fdc_id",
+    [
+        167722,
+        169083,
+        173778,
+        173779,
+        173780,
+        173781,
+        175225,
+        175226,
+        175227,
+        175228,
+        175229,
+        175230,
+    ],
+)
+def test_bundled_soy_dairy_substitutes_keep_both_diet_flags(fdc_id: int) -> None:
+    food = next(item for item in usda_foods.USDA_FOODS if item.facts.fdc_id == fdc_id)
+    assert food.ingredient.vegetarian is True, food.description
+    assert food.ingredient.vegan is True, food.description
 
 
 @needs_bundle
