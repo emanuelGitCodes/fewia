@@ -132,6 +132,37 @@ describe("ideasFromJob", () => {
     expect(ideasFromJob(job, [])).toHaveLength(3);
   });
 
+  describe("choices", () => {
+    const withChoices = (status: ChatResult["status"], ids: string[]): ChatJob => {
+      const job = jobWith(status, []);
+      const choices = ids.map((recipe_id) => ({ recipe_id }));
+      return { ...job, result: { ...job.result, choices } as ChatResult };
+    };
+    const ids = ["chickpea_curry", "egg_fried_rice", "lentil_soup"];
+
+    it("returns clarification choices in order with the default servings", () => {
+      expect(ideasFromJob(withChoices("clarification", ids), [])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+        { recipeId: "egg_fried_rice", servings: 2 },
+        { recipeId: "lentil_soup", servings: 2 },
+      ]);
+    });
+
+    it("skips planned and unknown choices", () => {
+      expect(ideasFromJob(withChoices("clarification", ids), ["egg_fried_rice"])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+        { recipeId: "lentil_soup", servings: 2 },
+      ]);
+      expect(ideasFromJob(withChoices("clarification", ["nope", "chickpea_curry"]), [])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+      ]);
+    });
+
+    it("ignores choices on other statuses", () => {
+      expect(ideasFromJob(withChoices("limit", ids), [])).toEqual([]);
+    });
+  });
+
   it("gives no ideas for clarification, limit, incomplete, or a missing result", () => {
     const meals = [{ recipe_id: "chickpea_curry", servings: 2 }];
     expect(ideasFromJob(jobWith("clarification", meals), [])).toEqual([]);

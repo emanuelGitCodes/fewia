@@ -10,7 +10,14 @@ import {
   type MealPlanNutrition,
 } from "./apiTypes";
 import { copyMealPlanNutrition, isBudget, isPlan } from "./apiValidation";
-import type { ChatJob, ChatResult, ChatToolTrace, ChatUsage, KrogerQuote } from "./chatTypes";
+import type {
+  ChatChoice,
+  ChatJob,
+  ChatResult,
+  ChatToolTrace,
+  ChatUsage,
+  KrogerQuote,
+} from "./chatTypes";
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -73,6 +80,26 @@ function copyKrogerQuote(value: unknown): KrogerQuote | null {
     location_id: value.location_id,
     retrieved_at: value.retrieved_at,
   };
+}
+const CHOICE_ID = /^[a-z0-9_]{1,64}$/;
+function copyChoices(value: unknown): ChatChoice[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 3) {
+    return null;
+  }
+  const choices: ChatChoice[] = [];
+  for (const item of value) {
+    if (
+      !isRecord(item) ||
+      Object.keys(item).length !== 1 ||
+      !isString(item.recipe_id) ||
+      !CHOICE_ID.test(item.recipe_id) ||
+      choices.some((choice) => choice.recipe_id === item.recipe_id)
+    ) {
+      return null;
+    }
+    choices.push({ recipe_id: item.recipe_id });
+  }
+  return choices;
 }
 const FIRST_DAY = /^(\d{4})-(\d{2})-01$/;
 function isRequest(value: unknown): value is GroceryRequest {
@@ -242,8 +269,10 @@ export function parseChatResult(value: unknown): ChatResult {
   }
   const rawQuote = value.kroger_quote;
   const quote = rawQuote == null ? rawQuote : copyKrogerQuote(rawQuote);
+  const choices = value.choices === undefined ? undefined : copyChoices(value.choices);
   if (
     (rawQuote != null && quote === null) ||
+    choices === null ||
     (value.kroger_degraded !== undefined && value.kroger_degraded !== true) ||
     (value.proposal_id !== undefined &&
       !(isString(value.proposal_id) && UUID.test(value.proposal_id)))
@@ -269,6 +298,7 @@ export function parseChatResult(value: unknown): ChatResult {
     ...(value.proposal_id === undefined
       ? {}
       : { proposal_id: value.proposal_id as string }),
+    ...(choices === undefined ? {} : { choices }),
   };
 }
 export function parseChatJob(value: unknown): ChatJob {

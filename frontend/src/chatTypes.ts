@@ -50,6 +50,8 @@ export type KrogerQuote = {
   retrieved_at: string;
 };
 
+export type ChatChoice = { recipe_id: string };
+
 export type ChatResult = {
   status: ChatResultStatus;
   answer: string;
@@ -60,6 +62,7 @@ export type ChatResult = {
   kroger_quote?: KrogerQuote | null;
   kroger_degraded?: true;
   proposal_id?: string;
+  choices?: ChatChoice[];
   evidence_id: string | null;
   evidence_revision_id: string | null;
   spending_source: ChatSpendingSource;

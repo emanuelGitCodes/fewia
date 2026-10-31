@@ -2,7 +2,7 @@ import type { ChatBudget } from "../chatConversationModel";
 import type { ChatJob, KrogerQuote } from "../chatTypes";
 import { formatDollars } from "../money";
 import type { PlanState } from "./planModel";
-import { INGREDIENTS, RECIPES, isKnownRecipe } from "./prototypeData";
+import { INGREDIENTS, INITIAL_SERVINGS, RECIPES, isKnownRecipe } from "./prototypeData";
 
 export const MAX_IDEAS = 3;
 
@@ -73,11 +73,19 @@ export function chatBudget(state: PlanState): ChatBudget | null {
 
 export function ideasFromJob(job: ChatJob, plannedIds: string[]): ChatIdea[] {
   const result = job.result;
-  if (result === null || (result.status !== "planned" && result.status !== "needs_revision")) {
+  if (result === null) {
     return [];
   }
+  const choices = result.status === "clarification" ? result.choices : undefined;
+  if (choices === undefined && result.status !== "planned" && result.status !== "needs_revision") {
+    return [];
+  }
+  const meals =
+    choices?.map((choice) => ({ recipe_id: choice.recipe_id, servings: INITIAL_SERVINGS })) ??
+    result.request?.meals ??
+    [];
   const ideas: ChatIdea[] = [];
-  for (const meal of result.request?.meals ?? []) {
+  for (const meal of meals) {
     if (ideas.length >= MAX_IDEAS) {
       break;
     }

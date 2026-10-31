@@ -378,6 +378,19 @@ describe("PlanChat", () => {
     expect(onToggleIdea).toHaveBeenCalledWith("chickpea_curry", 2, false);
   });
 
+  it("shows idea cards for the choices of a clarification reply", async () => {
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-1", "clarification", "Three dinners to pick from.");
+      const choices = ["chickpea_curry", "egg_fried_rice", "lentil_soup"].map((recipe_id) => ({ recipe_id }));
+      jobState.job = { ...job, result: { ...job.result, choices } as ChatResult };
+    });
+    const { onToggleIdea } = mount();
+    await submitText("Something for dinner");
+    expect(screen.getAllByRole("article")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: /^Add Egg fried rice, 2 servings/ }));
+    expect(onToggleIdea).toHaveBeenCalledWith("egg_fried_rice", 2, false);
+  });
+
   it("shows the Kroger quote under the reply and passes the store id to the job", async () => {
     const quote = {
       kind: "store_live", ingredient_id: "rice", product_label: "Long grain rice", brand: null,

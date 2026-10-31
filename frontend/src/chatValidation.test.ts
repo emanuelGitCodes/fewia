@@ -223,6 +223,40 @@ describe("parseChatResult proposal_id", () => {
   });
 });
 
+describe("parseChatResult choices", () => {
+  const pick = (...ids: string[]) => ids.map((recipe_id) => ({ recipe_id }));
+  const clarification = (choices: unknown) => noPlan({ status: "clarification", choices });
+
+  it("keeps one to three choices and keeps absent choices absent", () => {
+    const choices = pick("chickpea_curry", "egg_fried_rice", "lentil_soup");
+    expect(parseChatResult(clarification(choices)).choices).toEqual(choices);
+    expect(parseChatResult(clarification(pick("a_1"))).choices).toEqual(pick("a_1"));
+    expect("choices" in parseChatResult(noPlan({ status: "clarification" }))).toBe(false);
+  });
+
+  it("rejects too many, empty, repeated, extra-key, malformed, and non-array choices", () => {
+    const bad: unknown[] = [
+      pick("a", "b", "c", "d"),
+      [],
+      pick("a", "a"),
+      [{ recipe_id: "a", extra: 1 }],
+      [{}],
+      pick("Chickpea"),
+      pick("has-dash"),
+      pick(""),
+      pick("a".repeat(65)),
+      [{ recipe_id: 7 }],
+      ["a"],
+      null,
+      "a",
+      { recipe_id: "a" },
+    ];
+    for (const choices of bad) {
+      expectShapeError(clarification(choices));
+    }
+  });
+});
+
 describe("parseChatResult", () => {
   it("accepts a planned result with budget, request, and a 64-hex revision", () => {
     const parsed = parseChatResult(candidate());
