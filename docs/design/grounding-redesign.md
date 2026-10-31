@@ -1,7 +1,7 @@
 # Grounding redesign: server-rendered numbers
 
 - Date: 2026-10-30
-- Status: proposed
+- Status: proposed; probe result: placeholders not viable on Nova 2 Lite
 - Context: [chat-architecture-proposal.md](chat-architecture-proposal.md)
   section 4.5, decision
   [0022](../../wiki/decisions/0022-grounded-model-prose.md)
@@ -81,6 +81,42 @@ Average input is about 10,500 tokens per turn; cost is USD 0.0052 per turn
 against a 0.006 target. A fact list adds about 10 tokens per fact. The
 largest turn (C11) has about 60 values, so about 600 tokens. Variant B adds
 a tool schema. Both fit under the target if output stays near 635 tokens.
+
+## Probe result (2026-10-30)
+
+Step 0 ran all 12 scenarios once (22 turns) at revision `f50aa95`. The
+reply text stayed in the terminal and was deleted after classification.
+The validator rejected 9 prose replies and accepted 3:
+
+| Class | Count | Example |
+|---|---|---|
+| Validator gap: a verb gives the direction | 3 | "gains about 2.5 g fat and 38 kcal", "drops by 2.8 g", "adds about 38 kcal and 2.5 g of fat" |
+| Model computed a number | 2 | per-meal prices that no tool returned; "increases by about 69 g total" |
+| Model reused an earlier reply | 2 | a template from history with another meal's numbers |
+| User echo, rejected by owner decision | 2 | "type 2", "half the rice" |
+
+The probe resent each rejected final turn twice:
+
+- **A. Placeholders in prose:** 1 of 9 replies held no raw number.
+- **B. Final-answer tool:** Nova called `final_answer` in 1 of 9 turns,
+  and that reply still held a digit and a number word.
+
+Neither variant clears 90%. Nova 2 Lite does not follow either output
+shape, so server-rendered numbers are not viable on this model. The probe
+used an unlabeled path list (`f7 = 28.4 g (tool: after.per_serving...)`);
+clearer labels MAY help, but a 1-in-9 result leaves little room.
+
+Revised recommendation:
+
+1. Extend the direction rule from p6-01 to a direction verb before the
+   number (gain, add, lose, drop, rise, increase, decrease, fall, reduce,
+   with optional "by" and "about"), carried across "and" until the clause
+   ends. The value still MUST match a signed delta from this turn. This
+   covers 3 of 9 rejections in the sample.
+2. Keep rejecting computed numbers, reused numbers, and user echoes. The
+   validator is right about those 6 of 9.
+3. Test Nova 2 Pro on the same probe if the account has it. The model, not
+   the architecture, limits format compliance.
 
 ## Owner decisions (2026-10-30)
 
