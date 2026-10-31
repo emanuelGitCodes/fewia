@@ -162,6 +162,32 @@ def test_unmatched_basis_and_open_from_guards(
     assert validate(text, facts).ok == expected
 
 
+_NO_BASIS_FACTS = facts_from_payloads(
+    [
+        (
+            "what_if_substitute",
+            {
+                "status": "ok",
+                "before": {"energy_kcal": 500},
+                "after": {"energy_kcal": 480},
+                "delta": {"energy_kcal": -20},
+            },
+        )
+    ]
+)
+
+NO_BASIS_ROWS = [
+    ("Calories fell from 500 kcal to 480 per person.", False),
+    ("Calories fell from 500 kcal to 480.", True),
+    ("Calories fell from 500 kcal to 480 per serving.", True),
+]
+
+
+@pytest.mark.parametrize(("text", "expected"), NO_BASIS_ROWS)
+def test_from_to_pair_without_recorded_basis(text: str, expected: bool) -> None:
+    assert validate(text, _NO_BASIS_FACTS).ok == expected
+
+
 @pytest.mark.parametrize("text", ADVERSARIAL)
 def test_adversarial_reply_validates_quickly(text: str) -> None:
     assert len(text) <= 1200
