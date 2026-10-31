@@ -1,7 +1,7 @@
 # Meal search by type: typed facets and hard filters
 
 - Date: 2026-10-31
-- Status: proposal; item 1 is built (meal-search-01)
+- Status: items 1 to 8 are built; item 9 waits for editable recipes
 - Context: the open design question on PR 460 ("the agent looks up meals
   by type"), [chat-architecture-proposal.md](chat-architecture-proposal.md),
   [grounding-redesign.md](grounding-redesign.md)
@@ -101,8 +101,11 @@ thresholds. The model MUST NOT assign a tag.
 ### Rule 2: every type is a hard filter
 
 - Keep the tool name `search_meals`.
-- Add `tags`: an array of an enum of `TAG_ORDER` and the diets, in the
-  pattern of `proposal_tool.py:28`.
+- Add `tags`: an array of an enum of the five types that are not
+  ingredients (`high_protein`, `lower_carb`, `gluten_free_ingredients`,
+  `vegetarian`, `vegan`). The ingredient tags stay hard filters when they
+  appear in `query`. The narrow enum keeps the prompt and tool schemas
+  under the 16,500-character budget.
 - The server also resolves type words found in `query` to tags.
 - Every tag, diet, resolved exclusion, and resolved text word is an AND
   filter. Every returned meal MUST have every applied facet.
@@ -130,8 +133,9 @@ thresholds. The model MUST NOT assign a tag.
 - The prompt keeps one sentence of type vocabulary, the 30 g thresholds,
   the rule against safety claims, and "call search_meals for any meal
   type or open request". Lines 124-125 go.
-- The "meat" and "carnivore" aliases go. `mealSearch.ts` filters on the
-  exported tags only, so the picker and the agent agree.
+- The agent resolves "meat" and "carnivore" to the chicken facet, as the
+  meal picker does, so the picker and the agent agree. The reply carries
+  `CARNIVORE_NOTE`.
 
 ### Scale
 
@@ -174,6 +178,12 @@ Each item adds fewer than 150 code lines. Data and tests do not count.
 | 9 | A `MealIndex` protocol with a PostgreSQL implementation, when recipes become editable | new module, migration | later | Both loaders give the same hash |
 
 Item 1 is the smallest change that fixes the reply the user sees.
+
+Item 8b carries the next page into the next turn. The chat result stores
+`next_search`: search arguments built from catalog words only and checked
+against the shown page. The next turn loads and checks them again and puts
+them in the model context as `previous_search`, so "more" continues the
+same search.
 
 ## Measurement
 
