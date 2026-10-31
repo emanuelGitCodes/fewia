@@ -11,9 +11,10 @@ Two layers guard model prose against medical advice.
 
 1. **Validator.** A model reply that names a health condition fails with
    the reason code `medical_claim` and falls back to the server template.
-   The words match from a word start on the folded text: diabetes,
-   diabetic, prediabetes, glycemic, insulin, glucose, blood sugar, blood
-   pressure, hypertension, cholesterol, pregnancy, pregnant. "Kidney" is
+   The terms match anywhere in the folded text, so emphasis ("_diabetic_")
+   and prefixes ("hyperglycemia") cannot bypass the check: diabet,
+   glycemi, insulin, glucose, blood sugar, blood pressure, hypertens,
+   cholesterol, pregnan. "Kidney" is
    not in the list, because the catalog has kidney beans. The server
    sentences stay exempt.
 2. **Bedrock guardrail.** An optional guardrail with four denied topics:
