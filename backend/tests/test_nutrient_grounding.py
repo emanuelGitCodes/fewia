@@ -87,6 +87,77 @@ def test_ambiguous_nutrition_grammar_fails_closed(reply: str) -> None:
     assert not validate(reply, facts).ok
 
 
+def test_comma_nutrient_claim_cannot_use_an_ingredient_quantity() -> None:
+    verdict = validate("14 g, protein", _facts(quantity_g=14))
+    assert verdict.reasons == ("unmatched_number",)
+    assert verdict.unmatched == ("14",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "14 g, protein",
+        "14 g, of protein",
+        "14 g, and protein",
+        "14 g, or protein",
+        "14 g,, protein",
+        "14 g, , of protein",
+        "14 g, , and protein",
+        "14 g, , or protein",
+        "14 g, protein; 5 g fat",
+        "14 g, or 9 g protein",
+        "14 g, and 9 g protein",
+        "14 g, , or 9 g protein",
+        "14 g, of 9 g protein",
+        "14 g, or 9 g, or 9 g protein",
+        "14 g, or 9 g protein and 5 g fat",
+        "14 g flour, protein",
+        "14 g flour, and protein",
+        "14 g salt, of fat",
+        "14 g, sodium",
+        "14 g, and more protein",
+        "14 g, and protein later",
+    ],
+)
+def test_comma_attribution_cannot_use_unrelated_mass(reply: str) -> None:
+    facts = _facts(quantity_g=14, protein_mg=9_000, fat_mg=5_000, ingredient_g=5)
+    verdict = validate(reply, facts)
+    assert verdict.reasons == ("unmatched_number",), (reply, verdict)
+    assert verdict.unmatched == ("14",), (reply, verdict)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "14 g flour",
+        "14 g salt",
+        "5 g flour",
+        "14 g flour, and 9 g protein",
+        "14 g salt, and 5 g fat",
+        "Use 14 g\n9 g protein",
+        "Use 14 g; 9 g protein",
+        "9 g protein",
+        "9 g protein for 3 servings",
+        "9 g, or 9 g protein",
+        "5 g fat",
+    ],
+)
+def test_clear_ingredient_clauses_keep_independent_nutrients(reply: str) -> None:
+    facts = _facts(
+        quantity_g=14,
+        protein_mg=9_000,
+        fat_mg=5_000,
+        ingredient_g=5,
+        servings=3,
+    )
+    assert validate(reply, facts).ok
+
+
+def test_deferred_fat_addition_keeps_the_generic_mass() -> None:
+    facts = FactSet(mass={Decimal(5)})
+    assert validate("Add 5 g, and more fat later.", facts).ok
+
+
 @pytest.mark.parametrize(
     "label",
     [

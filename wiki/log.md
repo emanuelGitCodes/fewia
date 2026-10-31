@@ -4606,3 +4606,16 @@ isolated PostgreSQL script with `FEWIA_REQUIRE_DB=1`.
 Writer totals after this repair: four runs, 1293.748 seconds, 3298795 input
 tokens, and 49305 output tokens. These totals supersede the three-run
 writer snapshot above and exclude the later independent review.
+
+Luna reviewed `9e0d2ee0` at high effort and requested changes. An ambiguous
+comma phrase, such as "14 g, protein", could use an ingredient quantity
+through the generic fallback. The next repair rejects these phrases and
+checks coordinated alternatives against their nutrient. Clear ingredient
+clauses and the existing deferred-addition wording still pass.
+The focused suite then passed 596 tests. Strict mypy, Ruff, and formatting
+checks passed. Terra replayed 51 adversarial and positive cases; all
+matched their expected outcome. Full gates and the next independent
+review use the later committed SHA.
+Writer totals after this repair: five runs, 1594.440 seconds, 3608015 input
+tokens, and 60611 output tokens. The first Luna review used 196347 input
+tokens and 7354 output tokens. The loop record holds later review usage.

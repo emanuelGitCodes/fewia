@@ -46,6 +46,9 @@ _CONTINUE = re.compile(
     r"|\(\s*(?:from\s+)?)\Z",
     re.IGNORECASE,
 )
+_UNCERTAIN_PAIR = re.compile(r"[\s,/&]*(?:(?:and|or|of)\b[\s,/&]*)*\Z", re.IGNORECASE)
+_DEFERRED_ADDITION = re.compile(r"\s*,\s*and\s+more\s+\Z", re.IGNORECASE)
+_DEFERRED_END = re.compile(r"\s+later\s*(?:[.!?;\n]|\Z)", re.IGNORECASE)
 _CLAUSE_END = re.compile(r"[.!?;\n]")
 _COUNT_UNIT = re.compile(
     r"\s*(?:servings?|meals?|ounces?|oz|lbs?|pounds?|packages?)\b", re.IGNORECASE
@@ -102,12 +105,33 @@ def nutrient_bindings(
                 else (label.end(), token.start())
             )
             gap = plain[left:right]
-            if token.end() <= label.start() and "," in gap:
+            if (
+                token.end() <= label.start()
+                and _DEFERRED_ADDITION.fullmatch(gap)
+                and _DEFERRED_END.match(plain, label.end())
+            ):
                 continue
             if not _CLAUSE_END.search(gap) and not any(
                 left <= other.start() < right for other in [*labels, *tokens]
             ):
                 bindings[token.start()] = None
+    for index in range(len(tokens) - 2, -1, -1):
+        previous, token = tokens[index], tokens[index + 1]
+        if (
+            previous.start() in bindings
+            or token.start() not in bindings
+            or not previous["n1"]
+            or previous["en"]
+            or _COUNT_UNIT.match(plain, previous.end())
+        ):
+            continue
+        gap = plain[previous.end() : token.start()]
+        if _CLAUSE_END.search(gap):
+            continue
+        if _CONTINUE.fullmatch(gap):
+            bindings[previous.start()] = bindings[token.start()]
+        elif _UNCERTAIN_PAIR.fullmatch(gap):
+            bindings[previous.start()] = None
     for previous, token in zip(tokens, tokens[1:], strict=False):
         if (
             previous.start() not in bindings
