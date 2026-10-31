@@ -132,8 +132,13 @@ def test_spaced_out_letters_pass_the_diet_check() -> None:
 @pytest.mark.parametrize(
     "reply",
     [
-        "Overnight oats are a good low-glycemic-index choice for type 2 diabetes.",
         "Watch your Blood Sugar.",
+        "Watch your blood **sugar**.",
+        "Fine with blood _pressure_.",
+        "Watch your blood_sugar.",
+        "Watch your blood-sugar.",
+        "Watch your bloodsugar.",
+        "Fine with bloodpressure.",
         "It may affect insulin.",
         "Good for a diabetic diet.",
         "Fine with prediabetes.",
@@ -150,6 +155,12 @@ def test_spaced_out_letters_pass_the_diet_check() -> None:
 )
 def test_medical_conditions_fail_anywhere_in_the_text(reply: str) -> None:
     assert "medical_claim" in validate(reply, FactSet(generic={Decimal(2)})).reasons
+
+
+def test_the_c09_sentence_fails_only_the_medical_check() -> None:
+    reply = "Overnight oats are a good low-glycemic-index choice for type 2 diabetes."
+    verdict = validate(reply, FactSet(generic={Decimal(2)}))
+    assert verdict.reasons == ("medical_claim",), verdict
 
 
 def test_a_repeated_user_condition_fails_only_the_medical_check() -> None:
