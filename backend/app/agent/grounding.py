@@ -24,10 +24,10 @@ directly followed by any other letter ("12k", "2x", "3K") is `unmatched_number`.
 So is a number, whitespace, and a scale word or multiplier ("$12 K", "2 x").
 Mass units: "mg" must match a milligram fact, "kg" is grams times 1000.
 
-Direction rule: an unsigned energy, mass, milli, or percent token with its unit,
-directly followed by more, higher, extra, up (+) or less, fewer, lower, down (-),
-takes that sign ("2.5 g more fat" is +2.5). It is then checked like a signed token,
-against this turn's deltas only. Money, counts, and ranges are never bound.
+Direction rule: an unsigned energy, mass, milli, or percent token takes a sign from a
+direction word after it (more, less: "2.5 g more fat") or a direction verb before it
+(gains, drops: "drops by 2.8 g", carried over "and" or ","). It is then checked like a
+signed token, against this turn's deltas only. Money, counts, ranges are never bound.
 
 Digit rule: any digit, number, or letter-number character other than ASCII 0-9
 (superscripts, circled or fullwidth digits, other scripts, "Ⅻ") fails with
@@ -110,6 +110,26 @@ _DIRECTION = re.compile(
     r"\s*\b(?:(?P<up>more|higher|extra|up)|(?P<down>less|fewer|lower|down))\b",
     re.IGNORECASE,
 )
+# A direction verb right before a unit number gives it a sign; "and" or "," carry it on.
+_UP = (
+    r"gain(?:s|ed|ing)?|add(?:s|ed|ing)?|ris(?:e|es|ing)|rose"
+    r"|increas(?:e|es|ed|ing)"
+)
+_DOWN = (
+    r"los(?:e|es|ing)|lost|drop(?:s|ped|ping)?|fall(?:s|ing)?|fell"
+    r"|(?:decreas|reduc)(?:e|es|ed|ing)"
+)
+_VERB = re.compile(rf"\b(?:(?P<up>{_UP})|(?P<down>{_DOWN}))\b", re.IGNORECASE)
+_RUN_END = re.compile(rf"from|to|while|but|whereas|than|{_UP}|{_DOWN}", re.IGNORECASE)
+_BASE = frozenset("gain add rise increase lose drop fall decrease reduce".split())
+_ABOUT = r"(?:(?:about|around|roughly|approximately) +)?"
+_LEAD = re.compile(rf" *(?:by +)?{_ABOUT}(?:\*\*)?", re.IGNORECASE)
+_CARRY = re.compile(
+    rf"(?:\*\*)?((?: +[A-Za-z]+){{0,3}}?) *(?:, *and\b|,|\band\b) *{_ABOUT}(?:\*\*)?",
+    re.IGNORECASE,
+)
+# A base-form verb at a sentence start is an instruction ("Add 5 g"), not a change.
+_IMPERATIVE = re.compile(r"(?:\A|[.!?:\n])[ *\-]*\Z")
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
 # "which one do you mean": "one" is a pronoun only at the end of a clause or before
 # a function word. Any other noun or unit ("a one egg omelet", "a one-pound pack")
@@ -397,9 +417,32 @@ def _grounded(
     return value in pool or (kind in ("mass", "count") and value in facts.generic)
 
 
+def _verb_signs(text: str) -> dict[int, str]:
+    """Map the start of each unit token that a direction verb binds to its sign."""
+    signs: dict[int, str] = {}
+    for verb in _VERB.finditer(text):
+        if verb.group().lower() in _BASE and _IMPERATIVE.search(text[: verb.start()]):
+            continue
+        sign = _MINUS if verb["down"] else "+"
+        start = _LEAD.match(text, verb.end())
+        pos = start.end() if start else verb.end()
+        while token := _TOKEN.match(text, pos):
+            if not (token["n1"] and any(token[n] for n in _KINDS)):
+                break
+            if token["sign"] or token["n2"]:
+                break
+            signs[token.start()] = sign
+            gap = _CARRY.match(text, token.end())
+            if not gap or any(_RUN_END.fullmatch(w) for w in gap[1].split()):
+                break
+            pos = gap.end()
+    return signs
+
+
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     unmatched: list[str] = []
     word = money = False
+    lead = _verb_signs(reply)
     for m in _TOKEN.finditer(reply):
         before = reply[max(0, m.start() - 20) : m.start()]
         if m["big"]:
@@ -444,6 +487,8 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                 nsign = m["sign"] if index == 0 else None
                 if bound:
                     nsign = _MINUS if bound["down"] else "+"
+                elif index == 0 and not m["sign"]:
+                    nsign = lead.get(m.start())
                 value = _number(raw) * (1000 if m["kg"] else 1)
                 if not _grounded(kind, value, nsign, approx, facts):
                     shown = str(int(_number(raw))) if raw[0].isalpha() else raw

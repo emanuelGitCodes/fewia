@@ -518,6 +518,59 @@ def test_a_range_before_a_direction_word_stays_unbound() -> None:
     assert not validate("2 to 3 g more", _changes(("mass", 2), ("mass", 3))).ok
 
 
+def test_direction_verb_binds_the_number_after_it_and_carries_over_a_list() -> None:
+    mass = {("mass", Decimal("2.5")), ("mass", Decimal("-4.5"))}
+    swing = FactSet(deltas={*mass, ("energy", Decimal(38))})
+    reply = (
+        "each serving gains about 2.5 g fat and 38 kcal while losing about 4.5 g carbs"
+    )
+    assert validate(reply, swing).ok
+    absolute = FactSet(mass={Decimal("2.5"), Decimal("4.5")}, energy={Decimal(38)})
+    assert not validate(reply, absolute).ok
+    swap = FactSet(deltas={("energy", Decimal(38)), ("mass", Decimal("2.5"))})
+    assert validate("The swap adds about 38 kcal and 2.5 g of fat per serving", swap).ok
+    assert validate("It ADDED 38 kcal, 2.5 g fat", swap).ok
+
+
+def test_direction_verb_before_a_number_takes_the_verb_sign() -> None:
+    drop = FactSet(
+        deltas={("mass", Decimal("-2.8"))}, mass={Decimal("31.2"), Decimal("28.4")}
+    )
+    reply = "Protein drops by **2.8 g** (from 31.2 g to 28.4 g)"
+    assert validate(reply, drop).ok
+    rise = FactSet(deltas={("mass", Decimal("2.8"))}, mass=drop.mass)
+    verdict = validate(reply, rise)
+    assert verdict.unmatched == ("-2.8",)
+    energy = FactSet(
+        deltas={("energy", Decimal(28))}, energy={Decimal(559), Decimal(587)}
+    )
+    assert validate("Energy rises by 28 kcal (from 559 kcal to 587 kcal)", energy).ok
+
+
+def test_direction_verb_never_matches_the_absolute_pool() -> None:
+    assert not validate(
+        "Fat increases by about 69 g total", FactSet(mass={Decimal(69)})
+    ).ok
+    assert not validate("It gains 38 kcal", FactSet(energy={Decimal(38)})).ok
+    assert validate("It loses 5 g", FactSet(mass={Decimal(-5)})).ok
+
+
+def test_direction_verb_run_ends_at_but_and_never_binds_counts() -> None:
+    facts = FactSet(
+        deltas={("mass", Decimal("2.5"))}, energy={Decimal(38)}, count={Decimal(2)}
+    )
+    assert validate("gains 2.5 g fat but 38 kcal", facts).ok
+    assert not validate("gains 2.5 g fat but 38 kcal", FactSet(deltas=facts.deltas)).ok
+    assert validate("It adds flavor and 2 servings", FactSet(count={Decimal(2)})).ok
+    assert validate("Add 5 g, and more fat later.", FactSet(mass={Decimal(5)})).ok
+
+
+def test_trailing_direction_word_wins_over_a_leading_verb() -> None:
+    facts = _changes(("mass", 5))
+    assert validate("It drops 5 g more", facts).ok
+    assert not validate("It adds 5 g less", facts).ok
+
+
 def test_negative_plain_fact_matches_only_a_minus_sign() -> None:
     facts = _facts(remaining_cents=-120)
     assert validate("Remaining: USD -$1.20.", facts).ok
