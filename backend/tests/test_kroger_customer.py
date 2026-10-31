@@ -265,6 +265,40 @@ def test_failed_refresh_propagates_and_keeps_the_row(
     assert _stored(row, cipher) == (ACCESS, REFRESH)
 
 
+@pytest.mark.parametrize("status", [400, 401])
+def test_rejected_refresh_deletes_the_row_and_is_not_connected(
+    session: Session, seed_user: UserSeeder, status: int
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    server.status = status
+    _connected(session, seed_user, cipher, -5)
+    assert customer_access_token(session, USER_ID, _kroger(server), cipher) is None
+    assert len(server.requests) == 1
+    assert _row_count(session) == 0
+    assert is_connected(session, USER_ID) is False
+
+
+def test_refresh_timeout_propagates_and_keeps_the_row(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher = _cipher()
+
+    def timeout(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow")
+
+    client = KrogerClient(
+        "invented-id",
+        "invented-secret",
+        base_url=kroger.HOSTS["certification"],
+        client=httpx.Client(transport=httpx.MockTransport(timeout)),
+    )
+    row = _connected(session, seed_user, cipher, -5)
+    with pytest.raises(KrogerUnavailable):
+        customer_access_token(session, USER_ID, client, cipher)
+    assert _row_count(session) == 1
+    assert _stored(row, cipher) == (ACCESS, REFRESH)
+
+
 @pytest.mark.parametrize("expires_in", [120, -5])
 def test_a_token_that_no_longer_decrypts_is_not_connected_and_is_deleted(
     session: Session, seed_user: UserSeeder, expires_in: int

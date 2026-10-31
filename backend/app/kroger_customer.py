@@ -10,7 +10,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.kroger_models import KrogerCustomerToken
-from app.providers.kroger import TOKEN_MARGIN_SECONDS, CustomerTokens, KrogerClient
+from app.providers.kroger import (
+    TOKEN_MARGIN_SECONDS,
+    CustomerTokens,
+    KrogerAuthRejected,
+    KrogerClient,
+)
 
 STATE_COOKIE = "fewia_kroger_state"
 COOKIE_PATH = "/grocery/kroger"
@@ -84,7 +89,8 @@ def customer_access_token(
     """Return a usable access token, refreshing and storing a rotated pair first.
 
     The row stays locked until the commit. KrogerUnavailable propagates and
-    leaves the stored tokens as they were. A stored token that no longer decrypts
+    leaves the stored tokens as they were. A rejected refresh token deletes the
+    tokens and counts as not connected. A stored token that no longer decrypts
     (for example after a key change) is deleted and counts as not connected.
     """
     row = session.scalars(
@@ -108,7 +114,11 @@ def customer_access_token(
     if fresh:
         session.commit()
         return secret
-    tokens = client.refresh_customer(secret)
+    try:
+        tokens = client.refresh_customer(secret)
+    except KrogerAuthRejected:
+        delete_tokens(session, user_id)
+        return None
     store_tokens(session, user_id, cipher, tokens)
     return tokens.access_token
 

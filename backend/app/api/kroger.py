@@ -50,6 +50,7 @@ from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import (
     CartItem,
+    KrogerAuthRejected,
     KrogerCartUnknown,
     KrogerClient,
     KrogerStore,
@@ -254,6 +255,9 @@ def add_to_kroger_cart(
             raise HTTPException(409, NOT_CONNECTED_MESSAGE)
         lines = [CartItem(line.upc, line.quantity) for line in body.items]
         client.add_to_cart(token, lines)
+    except KrogerAuthRejected:
+        delete_tokens(session, DEMO_USER_ID)
+        raise HTTPException(409, NOT_CONNECTED_MESSAGE) from None
     except KrogerUnavailable:
         raise HTTPException(503, UNAVAILABLE_MESSAGE) from None
     except KrogerCartUnknown:

@@ -818,7 +818,60 @@ def test_cart_add_is_503_when_the_refresh_fails_and_keeps_the_row(rig: Rig) -> N
     assert _stored(rig) == (ACCESS, REFRESH)
 
 
-@pytest.mark.parametrize("status", [400, 401, 429])
+@pytest.mark.parametrize("status", [400, 401])
+def test_cart_add_is_409_and_disconnects_when_the_refresh_is_rejected(
+    rig: Rig, status: int
+) -> None:
+    _sign_in(rig, expires_in=-5)
+    rig.token_status = status
+    response = _add(rig)
+    assert response.status_code == 409
+    assert _message(response) == "Kroger account is not connected"
+    assert rig.cart_calls == []
+    assert _row_count(rig) == 0
+    assert rig.api.get(CONNECTION).json() == {"connected": False}
+
+
+def test_cart_add_is_409_and_disconnects_on_a_401_with_a_fresh_token(
+    rig: Rig,
+) -> None:
+    _sign_in(rig)
+    rig.cart_status = 401
+    response = _add(rig)
+    assert response.status_code == 409
+    assert _message(response) == "Kroger account is not connected"
+    assert len(rig.cart_calls) == 1
+    assert _row_count(rig) == 0
+    assert rig.api.get(CONNECTION).json() == {"connected": False}
+
+
+def test_cart_add_is_503_and_keeps_the_row_when_the_refresh_times_out(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _sign_in(rig, expires_in=-5)
+    original = rig.handle
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/connect/oauth2/token":
+            raise httpx.ReadTimeout("slow")
+        return original(request)
+
+    kroger_client = KrogerClient(
+        CLIENT_ID,
+        CLIENT_SECRET,
+        base_url=kroger.HOSTS["certification"],
+        client=httpx.Client(transport=httpx.MockTransport(handle)),
+    )
+    monkeypatch.setitem(
+        app.dependency_overrides, get_kroger_client, lambda: kroger_client
+    )
+    response = _add(rig)
+    assert response.status_code == 503
+    assert rig.cart_calls == []
+    assert _stored(rig) == (ACCESS, REFRESH)
+
+
+@pytest.mark.parametrize("status", [400, 429])
 def test_cart_add_is_503_when_kroger_rejects_the_add(rig: Rig, status: int) -> None:
     _sign_in(rig)
     rig.cart_status = status

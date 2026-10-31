@@ -955,7 +955,31 @@ def test_refresh_customer_rejects_bad_payloads(body: object) -> None:
         _customer(server).refresh_customer(REFRESH)
 
 
-@pytest.mark.parametrize("status", [400, 401, 429, 500])
+@pytest.mark.parametrize("status", [400, 401])
+def test_refresh_customer_400_and_401_are_auth_rejected(
+    status: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG)
+    server = Server()
+    server.token_status = status
+    with pytest.raises(kroger.KrogerAuthRejected) as exc_info:
+        _customer(server).refresh_customer(REFRESH)
+    rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
+    for sentinel in (REFRESH, CLIENT_ID, SECRET):
+        assert sentinel not in rendered
+
+
+def test_refresh_customer_timeout_is_unavailable_not_auth_rejected() -> None:
+    def timeout(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow")
+
+    http = httpx.Client(transport=httpx.MockTransport(timeout))
+    client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+    with pytest.raises(KrogerUnavailable):
+        client.refresh_customer(REFRESH)
+
+
+@pytest.mark.parametrize("status", [429, 500])
 def test_refresh_customer_non_200_is_unavailable(
     status: int, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1016,7 +1040,14 @@ def test_add_to_cart_request_and_success(status: int) -> None:
     }
 
 
-@pytest.mark.parametrize("status", [301, 400, 401, 403, 404, 429])
+def test_add_to_cart_401_is_auth_rejected_and_never_retried() -> None:
+    server = CartServer(401)
+    with pytest.raises(kroger.KrogerAuthRejected):
+        _cart_client(server).add_to_cart(TOKEN, ITEMS)
+    assert len(server.requests) == 1
+
+
+@pytest.mark.parametrize("status", [301, 400, 403, 404, 429])
 def test_add_to_cart_rejection_is_unavailable_and_never_retried(status: int) -> None:
     server = CartServer(status)
     with pytest.raises(KrogerUnavailable):

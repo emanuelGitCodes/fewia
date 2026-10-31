@@ -55,6 +55,13 @@ class KrogerCartUnknown(Exception):
         super().__init__("Kroger did not confirm the cart add")
 
 
+class KrogerAuthRejected(Exception):
+    """Kroger rejected the customer's token; Kroger did not apply the request."""
+
+    def __init__(self) -> None:
+        super().__init__("Kroger rejected the customer token")
+
+
 _NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
 _MAYBE_APPLIED = range(500, 600)
 
@@ -260,6 +267,7 @@ class KrogerClient:
         used_token: str | None = None,
         ok: Container[int] = (200,),
         maybe_sent: bool = False,
+        rejects_auth: Container[int] = (),
     ) -> httpx.Response:
         self._check_cooldown()
         response: httpx.Response | None = None
@@ -291,6 +299,8 @@ class KrogerClient:
                 self._token = None
             if response.status_code == 429:
                 self._cooldown_until = self._clock() + COOLDOWN_SECONDS
+        if response.status_code in rejects_auth:
+            raise KrogerAuthRejected()
         if maybe_sent and response.status_code in _MAYBE_APPLIED:
             raise KrogerCartUnknown()
         if response.status_code not in ok:
@@ -374,6 +384,7 @@ class KrogerClient:
             {"Accept": "application/json"},
             auth=self._auth,
             data={"grant_type": "refresh_token", "refresh_token": refresh_token},
+            rejects_auth=(400, 401),
         )
         return self._customer_tokens(response, refresh_token)
 
@@ -409,6 +420,7 @@ class KrogerClient:
             },
             ok=range(200, 300),
             maybe_sent=True,
+            rejects_auth=(401,),
         )
 
     def _get(
