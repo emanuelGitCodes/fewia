@@ -119,7 +119,7 @@ export type GroceryJob = {
 };
 
 export const SAMPLE_ESTIMATE_NOTICE =
-  "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
+  "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.";
 
 export const NUTRITION_NOTICE =
   "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.";

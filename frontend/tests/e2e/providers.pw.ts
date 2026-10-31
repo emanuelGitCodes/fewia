@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { CHAT_ANSWER, expect, test } from "./fakes";
 
 const SAMPLE_NOTICE =
-  "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
+  "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.";
 const CHAT_PENDING = "Your request is in progress.";
 const CHAT_FAILED = "The chat request failed. Retry checks the same request.";
 const CHAT_MESSAGE = "Make the tacos cheaper.";
