@@ -56,7 +56,7 @@ class KrogerCartUnknown(Exception):
 
 
 _NOT_SENT = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
-_MAYBE_APPLIED = (502, 503, 504)
+_MAYBE_APPLIED = range(500, 600)
 
 
 @dataclass(frozen=True)

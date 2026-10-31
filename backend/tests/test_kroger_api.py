@@ -818,7 +818,7 @@ def test_cart_add_is_503_when_the_refresh_fails_and_keeps_the_row(rig: Rig) -> N
     assert _stored(rig) == (ACCESS, REFRESH)
 
 
-@pytest.mark.parametrize("status", [400, 401, 429, 500])
+@pytest.mark.parametrize("status", [400, 401, 429])
 def test_cart_add_is_503_when_kroger_rejects_the_add(rig: Rig, status: int) -> None:
     _sign_in(rig)
     rig.cart_status = status
@@ -828,16 +828,16 @@ def test_cart_add_is_503_when_kroger_rejects_the_add(rig: Rig, status: int) -> N
     assert len(rig.cart_calls) == 1
 
 
-@pytest.mark.parametrize("status", [502, 503, 504])
-def test_cart_add_is_504_when_kroger_answers_a_gateway_error(
-    rig: Rig, status: int
-) -> None:
+@pytest.mark.parametrize("status", [500, 501, 502, 503, 504, 505, 599])
+def test_cart_add_is_504_for_provider_server_error(rig: Rig, status: int) -> None:
     _sign_in(rig)
     rig.cart_status = status
     response = _add(rig)
     assert response.status_code == 504
     assert _message(response) == "Kroger did not confirm the cart add"
     assert len(rig.cart_calls) == 1
+    assert rig.cart_calls[0].method == "PUT"
+    assert rig.token_calls == []
 
 
 @pytest.mark.parametrize("expires_in", [1800, -5])
@@ -854,15 +854,36 @@ def test_cart_add_is_409_and_forgets_tokens_that_no_longer_decrypt(
     assert rig.api.get(CONNECTION).json() == {"connected": False}
 
 
-def test_cart_add_is_503_when_the_connection_fails_before_sending(rig: Rig) -> None:
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ConnectError("refused"),
+        httpx.ConnectTimeout("slow"),
+        httpx.PoolTimeout("busy"),
+    ],
+)
+def test_cart_add_is_503_when_the_connection_fails_before_sending(
+    rig: Rig, error: httpx.RequestError
+) -> None:
     _sign_in(rig)
-    rig.cart_error = httpx.ConnectError("refused")
+    rig.cart_error = error
     assert _add(rig).status_code == 503
 
 
-def test_cart_add_is_504_when_kroger_does_not_confirm(rig: Rig) -> None:
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ReadTimeout("slow"),
+        httpx.ReadError("lost"),
+        httpx.WriteTimeout("slow"),
+        httpx.WriteError("lost"),
+    ],
+)
+def test_cart_add_is_504_when_kroger_does_not_confirm(
+    rig: Rig, error: httpx.RequestError
+) -> None:
     _sign_in(rig)
-    rig.cart_error = httpx.ReadTimeout("slow")
+    rig.cart_error = error
     response = _add(rig)
     assert response.status_code == 504
     assert _message(response) == "Kroger did not confirm the cart add"
@@ -940,7 +961,7 @@ def test_cart_flow_never_logs_or_echoes_secrets(
     other_key = Fernet.generate_key()
     rig.cipher = Fernet(other_key)
     responses.append(_add(rig))
-    assert [r.status_code for r in responses] == [204, 503, 504, 504, 503, 409]
+    assert [r.status_code for r in responses] == [204, 504, 504, 504, 503, 409]
     haystack = [
         caplog.text,
         *(r.text for r in responses),

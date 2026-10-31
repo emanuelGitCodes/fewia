@@ -178,6 +178,35 @@ def test_clean_strips_line_and_paragraph_separators() -> None:
     assert kroger._clean("a b c") == "abc"
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "😀" * 160,
+        "😀" * 80 + "a",
+        "😀" * 80 + "a" * 80,
+        "a" * 160,
+        "😀" * 161,
+        "😀" * 80 + "a" * 81,
+        "a" * 161,
+    ],
+)
+def test_product_quote_text_uses_unicode_code_points(text: str) -> None:
+    product = kroger._parse_product(
+        _product(
+            description=text,
+            brand=text,
+            items=[{"size": text, "inventory": {"stockLevel": text}}],
+        )
+    )
+    assert product is not None
+    assert (product.description, product.brand, product.size, product.stock_level) == (
+        text[:160],
+        text[:160],
+        text[:160],
+        text[:160],
+    )
+
+
 def test_products_budget_per_utc_day() -> None:
     server = Server()
     client, _ = _make(server)
@@ -970,7 +999,7 @@ def _cart_client(
     )
 
 
-@pytest.mark.parametrize("status", [200, 204])
+@pytest.mark.parametrize("status", [200, 201, 202, 204, 299])
 def test_add_to_cart_request_and_success(status: int) -> None:
     server = CartServer(status)
     assert _cart_client(server).add_to_cart(TOKEN, ITEMS) is None
@@ -987,16 +1016,16 @@ def test_add_to_cart_request_and_success(status: int) -> None:
     }
 
 
-@pytest.mark.parametrize("status", [301, 400, 401, 403, 404, 429, 500, 501])
-def test_add_to_cart_non_2xx_is_unavailable_and_never_retried(status: int) -> None:
+@pytest.mark.parametrize("status", [301, 400, 401, 403, 404, 429])
+def test_add_to_cart_rejection_is_unavailable_and_never_retried(status: int) -> None:
     server = CartServer(status)
     with pytest.raises(KrogerUnavailable):
         _cart_client(server).add_to_cart(TOKEN, ITEMS)
     assert len(server.requests) == 1
 
 
-@pytest.mark.parametrize("status", [502, 503, 504])
-def test_add_to_cart_gateway_error_may_have_applied_and_is_unknown(
+@pytest.mark.parametrize("status", [500, 501, 502, 503, 504, 505, 599])
+def test_add_to_cart_server_error_may_have_applied_and_is_unknown(
     status: int, caplog: pytest.LogCaptureFixture
 ) -> None:
     caplog.set_level(logging.DEBUG)
@@ -1006,16 +1035,24 @@ def test_add_to_cart_gateway_error_may_have_applied_and_is_unknown(
     rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
     assert str(exc_info.value) == "Kroger did not confirm the cart add"
     assert len(server.requests) == 1
+    assert server.requests[0].method == "PUT"
+    assert server.requests[0].url.path == "/v1/cart/add"
     for sentinel in (TOKEN, CLIENT_ID, SECRET):
         assert sentinel not in rendered
 
 
-def test_add_to_cart_connect_failure_was_not_sent() -> None:
+@pytest.mark.parametrize(
+    "error_type", [httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout]
+)
+def test_add_to_cart_connect_failure_was_not_sent(
+    error_type: type[httpx.RequestError],
+) -> None:
     server = CartServer()
-    server.error = httpx.ConnectError(f"{TOKEN} {SECRET}")
+    server.error = error_type(f"{TOKEN} {SECRET}")
     with pytest.raises(KrogerUnavailable) as exc_info:
         _cart_client(server).add_to_cart(TOKEN, ITEMS)
     assert exc_info.value.__cause__ is None
+    assert len(server.requests) == 1
 
 
 @pytest.mark.parametrize(
@@ -1025,6 +1062,7 @@ def test_add_to_cart_connect_failure_was_not_sent() -> None:
         httpx.ReadError("x"),
         httpx.RemoteProtocolError("x"),
         httpx.WriteTimeout("x"),
+        httpx.WriteError("x"),
     ],
 )
 def test_add_to_cart_without_a_response_is_unknown(

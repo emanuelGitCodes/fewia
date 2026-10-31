@@ -21,11 +21,18 @@ describe("previewKrogerCart", () => {
   it("posts the ids and maps the body", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ items: [cartItem], unmatched: [{ ingredient_id: "x", name: "Saffron" }] }),
+      json: async () => ({
+        items: [cartItem],
+        unmatched: [{ ingredient_id: "x", name: "Saffron" }],
+      }),
     }));
     vi.stubGlobal("fetch", fetchMock);
     const result = await previewKrogerCart("rev-1", "01400943");
-    expect(result.items[0]).toMatchObject({ upc: "0001111041600", size: null, quantity: 2 });
+    expect(result.items[0]).toMatchObject({
+      upc: "0001111041600",
+      size: null,
+      quantity: 2,
+    });
     expect(result.unmatched).toEqual([{ ingredientId: "x", name: "Saffron" }]);
     const init = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect(init.body).toBe(JSON.stringify({ plan_revision_id: "rev-1", location_id: "01400943" }));
@@ -61,16 +68,37 @@ describe("addToKrogerCart", () => {
       [504, "unknown"],
       [502, "unknown"],
       [500, "unknown"],
+      [501, "unknown"],
+      [505, "unknown"],
+      [599, "unknown"],
     ];
     for (const [status, expected] of cases) {
-      vi.stubGlobal("fetch", vi.fn(async () => ({ status }) as Response));
+      const fetchMock = vi.fn(async () => ({ status }) as Response);
+      vi.stubGlobal("fetch", fetchMock);
       expect(await addToKrogerCart([{ upc: "0001111041600", quantity: 1 }])).toBe(expected);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetch).mock.calls[0]).toEqual([
+        "/api/grocery/kroger/cart/add",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            items: [{ upc: "0001111041600", quantity: 1 }],
+          }),
+          headers: { "Content-Type": "application/json" },
+        },
+      ]);
     }
   });
 
   it("returns unknown when the network fails", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("down"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("down");
+      }),
+    );
     expect(await addToKrogerCart([{ upc: "0001111041600", quantity: 1 }])).toBe("unknown");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -83,10 +111,7 @@ const store = {
 };
 
 function reply(body: unknown, ok = true): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => ({ ok, json: async () => body }) as Response),
-  );
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok, json: async () => body }) as Response));
 }
 
 afterEach(() => {
@@ -126,7 +151,12 @@ describe("disconnectKroger", () => {
   it("throws HTTP_ERROR on any other status or a network failure", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200 }) as Response));
     await expect(disconnectKroger()).rejects.toThrow(HTTP_ERROR);
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("down"); }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("down");
+      }),
+    );
     await expect(disconnectKroger()).rejects.toThrow(HTTP_ERROR);
   });
 });
@@ -136,7 +166,13 @@ describe("findKrogerStores", () => {
     reply({ stores: [store] });
     const stores = await findKrogerStores("45202");
     expect(stores).toEqual([
-      { locationId: "01400943", name: "Main Street", addressLine: "1 Test Way", city: "Springfield", state: "OH" },
+      {
+        locationId: "01400943",
+        name: "Main Street",
+        addressLine: "1 Test Way",
+        city: "Springfield",
+        state: "OH",
+      },
     ]);
     const [path, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(path).toBe("/api/grocery/kroger/stores");

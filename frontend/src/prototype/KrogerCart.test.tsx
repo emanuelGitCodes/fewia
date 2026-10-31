@@ -22,10 +22,17 @@ function stub(addStatus: () => number | Promise<number>, preview?: unknown): Cal
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
       if (url === "/api/grocery/plans") {
-        return { ok: true, status: 200, json: async () => ({ plan_revision_id: "rev-1" }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ plan_revision_id: "rev-1" }),
+        };
       }
       if (url === "/api/grocery/kroger/cart/preview") {
-        const body = preview ?? { items: [ITEM], unmatched: [{ ingredient_id: "x", name: "Saffron" }] };
+        const body = preview ?? {
+          items: [ITEM],
+          unmatched: [{ ingredient_id: "x", name: "Saffron" }],
+        };
         return { ok: true, status: 200, json: async () => body };
       }
       return { ok: false, status: await addStatus() };
@@ -119,30 +126,53 @@ describe("KrogerCart", () => {
     expect(screen.getByRole("button", { name: /^Send/ })).toBeTruthy();
   });
 
-  it("offers Retry after an unconfirmed send and resends once per click", async () => {
-    const calls = stub(() => 504);
-    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
-    await showPreview();
-    fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
-    expect(
-      await screen.findByText("Kroger did not confirm. Check your Kroger cart before you retry."),
-    ).toBeTruthy();
-    await settle();
-    const adds = (): number => calls.filter((call) => call.url.endsWith("/cart/add")).length;
-    expect(adds()).toBe(1);
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await settle();
-    expect(adds()).toBe(2);
-  });
+  it.each([500, 501, 502, 504, 505, 599])(
+    "requires an explicit Retry after an unconfirmed HTTP %s send",
+    async (initialStatus) => {
+      let status = initialStatus;
+      const calls = stub(() => status);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      const adds = (): number => calls.filter((call) => call.url.endsWith("/cart/add")).length;
+      expect(adds()).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      expect(
+        await screen.findByText("Kroger did not confirm. Check your Kroger cart before you retry."),
+      ).toBeTruthy();
+      await settle();
+      expect(adds()).toBe(1);
+      expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+      await settle();
+      expect(adds()).toBe(1);
+      status = 204;
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      expect(
+        await screen.findByText("Added to your Kroger cart. Review and check out on kroger.com."),
+      ).toBeTruthy();
+      await settle();
+      expect(adds()).toBe(2);
+      expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
+    },
+  );
 
   it("disables Send while the request runs", async () => {
     let finish: () => void = () => undefined;
-    stub(() => new Promise<number>((resolve) => { finish = () => { resolve(204); }; }));
+    stub(
+      () =>
+        new Promise<number>((resolve) => {
+          finish = () => {
+            resolve(204);
+          };
+        }),
+    );
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     await showPreview();
     fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
     expect((screen.getByRole("button", { name: /^Send/ }) as HTMLButtonElement).disabled).toBe(true);
-    await act(async () => { finish(); });
+    await act(async () => {
+      finish();
+    });
     await screen.findByText(/^Added to your Kroger cart/);
   });
 
@@ -158,7 +188,12 @@ describe("KrogerCart", () => {
     stub(() => 204);
     const view = render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     await showPreview();
-    view.rerender(<KrogerCart state={{ ...initialPlanState(), budgetCents: 12345 }} locationId="01400943" />);
+    view.rerender(
+      <KrogerCart
+        state={{ ...initialPlanState(), budgetCents: 12345 }}
+        locationId="01400943"
+      />,
+    );
     expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
   });
 
@@ -184,19 +219,32 @@ describe("KrogerCart", () => {
   });
 
   describe("a send that settles after the plan or store changed", () => {
-    const adds = (calls: Calls): number => calls.filter((call) => call.url.endsWith("/cart/add")).length;
+    const adds = (calls: Calls): number =>
+      calls.filter((call) => call.url.endsWith("/cart/add")).length;
     const previewButton = (): HTMLButtonElement =>
-      screen.getByRole("button", { name: "Preview Kroger cart" }) as HTMLButtonElement;
+      screen.getByRole("button", {
+        name: "Preview Kroger cart",
+      }) as HTMLButtonElement;
     const other = <KrogerCart state={initialPlanState()} locationId="01400944" />;
 
     // Each add waits for release(status); calls are released in order.
-    function gated(): { release: (status: number) => Promise<void>; calls: Calls } {
+    function gated(): {
+      release: (status: number) => Promise<void>;
+      calls: Calls;
+    } {
       const pending: ((status: number) => void)[] = [];
-      const calls = stub(() => new Promise<number>((resolve) => { pending.push(resolve); }));
+      const calls = stub(
+        () =>
+          new Promise<number>((resolve) => {
+            pending.push(resolve);
+          }),
+      );
       return {
         calls,
         release: async (status) => {
-          await act(async () => { pending.shift()?.(status); });
+          await act(async () => {
+            pending.shift()?.(status);
+          });
           await settle();
         },
       };
