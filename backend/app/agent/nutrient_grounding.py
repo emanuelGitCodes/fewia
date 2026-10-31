@@ -107,13 +107,22 @@ def _within(points: Sequence[int], left: int, right: int) -> bool:
 
 def _left_ok(plain: str, label: re.Match[str]) -> bool:
     """False when an unlisted word sits right before the label ("animal protein")."""
-    before = plain[max(0, label.start() - 16) : label.start()].rstrip(" \t")
+    low = max(0, label.start() - 16)
+    raw = plain[low : label.start()]
+    before = raw.rstrip(" \t\n")
     word = _LEFT_WORD.search(before)
-    return (
+    if (
         word is None
         or not any(c.isalnum() for c in word.group())
         or word.group().lower() in _LEFT_OK
-    )
+    ):
+        return True
+    if "\n" not in raw[len(before) :]:
+        return False
+    # The label starts a line: only the end of a line that holds an amount ("25 g",
+    # "25 g per serving") leaves it bound. "Plant" alone on the line above does not.
+    line = plain[plain.rfind("\n", 0, low + word.start()) + 1 : low + word.end()]
+    return any(c.isdigit() for c in line)
 
 
 def _claim_tail_allowed(

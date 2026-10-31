@@ -32,10 +32,12 @@ signed token, against this turn's deltas only. Money, counts, ranges are never b
 matches a signed delta only, takes the sign of the direction verb that leads its run
 ("Fat drops by 3 g, protein by 5 g"), and fails when there is none.
 "<verb> from X to Y" on energy or a nutrient must read one recorded before and after
-pair of that nutrient (FactSet.moves), and a direction verb must agree with Y - X.
-That holds when a direction verb, "changes", "changed", "went", or "goes" leads the
-"from", or when this turn recorded a pair for that subject. Any other "from X to Y"
-is a range: both values must be facts of that kind.
+pair of that nutrient (FactSet.moves), and the direction verbs and words in the clause
+before "from" (back to a sentence end, ";", or a line break) must agree with Y - X:
+"rose sharply from", "rose, from", and "is down from" all count. An up and a down word
+in that clause fail. That holds when such a word, "changes", "changed", "went", or
+"goes" leads the "from", or when this turn recorded a pair for that subject. Any other
+"from X to Y" is a range: both values must be facts of that kind.
 A reply over MAX_REPLY_CHARS fails with `too_long` before any scan.
 
 Medical rule: a reply that names a health condition or marker fails with
@@ -161,14 +163,20 @@ _BARE_BY = re.compile(
     rf"(?:{LABEL_BY}|\bchang(?:e|es|ed|ing)[^\S\n]+)by[^\S\n]+{_ABOUT}\Z",
     re.IGNORECASE,
 )
-# "<verb>? from X to Y": the verb, if any, sits right before "from". "changes",
-# "changed", "went", and "goes" lead a change with no direction of its own.
+# "<verb>? from X to Y": "changes", "changed", "went", and "goes" right before "from"
+# lead a change with no direction of its own. The direction comes from _CUE.
 _FROM = re.compile(
-    rf"(?:\b(?:(?P<up>{UP_VERBS})|(?P<down>{DOWN_VERBS})"
-    r"|(?P<flat>changes|changed|went|goes))[^\S\n]+)?"
-    rf"\bfrom[^\S\n]+{_ABOUT}\Z",
+    r"(?:\b(?P<flat>changes|changed|went|goes)[^\S\n]+)?"
+    rf"\b(?P<src>from)[^\S\n]+{_ABOUT}\Z",
     re.IGNORECASE,
 )
+# Every direction verb or word in the clause before "from", whatever sits between.
+_CUE = re.compile(
+    rf"\b(?:(?P<up>{UP_VERBS}|{UP_WORDS})|(?P<down>{DOWN_VERBS}|{DOWN_WORDS}))\b",
+    re.IGNORECASE,
+)
+_CLAUSE_START = re.compile(r"[!?;\n]|\.(?!\d)")
+_CLAUSE_LOOKBACK = 200
 _TO = re.compile(rf"[^\S\n]+to[^\S\n]+{_ABOUT}", re.IGNORECASE)
 # A base-form verb at a sentence start is an instruction ("Add 5 g"), not a change.
 _IMPERATIVE = re.compile(r"(?:\A|[.!?:\n])[ *\-]*\Z")
@@ -535,6 +543,18 @@ def _bare_by(plain: str, start: int) -> bool:
     return "by" in window.lower() and _BARE_BY.search(window) is not None
 
 
+def _cues(plain: str, stop: int) -> tuple[bool, bool]:
+    """Whether an up word and a down word sit in the clause that ends at `stop`."""
+    span = plain[max(0, stop - _CLAUSE_LOOKBACK) : stop]
+    first = 0
+    if stop > _CLAUSE_LOOKBACK:
+        first = span.find(" ") + 1 or len(span)  # skip a word the lookback cut in two
+    for boundary in _CLAUSE_START.finditer(span):
+        first = max(first, boundary.end())
+    found = list(_CUE.finditer(span, first))
+    return any(m["up"] for m in found), any(m["down"] for m in found)
+
+
 def _from_to(
     plain: str,
     tokens: Sequence[re.Match[str]],
@@ -576,7 +596,9 @@ def _from_to(
             continue
         if kind != "energy" and nutrients.get(ends[1].start()) != subject:
             subject = None
-        led = origin["up"] or origin["down"] or origin["flat"]
+        stop = max(0, token.start() - 64) + origin.start("src")
+        up, down = _cues(plain, stop)
+        led = up or down or origin["flat"]
         if not (led or any(move[0] == subject for move in facts.moves)):
             continue  # "From 474 to 489 kcal" is a range across options, not a change
         before, after = (
@@ -594,8 +616,9 @@ def _from_to(
                 if subject == "energy"
                 else (subject, kind, True, change) in facts.nutrition
             )
-            and not (origin["up"] and change <= 0)
-            and not (origin["down"] and change >= 0)
+            and not (up and down)
+            and not (up and change <= 0)
+            and not (down and change >= 0)
         )
         verdicts.update(dict.fromkeys((end.start() for end in ends), ok))
     return verdicts
