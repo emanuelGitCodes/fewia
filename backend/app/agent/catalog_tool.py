@@ -255,7 +255,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         for u in units
         if _facet(u) is None and any(_has_word(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
-    searchable = bool(query_facets or words)
+    searchable = bool(facets or words)
     eligible: list[str] = []
     for rid in () if unresolved or not searchable else SUPPORTED_RECIPE_IDS:
         if not all(_has_facet(f, rid) for f in applied):
@@ -271,7 +271,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         eligible.append(rid)
     found_ids = [r for r in eligible if all(_has_word(w, r) for w in words)]
     dropped: list[str] = []
-    if not found_ids and query_facets and eligible:
+    if not found_ids and facets and eligible:
         found_ids, dropped = eligible, words
     if min_protein is not None:
         found_ids = sorted(found_ids, key=lambda r: -_protein_g(r))

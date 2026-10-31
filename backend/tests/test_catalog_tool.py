@@ -151,10 +151,11 @@ def test_unknown_word_is_listed_but_known_word_still_matches() -> None:
     assert all(has(rid, "chickpeas") for rid in ids(payload))
 
 
-def test_score_orders_meals() -> None:
+def test_every_text_word_must_match_the_returned_meals() -> None:
     payload = search("chickpea egg", limit=3)
-    first = ids(payload)[0]
-    assert has(first, "chickpeas") and has(first, "eggs")
+    assert ids(payload)
+    for rid in ids(payload):
+        assert has(rid, "chickpeas") and has(rid, "eggs")
 
 
 @pytest.mark.parametrize("query", ["a meal for me", "something", "123"])
@@ -244,10 +245,13 @@ def test_unknown_exclusion_returns_no_meals() -> None:
 
 
 def test_min_protein_filters_on_computed_value() -> None:
-    for threshold in (0, 20, 35, 200):
-        payload = search(
-            "rice chicken egg bean chickpea", min_protein_g=threshold, limit=3
-        )
+    chicken = [
+        protein_g(rid) for rid in SUPPORTED_RECIPE_IDS if "chicken" in MEAL_TAGS[rid]
+    ]
+    assert chicken
+    for threshold in (0, min(chicken), max(chicken)):
+        payload = search("chicken", min_protein_g=threshold, limit=3)
+        assert ids(payload)
         for rid in ids(payload):
             assert protein_g(rid) >= threshold
     grams = [protein_g(r) for r in ids(search("egg", min_protein_g=1))]
@@ -450,6 +454,28 @@ def test_a_facet_is_never_dropped() -> None:
     assert ids(payload)
     for rid in ids(payload):
         assert not gluten_ids(rid) and "vegan" in MEAL_DIETS[rid]
+
+
+def test_a_type_and_a_word_that_match_together_drop_nothing() -> None:
+    payload = search("chickpea high protein")
+    assert payload["status"] == "ok"
+    assert payload["dropped"] == []
+    assert ids(payload)
+    for rid in ids(payload):
+        assert "high_protein" in MEAL_TAGS[rid] and has(rid, "chickpeas")
+    assert "also matched" not in catalog_answer(payload)
+
+
+def test_a_diet_argument_alone_keeps_meals_and_drops_the_word() -> None:
+    payload = search("eggs", diet="vegan")
+    assert payload["status"] == "ok"
+    assert payload["applied"] == ["vegan"]
+    assert payload["dropped"] == ["eggs"]
+    assert ids(payload)
+    assert all("vegan" in MEAL_DIETS[rid] for rid in ids(payload))
+    assert "No meal with those types also matched: eggs." in catalog_answer(payload)
+    assert search("eggs")["dropped"] == []
+    assert search("xyzzy", diet="omnivore")["status"] == "no_match"
 
 
 def test_high_protein_vegetarian_needs_both() -> None:
