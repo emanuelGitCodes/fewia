@@ -268,6 +268,7 @@ class KrogerClient:
         ok: Container[int] = (200,),
         maybe_sent: bool = False,
         rejects_auth: Container[int] = (),
+        rejects_invalid_grant: bool = False,
     ) -> httpx.Response:
         self._check_cooldown()
         response: httpx.Response | None = None
@@ -301,11 +302,25 @@ class KrogerClient:
                 self._cooldown_until = self._clock() + COOLDOWN_SECONDS
         if response.status_code in rejects_auth:
             raise KrogerAuthRejected()
+        if (
+            rejects_invalid_grant
+            and response.status_code == 400
+            and self._is_invalid_grant(response)
+        ):
+            raise KrogerAuthRejected()
         if maybe_sent and response.status_code in _MAYBE_APPLIED:
             raise KrogerCartUnknown()
         if response.status_code not in ok:
             raise KrogerUnavailable()
         return response
+
+    @staticmethod
+    def _is_invalid_grant(response: httpx.Response) -> bool:
+        try:
+            payload = json.loads(response.content)
+        except Exception:  # noqa: BLE001
+            return False
+        return isinstance(payload, dict) and payload.get("error") == "invalid_grant"
 
     @staticmethod
     def _json(response: httpx.Response) -> object:
@@ -384,7 +399,8 @@ class KrogerClient:
             {"Accept": "application/json"},
             auth=self._auth,
             data={"grant_type": "refresh_token", "refresh_token": refresh_token},
-            rejects_auth=(400, 401),
+            rejects_auth=(401,),
+            rejects_invalid_grant=True,
         )
         return self._customer_tokens(response, refresh_token)
 

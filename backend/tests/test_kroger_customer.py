@@ -162,6 +162,7 @@ class _TokenServer:
     def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
         self.status = 200
+        self.raw: bytes | None = None
         self.body: dict[str, object] = {
             "access_token": NEW_ACCESS,
             "refresh_token": NEW_REFRESH,
@@ -170,6 +171,8 @@ class _TokenServer:
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
+        if self.raw is not None:
+            return httpx.Response(self.status, content=self.raw)
         return httpx.Response(self.status, json=self.body)
 
 
@@ -265,17 +268,46 @@ def test_failed_refresh_propagates_and_keeps_the_row(
     assert _stored(row, cipher) == (ACCESS, REFRESH)
 
 
-@pytest.mark.parametrize("status", [400, 401])
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [(400, {"error": "invalid_grant"}), (401, {"error": "invalid_client"})],
+)
 def test_rejected_refresh_deletes_the_row_and_is_not_connected(
-    session: Session, seed_user: UserSeeder, status: int
+    session: Session, seed_user: UserSeeder, status: int, body: dict[str, object]
 ) -> None:
     cipher, server = _cipher(), _TokenServer()
     server.status = status
+    server.body = body
     _connected(session, seed_user, cipher, -5)
     assert customer_access_token(session, USER_ID, _kroger(server), cipher) is None
     assert len(server.requests) == 1
     assert _row_count(session) == 0
     assert is_connected(session, USER_ID) is False
+
+
+@pytest.mark.parametrize(
+    ("body", "raw"),
+    [
+        ({"error": "invalid_request"}, None),
+        ({}, b"not json"),
+        ({}, b'["invalid_grant"]'),
+    ],
+)
+def test_other_refresh_400_keeps_the_row_and_is_unavailable(
+    session: Session,
+    seed_user: UserSeeder,
+    body: dict[str, object],
+    raw: bytes | None,
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    server.status = 400
+    server.body = body
+    server.raw = raw
+    row = _connected(session, seed_user, cipher, -5)
+    with pytest.raises(KrogerUnavailable):
+        customer_access_token(session, USER_ID, _kroger(server), cipher)
+    assert _row_count(session) == 1
+    assert _stored(row, cipher) == (ACCESS, REFRESH)
 
 
 def test_refresh_timeout_propagates_and_keeps_the_row(

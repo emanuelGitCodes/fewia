@@ -40,6 +40,7 @@ class Server:
     def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
         self.token_status = 200
+        self.token_raw: bytes | None = None
         self.token_body: dict[str, object] = {"access_token": TOKEN, "expires_in": 1800}
         self.data_status = 200
         self.data_headers: dict[str, str] = {}
@@ -50,6 +51,8 @@ class Server:
         self.requests.append(request)
         path = request.url.path
         if path == "/v1/connect/oauth2/token":
+            if self.token_raw is not None:
+                return httpx.Response(self.token_status, content=self.token_raw)
             return httpx.Response(self.token_status, json=self.token_body)
         body = self.locations if path == "/v1/locations" else self.products
         return httpx.Response(self.data_status, json=body, headers=self.data_headers)
@@ -955,18 +958,42 @@ def test_refresh_customer_rejects_bad_payloads(body: object) -> None:
         _customer(server).refresh_customer(REFRESH)
 
 
-@pytest.mark.parametrize("status", [400, 401])
-def test_refresh_customer_400_and_401_are_auth_rejected(
-    status: int, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [(400, {"error": "invalid_grant"}), (401, {"error": "invalid_client"})],
+)
+def test_refresh_customer_invalid_grant_and_401_are_auth_rejected(
+    status: int, body: dict[str, object], caplog: pytest.LogCaptureFixture
 ) -> None:
     caplog.set_level(logging.DEBUG)
     server = Server()
     server.token_status = status
+    server.token_body = body
     with pytest.raises(kroger.KrogerAuthRejected) as exc_info:
         _customer(server).refresh_customer(REFRESH)
     rendered = f"{exc_info.value!s}{exc_info.value!r}{caplog.text}"
-    for sentinel in (REFRESH, CLIENT_ID, SECRET):
+    for sentinel in (REFRESH, CLIENT_ID, SECRET, "invalid_grant"):
         assert sentinel not in rendered
+
+
+@pytest.mark.parametrize(
+    ("body", "raw"),
+    [
+        ({"error": "invalid_request"}, None),
+        ({}, b"not json"),
+        ({}, b'["invalid_grant"]'),
+    ],
+)
+def test_refresh_customer_other_400_is_unavailable(
+    body: dict[str, object], raw: bytes | None
+) -> None:
+    server = Server()
+    server.token_status = 400
+    server.token_body = body
+    server.token_raw = raw
+    with pytest.raises(KrogerUnavailable) as exc_info:
+        _customer(server).refresh_customer(REFRESH)
+    assert not isinstance(exc_info.value, kroger.KrogerAuthRejected)
 
 
 def test_refresh_customer_timeout_is_unavailable_not_auth_rejected() -> None:
