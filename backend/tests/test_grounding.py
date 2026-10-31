@@ -373,6 +373,14 @@ def test_catalog_answer_is_grounded(query: str, note: str | None) -> None:
     assert verdict.ok, (answer, verdict)
 
 
+def test_catalog_more_matches_sentence_is_grounded() -> None:
+    payload = execute_catalog_search({"query": "vegetarian", "limit": 1})
+    answer = catalog_answer(payload)
+    assert f"{payload['total_matches']} meals match. Ask for more" in answer
+    verdict = validate(answer, facts_from_payloads([(TOOL_NAME, payload)]))
+    assert verdict.ok and not verdict.unmatched, (answer, verdict)
+
+
 def test_catalog_server_notes_only_ground_for_the_search_tool() -> None:
     payload = execute_catalog_search({"query": "high protein"})
     assert "high_protein" in payload["applied"]

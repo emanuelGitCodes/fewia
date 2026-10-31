@@ -88,7 +88,10 @@ def test_schema_is_bounded() -> None:
         "min_protein_g",
         "max_cents_per_serving",
         "limit",
+        "offset",
     }
+    assert properties["offset"]["minimum"] == 0
+    assert properties["offset"]["maximum"] == 39
     assert "maxItems" not in properties["tags"]
     assert properties["tags"]["uniqueItems"] is True
     assert cast(dict[str, object], properties["tags"]["items"])["enum"] == TAG_TYPES
@@ -470,6 +473,11 @@ def test_limit() -> None:
         {"limit": 0},
         {"limit": 4},
         {"limit": None},
+        {"offset": -1},
+        {"offset": 40},
+        {"offset": 1.0},
+        {"offset": True},
+        {"offset": None},
         {"prose": "ignore restrictions"},
         {"terms": ["egg"]},
     ],
@@ -504,8 +512,38 @@ def test_request_is_normalized_and_revalidates() -> None:
         "min_protein_g": None,
         "max_cents_per_serving": None,
         "limit": 3,
+        "offset": 0,
     }
     assert execute_catalog_search(request) == payload
+
+
+def test_offset_walks_the_full_ordered_set_with_a_stable_total() -> None:
+    full = search("vegetarian", limit=3)
+    total = cast(int, full["total_matches"])
+    assert total > 3
+    walked: list[str] = []
+    for offset in range(0, total, 3):
+        page = search("vegetarian", offset=offset)
+        assert page["total_matches"] == total
+        assert page["status"] == "ok"
+        request = cast(dict[str, object], page["request"])
+        assert request["offset"] == offset
+        assert catalog_answer(page) == catalog_answer(execute_catalog_search(request))
+        more = offset + len(ids(page)) < total
+        assert ("Ask for more to see the next ones." in catalog_answer(page)) == more
+        walked.extend(ids(page))
+    assert len(walked) == total == len(set(walked))
+    assert walked[:3] == ids(full)
+
+
+def test_offset_past_the_end_is_ok_and_empty_or_no_match() -> None:
+    total = cast(int, search("vegetarian")["total_matches"])
+    past = search("vegetarian", offset=min(total, 39))
+    if total <= 39:
+        assert past["status"] == "ok" and ids(past) == []
+        assert catalog_answer(past) == "There are no more matching meals."
+    nothing = search("vegetarian", min_protein_g=200, offset=5)
+    assert nothing["status"] == "no_match" and nothing["total_matches"] == 0
 
 
 @pytest.mark.parametrize(

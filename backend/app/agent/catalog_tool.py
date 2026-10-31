@@ -37,6 +37,7 @@ _KEYS = {
     "min_protein_g",
     "max_cents_per_serving",
     "limit",
+    "offset",
 }
 DISCOVERY_ERROR = (
     "I cannot find meals from those inputs. "
@@ -72,6 +73,7 @@ _UNKNOWN_EXCLUSION = (
     "I could not match an ingredient to exclude, so I did not search. "
     "Name the ingredient another way."
 )
+_NO_MORE = "There are no more matching meals."
 _BAD = "arguments are invalid"
 
 
@@ -118,6 +120,7 @@ def catalog_tool_spec() -> dict[str, object]:
                         "min_protein_g": _number(0, 200),
                         "max_cents_per_serving": _number(1, 10000),
                         "limit": _number(1, 3),
+                        "offset": _number(0, 39),
                     },
                     "required": ["query"],
                     "additionalProperties": False,
@@ -267,9 +270,10 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     min_protein = _int(arguments.get("min_protein_g"), 0, 200, True)
     max_cents = _int(arguments.get("max_cents_per_serving"), 1, 10000, True)
     limit = _int(arguments.get("limit", 3), 1, 3)
+    offset = _int(arguments.get("offset", 0), 0, 39)
     names = _names(arguments.get("exclude", []))
     tags = _tags(arguments.get("tags", []))
-    if not query or diet not in _DIETS or limit is None:
+    if not query or diet not in _DIETS or limit is None or offset is None:
         raise CatalogToolError(_BAD)
     resolved = {name: resolve_ingredient(name) for name in names}
     unresolved = sorted(name for name, found in resolved.items() if found is None)
@@ -315,13 +319,13 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         found_ids, dropped = eligible, words
     if min_protein is not None:
         found_ids = sorted(found_ids, key=lambda r: -_protein_g(r))
-    ids = found_ids[:limit]
+    ids = found_ids[offset : offset + limit]
     status = "no_match"
     if unresolved:
         status = "unknown_exclusion"
     elif unsupported:
         status = "unsupported_facet"
-    elif ids:
+    elif found_ids:
         status = "ok"
     return {
         "status": status,
@@ -333,7 +337,9 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
             "min_protein_g": min_protein,
             "max_cents_per_serving": max_cents,
             "limit": limit,
+            "offset": offset,
         },
+        "total_matches": len(found_ids),
         "recipe_ids": ids,
         "applied": applied,
         "dropped": dropped,
@@ -368,6 +374,8 @@ def catalog_answer(payload: dict[str, object]) -> str:
         return _NO_MATCH
     request = cast(dict[str, object], validated["request"])
     chosen = cast(list[str], validated["recipe_ids"])
+    if not chosen:
+        return _NO_MORE
     applied = cast(list[str], validated["applied"])
     dropped = cast(list[str], validated["dropped"])
     notes = []
@@ -382,5 +390,8 @@ def catalog_answer(payload: dict[str, object]) -> str:
         name = rid.replace("_", " ")
         names.append(name[0].upper() + name[1:])
     lead = f"Catalog choices: {', '.join(names)}. Which one should I plan?"
+    total = cast(int, validated["total_matches"])
+    if cast(int, request["offset"]) + len(chosen) < total:
+        lead += f" {total} meals match. Ask for more to see the next ones."
     caveats = [_CAVEATS[f] for f in applied if f in _CAVEATS]
     return " ".join([lead, *notes, *caveats, _CANNOT_CLAIM])
