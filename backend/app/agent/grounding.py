@@ -29,6 +29,11 @@ direction word after it (more, less: "2.5 g more fat") or a direction verb befor
 (gains, drops: "drops by 2.8 g", carried over "and" or ","). It is then checked like a
 signed token, against this turn's deltas only. Money, counts, ranges are never bound.
 
+Medical rule: a reply that names a health condition or marker fails with
+`medical_claim` (0025): diabet, prediabet, glycemic, insulin, glucose, blood sugar,
+blood pressure, hypertens, cholesterol, pregnan, from a word start on the same text as
+the diet labels. The server sentences stay exempt. Spaced letters do not match.
+
 Digit rule: any digit, number, or letter-number character other than ASCII 0-9
 (superscripts, circled or fullwidth digits, other scripts, "Ⅻ") fails with
 `unsupported_character` before folding. Vulgar fractions are the exception.
@@ -53,7 +58,7 @@ MAX_REPLY_CHARS = 1200
 # Every reason code validate can emit; a test keeps this list and validate in step.
 REASON_CODES = frozenset(
     ("unsupported_character", "empty", "too_long", "store_price", "forbidden_claim")
-    + ("number_word", "unmatched_number")
+    + ("medical_claim", "number_word", "unmatched_number")
 )
 APPROX_WINDOW = 10
 _NUM = r"(?:\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)"
@@ -162,6 +167,13 @@ _DIET_LABEL = re.compile(
     r"\b(?:vegan|vegetarian|keto|paleo|halal|kosher"
     r"|(?:plant[- ]?based|(?:dairy|lactose|nut|egg|soy|sugar)[- ]?free"
     r"|low[- ]?(?:sodium|fat)|high[- ]?fiber))",
+    re.IGNORECASE,
+)
+# A health condition or marker fails with `medical_claim` (0025). Same text and word
+# start as _DIET_LABEL; "kidney", "heart", "gout", and "renal" are left out on purpose.
+_MEDICAL = re.compile(
+    r"\b(?:diabet|prediabet|glycemic|insulin|glucose|blood[\s-]+(?:sugar|pressure)"
+    r"|hypertens|cholesterol|pregnan)",
     re.IGNORECASE,
 )
 # A word split by a hyphen at a line break ("vegetar-\nian") is one word.
@@ -520,6 +532,7 @@ def validate(reply: str, facts: FactSet) -> Verdict:
             or _FORBIDDEN.search(_squash(claims)) is not None
             or _DIET_LABEL.search(diet_text) is not None,
         ),
+        ("medical_claim", _MEDICAL.search(diet_text) is not None),
         ("number_word", word),
         ("unmatched_number", bool(unmatched)),
     )

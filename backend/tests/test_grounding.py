@@ -132,6 +132,45 @@ def test_spaced_out_letters_pass_the_diet_check() -> None:
 @pytest.mark.parametrize(
     "reply",
     [
+        "Overnight oats are a good low-glycemic-index choice for type 2 diabetes.",
+        "Watch your Blood Sugar.",
+        "It may affect insulin.",
+        "Good for a diabetic diet.",
+        "Fine with prediabetes.",
+        "Helps with high blood\npressure.",
+        "Lowers cholesterol and hypertension.",
+        "Safe during pregnancy.",
+        "Spikes glucose.",
+    ],
+)
+def test_medical_conditions_fail_from_a_word_start(reply: str) -> None:
+    assert "medical_claim" in validate(reply, FactSet(generic={Decimal(2)})).reasons
+
+
+def test_a_repeated_user_condition_fails_only_the_medical_check() -> None:
+    reply = "You asked about diabetes. The plan has 43 g of carbs per serving."
+    verdict = validate(reply, FactSet(mass={Decimal(43)}))
+    assert verdict.reasons == ("medical_claim",), verdict
+
+
+@pytest.mark.parametrize("reply", ["Kidney beans add fiber.", "A hearty ragout."])
+def test_kidney_heart_and_gout_words_pass_the_medical_check(reply: str) -> None:
+    assert "medical_claim" not in validate(reply, FactSet()).reasons
+
+
+def test_spaced_out_letters_pass_the_medical_check() -> None:
+    assert "medical_claim" not in validate("d i a b e t e s", FactSet()).reasons
+
+
+def test_a_server_sentence_alone_still_passes_the_medical_check() -> None:
+    sentence = re.split(r"(?<=\.) ", catalog_tool._SAFETY)[0]
+    verdict = validate(sentence, facts_from_payloads([(TOOL_NAME, {})]))
+    assert verdict.ok, verdict
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
         "Servings from your plan: 2.",
         "Protein is 14 g. Servings from your plan: 2.",
         "- Servings from your plan: 2.",
