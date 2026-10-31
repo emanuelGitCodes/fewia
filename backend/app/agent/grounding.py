@@ -33,10 +33,11 @@ matches a signed delta only, takes the sign of the direction verb that leads its
 ("Fat drops by 3 g, protein by 5 g"), and fails when there is none.
 "<verb> from X to Y" on energy or a nutrient must read one recorded before and after
 pair of that nutrient (FactSet.moves), and the direction verbs and words in the clause
-before "from" (back to a sentence end, ";", or a line break) must agree with Y - X:
-"rose sharply from", "rose, from", and "is down from" all count. An up and a down word
-in that clause fail. That holds when such a word, "changes", "changed", "went", or
-"goes" leads the "from", or when this turn recorded a pair for that subject. Any other
+before "from" (back to a sentence end, ";", or a line break, with no length cap; a line
+break right after ":" does not end it) must agree with Y - X: "rose sharply from",
+"rose, from", and "is down from" all count. An up and a down word in that clause fail.
+That holds when such a word, "changes", "changed", "went", or "goes" sits anywhere in
+that clause, or when this turn recorded a pair for that subject. Any other
 "from X to Y" is a range: both values must be facts of that kind.
 Basis rule: every energy and nutrient fact, absolute or delta, records its basis from
 the nearest basis key on its payload path: "serving" under `per_serving`, "total"
@@ -77,6 +78,7 @@ sentence, so a server sentence after one is not exempt.
 
 import re
 import unicodedata
+from bisect import bisect_left, bisect_right
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
@@ -191,20 +193,18 @@ _BARE_BY = re.compile(
     rf"(?:{LABEL_BY}|\bchang(?:e|es|ed|ing)[^\S\n]+)by[^\S\n]+{_ABOUT}\Z",
     re.IGNORECASE,
 )
-# "<verb>? from X to Y": "changes", "changed", "went", and "goes" right before "from"
-# lead a change with no direction of its own. The direction comes from _CUE.
-_FROM = re.compile(
-    r"(?:\b(?P<flat>changes|changed|went|goes)[^\S\n]+)?"
-    rf"\b(?P<src>from)[^\S\n]+{_ABOUT}\Z",
-    re.IGNORECASE,
-)
+# "from X to Y": the direction comes from _CUE.
+_FROM = re.compile(rf"\b(?P<src>from)[^\S\n]+{_ABOUT}\Z", re.IGNORECASE)
 # Every direction verb or word in the clause before "from", whatever sits between.
+# "changes", "changed", "went", and "goes" lead a change with no direction of its own.
 _CUE = re.compile(
-    rf"\b(?:(?P<up>{UP_VERBS}|{UP_WORDS})|(?P<down>{DOWN_VERBS}|{DOWN_WORDS}))\b",
+    rf"\b(?:(?P<up>{UP_VERBS}|{UP_WORDS})|(?P<down>{DOWN_VERBS}|{DOWN_WORDS})"
+    r"|(?P<flat>changes|changed|went|goes))\b",
     re.IGNORECASE,
 )
 _CLAUSE_START = re.compile(r"[!?;\n]|\.(?!\d)")
-_CLAUSE_LOOKBACK = 200
+# A line break right after ":" (a bullet list follows) does not start a clause.
+_COLON_BREAK = re.compile(r":[^\S\n]*\n")
 _TO = re.compile(rf"[^\S\n]+to[^\S\n]+{_ABOUT}", re.IGNORECASE)
 # A base-form verb at a sentence start is an instruction ("Add 5 g"), not a change.
 _IMPERATIVE = re.compile(r"(?:\A|[.!?:\n])[ *\-]*\Z")
@@ -606,16 +606,29 @@ def _bare_by(plain: str, start: int) -> bool:
     return "by" in window.lower() and _BARE_BY.search(window) is not None
 
 
-def _cues(plain: str, stop: int) -> tuple[bool, bool]:
-    """Whether an up word and a down word sit in the clause that ends at `stop`."""
-    span = plain[max(0, stop - _CLAUSE_LOOKBACK) : stop]
-    first = 0
-    if stop > _CLAUSE_LOOKBACK:
-        first = span.find(" ") + 1 or len(span)  # skip a word the lookback cut in two
-    for boundary in _CLAUSE_START.finditer(span):
-        first = max(first, boundary.end())
-    found = list(_CUE.finditer(span, first))
-    return any(m["up"] for m in found), any(m["down"] for m in found)
+@dataclass(frozen=True, slots=True)
+class _Clauses:
+    """Clause starts and direction cues of one reply, found once and bisected."""
+
+    starts: list[int]
+    cues: list[int]
+    kinds: list[str]
+
+    def before(self, stop: int) -> tuple[bool, bool, bool]:
+        """Whether an up, a down, and a flat word sit in the clause before `stop`."""
+        at = bisect_right(self.starts, stop)
+        first = self.starts[at - 1] if at else 0
+        found = self.kinds[bisect_left(self.cues, first) : bisect_left(self.cues, stop)]
+        return "up" in found, "down" in found, "flat" in found
+
+
+def _clauses(plain: str) -> _Clauses:
+    held = {m.end() - 1 for m in _COLON_BREAK.finditer(plain)}
+    starts = [m.end() for m in _CLAUSE_START.finditer(plain) if m.start() not in held]
+    cues = list(_CUE.finditer(plain))
+    return _Clauses(
+        starts, [m.start() for m in cues], [m.lastgroup or "" for m in cues]
+    )
 
 
 def _from_to(
@@ -626,13 +639,15 @@ def _from_to(
 ) -> dict[int, bool]:
     """Judge each energy or nutrient "from X to Y" claim by token start.
 
-    Only a change is judged: a direction verb or "changes", "changed", "went", or
-    "goes" leads the "from", or this turn recorded a pair for that subject. Any other
-    "from X to Y" is a range, and both values are checked as plain facts.
+    Only a change is judged: a direction verb or word, or "changes", "changed", "went",
+    or "goes", sits in the clause before the "from", or this turn recorded a pair for
+    that subject. Any other "from X to Y" is a range, and both values are checked as
+    plain facts.
     X and Y must be the before and after sides of one recorded pair, Y - X must be a
     signed delta of that subject, and a direction verb must agree with Y - X.
     """
     verdicts: dict[int, bool] = {}
+    clauses = _clauses(plain)
     for index, token in enumerate(tokens):
         window = plain[max(0, token.start() - 64) : token.start()]
         origin = _FROM.search(window) if "from" in window.lower() else None
@@ -660,8 +675,8 @@ def _from_to(
         if kind != "energy" and nutrients.get(ends[1].start()) != subject:
             subject = None
         stop = max(0, token.start() - 64) + origin.start("src")
-        up, down = _cues(plain, stop)
-        led = up or down or origin["flat"]
+        up, down, flat = clauses.before(stop)
+        led = up or down or flat
         if not (led or any(move[0] == subject for move in facts.moves)):
             continue  # "From 474 to 489 kcal" is a range across options, not a change
         before, after = (

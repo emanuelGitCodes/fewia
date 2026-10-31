@@ -1,6 +1,7 @@
 """Bind numeric claims to explicit nutrient labels."""
 
 import re
+import string
 from bisect import bisect_left
 from collections.abc import Sequence
 from decimal import Decimal
@@ -63,7 +64,7 @@ _LEFT_OK = frozenset(
     "the its their this that and or of with in has have had gives contains"
     " provides previously originally".split()
 )
-_LEFT_WORD = re.compile(r"[A-Za-z0-9'-]+\Z")
+_LEFT_CHARS = frozenset(string.ascii_letters + string.digits + "'-")
 # A label then "by", for "protein by 5 g" (no verb) and "reduces calories by 20 kcal".
 LABEL_BY = rf"(?:{_LABEL.pattern}|\b(?:calories?|energy)\b){_H}+(?=by\b)"
 _PAIR = re.compile(r"\s*(?:and|or|/|,|&)\s*\Z", re.IGNORECASE)
@@ -97,6 +98,14 @@ _BASIS = re.compile(
     r"(?P<unit>g|grams?|mg|milligrams?|kg|kilograms?)"
     r"|(?P<total>in\s+total|total|for\s+(?:the\s+meal|all\s+servings"
     r"|(?P<n>\d+)\s+(?:servings?|meals?))))\b",
+    re.IGNORECASE,
+)
+# A line that ends with an amount, "25 g" or "25 g per serving". A number can start
+# only where no digit, letter, "." or "," precedes it, so the search stays linear.
+_AMOUNT_END = re.compile(
+    r"(?<![\w.,])(?:\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)[^\S\n]*"
+    r"(?:g|grams?|mg|kg|kcal|cal(?:ories?)?|%|percent)"
+    rf"(?:[^\S\n]*{_BASIS.pattern})?\Z",
     re.IGNORECASE,
 )
 # The change that follows an "X to Y" pair, "(+5 g)", after an optional basis phrase.
@@ -135,22 +144,23 @@ def pair_delta(plain: str, pair: re.Match[str], change: re.Match[str]) -> bool:
 
 def _left_ok(plain: str, label: re.Match[str]) -> bool:
     """False when an unlisted word sits right before the label ("animal protein")."""
-    low = max(0, label.start() - 16)
-    raw = plain[low : label.start()]
-    before = raw.rstrip(" \t\n")
-    word = _LEFT_WORD.search(before)
-    if (
-        word is None
-        or not any(c.isalnum() for c in word.group())
-        or word.group().lower() in _LEFT_OK
-    ):
+    # No fixed window: walk back over whitespace (plain has turned "*_#" into spaces),
+    # then over the word. Each label walks only the text right before it.
+    end = label.start()
+    while end and plain[end - 1].isspace():
+        end -= 1
+    start = end
+    while start and plain[start - 1] in _LEFT_CHARS:
+        start -= 1
+    word = plain[start:end]
+    if not any(c.isalnum() for c in word) or word.lower() in _LEFT_OK:
         return True
-    if "\n" not in raw[len(before) :]:
+    if "\n" not in plain[end : label.start()]:
         return False
-    # The label starts a line: only the end of a line that holds an amount ("25 g",
-    # "25 g per serving") leaves it bound. "Plant" alone on the line above does not.
-    line = plain[plain.rfind("\n", 0, low + word.start()) + 1 : low + word.end()]
-    return any(c.isdigit() for c in line)
+    # The label starts a line: it stays bound only when the line above ends with an
+    # amount ("25 g", "25 g per serving"). Any other last word is checked as above.
+    line = plain[plain.rfind("\n", 0, end) + 1 : end]
+    return _AMOUNT_END.search(line) is not None
 
 
 def _claim_tail_allowed(
