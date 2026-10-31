@@ -66,6 +66,17 @@ _MIXED_DESCRIPTION = re.compile(
     r"\b(?:with|prepared|recipe|and|mixed|mixture|soup|stew|salad|sauce|dinner|entree|"
     r"refried|flavored|flavoured|stuffed|filling)\b|\bbeans,? baked\b"
 )
+_ANIMAL_PREPARATIONS = re.compile(
+    r"\b(?:(?:pasta|noodles?)\b.*\bfresh refrigerated|pancakes?|waffles?|fritters?|"
+    r"crepes?|breaded|battered|tempura|dumplings?|gnocchi|meatless|veggie burgers?|"
+    r"soyburgers?|meat (?:substitutes?|analogs?|analogues?)|croissants?|pastry|"
+    r"pastries|biscuits?|muffins?|tortilla mix)\b"
+)
+_LARD_FAT = re.compile(r"\btortilla mix\b|\bshortening\b")
+_VEGETABLE_SHORTENING = re.compile(r"\bvegetable shortening\b")
+_RENNET_CHEESES = re.compile(
+    r"\b(?:parmesan|romano|pecorino|grana|gruy[eè]re|emmental|manchego|gorgonzola)\b"
+)
 _MAX_CANDIDATES = 3
 _SHORT_LIMIT = 60
 _LONG_LIMIT = 90
@@ -219,6 +230,13 @@ def _diet_flags(description: str, category: int) -> tuple[bool, bool]:
         return False, False
     vegetarian = category in _VEGETARIAN_CATEGORIES
     vegan = category in _VEGAN_CATEGORIES and not _VEGAN_INGREDIENTS.search(text)
+    # Fail closed: these preparations usually hold egg, milk, butter, or lard,
+    # and these cheeses use animal rennet.
+    vegan = vegan and not _ANIMAL_PREPARATIONS.search(text)
+    if _RENNET_CHEESES.search(text) or _LARD_FAT.search(
+        _VEGETABLE_SHORTENING.sub("", text)
+    ):
+        vegetarian = False
     preparation = _DAIRY_EGG_PREPARATION.sub("", _PLAIN_PREPARATION.sub("", text))
     if _MIXED_DESCRIPTION.search(preparation):
         return False, False

@@ -817,6 +817,68 @@ def test_the_real_bundle_is_valid_and_excludes_curated_foods() -> None:
     assert load_bundle() == usda_foods.USDA_FOODS
 
 
+def _bundle_rows() -> list[tuple[str, int]]:
+    with gzip.open(usda_foods.BUNDLE_PATH, "rt", encoding="utf-8") as handle:
+        return [(item[1], item[2]) for item in json.load(handle)["rows"]]
+
+
+def _old_diet_flags(description: str, category: int) -> tuple[bool, bool]:
+    """Frozen copy of the rules before the animal-preparation change."""
+    text = " ".join(description.lower().replace("-", " ").split())
+    text = usda_foods._PLANT_PHRASES.sub("plant food", text)
+    text = usda_foods._EGG_FREE.sub("", text)
+    if usda_foods._MEAT_INGREDIENTS.search(text):
+        return False, False
+    vegetarian = category in usda_foods._VEGETARIAN_CATEGORIES
+    vegan = category in usda_foods._VEGAN_CATEGORIES and not (
+        usda_foods._VEGAN_INGREDIENTS.search(text)
+    )
+    preparation = usda_foods._DAIRY_EGG_PREPARATION.sub(
+        "", usda_foods._PLAIN_PREPARATION.sub("", text)
+    )
+    if usda_foods._MIXED_DESCRIPTION.search(preparation):
+        return False, False
+    return vegetarian, vegan
+
+
+@needs_bundle
+def test_diet_flags_never_become_more_permissive_on_the_real_bundle() -> None:
+    rows = _bundle_rows()
+    assert len(rows) > 3000
+    for description, category in rows:
+        old_vegetarian, old_vegan = _old_diet_flags(description, category)
+        vegetarian, vegan = usda_foods._diet_flags(description, category)
+        assert vegetarian <= old_vegetarian, description
+        assert vegan <= old_vegan, description
+        assert not vegan or vegetarian, description
+
+
+@needs_bundle
+def test_animal_preparations_and_rennet_cheeses_fail_closed() -> None:
+    rows = _bundle_rows()
+    not_vegan = (
+        "pasta, fresh-refrigerated",
+        "potato pancakes",
+        "onion rings, breaded",
+        "veggie burgers or soyburgers",
+        "chicken, meatless",
+        "wheat flour, white, tortilla mix",
+    )
+    for prefix in not_vegan:
+        found = [row for row in rows if row[0].lower().startswith(prefix)]
+        assert found, prefix
+        for description, category in found:
+            assert usda_foods._diet_flags(description, category)[1] is False
+    parmesan = [row for row in rows if "parmesan" in row[0].lower()]
+    assert parmesan
+    for description, category in parmesan:
+        assert usda_foods._diet_flags(description, category)[0] is False
+    tortilla_mix = usda_foods._diet_flags("Wheat flour, white, tortilla mix", 20)
+    assert tortilla_mix == (False, False)
+    assert usda_foods._diet_flags("Shortening, household", 20)[0] is False
+    assert usda_foods._diet_flags("Vegetable shortening, household", 20)[0] is True
+
+
 @needs_bundle
 def test_every_default_points_to_a_bundled_food() -> None:
     for term, fdc_id in USDA_DEFAULTS.items():
