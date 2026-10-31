@@ -4642,3 +4642,86 @@ Writer totals before the third review: seven runs, 1997.807 seconds,
 used 459615 input tokens and 13962 output tokens. The loop record holds
 the final review usage. These checks use fake providers and local data.
 They make no live Bedrock or deployment claim.
+
+## 2026-10-31: Correct USDA diet flags and first-meal proposals
+
+Five bundled pork or beef bean foods inherited vegan and vegetarian flags
+from their USDA category. The classifier now uses the full description
+before name shortening. Explicit animal ingredients override category
+defaults. Bounded plant phrases keep soy yogurt and soy curd cheese from
+being treated as dairy. Uncertain mixtures fail conservatively. These
+rules cannot resolve unlisted ingredients or certify cross-contact safety.
+
+Adding the first meal to an empty saved plan raised a validation error.
+The proposal preview now represents its empty before side with empty
+meals and nutrition, and a complete zero-cost estimate. The effective cap
+still lowers the available budget. Normal grocery requests still require
+a meal. Invalid operations store nothing. The saved base stays immutable.
+
+The item at `b57c4553` passed 11,710 backend tests, with one existing skip
+and warning. Ruff, formatting, and strict mypy passed. Root probes passed
+31 cases. Restoring the original production files made five diet cases
+and eight first-meal cases fail. Luna high approved the exact item SHA.
+The integration carries the reviewed patch in `c3644288`.
+
+## 2026-10-31: Preserve the plan across sign-in and proposal Apply
+
+The Kroger sign-in navigation discarded the prototype's local state.
+Connect now saves and verifies a bounded session checkpoint before leaving.
+Known return markers restore meals, pantry, shopping checks, view, and the
+budget draft with its last valid cents. Invalid drafts retain their error.
+Storage failure prevents navigation or shows a bounded restore error.
+Strict validation rejects stale, malformed, oversized, or unknown state.
+Restoration reads without consuming during initialization, then consumes
+after mount. The checkpoint holds no auth, provider, transcript, or server
+revision data. The existing path saves the restored plan as a fresh revision.
+
+Proposal previews inherit the saved cap; proposal operations cannot change
+it. Applying a preview now keeps the current local budget fields while
+updating meals and pantry. The proposal card no longer advertises an
+inherited cap difference as an operation. Generic snapshot application
+keeps its existing behavior.
+
+The item at `cdef7653` passed 231 focused tests and the frontend gates.
+Root's component replay passed 16 cases. Restoring only the original
+callers made 14 fail; two positive controls passed. The initial failure
+injection checks reported 227 passed and four failed. A supervised test
+repair replaced ineffective Storage spies with an explicit test double.
+Luna high approved the exact item SHA. The integration carries the patch
+in `e2e3f7aa`. The original browser baseline reproduced both reported bugs.
+Final browser checks use the combined integration revision.
+
+## 2026-10-31: Keep cart uncertainty and quote character limits consistent
+
+A Kroger cart response of HTTP 500 became a safely retryable API 503.
+Every post-send server error now uses the existing unconfirmed outcome.
+The API returns 504 and the UI asks the user to check the cart before an
+explicit retry. The client never retries the mutation automatically.
+Pre-send failures and provider read failures keep their existing behavior.
+
+The backend limits quote text by Unicode code points. The frontend used
+UTF-16 length and rejected valid emoji text with the whole chat result.
+Quote text now uses the same 160-code-point bound. Exact quote fields,
+numeric checks, and optional empty or null values keep their contracts.
+
+The item at `5d4fe84c` passed 11,494 backend tests, with one existing skip
+and warning, plus the frontend gates. Root's cart matrix passed 23 cases.
+Original production files made the cart-500 regression and all five
+Unicode field regressions fail. Luna high approved the exact item SHA.
+The integration carries the reviewed patch in `91a17169`.
+
+The initial backend and retailer gate commands omitted the isolated
+database wrapper and its URL exports. Each reported 238 fixture errors.
+The corrected wrapper runs passed on the same code SHAs. No source repair
+was needed for that setup error. A frontend formatter added unrelated line
+wrapping. A structural TypeScript comparison confirmed that the quote
+parser's only behavior change is code-point counting.
+
+Sol high wrote all three items through the supervisor. Before the final
+combined review, eight writer runs used 6,399,890 input tokens and 85,730
+output tokens. Three Luna reviews used 640,418 input and 9,777 output
+tokens. Summed model-run time was 1,941.610 seconds. These are supervisor
+counts, not a charge estimate; native-agent usage is unavailable. The loop
+record holds the final combined review usage and verification evidence.
+All original and integration commits passed the normal gitleaks hook.
+No live provider, hosted CI, deployment, or merge claim is made.
