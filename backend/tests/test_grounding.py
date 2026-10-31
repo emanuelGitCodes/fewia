@@ -374,7 +374,8 @@ def test_catalog_answer_is_grounded(query: str, note: str | None) -> None:
 
 
 def test_catalog_server_notes_only_ground_for_the_search_tool() -> None:
-    payload = execute_catalog_search({"query": "tacos"})
+    payload = execute_catalog_search({"query": "high protein"})
+    assert "high_protein" in payload["applied"]
     verdict = validate(catalog_answer(payload), facts_from_payloads([("t", payload)]))
     assert verdict.unmatched == ("30",)
 
