@@ -45,6 +45,8 @@ export function TonightPrototype(): JSX.Element {
   const [returnPlan] = useState(readReturnPlan);
   const [state, setState] = useState<PlanState>(() => returnPlan.state);
   const [restoreError, setRestoreError] = useState(returnPlan.error);
+  // Cleared once the return line has been shown, so it appears once per page load.
+  const [krogerReturn, setKrogerReturn] = useState(returnPlan.kroger);
   const consumed = useRef(false);
   useEffect(() => {
     if (!returnPlan.returning || consumed.current) {
@@ -220,7 +222,10 @@ export function TonightPrototype(): JSX.Element {
             open={sheetOpen}
             onHide={closeSheet}
             onReply={onReply}
-            krogerReturn={returnPlan.kroger}
+            krogerReturn={krogerReturn}
+            onKrogerReturnShown={() => {
+              setKrogerReturn(null);
+            }}
             krogerStore={kroger.store}
             onKrogerChoose={kroger.choose}
             onKrogerClear={kroger.clear}

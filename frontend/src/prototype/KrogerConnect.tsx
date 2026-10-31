@@ -22,6 +22,8 @@ export function KrogerConnect(props: {
   locationId?: string | null;
   // The sign-in result read by the page; the page also removes it from the URL.
   returnStatus?: KrogerReturn | null;
+  // Called once the return line has been shown, so a remount does not show it again.
+  onReturnShown?: () => void;
 }): JSX.Element | null {
   // The connection state lives only in component state.
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -30,9 +32,11 @@ export function KrogerConnect(props: {
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  const [warned, setWarned] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(false);
+  const onReturnShown = useRef(props.onReturnShown);
+  onReturnShown.current = props.onReturnShown;
 
   const refresh = (): void => {
     controller.current?.abort();
@@ -55,6 +59,9 @@ export function KrogerConnect(props: {
   useEffect(() => {
     mounted.current = true;
     setMessage(returned);
+    if (returned !== "") {
+      onReturnShown.current?.();
+    }
     refresh();
     return () => {
       mounted.current = false;
@@ -92,9 +99,12 @@ export function KrogerConnect(props: {
           className="tonight-ask-btn"
           href={KROGER_CONNECT_PATH}
           onClick={(event) => {
-            // A failed save warns once; the next click signs in with a reset plan.
-            if (!saveFailed && !savePlanCheckpoint(props.plan)) {
-              setSaveFailed(true);
+            // Every click tries the save. The first failure warns; a later failure signs in
+            // with a reset plan, and a success clears the warning.
+            if (savePlanCheckpoint(props.plan)) {
+              setWarned(false);
+            } else if (!warned) {
+              setWarned(true);
               event.preventDefault();
             }
           }}
@@ -114,7 +124,7 @@ export function KrogerConnect(props: {
         <KrogerCart state={props.plan} locationId={props.locationId ?? null} />
       ) : null}
       <p className="tonight-ask-hint" aria-live="polite">
-        {saveFailed ? PLAN_SAVE_WARNING : failed ? KROGER_DISCONNECT_FAILED_LINE : message}
+        {warned ? PLAN_SAVE_WARNING : failed ? KROGER_DISCONNECT_FAILED_LINE : message}
       </p>
     </div>
   );

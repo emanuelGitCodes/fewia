@@ -97,7 +97,24 @@ function decode(serialized: string, now: number): PlanState | null {
   return state.checked.every((id) => bought.has(id)) ? state : null;
 }
 
+// A failed save must not leave an older checkpoint that sign-in would restore silently.
+function dropCheckpoint(): void {
+  try {
+    window.sessionStorage.removeItem(PLAN_CHECKPOINT_KEY);
+  } catch {
+    // A failed remove is ignored.
+  }
+}
+
 export function savePlanCheckpoint(state: PlanState): boolean {
+  if (writeCheckpoint(state)) {
+    return true;
+  }
+  dropCheckpoint();
+  return false;
+}
+
+function writeCheckpoint(state: PlanState): boolean {
   try {
     const { meals, pantry, checked, view, budgetInput, budgetCents } = state;
     const now = Date.now();

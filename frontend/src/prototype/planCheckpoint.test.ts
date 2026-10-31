@@ -179,6 +179,31 @@ describe("plan checkpoint", () => {
     expect(removeItem).toHaveBeenCalledWith(PLAN_CHECKPOINT_KEY);
   });
 
+  it("removes an older checkpoint when the next save fails", () => {
+    const state = { ...withPlanBudgetInput(initialPlanState(), "25"), view: "pantry" as const };
+    expect(savePlanCheckpoint(state)).toBe(true);
+    const storage = window.sessionStorage;
+    vi.stubGlobal("sessionStorage", {
+      setItem: (): void => { throw new Error("private"); },
+      getItem: (key: string): string | null => storage.getItem(key),
+      removeItem: (key: string): void => { storage.removeItem(key); },
+    });
+    expect(savePlanCheckpoint(initialPlanState())).toBe(false);
+    vi.unstubAllGlobals();
+    window.history.replaceState(null, "", "/prototype?kroger=connected");
+    expect(readReturnPlan()).toEqual({
+      state: initialPlanState(), returning: true, error: PLAN_RESTORE_ERROR, kroger: "connected",
+    });
+  });
+
+  it("ignores a failed remove after a failed save", () => {
+    vi.stubGlobal("sessionStorage", {
+      setItem: (): void => { throw new Error("private"); },
+      removeItem: (): void => { throw new Error("private"); },
+    });
+    expect(savePlanCheckpoint(initialPlanState())).toBe(false);
+  });
+
   it("refuses to save invalid UI state", () => {
     expect(savePlanCheckpoint({ ...initialPlanState(), budgetCents: -1 })).toBe(false);
     expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).toBeNull();

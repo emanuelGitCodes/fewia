@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState, type JSX } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KrogerConnect } from "./KrogerConnect";
 import { initialPlanState } from "./planModel";
@@ -124,6 +125,57 @@ describe("KrogerConnect", () => {
     }, { once: true });
     fireEvent.click(link);
     expect(allowed).toBe(true);
+    expect(screen.getByText(PLAN_SAVE_WARNING)).toBeTruthy();
+  });
+
+  it("tries the save on every click and clears the warning when it succeeds", async () => {
+    stub(() => status(false));
+    render(<KrogerConnect plan={initialPlanState()} />);
+    const link = await screen.findByRole("link", { name: "Connect Kroger" });
+    const storage = window.sessionStorage;
+    let failing = true;
+    vi.stubGlobal("sessionStorage", {
+      setItem: (key: string, value: string): void => {
+        if (failing) throw new Error("private");
+        storage.setItem(key, value);
+      },
+      getItem: (key: string): string | null => storage.getItem(key),
+      removeItem: (key: string): void => { storage.removeItem(key); },
+    });
+    const outcomes: boolean[] = [];
+    const record = (event: MouseEvent): void => {
+      outcomes.push(event.defaultPrevented);
+      event.preventDefault();
+    };
+    document.addEventListener("click", record);
+    fireEvent.click(link);
+    expect(screen.getByText(PLAN_SAVE_WARNING)).toBeTruthy();
+    failing = false;
+    fireEvent.click(link);
+    document.removeEventListener("click", record);
+    expect(outcomes).toEqual([true, false]);
+    expect(screen.queryByText(PLAN_SAVE_WARNING)).toBeNull();
+    expect(storage.getItem(PLAN_CHECKPOINT_KEY)).not.toBeNull();
+  });
+
+  it("shows the return line once when the component remounts", async () => {
+    stub(() => status(false));
+    function Host(props: { shown: boolean }): JSX.Element | null {
+      const [returnStatus, setReturnStatus] = useState<"connected" | null>("connected");
+      return props.shown ? (
+        <KrogerConnect
+          plan={initialPlanState()}
+          returnStatus={returnStatus}
+          onReturnShown={() => { setReturnStatus(null); }}
+        />
+      ) : null;
+    }
+    const view = render(<Host shown />);
+    expect(await screen.findByText("Kroger account connected.")).toBeTruthy();
+    view.rerender(<Host shown={false} />);
+    view.rerender(<Host shown />);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(screen.queryByText("Kroger account connected.")).toBeNull();
   });
 
   it("shows the cart preview button only while connected", async () => {

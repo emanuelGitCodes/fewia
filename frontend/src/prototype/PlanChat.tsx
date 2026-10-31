@@ -45,6 +45,7 @@ export function PlanChat(props: {
   onKrogerChoose?: (option: KrogerStoreOption) => void;
   onKrogerClear?: () => void;
   krogerReturn?: KrogerReturn | null;
+  onKrogerReturnShown?: () => void;
 }): JSX.Element {
   const { state, onReply } = props;
   const krogerStore = props.krogerStore ?? null;
@@ -322,6 +323,7 @@ export function PlanChat(props: {
             plan={state}
             locationId={krogerStore?.locationId ?? null}
             returnStatus={props.krogerReturn ?? null}
+            onReturnShown={props.onKrogerReturnShown}
           />
           <KrogerStorePicker
             store={krogerStore}
