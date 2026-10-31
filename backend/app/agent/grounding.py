@@ -57,6 +57,8 @@ A known basis phrase after a comma ("480 kcal, per serving") applies as well.
 A signed "(+5 g)" right after an "X to Y" pair, and after
 the pair's own basis phrase, has the basis of that pair.
 A claim with no basis phrase matches any basis.
+A from-to claim also matches the basis of its recorded pair: the phrase after Y, else
+the one after X, must name the basis of a pair (FactSet.moves) or the pair has none.
 Side rule: every absolute energy and nutrient fact records its side: "before" under a
 `before` key, "after" under an `after` key, else None. A value that exists only as a
 before-side fact matches only when its clause (split at . ! ? ; a line break, and a
@@ -87,7 +89,7 @@ sentence, so a server sentence after one is not exempt.
 import re
 import unicodedata
 from bisect import bisect_left, bisect_right
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -100,6 +102,7 @@ from app.agent.nutrient_grounding import (
     LABEL_BY,
     NUTRIENT_KEYS,
     SIDE_KEYS,
+    UNMATCHED,
     UP_VERBS,
     UP_WORDS,
     NutrientFact,
@@ -310,6 +313,8 @@ _SERVER_SENTENCE = re.compile(
 # "e.g.", "U.S.", "a.m.", ". . ." and "..." are not sentence ends).
 _SENTENCE_END = re.compile(r"(?<![\w.])\w{3,}[.!?]\Z")
 
+Move = tuple[str, str, Decimal, Decimal, str | None]
+
 
 @dataclass
 class FactSet:
@@ -324,8 +329,8 @@ class FactSet:
     deltas: set[tuple[str, Decimal]] = field(default_factory=set)
     nutrition: set[NutrientFact] = field(default_factory=set)
     # Each before and after pair of one key as (nutrient or "energy", kind, before,
-    # after); a "from X to Y" claim must read one of them.
-    moves: set[tuple[str, str, Decimal, Decimal]] = field(default_factory=set)
+    # after, basis); a "from X to Y" claim must read one of them, with its basis.
+    moves: set[Move] = field(default_factory=set)
     # Every nutrient and energy fact again, with the basis ("serving", "total",
     # "100g") and side ("before", "after") of its payload path; None when the path
     # names none.
@@ -460,7 +465,7 @@ def _changes(
             now, was = _kinds(str(name), new), _kinds(str(name), old)
             subject = NUTRIENT_KEYS.get(str(name))
             facts.moves.update(
-                (subject or k, k, b, a)
+                (subject or k, k, b, a, basis)
                 for (k, a), (_, b) in zip(now, was, strict=False)
                 if subject or k == "energy"
             )
@@ -703,12 +708,49 @@ def _target(
     return None
 
 
+def _paired(
+    moves: Collection[Move],
+    pair: tuple[str, str, Decimal, Decimal],
+    basis: str | None = None,
+) -> bool:
+    """Whether a recorded pair has the claim's basis; no basis matches any pair.
+
+    A known basis matches a pair of that basis or of none, and UNMATCHED no pair.
+    """
+    if basis == UNMATCHED:
+        return False
+    named = (None, *BASIS_KEYS.values()) if basis is None else (None, basis)
+    return any((*pair, have) in moves for have in named)
+
+
+def _pair_basis(
+    claims: str,
+    kind: str,
+    ends: Sequence[re.Match[str]],
+    starts: Sequence[int],
+    servings: Collection[Decimal],
+) -> str | None:
+    """The basis phrase after Y of a from-to claim, else the one after X, else None."""
+
+    def read(end: re.Match[str], limit: int) -> str | None:
+        if kind == "energy":
+            return energy_basis(claims, end.end(), limit, servings)
+        return claim_basis(claims, end.end(), servings)
+
+    at = bisect_right(starts, ends[1].start())
+    named = read(ends[1], starts[at] if at < len(starts) else len(claims))
+    if named is None and ends[0] is not ends[1]:
+        named = read(ends[0], ends[1].start())
+    return named
+
+
 def _from_to(
     plain: str,
     tokens: Sequence[re.Match[str]],
     nutrients: Mapping[int, str | None],
     facts: FactSet,
     clauses: _Clauses,
+    claims: str,
 ) -> dict[int, bool]:
     """Judge each energy or nutrient "from X to Y" claim by token start.
 
@@ -721,6 +763,8 @@ def _from_to(
     plain facts.
     X and Y must be the before and after sides of one recorded pair, Y - X must be a
     signed delta of that subject, and a direction verb must agree with Y - X.
+    The basis phrase after Y, else after X, must name the basis of that pair (see
+    _paired); with no phrase, a pair of any basis matches.
     When a change leaves X right after "from" with no Y to read, X fails.
     """
     verdicts: dict[int, bool] = {}
@@ -755,11 +799,12 @@ def _from_to(
             for raw, end in zip((token["n1"], second), ends, strict=True)
         )
         change = after - before
+        basis = _pair_basis(claims, kind, ends, starts, facts.servings)
         ok = bool(
             kind
             and subject
             and not any(end["sign"] for end in ends)
-            and (subject, kind, before, after) in facts.moves
+            and _paired(facts.moves, (subject, kind, before, after), basis)
             and (
                 (kind, change) in facts.deltas
                 if subject == "energy"
@@ -784,7 +829,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     nutrients = nutrient_bindings(safe, tokens)
     claims = re.sub(r"[*_#]", " ", safe)  # same offsets as plain, no server sentence
     clauses = _clauses(plain)
-    moves = _from_to(plain, tokens, nutrients, facts, clauses)
+    moves = _from_to(plain, tokens, nutrients, facts, clauses, claims)
     # Where the next number starts, so that a basis is read only up to it.
     stops = [token.start() for token in tokens[1:]] + [len(claims)]
     plan_counts = {
@@ -867,7 +912,8 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                         part == 0
                         and m["n2"]
                         and not nsign
-                        and (subject, kind, value, upper) in facts.moves
+                        and subject is not None
+                        and _paired(facts.moves, (subject, kind, value, upper))
                     )
                     grounded = (
                         nutrient_grounded(

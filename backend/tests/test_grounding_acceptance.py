@@ -104,6 +104,21 @@ ACCEPTANCE = [
     ("The meal has 1920 kcal, per serving.", False),
     ("The meal has 480 kcal, per serving.", True),
     ("Protein from tofu is 25 g.", False),
+    ("Calories fell from 2000 kcal to 1920 per serving.", False),
+    ("Protein rose from 80 g to 100 per serving.", False),
+    ("Calories fell from 500 kcal to 480 in total.", False),
+    ("Protein rose from 20 g to 25 in total.", False),
+    ("Calories fell from 2000 kcal to 1920 per person.", False),
+    ("Calories fell from 2000 kcal to 1920 kcal per serving.", False),
+    ("Calories fell from 500 kcal to 480 per serving.", True),
+    ("Protein rose from 20 g to 25 per serving.", True),
+    ("Calories fell from 2000 kcal to 1920 in total.", True),
+    ("Protein rose from 80 g to 100 in total.", True),
+    ("Calories fell from 500 kcal to 480.", True),
+    ("Calories fell from 2000 kcal to 1920.", True),
+    ("Calories fell from 500 kcal to 480 kcal per serving.", True),
+    ("Protein 20 to 25 g per serving (+5 g).", True),
+    ("Protein 80 to 100 g in total (+20 g).", True),
 ]
 
 QUANTITY_ROWS = [

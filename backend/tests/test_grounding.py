@@ -643,7 +643,7 @@ def test_direction_verb_before_a_number_takes_the_verb_sign() -> None:
     energy = FactSet(
         deltas={("energy", Decimal(28))},
         energy={Decimal(559), Decimal(587)},
-        moves={("energy", "energy", Decimal(559), Decimal(587))},
+        moves={("energy", "energy", Decimal(559), Decimal(587), None)},
     )
     assert validate("Energy rises by 28 kcal (from 559 kcal to 587 kcal)", energy).ok
 
@@ -1153,11 +1153,21 @@ def test_changes_record_the_before_and_after_of_each_key() -> None:
         before=_macros(500, 20_000, 40_000, 11_000),
         after=_macros(480, 25_000, 40_000, 8_000),
     )
-    assert ("energy", "energy", Decimal(500), Decimal(480)) in facts.moves
-    assert ("protein", "mass", Decimal(20), Decimal(25)) in facts.moves
-    assert ("protein", "milli", Decimal(20_000), Decimal(25_000)) in facts.moves
-    assert ("fat", "mass", Decimal(11), Decimal(8)) in facts.moves
-    assert ("protein", "mass", Decimal(25), Decimal(20)) not in facts.moves
+    assert ("energy", "energy", Decimal(500), Decimal(480), None) in facts.moves
+    assert ("protein", "mass", Decimal(20), Decimal(25), None) in facts.moves
+    assert ("protein", "milli", Decimal(20_000), Decimal(25_000), None) in facts.moves
+    assert ("fat", "mass", Decimal(11), Decimal(8), None) in facts.moves
+    assert ("protein", "mass", Decimal(25), Decimal(20), None) not in facts.moves
+
+
+def test_changes_record_the_basis_of_each_pair() -> None:
+    facts = _facts(
+        before={"per_serving": {"energy_kcal": 500}, "total": {"energy_kcal": 2_000}},
+        after={"per_serving": {"energy_kcal": 480}, "total": {"energy_kcal": 1_920}},
+    )
+    assert ("energy", "energy", Decimal(500), Decimal(480), "serving") in facts.moves
+    assert ("energy", "energy", Decimal(2_000), Decimal(1_920), "total") in facts.moves
+    assert ("energy", "energy", Decimal(500), Decimal(480), None) not in facts.moves
 
 
 def test_verdict_names_only_numeric_tokens() -> None:
