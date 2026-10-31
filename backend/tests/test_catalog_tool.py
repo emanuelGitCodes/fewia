@@ -605,10 +605,9 @@ def test_next_search_arguments_keep_the_request_and_catalog_words_only() -> None
         max_cents_per_serving=10000,
         limit=1,
     )
+    assert cast(int, page["total_matches"]) > 1
     arguments = next_search_arguments(page)
-    if arguments is None:
-        assert cast(int, page["total_matches"]) <= 1
-        return
+    assert arguments is not None
     assert arguments["offset"] == 1 and arguments["limit"] == 1
     assert arguments["min_protein_g"] == 1
     assert arguments["max_cents_per_serving"] == 10000
@@ -630,9 +629,28 @@ def test_next_search_arguments_drop_free_text_and_omit_none() -> None:
     assert "min_protein_g" not in arguments
     assert "max_cents_per_serving" not in arguments
     open_page = search("meals", tags=["lower_carb"], limit=1)
+    assert cast(int, open_page["total_matches"]) > 1
     open_arguments = next_search_arguments(open_page)
-    if open_arguments is not None:
-        assert open_arguments["query"] == "meals"
+    assert open_arguments is not None
+    assert open_arguments["query"] == "meals"
+    assert open_arguments["tags"] == ["lower_carb"]
+
+
+def test_next_search_arguments_reject_a_rebuilt_query_that_gives_another_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    page = search("chicken", limit=1)
+    everything = search("meals")
+    assert page["applied"] == ["chicken"]
+    chicken_total = cast(int, page["total_matches"])
+    assert 1 < chicken_total < cast(int, everything["total_matches"])
+    arguments = next_search_arguments(page)
+    assert arguments is not None and arguments["query"] == "chicken"
+    # The payload still revalidates, but the rebuilt query loses the chicken word.
+    monkeypatch.setattr(catalog_tool, "_INGREDIENT_TAGS", ())
+    assert execute_catalog_search(page_request(page)) == page
+    assert page_arguments({"query": "meals", "offset": 1, "limit": 1}) is not None
+    assert next_search_arguments(page) is None
 
 
 def test_next_search_arguments_need_a_valid_ok_payload_with_more_matches() -> None:
@@ -651,7 +669,8 @@ def test_page_arguments_accept_only_a_page_that_shows_meals() -> None:
     assert page_arguments(good) == good
     assert page_arguments({**good, "offset": 40}) is None
     total = cast(int, search("vegetarian")["total_matches"])
-    assert page_arguments({**good, "offset": min(total, 39)}) is None or total >= 40
+    assert total < 40
+    assert page_arguments({**good, "offset": total}) is None
     assert page_arguments({**good, "tags": ["unknown"]}) is None
     assert page_arguments({"query": SENTINEL}) is None
     assert page_arguments("vegetarian") is None
