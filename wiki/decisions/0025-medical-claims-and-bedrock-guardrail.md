@@ -33,8 +33,14 @@ Two layers guard model prose against medical advice.
 - The CDK stack defines the guardrail and grants `bedrock:ApplyGuardrail`
   on it to the development role. The owner deploys the stack; agents MUST
   NOT deploy it.
-- Only the latest user text goes in a `guardContent` block, so each call
-  assesses one or two text units.
+- Only the user's own message block goes in a `guardContent` block. The
+  server-built context block stays plain text, so each call assesses one
+  or two text units of user text.
+- A turn that the guardrail blocks MUST NOT enter the chat history that
+  later turns send to the model. A decline carries no proposal.
+- The backend accepts only a numbered guardrail version, not `DRAFT`. The
+  version description carries a digest of the policy, so a policy edit
+  publishes a new version on deploy.
 
 ## Basis
 

@@ -128,7 +128,6 @@ assesses only the user's own message text. The server-built context block and
 earlier messages are sent as plain text. A blocked turn is left out of the
 chat history that later turns see.
 
-
 A policy edit produces a new guardrail version on deploy. The version
 description is `policy <digest>`, a SHA-256 prefix over the topics, filters,
 and blocked messages, so any policy change replaces the version. After the
