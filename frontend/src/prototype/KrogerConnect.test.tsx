@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KrogerConnect } from "./KrogerConnect";
 import { initialPlanState } from "./planModel";
+import { PLAN_CHECKPOINT_KEY, PLAN_SAVE_ERROR, readReturnPlan } from "./planCheckpoint";
 
 type Handler = (url: string, init?: RequestInit) => Promise<Partial<Response>>;
 
@@ -21,9 +22,15 @@ async function settle(): Promise<void> {
   });
 }
 
+beforeEach(() => {
+  window.sessionStorage.clear();
+});
+
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  window.sessionStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
@@ -60,6 +67,65 @@ describe("KrogerConnect", () => {
     render(<KrogerConnect />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
     expect(link.getAttribute("href")).toBe("/api/grocery/kroger/connect");
+  });
+
+  it("saves and verifies the current plan synchronously before permitting navigation", async () => {
+    stub(() => status(false));
+    const plan = { ...initialPlanState(), meals: [], budgetInput: "25", budgetCents: 2500 };
+    render(<KrogerConnect plan={plan} />);
+    const link = await screen.findByRole("link", { name: "Connect Kroger" });
+    let allowed = false;
+    const stopNavigation = (event: MouseEvent): void => {
+      allowed = !event.defaultPrevented;
+      expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).not.toBeNull();
+      event.preventDefault();
+    };
+    document.addEventListener("click", stopNavigation, { once: true });
+    fireEvent.click(link);
+    expect(allowed).toBe(true);
+    window.history.replaceState(null, "", "/prototype?kroger=connected");
+    expect(readReturnPlan().state).toEqual(plan);
+  });
+
+  it.each(["write", "read", "mismatch", "access"])("blocks navigation after a storage %s failure and permits retry", async (failure) => {
+    stub(() => status(false));
+    render(<KrogerConnect plan={initialPlanState()} />);
+    const link = await screen.findByRole("link", { name: "Connect Kroger" });
+    const storage = window.sessionStorage;
+    if (failure === "access") {
+      vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => { throw new Error("private"); });
+    } else {
+      vi.stubGlobal("sessionStorage", {
+        setItem: (key: string, value: string): void => {
+          if (failure === "write") throw new Error("private");
+          storage.setItem(key, value);
+        },
+        getItem: (key: string): string | null => {
+          if (failure === "read") throw new Error("private");
+          return failure === "mismatch" ? null : storage.getItem(key);
+        },
+      });
+    }
+    let prevented = false;
+    document.addEventListener("click", (event) => {
+      prevented = event.defaultPrevented;
+      event.preventDefault();
+    }, { once: true });
+    fireEvent.click(link);
+    expect(prevented).toBe(true);
+    const error = screen.getByText(PLAN_SAVE_ERROR);
+    expect(error.getAttribute("aria-live")).toBe("polite");
+    expect(error.textContent).not.toContain("private");
+    vi.restoreAllMocks();
+    vi.stubGlobal("sessionStorage", storage);
+    let allowed = false;
+    document.addEventListener("click", (event) => {
+      allowed = !event.defaultPrevented;
+      event.preventDefault();
+    }, { once: true });
+    fireEvent.click(link);
+    expect(allowed).toBe(true);
+    expect(screen.queryByText(PLAN_SAVE_ERROR)).toBeNull();
   });
 
   it("shows the cart preview button only while connected", async () => {

@@ -266,11 +266,16 @@ export function withPlanView(state: PlanState, view: PlanView): PlanState {
   return { ...state, view, servingsError: null };
 }
 
-// Applies a saved plan revision. A null cap keeps the current cap.
-export function withSnapshot(state: PlanState, snapshot: ProposalPreview): PlanState {
+// Proposal operations leave the current budget metadata unchanged.
+export function withProposalSnapshot(state: PlanState, snapshot: ProposalPreview): PlanState {
   const meals = snapshot.meals.map((meal) => ({ recipeId: meal.recipe_id, servings: meal.servings }));
   const next = { ...state, meals, pantry: [...snapshot.pantry_ingredient_ids], servingsError: null };
-  const kept = { ...next, checked: retainChecks(planLines(state), planLines(next), state.checked) };
+  return { ...next, checked: retainChecks(planLines(state), planLines(next), state.checked) };
+}
+
+// Applies a saved plan revision. A null cap keeps the current cap.
+export function withSnapshot(state: PlanState, snapshot: ProposalPreview): PlanState {
+  const kept = withProposalSnapshot(state, snapshot);
   const cap = snapshot.plan_cap_cents;
   if (cap === null) {
     return kept;

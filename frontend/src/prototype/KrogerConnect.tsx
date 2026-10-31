@@ -3,6 +3,7 @@ import { isAbortError } from "../api";
 import { disconnectKroger, readKrogerConnection } from "../krogerApi";
 import { KrogerCart } from "./KrogerCart";
 import type { PlanState } from "./planModel";
+import { PLAN_SAVE_ERROR, savePlanCheckpoint } from "./planCheckpoint";
 
 export const KROGER_CONNECT_PATH = "/api/grocery/kroger/connect";
 export const KROGER_CONNECTED_LINE = "Kroger account connected.";
@@ -21,13 +22,14 @@ export function KrogerConnect(props: {
   plan?: PlanState;
   locationId?: string | null;
 }): JSX.Element | null {
-  // The connection state lives only in component state; the browser stores nothing.
+  // The connection state lives only in component state.
   const [connected, setConnected] = useState<boolean | null>(null);
   const [returned] = useState(readReturnMessage);
   // The live region renders first and receives its text after mount so it is announced.
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(false);
 
@@ -90,7 +92,17 @@ export function KrogerConnect(props: {
   return (
     <div className="tonight-kroger-connect">
       {connected === false ? (
-        <a className="tonight-ask-btn" href={KROGER_CONNECT_PATH}>
+        <a
+          className="tonight-ask-btn"
+          href={KROGER_CONNECT_PATH}
+          onClick={(event) => {
+            const saved = props.plan !== undefined && savePlanCheckpoint(props.plan);
+            setSaveFailed(!saved);
+            if (!saved) {
+              event.preventDefault();
+            }
+          }}
+        >
           Connect Kroger
         </a>
       ) : null}
@@ -106,7 +118,7 @@ export function KrogerConnect(props: {
         <KrogerCart state={props.plan} locationId={props.locationId ?? null} />
       ) : null}
       <p className="tonight-ask-hint" aria-live="polite">
-        {failed ? KROGER_DISCONNECT_FAILED_LINE : message}
+        {saveFailed ? PLAN_SAVE_ERROR : failed ? KROGER_DISCONNECT_FAILED_LINE : message}
       </p>
     </div>
   );

@@ -18,6 +18,7 @@ import {
   togglePlanPantry,
   withPlanBudgetInput,
   withPlanView,
+  withProposalSnapshot,
   withSnapshot,
   type PlanState,
   type PlannedMeal,
@@ -374,6 +375,37 @@ describe("withSnapshot", () => {
     const present = planLines(next).map((line) => line.ingredientId);
     expect(next.checked.every((id) => present.includes(id))).toBe(true);
     expect(next.checked).not.toContain("salsa");
+  });
+});
+
+describe("withProposalSnapshot", () => {
+  it.each(["25.50", "12.345", ""])("preserves the current budget metadata for draft %j", (draft) => {
+    const state = {
+      ...withPlanBudgetInput(withPlanBudgetInput(initialPlanState(), "17"), draft),
+      view: "pantry" as const,
+      servingsError: { recipeId: "bean_tacos", message: SERVING_ERROR },
+      checked: ["salsa", "onion"],
+    };
+    const next = withProposalSnapshot(state, {
+      meals: [{ recipe_id: "egg_fried_rice", servings: 3 }],
+      pantry_ingredient_ids: ["rice"], plan_cap_cents: 4000,
+    });
+    expect(next).toMatchObject({
+      budgetInput: state.budgetInput, budgetCents: state.budgetCents, budgetError: state.budgetError,
+      view: "pantry", servingsError: null,
+      meals: [{ recipeId: "egg_fried_rice", servings: 3 }], pantry: ["rice"], checked: ["onion"],
+    });
+    expect(state.checked).toEqual(["salsa", "onion"]);
+  });
+
+  it("keeps an invalid draft when the proposal cap is null", () => {
+    const state = withPlanBudgetInput(initialPlanState(), "12.345");
+    const snapshot = {
+      meals: [{ recipe_id: "bean_tacos", servings: 3 }],
+      pantry_ingredient_ids: state.pantry, plan_cap_cents: null,
+    };
+    expect(withProposalSnapshot(state, snapshot)).toEqual({ ...state, meals: [{ recipeId: "bean_tacos", servings: 3 }] });
+    expect(snapshot.plan_cap_cents).toBeNull();
   });
 });
 

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
-import { formatDollars } from "../money";
 import {
   applyProposal,
   discardProposal,
@@ -51,10 +50,6 @@ export function describeChange(state: PlanState, preview: ProposalPreview): stri
     if (Object.prototype.hasOwnProperty.call(INGREDIENTS, id) && !preview.pantry_ingredient_ids.includes(id)) {
       lines.push(`Remove ${INGREDIENTS[id].name} from your pantry`);
     }
-  }
-  const cap = preview.plan_cap_cents;
-  if (cap !== null && cap !== state.budgetCents) {
-    lines.push(`Plan cap: ${formatDollars(state.budgetCents)} to ${formatDollars(cap)}`);
   }
   return lines;
 }

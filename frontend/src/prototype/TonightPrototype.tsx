@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useRef, useState, type JSX } from "react
 import { DEMO_NOTICE } from "./prototypeData";
 import {
   addMeal,
-  initialPlanState,
   planLines,
   removeMeal,
   shiftMealServings,
@@ -10,9 +9,10 @@ import {
   togglePlanPantry,
   withPlanBudgetInput,
   withPlanView,
-  withSnapshot,
+  withProposalSnapshot,
   type PlanState,
 } from "./planModel";
+import { consumePlanCheckpoint, PLAN_RESTORE_ERROR, readReturnPlan } from "./planCheckpoint";
 import { PlanChat } from "./PlanChat";
 import { PantryPanel, PlanPanel, PrototypeNav } from "./PrototypePanels";
 import { useKrogerStore } from "./useKrogerStore";
@@ -42,7 +42,22 @@ function useMediaQuery(query: string, fallback: boolean): boolean {
 }
 
 export function TonightPrototype(): JSX.Element {
-  const [state, setState] = useState<PlanState>(initialPlanState);
+  const [returnPlan] = useState(readReturnPlan);
+  const [state, setState] = useState<PlanState>(() => returnPlan.state);
+  const [restoreError, setRestoreError] = useState(returnPlan.error);
+  const consumed = useRef(false);
+  useEffect(() => {
+    if (!returnPlan.returning || consumed.current) {
+      return;
+    }
+    consumed.current = true;
+    if (!consumePlanCheckpoint()) {
+      setRestoreError(PLAN_RESTORE_ERROR);
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("kroger");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [returnPlan]);
   const kroger = useKrogerStore();
   const previousView = useRef(state.view);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -153,6 +168,7 @@ export function TonightPrototype(): JSX.Element {
           <header className="tonight-header" ref={headerRef}>
             <p className="tonight-wordmark">FEWIA</p>
             <p className="tonight-demo">{DEMO_NOTICE}</p>
+            {restoreError !== null ? <p role="alert">{restoreError}</p> : null}
           </header>
           <main ref={mainRef}>
             {state.view === "plan" ? (
@@ -201,7 +217,7 @@ export function TonightPrototype(): JSX.Element {
             onKrogerChoose={kroger.choose}
             onKrogerClear={kroger.clear}
             onApplyProposal={(snapshot) => {
-              setState((current) => withSnapshot(current, snapshot));
+              setState((current) => withProposalSnapshot(current, snapshot));
             }}
             onToggleIdea={(id, servings, inPlan) => {
               setState((current) =>

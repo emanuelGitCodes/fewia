@@ -63,7 +63,7 @@ afterEach(() => {
 });
 
 describe("describeChange", () => {
-  it("states added and removed meals, servings, pantry, and cap changes from catalog names", () => {
+  it("states meal and pantry changes without advertising the inherited cap", () => {
     const pantryId = state.pantry[0];
     const lines = describeChange(
       state,
@@ -79,7 +79,7 @@ describe("describeChange", () => {
     expect(lines).toContain(`${RECIPES[first.recipeId].name}: ${String(first.servings)} to 4 servings`);
     expect(lines).toContain(`Add ${RECIPES[other].name}, 1 serving`);
     expect(lines).toContain(`Remove ${INGREDIENTS[pantryId].name} from your pantry`);
-    expect(lines).toContain("Plan cap: $40.00 to $90.00");
+    expect(lines.some((line) => line.includes("Plan cap"))).toBe(false);
     const removed = describeChange(state, previewOf(state, { meals: [] }));
     expect(removed).toEqual([`Remove ${RECIPES[first.recipeId].name}`]);
   });
@@ -94,6 +94,10 @@ describe("describeChange", () => {
       }),
     );
     expect(lines).toEqual([`Add ${INGREDIENTS[missing].name} to your pantry`]);
+  });
+
+  it("reports no change when only the inherited cap differs", () => {
+    expect(describeChange(state, previewOf(state, { plan_cap_cents: 9000 }))).toEqual([]);
   });
 });
 

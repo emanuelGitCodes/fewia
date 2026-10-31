@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { createElement } from "react";
+import { createElement, StrictMode } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
@@ -17,6 +17,11 @@ import type { ChatJob, ChatJobCreate, ChatResult } from "../chatTypes";
 import { useChatJob } from "../useChatJob";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import { TonightPrototype } from "./TonightPrototype";
+import * as proposalApi from "../proposalApi";
+import {
+  PLAN_CHECKPOINT_KEY, PLAN_RESTORE_ERROR, savePlanCheckpoint,
+} from "./planCheckpoint";
+import { initialPlanState, withPlanBudgetInput } from "./planModel";
 
 vi.mock("../useChatJob", () => ({ useChatJob: vi.fn() }));
 vi.mock("../useProviderCapabilities", () => ({ useProviderCapabilities: vi.fn() }));
@@ -155,6 +160,7 @@ function clearMealPantry(): void {
 }
 
 const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+const originalSessionStorage = Object.getOwnPropertyDescriptor(window, "sessionStorage");
 
 function memoryStorage(): Storage {
   const data = new Map<string, string>();
@@ -177,6 +183,12 @@ function memoryStorage(): Storage {
 }
 
 beforeEach(() => {
+  Object.defineProperty(window, "sessionStorage", {
+    configurable: true,
+    writable: true,
+    value: memoryStorage(),
+  });
+  window.history.replaceState(null, "", "/prototype");
   Object.defineProperty(window, "localStorage", {
     configurable: true,
     writable: true,
@@ -200,6 +212,13 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  window.history.replaceState(null, "", "/");
+  if (originalSessionStorage === undefined) {
+    Reflect.deleteProperty(window, "sessionStorage");
+  } else {
+    Object.defineProperty(window, "sessionStorage", originalSessionStorage);
+  }
   if (originalLocalStorage === undefined) {
     Reflect.deleteProperty(window, "localStorage");
   } else {
@@ -1211,6 +1230,246 @@ describe("Ask FEWIA on the prototype", () => {
     expect((screen.getByLabelText("Ask for a meal") as HTMLTextAreaElement).value).toBe("Draft");
     click("Plan");
     expect((screen.getByLabelText("Ask for a meal") as HTMLTextAreaElement).value).toBe("Draft");
+  });
+});
+
+describe("Kroger return plan", () => {
+  const revisions: unknown[] = [];
+
+  beforeEach(() => {
+    revisions.length = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/grocery/plans") {
+        revisions.push(JSON.parse(String(init?.body)) as unknown);
+        return { ok: true, status: 200, json: async () => ({ plan_revision_id: "restored-revision" }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ connected: false }) };
+    }));
+  });
+
+  async function connect(): Promise<void> {
+    const link = await screen.findByRole("link", { name: "Connect Kroger" });
+    let allowed = false;
+    document.addEventListener("click", (event) => {
+      allowed = !event.defaultPrevented;
+      event.preventDefault();
+    }, { once: true });
+    fireEvent.click(link);
+    expect(allowed).toBe(true);
+  }
+
+  it.each([
+    ["connected", "25.50"], ["error", "25.50"],
+    ["connected", "12.345"], ["error", "12.345"],
+  ])("restores edited meals, pantry, checks, view, and draft after %s with %s", async (marker, draft) => {
+    const first = render(<TonightPrototype />);
+    click("Egg fried rice");
+    click("Increase servings for Bean tacos");
+    fireEvent.change(screen.getByLabelText("Plan cap"), { target: { value: "25.50" } });
+    fireEvent.change(screen.getByLabelText("Plan cap"), { target: { value: draft } });
+    fireEvent.click(within(shoppingSection()).getByLabelText(/salsa/));
+    click("Pantry");
+    fireEvent.click(pantryBox("olive_oil"));
+    await connect();
+    first.unmount();
+
+    window.history.replaceState(null, "", `/prototype?keep=1&kroger=${marker}#plan`);
+    const returned = render(<TonightPrototype />);
+    expect(screen.getByRole("heading", { name: "Pantry" })).toBeTruthy();
+    expect(pantryBox("olive_oil").checked).toBe(false);
+    expect(window.location.pathname + window.location.search + window.location.hash).toBe("/prototype?keep=1#plan");
+    expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).toBeNull();
+    expect(screen.queryByText(PLAN_RESTORE_ERROR)).toBeNull();
+    click("Plan");
+    expect(textOf(card("Bean tacos"))).toContain("3 servings");
+    expect(textOf(card("Egg fried rice"))).toContain("2 servings");
+    expect((within(shoppingSection()).getByLabelText(/salsa/) as HTMLInputElement).checked).toBe(true);
+    const cap = screen.getByLabelText("Plan cap") as HTMLInputElement;
+    expect(cap.value).toBe(draft);
+    expect(summaryText()).toContain("$25.50 plan cap");
+    expect(cap.getAttribute("aria-invalid") === "true").toBe(draft === "12.345");
+    if (draft === "12.345") {
+      expect(screen.getByText(AMOUNT_ERROR)).toBeTruthy();
+    } else {
+      const input = screen.getByLabelText("Ask for a meal");
+      fireEvent.change(input, { target: { value: "Use my restored plan" } });
+      await act(async () => { fireEvent.keyDown(input, { key: "Enter" }); });
+      expect(revisions).toEqual([{
+        meals: [{ recipe_id: "bean_tacos", servings: 3 }, { recipe_id: "egg_fried_rice", servings: 2 }],
+        pantry_ingredient_ids: initialPlanState().pantry.filter((id) => id !== "olive_oil"),
+        plan_cap_cents: 2550,
+      }]);
+      expect(jobState.submit.mock.calls[0]?.[0].plan_revision_id).toBe("restored-revision");
+    }
+    returned.unmount();
+    render(<TonightPrototype />);
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("40");
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+  });
+
+  it.each(["connected", "error"])("restores an empty plan on a %s return", async (marker) => {
+    const first = render(<TonightPrototype />);
+    click("Remove Bean tacos");
+    fireEvent.change(screen.getByLabelText("Plan cap"), { target: { value: "0" } });
+    await connect();
+    first.unmount();
+    window.history.replaceState(null, "", `/prototype?kroger=${marker}`);
+    render(<TonightPrototype />);
+    expect(screen.queryAllByRole("article")).toHaveLength(0);
+    expect(mainText()).toContain("Add a meal to start your plan.");
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("0");
+  });
+
+  it("restores under StrictMode, clears transient serving errors, and consumes once", async () => {
+    const first = render(<TonightPrototype />);
+    clickTimes("Decrease servings for Bean tacos", 2);
+    expect(screen.getByText(SERVING_ERROR)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Plan cap"), { target: { value: "19" } });
+    await connect();
+    first.unmount();
+    window.history.replaceState(null, "", "/prototype?kroger=connected");
+    const remove = vi.spyOn(window.sessionStorage, "removeItem");
+    const returned = render(<StrictMode><TonightPrototype /></StrictMode>);
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("19");
+    expect(textOf(card("Bean tacos"))).toContain("1 serving");
+    expect(screen.queryByText(SERVING_ERROR)).toBeNull();
+    expect(screen.queryByText(PLAN_RESTORE_ERROR)).toBeNull();
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledWith(PLAN_CHECKPOINT_KEY);
+    returned.unmount();
+    window.history.replaceState(null, "", "/prototype?kroger=connected");
+    render(<TonightPrototype />);
+    expect(screen.getByText(PLAN_RESTORE_ERROR).getAttribute("role")).toBe("alert");
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("40");
+  });
+
+  it.each(["", "?kroger=unknown"])("keeps defaults on a fresh visit %j with a stale checkpoint", (search) => {
+    expect(savePlanCheckpoint(withPlanBudgetInput(initialPlanState(), "19"))).toBe(true);
+    window.history.replaceState(null, "", `/prototype${search}`);
+    render(<TonightPrototype />);
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("40");
+    expect(screen.queryByText(PLAN_RESTORE_ERROR)).toBeNull();
+  });
+
+  it.each(["corrupt", "missing", "denied"])("shows a bounded restore error for a %s checkpoint", (failure) => {
+    if (failure === "corrupt") {
+      window.sessionStorage.setItem(PLAN_CHECKPOINT_KEY, "{broken");
+    } else if (failure === "denied") {
+      vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => { throw new Error("private"); });
+    }
+    window.history.replaceState(null, "", "/prototype?kroger=error");
+    render(<TonightPrototype />);
+    expect(screen.getByText(PLAN_RESTORE_ERROR).getAttribute("role")).toBe("alert");
+    expect(mainText()).not.toContain("private");
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("40");
+  });
+});
+
+describe("proposal Apply preserves the local cap", () => {
+  const proposalId = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
+  const revisionId = "9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d";
+  const preview = {
+    meals: [{ recipe_id: "bean_tacos", servings: 4 }, { recipe_id: "egg_fried_rice", servings: 2 }],
+    pantry_ingredient_ids: ["rice"], plan_cap_cents: 4000,
+  };
+  const revisions: unknown[] = [];
+
+  function proposalJob(): ChatJob {
+    const job = plannedChatJob();
+    if (job.result === null) {
+      throw new Error("Missing chat result");
+    }
+    return { ...job, result: { ...job.result, proposal_id: proposalId } };
+  }
+
+  async function ask(text: string): Promise<void> {
+    const input = screen.getByLabelText("Ask for a meal");
+    fireEvent.change(input, { target: { value: text } });
+    await act(async () => { fireEvent.keyDown(input, { key: "Enter" }); });
+  }
+
+  function editCap(value: string): void {
+    fireEvent.change(screen.getByLabelText("Plan cap"), { target: { value } });
+  }
+
+  beforeEach(() => {
+    revisions.length = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/grocery/plans") {
+        revisions.push(JSON.parse(String(init?.body)) as unknown);
+        return { ok: true, status: 200, json: async () => ({ plan_revision_id: revisionId }) };
+      }
+      return { ok: false, status: 503 };
+    }));
+    vi.spyOn(proposalApi, "fetchProposal").mockResolvedValue({
+      id: proposalId, status: "pending", base_plan_revision_id: revisionId,
+      preview, applied_plan_revision_id: null,
+    });
+    jobState.submit.mockImplementation(async () => { jobState.job = proposalJob(); });
+  });
+
+  it.each([
+    ["valid", ["25.50"], "25.50", 2550],
+    ["invalid", ["17", "12.345"], "12.345", 1700],
+    ["away and back", ["25", "40"], "40", 4000],
+  ] as const)("keeps a %s cap edit while Apply is deferred", async (_name, edits, draft, cents) => {
+    let finish: (id: string) => void = () => undefined;
+    vi.spyOn(proposalApi, "applyProposal").mockImplementation(() => new Promise<string>((resolve) => { finish = resolve; }));
+    mount();
+    fireEvent.click(within(shoppingSection()).getByLabelText(/salsa/));
+    fireEvent.click(within(shoppingSection()).getByLabelText(/onion/));
+    await ask("Change my plan");
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    for (const edit of edits) {
+      editCap(edit);
+    }
+    click("Pantry");
+    await act(async () => { finish(revisionId); });
+    expect(screen.getByRole("heading", { name: "Pantry" })).toBeTruthy();
+    expect(pantryBox("rice").checked).toBe(true);
+    click("Plan");
+    expect(textOf(card("Bean tacos"))).toContain("4 servings");
+    expect(card("Egg fried rice")).toBeTruthy();
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe(draft);
+    expect(summaryText()).toContain(`$${(cents / 100).toFixed(2)} plan cap`);
+    expect((within(shoppingSection()).getByLabelText(/salsa/) as HTMLInputElement).checked).toBe(true);
+    expect((within(shoppingSection()).getByLabelText(/onion/) as HTMLInputElement).checked).toBe(true);
+    if (draft === "12.345") {
+      expect(screen.getByText(AMOUNT_ERROR)).toBeTruthy();
+      editCap("17");
+    } else {
+      expect(screen.queryByText(AMOUNT_ERROR)).toBeNull();
+    }
+    await ask("Use the current plan");
+    expect(revisions).toHaveLength(2);
+    expect(revisions[1]).toEqual({
+      meals: preview.meals, pantry_ingredient_ids: ["rice"], plan_cap_cents: cents,
+    });
+    expect(preview.plan_cap_cents).toBe(4000);
+  });
+
+  it("keeps a cap edit made while the chat proposal is being generated", async () => {
+    let finish: () => void = () => undefined;
+    jobState.submit.mockImplementation(() => new Promise<void>((resolve) => {
+      finish = () => { jobState.job = proposalJob(); resolve(); };
+    }));
+    vi.spyOn(proposalApi, "applyProposal").mockResolvedValue(revisionId);
+    mount();
+    await ask("Change my plan");
+    editCap("23");
+    await act(async () => { finish(); });
+    click("Pantry");
+    click("Plan");
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText("Applied to your plan.");
+    expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("23");
+    expect(textOf(card("Bean tacos"))).toContain("4 servings");
+    expect(summaryText()).toContain("$23.00 plan cap");
+    expect(screen.queryByText(/Plan cap:.*to/)).toBeNull();
+    await ask("Use my current cap");
+    expect(revisions[1]).toEqual({
+      meals: preview.meals, pantry_ingredient_ids: ["rice"], plan_cap_cents: 2300,
+    });
   });
 });
 
