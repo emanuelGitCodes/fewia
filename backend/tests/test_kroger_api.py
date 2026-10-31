@@ -827,8 +827,7 @@ def test_cart_add_is_409_and_disconnects_when_the_refresh_is_rejected(
 ) -> None:
     _sign_in(rig, expires_in=-5)
     rig.token_status = status
-    if status == 400:
-        rig.token_error = {"error": "invalid_grant"}
+    rig.token_error = {"error": "invalid_grant"}
     response = _add(rig)
     assert response.status_code == 409
     assert _message(response) == "Kroger account is not connected"
@@ -843,6 +842,19 @@ def test_cart_add_is_503_and_keeps_the_row_on_a_refresh_400_that_is_not_invalid_
     _sign_in(rig, expires_in=-5)
     rig.token_status = 400
     rig.token_error = {"error": "invalid_request"}
+    response = _add(rig)
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is unavailable"
+    assert rig.cart_calls == []
+    assert _stored(rig) == (ACCESS, REFRESH)
+
+
+def test_cart_add_is_503_and_keeps_the_row_on_a_refresh_401_invalid_client(
+    rig: Rig,
+) -> None:
+    _sign_in(rig, expires_in=-5)
+    rig.token_status = 401
+    rig.token_error = {"error": "invalid_client"}
     response = _add(rig)
     assert response.status_code == 503
     assert _message(response) == "Kroger is unavailable"
@@ -885,6 +897,7 @@ def test_cart_add_is_503_and_keeps_the_row_when_the_refresh_times_out(
     )
     response = _add(rig)
     assert response.status_code == 503
+    assert _message(response) == "Kroger is unavailable"
     assert rig.cart_calls == []
     assert _stored(rig) == (ACCESS, REFRESH)
 

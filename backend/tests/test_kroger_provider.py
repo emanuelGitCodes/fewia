@@ -960,9 +960,9 @@ def test_refresh_customer_rejects_bad_payloads(body: object) -> None:
 
 @pytest.mark.parametrize(
     ("status", "body"),
-    [(400, {"error": "invalid_grant"}), (401, {"error": "invalid_client"})],
+    [(400, {"error": "invalid_grant"}), (401, {"error": "invalid_grant"})],
 )
-def test_refresh_customer_invalid_grant_and_401_are_auth_rejected(
+def test_refresh_customer_invalid_grant_is_auth_rejected(
     status: int, body: dict[str, object], caplog: pytest.LogCaptureFixture
 ) -> None:
     caplog.set_level(logging.DEBUG)
@@ -977,18 +977,21 @@ def test_refresh_customer_invalid_grant_and_401_are_auth_rejected(
 
 
 @pytest.mark.parametrize(
-    ("body", "raw"),
+    ("status", "body", "raw"),
     [
-        ({"error": "invalid_request"}, None),
-        ({}, b"not json"),
-        ({}, b'["invalid_grant"]'),
+        (400, {"error": "invalid_request"}, None),
+        (400, {}, b"not json"),
+        (400, {}, b'["invalid_grant"]'),
+        (401, {"error": "invalid_client"}, None),
+        (401, {}, b"not json"),
+        (401, {}, b'["invalid_grant"]'),
     ],
 )
-def test_refresh_customer_other_400_is_unavailable(
-    body: dict[str, object], raw: bytes | None
+def test_refresh_customer_other_400_and_401_are_unavailable(
+    status: int, body: dict[str, object], raw: bytes | None
 ) -> None:
     server = Server()
-    server.token_status = 400
+    server.token_status = status
     server.token_body = body
     server.token_raw = raw
     with pytest.raises(KrogerUnavailable) as exc_info:

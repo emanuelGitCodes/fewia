@@ -304,7 +304,7 @@ class KrogerClient:
             raise KrogerAuthRejected()
         if (
             rejects_invalid_grant
-            and response.status_code == 400
+            and response.status_code in (400, 401)
             and self._is_invalid_grant(response)
         ):
             raise KrogerAuthRejected()
@@ -399,7 +399,6 @@ class KrogerClient:
             {"Accept": "application/json"},
             auth=self._auth,
             data={"grant_type": "refresh_token", "refresh_token": refresh_token},
-            rejects_auth=(401,),
             rejects_invalid_grant=True,
         )
         return self._customer_tokens(response, refresh_token)

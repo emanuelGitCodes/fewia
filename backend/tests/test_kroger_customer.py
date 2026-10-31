@@ -270,7 +270,7 @@ def test_failed_refresh_propagates_and_keeps_the_row(
 
 @pytest.mark.parametrize(
     ("status", "body"),
-    [(400, {"error": "invalid_grant"}), (401, {"error": "invalid_client"})],
+    [(400, {"error": "invalid_grant"}), (401, {"error": "invalid_grant"})],
 )
 def test_rejected_refresh_deletes_the_row_and_is_not_connected(
     session: Session, seed_user: UserSeeder, status: int, body: dict[str, object]
@@ -286,21 +286,25 @@ def test_rejected_refresh_deletes_the_row_and_is_not_connected(
 
 
 @pytest.mark.parametrize(
-    ("body", "raw"),
+    ("status", "body", "raw"),
     [
-        ({"error": "invalid_request"}, None),
-        ({}, b"not json"),
-        ({}, b'["invalid_grant"]'),
+        (400, {"error": "invalid_request"}, None),
+        (400, {}, b"not json"),
+        (400, {}, b'["invalid_grant"]'),
+        (401, {"error": "invalid_client"}, None),
+        (401, {}, b"not json"),
+        (401, {}, b'["invalid_grant"]'),
     ],
 )
-def test_other_refresh_400_keeps_the_row_and_is_unavailable(
+def test_other_refresh_400_and_401_keep_the_row_and_are_unavailable(
     session: Session,
     seed_user: UserSeeder,
+    status: int,
     body: dict[str, object],
     raw: bytes | None,
 ) -> None:
     cipher, server = _cipher(), _TokenServer()
-    server.status = 400
+    server.status = status
     server.body = body
     server.raw = raw
     row = _connected(session, seed_user, cipher, -5)
