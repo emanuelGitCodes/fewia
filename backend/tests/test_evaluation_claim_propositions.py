@@ -30,7 +30,7 @@ from app.evaluation_claim_propositions import (
             (PublicProposition("missing_price", True),),
         ),
         (
-            "Estimated from the demo price catalog. Instacart prices, availability, "
+            "Estimated from the demo price catalog. Store prices, availability, "
             "taxes, delivery fees, and tips are not verified.",
             (PublicProposition("sample_estimate_notice", True),),
         ),
@@ -91,7 +91,7 @@ def test_negative_over_budget_amount_preserves_sign() -> None:
 def test_plan_answer_preserves_atomic_notices_and_order() -> None:
     answer = (
         "The plan is accepted. The estimate total is USD $17.03. "
-        "Estimated from the demo price catalog. Instacart prices, availability, "
+        "Estimated from the demo price catalog. Store prices, availability, "
         "taxes, delivery fees, and tips are not verified. "
         "Spending snapshot is stale; available budget uses the explicit temporary cap. "
         "There is no cross-contact risk."
@@ -158,7 +158,7 @@ def test_unsupported_wording_is_not_inferred(answer: str) -> None:
     [
         ("Estimated from the demo price catalog.", 1),
         (
-            "Estimated from the demo price catalog. Instacart prices, availability, "
+            "Estimated from the demo price catalog. Store prices, availability, "
             "taxes, delivery fees, and tips are verified.",
             2,
         ),
@@ -167,7 +167,7 @@ def test_unsupported_wording_is_not_inferred(answer: str) -> None:
             2,
         ),
         (
-            "Someone says Estimated from the demo price catalog. Instacart prices, "
+            "Someone says Estimated from the demo price catalog. Store prices, "
             "availability, taxes, delivery fees, and tips are not verified.",
             2,
         ),
@@ -179,7 +179,7 @@ def test_notice_wording_must_be_exact(answer: str, unknown_count: int) -> None:
 
 def test_unknown_clauses_around_notices_are_retained_as_counts() -> None:
     assert parse_public_claims(
-        "Unknown wording. Estimated from the demo price catalog. Instacart prices, "
+        "Unknown wording. Estimated from the demo price catalog. Store prices, "
         "availability, taxes, delivery fees, and tips are not verified. "
         "More unknown wording.",
         vegan=False,

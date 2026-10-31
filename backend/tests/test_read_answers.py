@@ -350,7 +350,7 @@ def test_real_substitute_swap() -> None:
         "carbs 27 to 55 g (+28 g), fat 14 to 14 g (+0 g). "
         "Same weight per serving: 100 g. "
         "Sample meal price: USD $23.73 to USD $17.03 (-USD $6.70). "
-        "Estimated from the demo price catalog. Instacart prices, availability, "
+        "Estimated from the demo price catalog. Store prices, availability, "
         "taxes, delivery fees, and tips are not verified."
     )
 

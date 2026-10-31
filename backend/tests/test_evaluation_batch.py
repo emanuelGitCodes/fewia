@@ -43,7 +43,7 @@ def _corpus() -> dict[str, object]:
             }
         )
     return {
-        "version": "grocery-eval-v1",
+        "version": "grocery-eval-v1.1",
         "catalog_version": CATALOG_VERSION,
         "repeats": 3,
         "metrics_status": "unassessed",

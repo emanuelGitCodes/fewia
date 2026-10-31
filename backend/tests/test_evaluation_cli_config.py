@@ -91,7 +91,7 @@ def test_defaults_validate_real_corpus_and_fixed_config(cli_args: list[str]) -> 
     }
     assert type(options.model_config["max_tokens"]) is int
     assert type(options.model_config["temperature"]) is int
-    assert options.corpus["version"] == "grocery-eval-v1"
+    assert options.corpus["version"] == "grocery-eval-v1.1"
     assert len(prepare_matrix(options.corpus)) == 138
     assert not options.output_dir.exists()
     with pytest.raises(FrozenInstanceError):
@@ -104,7 +104,7 @@ def test_config_and_corpus_are_fresh_for_each_load(cli_args: list[str]) -> None:
     first.corpus.clear()
     second = cli.load_options(cli_args, fixture=True)
     assert second.model_config["max_tokens"] == 4096
-    assert second.corpus["version"] == "grocery-eval-v1"
+    assert second.corpus["version"] == "grocery-eval-v1.1"
 
 
 def test_explicit_supported_model_and_west_region(cli_args: list[str]) -> None:
@@ -188,7 +188,7 @@ def test_help_exits_normally_without_reading_files(
         "{}",
         "[]",
         '{"private-input-marker":',
-        '{"version":"grocery-eval-v1","version":"grocery-eval-v1"}',
+        '{"version":"grocery-eval-v1.1","version":"grocery-eval-v1.1"}',
         '{"amount":NaN}',
         '{"amount":Infinity}',
         '{"amount":1e9999}',

@@ -102,7 +102,7 @@ def test_meal_request_rejects_non_strict_servings() -> None:
 
 def test_estimate_notice_is_exact() -> None:
     expected = (
-        "Estimated from the demo price catalog. Instacart prices, availability, "
+        "Estimated from the demo price catalog. Store prices, availability, "
         "taxes, delivery fees, and tips are not verified."
     )
 

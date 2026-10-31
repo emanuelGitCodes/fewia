@@ -131,7 +131,7 @@ def test_return_omits_aggregate_scores() -> None:
 def test_metrics_status_is_unassessed() -> None:
     result = run_evaluation(load_corpus())
     assert result["metrics_status"] == "unassessed"
-    assert result["version"] == "grocery-eval-v1"
+    assert result["version"] == "grocery-eval-v1.1"
     assert result["repeats"] == 3
 
 

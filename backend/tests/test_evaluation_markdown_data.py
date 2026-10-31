@@ -313,7 +313,7 @@ def test_legacy_fixture_has_42_scored_and_48_unassessed_without_metrics() -> Non
         "failed_slots": 0,
     }
     assert result["metadata"] == {
-        "version": "grocery-eval-v1",
+        "version": "grocery-eval-v1.1",
         "repeats": 3,
         "metrics_status": "unassessed",
     }
@@ -331,7 +331,7 @@ def test_legacy_nested_reports_are_never_read_or_copied() -> None:
             raise AssertionError("nested report traversed")
 
     report: dict[str, object] = {
-        "version": "grocery-eval-v1",
+        "version": "grocery-eval-v1.1",
         "repeats": 3,
         "slot_count": 2,
         "metrics_status": "unassessed",
@@ -361,7 +361,7 @@ def test_canonical_count_types_and_lengths_are_validated(
 @pytest.mark.parametrize("value", [True, -1, 1, "0", 0.0, None])
 def test_legacy_count_is_validated(value: object) -> None:
     report: dict[str, object] = {
-        "version": "grocery-eval-v1",
+        "version": "grocery-eval-v1.1",
         "repeats": 3,
         "slot_count": value,
         "metrics_status": "unassessed",

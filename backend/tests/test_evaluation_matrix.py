@@ -19,7 +19,7 @@ _MODEL_IDS = frozenset(
     {"F01", "F02", "F04", "F05", "X02", "X03", "X04", "A01", "A02", "A03", "A04"}
 )
 _REFERENCE_IDS = frozenset({"F01", "F02", "F05", "X04", "A01"})
-_ERROR = "corpus MUST match the finite JSON grocery-eval-v1 matrix contract"
+_ERROR = "corpus MUST match the finite JSON grocery-eval-v1.1 matrix contract"
 
 
 @pytest.fixture
@@ -160,6 +160,7 @@ def test_copies_are_isolated_from_caller_and_other_slots(
 @pytest.mark.parametrize(
     ("key", "value"),
     [
+        ("version", "grocery-eval-v1"),
         ("version", "grocery-eval-v2"),
         ("version", None),
         ("catalog_version", "sample-prices-v1"),
