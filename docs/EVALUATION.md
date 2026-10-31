@@ -12,7 +12,7 @@ Every grocery estimate MUST show this notice:
 
 > Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
-[Decision 0024](../wiki/decisions/0024-store-neutral-estimate-notice.md) sets this notice. The benchmark corpus is `grocery-eval-v1.1`. The Oct 3 and Oct 5 batches ran `grocery-eval-v1`, whose notice named Instacart; their records stay unchanged, and a `grocery-eval-v1.1` batch does not compare with them.
+[Decision 0024](../wiki/decisions/0024-store-neutral-estimate-notice.md) sets this notice. The benchmark corpus is `grocery-eval-v1.1`. The Oct 3 and Oct 5 batches ran `grocery-eval-v1`, whose notice named Instacart; their records stay unchanged. A `grocery-eval-v1.1` batch MUST NOT be compared with them as the same measurement.
 
 ## Current API
 

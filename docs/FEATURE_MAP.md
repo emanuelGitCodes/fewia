@@ -78,7 +78,7 @@ deployment.
 | 11 | Provider capability flags | API, Frontend | `GET /grocery/providers`, `useProviderCapabilities.ts` | Live on / | Returns `chat_configured`, `plaid_configured`, and `spending_source`. |
 | 12 | Durable jobs | Service, Worker | `services/job_submission.py`, `worker.py` | Live on / | Idempotency key per user and kind, outbox in the same transaction, publisher thread, leases, heartbeat, recovery, dead-letter queues. |
 | 13 | Evidence revisions | Service, API | `services/evidence_store.py`, `GET /grocery/evidence/{revision_id}` | Live on / | Immutable plan snapshots. The frontend reads the ids but never calls the route. |
-| 14 | Instacart shopping handoff | Backend | `handoff_dispatch.py`, run by the frozen `grocery-eval-v1.1` suite only | Retired | Decision 0023. No route, no UI, and no HTTP client. The Kroger cart is the retailer path. |
+| 14 | Instacart shopping handoff | Backend | `handoff_dispatch.py`, run by the benchmark suite (`grocery-eval-v1.1`) only | Retired | Decision 0023. No route, no UI, and no HTTP client. The Kroger cart is the retailer path. |
 | 15 | Plaid Sandbox spending sync | Provider, Sync worker | `POST /grocery/sync/jobs`, `services/plaid_sync.py` | Paused | Decision 0016 orders it last; decision 0019 records the pause. No UI calls it. Runtime role is SELECT-only on the Plaid tables. |
 | 16 | Tonight Plan page | Frontend | `/prototype`, `prototype/TonightPrototype.tsx` | Prototype on /prototype | Lazy chunk. Demo data in `prototypeData.ts`. Makes no API call. Audience 18 to 25. |
 | 17 | Evaluation harness and CLI | Backend | `python -m app.evaluate`, `evaluation_*.py` | Tooling | 60 modules. 138-slot matrix. Fixture runs work today. |

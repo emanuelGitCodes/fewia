@@ -22,7 +22,7 @@ possible. Suggestions use labeled sample prices. They do not reserve
 money. `get_budget_summary` returns read-only budget facts. Pending
 cents and stale-spending warnings stay separate.
 FEWIA has no Instacart shopping-link handoff. The Kroger cart is the
-retailer path. Only the frozen `grocery-eval-v1.1` suite runs the handoff
+retailer path. Only the benchmark suite (`grocery-eval-v1.1`) runs the handoff
 services. See
 [wiki/decisions/0023-retire-instacart-adapter.md](wiki/decisions/0023-retire-instacart-adapter.md).
 The nutrition decision is

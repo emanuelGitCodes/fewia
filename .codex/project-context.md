@@ -5,8 +5,8 @@ labeled sample prices. Floci runs in the default local stack with SQS jobs
 and S3 evaluation exports. The default spending source is `manual`. The
 monthly limit that the user enters is the whole budget. Fixture spending
 stays optional. Plaid work is last. Decision 0010 adds USDA nutrition.
-Decision 0023 retires the Instacart adapter and keeps the frozen
-`grocery-eval-v1.1` suite. The Kroger cart is the retailer path. Decision D6 in
+Decision 0023 retires the Instacart adapter and keeps the benchmark
+suite. Decision 0024 labels that corpus `grocery-eval-v1.1`. The Kroger cart is the retailer path. Decision D6 in
 `docs/design/chat-architecture-proposal.md` replaces the Spoonacular cost
 overlay with an optional live Kroger price.
 Decision 0016 keeps sample-catalog cents as the budget figure. Newer

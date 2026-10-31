@@ -16,7 +16,7 @@ First-release documentation boundary:
 
 - Document the local React and TypeScript chat, FastAPI, PostgreSQL,
   worker, Floci SQS and S3 paths, real Bedrock, Plaid Sandbox, and
-  Instacart development shopping links.
+  the Kroger cart.
 - Show this exact notice with every estimate: "Estimated from the demo price
   catalog. Store prices, availability, taxes, delivery fees, and tips are
   not verified."

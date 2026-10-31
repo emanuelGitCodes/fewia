@@ -24,7 +24,7 @@ First-release evaluation boundary:
   corpus version, budget inputs, and expected outputs.
 - Cover the local React and TypeScript chat path, FastAPI, PostgreSQL,
   worker, Floci SQS and S3 integration, real Bedrock evidence, Plaid
-  Sandbox evidence, and Instacart development links as separate classes.
+  Sandbox evidence, and Kroger cart evidence as separate classes.
 - Show this exact notice with every estimate: "Estimated from the demo price
   catalog. Store prices, availability, taxes, delivery fees, and tips are
   not verified." Do not score estimates as verified checkout prices.
