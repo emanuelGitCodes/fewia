@@ -60,11 +60,16 @@ def test_catalog_choices_is_empty_for_a_forged_payload() -> None:
 
 
 def test_catalog_choices_is_empty_unless_the_status_is_ok() -> None:
-    for query in ("keto", SENTINEL):
-        payload = execute_catalog_search({"query": query})
-        assert payload["status"] != "ok"
+    searches = {
+        "no_match": {"query": SENTINEL},
+        "unsupported_facet": {"query": "dairy free"},
+        "unknown_exclusion": {"query": "chickpea", "exclude": ["nightshades"]},
+    }
+    for status, arguments in searches.items():
+        payload = execute_catalog_search(arguments)
+        assert payload["status"] == status
         assert catalog_choices(payload) == []
-    assert catalog_choices({**payload, "status": "ok"}) == []
+        assert catalog_choices({**payload, "status": "ok"}) == []
 
 
 def protein_mg(rid: str) -> int:

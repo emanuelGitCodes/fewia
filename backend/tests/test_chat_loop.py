@@ -3517,8 +3517,12 @@ def test_a_search_with_text_after_it_keeps_the_choices() -> None:
     assert result["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
 
 
-@pytest.mark.parametrize("query", ["keto", "zqxsentinel"])
-def test_a_search_without_choices_has_no_choices_key(query: str) -> None:
+@pytest.mark.parametrize(
+    ("query", "status"),
+    [("xyzzy", "no_match"), ("dairy free", "unsupported_facet")],
+)
+def test_a_search_without_choices_has_no_choices_key(query: str, status: str) -> None:
+    assert execute_catalog_search({"query": query})["status"] == status
     replies = [
         _reply(
             [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": query})],
@@ -3542,12 +3546,12 @@ def test_planner_and_limit_results_have_no_choices() -> None:
         assert "choices" not in result
 
 
-def _typed_batch_run(message: str) -> str:
+def _batch_run(message: str, query: str) -> dict[str, object]:
     bad_plan = plan_args(meals=[{"recipe_id": "not_a_catalog_meal", "servings": 2}])
     replies = [
         _reply(
             [
-                _tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "keto"}),
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": query}),
                 _tool_block("p1", payload=bad_plan),
             ],
             "tool_use",
@@ -3555,6 +3559,12 @@ def _typed_batch_run(message: str) -> str:
         _reply([_text_block("done")], "end_turn"),
     ]
     result, _ = _run(replies, message=message)
+    return result
+
+
+def _typed_batch_run(message: str) -> str:
+    assert execute_catalog_search({"query": "xyzzy"})["status"] == "no_match"
+    result = _batch_run(message, "xyzzy")
     assert "choices" not in result
     return str(result["answer"])
 
@@ -3563,8 +3573,8 @@ def test_a_typed_catalog_batch_with_an_unsupported_recipe_names_no_recipe() -> N
     answer = _typed_batch_run("keto dinner")
     assert TYPE_CLARIFICATION in answer
     assert "That recipe is not in the catalog." in answer
-    for recipe_id in SUPPORTED_RECIPE_IDS:
-        assert recipe_id.replace("_", " ") not in answer
+    for name in ("bean tacos", "vegetable pasta", "lentil soup"):
+        assert name not in answer
     assert "Examples:" not in answer
 
 
@@ -3572,6 +3582,16 @@ def test_a_catalog_batch_with_an_unsupported_recipe_gives_examples_otherwise() -
     answer = _typed_batch_run("plan pad thai for 2")
     assert "Examples:" in answer
     assert TYPE_CLARIFICATION not in answer
+    for name in ("bean tacos", "vegetable pasta", "lentil soup"):
+        assert name in answer
+
+
+def test_a_catalog_batch_with_a_successful_search_keeps_the_choices() -> None:
+    expected = execute_catalog_search({"query": "keto"})
+    assert expected["status"] == "ok"
+    result = _batch_run("keto dinner", "keto")
+    assert result["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
+    assert result["answer"] == catalog_answer(expected)
 
 
 @pytest.mark.parametrize("discovery_position", [0, 1, 2])

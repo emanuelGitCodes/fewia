@@ -411,7 +411,7 @@ def run_chat(
                 if not model_prose:
                     return out(status, answer(), candidate, public=True)
                 if gate is not None:
-                    shown_gate = {"gate": gate}
+                    shown_gate: dict[str, object] = {"gate": gate}
                     return out(
                         status, answer(), candidate, "template", shown_gate, True
                     )

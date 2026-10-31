@@ -384,7 +384,6 @@ def catalog_answer(payload: dict[str, object]) -> str:
         return f"I cannot check {texts} in this catalog. {_CAN_SEARCH}"
     if validated["status"] == "no_match":
         return _NO_MATCH
-    request = cast(dict[str, object], validated["request"])
     chosen = cast(list[str], validated["recipe_ids"])
     if not chosen:
         return _NO_MORE
