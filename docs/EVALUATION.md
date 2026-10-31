@@ -124,7 +124,7 @@ uv run python -m app.evaluate_conversation \
 
 A live run replaces `--fixture` with `--live-bedrock` and adds `--rates`. It spends money and needs the owner's approval. Set `AWS_SHARED_CREDENTIALS_FILE` to the file that `infra/bedrock_session.py` writes and `AWS_PROFILE` to `fewia-bedrock-dev`.
 
-First live batch (2026-10-30, Nova 2 Lite, revision `95cfbea3`): [report](../eval/results/artifacts/conversation-20261030/report.md). It recorded 66 of 66 turns. The validator accepted 9 of 36 prose attempts (25%), with 59 unsupported numbers. Latency p50 was 4.6 s and p95 was 16.4 s. Cost was USD 0.0057 per turn.
+First live batch (2026-10-30, Nova 2 Lite, revision `95cfbea3`): [report](../eval/results/artifacts/conversation-20261030/report.md). It recorded 66 of 66 turns. The validator accepted 9 of 36 prose attempts (25%), with 59 unsupported numbers. Latency p50 was 4.6 s and p95 was 16.4 s. Cost was USD 0.0057 per turn. After the verb-led direction rule (revision `b808dfb7`, [report](../eval/results/artifacts/conversation-20261030c/report.md)), the validator accepted 13 of 32 (41%), with 49 unsupported numbers; p50 3.4 s, p95 12.2 s, USD 0.0053 per turn.
 
 ## Component boundaries
 

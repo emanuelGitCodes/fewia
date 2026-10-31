@@ -1,7 +1,8 @@
 # Grounding redesign: server-rendered numbers
 
 - Date: 2026-10-30
-- Status: proposed; probe result: placeholders not viable on Nova 2 Lite
+- Status: placeholders rejected after the probe; the verb-led direction rule
+  is built (p9-01)
 - Context: [chat-architecture-proposal.md](chat-architecture-proposal.md)
   section 4.5, decision
   [0022](../../wiki/decisions/0022-grounded-model-prose.md)
@@ -123,18 +124,32 @@ Revised recommendation:
 - Step 0 and the probe are approved (about USD 0.25).
 - User-echoed number words stay rejected.
 
-## Decisions for the owner
+## Built: verb-led direction rule (p9-01)
 
-1. **User-echoed number words** ("half the rice", "type 2 diabetes").
-   Reject them, as today, or allow a word that appears verbatim in the
-   user's message. Allowing it opens a grounding hole: a user can plant a
-   number the model then repeats.
-2. **Repair round** (not recommended). Send a rejected reply back for one
-   revision. Decision 0022 says the loop MUST NOT send unvalidated model
-   text back, so this needs an amendment. It adds a model call to about 75%
-   of turns, which moves p95 latency the wrong way.
-3. **Order.** Step 0 and the probe first (paid, about USD 0.25 together),
-   then a brief for the winning variant.
+Commits `c3574d6` and `b808dfb`. These rules hold in `grounding.py`:
+
+- A direction verb before an unsigned energy, mass, milli, or percent token
+  gives it a sign: gain, add, rise, increase (+); lose, drop, fall,
+  decrease, reduce (-). Optional "by" and "about" may sit between them.
+- The sign carries to the next unit token across "and" or "," with at most
+  three words between. A sentence end, ";", "(", "from", "to", "while",
+  "but", "whereas", "than", or another direction verb ends the run.
+- A bound token matches only a signed delta from this turn, or a negative
+  pool value. It MUST NOT match the absolute pool.
+- A base-form verb at a sentence start is an instruction ("Add 5 g"), not
+  a change, and binds nothing.
+- Counts, money, and ranges are never bound.
+
+Accepted trade-off: a verb that states an absolute amount ("chickpeas add
+384 kcal per serving") now fails closed and falls back to the template.
+
+Measured (2026-10-30, Nova 2 Lite, revision `b808dfb`,
+`conversation-20261030c`): the validator accepted 13 of 32 prose replies
+(0.41), against 9 of 36 (0.25) at `95cfbea` with the same prompt.
+Unsupported numbers fell from 59 to 49. The remaining rejections are
+`unmatched_number` 15, `number_word` 5, `unsupported_character` 1, and
+`forbidden_claim` 1. p50 latency was 3.4 s, p95 12.2 s, and cost USD
+0.0053 per turn.
 
 ## Out of scope
 

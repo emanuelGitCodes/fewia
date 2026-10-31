@@ -4554,3 +4554,12 @@ benchmark corpus becomes `grocery-eval-v1.1` with the same 30 scenarios and
 chat `SYSTEM_PROMPT` and the conversation corpus do not. Archived results
 and course evidence are unchanged. Gates at `28ff010`: backend 11,050
 passed; frontend lint, tests, and build passed.
+
+A paid probe (22 turns, about USD 0.25; reply text deleted) classified 9
+rejections: 3 correct changes stated with a verb before the number, 2
+computed numbers, 2 numbers reused from history, and 2 user echoes. Nova 2
+Lite followed neither server-rendered output shape (placeholders 1 of 9,
+a `final_answer` tool 1 of 9), so the design note
+`docs/design/grounding-redesign.md` rejects that design for this model.
+p9-01 binds a direction verb before a number to a signed delta. A batch at
+`b808dfb` accepted 13 of 32 prose replies (0.41), up from 9 of 36.
