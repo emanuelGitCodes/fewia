@@ -639,17 +639,16 @@ def test_next_search_arguments_drop_free_text_and_omit_none() -> None:
 def test_next_search_arguments_reject_a_rebuilt_query_that_gives_another_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    page = search("chicken", limit=1)
-    assert page["applied"] == ["chicken"]
-    chicken_total = cast(int, page["total_matches"])
-    assert chicken_total > 1
-    arguments = next_search_arguments(page)
-    assert arguments is not None and arguments["query"] == "chicken"
+    page = search("chicken", tags=["lower_carb"], limit=1)
+    assert page["status"] == "ok" and page["applied"] == ["chicken", "lower_carb"]
+    assert cast(int, page["total_matches"]) > 1
+    assert next_search_arguments(page) is not None
     # The payload still revalidates, but the rebuilt query loses the chicken word.
     monkeypatch.setattr(catalog_tool, "_INGREDIENT_TAGS", ())
     assert execute_catalog_search(page_request(page)) == page
-    assert page_arguments({"query": "meals", "offset": 1, "limit": 1}) is not None
-    assert next_search_arguments(page) is None
+    rebuilt = {"query": "meals", "tags": ["lower_carb"], "offset": 1, "limit": 1}
+    assert page_arguments(rebuilt) is not None  # the rebuilt query searches
+    assert next_search_arguments(page) is None  # only the cross-check rejects it
 
 
 def test_next_search_arguments_need_a_valid_ok_payload_with_more_matches() -> None:
