@@ -53,6 +53,7 @@ _SAFETY = " ".join([*_CAVEATS.values(), _CANNOT_CLAIM])
 _FACET_DIETS = ("vegetarian", "vegan")
 _FACETS = (*TAG_ORDER, *_FACET_DIETS)
 _INGREDIENT_TAGS = tuple(tag for tag, _ in PROTEIN_TAGS)
+_TAG_TYPES = tuple(f for f in _FACETS if f not in _INGREDIENT_TAGS)
 _LABELS = {"gluten_free_ingredients": "gluten-free ingredients"}
 _SUPPORTED_LABELS = [
     _LABELS.get(f, f.replace("_", " "))
@@ -87,10 +88,12 @@ def catalog_tool_spec() -> dict[str, object]:
         "toolSpec": {
             "name": TOOL_NAME,
             "description": (
-                "max_cents_per_serving: sample grocery cost for one serving, "
-                "in whole packages. Tags and query types are ANDed; "
-                "exclusions go in exclude. "
-                "Not for named/planned meals; plan_groceries validates."
+                "Search catalog meals by type. "
+                "Every result has every type in query and tags. "
+                "max_cents_per_serving is the sample grocery cost for one "
+                "serving, in whole packages. Exclusions go in exclude. "
+                "Not for a meal the user names or has in the plan. "
+                "plan_groceries validates."
             ),
             "inputSchema": {
                 "json": {
@@ -101,7 +104,7 @@ def catalog_tool_spec() -> dict[str, object]:
                         "tags": {
                             "type": "array",
                             "uniqueItems": True,
-                            "items": {"type": "string", "enum": list(_FACETS)},
+                            "items": {"type": "string", "enum": list(_TAG_TYPES)},
                         },
                         "exclude": {
                             "type": "array",
@@ -244,11 +247,11 @@ def _names(value: object) -> list[str]:
 def _tags(value: object) -> list[str]:
     if not isinstance(value, list) or len(value) > 10:
         raise CatalogToolError(_BAD)
-    if not all(isinstance(t, str) and t in _FACETS for t in value):
+    if not all(isinstance(t, str) and t in _TAG_TYPES for t in value):
         raise CatalogToolError(_BAD)
     if len(set(value)) != len(value):
         raise CatalogToolError(_BAD)
-    return [f for f in _FACETS if f in value]
+    return [f for f in _TAG_TYPES if f in value]
 
 
 def execute_catalog_search(arguments: object) -> dict[str, object]:

@@ -30,6 +30,13 @@ from app.domain.meal_tags import (
 from app.services.meal_nutrition import meal_nutrition
 
 SENTINEL = "zqxsentinel"
+TAG_TYPES = [
+    "high_protein",
+    "lower_carb",
+    "gluten_free_ingredients",
+    "vegetarian",
+    "vegan",
+]
 
 
 def protein_mg(rid: str) -> int:
@@ -84,13 +91,14 @@ def test_schema_is_bounded() -> None:
     }
     assert "maxItems" not in properties["tags"]
     assert properties["tags"]["uniqueItems"] is True
-    assert cast(dict[str, object], properties["tags"]["items"])["enum"] == [
-        *TAG_ORDER,
-        "vegetarian",
-        "vegan",
-    ]
-    assert "Tags and query types are ANDed" in cast(str, spec["description"])
-    assert "exclusions go in exclude" in cast(str, spec["description"])
+    assert cast(dict[str, object], properties["tags"]["items"])["enum"] == TAG_TYPES
+    assert "Every result has every type in query and tags" in cast(
+        str, spec["description"]
+    )
+    assert "Exclusions go in exclude" in cast(str, spec["description"])
+    assert "Not for a meal the user names or has in the plan." in cast(
+        str, spec["description"]
+    )
     assert properties["query"]["maxLength"] == 120
     assert properties["exclude"]["maxItems"] == 22
     assert properties["limit"]["maximum"] == 3
@@ -223,7 +231,10 @@ def test_a_tag_joins_the_facets_found_in_the_query() -> None:
         "vegan",
         None,
         ["High_Protein"],
-        list(TAG_ORDER) + ["vegetarian", "vegan", "vegan"],
+        [*TAG_TYPES, "vegan"],
+        ["chicken"],
+        ["egg", "high_protein"],
+        list(TAG_ORDER),
     ],
 )
 def test_invalid_tags_fail(tags: object) -> None:
@@ -231,12 +242,11 @@ def test_invalid_tags_fail(tags: object) -> None:
         execute_catalog_search({"query": "dinner", "tags": tags})
 
 
-def test_every_tag_value_is_accepted_and_ten_tags_fit() -> None:
-    everything = [*TAG_ORDER, "vegetarian", "vegan"]
-    assert len(everything) == 10
-    payload = search("dinner", tags=everything)
+def test_every_tag_value_is_accepted_and_five_tags_fit() -> None:
+    assert len(TAG_TYPES) == 5
+    payload = search("dinner", tags=TAG_TYPES)
     request = cast(dict[str, object], payload["request"])
-    assert request["tags"] == everything
+    assert request["tags"] == TAG_TYPES
 
 
 @pytest.mark.parametrize(
@@ -578,7 +588,7 @@ def test_every_returned_meal_has_every_applied_facet_and_text_word(diet: str) ->
 def test_every_returned_meal_has_every_tag_and_text_word(diet: str) -> None:
     facets = [*TAG_ORDER, "vegetarian", "vegan"]
     for size in (1, 2):
-        for chosen in combinations(facets, size):
+        for chosen in combinations(TAG_TYPES, size):
             for word in INGREDIENT_WORDS[::7]:
                 payload = search(word, diet=diet, tags=list(chosen))
                 applied = cast(list[str], payload["applied"])
@@ -586,7 +596,7 @@ def test_every_returned_meal_has_every_tag_and_text_word(diet: str) -> None:
                 assert set(chosen) <= set(applied), (chosen, word)
                 assert applied == [f for f in facets if f in applied]
                 request = cast(dict[str, object], payload["request"])
-                assert request["tags"] == [f for f in facets if f in chosen]
+                assert request["tags"] == list(chosen)
                 kept = [] if catalog_tool._facet(word) or word in dropped else [word]
                 for rid in ids(payload):
                     assert all(has_facet(f, rid) for f in applied), (chosen, word)
