@@ -111,6 +111,15 @@ QUANTITY_ROWS = [
     ("Protein is 100 g for 4 servings.", True),
 ]
 
+_PLAN_FACTS = facts_from_payloads([("plan_nutrition", {"energy_kcal": 1920})])
+
+GUARD_ROWS = [
+    (_PLAN_FACTS, "The meal has 1920 kcal per person.", False),
+    (_PLAN_FACTS, "The meal has 1920 kcal.", True),
+    (_FACTS, "Calories rose from 500 kcal.", False),
+    (_FACTS, "Calories fell from 500 kcal.", False),
+]
+
 ADVERSARIAL = [
     " ".join(f"fiber y {i} z" for i in range(400))[:1200],
     "Protein" + "*" * 1150 + "x 25 g",
@@ -129,6 +138,13 @@ def test_quantity_payload_servings(
     text: str, expected: bool, quantity_facts: FactSet
 ) -> None:
     assert validate(text, quantity_facts).ok == expected
+
+
+@pytest.mark.parametrize(("facts", "text", "expected"), GUARD_ROWS)
+def test_unmatched_basis_and_open_from_guards(
+    facts: FactSet, text: str, expected: bool
+) -> None:
+    assert validate(text, facts).ok == expected
 
 
 @pytest.mark.parametrize("text", ADVERSARIAL)
