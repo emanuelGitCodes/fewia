@@ -53,6 +53,76 @@ _CLAUSE_END = re.compile(r"[.!?;\n]")
 _COUNT_UNIT = re.compile(
     r"\s*(?:servings?|meals?|ounces?|oz|lbs?|pounds?|packages?)\b", re.IGNORECASE
 )
+_TAIL_BOUNDARY = re.compile(r"[!?;\n]|\.(?!\d)")
+_TAIL_END = re.compile(r"\s*\)*\s*\Z")
+_FDC_CITATION = re.compile(r"\s*\(USDA FDC [0-9]+\)")
+_ENERGY_CLAUSE = re.compile(
+    r"\s+(?:but|while(?:\s+protein\s+and)?)\s+\Z", re.IGNORECASE
+)
+_MACRO_JOIN = re.compile(
+    r"\s*\)*\s*(?:,\s*(?:(?:and|or)\s+)?|(?:and|or|plus)\s+|[/&(]\s*)\Z",
+    re.IGNORECASE,
+)
+_BASIS = re.compile(
+    r"\s*(?:per\s+(?:servings?|meals?|\d+(?:\.\d+)?\s*"
+    r"(?:g|grams?|mg|milligrams?|kg|kilograms?))"
+    r"|for\s+\d+\s+(?:servings?|meals?))\b",
+    re.IGNORECASE,
+)
+
+
+def _claim_tail_allowed(
+    plain: str,
+    tokens: Sequence[re.Match[str]],
+    labels: Sequence[re.Match[str]],
+    index: int,
+    nutrient: str,
+) -> bool:
+    """Accept only structural continuations after a nutrient amount."""
+    tail_start = tokens[index].end()
+    next_token = tokens[index + 1] if index + 1 < len(tokens) else None
+    next_start = next_token.start() if next_token is not None else len(plain)
+    boundary = _TAIL_BOUNDARY.search(plain, tail_start)
+    clause_end = boundary.start() if boundary else len(plain)
+    local_end = min(next_start, clause_end)
+    for label in labels:
+        if tail_start <= label.start() < local_end and _SUFFIX.fullmatch(
+            plain[tail_start : label.start()]
+        ):
+            if _ALIASES.get(label["label"].lower()) != nutrient:
+                return False
+            tail_start = label.end()
+            break
+    basis = _BASIS.match(plain, tail_start, clause_end)
+    if basis:
+        tail_start = basis.end()
+    citation = _FDC_CITATION.match(plain, tail_start, clause_end)
+    if citation:
+        tail_start = citation.end()
+    if basis or citation:
+        next_token = next(
+            (other for other in tokens[index + 1 :] if other.start() >= tail_start),
+            None,
+        )
+        next_start = next_token.start() if next_token is not None else len(plain)
+        local_end = min(next_start, clause_end)
+    gap = plain[tail_start:local_end]
+    if local_end == clause_end and _TAIL_END.fullmatch(gap):
+        return True
+    if next_start >= clause_end:
+        return False
+    if next_token is not None and next_token["en"] and _ENERGY_CLAUSE.fullmatch(gap):
+        return True
+    if not basis and _CONTINUE.fullmatch(gap):
+        return True
+    for label in labels:
+        if (
+            tail_start <= label.start() < next_start
+            and _PREFIX.fullmatch(plain[label.end() : next_start])
+            and _MACRO_JOIN.fullmatch(plain[tail_start : label.start()])
+        ):
+            return True
+    return False
 
 
 def nutrient_bindings(
@@ -163,6 +233,12 @@ def nutrient_bindings(
                 )
         if _CONTINUE.fullmatch(gap):
             bindings[token.start()] = bindings[previous.start()]
+    for index, token in enumerate(tokens):
+        nutrient = bindings.get(token.start())
+        if nutrient is not None and not _claim_tail_allowed(
+            plain, tokens, labels, index, nutrient
+        ):
+            bindings[token.start()] = None
     return bindings
 
 

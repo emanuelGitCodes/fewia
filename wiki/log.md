@@ -4619,3 +4619,26 @@ review use the later committed SHA.
 Writer totals after this repair: five runs, 1594.440 seconds, 3608015 input
 tokens, and 60611 output tokens. The first Luna review used 196347 input
 tokens and 7354 output tokens. The loop record holds later review usage.
+
+Luna reviewed `c19c5f2` and found that a prefix label could ignore a
+material noun after the amount. The next repair rejects noun-qualified
+claims such as "Protein is 14 g of flour". The parser accepts a bounded
+set of macro continuations, basis phrases, numeric parentheses, USDA
+citations, and energy clauses. Citation IDs and calorie amounts still
+need independent numeric evidence.
+
+The first compatibility check passed 708 tests and failed four existing
+forms. A follow-up repair restored the USDA citation and energy-clause
+forms. Three new negative assertions then failed because they omitted the
+existing plus sign in the reported amount. The writer corrected those
+assertions. The final focused suite passed 738 tests with one existing
+Starlette/httpx warning. Ruff checks, formatting, and strict mypy passed.
+Terra checked 91 adversarial and positive cases before the final commit;
+all matched their expected outcome. The final gates and review record
+name the later committed SHA.
+
+Writer totals before the third review: seven runs, 1997.807 seconds,
+4229873 input tokens, and 78686 output tokens. The first two Luna reviews
+used 459615 input tokens and 13962 output tokens. The loop record holds
+the final review usage. These checks use fake providers and local data.
+They make no live Bedrock or deployment claim.
