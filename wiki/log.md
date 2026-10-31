@@ -4563,3 +4563,11 @@ a `final_answer` tool 1 of 9), so the design note
 `docs/design/grounding-redesign.md` rejects that design for this model.
 p9-01 binds a direction verb before a number to a signed delta. A batch at
 `b808dfb` accepted 13 of 32 prose replies (0.41), up from 9 of 36.
+
+[Decision 0025](decisions/0025-medical-claims-and-bedrock-guardrail.md)
+adds two layers against medical advice. The validator fails a model reply
+that names a health condition (`medical_claim`), wherever the term appears.
+An optional Bedrock guardrail with four denied topics is defined in the CDK
+stack and wired into Converse behind two settings; it stays off until the
+owner deploys it. Gates at `a7e98ce`: backend 11,111 passed; CDK tests,
+ruff, and mypy passed.
