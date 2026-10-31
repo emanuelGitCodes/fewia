@@ -4757,3 +4757,25 @@ Each item passed the gates with a dedicated PostgreSQL. The review model
 combined stack passed 11,815 backend tests with 245 added code lines.
 Writers were `claude-sonnet-5-5` through the supervisor. No live provider
 call, deployment, or merge claim is made.
+
+## 2026-10-31: Fix the nutrient-validator defects from the PR 460 review
+
+This entry records defects 1 to 3 of the PR 460 review at `63793ad5`.
+
+- **Nutrient binding (pf-01).** A label binds a number only on its own
+  line, and an unknown word before a label unbinds it. "changes by N" and
+  "<label> by N" need a sign. A "from X to Y" change must read a recorded
+  pair, its signed delta, and a direction that agrees.
+- **Validator cost (pf-01).** A reply over 1,200 characters fails before
+  the scan. The scan is linear: an adversarial reply takes about 2 ms.
+- **Basis and side (pf-07).** Each nutrition and energy fact records its
+  basis and its before or after side. A basis phrase after a claim, and the
+  basis of a from-to pair, MUST match the fact.
+
+The review model (`claude-opus-5-5`) approved `b70c1da4`.
+The tier L probes caught 16 of 16 mutations. On 62 sample replies, no
+false claim passes that the merge base rejects. The design doc
+`docs/design/grounding-redesign.md` lists the open shapes that still pass
+and the true claims that now fail. Writers were `claude-sonnet-5-5`
+through the supervisor. No live provider call, deployment, or merge claim
+is made.

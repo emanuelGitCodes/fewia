@@ -151,6 +151,55 @@ Unsupported numbers fell from 59 to 49. The remaining rejections are
 `forbidden_claim` 1. p50 latency was 3.4 s, p95 12.2 s, and cost USD
 0.0053 per turn.
 
+## Built: nutrient binding, basis, and side (pf-01, pf-07)
+
+The validator now checks these rules for a nutrition or energy claim:
+
+- A label binds a number only on the same line. A word before a label
+  that is not a known qualifier unbinds the label.
+- "changes by N" and "<label> by N" have no direction. They need a sign.
+- A "from X to Y" change must read one recorded before and after pair.
+  Y - X MUST be a signed delta of that subject, and a direction word MUST
+  agree with it. Any words can sit between X and Y. A change with X and
+  no Y fails.
+- Each fact records its basis (`per_serving`, `total`, `per_100g`) and its
+  side (`before`, `after`). A basis phrase after a claim restricts it to
+  that basis. "for N servings" names the total only when N is a stated
+  `servings` count. A from-to claim matches the basis of its pair.
+- A value that exists only before the swap needs a before marker in its
+  clause.
+- A reply longer than 1,200 characters fails before any scan. The scan
+  cost is linear: an adversarial 1,200-character reply takes about 2 ms.
+
+Open shapes: these false claims still pass. The merge base passes them
+too.
+
+- A before marker anywhere in the clause unlocks a before-side energy
+  value: "Each serving now has 500 kcal instead of the original 480
+  kcal.", "Once the swap was done the meal has 500 kcal per serving."
+- A trailing "from" counts as a before marker: "After the swap the meal
+  has 500 kcal from tofu."
+- The "(+D g)" after "X to Y" is not checked against Y - X when no basis
+  phrase follows: "Protein 20 to 25 g (+20 g)."
+- `FactSet.servings` pools the `servings` key of every payload in the
+  turn. "for 2 servings" can match the servings count of another meal.
+- A basis phrase before the claim, or one shared by a list, is not read:
+  "Per serving, protein is 100 g."
+- An unsigned "X to Y" that is a recorded pair reads as that pair, not as
+  a range: "After the swap, protein is 20 to 25 g per serving."
+- Which food a value belongs to is not checked: "Lentils have 25 g
+  protein per 100 g" with the value of tofu.
+
+True claims that now fail and fall back to the server template:
+
+- `_left_ok` unbinds a label after an unknown word: "480 kcal while
+  protein is 25 g", "Now protein is 25 g.", "After the swap protein is
+  25 g per serving."
+- `before_marker` reads 200 characters on each side of the claim. A
+  marker farther away in a long clause is missed.
+
+No core test covers the basis and side check on the "about N kcal" path.
+
 ## Out of scope
 
 - The guardrail (3.4). C09 gave diabetes diet advice that passed the
