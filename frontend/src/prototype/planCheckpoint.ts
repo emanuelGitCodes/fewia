@@ -6,9 +6,16 @@ export const PLAN_CHECKPOINT_TTL_MS = 30 * 60 * 1000;
 export const MAX_CHECKPOINT_LENGTH = 16_384;
 export const MAX_BUDGET_DRAFT_LENGTH = 256;
 export const PLAN_RESTORE_ERROR = "Your saved plan could not be restored. Please check your plan.";
-export const PLAN_SAVE_ERROR = "Could not save your plan for sign-in. Try Connect Kroger again.";
+export const PLAN_SAVE_WARNING =
+  "Your plan could not be saved for sign-in. Select Connect Kroger again to continue; your plan will reset.";
 
-type ReturnPlan = { state: PlanState; returning: boolean; error: string | null };
+export type KrogerReturn = "connected" | "error";
+type ReturnPlan = {
+  state: PlanState;
+  returning: boolean;
+  error: string | null;
+  kroger: KrogerReturn | null;
+};
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -115,21 +122,22 @@ export function savePlanCheckpoint(state: PlanState): boolean {
 
 // Reading leaves the checkpoint intact for React StrictMode initialization.
 export function readReturnPlan(): ReturnPlan {
-  const marker = new URLSearchParams(window.location.search).get("kroger");
-  const returning = marker === "connected" || marker === "error";
+  const value = new URLSearchParams(window.location.search).get("kroger");
+  const kroger = value === "connected" || value === "error" ? value : null;
+  const returning = kroger !== null;
   if (!returning) {
-    return { state: initialPlanState(), returning, error: null };
+    return { state: initialPlanState(), returning, error: null, kroger };
   }
   try {
     const serialized = window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY);
     const state = serialized === null ? null : decode(serialized, Date.now());
     if (state !== null) {
-      return { state, returning, error: null };
+      return { state, returning, error: null, kroger };
     }
   } catch {
     // Storage and parse failures use the same bounded message.
   }
-  return { state: initialPlanState(), returning, error: PLAN_RESTORE_ERROR };
+  return { state: initialPlanState(), returning, error: PLAN_RESTORE_ERROR, kroger };
 }
 
 export function consumePlanCheckpoint(): boolean {

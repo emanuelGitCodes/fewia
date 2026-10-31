@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { createElement, StrictMode } from "react";
+import { createElement, StrictMode, useEffect, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
@@ -19,8 +19,9 @@ import { useProviderCapabilities } from "../useProviderCapabilities";
 import { TonightPrototype } from "./TonightPrototype";
 import * as proposalApi from "../proposalApi";
 import {
-  PLAN_CHECKPOINT_KEY, PLAN_RESTORE_ERROR, savePlanCheckpoint,
+  MAX_BUDGET_DRAFT_LENGTH, PLAN_CHECKPOINT_KEY, PLAN_RESTORE_ERROR, savePlanCheckpoint,
 } from "./planCheckpoint";
+import { KROGER_SIGN_IN_FAILED_LINE } from "./KrogerConnect";
 import { initialPlanState, withPlanBudgetInput } from "./planModel";
 
 vi.mock("../useChatJob", () => ({ useChatJob: vi.fn() }));
@@ -1341,6 +1342,45 @@ describe("Kroger return plan", () => {
     render(<TonightPrototype />);
     expect(screen.getByText(PLAN_RESTORE_ERROR).getAttribute("role")).toBe("alert");
     expect((screen.getByLabelText("Plan cap") as HTMLInputElement).value).toBe("40");
+  });
+
+  it("shows the sign-in result when capabilities resolve after the first render", async () => {
+    let resolve: () => void = () => undefined;
+    const settled = new Promise<void>((done) => { resolve = done; });
+    function useDeferredCapabilities(): ReturnType<typeof useProviderCapabilities> {
+      const [ready, setReady] = useState(false);
+      useEffect(() => { void settled.then(() => { setReady(true); }); }, []);
+      return {
+        capabilities: ready
+          ? { chat_configured: true, plaid_configured: false, spending_source: "manual" }
+          : null,
+        pending: !ready,
+        error: null,
+        retry: vi.fn(),
+      };
+    }
+    vi.mocked(useProviderCapabilities).mockImplementation(useDeferredCapabilities);
+    window.history.replaceState(null, "", "/prototype?kroger=error");
+    render(<TonightPrototype />);
+    expect(screen.queryByText(KROGER_SIGN_IN_FAILED_LINE)).toBeNull();
+    expect(window.location.search).not.toContain("kroger");
+    await act(async () => { resolve(); });
+    expect(await screen.findByText(KROGER_SIGN_IN_FAILED_LINE)).toBeTruthy();
+    expect(window.location.search).not.toContain("kroger");
+  });
+
+  it("clears the restore error on the first plan change", () => {
+    window.history.replaceState(null, "", "/prototype?kroger=error");
+    render(<TonightPrototype />);
+    expect(screen.getByText(PLAN_RESTORE_ERROR)).toBeTruthy();
+    click("Remove Bean tacos");
+    expect(screen.queryByText(PLAN_RESTORE_ERROR)).toBeNull();
+  });
+
+  it("limits the Plan cap draft to the checkpoint maximum", () => {
+    render(<TonightPrototype />);
+    const cap = screen.getByLabelText("Plan cap") as HTMLInputElement;
+    expect(cap.maxLength).toBe(MAX_BUDGET_DRAFT_LENGTH);
   });
 
   it.each(["", "?kroger=unknown"])("keeps defaults on a fresh visit %j with a stale checkpoint", (search) => {

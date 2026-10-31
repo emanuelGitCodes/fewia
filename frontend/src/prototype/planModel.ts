@@ -273,17 +273,6 @@ export function withProposalSnapshot(state: PlanState, snapshot: ProposalPreview
   return { ...next, checked: retainChecks(planLines(state), planLines(next), state.checked) };
 }
 
-// Applies a saved plan revision. A null cap keeps the current cap.
-export function withSnapshot(state: PlanState, snapshot: ProposalPreview): PlanState {
-  const kept = withProposalSnapshot(state, snapshot);
-  const cap = snapshot.plan_cap_cents;
-  if (cap === null) {
-    return kept;
-  }
-  const cents = String(cap % 100).padStart(2, "0");
-  return withBudgetInput(kept, `${String(Math.trunc(cap / 100))}.${cents}`);
-}
-
 export function withPlanBudgetInput(state: PlanState, input: string): PlanState {
   return withBudgetInput(state, input);
 }

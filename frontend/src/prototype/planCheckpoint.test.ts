@@ -48,7 +48,7 @@ describe("plan checkpoint", () => {
     expect(savePlanCheckpoint(state)).toBe(true);
     window.history.replaceState(null, "", `/prototype?kroger=${marker}`);
     const expected = { ...state, servingsError: null };
-    expect(readReturnPlan()).toEqual({ state: expected, returning: true, error: null });
+    expect(readReturnPlan()).toEqual({ state: expected, returning: true, error: null, kroger: marker });
     expect(readReturnPlan().state).toEqual(expected);
     expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).not.toBeNull();
     expect(consumePlanCheckpoint()).toBe(true);
@@ -86,7 +86,7 @@ describe("plan checkpoint", () => {
     expect(savePlanCheckpoint(withPlanBudgetInput(initialPlanState(), "12"))).toBe(true);
     window.history.replaceState(null, "", `/prototype${search}`);
     const get = vi.spyOn(window.sessionStorage, "getItem");
-    expect(readReturnPlan()).toEqual({ state: initialPlanState(), returning: false, error: null });
+    expect(readReturnPlan()).toEqual({ state: initialPlanState(), returning: false, error: null, kroger: null });
     expect(get).not.toHaveBeenCalled();
   });
 
@@ -139,7 +139,7 @@ describe("plan checkpoint", () => {
   it.each(invalidPlans)("rejects the entire checkpoint for %s", (_name, fields) => {
     const value = checkpoint();
     store({ ...value, plan: { ...value.plan, ...fields } });
-    expect(readReturnPlan()).toEqual({ state: initialPlanState(), returning: true, error: PLAN_RESTORE_ERROR });
+    expect(readReturnPlan()).toEqual({ state: initialPlanState(), returning: true, error: PLAN_RESTORE_ERROR, kroger: "connected" });
   });
 
   it.each([

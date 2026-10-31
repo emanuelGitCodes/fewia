@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KrogerConnect } from "./KrogerConnect";
 import { initialPlanState } from "./planModel";
-import { PLAN_CHECKPOINT_KEY, PLAN_SAVE_ERROR, readReturnPlan } from "./planCheckpoint";
+import { PLAN_CHECKPOINT_KEY, PLAN_SAVE_WARNING, readReturnPlan } from "./planCheckpoint";
 
 type Handler = (url: string, init?: RequestInit) => Promise<Partial<Response>>;
 
@@ -37,12 +37,12 @@ afterEach(() => {
 describe("KrogerConnect", () => {
   it("renders nothing while loading, when not configured, and for a malformed body", async () => {
     stub(() => new Promise(() => undefined));
-    const { container, unmount } = render(<KrogerConnect />);
+    const { container, unmount } = render(<KrogerConnect plan={initialPlanState()} />);
     expect(container.firstChild).toBeNull();
     unmount();
 
     stub(async () => ({ ok: false, status: 503 }));
-    const off = render(<KrogerConnect />);
+    const off = render(<KrogerConnect plan={initialPlanState()} />);
     await settle();
     expect(off.container.firstChild).toBeNull();
     off.unmount();
@@ -55,7 +55,7 @@ describe("KrogerConnect", () => {
           json: async () => (body === undefined ? { connected: false, extra: 1 } : { connected: body }),
         }),
       );
-      const bad = render(<KrogerConnect />);
+      const bad = render(<KrogerConnect plan={initialPlanState()} />);
       await settle();
       expect(bad.container.firstChild).toBeNull();
       bad.unmount();
@@ -64,7 +64,7 @@ describe("KrogerConnect", () => {
 
   it("links to the connect route when not connected", async () => {
     stub(() => status(false));
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
     expect(link.getAttribute("href")).toBe("/api/grocery/kroger/connect");
   });
@@ -87,7 +87,7 @@ describe("KrogerConnect", () => {
     expect(readReturnPlan().state).toEqual(plan);
   });
 
-  it.each(["write", "read", "mismatch", "access"])("blocks navigation after a storage %s failure and permits retry", async (failure) => {
+  it.each(["write", "read", "mismatch", "access"])("warns once after a storage %s failure, then permits sign-in", async (failure) => {
     stub(() => status(false));
     render(<KrogerConnect plan={initialPlanState()} />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
@@ -113,11 +113,10 @@ describe("KrogerConnect", () => {
     }, { once: true });
     fireEvent.click(link);
     expect(prevented).toBe(true);
-    const error = screen.getByText(PLAN_SAVE_ERROR);
-    expect(error.getAttribute("aria-live")).toBe("polite");
-    expect(error.textContent).not.toContain("private");
-    vi.restoreAllMocks();
-    vi.stubGlobal("sessionStorage", storage);
+    const warning = screen.getByText(PLAN_SAVE_WARNING);
+    expect(warning.getAttribute("aria-live")).toBe("polite");
+    expect(warning.textContent).not.toContain("private");
+    // Storage still fails, yet the next click follows the link.
     let allowed = false;
     document.addEventListener("click", (event) => {
       allowed = !event.defaultPrevented;
@@ -125,7 +124,6 @@ describe("KrogerConnect", () => {
     }, { once: true });
     fireEvent.click(link);
     expect(allowed).toBe(true);
-    expect(screen.queryByText(PLAN_SAVE_ERROR)).toBeNull();
   });
 
   it("shows the cart preview button only while connected", async () => {
@@ -150,7 +148,7 @@ describe("KrogerConnect", () => {
       }
       return status(connected);
     });
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} />);
     expect(await screen.findByText("Kroger account connected")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     expect(await screen.findByRole("link", { name: "Connect Kroger" })).toBeTruthy();
@@ -160,7 +158,7 @@ describe("KrogerConnect", () => {
     stub(async (_url, init) =>
       init?.method === "DELETE" ? { ok: false, status: 500 } : status(true),
     );
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
     expect(await screen.findByText("Could not disconnect Kroger. Try again.")).toBeTruthy();
     const button = screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement;
@@ -176,7 +174,7 @@ describe("KrogerConnect", () => {
           })
         : status(true),
     );
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
     expect((screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => { finish(); });
@@ -184,7 +182,6 @@ describe("KrogerConnect", () => {
   });
 
   it("clears the return message when Disconnect starts", async () => {
-    window.history.replaceState(null, "", "/prototype?kroger=connected");
     let connected = true;
     stub(async (_url, init) => {
       if (init?.method === "DELETE") {
@@ -193,7 +190,7 @@ describe("KrogerConnect", () => {
       }
       return status(connected);
     });
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} returnStatus="connected" />);
     expect(await screen.findByText("Kroger account connected.")).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
     expect(await screen.findByRole("link", { name: "Connect Kroger" })).toBeTruthy();
@@ -210,7 +207,7 @@ describe("KrogerConnect", () => {
         : status(true),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const view = render(<KrogerConnect />);
+    const view = render(<KrogerConnect plan={initialPlanState()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
     view.unmount();
     const calls = fetchMock.mock.calls.length;
@@ -219,28 +216,24 @@ describe("KrogerConnect", () => {
     expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
-  it("shows the sign-in result and removes only the kroger parameter", async () => {
+  it("shows the sign-in result from the prop and leaves the URL alone", async () => {
     window.history.replaceState(null, "", "/prototype?a=1&kroger=error&b=2");
     stub(() => status(false));
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} returnStatus="error" />);
     const note = await screen.findByText("Kroger sign-in did not finish. Try again.");
     expect(note.getAttribute("aria-live")).toBe("polite");
-    expect(window.location.pathname + window.location.search).toBe("/prototype?a=1&b=2");
+    expect(window.location.pathname + window.location.search).toBe("/prototype?a=1&kroger=error&b=2");
   });
 
-  it("shows the connected message and ignores other values", async () => {
-    window.history.replaceState(null, "", "/prototype?kroger=connected");
+  it("shows the connected message and no message without a return status", async () => {
     stub(() => status(true));
-    const first = render(<KrogerConnect />);
+    const first = render(<KrogerConnect plan={initialPlanState()} returnStatus="connected" />);
     expect(await screen.findByText("Kroger account connected.")).toBeTruthy();
-    expect(window.location.search).toBe("");
     first.unmount();
 
-    window.history.replaceState(null, "", "/prototype?kroger=other");
     stub(() => status(false));
-    render(<KrogerConnect />);
+    render(<KrogerConnect plan={initialPlanState()} returnStatus={null} />);
     await screen.findByRole("link", { name: "Connect Kroger" });
     expect(screen.queryByText(/sign-in did not finish/)).toBeNull();
-    expect(window.location.search).toBe("");
   });
 });

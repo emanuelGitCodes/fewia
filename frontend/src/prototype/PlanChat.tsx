@@ -12,6 +12,7 @@ import { KrogerConnect } from "./KrogerConnect";
 import { KrogerQuoteLine } from "./KrogerQuoteLine";
 import { KrogerStorePicker } from "./KrogerStorePicker";
 import { chatBudget, planChatPrefix, retainChatReplies, type ChatReply } from "./planChatModel";
+import type { KrogerReturn } from "./planCheckpoint";
 import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 
@@ -43,6 +44,7 @@ export function PlanChat(props: {
   krogerStore?: KrogerStore | null;
   onKrogerChoose?: (option: KrogerStoreOption) => void;
   onKrogerClear?: () => void;
+  krogerReturn?: KrogerReturn | null;
 }): JSX.Element {
   const { state, onReply } = props;
   const krogerStore = props.krogerStore ?? null;
@@ -316,7 +318,11 @@ export function PlanChat(props: {
       ) : null}
       {on && props.onKrogerChoose !== undefined && props.onKrogerClear !== undefined ? (
         <>
-          <KrogerConnect plan={state} locationId={krogerStore?.locationId ?? null} />
+          <KrogerConnect
+            plan={state}
+            locationId={krogerStore?.locationId ?? null}
+            returnStatus={props.krogerReturn ?? null}
+          />
           <KrogerStorePicker
             store={krogerStore}
             onChoose={props.onKrogerChoose}

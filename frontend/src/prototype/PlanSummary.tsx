@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { formatDollars } from "../money";
 import { NUTRITION_DEMO_LABEL, RECIPES } from "./prototypeData";
 import { formatMacro } from "./prototypeModel";
+import { MAX_BUDGET_DRAFT_LENGTH } from "./planCheckpoint";
 import { budgetGap, planCost, planIncomplete, planNutrition, type PlanLine, type PlanState } from "./planModel";
 
 export function fitLine(costCents: number, budgetCents: number): string {
@@ -50,6 +51,7 @@ export function PlanSummary(props: {
         type="text"
         inputMode="decimal"
         autoComplete="off"
+        maxLength={MAX_BUDGET_DRAFT_LENGTH}
         value={state.budgetInput}
         aria-invalid={state.budgetError !== null}
         aria-describedby={state.budgetError !== null ? "budget-error" : "budget-status"}

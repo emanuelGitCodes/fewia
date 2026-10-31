@@ -54,10 +54,17 @@ export function TonightPrototype(): JSX.Element {
     if (!consumePlanCheckpoint()) {
       setRestoreError(PLAN_RESTORE_ERROR);
     }
+    // This is the only place that strips the marker; PlanChat shows its message.
     const url = new URL(window.location.href);
     url.searchParams.delete("kroger");
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
   }, [returnPlan]);
+  useEffect(() => {
+    // The restore warning ends with the first plan change after it.
+    if (state !== returnPlan.state) {
+      setRestoreError(null);
+    }
+  }, [state, returnPlan]);
   const kroger = useKrogerStore();
   const previousView = useRef(state.view);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -213,6 +220,7 @@ export function TonightPrototype(): JSX.Element {
             open={sheetOpen}
             onHide={closeSheet}
             onReply={onReply}
+            krogerReturn={returnPlan.kroger}
             krogerStore={kroger.store}
             onKrogerChoose={kroger.choose}
             onKrogerClear={kroger.clear}

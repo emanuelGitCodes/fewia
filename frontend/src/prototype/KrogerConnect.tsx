@@ -3,28 +3,29 @@ import { isAbortError } from "../api";
 import { disconnectKroger, readKrogerConnection } from "../krogerApi";
 import { KrogerCart } from "./KrogerCart";
 import type { PlanState } from "./planModel";
-import { PLAN_SAVE_ERROR, savePlanCheckpoint } from "./planCheckpoint";
+import { PLAN_SAVE_WARNING, savePlanCheckpoint, type KrogerReturn } from "./planCheckpoint";
 
 export const KROGER_CONNECT_PATH = "/api/grocery/kroger/connect";
 export const KROGER_CONNECTED_LINE = "Kroger account connected.";
 export const KROGER_SIGN_IN_FAILED_LINE = "Kroger sign-in did not finish. Try again.";
 export const KROGER_DISCONNECT_FAILED_LINE = "Could not disconnect Kroger. Try again.";
 
-function readReturnMessage(): string {
-  const value = new URLSearchParams(window.location.search).get("kroger");
-  if (value === "connected") {
+function returnMessage(status: KrogerReturn | null | undefined): string {
+  if (status === "connected") {
     return KROGER_CONNECTED_LINE;
   }
-  return value === "error" ? KROGER_SIGN_IN_FAILED_LINE : "";
+  return status === "error" ? KROGER_SIGN_IN_FAILED_LINE : "";
 }
 
 export function KrogerConnect(props: {
-  plan?: PlanState;
+  plan: PlanState;
   locationId?: string | null;
+  // The sign-in result read by the page; the page also removes it from the URL.
+  returnStatus?: KrogerReturn | null;
 }): JSX.Element | null {
   // The connection state lives only in component state.
   const [connected, setConnected] = useState<boolean | null>(null);
-  const [returned] = useState(readReturnMessage);
+  const [returned] = useState(() => returnMessage(props.returnStatus));
   // The live region renders first and receives its text after mount so it is announced.
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
@@ -52,11 +53,6 @@ export function KrogerConnect(props: {
   };
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (url.searchParams.has("kroger")) {
-      url.searchParams.delete("kroger");
-      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
-    }
     mounted.current = true;
     setMessage(returned);
     refresh();
@@ -96,9 +92,9 @@ export function KrogerConnect(props: {
           className="tonight-ask-btn"
           href={KROGER_CONNECT_PATH}
           onClick={(event) => {
-            const saved = props.plan !== undefined && savePlanCheckpoint(props.plan);
-            setSaveFailed(!saved);
-            if (!saved) {
+            // A failed save warns once; the next click signs in with a reset plan.
+            if (!saveFailed && !savePlanCheckpoint(props.plan)) {
+              setSaveFailed(true);
               event.preventDefault();
             }
           }}
@@ -114,11 +110,11 @@ export function KrogerConnect(props: {
           </button>
         </>
       ) : null}
-      {connected === true && props.plan !== undefined ? (
+      {connected === true ? (
         <KrogerCart state={props.plan} locationId={props.locationId ?? null} />
       ) : null}
       <p className="tonight-ask-hint" aria-live="polite">
-        {saveFailed ? PLAN_SAVE_ERROR : failed ? KROGER_DISCONNECT_FAILED_LINE : message}
+        {saveFailed ? PLAN_SAVE_WARNING : failed ? KROGER_DISCONNECT_FAILED_LINE : message}
       </p>
     </div>
   );
