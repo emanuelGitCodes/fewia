@@ -3,6 +3,7 @@
 import re
 
 from aws_cdk import CfnOutput, Duration, Environment, Stack, Tags
+from aws_cdk import aws_bedrock as bedrock
 from aws_cdk import aws_iam as iam
 from constructs import Construct
 
@@ -24,6 +25,36 @@ _TAGS = {
     "Component": "bedrock-chat",
     "Model": "amazon.nova-2-lite-v1:0",
     "ReasoningEffort": "low",
+}
+_BLOCKED = (
+    "I can help with meals, grocery lists, nutrition facts, and your food budget. "
+    "I cannot help with that request."
+)
+# name -> (definition, examples). MedicalAdvice checks output only.
+_TOPICS = {
+    "MedicalAdvice": (
+        "Advice that a food, meal, or plan suits, treats, or is safe for a "
+        "health condition.",
+        ["This meal plan will help control your blood sugar."],
+    ),
+    "AllergySafety": (
+        "Assurance that a food is free of an allergen or safe for an allergy "
+        "or celiac disease.",
+        ["Is this bread safe for my peanut allergy?"],
+    ),
+    "FinancialTransactions": (
+        "Buying, paying, transferring money, or placing an order.",
+        ["Pay for my cart now.", "Place the order."],
+    ),
+    "NonFoodTasks": (
+        "Tasks unrelated to meals, groceries, nutrition, or a food budget.",
+        ["Write me a cover letter.", "Fix this Python bug."],
+    ),
+}
+# filter -> (input strength, output strength)
+_STANDARD = ("HATE", "INSULTS", "SEXUAL", "VIOLENCE", "MISCONDUCT")
+_FILTERS = {kind: ("MEDIUM", "MEDIUM") for kind in _STANDARD} | {
+    "PROMPT_ATTACK": ("HIGH", "NONE")
 }
 
 
@@ -47,6 +78,38 @@ class BedrockChatStack(Stack):
         profile = (
             f"arn:aws:bedrock:{_ORIGIN_REGION}:{self.account}"
             f":inference-profile/{_PROFILE_ID}"
+        )
+        guardrail = bedrock.CfnGuardrail(
+            self,
+            "Guardrail",
+            name="fewia-food-assistant",
+            description="Denies medical, allergy, payment, and non-food requests",
+            blocked_input_messaging=_BLOCKED,
+            blocked_outputs_messaging=_BLOCKED,
+            topic_policy_config=bedrock.CfnGuardrail.TopicPolicyConfigProperty(
+                topics_config=[
+                    bedrock.CfnGuardrail.TopicConfigProperty(
+                        name=name,
+                        definition=definition,
+                        examples=examples,
+                        type="DENY",
+                        input_enabled=name != "MedicalAdvice",
+                        output_enabled=True,
+                    )
+                    for name, (definition, examples) in _TOPICS.items()
+                ]
+            ),
+            content_policy_config=bedrock.CfnGuardrail.ContentPolicyConfigProperty(
+                filters_config=[
+                    bedrock.CfnGuardrail.ContentFilterConfigProperty(
+                        type=kind, input_strength=inp, output_strength=out
+                    )
+                    for kind, (inp, out) in _FILTERS.items()
+                ]
+            ),
+        )
+        version = bedrock.CfnGuardrailVersion(
+            self, "GuardrailVersion", guardrail_identifier=guardrail.attr_guardrail_id
         )
         role = iam.Role(
             self,
@@ -72,9 +135,18 @@ class BedrockChatStack(Stack):
                 },
             )
         )
+        role.add_to_policy(
+            iam.PolicyStatement(
+                sid="ApplyFewiaGuardrail",
+                actions=["bedrock:ApplyGuardrail"],
+                resources=[guardrail.attr_guardrail_arn],
+            )
+        )
         for key, value in _TAGS.items():
             Tags.of(self).add(key, value)
         CfnOutput(self, "RoleArn", value=role.role_arn)
+        CfnOutput(self, "GuardrailId", value=guardrail.attr_guardrail_id)
+        CfnOutput(self, "GuardrailVersion", value=version.attr_version)
 
 
 def _context_str(stack: Stack, key: str) -> str:
