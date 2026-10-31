@@ -110,14 +110,21 @@ The role gains one statement, `ApplyFewiaGuardrail`. It allows
 
 The owner deploys the stack. Agents MUST NOT deploy, synthesize against an
 account, or call AWS. After the owner deploys, copy the `GuardrailId` and
-`GuardrailVersion` stack outputs into the local ignored `.env`:
+`GuardrailVersion` stack outputs into the local ignored `.env` (or export
+them in the shell):
 
 - `FEWIA_BEDROCK_GUARDRAIL_ID=<GuardrailId output>`
 - `FEWIA_BEDROCK_GUARDRAIL_VERSION=<GuardrailVersion output>`
 
-The guardrail is off until both are set. With no ID set, the Converse
-request does not change. Then recreate `api` and `worker` as in the
-credentials steps above. The guardrail adds a per-text-unit charge.
+`compose.bedrock.yaml` passes both to `api` and `worker`. The guardrail is
+off until both are set. Leaving both unset (or empty) keeps it off, and the
+Converse request does not change. Setting only one is a configuration error.
+Then recreate `api` and `worker` as in the credentials steps above. The
+guardrail adds a per-text-unit charge.
+
+A policy edit needs a new guardrail version. After the owner deploys it,
+update `FEWIA_BEDROCK_GUARDRAIL_VERSION` to the new `GuardrailVersion`
+output and recreate `api` and `worker`.
 
 ## Local ignored `.env`
 

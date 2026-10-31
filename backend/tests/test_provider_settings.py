@@ -157,6 +157,35 @@ def test_guardrail_settings_parse_env(
     assert settings.bedrock_guardrail_version == version
 
 
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_guardrail_settings_mean_off(
+    monkeypatch: pytest.MonkeyPatch, blank: str
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", blank)
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", blank)
+    settings = load_provider_settings()
+    assert settings.bedrock_guardrail_id is None
+    assert settings.bedrock_guardrail_version is None
+
+
+def test_guardrail_settings_strip_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", " abc123def456 ")
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", " DRAFT ")
+    settings = load_provider_settings()
+    assert settings.bedrock_guardrail_id == "abc123def456"
+    assert settings.bedrock_guardrail_version == "DRAFT"
+
+
+@pytest.mark.parametrize(("guardrail_id", "version"), [("abc123def456", ""), ("", "1")])
+def test_one_blank_guardrail_setting_fails_both_or_neither(
+    monkeypatch: pytest.MonkeyPatch, guardrail_id: str, version: str
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", guardrail_id)
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", version)
+    with pytest.raises(ProviderConfigurationError):
+        load_provider_settings()
+
+
 @pytest.mark.parametrize(
     ("guardrail_id", "version"),
     [

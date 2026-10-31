@@ -86,6 +86,13 @@ class GroceryProviderSettings(BaseSettings):
             raise ValueError("value MUST be nonblank and at most 256 characters")
         return stripped
 
+    @field_validator("bedrock_guardrail_id", "bedrock_guardrail_version", mode="before")
+    @classmethod
+    def _blank_guardrail_is_unset(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
     @field_validator("bedrock_guardrail_id")
     @classmethod
     def _check_guardrail_id(cls, value: str | None) -> str | None:
