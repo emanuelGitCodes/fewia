@@ -1,7 +1,7 @@
 # Meal search by type: typed facets and hard filters
 
 - Date: 2026-10-31
-- Status: items 1 to 8 are built; item 9 waits for editable recipes
+- Status: items 1 to 8 and 8b are built; item 9 waits for editable recipes
 - Context: the open design question on PR 460 ("the agent looks up meals
   by type"), [chat-architecture-proposal.md](chat-architecture-proposal.md),
   [grounding-redesign.md](grounding-redesign.md)
@@ -115,7 +115,7 @@ thresholds. The model MUST NOT assign a tag.
 
 ### Rule 3: a type the system cannot check fails closed
 
-- The supported vocabulary starts from `grounding.py:254-258`.
+- The unchecked vocabulary is `UNCHECKED_DIET` in `meal_tags.py`.
 - A type outside it returns `unsupported_facet`. The reply names the
   types that the system can check. It MUST NOT say "no match".
 - For zero results, the server drops text words first, never a facet,
