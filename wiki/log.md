@@ -4725,3 +4725,35 @@ counts, not a charge estimate; native-agent usage is unavailable. The loop
 record holds the final combined review usage and verification evidence.
 All original and integration commits passed the normal gitleaks hook.
 No live provider, hosted CI, deployment, or merge claim is made.
+
+## 2026-10-31: Fix five defects from the PR 460 review
+
+A review of PR 460 at `63793ad5` found eight defects. This entry records
+the five that are fixed here. The nutrient-validator fixes (defects 1 to
+3) follow in a later entry.
+
+- **Guardrail version (pf-05).** The guardrail version description is now
+  `policy <digest>`, a SHA-256 prefix over the topic and filter config and
+  the blocked messages. A policy edit publishes a new version on deploy.
+- **Guardrail input and history (pf-04).** Only the user's own message
+  block goes in `guardContent`. A blocked turn and its decline stay out of
+  the chat history that later turns send. A decline carries no proposal.
+  The backend accepts only a numbered guardrail version.
+- **Kroger token rejection (pf-06).** A refresh 400 or 401 with
+  `invalid_grant`, or a cart-add 401, deletes the stored tokens and answers
+  as not connected. Any other refresh 400 or 401, such as
+  `invalid_client`, keeps the tokens and answers 503.
+- **Kroger sign-in flow (pf-03).** The page owns the `?kroger` return
+  marker and shows its line once. A failed plan save warns once, clears
+  any older checkpoint, and then lets sign-in continue. The Plan cap input
+  has a 256-character limit.
+- **USDA diet flags (pf-02).** Preparations that usually hold egg, milk,
+  butter, or lard are not vegan. Rennet cheeses and lard-risk foods are not
+  vegetarian. A test covers each term and pins four plain staples.
+
+Each item passed the gates with a dedicated PostgreSQL. The review model
+(`claude-opus-5-5`) approved each head: pf-05 `8360c334`, pf-04
+`42b63b9c`, pf-06 `678c8e95`, pf-03 `711537b0`, and pf-02 `080e69df`. The
+combined stack passed 11,815 backend tests with 245 added code lines.
+Writers were `claude-sonnet-5-5` through the supervisor. No live provider
+call, deployment, or merge claim is made.
