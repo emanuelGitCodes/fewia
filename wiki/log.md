@@ -4796,3 +4796,30 @@ The review model (`claude-opus-5-5`) approved `54cd4494`. The backend
 gates passed (11,989 tests) with 56 added code lines. Whether Nova calls
 `search_meals` on the new prompt sentence is not measured. No live
 provider call is made.
+
+## 2026-10-31: Build meal search by type, items 2 to 8b
+
+These items build `docs/design/meal-search.md` on one stack branch,
+`claude/meal-search-stack`, for one pull request.
+
+- **02.** Every meal type in a search is a hard AND filter. With zero
+  results, the search drops text words, never a type. The reply shows only
+  the caveats of the applied types.
+- **06.** Each ingredient states `contains_gluten`; unknown swap foods
+  pass True. The meal tags, diets, and thresholds enter `catalog_hash`.
+- **03.** `search_meals` takes typed `tags` (five types that are not
+  ingredients). A diet label that the catalog cannot check returns
+  `unsupported_facet` and names the types it can check. The agent maps
+  "meat" and "carnivore" to chicken, as the meal picker does.
+- **08.** The search returns `total_matches` and takes `offset`.
+- **04, 05.** The chat result carries checked `choices`, and the chat
+  shows meal cards for them.
+- **08b.** The result stores `next_search`; the next turn checks it and
+  puts it in the model context as `previous_search`, so "more" continues
+  the same search.
+- **07.** The conversation suite is `conversation-eval-v1.1` with six
+  meal-type scenarios, C13 to C18. Every gold value comes from the tool.
+
+The review model (`claude-opus-5-5`) approved each item head. Items 02
+and 03 ran at tier L; the probes caught every mutation except one that
+cannot change a result. No live Nova batch ran.
