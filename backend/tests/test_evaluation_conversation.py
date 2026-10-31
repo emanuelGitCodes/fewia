@@ -244,6 +244,7 @@ _REPLIES_BY_CODE = {
     "forbidden_claim": "This is medical advice.",
     "number_word": "It takes several meals.",
     "unmatched_number": "It adds 99999 kcal.",
+    "medical_claim": "It may raise your blood sugar.",
 }
 
 
