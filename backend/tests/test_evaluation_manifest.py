@@ -9,7 +9,7 @@ import pytest
 from app import evaluation_baseline_response
 from app import evaluation_manifest as manifests
 from app.agent import chat_loop
-from app.domain import catalog
+from app.domain import catalog, meal_tags
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.evaluation_baseline_response import BASELINE_SYSTEM_PROMPT
 
@@ -154,6 +154,40 @@ def test_catalog_changes_alter_catalog_and_manifest_hashes(
     assert after["manifest_hash"] != before["manifest_hash"]
     assert after["corpus_hash"] == before["corpus_hash"]
     assert after["system_prompt_hash"] == before["system_prompt_hash"]
+
+
+def test_snapshot_holds_tag_rules() -> None:
+    snapshot = manifests.catalog_snapshot()
+    assert snapshot["tag_thresholds"] == {"high_protein_g": 30, "lower_carb_g": 30}
+    assert snapshot["meal_tags"] == {
+        rid: list(meal_tags.MEAL_TAGS[rid]) for rid in sorted(SUPPORTED_RECIPE_IDS)
+    }
+    assert snapshot["meal_diets"] == {
+        rid: list(meal_tags.MEAL_DIETS[rid]) for rid in sorted(SUPPORTED_RECIPE_IDS)
+    }
+
+
+@pytest.mark.parametrize("change", ["tags", "diets", "threshold", "gluten"])
+def test_tag_rule_change_alters_catalog_hash(
+    corpus: dict[str, object], monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    before = _manifest(corpus)
+    if change == "tags":
+        tags = {**meal_tags.MEAL_TAGS, "chicken_tacos": ("chicken", "high_protein")}
+        monkeypatch.setattr(meal_tags, "MEAL_TAGS", tags)
+    elif change == "diets":
+        diets = {**meal_tags.MEAL_DIETS, "chicken_tacos": ("vegan",)}
+        monkeypatch.setattr(meal_tags, "MEAL_DIETS", diets)
+    elif change == "threshold":
+        monkeypatch.setattr(meal_tags, "HIGH_PROTEIN_G", 31)
+    else:
+        rice = catalog.INGREDIENTS["rice"]
+        monkeypatch.setitem(
+            catalog.INGREDIENTS, rice.id, replace(rice, contains_gluten=True)
+        )
+    after = _manifest(corpus)
+    assert after["catalog_hash"] != before["catalog_hash"]
+    assert after["manifest_hash"] != before["manifest_hash"]
 
 
 def test_prompt_change_alters_prompt_hash(

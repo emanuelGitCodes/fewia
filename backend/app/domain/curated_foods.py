@@ -75,7 +75,17 @@ def _parse_food(record: object) -> _Food:
         raise _fail("package_grams and fdc_id must be positive")
     amounts = {key: _int(value) for key, value in per_100g.items()}
     return _Food(
-        Ingredient(food_id, name, "g", package, None, vegetarian, vegan, False),
+        Ingredient(
+            food_id,
+            name,
+            "g",
+            package,
+            None,
+            vegetarian,
+            vegan,
+            False,
+            contains_gluten=True,  # no gluten fact is known: fail closed
+        ),
         NutritionFacts(fdc_id, **amounts),
         tuple(synonyms),
     )

@@ -210,6 +210,7 @@ def test_missing_price_constructs_an_incomplete_estimate() -> None:
         None,
         True,
         True,
+        contains_gluten=False,
     )
     assert ingredient.price_cents is None
 

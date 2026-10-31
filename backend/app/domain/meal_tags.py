@@ -16,8 +16,9 @@ PROTEIN_TAGS = (
     ("lentils", "lentils"),
     ("chickpeas", "chickpeas"),
 )
-# Oats and oat milk count as gluten ingredients.
-GLUTEN_INGREDIENT_IDS = frozenset({"pasta", "soy_sauce", "oats", "oat_milk"})
+GLUTEN_INGREDIENT_IDS = frozenset(
+    item.id for item in INGREDIENTS.values() if item.contains_gluten
+)
 TAG_ORDER = (
     "chicken",
     "egg",

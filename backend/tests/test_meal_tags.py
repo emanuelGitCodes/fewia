@@ -61,6 +61,13 @@ def test_thresholds_and_gluten_ingredients() -> None:
     )
 
 
+def test_gluten_ids_come_from_ingredient_facts() -> None:
+    flagged = {item.id for item in INGREDIENTS.values() if item.contains_gluten}
+    assert flagged == {"pasta", "soy_sauce", "oats", "oat_milk"}
+    assert flagged <= GLUTEN_INGREDIENT_IDS
+    assert GLUTEN_INGREDIENT_IDS == flagged
+
+
 def test_meal_tags_follow_supported_recipe_order() -> None:
     assert list(MEAL_TAGS) == list(SUPPORTED_RECIPE_IDS)
 

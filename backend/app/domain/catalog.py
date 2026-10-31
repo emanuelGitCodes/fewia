@@ -1,7 +1,7 @@
 """Versioned sample recipe catalog. Prices are estimates, not live quotes."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
 
@@ -28,6 +28,8 @@ class Ingredient:
     vegetarian: bool
     vegan: bool
     is_pantry: bool = False
+    # Listed contents only, not a safety claim. An unknown fact MUST be True.
+    contains_gluten: bool = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -43,10 +45,35 @@ class Recipe:
             raise ValueError("recipe base servings must equal 1")
 
 
+def _item(
+    id: str,
+    name: str,
+    unit: Unit,
+    package_quantity: int,
+    price_cents: int,
+    vegetarian: bool,
+    vegan: bool,
+    *,
+    gluten: bool,
+    pantry: bool = False,
+) -> Ingredient:
+    return Ingredient(
+        id,
+        name,
+        unit,
+        package_quantity,
+        price_cents,
+        vegetarian,
+        vegan,
+        pantry,
+        contains_gluten=gluten,
+    )
+
+
 INGREDIENTS: dict[str, Ingredient] = {
     item.id: item
     for item in (
-        Ingredient(
+        _item(
             "chicken_breast",
             "chicken breast",
             "g",
@@ -54,31 +81,60 @@ INGREDIENTS: dict[str, Ingredient] = {
             799,
             False,
             False,
-            False,
+            gluten=False,
         ),
-        Ingredient("eggs", "eggs", "each", 12, 349, True, False, False),
-        Ingredient("black_beans", "black beans", "g", 425, 129, True, True, False),
-        Ingredient("tortillas", "corn tortillas", "each", 8, 299, True, True, False),
-        Ingredient("salsa", "salsa", "g", 454, 249, True, True, False),
-        Ingredient("rice", "white rice", "g", 907, 199, True, True, False),
-        Ingredient("pasta", "dry pasta", "g", 454, 149, True, True, False),
-        Ingredient("tomato", "canned tomato", "g", 411, 179, True, True, False),
-        Ingredient("onion", "onion", "g", 454, 129, True, True, False),
-        Ingredient("garlic", "garlic", "g", 100, 89, True, True, False),
-        Ingredient("olive_oil", "olive oil", "g", 500, 599, True, True, True),
-        Ingredient("cumin", "ground cumin", "g", 42, 199, True, True, True),
-        Ingredient("salt", "salt", "g", 737, 99, True, True, True),
-        Ingredient("lentils", "brown lentils", "g", 454, 179, True, True, False),
-        Ingredient("chickpeas", "chickpeas", "g", 425, 129, True, True, False),
-        Ingredient("coconut_milk", "coconut milk", "g", 400, 249, True, True, False),
-        Ingredient("curry_powder", "curry powder", "g", 42, 249, True, True, True),
-        Ingredient(
-            "mixed_vegetables", "mixed vegetables", "g", 454, 199, True, True, False
+        _item("eggs", "eggs", "each", 12, 349, True, False, gluten=False),
+        _item("black_beans", "black beans", "g", 425, 129, True, True, gluten=False),
+        _item("tortillas", "corn tortillas", "each", 8, 299, True, True, gluten=False),
+        _item("salsa", "salsa", "g", 454, 249, True, True, gluten=False),
+        _item("rice", "white rice", "g", 907, 199, True, True, gluten=False),
+        _item("pasta", "dry pasta", "g", 454, 149, True, True, gluten=True),
+        _item("tomato", "canned tomato", "g", 411, 179, True, True, gluten=False),
+        _item("onion", "onion", "g", 454, 129, True, True, gluten=False),
+        _item("garlic", "garlic", "g", 100, 89, True, True, gluten=False),
+        _item(
+            "olive_oil",
+            "olive oil",
+            "g",
+            500,
+            599,
+            True,
+            True,
+            pantry=True,
+            gluten=False,
         ),
-        Ingredient("soy_sauce", "soy sauce", "g", 296, 199, True, True, False),
-        Ingredient("potato", "russet potato", "each", 5, 399, True, True, False),
-        Ingredient("oats", "rolled oats", "g", 454, 349, True, True, False),
-        Ingredient("oat_milk", "oat milk", "g", 946, 399, True, True, False),
+        _item(
+            "cumin", "ground cumin", "g", 42, 199, True, True, pantry=True, gluten=False
+        ),
+        _item("salt", "salt", "g", 737, 99, True, True, pantry=True, gluten=False),
+        _item("lentils", "brown lentils", "g", 454, 179, True, True, gluten=False),
+        _item("chickpeas", "chickpeas", "g", 425, 129, True, True, gluten=False),
+        _item("coconut_milk", "coconut milk", "g", 400, 249, True, True, gluten=False),
+        _item(
+            "curry_powder",
+            "curry powder",
+            "g",
+            42,
+            249,
+            True,
+            True,
+            pantry=True,
+            gluten=False,
+        ),
+        _item(
+            "mixed_vegetables",
+            "mixed vegetables",
+            "g",
+            454,
+            199,
+            True,
+            True,
+            gluten=False,
+        ),
+        _item("soy_sauce", "soy sauce", "g", 296, 199, True, True, gluten=True),
+        _item("potato", "russet potato", "each", 5, 399, True, True, gluten=False),
+        _item("oats", "rolled oats", "g", 454, 349, True, True, gluten=True),
+        _item("oat_milk", "oat milk", "g", 946, 399, True, True, gluten=True),
     )
 }
 
