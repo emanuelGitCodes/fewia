@@ -30,9 +30,10 @@ direction word after it (more, less: "2.5 g more fat") or a direction verb befor
 signed token, against this turn's deltas only. Money, counts, ranges are never bound.
 
 Medical rule: a reply that names a health condition or marker fails with
-`medical_claim` (0025): diabet, prediabet, glycemic, insulin, glucose, blood sugar,
-blood pressure, hypertens, cholesterol, pregnan, from a word start on the same text as
-the diet labels. The server sentences stay exempt. Spaced letters do not match.
+`medical_claim` (0025): diabet, prediabet, glycemi, insulin, glucose, blood sugar,
+blood pressure, hypertens, cholesterol, pregnan, anywhere in the same text as the diet
+labels (inside a word, after "_", "antidiabetic"). The server sentences stay exempt.
+Spaced letters do not match.
 
 Digit rule: any digit, number, or letter-number character other than ASCII 0-9
 (superscripts, circled or fullwidth digits, other scripts, "Ⅻ") fails with
@@ -169,10 +170,12 @@ _DIET_LABEL = re.compile(
     r"|low[- ]?(?:sodium|fat)|high[- ]?fiber))",
     re.IGNORECASE,
 )
-# A health condition or marker fails with `medical_claim` (0025). Same text and word
-# start as _DIET_LABEL; "kidney", "heart", "gout", and "renal" are left out on purpose.
+# A health condition or marker fails with `medical_claim` (0025). Same text as
+# _DIET_LABEL, but each term matches anywhere, not only at a word start: "_diabetic_"
+# and "hyperglycemia" must fail. "kidney", "heart", "gout", and "renal" are left out
+# on purpose.
 _MEDICAL = re.compile(
-    r"\b(?:diabet|prediabet|glycemic|insulin|glucose|blood[\s-]+(?:sugar|pressure)"
+    r"(?:diabet|prediabet|glycemi|insulin|glucose|blood[\s-]+(?:sugar|pressure)"
     r"|hypertens|cholesterol|pregnan)",
     re.IGNORECASE,
 )

@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.agent import catalog_tool, chat_answer
+from app.agent import catalog_tool, chat_answer, grounding
 from app.agent.budget_tool import budget_summary_answer, execute_budget_summary
 from app.agent.catalog_tool import TOOL_NAME, catalog_answer, execute_catalog_search
 from app.agent.chat_answer import CLARIFICATION, render_public_answer
@@ -141,9 +141,14 @@ def test_spaced_out_letters_pass_the_diet_check() -> None:
         "Lowers cholesterol and hypertension.",
         "Safe during pregnancy.",
         "Spikes glucose.",
+        "Oats suit a _diabetic_ diet.",
+        "Fine with _high blood pressure_.",
+        "Helps prevent hyperglycemia",
+        "a hypoglycemic snack",
+        "antidiabetic",
     ],
 )
-def test_medical_conditions_fail_from_a_word_start(reply: str) -> None:
+def test_medical_conditions_fail_anywhere_in_the_text(reply: str) -> None:
     assert "medical_claim" in validate(reply, FactSet(generic={Decimal(2)})).reasons
 
 
@@ -156,6 +161,22 @@ def test_a_repeated_user_condition_fails_only_the_medical_check() -> None:
 @pytest.mark.parametrize("reply", ["Kidney beans add fiber.", "A hearty ragout."])
 def test_kidney_heart_and_gout_words_pass_the_medical_check(reply: str) -> None:
     assert "medical_claim" not in validate(reply, FactSet()).reasons
+
+
+def test_an_exempt_server_sentence_skips_the_medical_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentence = "Glucose is not a plan fact."
+    monkeypatch.setattr(
+        grounding,
+        "_SERVER_SENTENCE",
+        re.compile(r"(?:\A\s*|(?<=[.!?])\s+)(?:" + re.escape(sentence) + r")"),
+    )
+    assert "medical_claim" not in validate(sentence, FactSet()).reasons
+    other = "Oats are fine. " + sentence
+    assert "medical_claim" not in validate(other, FactSet()).reasons
+    assert "medical_claim" in validate("It spikes glucose.", FactSet()).reasons
+    assert "medical_claim" in validate("Oats " + sentence, FactSet()).reasons
 
 
 def test_spaced_out_letters_pass_the_medical_check() -> None:
