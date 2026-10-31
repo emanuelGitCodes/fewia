@@ -242,6 +242,7 @@ class Rig:
     key: bytes
     cipher: Fernet
     token_status: int = 200
+    token_error: dict[str, object] | None = None
     expires_in: int = 1800
     token_calls: list[httpx.Request] = field(default_factory=list)
     token_body: dict[str, object] | None = None
@@ -264,6 +265,8 @@ class Rig:
             return httpx.Response(200, json={"data": self.products.get(term, [])})
         self.token_calls.append(request)
         if self.token_status != 200:
+            if self.token_error is not None:
+                return httpx.Response(self.token_status, json=self.token_error)
             return httpx.Response(self.token_status)
         body = self.token_body or {
             "access_token": ACCESS,
@@ -824,12 +827,27 @@ def test_cart_add_is_409_and_disconnects_when_the_refresh_is_rejected(
 ) -> None:
     _sign_in(rig, expires_in=-5)
     rig.token_status = status
+    if status == 400:
+        rig.token_error = {"error": "invalid_grant"}
     response = _add(rig)
     assert response.status_code == 409
     assert _message(response) == "Kroger account is not connected"
     assert rig.cart_calls == []
     assert _row_count(rig) == 0
     assert rig.api.get(CONNECTION).json() == {"connected": False}
+
+
+def test_cart_add_is_503_and_keeps_the_row_on_a_refresh_400_that_is_not_invalid_grant(
+    rig: Rig,
+) -> None:
+    _sign_in(rig, expires_in=-5)
+    rig.token_status = 400
+    rig.token_error = {"error": "invalid_request"}
+    response = _add(rig)
+    assert response.status_code == 503
+    assert _message(response) == "Kroger is unavailable"
+    assert rig.cart_calls == []
+    assert _stored(rig) == (ACCESS, REFRESH)
 
 
 def test_cart_add_is_409_and_disconnects_on_a_401_with_a_fresh_token(
