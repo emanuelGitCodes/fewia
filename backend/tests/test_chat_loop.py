@@ -3,7 +3,8 @@ from __future__ import annotations
 import copy
 import json
 from datetime import date
-from typing import Literal, cast
+from itertools import permutations
+from typing import Any, Literal, cast
 
 import pytest
 from botocore.session import Session
@@ -18,6 +19,15 @@ from app.agent.budget_tool import (
     budget_tool_spec,
     execute_budget_summary,
 )
+from app.agent.catalog_tool import (
+    DISCOVERY_ERROR,
+    catalog_answer,
+    catalog_tool_spec,
+    execute_catalog_search,
+)
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
+)
 from app.agent.chat_answer import (
     _UNKNOWN_RESTRICTION,
     CLARIFICATION,
@@ -27,17 +37,42 @@ from app.agent.chat_dispatch import EvidenceRecorder
 from app.agent.chat_loop import (
     MAX_MODEL_TURNS,
     MAX_PLANNER_REVISIONS,
+    PROPOSAL_PROMPT_SUFFIX,
     SYSTEM_PROMPT,
     ChatUnavailable,
     run_chat,
 )
-from app.agent.chat_messages import MAX_TOOL_CALLS, ChatProtocolError, ToolCall
+from app.agent.chat_messages import (
+    MAX_TOOL_CALLS,
+    ChatProtocolError,
+    ToolCall,
+    tool_result_block,
+)
+from app.agent.chat_refusal import GUARDRAIL_DECLINE
+from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
+from app.agent.plan_tools import (
+    GET_MEAL_TOOL,
+    GET_PLAN_TOOL,
+    get_meal_tool_spec,
+    get_plan_tool_spec,
+)
 from app.agent.planning_tool import TOOL_NAME, execute_plan, planner_tool_spec
-from app.domain.budget import BudgetResult, SpendingSource
+from app.agent.price_tool import PRICE_TOOL, execute_price_lines, price_tool_spec
+from app.agent.proposal_tool import PROPOSAL_ONCE, PROPOSAL_TOOL, proposal_tool_spec
+from app.agent.substitute_tool import (
+    SUBSTITUTE_TOOL,
+    execute_substitute,
+    substitute_tool_spec,
+)
+from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
+from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
+from app.domain.plan_revision import PlanRevisionInput
 
 PERIOD = date(2026, 9, 1)
+# Interim budget while chat-arch phases 1-2 add tools; phase 3 lowers it.
+PROMPT_AND_TOOLS_BUDGET = 16500
 _SECRET = "do-not-echo-raw-input"
 _UNAVAILABLE = "The language model is unavailable."
 _LIMIT = "The job reached a processing limit."
@@ -206,8 +241,18 @@ def _reply(
     return body
 
 
-def _chat_tools() -> list[dict[str, object]]:
-    return [planner_tool_spec(), budget_tool_spec()]
+def _chat_tools(*, with_proposal: bool = False) -> list[dict[str, object]]:
+    tools = [
+        planner_tool_spec(),
+        budget_tool_spec(),
+        catalog_tool_spec(),
+        get_plan_tool_spec(),
+        get_meal_tool_spec(),
+        substitute_tool_spec(),
+        price_tool_spec(),
+        ingredient_tool_spec(),
+    ]
+    return [*tools, proposal_tool_spec()] if with_proposal else tools
 
 
 def _budget_block(
@@ -304,10 +349,10 @@ def _run(
     return result, provider
 
 
-def test_planner_then_final_keeps_evidence_and_usage() -> None:
+def test_accepted_plan_finishes_without_final_and_keeps_evidence_and_usage() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     result, provider = _run(_planner_then_final())
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert "Here is a labeled estimate." not in result["answer"]
@@ -316,15 +361,16 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert result["request"] == expected["request"]
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["evidence_revision_id"] is None
-    assert result["model_turns"] == 2
+    assert result["model_turns"] == 1
     assert result["planner_revisions"] == 1
-    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
     assert result["tool_trace"] == [_success_trace("call-1", expected["evidence_id"])]
     _assert_public(result)
     first = provider.requests[0]
     assert first["system"] == SYSTEM_PROMPT
+    assert SYSTEM_PROMPT.startswith("You are FEWIA, a meal and grocery assistant.")
     for recipe_id in SUPPORTED_RECIPE_IDS:
-        assert recipe_id in SYSTEM_PROMPT
+        assert recipe_id not in SYSTEM_PROMPT
     assert "arithmetic" in SYSTEM_PROMPT
     assert "servings" in SYSTEM_PROMPT
     assert "pantry" in SYSTEM_PROMPT
@@ -332,6 +378,14 @@ def test_planner_then_final_keeps_evidence_and_usage() -> None:
     assert "cross-contact" in SYSTEM_PROMPT
     assert "secrets" in SYSTEM_PROMPT
     assert first["tools"] == _chat_tools()
+
+
+def test_nonterminal_plan_result_keeps_server_money_fields() -> None:
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
+    result, provider = _run(_planner_then_final(payload=args))
+    assert result["status"] == "needs_revision"
+    assert len(provider.requests) == 2
     second_messages = provider.requests[1]["messages"]
     assert isinstance(second_messages, list)
     tool_user = second_messages[-1]
@@ -378,6 +432,978 @@ def test_plain_final_without_tool_is_clarification() -> None:
     assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
 
 
+def test_get_plan_turn_is_not_a_fast_return_and_keeps_reply_state() -> None:
+    result, provider = _run(
+        [
+            _reply([_tool_block("p1", name=GET_PLAN_TOOL, payload={})], "tool_use"),
+            _reply([_text_block("Your plan is empty.")], "end_turn"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == "Your plan has no meals yet."
+    assert result["plan"] is None
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [item["tool"] for item in trace] == [GET_PLAN_TOOL]
+    assert provider.requests[0]["tools"] == _chat_tools()
+    assert "Call get_plan for the plan's totals and prices." in cast(
+        str, provider.requests[0]["system"]
+    )
+    assert trace[0]["inputs"] == {}
+
+
+def test_get_meal_error_does_not_set_candidate_or_error() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("m1", name=GET_MEAL_TOOL, payload={"recipe_id": "x"})],
+                "tool_use",
+            ),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ]
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["outcome"] == "error"
+    assert trace[0]["inputs"] == {"recipe_id": "invalid"}
+    assert '"x"' not in json.dumps(trace)
+
+
+_SWAP_ARGS: dict[str, object] = {
+    "recipe_id": "chicken_tacos",
+    "servings": 2,
+    "replace_ingredient_id": "chicken_breast",
+    "with_ingredient_id": "chickpeas",
+}
+_SWAP_ANSWER = (
+    "Chicken tacos for 2 servings with chickpeas instead of chicken breast: "
+    "per serving 340 to 384 kcal (+44 kcal), protein 26 to 13 g (-13 g), "
+    "carbs 27 to 55 g (+28 g), fat 14 to 14 g (+0 g). "
+    "Same weight per serving: 100 g. "
+    "Sample meal price: USD $23.73 to USD $17.03 (-USD $6.70). "
+    f"{SAMPLE_ESTIMATE_NOTICE}"
+)
+
+
+def test_what_if_substitute_traces_and_leaves_reply_state_alone() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("Fewer protein grams.")], "end_turn"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["model_turns"] == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == _SWAP_ANSWER
+    assert "Fewer protein grams." not in result["answer"]
+    assert result["plan"] is None
+    assert result["planner_revisions"] == 0
+    assert result["tool_trace"] == [
+        {
+            "tool": SUBSTITUTE_TOOL,
+            "outcome": "success",
+            "tool_use_id": "w1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {
+                "recipe_id": "chicken_tacos",
+                "status": "swapped",
+                "replace_ingredient_id": "chicken_breast",
+                "with_ingredient_id": "chickpeas",
+                "servings": 2,
+                "servings_source": "request",
+            },
+        }
+    ]
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "success"
+    assert body["content"][0]["json"] == execute_substitute(_SWAP_ARGS, budget())
+    assert (
+        "To compare a swap or a smaller or larger portion of one ingredient, "
+        "call what_if_substitute. It does not change the plan."
+    ) in SYSTEM_PROMPT
+
+
+def test_what_if_substitute_without_servings_uses_the_plan_revision() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _tool_block(
+                        "w1",
+                        name=SUBSTITUTE_TOOL,
+                        payload={
+                            key: value
+                            for key, value in _SWAP_ARGS.items()
+                            if key != "servings"
+                        },
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    revision = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+    result = run_chat(
+        provider,
+        "swap chicken for chickpeas",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=revision,
+    )
+    answer = cast(str, result["answer"])
+    assert "for 2 servings" in answer
+    assert "Servings from your plan: 2." in answer
+
+
+_PRICE_ARGS: dict[str, object] = {
+    "meals": [{**_SWAP_ARGS}, {"recipe_id": "bean_tacos", "servings": 1}],
+    "pantry_ingredient_ids": ["salt"],
+}
+
+
+def test_price_lines_traces_and_leaves_reply_state_alone() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [_tool_block("l1", name=PRICE_TOOL, payload=_PRICE_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("Done.")], "end_turn"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["tool_trace"] == [
+        {
+            "tool": PRICE_TOOL,
+            "outcome": "success",
+            "tool_use_id": "l1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {"recipe_ids": ["chicken_tacos", "bean_tacos"]},
+        }
+    ]
+    assert result["status"] == "clarification"
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "success"
+    expected = execute_price_lines(_PRICE_ARGS, budget(), None)
+    assert body["content"][0]["json"] == expected
+    # chickpeas 129 + beans 129 + tortillas 299 + salsa 249 + onion 129
+    # + cumin 199 + oil 599; salt is in the pantry.
+    assert cast(dict[str, Any], expected["estimate"])["total_cents"] == 1_733
+    assert result["answer"] == (
+        "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
+        "chicken breast, Bean tacos (1 serving): USD $17.33. "
+        f"It fits the available USD $100.00. {SAMPLE_ESTIMATE_NOTICE}"
+    )
+    assert (
+        "To price meals with or without a swap, call price_lines. "
+        "Prices are sample estimates."
+    ) in SYSTEM_PROMPT
+
+
+def test_substitute_then_model_prose_ends_with_server_template() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("model-prose-after-swap")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == _SWAP_ANSWER
+    assert result["answer"] != CLARIFICATION
+    assert "model-prose-after-swap" not in json.dumps(result)
+
+
+def test_default_run_labels_the_template_reply_and_hashes_it() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("model-prose-after-swap")], "end_turn"),
+        ]
+    )
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+    assert len(cast(str, result["reply_sha256"])) == 64
+
+
+_BEEF_ARGS: dict[str, object] = {
+    "recipe_id": "bean_tacos",
+    "servings": 2,
+    "replace_ingredient_id": "black_beans",
+    "with_ingredient_id": "ground_beef_80",
+}
+
+
+def test_scripted_beef_chat_looks_up_beef_then_swaps_it_in() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "beef"})],
+                "tool_use",
+            ),
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_BEEF_ARGS)],
+                "tool_use",
+            ),
+            _reply([_text_block("Beef adds fat.")], "end_turn"),
+        ]
+    )
+    assert result["model_turns"] == 3
+    assert len(provider.requests) == 3
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    answer = cast(str, result["answer"])
+    assert answer.startswith(
+        "Bean tacos for 2 servings with ground beef (80% lean) instead of "
+        "black beans: per serving "
+    )
+    assert answer.endswith(
+        "Same weight per serving: 120 g. The sample price is incomplete."
+    )
+    assert "Beef adds fat." not in json.dumps(result)
+    assert [item["tool"] for item in result["tool_trace"]] == [
+        INGREDIENT_TOOL,
+        SUBSTITUTE_TOOL,
+    ]
+    second = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    lookup = second[-1]["content"][0]["toolResult"]
+    assert lookup["status"] == "success"
+    assert lookup["content"][0]["json"]["ingredient_id"] == "ground_beef_80"
+    third = cast(list[dict[str, Any]], provider.requests[2]["messages"])
+    swap = third[-1]["content"][0]["toolResult"]
+    assert swap["content"][0]["json"] == execute_substitute(_BEEF_ARGS, budget())
+    assert swap["content"][0]["json"]["price"]["delta_cents"] is None
+
+
+def test_scripted_with_food_chat_swaps_in_one_call() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _tool_block(
+                        "w1",
+                        name=SUBSTITUTE_TOOL,
+                        payload={"recipe_id": "bean_tacos", "with_food": "beef"},
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("Beef adds fat.")], "end_turn"),
+        ]
+    )
+    revision = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+    result = run_chat(
+        provider,
+        "How would the macros change if we change the bean tacos for beef tacos?",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=revision,
+    )
+    assert result["answer"] == (
+        "Bean tacos for 2 servings with ground beef (80% lean) instead of "
+        "black beans: per serving 379 to 525 kcal (+146 kcal), "
+        "protein 14 to 24 g (+10 g), carbs 56 to 27 g (-29 g), "
+        "fat 12 to 36 g (+24 g). Same weight per serving: 120 g. "
+        "Servings from your plan: 2. The sample price is incomplete."
+    )
+    assert result["status"] == "clarification"
+    assert result["model_turns"] == 2
+    assert [(t["tool"], t["outcome"]) for t in result["tool_trace"]] == [
+        (SUBSTITUTE_TOOL, "success")
+    ]
+    assert "Beef adds fat." not in json.dumps(result)
+
+
+def test_ingredient_facts_reply_for_an_unknown_food() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "zzqx"})],
+                "tool_use",
+            ),
+            _reply([_text_block("Zzqx is great.")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == (
+        "I cannot find that food in the food list. "
+        "Try a common name, for example tofu, shrimp, or cheddar cheese."
+    )
+    assert "zzqx" not in result["answer"].lower()
+    assert "Zzqx is great." not in json.dumps(result)
+
+
+def test_ingredient_facts_error_keeps_static_shape_and_reply_state() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": ""})],
+                "tool_use",
+            ),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == CLARIFICATION
+    assert result["plan"] is None
+    assert cast(list[dict[str, object]], result["tool_trace"])[0]["outcome"] == "error"
+
+
+def test_prompt_leads_with_the_swap_rule_and_the_plan_meals() -> None:
+    swap = (
+        "To change a food in a meal, for example beef instead of beans or beef "
+        "tacos for bean tacos, call what_if_substitute once with the meal's "
+        "recipe_id and with_food set to the new food."
+    )
+    facts = "Call get_ingredient_facts only for a question about one food on its own."
+    discovery = "For a meal type or an open request, call search_meals."
+    assert SYSTEM_PROMPT.startswith(
+        "You are FEWIA, a meal and grocery assistant. plan_meals in the context "
+        "lists the meals in the user's plan. When the user names a plan meal or "
+        "says my meal, use that plan meal's recipe_id. "
+    )
+    assert swap in SYSTEM_PROMPT
+    assert SYSTEM_PROMPT.index(swap) < SYSTEM_PROMPT.index(facts)
+    assert SYSTEM_PROMPT.index(swap) < SYSTEM_PROMPT.index(discovery)
+    assert (
+        "Do not call get_meal or get_ingredient_facts before that call. "
+        "A meal name that changes one food in a plan meal or a catalog meal is "
+        "a swap, not a new meal. "
+    ) in SYSTEM_PROMPT
+    assert "You MUST NOT call it for a meal the user names or has in the plan." in (
+        SYSTEM_PROMPT
+    )
+    assert "not in the catalog and is not a swap, you MUST NOT invent" in SYSTEM_PROMPT
+    assert "When the user names a food or ingredient" not in SYSTEM_PROMPT
+    assert "To swap an ingredient in a meal for another food" not in SYSTEM_PROMPT
+    assert "When the user renames a meal with a food" not in SYSTEM_PROMPT
+    assert "bean_tacos" not in SYSTEM_PROMPT
+    assert "chicken_burrito_bowls" not in SYSTEM_PROMPT
+
+
+def test_tool_descriptions_steer_food_changes_to_what_if_substitute() -> None:
+    def description(spec: dict[str, object]) -> str:
+        return cast(str, cast(dict[str, object], spec["toolSpec"])["description"])
+
+    assert description(substitute_tool_spec()).startswith(
+        "Use this when the user wants a different food in a meal: beef instead "
+        "of beans, make it beef tacos, swap, or replace. One call does it: give "
+        "recipe_id and with_food. "
+    )
+    assert description(ingredient_tool_spec()).endswith(
+        " Use it only for a question about one food on its own. To change a "
+        "food in a meal, call what_if_substitute with with_food."
+    )
+    assert description(get_meal_tool_spec()).endswith(
+        " To compare a meal with a different food, call what_if_substitute instead."
+    )
+    catalog_description = description(catalog_tool_spec())
+    assert "Not for a meal the user names or has in the plan." in catalog_description
+    assert (
+        "sample grocery cost for one serving, in whole packages" in catalog_description
+    )
+
+
+def _beef_revision() -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def _swap_trace(with_food: str) -> list[dict[str, object]]:
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _tool_block(
+                        "w1",
+                        name=SUBSTITUTE_TOOL,
+                        payload={"recipe_id": "bean_tacos", "with_food": with_food},
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "bean tacos to beef tacos",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=_beef_revision(),
+    )
+    return cast(list[dict[str, object]], result["tool_trace"])
+
+
+def test_run_chat_gives_the_provider_the_plan_meals() -> None:
+    provider = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+    run_chat(
+        provider,
+        "bean tacos to beef tacos",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=_beef_revision(),
+    )
+    messages = cast(list[dict[str, Any]], provider.requests[0]["messages"])
+    context = json.loads(messages[-1]["content"][0]["text"])
+    assert context["plan_meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
+    assert "plan_meals is the user's current plan" in context["context_role"]
+    bare = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+    run_chat(bare, "hello", budget(), PERIOD, heartbeat=_noop)
+    bare_messages = cast(list[dict[str, Any]], bare.requests[0]["messages"])
+    assert json.loads(bare_messages[-1]["content"][0]["text"])["plan_meals"] is None
+
+
+_PROPOSE_OP: dict[str, object] = {
+    "op": "add",
+    "recipe_id": "vegetable_pasta",
+    "servings": 3,
+}
+_PROPOSED_ANSWER_START = "Proposed: add Vegetable pasta (3 servings)."
+
+
+class Proposer:
+    def __init__(self) -> None:
+        self.calls: list[list[dict[str, object]]] = []
+
+    def __call__(self, operations: list[dict[str, object]]) -> str:
+        self.calls.append(operations)
+        return f"proposal-{len(self.calls)}"
+
+
+def _two_meal_revision() -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [
+                    {"recipe_id": "chicken_tacos", "servings": 2},
+                    {"recipe_id": "bean_tacos", "servings": 2},
+                ],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def _propose_block(tool_id: str, *ops: dict[str, object]) -> dict[str, object]:
+    return _tool_block(tool_id, name=PROPOSAL_TOOL, payload={"operations": list(ops)})
+
+
+def _propose_run(
+    replies: list[dict[str, object] | BaseException],
+    proposer: Proposer,
+    *,
+    model_prose: bool = False,
+) -> tuple[dict[str, object], FakeLLM]:
+    provider = FakeLLM(replies)
+    result = run_chat(
+        provider,
+        "add vegetable pasta",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=_two_meal_revision(),
+        propose=proposer,
+        model_prose=model_prose,
+    )
+    return result, provider
+
+
+def _proposal_replies(final: str) -> list[dict[str, object] | BaseException]:
+    return [
+        _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+        _reply([_text_block(final)], "end_turn"),
+    ]
+
+
+def test_proposal_tool_is_offered_only_with_a_plan_revision_and_propose() -> None:
+    proposer = Proposer()
+    offered: list[list[dict[str, object]]] = []
+    systems: list[str] = []
+    cases: list[tuple[PlanRevisionInput | None, Proposer | None]] = [
+        (_two_meal_revision(), proposer),
+        (_two_meal_revision(), None),
+        (None, proposer),
+        (None, None),
+    ]
+    for revision, propose in cases:
+        provider = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+        run_chat(
+            provider,
+            "hello",
+            budget(),
+            PERIOD,
+            heartbeat=_noop,
+            plan_revision=revision,
+            propose=propose,
+        )
+        offered.append(cast(list[dict[str, object]], provider.requests[0]["tools"]))
+        systems.append(cast(str, provider.requests[0]["system"]))
+    assert offered[0] == _chat_tools(with_proposal=True)
+    assert offered[1:] == [_chat_tools()] * 3
+    assert proposer.calls == []
+    assert systems[0] == SYSTEM_PROMPT + PROPOSAL_PROMPT_SUFFIX
+    assert systems[1:] == [SYSTEM_PROMPT] * 3
+    assert "call propose_plan_change once" in PROPOSAL_PROMPT_SUFFIX
+
+
+def test_evaluation_callers_get_the_same_tool_list() -> None:
+    provider = FakeLLM([_reply([_text_block("ok")], "end_turn")])
+    run_chat(provider, "hello", budget(), PERIOD, heartbeat=_noop)
+    assert provider.requests[0]["tools"] == _chat_tools()
+    names = [
+        cast(dict[str, dict[str, object]], tool)["toolSpec"]["name"]
+        for tool in cast(list[object], provider.requests[0]["tools"])
+    ]
+    assert PROPOSAL_TOOL not in names
+
+
+def test_a_proposal_run_stores_once_and_returns_the_proposal_id() -> None:
+    proposer = Proposer()
+    result, provider = _propose_run(_proposal_replies("done"), proposer)
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert result["reply_source"] == "template"
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [(item["tool"], item["outcome"]) for item in trace] == [
+        (PROPOSAL_TOOL, "success")
+    ]
+    assert trace[0]["inputs"] == {
+        "status": "proposed",
+        "proposal_id": "proposal-1",
+        "operations": [_PROPOSE_OP],
+    }
+    _assert_public(result)
+
+
+def test_first_meal_chat_proposes_once_from_an_empty_saved_plan() -> None:
+    operation: dict[str, object] = {
+        "op": "add",
+        "recipe_id": "bean_tacos",
+        "servings": 2,
+    }
+    revision = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [],
+                "pantry_ingredient_ids": ["salt", "black_beans"],
+                "plan_cap_cents": 5_000,
+            },
+        }
+    )
+    original = revision.model_dump(mode="json")
+    proposer = Proposer()
+    provider = FakeLLM(
+        [
+            _reply([_propose_block("first-meal", operation)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "add bean tacos for two",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        plan_revision=revision,
+        propose=proposer,
+    )
+    assert proposer.calls == [[operation]]
+    assert revision.model_dump(mode="json") == original
+    assert len(provider.requests) == 2
+    assert result["proposal_id"] == "proposal-1"
+    assert result["reply_source"] == "template"
+    assert cast(str, result["answer"]).startswith(
+        "Proposed: add Bean tacos (2 servings)."
+    )
+    assert "Apply it in the plan panel." in cast(str, result["answer"])
+    messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    tool_result = messages[-1]["content"][0]["toolResult"]
+    assert tool_result["status"] == "success"
+    payload = tool_result["content"][0]["json"]
+    assert payload["status"] == "proposed"
+    assert payload["before"] == {
+        "meals": [],
+        "pantry_ingredient_ids": ["salt", "black_beans"],
+        "nutrition": [],
+        "estimate": {
+            "lines": [],
+            "total_cents": 0,
+            "price_complete": True,
+            "available_cents": 5_000,
+            "accepted": True,
+            "notice": SAMPLE_ESTIMATE_NOTICE,
+        },
+    }
+    assert payload["after"]["meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
+    assert payload["after"]["estimate"]["total_cents"] > 0
+    assert payload["after"]["nutrition"][0]["per_serving"]["energy_kcal"] > 0
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [(item["tool"], item["outcome"]) for item in trace] == [
+        (PROPOSAL_TOOL, "success")
+    ]
+    _assert_public(result)
+
+
+def test_a_run_without_a_proposal_has_no_proposal_id() -> None:
+    result, _ = _propose_run([_reply([_text_block("hello")], "end_turn")], Proposer())
+    assert "proposal_id" not in result
+
+
+def test_a_passing_model_reply_after_the_tool_still_gets_the_template() -> None:
+    proposer = Proposer()
+    reply = "Apply it in the plan panel."
+    result, _ = _propose_run(_proposal_replies(reply), proposer, model_prose=True)
+    assert result["reply_source"] == "template"
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert result["reply_check"] == {"gate": "proposal"}
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_a_proposal_wins_over_a_later_catalog_search() -> None:
+    result, _ = _propose_run(
+        [
+            _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+            _reply(
+                [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "egg"})],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        Proposer(),
+        model_prose=True,
+    )
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert "Apply it in the plan panel." in cast(str, result["answer"])
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_a_proposal_is_followed_by_a_later_planner_answer() -> None:
+    result, _ = _propose_run(
+        [
+            _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+            _reply([_tool_block("p1", payload={})], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        Proposer(),
+    )
+    answer = cast(str, result["answer"])
+    alone, _ = _propose_run(_proposal_replies("done"), Proposer())
+    assert answer.startswith(cast(str, alone["answer"]))
+    assert len(answer) > len(cast(str, alone["answer"]))
+    assert "Apply it in the plan panel." in answer
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_a_changed_plan_claim_falls_back_to_the_template() -> None:
+    reply = "I added Vegetable pasta to your plan."
+    result, _ = _propose_run(_proposal_replies(reply), Proposer(), model_prose=True)
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "proposal"}
+    assert cast(str, result["answer"]).startswith(_PROPOSED_ANSWER_START)
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_an_invalid_operation_stores_nothing_and_shows_a_fixed_error() -> None:
+    proposer = Proposer()
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    result, provider = _propose_run(
+        [
+            _reply([_propose_block("q1", bad)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+    )
+    assert proposer.calls == []
+    assert "proposal_id" not in result
+    seen = json.dumps(provider.requests[1]["messages"])
+    assert INVALID_PROPOSAL_MESSAGE in seen
+    assert "not_a_meal" not in json.dumps(result)
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [(item["tool"], item["outcome"]) for item in trace] == [
+        (PROPOSAL_TOOL, "error")
+    ]
+
+
+def test_a_second_proposal_in_one_run_is_refused() -> None:
+    proposer = Proposer()
+    second = {"op": "remove", "recipe_id": "bean_tacos"}
+    result, provider = _propose_run(
+        [
+            _reply(
+                [
+                    _propose_block("q1", _PROPOSE_OP),
+                    _propose_block("q2", second),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+    )
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    assert PROPOSAL_ONCE in json.dumps(provider.requests[1]["messages"])
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [item["outcome"] for item in trace] == ["success", "error"]
+
+
+def test_a_failed_proposal_may_be_retried_and_counts_once_when_stored() -> None:
+    proposer = Proposer()
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    result, _ = _propose_run(
+        [
+            _reply([_propose_block("q1", bad)], "tool_use"),
+            _reply([_propose_block("q2", _PROPOSE_OP)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+    )
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+
+
+def test_trace_records_the_validated_swap_inputs() -> None:
+    trace = _swap_trace("beef")
+    assert trace[0]["inputs"] == {
+        "recipe_id": "bean_tacos",
+        "status": "swapped",
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+        "servings": 2,
+        "servings_source": "plan",
+    }
+    assert '"beef"' not in json.dumps(trace)
+
+
+def test_trace_never_copies_model_supplied_food_text() -> None:
+    trace = _swap_trace("zzz injected text")
+    assert trace[0]["inputs"] == {"recipe_id": "bean_tacos", "status": "unknown_food"}
+    assert "zzz injected text" not in json.dumps(trace)
+
+
+def test_trace_records_ingredient_facts_without_the_name() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("i1", name=INGREDIENT_TOOL, payload={"name": "beef"})],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["inputs"] == {"status": "found", "ingredient_id": "ground_beef_80"}
+    assert "name" not in cast(dict[str, object], trace[0]["inputs"])
+
+
+def test_typed_planner_error_beats_read_answer_in_same_batch() -> None:
+    args = plan_args(
+        meals=[{"recipe_id": "bean_tacos", "servings": 2}],
+        ingredient_exclusions=["mystery spice"],
+    )
+    result, _ = _run(
+        [
+            _reply(
+                [
+                    _tool_block("p1", payload=args),
+                    _tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    assert result["plan"] is None
+    assert result["answer"] == _UNKNOWN_RESTRICTION
+    assert result["answer"] != _SWAP_ANSWER
+
+
+def test_plan_success_with_get_plan_keeps_plan_answer() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("p1"), _tool_block("g1", name=GET_PLAN_TOOL, payload={})],
+                "tool_use",
+            ),
+        ]
+    )
+    assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
+
+
+def test_budget_summary_with_read_tool_in_same_batch_gives_read_answer() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [
+                    _budget_block("s1"),
+                    _tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == _SWAP_ANSWER
+
+
+def test_read_payloads_reset_each_batch() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [_tool_block("w1", name=SUBSTITUTE_TOOL, payload=_SWAP_ARGS)],
+                "tool_use",
+            ),
+            _reply([_budget_block("s1")], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    assert result["answer"] == expected
+    assert result["answer"] != _SWAP_ANSWER
+
+
+def test_failed_read_tool_in_batch_adds_failure_sentence() -> None:
+    result, _ = _run(
+        [
+            _reply(
+                [
+                    _tool_block("w1", name=SUBSTITUTE_TOOL, payload={"recipe_id": "x"}),
+                    _tool_block(
+                        "m1", name=GET_MEAL_TOOL, payload={"recipe_id": "bean_tacos"}
+                    ),
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    answer = cast(str, result["answer"])
+    assert answer.startswith("Bean tacos per serving: ")
+    assert answer.endswith(" A tool call failed. Check the request.")
+
+
+def test_system_prompt_tells_model_to_omit_servings_for_planned_meals() -> None:
+    assert "Omit servings for a meal that is already in the user's plan." in (
+        SYSTEM_PROMPT
+    )
+
+
+def test_stale_budget_warning_reaches_price_lines_reply() -> None:
+    stale = BudgetResult(10_000, 250, True, (STALE_SPENDING_WARNING,))
+    args: dict[str, object] = {"meals": [{**_SWAP_ARGS}]}
+    estimate = cast(dict[str, Any], execute_price_lines(args, stale, None)["estimate"])
+    provider = FakeLLM(
+        [
+            _reply([_tool_block("l1", name=PRICE_TOOL, payload=args)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(provider, "price it", stale, PERIOD, heartbeat=_noop)
+    assert result["answer"] == (
+        "Sample total for Chicken tacos (2 servings) with chickpeas instead of "
+        f"chicken breast: {_usd(estimate['total_cents'])}. "
+        "It fits the available USD $100.00. "
+        f"{STALE_SPENDING_WARNING} {SAMPLE_ESTIMATE_NOTICE}"
+    )
+
+
+def test_price_lines_error_keeps_static_shape_and_records_no_evidence() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("price_lines MUST NOT record plan evidence")
+
+    meals = [{"recipe_id": "chicken_tacos", "servings": 1}] * 3
+    bad = {"meals": [*meals, {"recipe_id": "bean_tacos", "servings": 1}]}
+    result, provider = _run(
+        [
+            _reply([_tool_block("l1", name=PRICE_TOOL, payload=bad)], "tool_use"),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ],
+        record_evidence=record,
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    assert result["tool_trace"] == [
+        {
+            "tool": PRICE_TOOL,
+            "outcome": "error",
+            "tool_use_id": "l1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {"recipe_ids": ["chicken_tacos"] * 3},
+        }
+    ]
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "error"
+    assert body["content"][0]["json"] == {"error": "arguments are invalid"}
+    _assert_public(result)
+
+
+def test_what_if_substitute_error_keeps_static_shape_and_reply_state() -> None:
+    bad = {**_SWAP_ARGS, "with_ingredient_id": "chicken_breast", "extra": _SECRET}
+    result, provider = _run(
+        [
+            _reply([_tool_block("w1", name=SUBSTITUTE_TOOL, payload=bad)], "tool_use"),
+            _reply([_text_block("Sorry.")], "end_turn"),
+        ]
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == CLARIFICATION
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["tool"] == SUBSTITUTE_TOOL
+    assert trace[0]["outcome"] == "error"
+    second_messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    body = second_messages[-1]["content"][0]["toolResult"]
+    assert body["status"] == "error"
+    assert body["content"][0]["json"] == {"error": "arguments are invalid"}
+    _assert_public(result)
+
+
 def test_followup_history_and_previous_request_are_context_only() -> None:
     history = [
         {"role": "user", "text": "plan tacos"},
@@ -412,7 +1438,9 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert context["plan_cap_cents"] is None
     assert context["context_role"] == (
         "previous_request is prior state; apply latest explicit additions and removals"
+        "; plan_meals is the user's current plan"
     )
+    assert context["plan_meals"] is None
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
     _assert_public(result)
@@ -437,17 +1465,11 @@ def test_three_planner_calls_in_one_turn_keep_last_valid() -> None:
     result, provider = _run(replies)
     assert result["status"] == "planned"
     assert result["planner_revisions"] == 3
-    assert result["model_turns"] == 2
+    assert result["model_turns"] == 1
     assert result["evidence_id"] == expected["evidence_id"]
     assert result["plan"] == expected["plan"]
-    assert len(provider.requests) == 2
-    nested = provider.requests[1]["messages"]
-    assert isinstance(nested, list)
-    user_blocks = nested[-1]["content"]
-    assert isinstance(user_blocks, list)
-    assert len(user_blocks) == 3
-    assert user_blocks[0]["toolResult"]["toolUseId"] == "a"
-    assert user_blocks[2]["toolResult"]["toolUseId"] == "c"
+    assert len(provider.requests) == 1
+    assert [entry["tool_use_id"] for entry in result["tool_trace"]] == ["a", "b", "c"]
 
 
 def test_parser_rejects_more_than_three_calls() -> None:
@@ -505,7 +1527,10 @@ def test_eighth_turn_may_finish_with_text() -> None:
 
 def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block(f"p-{index}")], "tool_use")
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
         for index in range(MAX_PLANNER_REVISIONS + 1)
     ]
     result, provider = _run(replies)
@@ -521,14 +1546,17 @@ def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
     assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
 
 
-def test_three_planner_revisions_then_final_is_planned() -> None:
+def test_third_planner_revision_can_finish_after_corrections() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block(f"p-{index}")], "tool_use")
-        for index in range(MAX_PLANNER_REVISIONS)
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
+        for index in range(MAX_PLANNER_REVISIONS - 1)
     ]
-    replies.append(_reply([_text_block("ready")], "end_turn"))
+    replies.append(_reply([_tool_block("accepted")], "tool_use"))
     result, provider = _run(replies)
-    assert len(provider.requests) == MAX_PLANNER_REVISIONS + 1
+    assert len(provider.requests) == MAX_PLANNER_REVISIONS
     assert result["status"] == "planned"
     assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
     assert result["plan"] is not None
@@ -621,13 +1649,12 @@ def test_invalid_then_valid_keeps_last_candidate() -> None:
         "max_tokens",
         "content_filtered",
         "stop_sequence",
-        "guardrail_intervened",
         "model_context_window_exceeded",
     ],
 )
 def test_incomplete_stops_drop_plan(stop: str) -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"),
         _reply([_text_block("truncated plan")], stop),
     ]
     result, provider = _run(replies)
@@ -641,9 +1668,60 @@ def test_incomplete_stops_drop_plan(stop: str) -> None:
     assert result["planner_revisions"] == 1
 
 
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_guardrail_intervention_returns_the_fixed_decline(model_prose: bool) -> None:
+    blocked = "BLOCKED-MODEL-TEXT"
+    provider = FakeLLM(
+        [
+            _reply(
+                [_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"
+            ),
+            _reply([_text_block(blocked)], "guardrail_intervened"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "plan chicken tacos",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        model_prose=model_prose,
+    )
+    assert len(provider.requests) == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == GUARDRAIL_DECLINE
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == ({"gate": "guardrail"} if model_prose else None)
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert "proposal_id" not in result
+    assert blocked not in json.dumps(result)
+
+
+def test_guardrail_decline_carries_no_proposal_from_an_earlier_round() -> None:
+    proposer = Proposer()
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+        _reply([_text_block("x")], "guardrail_intervened"),
+    ]
+    result, _provider = _propose_run(replies, proposer)
+    assert len(proposer.calls) == 1
+    assert result["answer"] == GUARDRAIL_DECLINE
+    assert result.get("proposal_id") is None
+
+
+def test_guardrail_intervention_without_message_content_still_declines() -> None:
+    provider = FakeLLM([_reply([_text_block("   ")], "guardrail_intervened")])
+    result = run_chat(provider, "hi", budget(), PERIOD, heartbeat=_noop)
+    assert result["status"] == "clarification"
+    assert result["answer"] == GUARDRAIL_DECLINE
+    assert result["model_turns"] == 1
+
+
 def test_blank_end_turn_is_incomplete_and_drops_plan() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"),
         _reply([_text_block("   ")], "end_turn"),
     ]
     result, _provider = _run(replies)
@@ -653,20 +1731,21 @@ def test_blank_end_turn_is_incomplete_and_drops_plan() -> None:
 
 def test_reasoning_is_stripped_from_next_request_and_result() -> None:
     hidden = {"text": "hidden plan"}
+    args = plan_args(plan_cap_cents=100)
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [
                 {"reasoningContent": hidden},
                 _text_block("public", reasoning=hidden),
-                _tool_block("call-1", reasoning=hidden),
+                _tool_block("call-1", payload=args, reasoning=hidden),
             ],
             "tool_use",
         ),
         _reply([_text_block("ready", reasoning=hidden)], "end_turn"),
     ]
     result, provider = _run(replies)
-    expected = execute_plan(plan_args(), budget(), PERIOD)
-    assert result["status"] == "planned"
+    expected = execute_plan(args, budget(), PERIOD)
+    assert result["status"] == "needs_revision"
     assert result["answer"] == render_public_answer(expected)
     assert "ready" not in result["answer"]
     dumped_result = json.dumps(result)
@@ -685,7 +1764,7 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
             "toolUse": {
                 "toolUseId": "call-1",
                 "name": TOOL_NAME,
-                "input": plan_args(),
+                "input": args,
             }
         }
     ]
@@ -696,8 +1775,10 @@ def test_reasoning_is_stripped_from_next_request_and_result() -> None:
 
 def test_tool_use_history_keeps_validated_calls_only() -> None:
     hidden = {"text": "hidden plan"}
-    first = plan_args()
-    second = plan_args(meals=[{"recipe_id": "bean_tacos", "servings": 2}])
+    first = plan_args(plan_cap_cents=100)
+    second = plan_args(
+        meals=[{"recipe_id": "bean_tacos", "servings": 2}], plan_cap_cents=100
+    )
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [
@@ -713,7 +1794,7 @@ def test_tool_use_history_keeps_validated_calls_only() -> None:
     ]
     result, provider = _run(replies)
     expected = execute_plan(second, budget(), PERIOD)
-    assert result["status"] == "planned"
+    assert result["status"] == "needs_revision"
     assert result["answer"] == render_public_answer(expected)
     assert "Here is a labeled estimate." not in result["answer"]
     assert len(provider.requests) == 2
@@ -772,7 +1853,10 @@ def test_duplicate_ids_raise_protocol_error() -> None:
 def test_duplicate_ids_across_turns_raise_protocol_error() -> None:
     provider = FakeLLM(
         [
-            _reply([_tool_block("same")], "tool_use"),
+            _reply(
+                [_tool_block("same", payload=plan_args(plan_cap_cents=100))],
+                "tool_use",
+            ),
             _reply([_tool_block("same")], "tool_use"),
         ]
     )
@@ -837,21 +1921,21 @@ def test_heartbeat_loss_before_tool_propagates() -> None:
 def test_usage_is_none_when_one_response_is_unknown() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("ok")],
+            [_tool_block("ok", payload=plan_args(plan_cap_cents=100))],
             "tool_use",
             usage={"inputTokens": 4, "outputTokens": 5},
         ),
         _reply([_text_block("done")], "end_turn", omit_usage=True),
     ]
     result, _provider = _run(replies)
-    assert result["status"] == "planned"
+    assert result["status"] == "needs_revision"
     assert result["usage"] is None
 
 
 def test_usage_sums_only_when_every_response_is_valid() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("ok")],
+            [_tool_block("ok", payload=plan_args(plan_cap_cents=100))],
             "tool_use",
             usage={"inputTokens": 4, "outputTokens": 5, "totalTokens": 9},
         ),
@@ -869,7 +1953,7 @@ def test_usage_sums_only_when_every_response_is_valid() -> None:
 def test_zero_token_counts_are_valid_usage() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("ok")],
+            [_tool_block("ok", payload=plan_args(plan_cap_cents=100))],
             "tool_use",
             usage={"inputTokens": 0, "outputTokens": 0},
         ),
@@ -879,7 +1963,8 @@ def test_zero_token_counts_are_valid_usage() -> None:
             usage={"inputTokens": 0, "outputTokens": 0},
         ),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
     assert result["usage"] == {"inputTokens": 0, "outputTokens": 0}
 
 
@@ -932,6 +2017,53 @@ def test_system_prompt_requires_restriction_clarification() -> None:
     )
     assert "The tool rejects unknown terms and asks the user." in SYSTEM_PROMPT
     assert "Ask the user before you choose an alternative." in SYSTEM_PROMPT
+
+
+def test_prompt_and_all_schemas_stay_under_interim_budget() -> None:
+    serialized = json.dumps(
+        {
+            "system": SYSTEM_PROMPT + PROPOSAL_PROMPT_SUFFIX,
+            "tools": _chat_tools(with_proposal=True),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert len(serialized) < PROMPT_AND_TOOLS_BUDGET, len(serialized)
+    assert "Catalog meal labels are id:labels pairs:" not in SYSTEM_PROMPT
+    assert "bean_tacos:vegan,vegetarian,beans" not in SYSTEM_PROMPT
+    assert "call search_meals" in SYSTEM_PROMPT
+    assert "find_catalog_meals" not in SYSTEM_PROMPT
+
+
+def test_system_prompt_states_tag_thresholds_and_tool_spec_lists_terms() -> None:
+    assert "high_protein means 30 g or more protein per serving." in SYSTEM_PROMPT
+    assert "lower_carb means 30 g or less carbohydrate per serving." in SYSTEM_PROMPT
+    spec = cast(dict[str, object], catalog_tool_spec()["toolSpec"])
+    assert spec["name"] == "search_meals"
+    assert "When the user asks for keto," not in SYSTEM_PROMPT
+
+
+def test_system_prompt_states_the_honest_tag_caveats() -> None:
+    assert (
+        "No meal in this catalog is keto. No meal is strictly carnivore."
+        in SYSTEM_PROMPT
+    )
+    assert (
+        "gluten_free_ingredients describes the ingredients only. "
+        "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe."
+    ) in SYSTEM_PROMPT
+    assert "name up to three catalog meals" not in SYSTEM_PROMPT
+
+
+def test_meal_type_fallback_names_no_recipe() -> None:
+    reply = [_reply([_text_block("Try vegetable pasta.")], "end_turn")]
+    result, _provider = _run(reply, message="Plan a gluten-free meal for 2 servings")
+    answer = str(result["answer"])
+    assert "I did not search the catalog for that meal type" in answer
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        assert recipe_id.replace("_", " ") not in answer
+    plain, _provider = _run(reply, message="Plan dinner")
+    assert "bean tacos" in str(plain["answer"])
 
 
 def test_unknown_restrictions_use_tool_clarification() -> None:
@@ -999,7 +2131,7 @@ def test_needs_revision_keeps_uncapped_plan() -> None:
     assert plan["accepted"] is False
 
 
-def test_record_evidence_runs_before_next_provider_turn() -> None:
+def test_record_evidence_runs_before_terminal_return() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     seen: list[dict[str, object]] = []
 
@@ -1016,6 +2148,21 @@ def test_record_evidence_runs_before_next_provider_turn() -> None:
     assert result["tool_trace"] == [
         _success_trace("call-1", expected["evidence_id"], revision_id=_REV)
     ]
+    assert len(provider.requests) == 1
+
+
+def test_nonterminal_evidence_reaches_next_provider_turn() -> None:
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
+    seen: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        seen.append(dict(payload))
+        return _REV
+
+    result, provider = _run(_planner_then_final(payload=args), record_evidence=record)
+    assert result["status"] == "needs_revision"
+    assert result["evidence_revision_id"] == _REV
     assert len(provider.requests) == 2
     second_messages = provider.requests[1]["messages"]
     assert isinstance(second_messages, list)
@@ -1066,16 +2213,17 @@ def test_repeated_revision_id_two_revisions_stay_ordered() -> None:
     def record(payload: dict[str, object]) -> str:
         return _REV
 
-    expected = execute_plan(plan_args(), budget(), PERIOD)
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_tool_block("a"), _tool_block("b")],
+            [_tool_block("a", payload=args), _tool_block("b", payload=args)],
             "tool_use",
         ),
         _reply([_text_block("done")], "end_turn"),
     ]
     result, provider = _run(replies, record_evidence=record)
-    assert result["status"] == "planned"
+    assert result["status"] == "needs_revision"
     assert result["evidence_revision_id"] == _REV
     assert result["planner_revisions"] == 2
     assert result["tool_trace"] == [
@@ -1147,7 +2295,8 @@ def test_adversarial_final_text_cannot_override_validated_plan() -> None:
             "end_turn",
         ),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
     answer = result["answer"]
     assert result["status"] == "planned"
     assert result["plan"] == expected["plan"]
@@ -1222,8 +2371,9 @@ def test_exclusion_then_unsupported_tool_is_generic_clarification() -> None:
     _assert_public(result)
 
 
-def test_malformed_later_error_clears_exclusion_conflict(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("first_accepted", [False, True])
+def test_malformed_later_error_clears_candidate_or_exclusion_conflict(
+    monkeypatch: pytest.MonkeyPatch, first_accepted: bool
 ) -> None:
     real_dispatch = loop.dispatch
     excluded = plan_args(
@@ -1239,6 +2389,7 @@ def test_malformed_later_error_clears_exclusion_conflict(
         source: SpendingSource,
         trace: list[dict[str, object]],
         record_evidence: EvidenceRecorder | None = None,
+        plan: PlanRevisionInput | None = None,
     ) -> tuple[dict[str, object] | None, dict[str, object]]:
         if call.name != TOOL_NAME:
             return None, {
@@ -1256,27 +2407,29 @@ def test_malformed_later_error_clears_exclusion_conflict(
             source,
             trace,
             record_evidence=record_evidence,
+            plan=plan,
         )
 
     monkeypatch.setattr(loop, "dispatch", fake_dispatch)
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [
-                _tool_block("ex", payload=excluded),
-                _tool_block("later", name="lookup", payload={}),
+                _tool_block("ex", payload=plan_args() if first_accepted else excluded),
+                _budget_block("later"),
             ],
             "tool_use",
         ),
         _reply([_text_block("Need a meal choice.")], "end_turn"),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
     assert result["status"] == "clarification"
     assert result["answer"] == CLARIFICATION
     assert result["plan"] is None
     assert result["evidence_id"] is None
-    assert result["evidence_revision_id"] is None
     assert "onion" not in result["answer"]
     assert "Change the recipe or the restriction." not in result["answer"]
+    assert result["evidence_revision_id"] is None
     assert "Need a meal choice." not in result["answer"]
     _assert_public(result)
 
@@ -1286,7 +2439,10 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
         return _REV
 
     limit_replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block(f"p-{index}")], "tool_use")
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
         for index in range(MAX_PLANNER_REVISIONS + 1)
     ]
     limit_result, _limit_provider = _run(limit_replies, record_evidence=record)
@@ -1295,7 +2451,7 @@ def test_limit_and_incomplete_drop_recorded_revision_id() -> None:
     assert limit_result["evidence_id"] is None
     assert limit_result["evidence_revision_id"] is None
     incomplete_replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("ok")], "tool_use"),
+        _reply([_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"),
         _reply([_text_block("truncated plan")], "max_tokens"),
     ]
     incomplete, _provider = _run(incomplete_replies, record_evidence=record)
@@ -1319,7 +2475,7 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         available_cents=10_000,
     )
     assert result["status"] == "planned"
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     first_prompt = provider.requests[0]["system"]
     assert first_prompt == SYSTEM_PROMPT
     assert "MUST preserve that cap or lower it" in SYSTEM_PROMPT
@@ -1342,8 +2498,9 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         assert context["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
         assert context["context_role"] == (
             "previous_request is prior state; apply latest explicit "
-            "additions and removals"
+            "additions and removals; plan_meals is the user's current plan"
         )
+        assert context["plan_meals"] is None
 
 
 @pytest.mark.parametrize(
@@ -1386,9 +2543,10 @@ def test_structured_refusal_without_tool_use(reason: str, answer: str) -> None:
 
 
 def test_structured_refusal_after_plan_clears_public_fields() -> None:
-    expected = execute_plan(plan_args(), budget(), PERIOD)
+    args = plan_args(plan_cap_cents=100)
+    expected = execute_plan(args, budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("call-1")], "tool_use"),
+        _reply([_tool_block("call-1", payload=args)], "tool_use"),
         _reply([_text_block('{"refusal":"purchase"}')], "end_turn"),
     ]
     result, _provider = _run(replies)
@@ -1547,7 +2705,7 @@ def test_buy_beans_again_replans_without_pantry() -> None:
     assert plan["total_cents"] == 1703
     assert result["answer"] == render_public_answer(expected)
     assert result["planner_revisions"] == 1
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     _assert_public(result)
 
 
@@ -1569,7 +2727,6 @@ def test_a04_url_order_message_still_renders_purchase_refusal() -> None:
 
 def test_summary_only_uses_budget_answer_without_plan() -> None:
     expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
-    summary = execute_budget_summary({}, budget(), PERIOD, spending_source="fixture")
     seen: list[dict[str, object]] = []
 
     def record(payload: dict[str, object]) -> str:
@@ -1592,26 +2749,58 @@ def test_summary_only_uses_budget_answer_without_plan() -> None:
     assert result["evidence_revision_id"] is None
     assert result["planner_revisions"] == 0
     assert result["model_turns"] == 2
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
     assert result["tool_trace"] == [_budget_trace("s1")]
     assert seen == []
-    second_messages = provider.requests[1]["messages"]
-    assert isinstance(second_messages, list)
-    tool_user = second_messages[-1]
-    content = tool_user["content"]
-    assert isinstance(content, list)
-    json_body = content[0]["toolResult"]["content"][0]["json"]
-    assert json_body == summary
+    assert len(provider.requests) == 2
     _assert_public(result)
+
+
+def test_budget_only_batch_takes_final_turn() -> None:
+    expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_text_block("model-prose-after-budget")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == expected
+    assert "model-prose-after-budget" not in json.dumps(result)
+    assert result["plan"] is None
+    assert result["model_turns"] == 2
+    assert result["tool_trace"] == [_budget_trace("s1")]
+    _assert_public(result)
+
+
+def test_sequential_budget_then_plan_reaches_plan() -> None:
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_tool_block("p1")], "tool_use"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "planned"
+    assert result["answer"] == render_public_answer(expected)
+    assert result["plan"] == expected["plan"]
+    assert result["evidence_id"] == expected["evidence_id"]
+    assert result["planner_revisions"] == 1
+    assert result["model_turns"] == 2
+    assert result["tool_trace"] == [
+        _budget_trace("s1"),
+        _success_trace("p1", expected["evidence_id"], sequence=2),
+    ]
 
 
 def test_plan_then_summary_keeps_plan() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("p1")], "tool_use"),
-        _reply([_budget_block("s1")], "tool_use"),
+        _reply([_tool_block("p1"), _budget_block("s1")], "tool_use"),
         _reply([_text_block("Here is the budget and the plan.")], "end_turn"),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert "Here is the budget" not in result["answer"]
@@ -1627,11 +2816,11 @@ def test_plan_then_summary_keeps_plan() -> None:
 def test_summary_then_plan_returns_plan() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
-        _reply([_tool_block("p1")], "tool_use"),
+        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
         _reply([_text_block("done")], "end_turn"),
     ]
-    result, _provider = _run(replies)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
     assert result["status"] == "planned"
     assert result["answer"] == render_public_answer(expected)
     assert result["plan"] == expected["plan"]
@@ -1646,9 +2835,11 @@ def test_summary_then_plan_returns_plan() -> None:
 def test_invalid_summary_after_plan_clears_candidate() -> None:
     expected = execute_plan(plan_args(), budget(), PERIOD)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_tool_block("p1")], "tool_use"),
         _reply(
-            [_budget_block("s1", payload={"cap": 1, "identity": _SECRET})],
+            [
+                _tool_block("p1"),
+                _budget_block("s1", payload={"cap": 1, "identity": _SECRET}),
+            ],
             "tool_use",
         ),
         _reply([_text_block("The earlier plan is still valid.")], "end_turn"),
@@ -1669,9 +2860,11 @@ def test_invalid_summary_after_plan_clears_candidate() -> None:
 
 def test_summary_then_later_failure_uses_clarification() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
         _reply(
-            [_tool_block("buy", name="purchase_items", payload={"token": _SECRET})],
+            [
+                _budget_block("s1"),
+                _tool_block("buy", name="purchase_items", payload={"token": _SECRET}),
+            ],
             "tool_use",
         ),
         _reply([_text_block("I will not purchase items.")], "end_turn"),
@@ -1727,6 +2920,14 @@ def test_typed_clarification_then_summary_keeps_typed_error() -> None:
     assert result["status"] == "clarification"
     assert "onion" in answer
     assert "Change the recipe or the restriction." in answer
+    assert answer == render_public_answer(
+        None,
+        {
+            "error_code": "exclusion_reject",
+            "recipe_id": "vegetable_pasta",
+            "ingredient_id": "onion",
+        },
+    )
     assert "Here is your remaining budget." not in answer
     assert result["plan"] is None
     assert result["evidence_id"] is None
@@ -1737,7 +2938,10 @@ def test_typed_clarification_then_summary_keeps_typed_error() -> None:
 
 def test_refusal_after_summary_drops_summary_answer() -> None:
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
+        _reply(
+            [_budget_block("s1"), _budget_block("bad", payload={"invalid": True})],
+            "tool_use",
+        ),
         _reply([_text_block('{"refusal":"secrets"}')], "end_turn"),
     ]
     result, _provider = _run(replies)
@@ -1751,7 +2955,10 @@ def test_refusal_after_summary_drops_summary_answer() -> None:
     assert result["request"] is None
     assert result["evidence_id"] is None
     assert result["planner_revisions"] == 0
-    assert result["tool_trace"] == [_budget_trace("s1")]
+    assert result["tool_trace"] == [
+        _budget_trace("s1"),
+        _budget_trace("bad", sequence=2, outcome="error"),
+    ]
     assert '{"refusal"' not in json.dumps(result)
     _assert_public(result)
 
@@ -1759,9 +2966,11 @@ def test_refusal_after_summary_drops_summary_answer() -> None:
 def test_invalid_summary_clears_prior_summary_fallback() -> None:
     expected = budget_summary_answer(budget(), PERIOD, spending_source="fixture")
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1")], "tool_use"),
         _reply(
-            [_budget_block("s2", payload={"transactions": [_SECRET]})],
+            [
+                _budget_block("s1"),
+                _budget_block("s2", payload={"transactions": [_SECRET]}),
+            ],
             "tool_use",
         ),
         _reply([_text_block("Available USD $99.00")], "end_turn"),
@@ -1777,9 +2986,10 @@ def test_invalid_summary_clears_prior_summary_fallback() -> None:
 
 
 def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None:
+    over = plan_args(plan_cap_cents=100)
     replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
-        _reply([_tool_block("p2")], "tool_use"),
+        _reply([_budget_block("s1"), _tool_block("p1", payload=over)], "tool_use"),
+        _reply([_tool_block("p2", payload=over)], "tool_use"),
         _reply([_budget_block("s2"), _tool_block("p3")], "tool_use"),
         _reply([_text_block("ready")], "end_turn"),
     ]
@@ -1789,9 +2999,9 @@ def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None
     assert planned["plan"] is not None
     assert planned["evidence_id"] is not None
     limit_replies: list[dict[str, object] | BaseException] = [
-        _reply([_budget_block("s1"), _tool_block("p1")], "tool_use"),
-        _reply([_tool_block("p2")], "tool_use"),
-        _reply([_budget_block("s2"), _tool_block("p3")], "tool_use"),
+        _reply([_budget_block("s1"), _tool_block("p1", payload=over)], "tool_use"),
+        _reply([_tool_block("p2", payload=over)], "tool_use"),
+        _reply([_budget_block("s2"), _tool_block("p3", payload=over)], "tool_use"),
         _reply([_tool_block("p4")], "tool_use"),
     ]
     limited, provider = _run(limit_replies)
@@ -1803,10 +3013,13 @@ def test_three_planner_revisions_plus_summaries_then_fourth_hits_limit() -> None
     assert limited["planner_revisions"] == MAX_PLANNER_REVISIONS
 
 
-def test_eight_summary_rounds_hit_model_cap_with_zero_planner() -> None:
+def test_eight_invalid_summary_rounds_hit_model_cap_with_zero_planner() -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
-            [_budget_block(f"s-{turn}-{index}") for index in range(MAX_TOOL_CALLS)],
+            [
+                _budget_block(f"s-{turn}-{index}", payload={"invalid": True})
+                for index in range(MAX_TOOL_CALLS)
+            ],
             "tool_use",
         )
         for turn in range(MAX_MODEL_TURNS)
@@ -1823,7 +3036,1102 @@ def test_eight_summary_rounds_hit_model_cap_with_zero_planner() -> None:
         _budget_trace(
             f"s-{turn}-{index}",
             sequence=turn * MAX_TOOL_CALLS + index + 1,
+            outcome="error",
         )
         for turn in range(MAX_MODEL_TURNS)
         for index in range(MAX_TOOL_CALLS)
     ]
+
+
+def test_nonterminal_summary_result_keeps_server_payload() -> None:
+    expected = execute_budget_summary({}, budget(), PERIOD, spending_source="fixture")
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("bad", name="unsupported", payload={}), _budget_block("s1")],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert result["answer"] == CLARIFICATION
+    assert len(provider.requests) == 2
+    messages = provider.requests[1]["messages"]
+    assert isinstance(messages, list)
+    content = messages[-1]["content"]
+    assert isinstance(content, list)
+    assert content[1]["toolResult"]["content"][0]["json"] == expected
+
+
+def test_successful_summary_batch_finishes_all_calls() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_budget_block(f"s-{index}") for index in range(3)], "tool_use"),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["model_turns"] == 2
+    assert result["planner_revisions"] == 0
+    assert result["answer"] == budget_summary_answer(
+        budget(), PERIOD, spending_source="fixture"
+    )
+    assert result["tool_trace"] == [
+        _budget_trace(f"s-{index}", sequence=index + 1) for index in range(3)
+    ]
+
+
+@pytest.mark.parametrize("order", ["error_first", "error_last"])
+def test_batch_error_prevents_fast_return_even_with_accepted_plan(order: str) -> None:
+    calls = [_tool_block("ok"), _tool_block("bad", name="unsupported", payload={})]
+    if order == "error_first":
+        calls.reverse()
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(calls, "tool_use"),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["model_turns"] == 2
+    assert result["status"] == (
+        "planned" if order == "error_first" else "clarification"
+    )
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    assert result["answer"] == (
+        render_public_answer(expected) if order == "error_first" else CLARIFICATION
+    )
+    assert len(result["tool_trace"]) == 2
+
+
+def test_overbudget_later_plan_and_summary_cannot_finish_early() -> None:
+    over = plan_args(plan_cap_cents=100)
+    expected = execute_plan(over, budget(), PERIOD)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("ok"), _tool_block("over", payload=over), _budget_block("s1")],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert len(result["tool_trace"]) == 3
+    assert result["status"] == "needs_revision"
+    assert result["plan"] == expected["plan"]
+    assert result["answer"] == render_public_answer(expected)
+
+
+def test_missing_price_result_keeps_correction_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_dispatch = loop.dispatch
+
+    def missing_dispatch(
+        call: ToolCall,
+        budget_value: BudgetResult,
+        period: date,
+        user_id: int,
+        source: SpendingSource,
+        trace: list[dict[str, object]],
+        record_evidence: EvidenceRecorder | None = None,
+        plan: PlanRevisionInput | None = None,
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        payload, block = real_dispatch(
+            call,
+            budget_value,
+            period,
+            user_id,
+            source,
+            trace,
+            record_evidence,
+            plan=plan,
+        )
+        if call.tool_use_id == "missing":
+            assert payload is not None
+            plan = payload["plan"]
+            assert isinstance(plan, dict)
+            plan.update(total_cents=None, accepted=False)
+        return payload, block
+
+    monkeypatch.setattr(loop, "dispatch", missing_dispatch)
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_tool_block("missing"), _budget_block("s1")], "tool_use"),
+        _reply([_tool_block("corrected")], "tool_use"),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "planned"
+    assert result["planner_revisions"] == 2
+    expected = execute_plan(plan_args(), budget(), PERIOD)
+    assert result["answer"] == render_public_answer(expected)
+
+
+def test_planner_cap_finishes_later_budget_call_and_drops_accepted_plan() -> None:
+    over = plan_args(plan_cap_cents=100)
+    recorded: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        recorded.append(copy.deepcopy(payload))
+        return _REV
+
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("p1", payload=over), _tool_block("p2", payload=over)],
+            "tool_use",
+        ),
+        _reply([_tool_block("p3"), _tool_block("p4"), _budget_block("s1")], "tool_use"),
+    ]
+    result, provider = _run(replies, record_evidence=record)
+    assert len(provider.requests) == 2
+    assert result["status"] == "limit"
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
+    assert len(recorded) == MAX_PLANNER_REVISIONS
+    assert [entry["tool_use_id"] for entry in result["tool_trace"]] == [
+        "p1",
+        "p2",
+        "p3",
+        "s1",
+    ]
+    assert result["tool_trace"][-1] == _budget_trace("s1", sequence=4)
+
+
+def test_later_evidence_failure_cannot_be_hidden_by_first_accepted_plan() -> None:
+    recorded: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        recorded.append(copy.deepcopy(payload))
+        if len(recorded) == 2:
+            raise RuntimeError("store-failed")
+        return _REV
+
+    provider = FakeLLM([_reply([_tool_block("p1"), _tool_block("p2")], "tool_use")])
+    with pytest.raises(RuntimeError, match="store-failed"):
+        run_chat(provider, "plan", budget(), PERIOD, record_evidence=record)
+    assert len(recorded) == 2
+    assert len(provider.requests) == 1
+
+
+def test_provider_failure_after_nonterminal_result_stays_unavailable() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [_tool_block("p1", payload=plan_args(plan_cap_cents=100))], "tool_use"
+            ),
+            RuntimeError(_SECRET),
+        ]
+    )
+    with pytest.raises(ChatUnavailable) as caught:
+        run_chat(provider, "plan", budget(), PERIOD)
+    assert str(caught.value) == _UNAVAILABLE
+    _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 2
+
+
+def test_terminal_success_strips_hidden_reasoning_without_followup() -> None:
+    hidden = {"text": "hidden plan"}
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                {"reasoningContent": hidden},
+                _text_block("private intermediate", reasoning=hidden),
+                _tool_block("p1", reasoning=hidden),
+            ],
+            "tool_use",
+        )
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 1
+    assert result["status"] == "planned"
+    assert "hidden plan" not in json.dumps(result)
+    assert "private intermediate" not in json.dumps(result)
+    _assert_public(result)
+
+
+def test_tool_specs_build_once_per_run_and_resist_provider_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    planner_spec = planner_tool_spec()
+    summary_spec = budget_tool_spec()
+    expected = copy.deepcopy(
+        [
+            planner_spec,
+            summary_spec,
+            catalog_tool_spec(),
+            get_plan_tool_spec(),
+            get_meal_tool_spec(),
+            substitute_tool_spec(),
+            price_tool_spec(),
+            ingredient_tool_spec(),
+        ]
+    )
+    builds: list[str] = []
+
+    def planner() -> dict[str, object]:
+        builds.append("planner")
+        return planner_spec
+
+    def summary() -> dict[str, object]:
+        builds.append("summary")
+        return summary_spec
+
+    class MutatingLLM(FakeLLM):
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            assert tools == expected
+            response = super().converse(system_prompt, messages, tools)
+            spec = tools[0]["toolSpec"]
+            assert isinstance(spec, dict)
+            spec["inputSchema"] = {"json": {}}
+            tools.clear()
+            return response
+
+    monkeypatch.setattr(loop, "planner_tool_spec", planner)
+    monkeypatch.setattr(loop, "budget_tool_spec", summary)
+    first = MutatingLLM(_planner_then_final(payload=plan_args(plan_cap_cents=100)))
+    result = run_chat(first, "plan", budget(), PERIOD)
+    assert result["status"] == "needs_revision"
+    assert len(first.requests) == 2
+    assert builds == ["planner", "summary"]
+    second = MutatingLLM([_reply([_tool_block("p1")], "tool_use")])
+    assert run_chat(second, "plan", budget(), PERIOD)["status"] == "planned"
+    assert builds == ["planner", "summary", "planner", "summary"]
+    assert [
+        planner_spec,
+        summary_spec,
+        catalog_tool_spec(),
+        get_plan_tool_spec(),
+        get_meal_tool_spec(),
+        substitute_tool_spec(),
+        price_tool_spec(),
+        ingredient_tool_spec(),
+    ] == expected
+
+
+@pytest.mark.parametrize("kind", ["plan", "summary"])
+def test_terminal_result_retains_cache_usage(kind: str) -> None:
+    usage = {
+        "inputTokens": 4,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 9,
+        "cacheWriteInputTokens": 0,
+    }
+    call = _tool_block("p1") if kind == "plan" else _budget_block("s1")
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([call], "tool_use", usage=usage)
+    ]
+    if kind != "plan":
+        replies.append(_reply([_text_block("done")], "end_turn", usage=usage))
+    result, provider = _run(replies)
+    turns = 1 if kind == "plan" else 2
+    assert len(provider.requests) == turns
+    assert result["model_turns"] == turns
+    if kind == "plan":
+        assert result["usage"] == usage
+    else:
+        assert result["usage"] == {key: value * 2 for key, value in usage.items()}
+    assert result["usage"] is not usage
+
+
+def test_eighth_turn_can_finish_with_accepted_plan() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block(f"bad-{index}", name="unsupported", payload={})], "tool_use"
+        )
+        for index in range(MAX_MODEL_TURNS - 1)
+    ]
+    replies.append(_reply([_tool_block("ok")], "tool_use"))
+    result, provider = _run(replies)
+    assert len(provider.requests) == MAX_MODEL_TURNS
+    assert result["model_turns"] == MAX_MODEL_TURNS
+    assert result["status"] == "planned"
+    assert result["planner_revisions"] == 1
+    assert result["answer"] == render_public_answer(
+        execute_plan(plan_args(), budget(), PERIOD)
+    )
+
+
+def test_cache_usage_sums_across_correction_turns() -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [_tool_block("over", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+            usage={
+                "inputTokens": 4,
+                "outputTokens": 5,
+                "cacheReadInputTokens": 0,
+                "cacheWriteInputTokens": 7,
+            },
+        ),
+        _reply(
+            [_tool_block("ok")],
+            "tool_use",
+            usage={
+                "inputTokens": 6,
+                "outputTokens": 7,
+                "cacheReadInputTokens": 9,
+                "cacheWriteInputTokens": 0,
+            },
+        ),
+    ]
+    result, provider = _run(replies)
+    assert len(provider.requests) == 2
+    assert result["status"] == "planned"
+    assert result["usage"] == {
+        "inputTokens": 10,
+        "outputTokens": 12,
+        "cacheReadInputTokens": 9,
+        "cacheWriteInputTokens": 7,
+    }
+
+
+@pytest.mark.parametrize("key", ["cacheReadInputTokens", "cacheWriteInputTokens"])
+@pytest.mark.parametrize("missing_at", [0, 1, 2])
+@pytest.mark.parametrize("value", [None, True, False, -1, 1.0, "1", [], {}, "absent"])
+def test_unknown_cache_usage_does_not_reappear(
+    key: str, missing_at: int, value: object
+) -> None:
+    counts = {
+        "inputTokens": 3,
+        "outputTokens": 4,
+        "cacheReadInputTokens": 5,
+        "cacheWriteInputTokens": 6,
+    }
+    replies: list[dict[str, object] | BaseException] = []
+    for index in range(3):
+        usage: dict[str, object] = dict(counts)
+        if index == missing_at:
+            if value == "absent":
+                usage.pop(key)
+            else:
+                usage[key] = value
+        call = (
+            _tool_block(f"bad-{index}", name="unsupported", payload={})
+            if index < 2
+            else _tool_block("ok")
+        )
+        response = _reply([call], "tool_use")
+        response["usage"] = usage
+        replies.append(response)
+    result, provider = _run(replies)
+    assert len(provider.requests) == 3
+    assert result["status"] == "planned"
+    expected = {name: count * 3 for name, count in counts.items() if name != key}
+    assert result["usage"] == expected
+
+
+def _discovery_block(tool_id: str = "d1", **changes: object) -> dict[str, object]:
+    args: dict[str, object] = {"query": "egg", "diet": "vegetarian"}
+    args.update(changes)
+    return _tool_block(tool_id, name=CATALOG_TOOL_NAME, payload=args)
+
+
+def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
+    usage = {
+        "inputTokens": 4,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 7,
+        "cacheWriteInputTokens": 0,
+    }
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    {"reasoningContent": {"text": "hidden-discovery"}},
+                    _text_block("injected-model-prose"),
+                    _discovery_block(),
+                ],
+                "tool_use",
+                usage=usage,
+            )
+        ]
+    )
+    captured: list[list[dict[str, object]]] = []
+    pulse = Heartbeats()
+
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("Discovery MUST NOT record plan evidence")
+
+    result = run_chat(
+        provider,
+        "egg meals",
+        budget(),
+        PERIOD,
+        heartbeat=pulse,
+        record_evidence=record,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == len(captured) == 1
+    assert len(captured[0]) == 1
+    tool_result = cast(dict[str, object], captured[0][0]["toolResult"])
+    content = cast(list[dict[str, object]], tool_result["content"])
+    expected = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    assert content == [{"json": expected}]
+    assert result["answer"] == catalog_answer(expected)
+    assert "Breakfast burritos" in result["answer"]
+    assert "bean tacos" not in result["answer"]
+    assert result["status"] == "clarification"
+    assert result["planner_revisions"] == 0
+    assert result["model_turns"] == 1
+    assert result["usage"] == usage
+    assert result["plan"] is result["request"] is result["evidence_id"] is None
+    assert pulse.count == 3
+    dumped = json.dumps([result, captured])
+    assert "hidden-discovery" not in dumped
+    assert "injected-model-prose" not in dumped
+    assert "reasoningContent" not in dumped
+
+
+@pytest.mark.parametrize("discovery_position", [0, 1, 2])
+@pytest.mark.parametrize("later_revision", ["invalid_servings", "over_budget"])
+def test_discovery_preserves_ordered_planner_revisions(
+    discovery_position: int, later_revision: str
+) -> None:
+    first = execute_plan(plan_args(), budget(), PERIOD)
+    assert cast(dict[str, object], first["plan"])["accepted"] is True
+    discovery_found = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    later_args = (
+        plan_args(meals=[{"recipe_id": "chicken_tacos", "servings": 9}])
+        if later_revision == "invalid_servings"
+        else plan_args(plan_cap_cents=100)
+    )
+    calls = [_tool_block("p1"), _tool_block("p2", payload=later_args)]
+    calls.insert(discovery_position, _discovery_block())
+    provider = FakeLLM(
+        [
+            _reply(calls, "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    records: list[dict[str, object]] = []
+    captured: list[list[dict[str, object]]] = []
+    revision_ids = [_REV, "b" * 64]
+
+    def record(payload: dict[str, object]) -> str:
+        records.append(copy.deepcopy(payload))
+        return revision_ids[len(records) - 1]
+
+    result = run_chat(
+        provider,
+        "plan and find egg meals",
+        budget(),
+        PERIOD,
+        record_evidence=record,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == result["model_turns"] == 2
+    assert result["planner_revisions"] == 2
+    assert captured == []
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    planner_sequences = [
+        sequence for sequence in range(1, 4) if sequence != discovery_position + 1
+    ]
+    expected_trace = [
+        _success_trace(
+            "p1",
+            first["evidence_id"],
+            sequence=planner_sequences[0],
+            revision_id=revision_ids[0],
+        )
+    ]
+    if later_revision == "invalid_servings":
+        assert result["status"] == "clarification"
+        for field in (
+            "plan",
+            "budget",
+            "request",
+            "evidence_id",
+            "evidence_revision_id",
+        ):
+            assert result[field] is None
+        expected_trace.append(
+            _error_trace(
+                TOOL_NAME, "p2", sequence=planner_sequences[1], revision_index=2
+            )
+        )
+        assert records == [first]
+    else:
+        later = execute_plan(later_args, budget(), PERIOD)
+        assert cast(dict[str, object], later["plan"])["accepted"] is False
+        assert result["status"] == "needs_revision"
+        for field in ("plan", "budget", "request", "evidence_id"):
+            assert result[field] == later[field]
+        assert result["evidence_revision_id"] == revision_ids[1]
+        expected_trace.append(
+            _success_trace(
+                "p2",
+                later["evidence_id"],
+                sequence=planner_sequences[1],
+                revision_index=2,
+                revision_id=revision_ids[1],
+            )
+        )
+        assert records == [first, later]
+    expected_trace.insert(
+        discovery_position,
+        {
+            "tool": CATALOG_TOOL_NAME,
+            "outcome": "success",
+            "tool_use_id": "d1",
+            "sequence": discovery_position + 1,
+            "revision_index": None,
+            "inputs": {
+                "status": "ok",
+                "recipe_ids": discovery_found["recipe_ids"],
+                "diet": "vegetarian",
+                "exclude": [],
+            },
+        },
+    )
+    assert result["tool_trace"] == expected_trace
+    messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+    blocks = cast(list[dict[str, object]], messages[-1]["content"])
+    assert [block["toolResult"]["toolUseId"] for block in blocks] == [
+        call["toolUse"]["toolUseId"] for call in calls
+    ]
+    expected_statuses = [
+        "success",
+        "error" if later_revision == "invalid_servings" else "success",
+    ]
+    expected_statuses.insert(discovery_position, "success")
+    assert [block["toolResult"]["status"] for block in blocks] == expected_statuses
+    assert "injected-model-prose" not in result["answer"]
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("order", list(permutations(["discovery", "plan", "budget"])))
+@pytest.mark.parametrize(
+    "mode", ["accepted", "over", "plan_error", "discovery_error", "budget_error"]
+)
+def test_mixed_discovery_precedence_is_order_independent(
+    order: tuple[str, ...], mode: str
+) -> None:
+    args = plan_args()
+    if mode == "over":
+        args["plan_cap_cents"] = 100
+    elif mode == "plan_error":
+        args.update(
+            meals=[{"recipe_id": "vegetable_pasta", "servings": 1}],
+            ingredient_exclusions=["onion"],
+        )
+    calls = {
+        "discovery": _discovery_block(query="")
+        if mode == "discovery_error"
+        else _discovery_block(),
+        "plan": _tool_block("p1", payload=args),
+        "budget": _budget_block("s1", payload={"prose": _SECRET})
+        if mode == "budget_error"
+        else _budget_block("s1"),
+    }
+    provider = FakeLLM(
+        [
+            _reply([calls[name] for name in order], "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    records: list[dict[str, object]] = []
+    captured: list[list[dict[str, object]]] = []
+    pulse = Heartbeats()
+
+    def record(payload: dict[str, object]) -> str:
+        records.append(payload)
+        return _REV
+
+    result = run_chat(
+        provider,
+        "plan and find egg meals",
+        budget(),
+        PERIOD,
+        record_evidence=record,
+        heartbeat=pulse,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == (1 if mode == "accepted" else 2)
+    assert pulse.count == (5 if mode == "accepted" else 7)
+    assert result["planner_revisions"] == 1
+    assert len(result["tool_trace"]) == 3
+    assert [entry["tool"] for entry in result["tool_trace"]] == [
+        {
+            "discovery": CATALOG_TOOL_NAME,
+            "plan": TOOL_NAME,
+            "budget": BUDGET_TOOL_NAME,
+        }[name]
+        for name in order
+    ]
+    assert result["usage"] == {
+        "inputTokens": len(provider.requests),
+        "outputTokens": len(provider.requests),
+    }
+    if mode == "plan_error":
+        assert result["status"] == "clarification"
+        assert "onion" in result["answer"]
+        assert "Change the recipe or the restriction." in result["answer"]
+        assert result["evidence_id"] is None
+        assert result["evidence_revision_id"] is None
+        assert result["plan"] is None
+        assert not records
+        planner_answer = render_public_answer(
+            None,
+            {
+                "error_code": "exclusion_reject",
+                "recipe_id": "vegetable_pasta",
+                "ingredient_id": "onion",
+            },
+        )
+    else:
+        expected = execute_plan(args, budget(), PERIOD)
+        assert result["plan"] == expected["plan"]
+        assert result["evidence_id"] == expected["evidence_id"]
+        assert result["evidence_revision_id"] == _REV
+        assert result["status"] == ("needs_revision" if mode == "over" else "planned")
+        assert result["answer"].startswith(render_public_answer(expected))
+        assert len(records) == 1
+        planner_answer = render_public_answer(expected)
+    discovery_answer = (
+        DISCOVERY_ERROR
+        if mode == "discovery_error"
+        else catalog_answer(
+            execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+        )
+    )
+    summary_answer = (
+        "A tool call failed. Check the request."
+        if mode == "budget_error"
+        else budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    )
+    expected_answer = " ".join([planner_answer, discovery_answer, summary_answer])
+    assert result["answer"] == expected_answer
+    if mode == "discovery_error":
+        assert DISCOVERY_ERROR in result["answer"]
+    if mode == "budget_error":
+        assert "A tool call failed." in result["answer"]
+    assert "injected-model-prose" not in result["answer"]
+    if mode == "accepted":
+        assert len(captured) == 1
+        assert len(captured[0]) == 3
+    else:
+        assert captured == []
+        messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+        assert len(cast(list[object], messages[-1]["content"])) == 3
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("order", [False, True])
+def test_discovery_and_budget_return_both_in_one_call(order: bool) -> None:
+    calls = [_discovery_block(), _budget_block("s1")]
+    if order:
+        calls.reverse()
+    provider = FakeLLM([_reply(calls, "tool_use")])
+    captured: list[list[dict[str, object]]] = []
+    pulse = Heartbeats()
+    result = run_chat(
+        provider,
+        "find egg meals and show my budget",
+        budget(),
+        PERIOD,
+        heartbeat=pulse,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert len(provider.requests) == len(captured) == 1
+    assert len(captured[0]) == 2
+    assert pulse.count == 4
+    assert result["status"] == "clarification"
+    assert result["model_turns"] == 1
+    assert result["usage"] == {"inputTokens": 1, "outputTokens": 1}
+    assert result["planner_revisions"] == 0
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    assert result["answer"] == (
+        catalog_answer(discovery)
+        + " "
+        + budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+    )
+    assert result["plan"] is result["evidence_id"] is None
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("failure", ["budget", "unsupported", "discovery"])
+def test_discovery_mixed_failure_preserves_each_outcome(
+    reverse: bool, failure: str
+) -> None:
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    if failure == "discovery":
+        calls = [_discovery_block(query=""), _budget_block("s1")]
+        expected = (
+            DISCOVERY_ERROR
+            + " "
+            + budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+        )
+    else:
+        failed = (
+            _budget_block("bad", payload={"prose": _SECRET})
+            if failure == "budget"
+            else _tool_block("bad", name="unsupported", payload={"prose": _SECRET})
+        )
+        calls = [_discovery_block(), failed]
+        expected = catalog_answer(discovery) + " A tool call failed. Check the request."
+    if reverse:
+        calls.reverse()
+    provider = FakeLLM(
+        [
+            _reply(calls, "tool_use"),
+            _reply(
+                [_text_block("injected-model-prose USD $0 https://evil.test Buy")],
+                "end_turn",
+            ),
+        ]
+    )
+    captured: list[list[dict[str, object]]] = []
+    result = run_chat(
+        provider,
+        "find meals and show my budget",
+        budget(),
+        PERIOD,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert result["answer"] == expected
+    assert result["status"] == "clarification"
+    assert result["planner_revisions"] == 0
+    assert result["model_turns"] == len(provider.requests) == 2
+    assert result["usage"] == {"inputTokens": 2, "outputTokens": 2}
+    assert result["plan"] is result["evidence_id"] is None
+    assert captured == []
+    assert len(result["tool_trace"]) == 2
+    assert sorted(entry["outcome"] for entry in result["tool_trace"]) == [
+        "error",
+        "success",
+    ]
+    messages = cast(list[dict[str, object]], provider.requests[1]["messages"])
+    assert len(cast(list[object], messages[-1]["content"])) == 2
+    assert "injected-model-prose" not in result["answer"]
+    _assert_public(result)
+
+
+def test_discovery_failure_can_be_corrected_without_planner_revision() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block("bad", query="")], "tool_use"),
+            _reply([_discovery_block("good")], "tool_use"),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert "Catalog choices:" in result["answer"]
+    assert DISCOVERY_ERROR not in result["answer"]
+    assert result["planner_revisions"] == 0
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_discovery_batch_keeps_successful_summary_alongside_failed_summary(
+    reverse: bool,
+) -> None:
+    calls = [
+        _discovery_block(),
+        _budget_block("ok"),
+        _budget_block("bad", payload={"prose": _SECRET}),
+    ]
+    if reverse:
+        calls.reverse()
+    result, provider = _run(
+        [
+            _reply(calls, "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    assert result["answer"] == (
+        catalog_answer(discovery)
+        + " "
+        + budget_summary_answer(budget(), PERIOD, spending_source="fixture")
+        + " A tool call failed. Check the request."
+    )
+    assert result["status"] == "clarification"
+    assert result["plan"] is result["evidence_id"] is None
+    assert result["planner_revisions"] == 0
+    assert len(provider.requests) == 2
+    _assert_public(result)
+
+
+def test_later_batch_without_discovery_restores_generic_failure() -> None:
+    result, provider = _run(
+        [
+            _reply(
+                [
+                    _discovery_block(),
+                    _tool_block("p1"),
+                    _budget_block("bad", payload={"invalid": True}),
+                ],
+                "tool_use",
+            ),
+            _reply([_tool_block("unsupported", name="unsupported")], "tool_use"),
+            _reply([_text_block("injected-model-prose")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == CLARIFICATION
+    assert result["status"] == "clarification"
+    assert result["plan"] is result["evidence_id"] is None
+    assert result["planner_revisions"] == 1
+    assert len(provider.requests) == 3
+    _assert_public(result)
+
+
+def test_summary_after_discovery_error_takes_final_turn() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block(query="")], "tool_use"),
+            _reply([_budget_block("s1")], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    assert result["answer"] == budget_summary_answer(
+        budget(), PERIOD, spending_source="fixture"
+    )
+    assert result["status"] == "clarification"
+    assert result["model_turns"] == len(provider.requests) == 3
+    assert result["planner_revisions"] == 0
+    assert result["plan"] is result["evidence_id"] is None
+    _assert_public(result)
+
+
+def test_unknown_exclusion_discovery_gets_static_answer_and_no_trace_names() -> None:
+    result, provider = _run(
+        [_reply([_discovery_block(exclude=["zzqsentinel"])], "tool_use")]
+    )
+    discovery = execute_catalog_search(
+        {"query": "egg", "diet": "vegetarian", "exclude": ["zzqsentinel"]}
+    )
+    assert discovery["status"] == "unknown_exclusion"
+    assert result["answer"] == catalog_answer(discovery)
+    assert result["answer"] != DISCOVERY_ERROR
+    assert result["plan"] is None
+    assert result["tool_trace"][0]["inputs"] == {
+        "status": "unknown_exclusion",
+        "recipe_ids": [],
+        "diet": "vegetarian",
+        "exclude": [],
+    }
+    assert "zzqsentinel" not in json.dumps(result["tool_trace"])
+    assert "zzqsentinel" not in result["answer"]
+
+
+def test_discovery_then_plan_stops_at_choices() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block()], "tool_use"),
+            _reply([_tool_block("p1")], "tool_use"),
+        ]
+    )
+    assert len(provider.requests) == 1
+    assert result["status"] == "clarification"
+    assert result["plan"] is None
+    assert result["model_turns"] == 1
+
+
+@pytest.mark.parametrize("changes", [{"price": 0}, {"query": ""}])
+def test_invalid_discovery_cannot_show_model_suggestions(
+    changes: dict[str, object],
+) -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block(**changes)], "tool_use"),
+            _reply(
+                [_text_block("Try sushi for USD $0 at https://evil.test")], "end_turn"
+            ),
+        ]
+    )
+    assert len(provider.requests) == 2
+    assert result["answer"] == DISCOVERY_ERROR
+    assert result["plan"] is None
+
+
+def test_discovery_errors_obey_model_turn_cap() -> None:
+    result, provider = _run(
+        [
+            _reply([_discovery_block(f"d-{turn}", diet="keto")], "tool_use")
+            for turn in range(MAX_MODEL_TURNS)
+        ]
+    )
+    assert len(provider.requests) == MAX_MODEL_TURNS
+    assert result["status"] == "limit"
+    assert result["planner_revisions"] == 0
+    assert len(result["tool_trace"]) == MAX_MODEL_TURNS
+
+
+def test_discovery_cannot_bypass_planner_revision_cap() -> None:
+    over = plan_args(plan_cap_cents=100)
+    provider = FakeLLM(
+        [
+            _reply([_tool_block(f"p-{turn}", payload=over)], "tool_use")
+            for turn in range(MAX_PLANNER_REVISIONS)
+        ]
+        + [_reply([_tool_block("limit"), _discovery_block()], "tool_use")]
+    )
+    captured: list[list[dict[str, object]]] = []
+    result = run_chat(
+        provider,
+        "plan",
+        budget(),
+        PERIOD,
+        observe_terminal_tool_results=captured.append,
+    )
+    assert result["status"] == "limit"
+    assert result["planner_revisions"] == MAX_PLANNER_REVISIONS
+    assert result["tool_trace"][-1]["tool"] == CATALOG_TOOL_NAME
+    assert len(captured) == 1
+    assert len(captured[0]) == 2
+
+
+def test_provider_failure_after_discovery_error_is_static() -> None:
+    provider = FakeLLM(
+        [
+            _reply([_discovery_block(query="")], "tool_use"),
+            RuntimeError(_SECRET),
+        ]
+    )
+    with pytest.raises(ChatUnavailable) as caught:
+        run_chat(provider, "find meals", budget(), PERIOD)
+    assert str(caught.value) == _UNAVAILABLE
+    _assert_static(caught.value, _SECRET)
+    assert len(provider.requests) == 2
+
+
+@pytest.mark.parametrize("failure", ["secret-marker", "incomplete-capture"])
+def test_discovery_terminal_observer_failure_propagates(failure: str) -> None:
+    provider = FakeLLM([_reply([_discovery_block()], "tool_use")])
+    observed: list[list[dict[str, object]]] = []
+
+    def observe(blocks: list[dict[str, object]]) -> None:
+        observed.append(blocks)
+        raise RuntimeError(failure)
+
+    with pytest.raises(RuntimeError, match=failure):
+        run_chat(
+            provider,
+            "egg meals",
+            budget(),
+            PERIOD,
+            observe_terminal_tool_results=observe,
+        )
+    assert len(provider.requests) == len(observed) == 1
+
+
+_GATE_TEXT = "Chickpeas raise the energy to 384 kcal per serving."
+
+
+def _prose_run(
+    replies: list[dict[str, object] | BaseException], *, model_prose: bool = True
+) -> dict[str, object]:
+    return run_chat(
+        FakeLLM(replies),
+        "swap",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        model_prose=model_prose,
+    )
+
+
+def _tool_then(
+    name: str, payload: dict[str, object], text: str = _GATE_TEXT
+) -> list[dict[str, object] | BaseException]:
+    return [
+        _reply([_tool_block("t1", name=name, payload=payload)], "tool_use"),
+        _reply([_text_block(text)], "end_turn"),
+    ]
+
+
+_GATE_CASES: dict[str, list[dict[str, object] | BaseException]] = {
+    "tool_failed": _tool_then(
+        SUBSTITUTE_TOOL, {**_SWAP_ARGS, "recipe_id": "no_such_meal"}
+    ),
+    "no_tools": [_reply([_text_block("Which meal should I plan?")], "end_turn")],
+    "not_final": _tool_then(INGREDIENT_TOOL, {"name": "zorblax root"}),
+    "planner": _tool_then(TOOL_NAME, plan_args(plan_cap_cents=100)),
+    "refusal": [_reply([_text_block('{"refusal":"purchase"}')], "end_turn")],
+    "incomplete": _tool_then(TOOL_NAME, plan_args(plan_cap_cents=100))[:1]
+    + [_reply([_text_block(_GATE_TEXT)], "max_tokens")],
+    "incomplete_blank": [_reply([_text_block("   ")], "end_turn")],
+    "limit": [
+        _reply(
+            [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
+            "tool_use",
+        )
+        for index in range(MAX_PLANNER_REVISIONS + 1)
+    ],
+    "limit_turns": [
+        _reply(
+            [_tool_block(f"u-{index}", name="purchase_items", payload={"token": "x"})],
+            "tool_use",
+        )
+        for index in range(MAX_MODEL_TURNS)
+    ],
+    "planned_terminal": [_reply([_tool_block("accepted")], "tool_use")],
+    "discovery_terminal": [_reply([_discovery_block()], "tool_use")],
+}
+_GATE_NAMES = {
+    "incomplete_blank": "incomplete",
+    "limit_turns": "limit",
+}
+
+
+@pytest.mark.parametrize("gate", list(_GATE_CASES))
+def test_a_run_that_is_not_clean_records_its_gate_reason(
+    gate: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.agent.ingredient_tool._live_client", lambda: None)
+    result = _prose_run(copy.deepcopy(_GATE_CASES[gate]))
+    assert result["reply_check"] == {"gate": _GATE_NAMES.get(gate, gate)}
+    assert result["reply_source"] == "template"
+    assert _GATE_TEXT not in cast(str, result["answer"])
+
+
+@pytest.mark.parametrize("gate", list(_GATE_CASES))
+def test_the_gate_reason_is_absent_when_model_prose_is_off(
+    gate: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.agent.ingredient_tool._live_client", lambda: None)
+    result = _prose_run(copy.deepcopy(_GATE_CASES[gate]), model_prose=False)
+    assert result["reply_check"] is None
+    assert result["reply_source"] == "template"
+
+
+def test_a_planner_that_asks_the_user_records_the_clarification_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload: dict[str, object] = {"plan": {"accepted": False, "total_cents": None}}
+
+    def asking(call: ToolCall, *args: object, **kwargs: object) -> tuple[Any, Any]:
+        return payload, tool_result_block(call.tool_use_id, payload, success=True)
+
+    monkeypatch.setattr(loop, "dispatch", asking)
+    result = _prose_run(_tool_then(TOOL_NAME, plan_args()))
+    assert result["status"] == "clarification"
+    assert result["planner_revisions"] == 1
+    assert result["reply_check"] == {"gate": "clarification"}
+
+
+def test_a_proposal_run_records_the_proposal_gate() -> None:
+    result, _ = _propose_run(_proposal_replies("done"), Proposer(), model_prose=True)
+    assert result["reply_check"] == {"gate": "proposal"}
+
+
+def test_a_clean_run_keeps_the_verdict_keys_and_adds_the_clean_gate() -> None:
+    passed = _prose_run(_tool_then(SUBSTITUTE_TOOL, _SWAP_ARGS))
+    assert passed["reply_source"] == "model"
+    assert passed["reply_check"] == {
+        "ok": True,
+        "reasons": [],
+        "unmatched": [],
+        "gate": "clean",
+    }
+    failed = _prose_run(_tool_then(SUBSTITUTE_TOOL, _SWAP_ARGS, "It adds 999 kcal."))
+    assert failed["reply_source"] == "template"
+    assert failed["reply_check"] == {
+        "ok": False,
+        "reasons": ["unmatched_number"],
+        "unmatched": ["+999"],
+        "gate": "clean",
+    }

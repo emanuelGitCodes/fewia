@@ -3,7 +3,6 @@ import {
   NUTRITION_PORTION_NOTICE,
   SAMPLE_ESTIMATE_NOTICE,
   SHAPE_ERROR,
-  SPOONACULAR_COST_NOTICE,
   isBool,
   isNonemptyString,
   isRecord,
@@ -23,8 +22,6 @@ import {
   type MealNutrition,
   type MealPlanNutrition,
   type PlanLine,
-  type SupermarketEstimate,
-  type SupermarketLine,
 } from "./apiTypes";
 
 function isTimezoneTimestamp(value: unknown): value is string {
@@ -166,52 +163,14 @@ export function copyMealPlanNutrition(value: unknown): MealPlanNutrition | null 
   return total !== null && meals.length >= 1 && meals.length <= 3 ? planNutrition(total, meals) : null;
 }
 
-export function copySupermarketEstimate(value: unknown): SupermarketEstimate | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  const total = value.total_cents;
-  if (total !== null && !isNonnegativeCents(total)) {
-    return null;
-  }
-  if (value.notice !== SPOONACULAR_COST_NOTICE) {
-    return null;
-  }
-  const totalCents = (total === null ? null : total) as number | null;
-  if (!("lines" in value)) {
-    return { total_cents: totalCents, notice: SPOONACULAR_COST_NOTICE, lines: [] };
-  }
-  if (!Array.isArray(value.lines)) {
-    return null;
-  }
-  const lines: SupermarketLine[] = [];
-  for (const item of value.lines) {
-    if (!isRecord(item) || !isNonemptyString(item.ingredient_id)) {
-      return null;
-    }
-    const cents = item.cents;
-    if (cents !== null && !isNonnegativeCents(cents)) {
-      return null;
-    }
-    lines.push({ ingredient_id: item.ingredient_id, cents: cents as number | null });
-  }
-  return { total_cents: totalCents, notice: SPOONACULAR_COST_NOTICE, lines };
-}
-
 function isResult(value: unknown): value is GroceryJobResult {
-  if (
-    !isRecord(value) ||
-    !isPlan(value.plan) ||
-    !isBudget(value.budget) ||
-    !isNonemptyString(value.spending_source) ||
-    (value.meal_nutrition !== undefined && copyMealPlanNutrition(value.meal_nutrition) === null)
-  ) {
-    return false;
-  }
-  if (!("supermarket_estimate" in value)) {
-    return true;
-  }
-  return copySupermarketEstimate(value.supermarket_estimate) !== null;
+  return (
+    isRecord(value) &&
+    isPlan(value.plan) &&
+    isBudget(value.budget) &&
+    isNonemptyString(value.spending_source) &&
+    (value.meal_nutrition === undefined || copyMealPlanNutrition(value.meal_nutrition) !== null)
+  );
 }
 
 export function parseConfig(value: unknown): GroceryConfig {
@@ -271,13 +230,6 @@ export function parseJob(value: unknown): GroceryJob {
       throw new Error(SHAPE_ERROR);
     }
     result = { ...result, meal_nutrition };
-  }
-  if (result !== null && "supermarket_estimate" in result) {
-    const supermarket_estimate = copySupermarketEstimate(result.supermarket_estimate);
-    if (supermarket_estimate === null) {
-      throw new Error(SHAPE_ERROR);
-    }
-    result = { ...result, supermarket_estimate };
   }
   return { ...value, error_detail, result } as GroceryJob;
 }

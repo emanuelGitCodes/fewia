@@ -23,7 +23,7 @@ _MACRO_NUMBERS = ("203", "204", "205", "307")
 _FIELDS = ("energy_kcal", "protein_mg", "fat_mg", "carbohydrate_mg", "sodium_mg")
 
 
-def _load_api_key() -> SecretStr | None:
+def load_usda_api_key() -> SecretStr | None:
     try:
         settings = load_provider_settings()
     except ProviderConfigurationError:
@@ -95,7 +95,8 @@ def fetch_facts(
     try:
         response = client.get(
             FOOD_URL.format(fdc_id=fdc_id),
-            params={"api_key": api_key, "format": "full"},
+            params={"format": "full"},
+            headers={"X-Api-Key": api_key},
             follow_redirects=False,
             timeout=_TIMEOUT,
         )
@@ -130,7 +131,7 @@ def compare(
 
 
 def main() -> None:
-    secret = _load_api_key()
+    secret = load_usda_api_key()
     if secret is None:
         print(_KEY_FILE_ERROR)
         raise SystemExit(2)

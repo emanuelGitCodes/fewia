@@ -15,6 +15,7 @@ from app.services.meal_nutrition import (
     MacroTotals,
     MealNutrition,
     MealPlanNutrition,
+    ingredients_macros,
     meal_nutrition,
 )
 
@@ -221,6 +222,63 @@ def test_all_supported_recipes_are_available() -> None:
             assert result.meals[0].servings == servings
             assert result.notice == NOTICE_TEXT
             assert result.portion_notice == PORTION_TEXT
+
+
+def _reference_macros(recipe_id: str, servings: int) -> MacroTotals:
+    sums = [0, 0, 0, 0]
+    for ingredient_id, quantity in RECIPES[recipe_id].ingredients:
+        grams = quantity
+        if INGREDIENTS[ingredient_id].unit == "each":
+            grams = quantity * GRAMS_PER_EACH[ingredient_id]
+        fact = NUTRITION[ingredient_id]
+        for index, value in enumerate(
+            (fact.energy_kcal, fact.protein_mg, fact.carbohydrate_mg, fact.fat_mg)
+        ):
+            sums[index] += value * grams
+    scaled = [value * servings for value in sums]
+    return MacroTotals(*((value + 50) // 100 for value in scaled))
+
+
+def test_meal_nutrition_matches_reference_for_every_recipe() -> None:
+    assert len(SUPPORTED_RECIPE_IDS) == 40
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        for servings in (1, 3):
+            result = meal_nutrition(
+                grocery_request(meals=[{"recipe_id": recipe_id, "servings": servings}])
+            )
+            assert result.meals[0].per_serving == _reference_macros(recipe_id, 1)
+            assert result.meals[0].total == _reference_macros(recipe_id, servings)
+            assert result.total == _reference_macros(recipe_id, servings)
+
+
+def test_ingredients_macros_matches_meal_nutrition_for_every_recipe() -> None:
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        ingredients = RECIPES[recipe_id].ingredients
+        assert ingredients_macros(ingredients) == _reference_macros(recipe_id, 1)
+        assert ingredients_macros(ingredients, servings=3) == _reference_macros(
+            recipe_id, 3
+        )
+
+
+def test_ingredients_macros_hand_calculated_with_each_and_unrounded_scaling() -> None:
+    catalog = {"oats": facts(energy_kcal=1), "eggs": facts(protein_mg=3)}
+    # 40 g oats -> 40 energy; 3 eggs -> 150 g -> 450 protein_mg.
+    items = [("oats", 40), ("eggs", 3)]
+    assert ingredients_macros(items, facts=catalog) == MacroTotals(0, 5, 0, 0)
+    # 40 * 3 = 120 -> 1 kcal; 450 * 3 = 1350 -> 14 mg-hundreds.
+    assert ingredients_macros(items, servings=3, facts=catalog) == MacroTotals(
+        1, 14, 0, 0
+    )
+    portions = {"eggs": 20}
+    assert ingredients_macros(
+        items, facts=catalog, grams_per_each=portions
+    ) == MacroTotals(0, 2, 0, 0)
+
+
+def test_ingredients_macros_unavailable_for_missing_fact_or_portion() -> None:
+    assert ingredients_macros([("oats", 40)], facts={}) is None
+    assert ingredients_macros([("eggs", 1)], grams_per_each={}) is None
+    assert ingredients_macros([("nope", 1)]) is None
 
 
 def test_missing_facts_are_unavailable() -> None:

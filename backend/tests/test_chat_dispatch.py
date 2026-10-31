@@ -1,21 +1,34 @@
 import json
 from datetime import date
-from typing import cast, get_args
+from typing import Any, cast, get_args
 
 import pytest
 
+from app.agent import ingredient_tool
 from app.agent.budget_tool import (
     TOOL_NAME as BUDGET_TOOL_NAME,
 )
 from app.agent.budget_tool import (
     execute_budget_summary,
 )
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
+)
+from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_messages import ChatProtocolError, ToolCall
+from app.agent.ingredient_tool import INGREDIENT_TOOL, execute_ingredient_facts
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.price_tool import PRICE_TOOL, execute_price_lines
+from app.agent.proposal_tool import PROPOSAL_ONCE, PROPOSAL_TOOL
+from app.agent.substitute_tool import SUBSTITUTE_TOOL, execute_substitute
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
+from app.domain.nutrition import NutritionFacts
+from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
+from app.domain.plan_revision import PlanRevisionInput
+from app.providers.usda_live import LiveFood
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
@@ -28,14 +41,18 @@ def _error_trace(
     *,
     sequence: int = 1,
     revision_index: int | None = 1,
+    inputs: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    return {
+    entry: dict[str, object] = {
         "tool": tool,
         "outcome": "error",
         "tool_use_id": tool_use_id,
         "sequence": sequence,
         "revision_index": revision_index,
     }
+    if inputs is not None:
+        entry["inputs"] = inputs
+    return entry
 
 
 def _success_trace(
@@ -88,6 +105,534 @@ def _tool_json(block: dict[str, object]) -> dict[str, object]:
     body = first["json"]
     assert isinstance(body, dict)
     return body
+
+
+def test_get_plan_and_get_meal_dispatch_read_only_with_trace() -> None:
+    trace: list[dict[str, object]] = []
+    plan_call = ToolCall("p1", "get_plan", {})
+    payload, block = dispatch(plan_call, budget(), PERIOD, 1, "fixture", trace)
+    assert payload is not None and payload["plan_revision_id"] is None
+    assert _tool_json(block) == payload
+    meal_call = ToolCall("m1", "get_meal", {"recipe_id": "chicken_tacos"})
+    meal, _ = dispatch(meal_call, budget(), PERIOD, 1, "fixture", trace)
+    assert meal is not None and meal["recipe_id"] == "chicken_tacos"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [
+        ("get_plan", "success"),
+        ("get_meal", "success"),
+    ]
+
+
+def test_trace_inputs_hold_validated_values_only() -> None:
+    trace: list[dict[str, object]] = []
+    for call in (
+        ToolCall("p1", "get_plan", {}),
+        ToolCall("m1", "get_meal", {"recipe_id": "chicken_tacos"}),
+        ToolCall("m2", "get_meal", {"recipe_id": _SECRET}),
+        ToolCall(
+            "w1", SUBSTITUTE_TOOL, {"recipe_id": "bean_tacos", "with_food": _SECRET}
+        ),
+        ToolCall("w2", SUBSTITUTE_TOOL, {"recipe_id": _SECRET, "with_food": "beef"}),
+        ToolCall("i1", INGREDIENT_TOOL, {"name": _SECRET}),
+    ):
+        dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert [entry["inputs"] for entry in trace] == [
+        {},
+        {"recipe_id": "chicken_tacos"},
+        {"recipe_id": "invalid"},
+        {"recipe_id": "bean_tacos", "status": "unknown_food"},
+        {"recipe_id": "invalid"},
+        {"status": "unknown"},
+    ]
+    assert _SECRET not in json.dumps(trace)
+
+
+def test_price_lines_trace_inputs_mark_invalid_recipe_ids() -> None:
+    trace: list[dict[str, object]] = []
+    call = ToolCall(
+        "pl1", PRICE_TOOL, {"meals": [{"recipe_id": _SECRET, "servings": 1}]}
+    )
+    dispatch(call, budget(), PERIOD, 1, "fixture", trace)
+    assert trace[0]["inputs"] == {"recipe_ids": ["invalid"]}
+    assert _SECRET not in json.dumps(trace)
+
+
+def test_substitute_trace_inputs_for_question_and_scale_payloads() -> None:
+    trace: list[dict[str, object]] = []
+    scale: dict[str, object] = {
+        "recipe_id": "chicken_tacos",
+        "servings": 2,
+        "scale_ingredient_id": "chicken_breast",
+        "scale_factor_percent": 50,
+    }
+    calls = (
+        ToolCall(
+            "q1", SUBSTITUTE_TOOL, {"recipe_id": "bean_tacos", "with_food": "pork"}
+        ),
+        ToolCall(
+            "q2",
+            SUBSTITUTE_TOOL,
+            {"recipe_id": "chicken_lentil_stew", "with_food": "beef"},
+        ),
+        ToolCall("s1", SUBSTITUTE_TOOL, scale),
+    )
+    payloads = [
+        dispatch(call, budget(), PERIOD, 1, "fixture", trace)[0] for call in calls
+    ]
+    assert trace[0]["inputs"] == {
+        "recipe_id": "bean_tacos",
+        "status": "needs_food_choice",
+    }
+    assert trace[1]["inputs"] == {
+        "recipe_id": "chicken_lentil_stew",
+        "status": "needs_ingredient_choice",
+    }
+    scaled = payloads[2]
+    assert scaled is not None and scaled["status"] == "swapped"
+    assert trace[2]["inputs"] == {
+        "recipe_id": "chicken_tacos",
+        "status": "swapped",
+        "scale_ingredient_id": "chicken_breast",
+        "servings": 2,
+        "servings_source": scaled["servings_source"],
+    }
+
+
+def test_get_plan_and_get_meal_invalid_arguments_return_static_error() -> None:
+    trace: list[dict[str, object]] = []
+    for name, args in (("get_plan", {"x": 1}), ("get_meal", {})):
+        payload, block = dispatch(
+            ToolCall("c", name, args), budget(), PERIOD, 1, "fixture", trace
+        )
+        assert payload is None
+        assert _tool_json(block) == {"error": "arguments are invalid"}
+    assert [t["outcome"] for t in trace] == ["error", "error"]
+
+
+_SWAP: dict[str, object] = {
+    "recipe_id": "chicken_tacos",
+    "servings": 2,
+    "replace_ingredient_id": "chicken_breast",
+    "with_ingredient_id": "chickpeas",
+}
+
+
+def test_what_if_substitute_dispatch_is_read_only_with_trace() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("what_if_substitute MUST NOT record plan evidence")
+
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("w1", SUBSTITUTE_TOOL, _SWAP),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert payload == execute_substitute(_SWAP, budget())
+    assert block["toolResult"]["toolUseId"] == "w1"
+    assert block["toolResult"]["status"] == "success"
+    assert _tool_json(block) == payload
+    assert trace == [
+        {
+            "tool": SUBSTITUTE_TOOL,
+            "outcome": "success",
+            "tool_use_id": "w1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {
+                "recipe_id": "chicken_tacos",
+                "status": "swapped",
+                "replace_ingredient_id": "chicken_breast",
+                "with_ingredient_id": "chickpeas",
+                "servings": 2,
+                "servings_source": "request",
+            },
+        }
+    ]
+    _plan, _block = dispatch(
+        ToolCall("p1", TOOL_NAME, arguments()), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert trace[1]["revision_index"] == 1
+
+
+def test_what_if_substitute_invalid_arguments_return_static_error() -> None:
+    args = {**_SWAP, "with_ingredient_id": "chicken_breast", "note": _SECRET}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("w2", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "w2",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [
+        _error_trace(
+            SUBSTITUTE_TOOL,
+            "w2",
+            revision_index=None,
+            inputs={"recipe_id": "chicken_tacos"},
+        )
+    ]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "SubstituteToolError" not in dumped
+
+
+def test_price_lines_dispatch_applies_the_plan_revision_cap() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("price_lines MUST NOT record plan evidence")
+
+    meals = [{"recipe_id": "chicken_tacos", "servings": 1}]
+    plan = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": meals,
+                "pantry_ingredient_ids": [],
+                "plan_cap_cents": 100,
+            },
+        }
+    )
+    args: dict[str, object] = {"meals": meals}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("l1", PRICE_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+        plan=plan,
+    )
+    assert payload is not None
+    estimate = cast(dict[str, Any], payload["estimate"])
+    assert estimate["available_cents"] == 100
+    assert estimate["accepted"] is False
+    assert payload == execute_price_lines(args, budget(), 100)
+    assert _tool_json(block) == payload
+    uncapped, _ = dispatch(
+        ToolCall("l2", PRICE_TOOL, args), budget(), PERIOD, 1, "fixture", []
+    )
+    assert uncapped is not None
+    free = cast(dict[str, Any], uncapped["estimate"])
+    assert free["available_cents"] == 10_000
+    assert free["accepted"] is True
+    assert [t["outcome"] for t in trace] == ["success"]
+
+
+def test_get_ingredient_facts_dispatch_is_read_only_with_trace() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("get_ingredient_facts MUST NOT record plan evidence")
+
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("i1", INGREDIENT_TOOL, {"name": "Beef"}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert payload == execute_ingredient_facts({"name": "Beef"})
+    assert payload is not None and payload["ingredient_id"] == "ground_beef_80"
+    assert block["toolResult"]["toolUseId"] == "i1"
+    assert block["toolResult"]["status"] == "success"
+    assert _tool_json(block) == payload
+    assert trace == [
+        {
+            "tool": INGREDIENT_TOOL,
+            "outcome": "success",
+            "tool_use_id": "i1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {"status": "found", "ingredient_id": "ground_beef_80"},
+        }
+    ]
+
+
+def test_get_ingredient_facts_live_trace_has_only_fdc_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Live:
+        def search(self, query: str) -> list[LiveFood]:
+            facts = NutritionFacts(7, 321, 18000, 25000, 3000, 600)
+            return [
+                LiveFood(7, "paneer", "Secret Brand", "Branded", facts),
+                LiveFood(9, "paneer cheese", None, "SR Legacy", facts),
+            ]
+
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: Live())
+    trace: list[dict[str, object]] = []
+    payload, _ = dispatch(
+        ToolCall("i4", INGREDIENT_TOOL, {"name": "paneer"}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+    )
+    assert payload is not None and payload["status"] == "live"
+    assert trace[0]["inputs"] == {"status": "live", "fdc_ids": [7, 9]}
+
+
+def test_get_ingredient_facts_unknown_name_is_a_successful_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: None)
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("i2", INGREDIENT_TOOL, {"name": "zzqx"}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+    )
+    assert payload is not None and payload["status"] == "unknown"
+    assert block["toolResult"]["status"] == "success"
+    assert [t["outcome"] for t in trace] == ["success"]
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {},
+        {"name": ""},
+        {"name": "a" * 161},
+        {"name": 1},
+        {"name": "x", "note": _SECRET},
+        {"name": _SECRET * (161 // len(_SECRET) + 1)},
+    ],
+)
+def test_get_ingredient_facts_invalid_arguments_return_static_error(
+    args: dict[str, object],
+) -> None:
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("i3", INGREDIENT_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+    )
+    assert payload is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "i3",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [
+        _error_trace(INGREDIENT_TOOL, "i3", revision_index=None, inputs={})
+    ]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "IngredientToolError" not in dumped
+
+
+def test_dispatch_swaps_in_a_curated_food_and_reports_no_price() -> None:
+    args: dict[str, object] = {
+        "recipe_id": "bean_tacos",
+        "servings": 2,
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("w9", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload == execute_substitute(args, budget())
+    assert payload is not None
+    price = cast(dict[str, Any], payload["price"])
+    assert price["after"]["price_complete"] is False
+    assert price["delta_cents"] is None
+    assert _tool_json(block) == payload
+    assert [t["outcome"] for t in trace] == ["success"]
+
+
+def test_dispatch_passes_the_plan_servings_to_swap_and_price_tools() -> None:
+    plan = PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+    swap_args: dict[str, object] = {
+        "recipe_id": "chicken_tacos",
+        "replace_ingredient_id": "chicken_breast",
+        "with_ingredient_id": "chickpeas",
+    }
+    swapped, _ = dispatch(
+        ToolCall("s1", SUBSTITUTE_TOOL, swap_args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        [],
+        plan=plan,
+    )
+    priced, _ = dispatch(
+        ToolCall("s2", PRICE_TOOL, {"meals": [{"recipe_id": "chicken_tacos"}]}),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        [],
+        plan=plan,
+    )
+    assert swapped is not None and priced is not None
+    assert swapped["servings"] == 2 and swapped["servings_source"] == "plan"
+    priced_meal = cast(list[dict[str, Any]], priced["meals"])[0]
+    assert priced_meal["servings"] == 2
+    assert priced_meal["servings_source"] == "plan"
+
+
+def _plan_of(recipe_id: str, servings: int) -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [{"recipe_id": recipe_id, "servings": servings}],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def test_dispatch_resolves_with_food_to_a_swap_with_plan_servings() -> None:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": "beef"}
+    trace: list[dict[str, object]] = []
+    plan = _plan_of("bean_tacos", 2)
+    payload, block = dispatch(
+        ToolCall("f1", SUBSTITUTE_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=plan,
+    )
+    assert payload is not None
+    assert payload["status"] == "swapped"
+    assert payload["servings"] == 2 and payload["servings_source"] == "plan"
+    assert payload["change"] == {
+        "replace_ingredient_id": "black_beans",
+        "with_ingredient_id": "ground_beef_80",
+    }
+    assert _tool_json(block) == payload
+    assert block["toolResult"]["status"] == "success"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "success")]
+
+
+@pytest.mark.parametrize(
+    ("food", "status"),
+    [("pork", "needs_food_choice"), ("zzqx", "unknown_food")],
+)
+def test_dispatch_question_payloads_are_successes_without_the_input(
+    food: str, status: str
+) -> None:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": food}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("f2", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is not None and payload["status"] == status
+    assert block["toolResult"]["status"] == "success"
+    assert _tool_json(block) == payload
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "success")]
+    assert "error" not in payload
+
+
+@pytest.mark.parametrize("bad", [["x"], {}])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "replace_ingredient_id",
+        "with_food",
+        "with_ingredient_id",
+        "scale_ingredient_id",
+    ],
+)
+def test_dispatch_unhashable_ingredient_values_are_static_errors(
+    field: str, bad: object
+) -> None:
+    args: dict[str, object] = {"recipe_id": "bean_tacos", "with_food": "beef"}
+    args[field] = bad
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("f4", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+    assert block["toolResult"]["status"] == "error"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "error")]
+
+
+def test_dispatch_with_food_and_with_ingredient_id_is_a_static_error() -> None:
+    args: dict[str, object] = {
+        "recipe_id": "bean_tacos",
+        "with_food": _SECRET,
+        "with_ingredient_id": "ground_beef_80",
+    }
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("f3", SUBSTITUTE_TOOL, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is None
+    assert _tool_json(block) == {"error": "arguments are invalid"}
+    assert block["toolResult"]["status"] == "error"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(SUBSTITUTE_TOOL, "error")]
+    assert _SECRET not in json.dumps({"block": block, "trace": trace})
+
+
+def test_price_lines_invalid_arguments_return_static_error() -> None:
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("price_lines MUST NOT record plan evidence")
+
+    meal = {"recipe_id": "chicken_tacos", "servings": 1}
+    args = {"meals": [meal, meal, meal, meal], "note": _SECRET}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("l3", PRICE_TOOL, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    assert payload is None
+    assert block == {
+        "toolResult": {
+            "toolUseId": "l3",
+            "content": [{"json": {"error": "arguments are invalid"}}],
+            "status": "error",
+        }
+    }
+    assert trace == [
+        _error_trace(
+            PRICE_TOOL,
+            "l3",
+            revision_index=None,
+            inputs={"recipe_ids": ["chicken_tacos"] * 3},
+        )
+    ]
+    dumped = json.dumps({"block": block, "trace": trace})
+    assert _SECRET not in dumped
+    assert "PriceToolError" not in dumped
 
 
 def test_valid_plan_returns_payload_and_matching_tool_result_id() -> None:
@@ -1018,3 +1563,240 @@ def test_budget_summary_then_planner_revision_index_skips_summary() -> None:
     assert trace[1]["revision_index"] == 1
     assert trace[1]["sequence"] == 2
     assert trace[1]["evidence_revision_id"] == _REV
+
+
+def test_unknown_exclusion_dispatch_keeps_names_out_of_trace() -> None:
+    sentinel = "zzqsentinel"
+    args: dict[str, object] = {"query": "egg", "exclude": [sentinel]}
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        ToolCall("d1", CATALOG_TOOL_NAME, args), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert payload is not None
+    assert payload["status"] == "unknown_exclusion"
+    assert payload["recipe_ids"] == []
+    assert payload["unresolved_exclusions"] == [sentinel]
+    assert _tool_json(block) == payload
+    assert trace[0]["inputs"] == {
+        "status": "unknown_exclusion",
+        "recipe_ids": [],
+        "diet": "omnivore",
+        "exclude": [],
+    }
+    assert sentinel not in json.dumps(trace)
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+def test_discovery_dispatch_has_bounded_result_and_no_evidence(invalid: bool) -> None:
+    args: dict[str, object] = {
+        "query": "egg",
+        "diet": "vegetarian",
+        "exclude": ["salt"],
+    }
+    if invalid:
+        args["prose"] = _SECRET
+    trace: list[dict[str, object]] = []
+
+    def record(_payload: dict[str, object]) -> str:
+        pytest.fail("Discovery MUST NOT record plan evidence")
+
+    payload, block = dispatch(
+        ToolCall("d1", CATALOG_TOOL_NAME, args),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        record_evidence=record,
+    )
+    expected: dict[str, object] = {
+        "tool": CATALOG_TOOL_NAME,
+        "outcome": "error" if invalid else "success",
+        "tool_use_id": "d1",
+        "sequence": 1,
+        "revision_index": None,
+    }
+    if not invalid:
+        assert payload is not None
+        expected["inputs"] = {
+            "status": "ok",
+            "recipe_ids": payload["recipe_ids"],
+            "diet": "vegetarian",
+            "exclude": ["salt"],
+        }
+    assert trace == [expected]
+    assert _SECRET not in json.dumps([payload, block, trace])
+    if invalid:
+        assert payload is None
+        assert _tool_json(block) == {"error": "catalog arguments are invalid"}
+    else:
+        assert payload == execute_catalog_search(args)
+        assert _tool_json(block) == payload
+        assert payload is not None
+        assert "evidence_id" not in payload
+    _plan, _block = dispatch(
+        ToolCall("p1", TOOL_NAME, arguments()), budget(), PERIOD, 1, "fixture", trace
+    )
+    assert trace[1]["revision_index"] == 1
+
+
+_ADD_PASTA: dict[str, object] = {
+    "op": "add",
+    "recipe_id": "vegetable_pasta",
+    "servings": 3,
+}
+
+
+class _Proposer:
+    def __init__(self) -> None:
+        self.calls: list[list[dict[str, object]]] = []
+
+    def __call__(self, operations: list[dict[str, object]]) -> str:
+        self.calls.append(operations)
+        return f"proposal-{len(self.calls)}"
+
+
+def _two_meal_plan() -> PlanRevisionInput:
+    return PlanRevisionInput.model_validate(
+        {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "snapshot": {
+                "meals": [
+                    {"recipe_id": "chicken_tacos", "servings": 2},
+                    {"recipe_id": "bean_tacos", "servings": 2},
+                ],
+                "pantry_ingredient_ids": [],
+            },
+        }
+    )
+
+
+def _propose_call(tool_use_id: str, operations: object) -> ToolCall:
+    return ToolCall(tool_use_id, PROPOSAL_TOOL, {"operations": operations})
+
+
+def test_propose_dispatch_stores_once_and_traces_validated_inputs_only() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        _propose_call("q1", [_ADD_PASTA]),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=_two_meal_plan(),
+        propose=proposer,
+    )
+    assert payload is not None
+    assert payload["status"] == "proposed" and payload["proposal_id"] == "proposal-1"
+    assert proposer.calls == [[_ADD_PASTA]]
+    assert _tool_json(block) == payload
+    assert block["toolResult"]["status"] == "success"
+    assert trace == [
+        {
+            "tool": PROPOSAL_TOOL,
+            "outcome": "success",
+            "tool_use_id": "q1",
+            "sequence": 1,
+            "revision_index": None,
+            "inputs": {
+                "status": "proposed",
+                "proposal_id": "proposal-1",
+                "operations": [_ADD_PASTA],
+            },
+        }
+    ]
+
+
+def test_propose_dispatch_invalid_operations_store_nothing_and_leave_no_text() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    bad = [{"op": "remove", "recipe_id": _SECRET}]
+    payload, block = dispatch(
+        _propose_call("q1", bad),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=_two_meal_plan(),
+        propose=proposer,
+    )
+    assert payload is None
+    assert proposer.calls == []
+    assert _tool_json(block) == {"error": INVALID_PROPOSAL_MESSAGE}
+    assert block["toolResult"]["status"] == "error"
+    assert [(t["tool"], t["outcome"]) for t in trace] == [(PROPOSAL_TOOL, "error")]
+    assert trace[0]["inputs"] == {}
+    assert _SECRET not in json.dumps([block, trace])
+
+
+def test_propose_dispatch_refuses_a_second_call_in_the_same_run() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    plan = _two_meal_plan()
+
+    def call(
+        tool_use_id: str, operations: object
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        return dispatch(
+            _propose_call(tool_use_id, operations),
+            budget(),
+            PERIOD,
+            1,
+            "fixture",
+            trace,
+            plan=plan,
+            propose=proposer,
+        )
+
+    first, _ = call("q1", [_ADD_PASTA])
+    second, block = call("q2", [{"op": "remove", "recipe_id": "bean_tacos"}])
+    assert first is not None and second is None
+    assert _tool_json(block) == {"error": PROPOSAL_ONCE}
+    assert proposer.calls == [[_ADD_PASTA]]
+    assert [t["outcome"] for t in trace] == ["success", "error"]
+    assert trace[1]["inputs"] == {}
+
+
+def test_propose_dispatch_allows_a_retry_after_an_invalid_call() -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    plan = _two_meal_plan()
+    payload: dict[str, object] | None = None
+    for tool_use_id, operations in (("q1", []), ("q2", [_ADD_PASTA])):
+        payload, _ = dispatch(
+            _propose_call(tool_use_id, operations),
+            budget(),
+            PERIOD,
+            1,
+            "fixture",
+            trace,
+            plan=plan,
+            propose=proposer,
+        )
+    assert payload is not None and payload["proposal_id"] == "proposal-1"
+    assert [t["outcome"] for t in trace] == ["error", "success"]
+
+
+@pytest.mark.parametrize("offered", ["no_plan", "no_propose"])
+def test_propose_dispatch_without_a_plan_or_proposer_is_unsupported(
+    offered: str,
+) -> None:
+    proposer = _Proposer()
+    trace: list[dict[str, object]] = []
+    payload, block = dispatch(
+        _propose_call("q1", [_ADD_PASTA]),
+        budget(),
+        PERIOD,
+        1,
+        "fixture",
+        trace,
+        plan=None if offered == "no_plan" else _two_meal_plan(),
+        propose=None if offered == "no_propose" else proposer,
+    )
+    assert payload is None
+    assert _tool_json(block) == {"error": "unsupported tool"}
+    assert [(t["tool"], t["outcome"]) for t in trace] == [("unsupported", "error")]
+    assert proposer.calls == []

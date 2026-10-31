@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fakes";
 
 const SAMPLE_NOTICE =
-  "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.";
+  "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.";
 const WITHIN_BUDGET = "This estimate is within the plan budget.";
 const DIRTY_SENTENCE = "Rebuild the request to apply request changes.";
 const REBUILD_GUIDANCE = "Rebuild your estimate to use these changes in chat";

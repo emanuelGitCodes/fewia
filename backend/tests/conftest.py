@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app import models
+from app.agent import ingredient_tool
 from app.db import Base
 from app.deps import get_session
 from app.main import app
@@ -147,6 +148,12 @@ def _seed_rows(
         inserted_dates.append(observation_date)
     session.flush()
     return inserted_dates
+
+
+@pytest.fixture(autouse=True)
+def _no_live_usda(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep every test off the network, even with FEWIA_USDA_FDC_KEY_FILE set."""
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: None)
 
 
 @pytest.fixture(scope="session")

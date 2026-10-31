@@ -8,9 +8,7 @@ import pytest
 
 from app.provider_runtime import (
     build_bedrock,
-    build_instacart,
     build_plaid,
-    build_spoonacular,
     capabilities,
 )
 from app.provider_settings import (
@@ -22,8 +20,6 @@ from app.provider_settings import (
 CLIENT_MARKER = "TEST_PLAID_CLIENT_MARKER"
 SECRET_MARKER = "TEST_SECRET_FILE_MARKER"
 TOKEN_MARKER = "TEST_ACCESS_TOKEN_MARKER"
-KEY_MARKER = "TEST_INSTACART_KEY_MARKER"
-SPOONACULAR_KEY_MARKER = "TEST_SPOONACULAR_KEY_MARKER"
 MODEL_MARKER = "anthropic.model"
 PROFILE_MARKER = "operator-profile"
 REF = "item-ref"
@@ -52,10 +48,14 @@ class FakeBedrock:
         model_id: str,
         region: str = "us-east-1",
         profile_name: str | None = None,
+        prompt_cache: bool = False,
+        guardrail: tuple[str, str] | None = None,
     ) -> None:
         self.model_id = model_id
         self.region = region
         self.profile_name = profile_name
+        self.prompt_cache = prompt_cache
+        self.guardrail = guardrail
 
 
 class FakePlaid:
@@ -65,25 +65,9 @@ class FakePlaid:
         self.token_resolver = token_resolver
 
 
-class FakeInstacart:
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-
-
-class FakeSpoonacular:
-    def __init__(self, api_key: str) -> None:
-        self.api_key = api_key
-
-
 def _install_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", FakeBedrock)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", FakePlaid)
-    monkeypatch.setattr(
-        "app.provider_runtime.InstacartDevelopmentProvider", FakeInstacart
-    )
-    monkeypatch.setattr(
-        "app.provider_runtime.SpoonacularEstimateProvider", FakeSpoonacular
-    )
 
 
 def _forbid_reads(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,12 +85,9 @@ def test_unconfigured_defaults_have_zero_effects(
     settings = GroceryProviderSettings()
     assert build_bedrock(settings) is None
     assert build_plaid(settings) is None
-    assert build_instacart(settings) is None
-    assert build_spoonacular(settings) is None
     assert capabilities(settings) == {
         "chat_configured": False,
         "plaid_configured": False,
-        "instacart_configured": False,
         "spending_source": "manual",
     }
 
@@ -122,9 +103,17 @@ def test_profile_without_model_does_not_construct(
             model_id: str,
             region: str = "us-east-1",
             profile_name: str | None = None,
+            prompt_cache: bool = False,
+            guardrail: tuple[str, str] | None = None,
         ) -> None:
             calls.append(model_id)
-            super().__init__(model_id, region=region, profile_name=profile_name)
+            super().__init__(
+                model_id,
+                region=region,
+                profile_name=profile_name,
+                prompt_cache=prompt_cache,
+                guardrail=guardrail,
+            )
 
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", Tracking)
     settings = GroceryProviderSettings(aws_profile=PROFILE_MARKER)
@@ -153,6 +142,24 @@ def test_build_bedrock_routes_model_region_and_profile(
     assert isinstance(defaulted, FakeBedrock)
     assert defaulted.region == "us-east-1"
     assert defaulted.profile_name is None
+    assert defaulted.prompt_cache is False
+    cached = build_bedrock(
+        GroceryProviderSettings(
+            bedrock_model_id=MODEL_MARKER, bedrock_prompt_cache=True
+        )
+    )
+    assert isinstance(cached, FakeBedrock)
+    assert cached.prompt_cache is True
+    assert defaulted.guardrail is None
+    guarded = build_bedrock(
+        GroceryProviderSettings(
+            bedrock_model_id=MODEL_MARKER,
+            bedrock_guardrail_id="abc123def456",
+            bedrock_guardrail_version="3",
+        )
+    )
+    assert isinstance(guarded, FakeBedrock)
+    assert guarded.guardrail == ("abc123def456", "3")
 
 
 def test_build_bedrock_hides_constructor_errors(
@@ -162,6 +169,8 @@ def test_build_bedrock_hides_constructor_errors(
         model_id: str,
         region: str = "us-east-1",
         profile_name: str | None = None,
+        prompt_cache: bool = False,
+        guardrail: tuple[str, str] | None = None,
     ) -> None:
         raise RuntimeError(f"{model_id}:{profile_name}:aws-leak")
 
@@ -250,90 +259,6 @@ def test_build_plaid_hides_secret_on_constructor_failure(
     _static(exc_info.value, CLIENT_MARKER, SECRET_MARKER)
 
 
-def test_build_instacart_routes_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _install_fakes(monkeypatch)
-    key_file = tmp_path / "instacart.key"
-    key_file.write_text(f"{KEY_MARKER}\n", encoding="utf-8")
-    settings = GroceryProviderSettings(instacart_key_file=key_file)
-    provider = build_instacart(settings)
-    assert isinstance(provider, FakeInstacart)
-    assert provider.api_key == KEY_MARKER
-    caps = capabilities(settings)
-    assert caps["instacart_configured"] is True
-    assert KEY_MARKER not in repr(caps)
-    assert str(key_file) not in repr(caps)
-
-
-def test_build_instacart_hides_key_on_constructor_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def boom(api_key: str) -> None:
-        raise ValueError(api_key)
-
-    monkeypatch.setattr("app.provider_runtime.InstacartDevelopmentProvider", boom)
-    key_file = tmp_path / "instacart.key"
-    key_file.write_text(KEY_MARKER, encoding="utf-8")
-    settings = GroceryProviderSettings(instacart_key_file=key_file)
-    with pytest.raises(ProviderConfigurationError) as exc_info:
-        build_instacart(settings)
-    _static(exc_info.value, KEY_MARKER)
-
-
-def test_build_instacart_missing_file_is_static(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _install_fakes(monkeypatch)
-    key_file = tmp_path / "missing.key"
-    settings = GroceryProviderSettings(instacart_key_file=key_file)
-    with pytest.raises(ProviderConfigurationError) as exc_info:
-        build_instacart(settings)
-    _static(exc_info.value, str(key_file))
-
-
-def test_build_spoonacular_routes_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _install_fakes(monkeypatch)
-    key_file = tmp_path / "spoonacular.key"
-    key_file.write_text(f"{SPOONACULAR_KEY_MARKER}\n", encoding="utf-8")
-    settings = GroceryProviderSettings(spoonacular_key_file=key_file)
-    provider = build_spoonacular(settings)
-    assert isinstance(provider, FakeSpoonacular)
-    assert provider.api_key == SPOONACULAR_KEY_MARKER
-    caps = capabilities(settings)
-    assert "spoonacular_configured" not in caps
-    assert SPOONACULAR_KEY_MARKER not in repr(caps)
-    assert str(key_file) not in repr(caps)
-
-
-def test_build_spoonacular_hides_key_on_constructor_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def boom(api_key: str) -> None:
-        raise ValueError(api_key)
-
-    monkeypatch.setattr("app.provider_runtime.SpoonacularEstimateProvider", boom)
-    key_file = tmp_path / "spoonacular.key"
-    key_file.write_text(SPOONACULAR_KEY_MARKER, encoding="utf-8")
-    settings = GroceryProviderSettings(spoonacular_key_file=key_file)
-    with pytest.raises(ProviderConfigurationError) as exc_info:
-        build_spoonacular(settings)
-    _static(exc_info.value, SPOONACULAR_KEY_MARKER)
-
-
-def test_build_spoonacular_missing_file_is_static(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _install_fakes(monkeypatch)
-    key_file = tmp_path / "missing-spoonacular.key"
-    settings = GroceryProviderSettings(spoonacular_key_file=key_file)
-    with pytest.raises(ProviderConfigurationError) as exc_info:
-        build_spoonacular(settings)
-    _static(exc_info.value, str(key_file))
-
-
 def test_capabilities_does_not_construct_or_claim_live(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -342,8 +267,6 @@ def test_capabilities_does_not_construct_or_claim_live(
 
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", boom)
     monkeypatch.setattr("app.provider_runtime.PlaidSandboxProvider", boom)
-    monkeypatch.setattr("app.provider_runtime.InstacartDevelopmentProvider", boom)
-    monkeypatch.setattr("app.provider_runtime.SpoonacularEstimateProvider", boom)
     _forbid_reads(monkeypatch)
     settings = GroceryProviderSettings(
         spending_source="plaid_sandbox",
@@ -352,23 +275,15 @@ def test_capabilities_does_not_construct_or_claim_live(
         plaid_client_id=CLIENT_MARKER,
         plaid_secret_file=Path("secret"),
         plaid_tokens_file=Path("tokens"),
-        instacart_key_file=Path("key"),
-        spoonacular_key_file=Path("spoonacular"),
     )
     caps = capabilities(settings)
     assert caps == {
         "chat_configured": True,
         "plaid_configured": True,
-        "instacart_configured": True,
         "spending_source": "plaid_sandbox",
     }
     blob = repr(caps)
-    assert set(caps) == {
-        "chat_configured",
-        "plaid_configured",
-        "instacart_configured",
-        "spending_source",
-    }
+    assert set(caps) == {"chat_configured", "plaid_configured", "spending_source"}
     assert "connected" not in blob
     assert PROFILE_MARKER not in blob
     assert MODEL_MARKER not in blob
@@ -376,5 +291,3 @@ def test_capabilities_does_not_construct_or_claim_live(
     assert "secret" not in blob
     assert "tokens" not in blob
     assert "key" not in blob
-    assert "spoonacular" not in blob
-    assert "spoonacular_configured" not in caps

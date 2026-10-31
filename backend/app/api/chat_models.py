@@ -19,6 +19,7 @@ _CALLER_FIELDS = (
     "message",
     "monthly_limit_cents",
     "plan_cap_cents",
+    "plan_revision_id",
     "previous_job_id",
 )
 
@@ -30,6 +31,7 @@ class CreateChatJobBody(BaseModel):
     monthly_limit_cents: StrictInt = Field(ge=0)
     plan_cap_cents: StrictInt | None = Field(default=None, ge=0)
     previous_job_id: UUID | None = None
+    plan_revision_id: UUID | None = None
 
     @field_validator("message")
     @classmethod

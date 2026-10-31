@@ -4,13 +4,36 @@ from typing import cast
 import pytest
 
 from app.agent import chat_answer
-from app.agent.chat_answer import CLARIFICATION, _vegan_meal_names, render_public_answer
+from app.agent.catalog_tool import (
+    DISCOVERY_ERROR,
+    catalog_answer,
+    execute_catalog_search,
+)
+from app.agent.chat_answer import (
+    CLARIFICATION,
+    TYPE_CLARIFICATION,
+    _vegan_meal_names,
+    render_public_answer,
+)
 from app.agent.planning_tool import execute_plan
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.catalog import Recipe
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
 PERIOD = date(2026, 9, 1)
+
+
+def test_meal_type_fallback_names_no_recipe() -> None:
+    errors: list[dict[str, object] | None] = [
+        None,
+        {"error": "unsupported tool"},
+        {"error_code": "unsupported_recipe"},
+    ]
+    for error in errors:
+        answer = render_public_answer(None, error, meal_type=True)
+        assert TYPE_CLARIFICATION in answer
+        assert not any(r.replace("_", " ") in answer for r in SUPPORTED_RECIPE_IDS)
+    assert render_public_answer(None, meal_type=False) == CLARIFICATION
 
 
 def _budget(available_cents: int = 10_000, *, stale: bool = False) -> BudgetResult:
@@ -326,3 +349,38 @@ def test_malformed_typed_errors_use_bounded_clarification() -> None:
         assert answer == CLARIFICATION
         for sentinel in sentinels:
             assert sentinel not in answer
+
+
+def test_discovery_names_match_meal_type_without_a_plan() -> None:
+    discovery = execute_catalog_search({"query": "chicken"})
+    answer = render_public_answer(None, discovery=discovery)
+    assert answer == catalog_answer(discovery)
+    ids = cast(list[str], discovery["recipe_ids"])
+    assert ids == ["chicken_tacos", "chicken_and_rice_bowls", "chicken_pasta"]
+    assert answer.startswith(
+        "Catalog choices: Chicken tacos, Chicken and rice bowls, Chicken pasta. "
+        "Which one should I plan? "
+    )
+    assert "bean tacos" not in answer
+    assert "Which one should I plan?" in answer
+    assert "USD" not in answer
+    assert "accepted" not in answer
+    for forbidden in ("injected-model-prose", "$", "https://", "Buy", "purchase"):
+        assert forbidden not in answer
+
+
+def test_plan_and_error_take_precedence_over_discovery() -> None:
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    candidate = execute_plan(_args(), _budget(), PERIOD)
+    assert render_public_answer(candidate, discovery=discovery) == render_public_answer(
+        candidate
+    )
+    assert render_public_answer(None, _exclusion(), discovery) == render_public_answer(
+        None, _exclusion()
+    )
+
+
+def test_discovery_renderer_rejects_injected_fields() -> None:
+    discovery = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
+    discovery["prose"] = "Buy sushi at https://evil.test for USD $0"
+    assert render_public_answer(None, discovery=discovery) == DISCOVERY_ERROR

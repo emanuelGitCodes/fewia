@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { filterMeals, searchNote } from "./mealSearch";
 import {
-  DIET_LABELS,
-  RECIPE_ORDER,
   RECIPES,
+  mealLabels,
   requireIngredient,
   type Recipe,
   type RecipeId,
@@ -27,26 +27,25 @@ export function MealPhoto(props: {
       {failed ? (
         <span className="tonight-photo-fallback">{props.alt}</span>
       ) : (
-        <img src={props.src} alt={props.alt} onError={() => { setFailed(true); }} />
+        <img
+          src={props.src}
+          alt={props.alt}
+          loading="lazy"
+          decoding="async"
+          width={1200}
+          height={900}
+          onError={() => { setFailed(true); }}
+        />
       )}
     </div>
   );
 }
 
 function dietText(recipe: Recipe): string {
-  return recipe.diets.map((d) => DIET_LABELS[d]).join(" · ");
+  return mealLabels(recipe).join(" · ");
 }
 
-export function filterMeals(filter: string): RecipeId[] {
-  const needle = filter.trim().toLowerCase();
-  return RECIPE_ORDER.filter((id) => {
-    const recipe = RECIPES[id];
-    return (
-      recipe.name.toLowerCase().includes(needle) ||
-      recipe.diets.some((d) => DIET_LABELS[d].toLowerCase().includes(needle))
-    );
-  });
-}
+export { filterMeals };
 
 export function MealPicker(props: {
   meals: PlannedMeal[];
@@ -55,6 +54,7 @@ export function MealPicker(props: {
   onToggle: (id: RecipeId, planned: boolean) => void;
 }): JSX.Element {
   const visible = filterMeals(props.filter);
+  const note = searchNote(props.filter);
   const visibleKey = visible.join(",");
   const mealsRef = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
@@ -110,9 +110,11 @@ export function MealPicker(props: {
         type="search"
         className="tonight-filter"
         autoComplete="off"
+        aria-describedby={note === null ? undefined : "meal-filter-note"}
         value={props.filter}
         onChange={(event) => { props.onFilterChange(event.target.value); }}
       />
+      {note === null ? null : <p id="meal-filter-note" className="tonight-filter-note">{note}</p>}
       {visible.length === 0 ? (
         <p>No meals match.</p>
       ) : (
@@ -153,7 +155,7 @@ export function MealPicker(props: {
                 >
                   <MealPhoto src={RECIPES[id].image} alt="" className="tonight-thumb" />
                   <span>{RECIPES[id].name}</span>
-                  {RECIPES[id].diets.length > 0 ? (
+                  {mealLabels(RECIPES[id]).length > 0 ? (
                     <span className="tonight-meal-diets">{dietText(RECIPES[id])}</span>
                   ) : null}
                 </button>
@@ -213,7 +215,7 @@ export function MealCards(props: {
               <MealPhoto src={recipe.image} alt="" className="tonight-thumb" />
               <div className="tonight-plan-card-body">
                 <h2 id={nameId}>{recipe.name}</h2>
-                {recipe.diets.length > 0 ? (
+                {mealLabels(recipe).length > 0 ? (
                   <p className="tonight-diets">{dietText(recipe)}</p>
                 ) : null}
                 <div className="tonight-stepper" role="group" aria-label={`Servings for ${recipe.name}`}>

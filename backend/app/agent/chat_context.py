@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
-from app.domain.grocery import GroceryRequest
+from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
 
 MAX_MESSAGE_LEN = 4000
 MAX_HISTORY = 8
@@ -17,7 +17,9 @@ _REQUEST = "request is invalid"
 _PREVIOUS = "previous_request is invalid"
 _CONTEXT_ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
+    "; plan_meals is the user's current plan"
 )
+MAX_PLAN_MEALS = 3
 
 
 def plan_ingredient_ids(plan: object) -> list[str] | None:
@@ -76,6 +78,28 @@ def _previous(
     raise ChatProtocolError(_PREVIOUS)
 
 
+def _plan_meals(
+    plan_meals: list[dict[str, object]] | None,
+) -> list[dict[str, object]] | None:
+    if plan_meals is None:
+        return None
+    if not isinstance(plan_meals, list) or len(plan_meals) > MAX_PLAN_MEALS:
+        raise ChatProtocolError(_REQUEST)
+    meals: list[dict[str, object]] = []
+    for meal in plan_meals:
+        recipe_id = meal.get("recipe_id") if isinstance(meal, dict) else None
+        servings = meal.get("servings") if isinstance(meal, dict) else None
+        if (
+            not isinstance(recipe_id, str)
+            or recipe_id not in SUPPORTED_RECIPE_IDS
+            or not _exact_int(servings)
+            or not 1 <= servings <= 8
+        ):
+            raise ChatProtocolError(_REQUEST)
+        meals.append({"recipe_id": recipe_id, "servings": servings})
+    return meals
+
+
 def _history(history: list[dict[str, str]] | None) -> list[dict[str, object]]:
     if history is None:
         return []
@@ -107,6 +131,7 @@ def build_messages(
     previous_ingredient_ids: list[str] | None = None,
     history: list[dict[str, str]] | None = None,
     plan_cap_cents: int | None = None,
+    plan_meals: list[dict[str, object]] | None = None,
 ) -> list[dict[str, object]]:
     if (
         not _public_text(message)
@@ -129,6 +154,7 @@ def build_messages(
         )
     ):
         raise ChatProtocolError(_PREVIOUS)
+    meals = _plan_meals(plan_meals)
     messages = _history(history)
     context = dumps(
         {
@@ -136,6 +162,7 @@ def build_messages(
             "context_role": _CONTEXT_ROLE,
             "period": period.isoformat(),
             "plan_cap_cents": plan_cap_cents,
+            "plan_meals": meals,
             "previous_request": previous,
             "previous_ingredient_ids": (
                 None
@@ -165,4 +192,25 @@ def read_usage(response: object) -> dict[str, int] | None:
         or output_tokens < 0
     ):
         return None
-    return {"inputTokens": input_tokens, "outputTokens": output_tokens}
+    result = {"inputTokens": input_tokens, "outputTokens": output_tokens}
+    for key in ("cacheReadInputTokens", "cacheWriteInputTokens"):
+        value = usage.get(key)
+        if _exact_int(value) and value >= 0:
+            result[key] = value
+    return result
+
+
+def sum_usage(
+    total: dict[str, int] | None, response: object, *, first: bool
+) -> dict[str, int] | None:
+    part = read_usage(response)
+    if total is None or part is None:
+        return None
+    result = {
+        "inputTokens": total["inputTokens"] + part["inputTokens"],
+        "outputTokens": total["outputTokens"] + part["outputTokens"],
+    }
+    for key in ("cacheReadInputTokens", "cacheWriteInputTokens"):
+        if key in part and (first or key in total):
+            result[key] = total.get(key, 0) + part[key]
+    return result

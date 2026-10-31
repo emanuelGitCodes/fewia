@@ -2,8 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  NUTRITION_NOTICE, SHAPE_ERROR, SPOONACULAR_COST_NOTICE,
-  type MacroTotals, type MealPlanNutrition, type MealRequest,
+  NUTRITION_NOTICE,
+  SHAPE_ERROR,
+  type MacroTotals,
+  type MealPlanNutrition,
+  type MealRequest,
 } from "./apiTypes";
 import { budget, line, mealPlanNutrition, plan, sampleNutrition } from "../tests/apiFixtures";
 import { parseChatJob, parseChatResult } from "./chatValidation";
@@ -21,7 +24,9 @@ function nutritionFor(meals: MealRequest[]): MealPlanNutrition {
   return sampleNutrition({
     total: scale(meals.reduce((total, meal) => total + meal.servings, 0)),
     meals: meals.map((meal) => ({
-      ...meal, per_serving: { ...perServing }, total: scale(meal.servings),
+      ...meal,
+      per_serving: { ...perServing },
+      total: scale(meal.servings),
     })),
   });
 }
@@ -91,6 +96,133 @@ function expectShapeError(value: unknown): void {
   }
 }
 
+function krogerQuote(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    kind: "store_live",
+    ingredient_id: "rice",
+    product_label: "Long grain rice",
+    brand: "Acme",
+    size: "2 lb",
+    regular_cents: 249,
+    promo_cents: 199,
+    stock_level: "HIGH",
+    location_id: "01400943",
+    retrieved_at: "2026-09-01T12:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("parseChatResult Kroger overlay", () => {
+  const textFields = ["product_label", "brand", "size", "stock_level", "ingredient_id"] as const;
+
+  it("accepts a valid quote, null, and absence, and keeps absent keys absent", () => {
+    expect(parseChatResult(candidate({ kroger_quote: krogerQuote() })).kroger_quote).toEqual(
+      krogerQuote(),
+    );
+    expect(parseChatResult(candidate({ kroger_quote: null })).kroger_quote).toBeNull();
+    const plain = parseChatResult(candidate());
+    expect("kroger_quote" in plain).toBe(false);
+    expect("kroger_degraded" in plain).toBe(false);
+    expect(parseChatResult(candidate({ kroger_degraded: true })).kroger_degraded).toBe(true);
+  });
+
+  it.each(textFields)(
+    "accepts code point boundaries for %s and preserves the chat result",
+    (key) => {
+      const accepted = [
+        "😀".repeat(160),
+        "😀".repeat(80) + "a",
+        "😀".repeat(80) + "a".repeat(80),
+        "a".repeat(160),
+        "",
+      ];
+      for (const text of accepted) {
+        const quote = krogerQuote({ [key]: text });
+        expect(parseChatResult(candidate({ kroger_quote: quote }))).toEqual({
+          ...parseChatResult(candidate()),
+          kroger_quote: quote,
+        });
+      }
+    },
+  );
+
+  it.each(textFields)("rejects 161 code points and malformed text for %s", (key) => {
+    for (const text of [
+      "😀".repeat(161),
+      "😀".repeat(80) + "a".repeat(81),
+      "a".repeat(161),
+      1,
+      true,
+      {},
+      [],
+      undefined,
+    ]) {
+      expectShapeError(candidate({ kroger_quote: krogerQuote({ [key]: text }) }));
+    }
+    const missing = krogerQuote();
+    delete missing[key];
+    expectShapeError(candidate({ kroger_quote: missing }));
+  });
+
+  it.each(["brand", "size", "stock_level"])("preserves null and empty optional %s", (key) => {
+    for (const text of [null, ""]) {
+      const quote = krogerQuote({ [key]: text });
+      expect(parseChatResult(candidate({ kroger_quote: quote })).kroger_quote).toEqual(quote);
+    }
+  });
+
+  it("rejects malformed quotes and a false degraded flag", () => {
+    const bad: Array<Record<string, unknown>> = [
+      { kind: "other" },
+      { ingredient_id: 1 },
+      { ingredient_id: null },
+      { product_label: null },
+      { product_label: "x".repeat(161) },
+      { brand: 3 },
+      { size: "x".repeat(161) },
+      { regular_cents: 0 },
+      { regular_cents: 1.5 },
+      { regular_cents: -1 },
+      { regular_cents: true },
+      { regular_cents: Number.MAX_SAFE_INTEGER + 1 },
+      { promo_cents: -1 },
+      { promo_cents: "1" },
+      { promo_cents: false },
+      { stock_level: 5 },
+      { location_id: "0140094" },
+      { location_id: "0140094!" },
+      { retrieved_at: "2026-09-01 12:00:00" },
+      { retrieved_at: "2026-09-01T12:00:00+00:00" },
+      { extra: true },
+      { retrieved_at: "2026-13-45T99:99:99Z" },
+      { brand: "x".repeat(161) },
+      { location_id: "014009430" },
+    ];
+    for (const overrides of bad) {
+      expectShapeError(candidate({ kroger_quote: krogerQuote(overrides) }));
+    }
+    const missing: Record<string, unknown> = { ...krogerQuote() };
+    delete missing.brand;
+    expectShapeError(candidate({ kroger_quote: missing }));
+    expectShapeError(candidate({ kroger_quote: "rice" }));
+    expectShapeError(candidate({ kroger_degraded: false }));
+  });
+});
+
+describe("parseChatResult proposal_id", () => {
+  const id = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
+  it("keeps a UUID and keeps an absent id absent", () => {
+    expect(parseChatResult(candidate({ proposal_id: id })).proposal_id).toBe(id);
+    expect("proposal_id" in parseChatResult(candidate())).toBe(false);
+  });
+
+  it("rejects a non-UUID, null, or non-string id", () => {
+    for (const bad of ["abc", "", null, 7, "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6"]) {
+      expectShapeError(candidate({ proposal_id: bad }));
+    }
+  });
+});
+
 describe("parseChatResult", () => {
   it("accepts a planned result with budget, request, and a 64-hex revision", () => {
     const parsed = parseChatResult(candidate());
@@ -106,7 +238,10 @@ describe("parseChatResult", () => {
     const parsed = parseChatResult(
       candidate({
         status: "needs_revision",
-        plan: plan({ accepted: false, warnings: ["Over the remaining budget"] }),
+        plan: plan({
+          accepted: false,
+          warnings: ["Over the remaining budget"],
+        }),
       }),
     );
     expect(parsed.status).toBe("needs_revision");
@@ -171,13 +306,75 @@ describe("parseChatResult", () => {
     expectShapeError(candidate({ model_turns: 1.5 }));
     expectShapeError(candidate({ model_turns: Number.MAX_SAFE_INTEGER + 1 }));
     expectShapeError(candidate({ usage: { inputTokens: true, outputTokens: 1 } }));
-    expectShapeError(candidate({
-      request: request({ meals: [{ recipe_id: "bean_tacos", servings: true }] }),
-      meal_nutrition: null,
-    }));
+    expectShapeError(
+      candidate({
+        request: request({
+          meals: [{ recipe_id: "bean_tacos", servings: true }],
+        }),
+        meal_nutrition: null,
+      }),
+    );
     expectShapeError(candidate({ plan: plan({ accepted: 1 }) }));
     expectShapeError(candidate({ budget: budget({ stale: 1 }) }));
   });
+
+  it("copies valid cache counts and omits absent fields and unknown metadata", () => {
+    const usage = {
+      inputTokens: 11,
+      outputTokens: 7,
+      cacheReadInputTokens: 0,
+      cacheWriteInputTokens: 9,
+    };
+    const input = candidate({
+      usage: { ...usage, reasoningContent: "hidden", totalTokens: 18 },
+    });
+    const parsed = parseChatResult(input);
+    expect(parsed.usage).toEqual(usage);
+    expect(parsed.usage).not.toBe(input.usage);
+    if (parsed.usage !== null) {
+      parsed.usage.cacheWriteInputTokens = 99;
+    }
+    expect((input.usage as typeof usage).cacheWriteInputTokens).toBe(9);
+    expect(parseChatResult(candidate()).usage).toEqual({
+      inputTokens: 11,
+      outputTokens: 7,
+    });
+    expect(parseChatResult(candidate({ usage: null })).usage).toBeNull();
+  });
+
+  it.each(["cacheReadInputTokens", "cacheWriteInputTokens"] as const)(
+    "omits invalid optional %s without fabricating zero",
+    (key) => {
+      const other =
+        key === "cacheReadInputTokens" ? "cacheWriteInputTokens" : "cacheReadInputTokens";
+      for (const invalid of [
+        undefined,
+        null,
+        true,
+        false,
+        -1,
+        1.5,
+        "1",
+        NaN,
+        Infinity,
+        Number.MAX_SAFE_INTEGER + 1,
+        {},
+        [],
+      ]) {
+        const usage = {
+          inputTokens: 11,
+          outputTokens: 7,
+          [key]: invalid,
+          [other]: 0,
+        };
+        expect(parseChatResult(candidate({ usage })).usage).toEqual({
+          inputTokens: 11,
+          outputTokens: 7,
+          [other]: 0,
+        });
+      }
+    },
+  );
 
   it("accepts three meals and eight servings and rejects those limits", () => {
     const meals = [
@@ -185,15 +382,20 @@ describe("parseChatResult", () => {
       { recipe_id: "lentil_soup", servings: 1 },
       { recipe_id: "overnight_oats", servings: 8 },
     ];
-    const parsed = parseChatResult(candidate({
-      request: request({ meals }), meal_nutrition: nutritionFor(meals),
-    }));
+    const parsed = parseChatResult(
+      candidate({
+        request: request({ meals }),
+        meal_nutrition: nutritionFor(meals),
+      }),
+    );
     expect(parsed.request?.meals).toHaveLength(3);
     expect(parsed.request?.meals[0]?.servings).toBe(8);
     expectShapeError(candidate({ request: request({ meals: [] }), meal_nutrition: null }));
     expectShapeError(
       candidate({
-        request: request({ meals: [...meals, { recipe_id: "chickpea_curry", servings: 1 }] }),
+        request: request({
+          meals: [...meals, { recipe_id: "chickpea_curry", servings: 1 }],
+        }),
         meal_nutrition: null,
       }),
     );
@@ -212,21 +414,48 @@ describe("parseChatResult", () => {
   });
 
   it.each<[string, MealRequest[]]>([
-    ["recipe ID", [{ recipe_id: "bean_tacos", servings: 2 }, { recipe_id: "overnight_oats", servings: 1 }]],
-    ["servings", [{ recipe_id: "bean_tacos", servings: 2 }, { recipe_id: "lentil_soup", servings: 2 }]],
+    [
+      "recipe ID",
+      [
+        { recipe_id: "bean_tacos", servings: 2 },
+        { recipe_id: "overnight_oats", servings: 1 },
+      ],
+    ],
+    [
+      "servings",
+      [
+        { recipe_id: "bean_tacos", servings: 2 },
+        { recipe_id: "lentil_soup", servings: 2 },
+      ],
+    ],
     ["missing entry", [{ recipe_id: "bean_tacos", servings: 2 }]],
-    ["extra entry", [
-      { recipe_id: "bean_tacos", servings: 2 }, { recipe_id: "lentil_soup", servings: 1 },
-      { recipe_id: "overnight_oats", servings: 1 },
-    ]],
-    ["duplicate entry", [{ recipe_id: "bean_tacos", servings: 2 }, { recipe_id: "bean_tacos", servings: 2 }]],
+    [
+      "extra entry",
+      [
+        { recipe_id: "bean_tacos", servings: 2 },
+        { recipe_id: "lentil_soup", servings: 1 },
+        { recipe_id: "overnight_oats", servings: 1 },
+      ],
+    ],
+    [
+      "duplicate entry",
+      [
+        { recipe_id: "bean_tacos", servings: 2 },
+        { recipe_id: "bean_tacos", servings: 2 },
+      ],
+    ],
   ])("rejects nutrition with a mismatched %s", (_name, meals) => {
-    expectShapeError(candidate({
-      request: request({ meals: [
-        { recipe_id: "bean_tacos", servings: 2 }, { recipe_id: "lentil_soup", servings: 1 },
-      ] }),
-      meal_nutrition: nutritionFor(meals),
-    }));
+    expectShapeError(
+      candidate({
+        request: request({
+          meals: [
+            { recipe_id: "bean_tacos", servings: 2 },
+            { recipe_id: "lentil_soup", servings: 1 },
+          ],
+        }),
+        meal_nutrition: nutritionFor(meals),
+      }),
+    );
   });
 
   it("accepts reordered nutrition and compares recipe and servings as pairs", () => {
@@ -236,42 +465,63 @@ describe("parseChatResult", () => {
       { recipe_id: "bean_tacos", servings: 4 },
     ];
     const nutrition = nutritionFor([...meals].reverse());
-    expect(parseChatResult(candidate({
-      request: request({ meals }), meal_nutrition: nutrition,
-    })).meal_nutrition).toEqual(nutrition);
-    expectShapeError(candidate({
-      request: request({ meals }), meal_nutrition: nutritionFor([
-        { recipe_id: "bean_tacos", servings: 1 },
-        { recipe_id: "lentil_soup", servings: 2 },
-        { recipe_id: "bean_tacos", servings: 4 },
-      ]),
-    }));
+    expect(
+      parseChatResult(
+        candidate({
+          request: request({ meals }),
+          meal_nutrition: nutrition,
+        }),
+      ).meal_nutrition,
+    ).toEqual(nutrition);
+    expectShapeError(
+      candidate({
+        request: request({ meals }),
+        meal_nutrition: nutritionFor([
+          { recipe_id: "bean_tacos", servings: 1 },
+          { recipe_id: "lentil_soup", servings: 2 },
+          { recipe_id: "bean_tacos", servings: 4 },
+        ]),
+      }),
+    );
   });
 
   it("preserves the multiplicity of repeated requested meals", () => {
     const bean = { recipe_id: "bean_tacos", servings: 2 };
     const lentil = { recipe_id: "lentil_soup", servings: 1 };
-    const retained = candidate({ request: request({ meals: [bean, bean, lentil] }) });
+    const retained = candidate({
+      request: request({ meals: [bean, bean, lentil] }),
+    });
     const nutrition = nutritionFor([bean, lentil, bean]);
-    expect(parseChatResult({ ...retained, meal_nutrition: nutrition }).meal_nutrition).toEqual(nutrition);
-    expectShapeError({ ...retained, meal_nutrition: nutritionFor([bean, lentil, lentil]) });
+    expect(parseChatResult({ ...retained, meal_nutrition: nutrition }).meal_nutrition).toEqual(
+      nutrition,
+    );
+    expectShapeError({
+      ...retained,
+      meal_nutrition: nutritionFor([bean, lentil, lentil]),
+    });
   });
 
-  it.each(["absent", "null", "unavailable"])("keeps %s nutrition compatible with requested meals", (mode) => {
-    const unavailable = mealPlanNutrition({ total: null, meals: [] });
-    const input = candidate({
-      request: request({ meals: [
-        { recipe_id: "lentil_soup", servings: 8 }, { recipe_id: "overnight_oats", servings: 1 },
-      ] }),
-      meal_nutrition: mode === "unavailable" ? unavailable : null,
-    });
-    if (mode === "absent") {
-      delete input.meal_nutrition;
-    }
-    const parsed = parseChatResult(input);
-    expect(parsed.meal_nutrition).toEqual(mode === "unavailable" ? unavailable : null);
-    expect(parsed.plan?.accepted).toBe(true);
-  });
+  it.each(["absent", "null", "unavailable"])(
+    "keeps %s nutrition compatible with requested meals",
+    (mode) => {
+      const unavailable = mealPlanNutrition({ total: null, meals: [] });
+      const input = candidate({
+        request: request({
+          meals: [
+            { recipe_id: "lentil_soup", servings: 8 },
+            { recipe_id: "overnight_oats", servings: 1 },
+          ],
+        }),
+        meal_nutrition: mode === "unavailable" ? unavailable : null,
+      });
+      if (mode === "absent") {
+        delete input.meal_nutrition;
+      }
+      const parsed = parseChatResult(input);
+      expect(parsed.meal_nutrition).toEqual(mode === "unavailable" ? unavailable : null);
+      expect(parsed.plan?.accepted).toBe(true);
+    },
+  );
 
   it("rejects unavailable nutrition with meal entries and available nutrition without them", () => {
     expectShapeError(candidate({ meal_nutrition: mealPlanNutrition({ total: null }) }));
@@ -344,30 +594,34 @@ describe("parseChatResult", () => {
     delete droppedOmit.meal_nutrition;
     expect(parseChatResult(droppedOmit).meal_nutrition).toBeNull();
     expect(
-      parseChatResult(candidate({ meal_nutrition: mealPlanNutrition({ total: null, meals: [] }) }))
-        .meal_nutrition?.total,
+      parseChatResult(
+        candidate({
+          meal_nutrition: mealPlanNutrition({ total: null, meals: [] }),
+        }),
+      ).meal_nutrition?.total,
     ).toBeNull();
     expectShapeError(noPlan({ meal_nutrition: mealPlanNutrition() }));
     expectShapeError(candidate({ meal_nutrition: mealPlanNutrition({ notice: "wrong" }) }));
     expectShapeError(
       candidate({
         meal_nutrition: mealPlanNutrition({
-          total: { energy_kcal: 1.5, protein_mg: 0, carbohydrate_mg: 0, fat_mg: 0 },
+          total: {
+            energy_kcal: 1.5,
+            protein_mg: 0,
+            carbohydrate_mg: 0,
+            fat_mg: 0,
+          },
         }),
       }),
     );
   });
 
-  it("copies supermarket_estimate when present and omits it when absent", () => {
-    const overlay = {
-      total_cents: 1299,
-      notice: SPOONACULAR_COST_NOTICE,
-      lines: [{ ingredient_id: "black_beans", cents: 199 }],
-    };
-    const parsed = parseChatResult(candidate({ supermarket_estimate: overlay }));
-    expect(parsed.supermarket_estimate).toEqual(overlay);
-    const omitted = parseChatResult(candidate());
-    expect("supermarket_estimate" in omitted).toBe(false);
+  it("ignores an unknown extra key", () => {
+    const parsed = parseChatResult(
+      candidate({ retired_overlay: { total_cents: 1299, notice: "x" } }),
+    );
+    expect(parsed.status).toBe("planned");
+    expect("retired_overlay" in parsed).toBe(false);
   });
 
   it("deep-copies meal_nutrition and does not mutate the input", () => {
@@ -379,9 +633,9 @@ describe("parseChatResult", () => {
     parsed.meal_nutrition.total.energy_kcal = 1;
     parsed.meal_nutrition.meals[0].recipe_id = "mutated";
     expect((input.meal_nutrition as { total: { energy_kcal: number } }).total.energy_kcal).toBe(200);
-    expect((input.meal_nutrition as { meals: { recipe_id: string }[] }).meals[0]?.recipe_id).toBe(
-      "bean_tacos",
-    );
+    expect(
+      (input.meal_nutrition as { meals: { recipe_id: string }[] }).meals[0]?.recipe_id,
+    ).toBe("bean_tacos");
   });
 });
 
@@ -406,7 +660,12 @@ describe("parseChatJob", () => {
     });
     expect(parsed.result).toBeNull();
     expect(() =>
-      parseChatJob({ id: "job-3", status: "succeeded", result: null, error_code: null }),
+      parseChatJob({
+        id: "job-3",
+        status: "succeeded",
+        result: null,
+        error_code: null,
+      }),
     ).toThrow(SHAPE_ERROR);
   });
 });

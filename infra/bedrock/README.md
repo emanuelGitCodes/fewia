@@ -16,7 +16,8 @@ This slice does not claim application success.
 
 ## Boundary
 
-The identity policy grants `bedrock:InvokeModel` only. The current
+The identity policy grants `bedrock:InvokeModel` and
+`bedrock:ApplyGuardrail` on the guardrail. The current
 application calls nonstreaming `Converse`, which uses that action. The
 policy does not grant streaming, marketplace subscription, other data-plane
 services, or IAM administration.
@@ -45,6 +46,7 @@ Identity statements:
 2. `bedrock:InvokeModel` on the three foundation-model ARNs. The statement
    MUST set `StringEquals` `bedrock:InferenceProfileArn` to the origin
    profile ARN.
+3. `bedrock:ApplyGuardrail` on the guardrail ARN (see Guardrail below).
 
 The stack MUST NOT grant `bedrock:InvokeModel` on a Bedrock project ARN.
 
@@ -81,7 +83,56 @@ Tags on the stack:
 - `Model=amazon.nova-2-lite-v1:0`
 - `ReasoningEffort=low`
 
-The only stack output is `RoleArn`. Outputs MUST NOT include credentials.
+The stack outputs are `RoleArn`, `GuardrailId`, and `GuardrailVersion`.
+Outputs MUST NOT include credentials.
+
+## Guardrail
+
+The stack defines one Bedrock guardrail and one version of it, as decided in
+[0025](../../wiki/decisions/0025-medical-claims-and-bedrock-guardrail.md).
+It denies four topics:
+
+| Topic | Input | Output |
+|---|---|---|
+| `MedicalAdvice` | off | on |
+| `AllergySafety` | on | on |
+| `FinancialTransactions` | on | on |
+| `NonFoodTasks` | on | on |
+
+The content filters `HATE`, `INSULTS`, `SEXUAL`, `VIOLENCE`, and
+`MISCONDUCT` run at `MEDIUM` on input and output. `PROMPT_ATTACK` runs at
+`HIGH` on input and `NONE` on output. Both blocked messages read: "I can
+help with meals, grocery lists, nutrition facts, and your food budget. I
+cannot help with that request."
+
+The role gains one statement, `ApplyFewiaGuardrail`. It allows
+`bedrock:ApplyGuardrail` on the guardrail ARN only.
+
+The owner deploys the stack. Agents MUST NOT deploy, synthesize against an
+account, or call AWS. After the owner deploys, copy the `GuardrailId` and
+`GuardrailVersion` stack outputs into the local ignored `.env` (or export
+them in the shell):
+
+- `FEWIA_BEDROCK_GUARDRAIL_ID=<GuardrailId output>`
+- `FEWIA_BEDROCK_GUARDRAIL_VERSION=<GuardrailVersion output>`
+
+`compose.bedrock.yaml` passes both to `api` and `worker`. The guardrail is
+off until both are set. Leaving both unset (or empty) keeps it off, and the
+Converse request does not change. Setting only one is a configuration error.
+Then recreate `api` and `worker` as in the credentials steps above. The
+guardrail adds a per-text-unit charge.
+
+Only a numbered version (a positive integer such as `1` or `12`) is accepted.
+`DRAFT` is rejected because its policy can change at any time. The guardrail
+assesses only the user's own message text. The server-built context block and
+earlier messages are sent as plain text. A blocked turn is left out of the
+chat history that later turns see.
+
+A policy edit produces a new guardrail version on deploy. The version
+description is `policy <digest>`, a SHA-256 prefix over the topics, filters,
+and blocked messages, so any policy change replaces the version. After the
+owner deploys, read the `GuardrailVersion` output, update
+`FEWIA_BEDROCK_GUARDRAIL_VERSION` to it, and recreate `api` and `worker`.
 
 ## Local ignored `.env`
 

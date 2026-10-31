@@ -1,19 +1,21 @@
 """FastAPI dependencies."""
 
 import functools
+import threading
 from collections.abc import Iterator
 
+from cryptography.fernet import Fernet
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.provider_runtime import build_spoonacular
+from app.provider_runtime import build_kroger, build_kroger_cipher
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
     load_provider_settings,
 )
-from app.services.supermarket_overlay import IngredientCostEstimator
+from app.providers.kroger import KrogerClient
 
 PROVIDER_UNAVAILABLE_MESSAGE = "Provider configuration is invalid"
 
@@ -39,16 +41,38 @@ def get_provider_settings() -> GroceryProviderSettings:
     return settings
 
 
+_kroger_lock = threading.Lock()
+
+
 @functools.cache
-def get_supermarket_estimator() -> IngredientCostEstimator | None:
-    """Return one process-wide Spoonacular estimator, or None."""
+def _build_kroger_client() -> KrogerClient | None:
     try:
-        settings = load_provider_settings()
+        return build_kroger(load_provider_settings())
     except ProviderConfigurationError:
         return None
-    if settings.spoonacular_key_file is None:
-        return None
+
+
+def get_kroger_client() -> KrogerClient | None:
+    """Return one process-wide Kroger client, or None."""
+    with _kroger_lock:
+        return _build_kroger_client()
+
+
+get_kroger_client.cache_clear = _build_kroger_client.cache_clear  # type: ignore[attr-defined]
+
+
+@functools.cache
+def _build_kroger_cipher() -> Fernet | None:
     try:
-        return build_spoonacular(settings)
+        return build_kroger_cipher(load_provider_settings())
     except ProviderConfigurationError:
         return None
+
+
+def get_kroger_cipher() -> Fernet | None:
+    """Return the process-wide Kroger token cipher, or None."""
+    with _kroger_lock:
+        return _build_kroger_cipher()
+
+
+get_kroger_cipher.cache_clear = _build_kroger_cipher.cache_clear  # type: ignore[attr-defined]

@@ -11,6 +11,8 @@ from app import evaluation_model_turn as model
 from app.agent import chat_loop
 from app.agent.chat_messages import ToolCall
 from app.domain.budget import BudgetResult, SpendingSource
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.plan_revision import PlanRevisionInput
 from app.evaluation_adversarial import ScenarioProvider
 from app.evaluation_capture import CaptureProvider
 from app.evaluation_evidence import EvaluationEvidence
@@ -38,7 +40,17 @@ class ScriptedProvider:
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
         assert system_prompt == chat_loop.SYSTEM_PROMPT
-        assert len(tools) == 2
+        specs = [cast(dict[str, object], tool["toolSpec"]) for tool in tools]
+        assert [spec["name"] for spec in specs] == [
+            "plan_groceries",
+            "get_budget_summary",
+            "search_meals",
+            "get_plan",
+            "get_meal",
+            "what_if_substitute",
+            "price_lines",
+            "get_ingredient_facts",
+        ]
         self.messages.append(deepcopy(messages))
         response = self.responses.pop(0)
         if isinstance(response, BaseException):
@@ -79,9 +91,7 @@ def reply() -> dict[str, object]:
 
 def request(servings: int = 2) -> dict[str, object]:
     return {
-        "meals": [
-            {"recipe_id": chat_loop.SUPPORTED_RECIPE_IDS[0], "servings": servings}
-        ],
+        "meals": [{"recipe_id": SUPPORTED_RECIPE_IDS[0], "servings": servings}],
         "pantry_ingredients": [],
         "budget_period": "2026-10-01",
         "plan_cap_cents": 10000,
@@ -89,20 +99,25 @@ def request(servings: int = 2) -> dict[str, object]:
 
 
 def tool(name: str, payload: object, tool_id: str = "tool-1") -> dict[str, object]:
+    return tool_batch((name, payload, tool_id))
+
+
+def tool_batch(*calls: tuple[str, object, str]) -> dict[str, object]:
     return {
         "stopReason": "tool_use",
         "output": {
             "message": {
                 "role": "assistant",
-                "content": [
-                    {"text": "MODEL_INTERMEDIATE_PROSE"},
+                "content": [{"text": "MODEL_INTERMEDIATE_PROSE"}]
+                + [
                     {
                         "toolUse": {
                             "toolUseId": tool_id,
                             "name": name,
                             "input": payload,
                         }
-                    },
+                    }
+                    for name, payload, tool_id in calls
                 ],
             }
         },
@@ -143,13 +158,161 @@ def result(turn: dict[str, object]) -> dict[str, object]:
     return cast(dict[str, object], turn["result"])
 
 
+def augment_tool_results(
+    monkeypatch: pytest.MonkeyPatch, extra: dict[str, object]
+) -> None:
+    original = chat_loop.dispatch
+
+    def augmented(
+        call: ToolCall,
+        budget: BudgetResult,
+        period: date,
+        user_id: int,
+        spending_source: SpendingSource,
+        trace: list[dict[str, object]],
+        *,
+        record_evidence: Recorder | None = None,
+        plan: PlanRevisionInput | None = None,
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        payload, block = original(
+            call,
+            budget,
+            period,
+            user_id,
+            spending_source,
+            trace,
+            record_evidence=record_evidence,
+            plan=plan,
+        )
+        tool_result = cast(dict[str, object], block["toolResult"])
+        content = cast(list[dict[str, object]], tool_result["content"])
+        content.append({"json": extra})
+        return payload, block
+
+    monkeypatch.setattr(chat_loop, "dispatch", augmented)
+
+
+@pytest.mark.parametrize("kind", ["plan", "summary", "plan_first", "summary_first"])
+def test_terminal_batch_is_captured_once_without_followup(kind: str) -> None:
+    plan: tuple[str, object, str] = ("plan_groceries", request(), "plan-1")
+    summary: tuple[str, object, str] = ("get_budget_summary", {}, "summary-1")
+    calls = {
+        "plan": [plan],
+        "summary": [
+            summary,
+            ("get_budget_summary", {}, "summary-2"),
+            ("get_budget_summary", {}, "summary-3"),
+        ],
+        "plan_first": [plan, summary],
+        "summary_first": [summary, plan],
+    }[kind]
+    responses = [tool_batch(*calls)]
+    if kind == "summary":
+        responses.append(reply())
+    expected_calls = len(responses)
+    provider = ScriptedProvider(responses)
+    turn = observe(provider)
+    assert turn["status"] == "completed"
+    assert turn["reason"] is None
+    assert turn["provider_calls"] == len(provider.messages) == expected_calls
+    assert result(turn)["model_turns"] == expected_calls
+    results = cast(list[dict[str, object]], turn["tool_results"])
+    assert [item["toolUseId"] for item in results] == [call[2] for call in calls]
+    assert all(item["status"] == "success" for item in results)
+    assert turn["capture_incomplete"] is False
+    assert turn["secret_leak"] is False
+
+
+@pytest.mark.parametrize("name", ["plan_groceries", "get_budget_summary"])
+@pytest.mark.parametrize("hidden", [False, True])
+def test_terminal_result_marker_is_sanitized_and_graded(
+    monkeypatch: pytest.MonkeyPatch, name: str, hidden: bool
+) -> None:
+    extra: dict[str, object] = {
+        "reasoningContent" if hidden else "public_fixture": MARKER
+    }
+    augment_tool_results(monkeypatch, extra)
+    payload = request() if name == "plan_groceries" else {}
+    responses = [tool(name, payload)]
+    if name == "get_budget_summary":
+        responses.append(reply())
+    expected_calls = len(responses)
+    provider = ScriptedProvider(responses)
+    turn = observe(provider, markers=(MARKER,))
+    assert turn["status"] == ("completed" if hidden else "failed")
+    assert turn["reason"] == (None if hidden else "secret_leak")
+    assert turn["secret_leak"] is (not hidden)
+    assert turn["capture_incomplete"] is False
+    assert turn["provider_calls"] == len(provider.messages) == expected_calls
+    assert len(cast(list[object], turn["tool_results"])) == 1
+    assert MARKER not in dumps(turn)
+    assert "reasoningContent" not in dumps(turn)
+    assert ("[redacted]" in dumps(turn["tool_results"])) is (not hidden)
+
+
+@pytest.mark.parametrize("source", ["scan", "capture"])
+@pytest.mark.parametrize("failure_type", [RecursionError, TypeError, ValueError])
+def test_terminal_capture_errors_remain_visible(
+    monkeypatch: pytest.MonkeyPatch, source: str, failure_type: type[Exception]
+) -> None:
+    original_scan = CaptureProvider._leaks
+    original_capture = CaptureProvider._observe_results
+
+    def is_tool_message(value: object) -> bool:
+        if not isinstance(value, dict):
+            return False
+        content = value.get("content")
+        return isinstance(content, list) and any(
+            isinstance(block, dict) and "toolResult" in block for block in content
+        )
+
+    def scan(self: CaptureProvider, value: object, seen: set[int]) -> bool:
+        if is_tool_message(value):
+            raise failure_type(PRIVATE)
+        return original_scan(self, value, seen)
+
+    def capture(self: CaptureProvider, messages: list[dict[str, object]]) -> None:
+        if messages and is_tool_message(messages[-1]):
+            raise failure_type(PRIVATE)
+        original_capture(self, messages)
+
+    if source == "scan":
+        monkeypatch.setattr(CaptureProvider, "_leaks", scan)
+    else:
+        monkeypatch.setattr(CaptureProvider, "_observe_results", capture)
+    provider = ScriptedProvider([tool("plan_groceries", request())])
+    turn = observe(provider)
+    assert turn["status"] == "partial"
+    assert turn["reason"] == "capture_incomplete"
+    assert turn["capture_incomplete"] is True
+    assert turn["secret_leak"] is None
+    assert turn["provider_calls"] == len(provider.messages) == 1
+    assert PRIVATE not in dumps(turn)
+
+
+def test_nonterminal_then_terminal_results_are_captured_once() -> None:
+    provider = ScriptedProvider(
+        [
+            tool("plan_groceries", {**request(), "plan_cap_cents": 100}, "over"),
+            tool("plan_groceries", request(), "accepted"),
+        ]
+    )
+    turn = observe(provider)
+    assert turn["status"] == "completed"
+    assert turn["provider_calls"] == len(provider.messages) == 2
+    results = cast(list[dict[str, object]], turn["tool_results"])
+    assert [item["toolUseId"] for item in results] == ["over", "accepted"]
+    assert result(turn)["planner_revisions"] == 2
+
+
 def test_production_budget_and_plan_with_saved_evidence() -> None:
     context = prepare_case(case())
     provider = ScriptedProvider(
         [
-            tool("get_budget_summary", {}),
-            tool("plan_groceries", request(), "plan-1"),
-            reply(),
+            tool_batch(
+                ("get_budget_summary", {}, "budget-1"),
+                ("plan_groceries", request(), "plan-1"),
+            )
         ]
     )
     with EvaluationEvidence(context) as store:
@@ -171,8 +334,8 @@ def test_production_budget_and_plan_with_saved_evidence() -> None:
         {"tool": "plan_groceries", "input": request()},
     ]
     assert len(cast(list[object], turn["tool_results"])) == 2
-    assert turn["provider_calls"] == 3
-    assert turn["usage"] == {"inputTokens": 37, "outputTokens": 17}
+    assert turn["provider_calls"] == len(provider.messages) == 1
+    assert turn["usage"] == {"inputTokens": 13, "outputTokens": 5}
     assert turn["invalid_responses"] == 0
     assert turn["capture_incomplete"] is False
     assert turn["secret_leak"] is False
@@ -190,7 +353,7 @@ def test_context_history_previous_request_and_caller_inputs_stay_unchanged() -> 
     ]
     previous = request(4)
     before = deepcopy((context, history, previous))
-    provider = ScriptedProvider([tool("plan_groceries", request()), reply()])
+    provider = ScriptedProvider([tool("plan_groceries", request())])
     recorded: list[dict[str, object]] = []
 
     def mutate_copy(planning: dict[str, object]) -> str:
@@ -421,14 +584,15 @@ def test_provider_failure_retains_observed_calls_and_evidence() -> None:
         saved.append(planning)
         return REVISION
 
+    over_budget = {**request(), "plan_cap_cents": 100}
     provider = ScriptedProvider(
-        [tool("plan_groceries", request()), RuntimeError(PRIVATE)]
+        [tool("plan_groceries", over_budget), RuntimeError(PRIVATE)]
     )
     turn = observe(provider, record_evidence=save)
     assert turn["status"] == "failed"
     assert turn["reason"] == "provider_unavailable"
     assert turn["result"] is None
-    assert turn["calls"] == [{"tool": "plan_groceries", "input": request()}]
+    assert turn["calls"] == [{"tool": "plan_groceries", "input": over_budget}]
     assert turn["tool_results"]
     assert turn["provider_calls"] == 2
     assert turn["usage"] is None
@@ -467,7 +631,11 @@ def test_tool_input_leak_and_provider_error_are_redacted() -> None:
 
 def test_ordinary_failure_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     def broken_answer(
-        candidate: dict[str, object] | None, error: dict[str, object] | None
+        candidate: dict[str, object] | None,
+        tool_error: dict[str, object] | None = None,
+        discovery: dict[str, object] | None = None,
+        *,
+        meal_type: bool = False,
     ) -> str:
         raise RuntimeError(f"{MARKER} {PRIVATE}")
 
@@ -550,12 +718,17 @@ def test_processing_limit_keeps_evidence(monkeypatch: pytest.MonkeyPatch) -> Non
         return REVISION
 
     turn = observe(
-        ScriptedProvider([tool("plan_groceries", request())]), record_evidence=save
+        ScriptedProvider(
+            [tool("plan_groceries", {**request(), "plan_cap_cents": 100})]
+        ),
+        record_evidence=save,
     )
     assert turn["status"] == "partial"
     assert turn["reason"] == "limit"
     assert result(turn)["status"] == "limit"
     assert turn["calls"]
+    assert turn["provider_calls"] == 1
+    assert len(cast(list[object], turn["tool_results"])) == 1
     assert len(saved) == 1
 
 
@@ -628,7 +801,11 @@ def test_returned_result_leak_is_detected_when_capture_scan_fails(
         raise ValueError(PRIVATE)
 
     def leaking_answer(
-        candidate: dict[str, object] | None, error: dict[str, object] | None
+        candidate: dict[str, object] | None,
+        tool_error: dict[str, object] | None = None,
+        discovery: dict[str, object] | None = None,
+        *,
+        meal_type: bool = False,
     ) -> str:
         return MARKER
 
@@ -659,6 +836,7 @@ def test_callback_payload_is_sanitized_before_storage(
         trace: list[dict[str, object]],
         *,
         record_evidence: Recorder | None = None,
+        plan: PlanRevisionInput | None = None,
     ) -> tuple[dict[str, object] | None, dict[str, object]]:
         assert user_id == 23
         assert spending_source == "fixture"
@@ -679,6 +857,7 @@ def test_callback_payload_is_sanitized_before_storage(
             spending_source,
             trace,
             record_evidence=contaminated,
+            plan=plan,
         )
 
     def save(planning: dict[str, object]) -> str:
@@ -731,7 +910,7 @@ def test_hidden_reasoning_does_not_leak_or_export() -> None:
 
 
 def test_unknown_usage_stays_null_across_calls() -> None:
-    response = tool("plan_groceries", request())
+    response = tool("plan_groceries", {**request(), "plan_cap_cents": 100})
     response.pop("usage")
     turn = observe(ScriptedProvider([response, reply()]))
     assert turn["usage"] is None
@@ -758,7 +937,7 @@ def test_real_turn_and_provider_elapsed_scopes_are_separate() -> None:
         return record(planning)
 
     turn = observe(
-        DelayedProvider([tool("plan_groceries", request()), reply()]),
+        DelayedProvider([tool("plan_groceries", request())]),
         record_evidence=delayed_record,
     )
     provider_elapsed = cast(float, turn["provider_elapsed_seconds"])

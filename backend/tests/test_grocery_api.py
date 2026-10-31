@@ -14,17 +14,9 @@ from httpx import Response
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_deps import (
-    PLAN_RESULT,
-    FixedEstimator,
-    ForbiddenEstimator,
-    clear_estimator_override,
-    override_estimator,
-)
 
 from app.api import grocery as grocery_api
 from app.api.grocery_models import CreateGroceryJobBody, PlanJobView
-from app.deps import get_supermarket_estimator
 from app.domain.budget import NEW_YORK, SpendingSnapshot, calculate_budget
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -859,74 +851,29 @@ def _seed_grocery_job(
     return job
 
 
-def test_succeeded_grocery_job_attaches_overlay_without_storing(
-    client: TestClient, session: Session, seed_user: UserSeeder
-) -> None:
-    seed_user()
-    job = _seed_grocery_job(
-        session, key="overlay-ok", status="succeeded", result=dict(PLAN_RESULT)
-    )
-    override_estimator(FixedEstimator())
-    try:
-        response = client.get(f"/grocery/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
-    stored = session.get(Job, job.id)
-
-    assert response.status_code == 200
-    estimate = body["result"]["supermarket_estimate"]
-    assert isinstance(estimate, dict)
-    assert isinstance(estimate["lines"], list)
-    assert estimate["lines"]
-    assert stored is not None
-    assert isinstance(stored.result, dict)
-    assert "supermarket_estimate" not in stored.result
-
-
-def test_succeeded_grocery_job_keeps_stored_result_without_estimator(
-    client: TestClient, session: Session, seed_user: UserSeeder
-) -> None:
-    seed_user()
-    get_supermarket_estimator.cache_clear()
-    stale = {
-        "total_cents": 9999,
-        "notice": "stale stored overlay",
-        "lines": [{"ingredient_id": "chicken_breast", "cents": 9999}],
+PLAN_RESULT: dict[str, object] = {
+    "plan": {
+        "lines": [
+            {
+                "ingredient_id": "chicken_breast",
+                "unit": "g",
+                "quantity": 100,
+                "from_pantry": False,
+            }
+        ]
     }
-    stored_result: dict[str, object] = dict(PLAN_RESULT)
-    stored_result["supermarket_estimate"] = stale
-    job = _seed_grocery_job(
-        session, key="overlay-none", status="succeeded", result=stored_result
-    )
-    override_estimator(None)
-    try:
-        response = client.get(f"/grocery/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
-    stored = session.get(Job, job.id)
-
-    assert response.status_code == 200
-    assert "supermarket_estimate" not in body["result"]
-    assert stored is not None
-    assert isinstance(stored.result, dict)
-    assert stored.result["supermarket_estimate"] == stale
+}
 
 
-@pytest.mark.parametrize("status", ["queued", "failed"])
-def test_unfinished_grocery_job_does_not_call_estimator(
+@pytest.mark.parametrize("status", ["queued", "succeeded", "failed"])
+def test_grocery_job_result_is_returned_as_stored(
     client: TestClient, session: Session, seed_user: UserSeeder, status: str
 ) -> None:
     seed_user()
     job = _seed_grocery_job(
-        session, key=f"overlay-{status}", status=status, result=dict(PLAN_RESULT)
+        session, key=f"stored-{status}", status=status, result=dict(PLAN_RESULT)
     )
-    override_estimator(ForbiddenEstimator())
-    try:
-        response = client.get(f"/grocery/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
+    response = client.get(f"/grocery/jobs/{job.id}")
     body = response.json()
 
     assert response.status_code == 200
@@ -968,7 +915,7 @@ def test_failed_job_ignores_invalid_error_detail(
     seed_user()
     job = _seed_grocery_job(session, key="invalid-detail", status="failed", result=None)
     job.result = {"error_detail": detail}
-    view = grocery_api.read_grocery_job(UUID(job.id), session, None)
+    view = grocery_api.read_grocery_job(UUID(job.id), session)
     assert isinstance(view, PlanJobView)
     assert view.result is None
     assert view.error_detail is None

@@ -10,7 +10,6 @@ import {
 const PROVIDER_KEYS: ReadonlySet<string> = new Set([
   "chat_configured",
   "plaid_configured",
-  "instacart_configured",
   "spending_source",
 ]);
 
@@ -25,7 +24,6 @@ export function parseProviders(value: unknown): ProviderCapabilities {
   if (
     !isBool(value.chat_configured) ||
     !isBool(value.plaid_configured) ||
-    !isBool(value.instacart_configured) ||
     !isSpendingSource(value.spending_source)
   ) {
     throw new Error(SHAPE_ERROR);
@@ -33,7 +31,6 @@ export function parseProviders(value: unknown): ProviderCapabilities {
   return {
     chat_configured: value.chat_configured,
     plaid_configured: value.plaid_configured,
-    instacart_configured: value.instacart_configured,
     spending_source: value.spending_source,
   };
 }

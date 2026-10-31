@@ -2,6 +2,7 @@
 
 import json
 import os
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal, cast
@@ -11,18 +12,11 @@ import pytest
 from conftest import UserSeeder
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from httpx import Response
+from httpx import Client, MockTransport, Request, Response
 from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from test_deps import (
-    PLAN_RESULT,
-    FixedEstimator,
-    ForbiddenEstimator,
-    clear_estimator_override,
-    override_estimator,
-)
 
 from app.api import chat as chat_api
 from app.api.chat_models import CreateChatJobBody
@@ -32,10 +26,13 @@ from app.api.grocery import (
     INPUT_INVALID_MESSAGE,
     JOB_UNAVAILABLE_MESSAGE,
 )
-from app.deps import get_supermarket_estimator
+from app.deps import get_kroger_client
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
+from app.main import app
+from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
+from app.providers.kroger import KrogerClient
 from app.services import job_submission
 from app.services.chat_job import ChatJobInput
 from app.services.grocery_context import (
@@ -128,7 +125,6 @@ def forbid_provider_construction(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.provider_runtime.build_bedrock", boom)
     monkeypatch.setattr("app.provider_runtime.build_plaid", boom)
-    monkeypatch.setattr("app.provider_runtime.build_instacart", boom)
     monkeypatch.setattr("app.provider_runtime.read_secret_file", boom)
     monkeypatch.setattr("app.services.chat_job.chat_job", boom)
     monkeypatch.setattr("app.agent.chat_loop.run_chat", boom)
@@ -220,7 +216,6 @@ def test_providers_reports_capabilities_without_construction(
     assert body == {
         "chat_configured": False,
         "plaid_configured": False,
-        "instacart_configured": False,
         "spending_source": "manual",
     }
     assert "token" not in str(body).lower()
@@ -232,7 +227,6 @@ def test_providers_does_not_read_secret_files(
 ) -> None:
     secret = tmp_path / "plaid.secret"
     tokens = tmp_path / "plaid.tokens.json"
-    key = tmp_path / "instacart.key"
     forbid_provider_construction(monkeypatch)
     monkeypatch.setattr(
         "app.deps.load_provider_settings",
@@ -242,7 +236,6 @@ def test_providers_does_not_read_secret_files(
             plaid_client_id=SecretStr("client-marker"),
             plaid_secret_file=secret,
             plaid_tokens_file=tokens,
-            instacart_key_file=key,
         ),
     )
     response = client.get("/grocery/providers")
@@ -251,7 +244,7 @@ def test_providers_does_not_read_secret_files(
     assert response.status_code == 200
     assert body["chat_configured"] is True
     assert body["plaid_configured"] is True
-    assert body["instacart_configured"] is True
+    assert set(body) == {"chat_configured", "plaid_configured", "spending_source"}
     assert body["spending_source"] == "plaid_sandbox"
     assert "client-marker" not in str(body)
 
@@ -417,6 +410,121 @@ def test_changed_body_conflicts(
     enable_chat(monkeypatch)
     first = post_chat(client)
     second = post_chat(client, body=chat_body(monthly_limit_cents=1))
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert second.json()["error"]["message"] == CONFLICT_MESSAGE
+
+
+PLAN_SNAPSHOT: dict[str, object] = {
+    "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+    "pantry_ingredient_ids": [],
+    "plan_cap_cents": 3000,
+}
+
+
+def add_revision(session: Session, *, user_id: int = 1) -> UUID:
+    revision_id = uuid4()
+    session.add(
+        PlanRevision(id=revision_id, user_id=user_id, snapshot=dict(PLAN_SNAPSHOT))
+    )
+    session.flush()
+    return revision_id
+
+
+def test_post_chat_embeds_plan_revision(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    revision_id = add_revision(session)
+    response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
+    job = session.get(Job, response.json()["job_id"])
+
+    assert response.status_code == 202
+    assert job is not None
+    assert job.payload["plan_revision_id"] == str(revision_id)
+    assert job.payload["plan_revision"] == {
+        "id": str(revision_id),
+        "snapshot": PLAN_SNAPSHOT,
+    }
+    ChatJobInput.model_validate(job.payload)
+
+
+@pytest.mark.parametrize("owner", [None, 2])
+def test_unknown_or_foreign_plan_revision_conflicts(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: int | None,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    revision_id = uuid4()
+    if owner is not None:
+        seed_user(owner, "Other")
+        revision_id = add_revision(session, user_id=owner)
+    response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == chat_api.PLAN_REVISION_MESSAGE
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_invalid_stored_plan_snapshot_conflicts(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    revision_id = uuid4()
+    session.add(PlanRevision(id=revision_id, user_id=1, snapshot={"meals": "bad"}))
+    session.flush()
+    response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == chat_api.PLAN_REVISION_MESSAGE
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_same_key_same_plan_revision_returns_existing_job(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    body = chat_body(plan_revision_id=str(add_revision(session)))
+    first = post_chat(client, body=body)
+    second = post_chat(client, body=body)
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    assert second.json() == first.json()
+    assert len(session.scalars(select(Job)).all()) == 1
+
+
+def test_same_key_different_plan_revision_conflicts(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    first = post_chat(
+        client, body=chat_body(plan_revision_id=str(add_revision(session)))
+    )
+    second = post_chat(
+        client, body=chat_body(plan_revision_id=str(add_revision(session)))
+    )
 
     assert first.status_code == 202
     assert second.status_code == 409
@@ -786,77 +894,133 @@ def _seed_chat_job(
     return job
 
 
-def test_succeeded_chat_job_attaches_overlay_without_storing(
-    client: TestClient, session: Session, seed_user: UserSeeder
+KROGER_LOCATION = "01234567"
+SWAP_RESULT: dict[str, object] = {
+    "answer": "stored text",
+    "tool_trace": [
+        {
+            "tool": "what_if_substitute",
+            "outcome": "success",
+            "inputs": {"status": "swapped", "with_ingredient_id": "ground_beef_80"},
+        }
+    ],
+}
+
+
+def kroger_with_calls() -> tuple[KrogerClient, list[str]]:
+    terms: list[str] = []
+
+    def handler(request: Request) -> Response:
+        if request.url.path.endswith("/token"):
+            return Response(200, json={"access_token": "t", "expires_in": 1800})
+        terms.append(request.url.params["filter.term"])
+        product = {
+            "productId": "0001112223334",
+            "description": "Invented Ground Beef",
+            "items": [{"price": {"regular": 2.49}}],
+        }
+        return Response(200, json={"data": [product]})
+
+    http = Client(transport=MockTransport(handler))
+    return (
+        KrogerClient(
+            "invented-id",
+            "invented-secret",
+            base_url="https://kroger.test",
+            client=http,
+        ),
+        terms,
+    )
+
+
+@pytest.fixture
+def kroger_override() -> Iterator[Callable[[KrogerClient | None], None]]:
+    def set_client(value: KrogerClient | None) -> None:
+        app.dependency_overrides[get_kroger_client] = lambda: value
+
+    yield set_client
+    app.dependency_overrides.pop(get_kroger_client, None)
+
+
+def test_chat_job_without_location_id_is_unchanged(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
 ) -> None:
     seed_user()
     job = _seed_chat_job(
-        session, key="chat:overlay-ok", status="succeeded", result=dict(PLAN_RESULT)
+        session, key="chat:kroger-none", status="succeeded", result=dict(SWAP_RESULT)
     )
-    override_estimator(FixedEstimator())
-    try:
-        response = client.get(f"/grocery/chat/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(f"/grocery/chat/jobs/{job.id}")
+    assert response.status_code == 200
+    assert response.json()["result"] == SWAP_RESULT
+    assert terms == []
+
+
+def test_chat_job_with_location_id_attaches_quote_without_storing(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+) -> None:
+    seed_user()
+    job = _seed_chat_job(
+        session, key="chat:kroger-ok", status="succeeded", result=dict(SWAP_RESULT)
+    )
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(
+        f"/grocery/chat/jobs/{job.id}", params={"location_id": KROGER_LOCATION}
+    )
     body = response.json()
+    assert response.status_code == 200
+    assert terms == ["ground beef 80% lean"]
+    assert body["result"]["kroger_quote"]["regular_cents"] == 249
+    assert body["result"]["answer"] == "stored text"
+    session.expire_all()
     stored = session.get(Job, job.id)
-
-    assert response.status_code == 200
-    estimate = body["result"]["supermarket_estimate"]
-    assert isinstance(estimate, dict)
-    assert isinstance(estimate["lines"], list)
-    assert estimate["lines"]
     assert stored is not None
-    assert isinstance(stored.result, dict)
-    assert "supermarket_estimate" not in stored.result
+    assert stored.result == SWAP_RESULT
+    assert "kroger_quote" not in json.dumps(stored.result)
 
 
-def test_succeeded_chat_job_keeps_stored_result_without_estimator(
-    client: TestClient, session: Session, seed_user: UserSeeder
-) -> None:
-    seed_user()
-    get_supermarket_estimator.cache_clear()
-    stale = {
-        "total_cents": 9999,
-        "notice": "stale stored overlay",
-        "lines": [{"ingredient_id": "chicken_breast", "cents": 9999}],
-    }
-    stored_result: dict[str, object] = dict(PLAN_RESULT)
-    stored_result["supermarket_estimate"] = stale
-    job = _seed_chat_job(
-        session, key="chat:overlay-none", status="succeeded", result=stored_result
-    )
-    override_estimator(None)
-    try:
-        response = client.get(f"/grocery/chat/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
-    stored = session.get(Job, job.id)
-
-    assert response.status_code == 200
-    assert "supermarket_estimate" not in body["result"]
-    assert stored is not None
-    assert isinstance(stored.result, dict)
-    assert stored.result["supermarket_estimate"] == stale
-
-
-@pytest.mark.parametrize("status", ["queued", "failed"])
-def test_unfinished_chat_job_does_not_call_estimator(
-    client: TestClient, session: Session, seed_user: UserSeeder, status: str
+@pytest.mark.parametrize("bad", ["short", "123456789", "0123456!", "01234 67", ""])
+def test_chat_job_bad_location_id_is_422(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+    bad: str,
 ) -> None:
     seed_user()
     job = _seed_chat_job(
-        session, key=f"chat:overlay-{status}", status=status, result=dict(PLAN_RESULT)
+        session, key="chat:kroger-bad", status="succeeded", result=dict(SWAP_RESULT)
     )
-    override_estimator(ForbiddenEstimator())
-    try:
-        response = client.get(f"/grocery/chat/jobs/{job.id}")
-    finally:
-        clear_estimator_override()
-    body = response.json()
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(f"/grocery/chat/jobs/{job.id}", params={"location_id": bad})
+    assert response.status_code == 422
+    assert terms == []
 
+
+def test_queued_chat_job_makes_no_kroger_call(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+) -> None:
+    seed_user()
+    job = _seed_chat_job(
+        session, key="chat:kroger-queued", status="queued", result=dict(SWAP_RESULT)
+    )
+    kroger, terms = kroger_with_calls()
+    kroger_override(kroger)
+    response = client.get(
+        f"/grocery/chat/jobs/{job.id}", params={"location_id": KROGER_LOCATION}
+    )
     assert response.status_code == 200
-    assert body["status"] == status
-    assert body["result"] == PLAN_RESULT
-    assert "supermarket_estimate" not in body["result"]
+    assert response.json()["result"] == SWAP_RESULT
+    assert terms == []

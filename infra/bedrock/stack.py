@@ -1,8 +1,12 @@
 """Development IAM role for nonstreaming Bedrock Converse."""
 
+import hashlib
+import json
 import re
+from typing import Any
 
 from aws_cdk import CfnOutput, Duration, Environment, Stack, Tags
+from aws_cdk import aws_bedrock as bedrock
 from aws_cdk import aws_iam as iam
 from constructs import Construct
 
@@ -25,6 +29,76 @@ _TAGS = {
     "Model": "amazon.nova-2-lite-v1:0",
     "ReasoningEffort": "low",
 }
+_BLOCKED = (
+    "I can help with meals, grocery lists, nutrition facts, and your food budget. "
+    "I cannot help with that request."
+)
+# name -> (definition, examples). MedicalAdvice checks output only.
+_TOPICS = {
+    "MedicalAdvice": (
+        "Advice that a food, meal, or plan suits, treats, or is safe for a "
+        "health condition.",
+        ["This meal plan will help control your blood sugar."],
+    ),
+    "AllergySafety": (
+        "Assurance that a food is free of an allergen or safe for an allergy "
+        "or celiac disease.",
+        ["Is this bread safe for my peanut allergy?"],
+    ),
+    "FinancialTransactions": (
+        "Buying, paying, transferring money, or placing an order.",
+        ["Pay for my cart now.", "Place the order."],
+    ),
+    "NonFoodTasks": (
+        "Tasks unrelated to meals, groceries, nutrition, or a food budget.",
+        ["Write me a cover letter.", "Fix this Python bug."],
+    ),
+}
+# filter -> (input strength, output strength)
+_STANDARD = ("HATE", "INSULTS", "SEXUAL", "VIOLENCE", "MISCONDUCT")
+_FILTERS = {kind: ("MEDIUM", "MEDIUM") for kind in _STANDARD} | {
+    "PROMPT_ATTACK": ("HIGH", "NONE")
+}
+
+
+def guardrail_topics() -> list[dict[str, Any]]:
+    """Return the guardrail topic policy as plain data."""
+    return [
+        {
+            "name": name,
+            "definition": definition,
+            "examples": list(examples),
+            "type": "DENY",
+            "input_enabled": name != "MedicalAdvice",
+            "output_enabled": True,
+        }
+        for name, (definition, examples) in _TOPICS.items()
+    ]
+
+
+def guardrail_filters() -> list[dict[str, Any]]:
+    """Return the guardrail content filter policy as plain data."""
+    return [
+        {"type": kind, "input_strength": inp, "output_strength": out}
+        for kind, (inp, out) in _FILTERS.items()
+    ]
+
+
+def policy_digest(
+    topics: list[dict[str, Any]] | None = None,
+    filters: list[dict[str, Any]] | None = None,
+    blocked_input: str = _BLOCKED,
+    blocked_output: str = _BLOCKED,
+) -> str:
+    """Return 12 hex chars identifying the guardrail policy."""
+    policy = {
+        "topics": guardrail_topics() if topics is None else topics,
+        "filters": guardrail_filters() if filters is None else filters,
+        "in": blocked_input,
+        "out": blocked_output,
+    }
+    dump = json.dumps(policy, sort_keys=True)
+    return hashlib.sha256(dump.encode()).hexdigest()[:12]
 
 
 class BedrockChatStack(Stack):
@@ -47,6 +121,32 @@ class BedrockChatStack(Stack):
         profile = (
             f"arn:aws:bedrock:{_ORIGIN_REGION}:{self.account}"
             f":inference-profile/{_PROFILE_ID}"
+        )
+        guardrail = bedrock.CfnGuardrail(
+            self,
+            "Guardrail",
+            name="fewia-food-assistant",
+            description="Denies medical, allergy, payment, and non-food requests",
+            blocked_input_messaging=_BLOCKED,
+            blocked_outputs_messaging=_BLOCKED,
+            topic_policy_config=bedrock.CfnGuardrail.TopicPolicyConfigProperty(
+                topics_config=[
+                    bedrock.CfnGuardrail.TopicConfigProperty(**topic)
+                    for topic in guardrail_topics()
+                ]
+            ),
+            content_policy_config=bedrock.CfnGuardrail.ContentPolicyConfigProperty(
+                filters_config=[
+                    bedrock.CfnGuardrail.ContentFilterConfigProperty(**item)
+                    for item in guardrail_filters()
+                ]
+            ),
+        )
+        version = bedrock.CfnGuardrailVersion(
+            self,
+            "GuardrailVersionResource",
+            guardrail_identifier=guardrail.attr_guardrail_id,
+            description=f"policy {policy_digest()}",
         )
         role = iam.Role(
             self,
@@ -72,9 +172,18 @@ class BedrockChatStack(Stack):
                 },
             )
         )
+        role.add_to_policy(
+            iam.PolicyStatement(
+                sid="ApplyFewiaGuardrail",
+                actions=["bedrock:ApplyGuardrail"],
+                resources=[guardrail.attr_guardrail_arn],
+            )
+        )
         for key, value in _TAGS.items():
             Tags.of(self).add(key, value)
         CfnOutput(self, "RoleArn", value=role.role_arn)
+        CfnOutput(self, "GuardrailId", value=guardrail.attr_guardrail_id)
+        CfnOutput(self, "GuardrailVersion", value=version.attr_version)
 
 
 def _context_str(stack: Stack, key: str) -> str:

@@ -29,7 +29,6 @@ const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd
 const loaded: ProviderCapabilities = {
   chat_configured: true,
   plaid_configured: false,
-  instacart_configured: false,
   spending_source: "fixture",
 };
 

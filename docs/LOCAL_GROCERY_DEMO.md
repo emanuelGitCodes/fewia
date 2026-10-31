@@ -26,11 +26,11 @@ Sample catalog prices are the budget figure under
 [decision 0016](../wiki/decisions/0016-spoonacular-read-time-overlay.md).
 Every estimate MUST show this notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability,
+> Estimated from the demo price catalog. Store prices, availability,
 > taxes, delivery fees, and tips are not verified.
 
-The Instacart handoff stays parked under
-[decision 0010](../wiki/decisions/0010-usda-spoonacular-overlay.md). The
+The product has no Instacart handoff under
+[decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md). The
 product places no orders and submits no payments.
 
 ## Start the base stack
@@ -99,29 +99,51 @@ docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
 
 The overlay mounts the credentials file into `api` and `worker` only.
 
-## Optional Spoonacular overlay
+## Optional Kroger overlay
 
-The Spoonacular key MUST live in a host file outside the repository. Set
-`FEWIA_SPOONACULAR_KEY_FILE` in `.env` to that absolute path. Do not put
-the key value in Compose, images, logs, or `.env.example`.
+The Kroger client ID and client secret MUST live in two host files outside
+the repository, mode 600. The Kroger API terms forbid credentials, client
+IDs included, in an open source repository. Set
+`FEWIA_KROGER_CLIENT_ID_FILE` and `FEWIA_KROGER_SECRET_FILE` in `.env` to
+the absolute paths. `FEWIA_KROGER_ENVIRONMENT` defaults to
+`certification`; set it to `production` only after Kroger approves the app.
 
-[`compose.spoonacular.yaml`](../compose.spoonacular.yaml) mounts the key
-file into `api` only:
+[`compose.kroger.yaml`](../compose.kroger.yaml) mounts both files
+read-only into `api` and `worker`:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.spoonacular.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d
 ```
 
-The API adds the Spoonacular average when it serves a succeeded job. The
-application MUST NOT store Spoonacular cents. Plan acceptance and the
-estimate total use sample catalog cents only. Each purchased line then
-shows a "Spoonacular avg" row, and the estimate shows an average
-supermarket total next to the sample total.
+The overlay also needs a token key file for the Kroger account sign-in.
+The API uses this Fernet key to encrypt the customer tokens it stores.
+Create the key once, outside the repository, without showing it:
+
+```bash
+uv run --with cryptography python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" > ~/.config/fewia/kroger/token-key
+```
+
+```bash
+chmod 600 ~/.config/fewia/kroger/token-key
+```
+
+Set `FEWIA_KROGER_TOKEN_KEY_FILE` in `.env` to its absolute path. The
+overlay mounts it read-only into `api` only.
+
+The Kroger app MUST list `http://localhost:8010/grocery/kroger/callback` as
+a redirect URI. To use another API port or frontend address, set
+`FEWIA_KROGER_REDIRECT_URI` and `FEWIA_KROGER_RETURN_URL`. The return URL
+defaults to `http://127.0.0.1:5173/prototype` and MUST NOT hold a query.
+
+On `/prototype`, choose a Kroger store in the chat panel. When a chat reply
+swaps in or looks up a food with no sample price, the API adds one live
+Kroger price as it serves the reply. The application MUST NOT store Kroger
+content. Plan acceptance and every total use sample catalog cents only.
 
 Both overlays together:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.spoonacular.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.kroger.yaml up -d
 ```
 
 ## Health and capability

@@ -19,17 +19,17 @@ Rules:
 
 - Enforce authorization at every user and job boundary. A caller MUST NOT
   read or mutate another user's ledger, budget, job, evidence, or traces.
-- Keep Floci, Plaid Sandbox, Instacart development, and real Bedrock
+- Keep Floci, Plaid Sandbox, Kroger, and real Bedrock
   credentials and endpoints isolated. Secrets MUST NOT appear in source,
   prompts, logs, traces, exports, images, or model inputs.
 - Treat user text, tool results, merchant data, product data, and links as
-  untrusted input. Defend against prompt injection. Validate `products_link`
+  untrusted input. Defend against prompt injection. Validate retailer
   URLs with an explicit HTTPS host allowlist and reject credentials,
   unexpected redirects, and non-provider destinations.
 - Do not expand permissions, network access, data retention, or provider
   scope to solve a security finding. Least privilege MUST remain intact.
-- Plaid is Sandbox spending only. Instacart is a development
-  `products_link` handoff only. Sample prices MUST be labeled. The system
+- Plaid is Sandbox spending only. Kroger customer tokens stay encrypted
+  and server-side. Sample prices MUST be labeled. The system
   MUST NOT implement checkout.
 - The agent MUST NOT make clinical or allergy-safety claims. Product data
   cannot establish medical suitability.

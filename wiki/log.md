@@ -4402,3 +4402,397 @@ corrected the status of four tooling rows, the Plaid decision citation,
 a table count, and open-work rows that named files absent from `main`.
 The gates found no checks for a prose-only diff. The merge commit is
 `f4c6d61e`.
+
+## 2026-10-28 — PR 460 efficiency: Bedrock workflow
+
+The local update returns accepted plan batches and valid budget-only batches
+without a final model call. A simple accepted plan uses one provider call
+instead of two. The loop finishes the complete tool batch before it selects
+the response. Error and correction paths remain active.
+
+Terminal tool results reach evaluation capture without a billed follow-up.
+Cache-read and cache-write counts survive API decoding and capture. A cache
+total stays unknown when any contributing turn omits or invalidates it.
+The loop builds tool specifications once per chat run.
+
+Sol wrote item 01 at high effort. Luna high approved `4e0c26f2`.
+The gates passed with 9387 backend tests passed and one skipped. Frontend
+checks passed. The coordinator ran 83 focused checks on that SHA; all passed.
+Four new regression checks failed against the original PR source, as expected.
+Initial gates found two format issues and eleven obsolete fixture assumptions.
+Scoped repairs fixed those failures before review. One extra narrow fixture
+repair needed coordinator authorization.
+
+## 2026-10-28 — PR 460 efficiency: frontend state and previews
+
+Reply metadata and seen job IDs follow the bounded transcript. A new chat
+rejects late completions. Meal previews reuse price calculations while draft
+text and polling state change. Budget fit and callbacks remain current.
+An ordinary add preview aggregates the plan twice instead of four times.
+
+Sol wrote item 03 at medium effort. Luna high approved `42de9adf`.
+Frontend lint, build, and all 703 tests passed. Three new behavior checks
+failed against the original PR source, as expected. The local Node probe
+kept the same 666-cent add preview. A batch of 24 previews took about
+0.072 ms before and 0.040 ms after warm-up. These figures exclude React,
+the DOM, the network, and Bedrock. They do not measure full application latency.
+Two earlier writer attempts made no edits because of assignment wording.
+The corrected assignment completed with the same writer.
+
+Both preview measurements use warmed code. The comparison is between the
+original and updated implementations.
+
+## 2026-10-28 — PR 460 efficiency: catalog discovery
+
+The shared chat loop uses `find_catalog_meals` for meal-type requests.
+The tool intersects validated terms, diet, and exact ingredient exclusions.
+It returns up to three supported choices in catalog order. Server text owns
+the meal names and caveats. Discovery does not fabricate a priced plan.
+
+Prompt and serialized tool definitions decreased from 9503 to 7902 characters.
+The matching-meal fixture uses one provider call and no planner revision or
+plan evidence. The coordinator ran 144 catalog checks and eight ordered
+revision checks. All passed on their recorded heads.
+
+Sol wrote item 02 at medium effort. Luna high approved `a21b15b5`.
+The full gates passed with 9541 backend tests passed and one skipped.
+The first full run found three style errors and 42 failures from a fixture
+that required two tools. Scoped repairs fixed those failures. The fixture
+now checks all three tool names.
+
+The first review exposed ambiguous wording about order independence.
+Planner calls remain ordered revisions. A later invalid revision clears the
+current plan; a later over-budget revision stays unaccepted. Earlier evidence
+remains persisted and traced. Six new cases cover discovery before, between,
+and after those revisions. No production logic changed for this clarification.
+
+At item completion, the CLI ledger reports 11907624 input tokens and 115123
+output tokens across items 01-03. Summed CLI run time is 3095.564 seconds.
+This is not wall-clock time or a dollar cost. The record includes repeated
+input as reported by each CLI. Coordinator and native junior token usage is
+unavailable. The final integration review follows this checkpoint in the
+shared usage ledger.
+
+These results cover local source and deterministic providers. Live Bedrock
+tool selection, latency, and cache-hit rates remain unmeasured for this update.
+
+## 2026-10-29 — Catalog meal photos
+
+Generated the missing 37 meal photos with the built-in image generator.
+The catalog now maps all 40 meals to unique local WebP files. The three
+existing photos remain unchanged. Each new image has a prompt sidecar.
+The photos use the catalog ingredients and a consistent ceramic-table style.
+
+All 40 files passed WebP validation at 1200 by 900 pixels. The full set uses
+5218628 bytes. The 37 new files use 4736220 bytes. The meal photo component
+uses native lazy loading, asynchronous decoding, and explicit dimensions.
+
+Playwright checked the local prototype at 1440 by 1000 and 390 by 844.
+All 40 desktop catalog photos decoded. Search and meal selection showed the
+correct Salsa rice bowls and Overnight oats photos. The mobile document
+width stayed at 390 pixels. The desktop check recorded no console errors,
+failed requests, or framework overlay. These checks cover Chromium only.
+The Browser plugin was not available, so the coordinator used Playwright CLI.
+
+Luna xhigh wrote the image mapping, photo attributes, and existing photo
+assertion updates through the supervisor. Two writer runs reported 660777
+input tokens, 11741 output tokens, and 168.557 seconds of CLI run time.
+Independent review follows the committed-head gates. Image-generation token
+usage and dollar cost are unavailable.
+
+## 2026-10-29 — PR 460 graph refresh
+
+Refreshed the local Graphify graph for the PR 460 work at `7a257d2`.
+The baseline graph came from the main checkout at `285b1f3`. The refresh
+processed 149 changed or previously unindexed files: 85 source and metadata
+files, 13 documents, and 51 images. All 40 catalog photos are included.
+
+The graph covers `run_chat` terminal batches, catalog discovery, cache usage,
+frontend plan previews, and all 40 `PHOTOS` mappings. The refresh preserved
+412 history nodes after checking that the old log was an exact prefix.
+
+Integrity checks found no dangling or missing endpoints and no collapsed
+edges. The 55 existing self-loops remain unchanged. The HTML graph uses a
+community view because the graph has more than 5000 nodes. Outputs remain
+local and ignored under `graphify-out/`.
+
+Semantic token usage and dollar cost are unavailable. AST extraction uses
+no LLM. The graph refresh does not merge or deploy PR 460.
+
+## 2026-10-30 — PR 460: conversation batches, grounding fix, Instacart retired
+
+Two live Nova 2 Lite batches ran on `conversation-eval-v1` (12 scenarios,
+3 repeats, 66 turns), each with owner approval. At `95cfbea` the validator
+accepted 9 of 36 prose replies (0.25). At `cec2719` it accepted 8 of 33
+(0.24). p50 latency was 4.6 s and 3.9 s, so streaming is not needed. Cost
+was USD 0.0057 and 0.0052 per turn. The records hold hashes, not reply text.
+
+A 14-turn diagnostic printed rejected replies to the terminal only. It
+found 3 model errors, 1 validator gap, 2 rejections by design, and 1 echo of
+the user's words. p6-01 binds a direction word to an unsigned change
+("2.5 g more fat" matches +2.5 g). p6-02 added prose rules to the system
+prompt. The second batch showed no gain, and C11 turn 1 called the planner
+in 3 of 3 repeats, so the owner reverted p6-02 at `6fcd898`.
+
+[Decision 0023](decisions/0023-retire-instacart-adapter.md) retires the
+Instacart adapter and keeps the frozen `grocery-eval-v1` suite. The handoff
+routes, the frontend handoff controls, `instacart_key_file`, the
+`instacart_configured` flag, and the HTTP client are gone. The handoff
+services stay with the frozen suite as their only caller. The estimate
+notice still names Instacart; a later item changes it after the owner
+approves new wording.
+
+Gates on the stack: backend 11,048 passed; frontend lint, tests, and build
+passed. `claude-opus-5-5` approved each code item on its reviewed head.
+Grounding stays near 25% and needs a different design.
+
+[Decision 0024](decisions/0024-store-neutral-estimate-notice.md) sets the
+notice to "Estimated from the demo price catalog. Store prices,
+availability, taxes, delivery fees, and tips are not verified." The
+benchmark corpus becomes `grocery-eval-v1.1` with the same 30 scenarios and
+138 slots. The corpus hash and the baseline system prompt hash change; the
+chat `SYSTEM_PROMPT` and the conversation corpus do not. Archived results
+and course evidence are unchanged. Gates at `28ff010`: backend 11,050
+passed; frontend lint, tests, and build passed.
+
+A paid probe (22 turns, about USD 0.25; reply text deleted) classified 9
+rejections: 3 correct changes stated with a verb before the number, 2
+computed numbers, 2 numbers reused from history, and 2 user echoes. Nova 2
+Lite followed neither server-rendered output shape (placeholders 1 of 9,
+a `final_answer` tool 1 of 9), so the design note
+`docs/design/grounding-redesign.md` rejects that design for this model.
+p9-01 binds a direction verb before a number to a signed delta. A batch at
+`b808dfb` accepted 13 of 32 prose replies (0.41), up from 9 of 36.
+
+[Decision 0025](decisions/0025-medical-claims-and-bedrock-guardrail.md)
+adds two layers against medical advice. The validator fails a model reply
+that names a health condition (`medical_claim`), wherever the term appears.
+An optional Bedrock guardrail with four denied topics is defined in the CDK
+stack and wired into Converse behind two settings; it stays off until the
+owner deploys it. Gates at `a7e98ce`: backend 11,111 passed; CDK tests,
+ruff, and mypy passed.
+
+## 2026-10-31: Bind nutrition claims to their nutrient
+
+The local fix on `codex/fix-nutrient-grounding` follows the PR 460 review
+at `d15cea3de026ef00a3d14ac6cc4a01c3d5b8e5a3`. Nutrition facts now keep
+protein, carbohydrate, and fat separate through unit conversion and signed
+changes. A number from another nutrient, note, ingredient quantity, or
+serving count cannot ground a supported nutrition claim. Unsupported or
+ambiguous nutrition wording uses the existing server answer.
+
+The chatbot keeps free-text replies and the same model-call count. The
+fake-provider regression rejects the false claim of 23 g fat in chicken
+breast while accepting the matching protein and fat claims. Rejected prose
+stays out of the public result. The focused suite passed 562 tests with
+one existing Starlette/httpx deprecation warning. Terra checked 40 additional
+adversarial cases with in-memory probes; all matched their expected outcome.
+These checks do not prove food identity or serving-basis attribution in
+arbitrary prose. They make no live Bedrock or deployment claim.
+
+Sol wrote the change at high effort through the supervisor. Writer usage
+for `nutrient-grounding-01`: three runs, 1267.704 seconds, 3195584 input
+tokens, and 48359 output tokens. These are supervisor counts, not a charge
+estimate. Native-agent token counts are unavailable. Gate and independent
+review records use the committed SHA. The loop record holds later review
+usage. No push or merge is authorized for this item.
+
+The initial gate at `de42f8b1` failed strict mypy because two variable
+names held both regex matches and integer offsets. That run also skipped
+238 tests without the required database setup. A later compiler-only
+repair gives the label variables distinct names. Strict mypy then passed
+for all 186 source files. The coordinator runs final gates through the
+isolated PostgreSQL script with `FEWIA_REQUIRE_DB=1`.
+Writer totals after this repair: four runs, 1293.748 seconds, 3298795 input
+tokens, and 49305 output tokens. These totals supersede the three-run
+writer snapshot above and exclude the later independent review.
+
+Luna reviewed `9e0d2ee0` at high effort and requested changes. An ambiguous
+comma phrase, such as "14 g, protein", could use an ingredient quantity
+through the generic fallback. The next repair rejects these phrases and
+checks coordinated alternatives against their nutrient. Clear ingredient
+clauses and the existing deferred-addition wording still pass.
+The focused suite then passed 596 tests. Strict mypy, Ruff, and formatting
+checks passed. Terra replayed 51 adversarial and positive cases; all
+matched their expected outcome. Full gates and the next independent
+review use the later committed SHA.
+Writer totals after this repair: five runs, 1594.440 seconds, 3608015 input
+tokens, and 60611 output tokens. The first Luna review used 196347 input
+tokens and 7354 output tokens. The loop record holds later review usage.
+
+Luna reviewed `c19c5f2` and found that a prefix label could ignore a
+material noun after the amount. The next repair rejects noun-qualified
+claims such as "Protein is 14 g of flour". The parser accepts a bounded
+set of macro continuations, basis phrases, numeric parentheses, USDA
+citations, and energy clauses. Citation IDs and calorie amounts still
+need independent numeric evidence.
+
+The first compatibility check passed 708 tests and failed four existing
+forms. A follow-up repair restored the USDA citation and energy-clause
+forms. Three new negative assertions then failed because they omitted the
+existing plus sign in the reported amount. The writer corrected those
+assertions. The final focused suite passed 738 tests with one existing
+Starlette/httpx warning. Ruff checks, formatting, and strict mypy passed.
+Terra checked 91 adversarial and positive cases before the final commit;
+all matched their expected outcome. The final gates and review record
+name the later committed SHA.
+
+Writer totals before the third review: seven runs, 1997.807 seconds,
+4229873 input tokens, and 78686 output tokens. The first two Luna reviews
+used 459615 input tokens and 13962 output tokens. The loop record holds
+the final review usage. These checks use fake providers and local data.
+They make no live Bedrock or deployment claim.
+
+## 2026-10-31: Correct USDA diet flags and first-meal proposals
+
+Five bundled pork or beef bean foods inherited vegan and vegetarian flags
+from their USDA category. The classifier now uses the full description
+before name shortening. Explicit animal ingredients override category
+defaults. Bounded plant phrases keep soy yogurt and soy curd cheese from
+being treated as dairy. Uncertain mixtures fail conservatively. These
+rules cannot resolve unlisted ingredients or certify cross-contact safety.
+
+Adding the first meal to an empty saved plan raised a validation error.
+The proposal preview now represents its empty before side with empty
+meals and nutrition, and a complete zero-cost estimate. The effective cap
+still lowers the available budget. Normal grocery requests still require
+a meal. Invalid operations store nothing. The saved base stays immutable.
+
+The item at `b57c4553` passed 11,710 backend tests, with one existing skip
+and warning. Ruff, formatting, and strict mypy passed. Root probes passed
+31 cases. Restoring the original production files made five diet cases
+and eight first-meal cases fail. Luna high approved the exact item SHA.
+The integration carries the reviewed patch in `c3644288`.
+
+## 2026-10-31: Preserve the plan across sign-in and proposal Apply
+
+The Kroger sign-in navigation discarded the prototype's local state.
+Connect now saves and verifies a bounded session checkpoint before leaving.
+Known return markers restore meals, pantry, shopping checks, view, and the
+budget draft with its last valid cents. Invalid drafts retain their error.
+Storage failure prevents navigation or shows a bounded restore error.
+Strict validation rejects stale, malformed, oversized, or unknown state.
+Restoration reads without consuming during initialization, then consumes
+after mount. The checkpoint holds no auth, provider, transcript, or server
+revision data. The existing path saves the restored plan as a fresh revision.
+
+Proposal previews inherit the saved cap; proposal operations cannot change
+it. Applying a preview now keeps the current local budget fields while
+updating meals and pantry. The proposal card no longer advertises an
+inherited cap difference as an operation. Generic snapshot application
+keeps its existing behavior.
+
+The item at `cdef7653` passed 231 focused tests and the frontend gates.
+Root's component replay passed 16 cases. Restoring only the original
+callers made 14 fail; two positive controls passed. The initial failure
+injection checks reported 227 passed and four failed. A supervised test
+repair replaced ineffective Storage spies with an explicit test double.
+Luna high approved the exact item SHA. The integration carries the patch
+in `e2e3f7aa`. The original browser baseline reproduced both reported bugs.
+Final browser checks use the combined integration revision.
+
+## 2026-10-31: Keep cart uncertainty and quote character limits consistent
+
+A Kroger cart response of HTTP 500 became a safely retryable API 503.
+Every post-send server error now uses the existing unconfirmed outcome.
+The API returns 504 and the UI asks the user to check the cart before an
+explicit retry. The client never retries the mutation automatically.
+Pre-send failures and provider read failures keep their existing behavior.
+
+The backend limits quote text by Unicode code points. The frontend used
+UTF-16 length and rejected valid emoji text with the whole chat result.
+Quote text now uses the same 160-code-point bound. Exact quote fields,
+numeric checks, and optional empty or null values keep their contracts.
+
+The item at `5d4fe84c` passed 11,494 backend tests, with one existing skip
+and warning, plus the frontend gates. Root's cart matrix passed 23 cases.
+Original production files made the cart-500 regression and all five
+Unicode field regressions fail. Luna high approved the exact item SHA.
+The integration carries the reviewed patch in `91a17169`.
+
+The initial backend and retailer gate commands omitted the isolated
+database wrapper and its URL exports. Each reported 238 fixture errors.
+The corrected wrapper runs passed on the same code SHAs. No source repair
+was needed for that setup error. A frontend formatter added unrelated line
+wrapping. A structural TypeScript comparison confirmed that the quote
+parser's only behavior change is code-point counting.
+
+Sol high wrote all three items through the supervisor. Before the final
+combined review, eight writer runs used 6,399,890 input tokens and 85,730
+output tokens. Three Luna reviews used 640,418 input and 9,777 output
+tokens. Summed model-run time was 1,941.610 seconds. These are supervisor
+counts, not a charge estimate; native-agent usage is unavailable. The loop
+record holds the final combined review usage and verification evidence.
+All original and integration commits passed the normal gitleaks hook.
+No live provider, hosted CI, deployment, or merge claim is made.
+
+## 2026-10-31: Fix five defects from the PR 460 review
+
+A review of PR 460 at `63793ad5` found eight defects. This entry records
+the five that are fixed here. The nutrient-validator fixes (defects 1 to
+3) follow in a later entry.
+
+- **Guardrail version (pf-05).** The guardrail version description is now
+  `policy <digest>`, a SHA-256 prefix over the topic and filter config and
+  the blocked messages. A policy edit publishes a new version on deploy.
+- **Guardrail input and history (pf-04).** Only the user's own message
+  block goes in `guardContent`. A blocked turn and its decline stay out of
+  the chat history that later turns send. A decline carries no proposal.
+  The backend accepts only a numbered guardrail version.
+- **Kroger token rejection (pf-06).** A refresh 400 or 401 with
+  `invalid_grant`, or a cart-add 401, deletes the stored tokens and answers
+  as not connected. Any other refresh 400 or 401, such as
+  `invalid_client`, keeps the tokens and answers 503.
+- **Kroger sign-in flow (pf-03).** The page owns the `?kroger` return
+  marker and shows its line once. A failed plan save warns once, clears
+  any older checkpoint, and then lets sign-in continue. The Plan cap input
+  has a 256-character limit.
+- **USDA diet flags (pf-02).** Preparations that usually hold egg, milk,
+  butter, or lard are not vegan. Rennet cheeses and lard-risk foods are not
+  vegetarian. A test covers each term and pins four plain staples.
+
+Each item passed the gates with a dedicated PostgreSQL. The review model
+(`claude-opus-5-5`) approved each head: pf-05 `8360c334`, pf-04
+`42b63b9c`, pf-06 `678c8e95`, pf-03 `711537b0`, and pf-02 `080e69df`. The
+combined stack passed 11,815 backend tests with 245 added code lines.
+Writers were `claude-sonnet-5-5` through the supervisor. No live provider
+call, deployment, or merge claim is made.
+
+## 2026-10-31: Fix the nutrient-validator defects from the PR 460 review
+
+This entry records defects 1 to 3 of the PR 460 review at `63793ad5`.
+
+- **Nutrient binding (pf-01).** A label binds a number only on its own
+  line, and an unknown word before a label unbinds it. "changes by N" and
+  "<label> by N" need a sign. A "from X to Y" change must read a recorded
+  pair, its signed delta, and a direction that agrees.
+- **Validator cost (pf-01).** A reply over 1,200 characters fails before
+  the scan. The scan is linear: an adversarial reply takes about 2 ms.
+- **Basis and side (pf-07).** Each nutrition and energy fact records its
+  basis and its before or after side. A basis phrase after a claim, and the
+  basis of a from-to pair, MUST match the fact.
+
+The review model (`claude-opus-5-5`) approved `b70c1da4`.
+The tier L probes caught 16 of 16 mutations. On 62 sample replies, no
+false claim passes that the merge base rejects. The design doc
+`docs/design/grounding-redesign.md` lists the open shapes that still pass
+and the true claims that now fail. Writers were `claude-sonnet-5-5`
+through the supervisor. No live provider call, deployment, or merge claim
+is made.
+
+## 2026-10-31: Plan meal search by type and fix the fallback
+
+`docs/design/meal-search.md` answers the open PR 460 question on meal
+types. Neither store option fixes the defect. Types MUST be hard filters
+on tags that code computes, and a type that the system cannot check MUST
+fail closed. The plan has nine items.
+
+- **Item 1 (meal-search-01).** On a meal-type request with no catalog
+  search, the fallback names no example meals. The system prompt drops a
+  rule that the model could not follow and sends meal types to
+  `search_meals`.
+
+The review model (`claude-opus-5-5`) approved `54cd4494`. The backend
+gates passed (11,989 tests) with 56 added code lines. Whether Nova calls
+`search_meals` on the new prompt sentence is not measured. No live
+provider call is made.

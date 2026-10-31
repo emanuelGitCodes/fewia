@@ -5,7 +5,6 @@ import type {
   JobStatus,
   MealPlanNutrition,
   SpendingSource,
-  SupermarketEstimate,
 } from "./apiTypes";
 
 export type ChatResultStatus =
@@ -22,6 +21,8 @@ export type ChatToolOutcome = "success" | "error";
 export type ChatUsage = {
   inputTokens: number;
   outputTokens: number;
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
 };
 
 export type ChatToolTrace = {
@@ -34,6 +35,21 @@ export type ChatToolTrace = {
   evidence_revision_id?: string;
 };
 
+export type KrogerStore = { locationId: string; name: string };
+
+export type KrogerQuote = {
+  kind: "store_live";
+  ingredient_id: string;
+  product_label: string;
+  brand: string | null;
+  size: string | null;
+  regular_cents: number;
+  promo_cents: number | null;
+  stock_level: string | null;
+  location_id: string;
+  retrieved_at: string;
+};
+
 export type ChatResult = {
   status: ChatResultStatus;
   answer: string;
@@ -41,7 +57,9 @@ export type ChatResult = {
   budget: GroceryBudget | null;
   request: GroceryRequest | null;
   meal_nutrition: MealPlanNutrition | null;
-  supermarket_estimate?: SupermarketEstimate;
+  kroger_quote?: KrogerQuote | null;
+  kroger_degraded?: true;
+  proposal_id?: string;
   evidence_id: string | null;
   evidence_revision_id: string | null;
   spending_source: ChatSpendingSource;
@@ -56,6 +74,7 @@ export type ChatJobCreate = {
   monthly_limit_cents: number;
   plan_cap_cents: number | null;
   previous_job_id: string | null;
+  plan_revision_id: string | null;
 };
 
 export type ChatJob = {

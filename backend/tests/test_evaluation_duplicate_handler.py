@@ -13,6 +13,7 @@ from app.evaluation_duplicate_handler import DuplicateHandler
 from app.evaluation_inputs import CaseContext, prepare_case
 from app.evaluation_plan_inputs import fixture_plan
 from app.models import User
+from app.providers import instacart
 from app.providers.local_artifacts import ArtifactPut
 from app.services.evidence_store import load_evidence
 from app.services.handoff_intents import read_handoff
@@ -256,9 +257,7 @@ def test_untrusted_fields_cannot_override_facts_or_reach_report(
 
     monkeypatch.setattr("httpx.Client.send", forbidden)
     monkeypatch.setattr("app.providers.local_artifacts.boto3.Session", forbidden)
-    monkeypatch.setattr(
-        "app.providers.instacart.InstacartDevelopmentProvider.create_link", forbidden
-    )
+    assert not hasattr(instacart, "InstacartDevelopmentProvider")
     handler = DuplicateHandler(existing.factory, context, store)
     result = handler(
         {

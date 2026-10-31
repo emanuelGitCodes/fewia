@@ -24,9 +24,9 @@ First-release evaluation boundary:
   corpus version, budget inputs, and expected outputs.
 - Cover the local React and TypeScript chat path, FastAPI, PostgreSQL,
   worker, Floci SQS and S3 integration, real Bedrock evidence, Plaid
-  Sandbox evidence, and Instacart development links as separate classes.
+  Sandbox evidence, and Kroger cart evidence as separate classes.
 - Show this exact notice with every estimate: "Estimated from the demo price
-  catalog. Instacart prices, availability, taxes, delivery fees, and tips are
+  catalog. Store prices, availability, taxes, delivery fees, and tips are
   not verified." Do not score estimates as verified checkout prices.
 
 Metrics:
@@ -37,7 +37,7 @@ Metrics:
 - Record P50 and P95 latency, token use, estimated cost, and provider calls
   from each run.
 - Label each result as deterministic fake-provider, local PostgreSQL,
-  Plaid Sandbox, live Instacart development, real Bedrock, or deployed AWS
+  Plaid Sandbox, Kroger Certification, real Bedrock, or deployed AWS
   evidence. One evidence class MUST NOT stand in for another.
 - Every factual claim MUST map to returned evidence. The evaluator MUST NOT
   accept fabricated results or unsupported causal claims.

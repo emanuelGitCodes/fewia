@@ -21,23 +21,26 @@ endpoint returns up to six eligible suggestions. An empty list is
 possible. Suggestions use labeled sample prices. They do not reserve
 money. `get_budget_summary` returns read-only budget facts. Pending
 cents and stale-spending warnings stay separate.
-FEWIA parks the Instacart development handoff. The adapter stays in the
-code. The shopping-link button stays hidden while `instacart_configured`
-is false. See
+FEWIA has no Instacart shopping-link handoff. The Kroger cart is the
+retailer path. Only the frozen benchmark suite (`grocery-eval-v1.1`, decision 0024) runs the handoff
+services. See
+[wiki/decisions/0023-retire-instacart-adapter.md](wiki/decisions/0023-retire-instacart-adapter.md).
+The nutrition decision is
 [wiki/decisions/0010-usda-spoonacular-overlay.md](wiki/decisions/0010-usda-spoonacular-overlay.md).
 FEWIA stores nutrition facts from USDA FoodData Central. These facts are
-not a medical claim. FEWIA shows a labeled Spoonacular
-average-supermarket-cost overlay. That overlay is optional and off by
-default. It appears only when `FEWIA_SPOONACULAR_KEY_FILE` is set.
-Budget acceptance still uses the FEWIA sample-catalog cents, not the
-Spoonacular cost. Every sample-catalog estimate MUST carry this exact
-notice: "Estimated from the demo price catalog. Instacart prices,
-availability, taxes, delivery fees, and tips are not verified." The
-Spoonacular overlay carries its own notice, `SPOONACULAR_COST_NOTICE` in
-`backend/app/domain/supermarket_estimate.py`.
+not a medical claim. The prototype chat can show a labeled live Kroger
+price for a food with no sample price. That overlay is optional and off
+by default. It appears only when the Kroger credential files are set and
+the user picks a store. FEWIA stores no Kroger content. Budget acceptance
+still uses the FEWIA sample-catalog cents, not the Kroger price. Every
+sample-catalog estimate MUST carry this exact notice: "Estimated from the
+demo price catalog. Store prices, availability, taxes, delivery fees,
+and tips are not verified." Section 6.7 of
+[docs/design/chat-architecture-proposal.md](docs/design/chat-architecture-proposal.md)
+describes the Kroger overlay.
 
-FEWIA does not check out or place orders. It does not submit payments. It
-does not use live retailer prices. It does not train a health model. That
+FEWIA does not check out or place orders. It does not submit payments. Budget
+totals do not use live retailer prices. It does not train a health model. That
 health-prediction scope is historical and retired. See
 [wiki/decisions/0008-grocery-bot-pivot.md](wiki/decisions/0008-grocery-bot-pivot.md).
 
@@ -56,12 +59,17 @@ and `FEWIA_BEDROCK_CREDENTIALS_FILE`. Read
 docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
 ```
 
-To show Spoonacular prices, add the Spoonacular override. It reads the
-key from `FEWIA_SPOONACULAR_KEY_FILE`. Keep that file outside the
-repository with mode 600. To use Bedrock too, add both `-f` flags.
+To show live Kroger prices, add the Kroger override. It reads the client
+ID from `FEWIA_KROGER_CLIENT_ID_FILE` and the secret from
+`FEWIA_KROGER_SECRET_FILE`. Keep both files outside the repository with
+mode 600. The Kroger terms forbid credentials in an open source
+repository. The Kroger account sign-in also needs a Fernet key file in
+`FEWIA_KROGER_TOKEN_KEY_FILE`; see
+[docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md). To use Bedrock
+too, add both `-f` flags.
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.spoonacular.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d
 ```
 
 ## Secret scanning

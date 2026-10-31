@@ -15,6 +15,7 @@ const body: ChatJobCreate = {
   monthly_limit_cents: 20000,
   plan_cap_cents: null,
   previous_job_id: null,
+  plan_revision_id: null,
 };
 
 const result: ChatResult = {
@@ -156,9 +157,38 @@ describe("chatApi", () => {
     expect(job).toEqual(queuedJob);
   });
 
+  it("appends location_id only for a valid 8-character id", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => jsonResponse(queuedJob),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const path = `/api/grocery/chat/jobs/${encodeURIComponent(queuedJob.id)}`;
+    await fetchChatJob(queuedJob.id, undefined, "01400943");
+    await fetchChatJob(queuedJob.id, undefined, "bad id");
+    await fetchChatJob(queuedJob.id, undefined, null);
+    await fetchChatJob(queuedJob.id);
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      `${path}?location_id=01400943`, path, path, path,
+    ]);
+  });
+
   it("returns a typed succeeded job from a valid fixture", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(succeededJob)));
     await expect(fetchChatJob(succeededJob.id)).resolves.toEqual(succeededJob);
+  });
+
+  it("preserves cache counts on a result from one model turn", async () => {
+    const usage = {
+      inputTokens: 11, outputTokens: 7, cacheReadInputTokens: 9, cacheWriteInputTokens: 0,
+    };
+    const job = {
+      ...succeededJob,
+      result: { ...result, model_turns: 1, usage },
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(job)));
+    const parsed = await fetchChatJob(job.id);
+    expect(parsed).toEqual(job);
+    expect(parsed.result?.usage).not.toBe(usage);
   });
 
   it("throws HTTP_ERROR for failed and network fetches and hides raw payloads", async () => {

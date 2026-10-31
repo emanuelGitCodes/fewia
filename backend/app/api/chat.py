@@ -1,22 +1,27 @@
 """HTTP routes for grocery chat jobs and provider capabilities."""
 
+import re
 from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
 from app.demo import DEMO_USER_ID
-from app.deps import get_provider_settings, get_session, get_supermarket_estimator
+from app.deps import get_kroger_client, get_provider_settings, get_session
 from app.domain.budget import NEW_YORK
+from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.job_models import Job
 from app.models import User
+from app.plan_models import PlanRevision
 from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
+from app.providers.kroger import KrogerClient
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
 from app.services.job_submission import (
@@ -26,16 +31,16 @@ from app.services.job_submission import (
     reuse_job,
     submit_job,
 )
-from app.services.supermarket_overlay import (
-    IngredientCostEstimator,
-    attach_supermarket_estimate,
-)
+from app.services.kroger_overlay import attach_kroger_quote
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 CHAT_KEY_PREFIX = "chat:"
 CHAT_UNAVAILABLE_MESSAGE = "Chat is not configured."
 CHAT_CONTEXT_MESSAGE = "Chat context is unavailable."
+PLAN_REVISION_MESSAGE = "The plan is not available. Refresh the page and try again."
 JOB_NOT_FOUND_MESSAGE = "Job not found"
+LOCATION_ID_MESSAGE = "location_id MUST be 8 letters or digits"
+_LOCATION_ID = re.compile(r"[0-9A-Za-z]{8}")
 IdempotencyKey = Annotated[str, Header(min_length=1, max_length=120)]
 
 
@@ -86,6 +91,18 @@ def create_chat_job(
     if loaded is None:
         raise HTTPException(status_code=409, detail=CHAT_CONTEXT_MESSAGE)
     history, previous_request, previous_ingredient_ids = loaded
+    plan_revision: PlanRevisionInput | None = None
+    if body.plan_revision_id is not None:
+        row = session.get(PlanRevision, body.plan_revision_id)
+        if row is not None and row.user_id == DEMO_USER_ID:
+            try:
+                plan_revision = PlanRevisionInput(
+                    id=row.id, snapshot=PlanSnapshot.model_validate(row.snapshot)
+                )
+            except ValidationError:
+                plan_revision = None
+        if plan_revision is None:
+            raise HTTPException(status_code=409, detail=PLAN_REVISION_MESSAGE)
     turns = [ChatHistoryTurn.model_validate(item) for item in history]
     payload = cast(
         dict[str, object],
@@ -95,6 +112,8 @@ def create_chat_job(
             monthly_limit_cents=body.monthly_limit_cents,
             plan_cap_cents=body.plan_cap_cents,
             previous_job_id=body.previous_job_id,
+            plan_revision_id=body.plan_revision_id,
+            plan_revision=plan_revision,
             history=turns,
             previous_request=previous_request,
             previous_ingredient_ids=previous_ingredient_ids,
@@ -126,10 +145,11 @@ def create_chat_job(
 def read_chat_job(
     job_id: UUID,
     session: Annotated[Session, Depends(get_session)],
-    estimator: Annotated[
-        IngredientCostEstimator | None, Depends(get_supermarket_estimator)
-    ],
+    kroger: Annotated[KrogerClient | None, Depends(get_kroger_client)],
+    location_id: str | None = None,
 ) -> GroceryJobView:
+    if location_id is not None and not _LOCATION_ID.fullmatch(location_id):
+        raise HTTPException(status_code=422, detail=LOCATION_ID_MESSAGE)
     job = session.get(Job, str(job_id))
     payload = job.payload if job is not None else None
     if (
@@ -142,7 +162,10 @@ def read_chat_job(
         raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_MESSAGE)
     result = job.result
     if job.status == "succeeded" and isinstance(result, dict):
-        result = attach_supermarket_estimate(result, estimator)
+        if location_id is not None and kroger is not None:
+            result = attach_kroger_quote(
+                result, kroger, location_id, lambda: datetime.now(UTC)
+            )
     return GroceryJobView(
         id=job.id,
         status=job.status,

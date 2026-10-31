@@ -23,15 +23,15 @@ Rules:
 - A worker MUST acknowledge a message only after its durable side effects
   succeed. Failed messages MUST follow an explicit visibility and
   dead-letter policy.
-- Retries MUST be bounded and observable. An ambiguous Instacart write MUST
-  NOT receive an automatic retry. Do not create checkout behavior.
+- Retries MUST be bounded and observable. An ambiguous retailer write, such
+  as a Kroger cart add that timed out, MUST NOT receive an automatic retry. Do not create checkout behavior.
 - Traces and exported artifacts MUST be sanitized. Remove secrets, access
   tokens, authorization headers, raw provider payloads, and unnecessary
   personal data before persistence or export.
 - Floci SQS and S3 runs MAY prove local integration behavior. Keep real
   Bedrock endpoints and credentials separate from local emulator settings.
-- Plaid remains Sandbox. Instacart remains a development `products_link`
-  handoff. Sample prices MUST be labeled. Do not add health or model
+- Plaid remains Sandbox. The Kroger cart add runs only on a user click.
+  Sample prices MUST be labeled. Do not add health or model
   training work to reliability changes.
 - The selected writer implements. A separate Codex or Grok agent verifies the diff and commands. You MUST NOT merge or
   push to `main`. Other publication follows user authorization. Keep each

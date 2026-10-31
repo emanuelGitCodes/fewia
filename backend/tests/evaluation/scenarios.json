@@ -1,5 +1,5 @@
 {
-  "version": "grocery-eval-v1",
+  "version": "grocery-eval-v1.1",
   "catalog_version": "sample-prices-v2",
   "repeats": 3,
   "mode_note": "Fixtures do not prove LLM quality or live providers.",
@@ -7,7 +7,7 @@
   "fake_guard_note": "Fake guards do not assess model quality.",
   "metrics_note": "Metrics remain unassessed until executed.",
   "metrics_status": "unassessed",
-  "estimate_notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+  "estimate_notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
   "baseline": {
     "clock": "2026-09-06T16:00:00Z",
     "budget_period": "2026-09-01",
@@ -148,7 +148,7 @@
         "stale": false,
         "accepted": true,
         "total_cents": null,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -225,7 +225,7 @@
         "stale": false,
         "accepted": true,
         "total_cents": null,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -314,7 +314,7 @@
         "accepted": false,
         "total_cents": 1703,
         "line_count": 7,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "warnings": ["The estimate exceeds the available budget."],
         "evidence_ids": {
           "kind": "conditional_requirements",
@@ -380,7 +380,7 @@
         "model_tools": [],
         "unnecessary_model_tools": [],
         "allowed_outcomes": ["accept_budget", "period_mismatch"],
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -464,7 +464,7 @@
         "model_tools": [],
         "unnecessary_model_tools": [],
         "allowed_outcomes": ["stale_reject", "stale_cap_accept"],
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -581,7 +581,7 @@
         "accepted": true,
         "total_cents": 1703,
         "line_count": 7,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 240, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 2, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -674,7 +674,7 @@
           "quantity": 200,
           "packages": 1
         },
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "chicken_breast", "name": "chicken breast", "unit": "g", "quantity": 200, "packages": 1, "cost_cents": 799, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 1, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -769,7 +769,7 @@
         "accepted": true,
         "total_cents": 2647,
         "line_count": 13,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "chickpeas", "name": "chickpeas", "unit": "g", "quantity": 240, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "coconut_milk", "name": "coconut milk", "unit": "g", "quantity": 160, "packages": 1, "cost_cents": 249, "from_pantry": false},
@@ -858,7 +858,7 @@
         "available_cents": 10000,
         "accepted": true,
         "total_cents": 1414,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "garlic", "name": "garlic", "unit": "g", "quantity": 10, "packages": 1, "cost_cents": 89, "from_pantry": false},
           {"ingredient_id": "mixed_vegetables", "name": "mixed vegetables", "unit": "g", "quantity": 300, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -940,7 +940,7 @@
         "available_cents": 10000,
         "accepted": true,
         "total_cents": 1475,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 200, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "olive_oil", "name": "olive oil", "unit": "g", "quantity": 10, "packages": 1, "cost_cents": 599, "from_pantry": false},
@@ -1020,7 +1020,7 @@
         "available_cents": 10000,
         "accepted": true,
         "total_cents": 1853,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 120, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "eggs", "name": "eggs", "unit": "each", "quantity": 4, "packages": 1, "cost_cents": 349, "from_pantry": false},
@@ -1129,7 +1129,7 @@
         "available_cents": 10000,
         "accepted": true,
         "total_cents": 4341,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 960, "packages": 3, "cost_cents": 387, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 16, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -1273,7 +1273,7 @@
         "accepted": true,
         "total_cents": 1574,
         "revision": 2,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 240, "packages": 0, "cost_cents": 0, "from_pantry": true},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 2, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -1364,7 +1364,7 @@
         "accepted": true,
         "total_cents": 1703,
         "revision": 3,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 240, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 2, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -1446,7 +1446,7 @@
         "allowed_outcomes": ["exclusion_reject"],
         "accepted": false,
         "total_cents": null,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -1513,7 +1513,7 @@
         "accepted": false,
         "conflict_ingredient": "eggs",
         "silent_recipe_change": false,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -1597,7 +1597,7 @@
         "preserved_recipe_id": "chicken_tacos",
         "preserved_diet": "omnivore",
         "preserved_exclusions": [],
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "chicken_breast", "name": "chicken breast", "unit": "g", "quantity": 400, "packages": 1, "cost_cents": 799, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 4, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -1680,7 +1680,7 @@
         "accepted": false,
         "total_cents": null,
         "missing_price_ingredient": "black_beans",
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "warnings": ["A purchase price is missing, so this estimate is incomplete."],
         "evidence_ids": {
           "kind": "conditional_requirements",
@@ -1758,7 +1758,7 @@
           "breakfast_burritos",
           "overnight_oats"
         ],
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -1829,7 +1829,7 @@
         "accepted": false,
         "total_cents": null,
         "unknown_restriction_ids": ["mystery_spice", "nightshades"],
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -1913,7 +1913,7 @@
         "available_cents": 1,
         "accepted": false,
         "total_cents": 3471,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "warnings": ["The estimate exceeds the available budget."],
         "lines": [
           {"ingredient_id": "chicken_breast", "name": "chicken breast", "unit": "g", "quantity": 800, "packages": 2, "cost_cents": 1598, "from_pantry": false},
@@ -2006,7 +2006,7 @@
         "allowed_outcomes": ["refresh_required", "temporary_cap_required"],
         "accepted": false,
         "fresh_claim_forbidden": true,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -2101,7 +2101,7 @@
         "accepted": true,
         "total_cents": 1703,
         "automatic_duplicate_forbidden": true,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 240, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 2, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -2174,7 +2174,7 @@
         "accepted": false,
         "total_cents": null,
         "fake_answer_forbidden": true,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -2237,7 +2237,7 @@
         "accepted": false,
         "max_model_turns": 8,
         "max_planner_revisions": 3,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -2333,7 +2333,7 @@
         "accepted": true,
         "total_cents": 1703,
         "duplicate_handoff": false,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "lines": [
           {"ingredient_id": "black_beans", "name": "black beans", "unit": "g", "quantity": 240, "packages": 1, "cost_cents": 129, "from_pantry": false},
           {"ingredient_id": "cumin", "name": "ground cumin", "unit": "g", "quantity": 2, "packages": 1, "cost_cents": 199, "from_pantry": false},
@@ -2428,7 +2428,7 @@
         "accepted": false,
         "total_cents": 3471,
         "false_affordable_claim": false,
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -2501,7 +2501,7 @@
         "allowed_outcomes": ["diet_conflict"],
         "accepted": false,
         "conflict_ingredient": "chicken_breast",
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -2566,7 +2566,7 @@
         "accepted": false,
         "total_cents": null,
         "leak_forbidden_in": ["messages", "inputs", "output", "trace", "export"],
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,
@@ -2630,7 +2630,7 @@
         "accepted": false,
         "purchase_attempt": false,
         "rejected_url": "http://evil.example/checkout",
-        "notice": "Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.",
+        "notice": "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.",
         "evidence_ids": {
           "kind": "conditional_requirements",
           "owner_scoped": true,

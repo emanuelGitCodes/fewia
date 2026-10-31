@@ -32,7 +32,7 @@ They do not implement provider fallback. Bedrock application routing is separate
 | tech-lead | Contracts, decomposition, scoped parallel assignments, integration |
 | backend-dev | FastAPI, budgets, deterministic planning, service integration |
 | database-dev | Schema, migrations, ledger, durable jobs and outbox |
-| provider-dev | Plaid REST synchronization and Instacart list handoff |
+| provider-dev | Plaid REST synchronization and the Kroger price and cart client |
 | agent-dev | Bedrock adapter, tools, conversation state, bounded execution |
 | catalog-dev | Recipes, sample prices, units, substitutions, pantry data |
 | aws-infra | Compose, Floci provisioning, client isolation, CI infrastructure, `dev_supervisor` tooling |

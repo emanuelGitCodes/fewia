@@ -12,6 +12,7 @@ from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
     TokenFileResolver,
+    load_kroger_credentials,
     load_provider_settings,
     read_secret_file,
 )
@@ -45,19 +46,232 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.bedrock_model_id is None
     assert settings.bedrock_region == "us-east-1"
     assert settings.aws_profile is None
+    assert settings.bedrock_prompt_cache is False
+    assert settings.bedrock_guardrail_id is None
+    assert settings.bedrock_guardrail_version is None
     assert settings.plaid_client_id is None
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
-    assert settings.instacart_key_file is None
-    assert settings.spoonacular_key_file is None
     assert settings.usda_fdc_key_file is None
+    assert settings.kroger_client_id_file is None
+    assert settings.kroger_secret_file is None
+    assert settings.kroger_environment == "certification"
+    assert settings.kroger_token_key_file is None
+    assert (
+        settings.kroger_redirect_uri == "http://localhost:8010/grocery/kroger/callback"
+    )
+    assert settings.kroger_return_url == "http://127.0.0.1:5173/prototype"
+
+
+def test_kroger_token_key_file_and_urls_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = tmp_path / "token-key"
+    key.write_text(f"  {SECRET_MARKER}\n", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_KROGER_TOKEN_KEY_FILE", f" {key} ")
+    monkeypatch.setenv("FEWIA_KROGER_REDIRECT_URI", "https://app.test/cb")
+    monkeypatch.setenv("FEWIA_KROGER_RETURN_URL", "http://app.test:5173/done")
+    settings = load_provider_settings()
+    assert settings.kroger_token_key_file == key
+    assert settings.kroger_redirect_uri == "https://app.test/cb"
+    assert settings.kroger_return_url == "http://app.test:5173/done"
+    assert read_secret_file(key).get_secret_value() == SECRET_MARKER
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "http://app.test:5173/done?x=1",
+        "http://app.test:5173/done?",
+        "http://app.test:5173?kroger=connected",
+    ],
+)
+def test_kroger_return_url_rejects_a_query_string(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_RETURN_URL", value)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value, value)
+
+
+def test_load_rejects_blank_kroger_token_key_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_TOKEN_KEY_FILE", "   ")
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value)
+
+
+@pytest.mark.parametrize("name", ["REDIRECT_URI", "RETURN_URL"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "",
+        "/relative/path",
+        "localhost:8010/cb",
+        "ftp://app.test/cb",
+        "javascript:alert(1)",
+        "http:///nohost",
+        "http://app.test/cb#frag",
+        "http://app.test/cb\n",
+        " http://app.test/cb",
+    ],
+)
+def test_kroger_urls_reject_unsafe_values(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(f"FEWIA_KROGER_{name}", value)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value, value or "unused-marker")
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("true", True), ("false", False)])
+def test_bedrock_prompt_cache_parses_env(
+    monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_PROMPT_CACHE", raw)
+    assert load_provider_settings().bedrock_prompt_cache is expected
+
+
+_GUARDRAIL_ARN = "arn:aws:bedrock:us-east-1:123456789012:guardrail/abc123def456"
+
+
+@pytest.mark.parametrize(
+    ("guardrail_id", "version"),
+    [
+        ("abc123def456", "1"),
+        (_GUARDRAIL_ARN, "12"),
+    ],
+)
+def test_guardrail_settings_parse_env(
+    monkeypatch: pytest.MonkeyPatch, guardrail_id: str, version: str
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", guardrail_id)
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", version)
+    settings = load_provider_settings()
+    assert settings.bedrock_guardrail_id == guardrail_id
+    assert settings.bedrock_guardrail_version == version
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_guardrail_settings_mean_off(
+    monkeypatch: pytest.MonkeyPatch, blank: str
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", blank)
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", blank)
+    settings = load_provider_settings()
+    assert settings.bedrock_guardrail_id is None
+    assert settings.bedrock_guardrail_version is None
+
+
+def test_guardrail_settings_strip_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", " abc123def456 ")
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", " 3 ")
+    settings = load_provider_settings()
+    assert settings.bedrock_guardrail_id == "abc123def456"
+    assert settings.bedrock_guardrail_version == "3"
+
+
+@pytest.mark.parametrize(("guardrail_id", "version"), [("abc123def456", ""), ("", "1")])
+def test_one_blank_guardrail_setting_fails_both_or_neither(
+    monkeypatch: pytest.MonkeyPatch, guardrail_id: str, version: str
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", guardrail_id)
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", version)
+    with pytest.raises(ProviderConfigurationError):
+        load_provider_settings()
+
+
+@pytest.mark.parametrize(
+    ("guardrail_id", "version"),
+    [
+        ("abc123def456", None),
+        (None, "1"),
+        ("short", "1"),
+        ("ABC123DEF456", "1"),
+        ("abc123def4567", "1"),
+        ("arn:aws:bedrock:us-east-1:123:guardrail/abc123def456", "1"),
+        ("arn:aws:bedrock:us-east-1:123456789012:guardrail/abc", "1"),
+        ("abc123def456", ""),
+        ("abc123def456", "0"),
+        ("abc123def456", "-1"),
+        ("abc123def456", "01"),
+        ("abc123def456", "draft"),
+        ("abc123def456", "DRAFT"),
+        ("abc123def456", "1.0"),
+    ],
+)
+def test_guardrail_settings_reject_partial_or_malformed(
+    monkeypatch: pytest.MonkeyPatch, guardrail_id: str | None, version: str | None
+) -> None:
+    if guardrail_id is not None:
+        monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", guardrail_id)
+    if version is not None:
+        monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", version)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value, guardrail_id or "unused-marker")
+
+
+def test_kroger_credentials_load_and_strip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client_id = tmp_path / "kroger-id"
+    secret = tmp_path / "kroger-secret"
+    client_id.write_text(f"  {CLIENT_MARKER}\n", encoding="utf-8")
+    secret.write_text(f"{SECRET_MARKER}  \n", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_KROGER_CLIENT_ID_FILE", f" {client_id} ")
+    monkeypatch.setenv("FEWIA_KROGER_SECRET_FILE", str(secret))
+    monkeypatch.setenv("FEWIA_KROGER_ENVIRONMENT", "production")
+    settings = load_provider_settings()
+    assert settings.kroger_client_id_file == client_id
+    assert settings.kroger_environment == "production"
+    loaded_id, loaded_secret = load_kroger_credentials(settings)
+    assert loaded_id.get_secret_value() == CLIENT_MARKER
+    assert loaded_secret.get_secret_value() == SECRET_MARKER
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b"  \n", b"bad\x01id", b"a" * 65537],
+    ids=["empty", "control", "oversize"],
+)
+def test_kroger_credentials_reject_invalid_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: bytes
+) -> None:
+    good = tmp_path / "good"
+    bad = tmp_path / "bad"
+    good.write_text("ok", encoding="utf-8")
+    bad.write_bytes(content)
+    monkeypatch.setenv("FEWIA_KROGER_CLIENT_ID_FILE", str(bad))
+    monkeypatch.setenv("FEWIA_KROGER_SECRET_FILE", str(good))
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_kroger_credentials(load_provider_settings())
+    _static(exc_info.value, str(bad))
+
+
+def test_kroger_credentials_require_both_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    good = tmp_path / "good"
+    good.write_text("ok", encoding="utf-8")
+    monkeypatch.setenv("FEWIA_KROGER_CLIENT_ID_FILE", str(good))
+    with pytest.raises(ProviderConfigurationError):
+        load_kroger_credentials(load_provider_settings())
+
+
+def test_kroger_environment_rejects_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_ENVIRONMENT", "staging")
+    with pytest.raises(ProviderConfigurationError):
+        load_provider_settings()
 
 
 def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     secret = tmp_path / "plaid.secret"
     tokens = tmp_path / "plaid.tokens.json"
-    key = tmp_path / "instacart.key"
-    spoonacular_key = tmp_path / "spoonacular.key"
     usda_key = tmp_path / "usda.key"
     monkeypatch.setenv("FEWIA_SPENDING_SOURCE", "plaid_sandbox")
     monkeypatch.setenv("FEWIA_BEDROCK_MODEL_ID", "anthropic.model")
@@ -66,8 +280,6 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("FEWIA_PLAID_CLIENT_ID", CLIENT_MARKER)
     monkeypatch.setenv("FEWIA_PLAID_SECRET_FILE", str(secret))
     monkeypatch.setenv("FEWIA_PLAID_TOKENS_FILE", str(tokens))
-    monkeypatch.setenv("FEWIA_INSTACART_KEY_FILE", str(key))
-    monkeypatch.setenv("FEWIA_SPOONACULAR_KEY_FILE", str(spoonacular_key))
     monkeypatch.setenv("FEWIA_USDA_FDC_KEY_FILE", str(usda_key))
     settings = load_provider_settings()
     assert settings.spending_source == "plaid_sandbox"
@@ -78,11 +290,18 @@ def test_reads_prefixed_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.plaid_client_id.get_secret_value() == CLIENT_MARKER
     assert settings.plaid_secret_file == secret
     assert settings.plaid_tokens_file == tokens
-    assert settings.instacart_key_file == key
-    assert settings.spoonacular_key_file == spoonacular_key
     assert settings.usda_fdc_key_file == usda_key
     assert CLIENT_MARKER not in repr(settings)
     assert CLIENT_MARKER not in str(settings)
+
+
+def test_unknown_file_variable_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEWIA_RETIRED_KEY_FILE", str(tmp_path / "retired.key"))
+    settings = load_provider_settings()
+    assert settings.spending_source == "manual"
+    assert not hasattr(settings, "retired_key_file")
 
 
 def test_ignores_dotenv_and_unprefixed_env(

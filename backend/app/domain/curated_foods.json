@@ -1,0 +1,11 @@
+{
+  "version": "curated-foods-v1",
+  "foods": [
+    {"id": "ground_beef_80", "name": "ground beef (80% lean)", "synonyms": ["beef", "ground beef", "hamburger", "minced beef"], "fdc_id": 174036, "fdc_description": "Beef, ground, 80% lean meat / 20% fat, raw", "per_100g": {"energy_kcal": 254, "protein_mg": 17170, "fat_mg": 20000, "carbohydrate_mg": 0, "sodium_mg": 66}, "vegetarian": false, "vegan": false, "package_grams": 454},
+    {"id": "ground_beef_93", "name": "lean ground beef (93% lean)", "synonyms": ["lean ground beef", "lean beef"], "fdc_id": 173110, "fdc_description": "Beef, ground, 93% lean meat / 7% fat, raw", "per_100g": {"energy_kcal": 152, "protein_mg": 20800, "fat_mg": 7000, "carbohydrate_mg": 0, "sodium_mg": 66}, "vegetarian": false, "vegan": false, "package_grams": 454},
+    {"id": "ground_pork", "name": "ground pork", "synonyms": ["pork", "ground pork"], "fdc_id": 167902, "fdc_description": "Pork, fresh, ground, raw", "per_100g": {"energy_kcal": 263, "protein_mg": 16900, "fat_mg": 21200, "carbohydrate_mg": 0, "sodium_mg": 56}, "vegetarian": false, "vegan": false, "package_grams": 454},
+    {"id": "pork_loin", "name": "pork loin", "synonyms": ["pork", "pork loin", "pork chop"], "fdc_id": 168314, "fdc_description": "Pork, fresh, loin, top loin (roasts), boneless, separable lean and fat, raw", "per_100g": {"energy_kcal": 166, "protein_mg": 21300, "fat_mg": 8330, "carbohydrate_mg": 0, "sodium_mg": 47}, "vegetarian": false, "vegan": false, "package_grams": 454},
+    {"id": "ground_turkey", "name": "ground turkey", "synonyms": ["turkey", "ground turkey"], "fdc_id": 171505, "fdc_description": "Turkey, Ground, raw", "per_100g": {"energy_kcal": 148, "protein_mg": 19700, "fat_mg": 7660, "carbohydrate_mg": 0, "sodium_mg": 58}, "vegetarian": false, "vegan": false, "package_grams": 454},
+    {"id": "salmon", "name": "salmon (Atlantic, farmed)", "synonyms": ["salmon"], "fdc_id": 175167, "fdc_description": "Fish, salmon, Atlantic, farmed, raw", "per_100g": {"energy_kcal": 208, "protein_mg": 20400, "fat_mg": 13400, "carbohydrate_mg": 0, "sodium_mg": 59}, "vegetarian": false, "vegan": false, "package_grams": 454}
+  ]
+}

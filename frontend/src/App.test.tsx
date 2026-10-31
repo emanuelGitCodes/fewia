@@ -16,7 +16,6 @@ import { initialForm, type FormState } from "./BudgetForm";
 import type { ChatJob, ChatResult } from "./chatTypes";
 import { useChatConversation } from "./useChatConversation";
 import { useGroceryDemo, type GroceryDemo } from "./useGroceryDemo";
-import { useHandoff } from "./useHandoff";
 import { useProviderCapabilities } from "./useProviderCapabilities";
 import { useTemplateSuggestions } from "./useTemplateSuggestions";
 import { sampleNutrition } from "../tests/apiFixtures";
@@ -33,10 +32,6 @@ vi.mock("./useProviderCapabilities", () => ({
   useProviderCapabilities: vi.fn(),
 }));
 
-vi.mock("./useHandoff", () => ({
-  useHandoff: vi.fn(),
-}));
-
 vi.mock("./useTemplateSuggestions", () => ({
   useTemplateSuggestions: vi.fn(),
 }));
@@ -50,12 +45,10 @@ const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd
 const providersReady: ProviderCapabilities = {
   chat_configured: true,
   plaid_configured: false,
-  instacart_configured: false,
   spending_source: "fixture",
 };
 
 type ChatHook = ReturnType<typeof useChatConversation>;
-type HandoffHook = ReturnType<typeof useHandoff>;
 type TemplateHook = ReturnType<typeof useTemplateSuggestions>;
 
 function chatState(overrides: Partial<ChatHook> = {}): ChatHook {
@@ -176,10 +169,6 @@ function mealIdeas(root: HTMLElement): HTMLFieldSetElement {
   return within(root).getByRole("group", { name: "Meal ideas" }) as HTMLFieldSetElement;
 }
 
-function hasButton(root: HTMLElement, name: string): boolean {
-  return within(root).queryByRole("button", { name }) !== null;
-}
-
 function elementWithText(text: string): HTMLElement {
   return screen.getByText(
     (_content, node) =>
@@ -189,27 +178,6 @@ function elementWithText(text: string): HTMLElement {
 }
 
 afterEach(cleanup);
-
-function handoffState(overrides: Partial<HandoffHook> = {}): HandoffHook {
-  return {
-    view: null,
-    error: null,
-    pending: false,
-    start: vi.fn(async () => undefined),
-    retry: vi.fn(async () => undefined),
-    clear: vi.fn(),
-    ...overrides,
-  };
-}
-
-function instacartProviders(): ReturnType<typeof useProviderCapabilities> {
-  return {
-    capabilities: { ...providersReady, instacart_configured: true },
-    pending: false,
-    error: null,
-    retry: vi.fn(),
-  };
-}
 
 function templateState(overrides: Partial<TemplateHook> = {}): TemplateHook {
   return {
@@ -252,13 +220,11 @@ function mount(
     error: null,
     retry: vi.fn(),
   },
-  handoff: HandoffHook = handoffState(),
   templates: TemplateHook = templateState(),
 ): RenderResult {
   vi.mocked(useGroceryDemo).mockReturnValue(demo);
   vi.mocked(useChatConversation).mockReturnValue(chat);
   vi.mocked(useProviderCapabilities).mockReturnValue(provider);
-  vi.mocked(useHandoff).mockReturnValue(handoff);
   vi.mocked(useTemplateSuggestions).mockReturnValue(templates);
   return render(createElement(App));
 }
@@ -279,8 +245,12 @@ function AppUnresolvedHost(props: {
     }),
   );
   vi.mocked(useChatConversation).mockReturnValue(props.chat);
-  vi.mocked(useProviderCapabilities).mockReturnValue(instacartProviders());
-  vi.mocked(useHandoff).mockReturnValue(handoffState());
+  vi.mocked(useProviderCapabilities).mockReturnValue({
+    capabilities: providersReady,
+    pending: false,
+    error: null,
+    retry: vi.fn(),
+  });
   return createElement(App);
 }
 
@@ -302,7 +272,6 @@ describe("App", () => {
     vi.mocked(useGroceryDemo).mockReset();
     vi.mocked(useChatConversation).mockReset();
     vi.mocked(useProviderCapabilities).mockReset();
-    vi.mocked(useHandoff).mockReset();
     vi.mocked(useTemplateSuggestions).mockReset();
     vi.mocked(useTemplateSuggestions).mockReturnValue(templateState());
   });
@@ -743,218 +712,7 @@ describe("App", () => {
     renderer.unmount();
   });
 
-  it("shows Create shopping list for a succeeded accepted estimate when Instacart is configured", () => {
-    const renderer = mount(demoState({ job: succeededJob }), chatState(), instacartProviders());
-    expect(hasButton(renderer.container, "Create shopping list")).toBe(true);
-    expect(childText(renderer.container)).toContain("No purchases are made here.");
-    renderer.unmount();
-  });
-
-  it("hides start and shopping links when Instacart is not configured", () => {
-    const renderer = mount(demoState({ job: succeededJob }));
-    expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
-    expect(screen.queryAllByRole("link")).toHaveLength(0);
-    expect(childText(renderer.container)).not.toContain("Open shopping list");
-    renderer.unmount();
-  });
-
-  it.each(["succeeded", "uncertain"] as const)(
-    "hides a stale %s handoff until Instacart is configured",
-    (state) => {
-      const url = "https://www.instacart.com/store/lists/demo?retailer_key=abc";
-      const handoff = handoffState({
-        view: {
-          id: "00000000-0000-0000-0000-000000000001",
-          state,
-          attempts: 1,
-          url: state === "succeeded" ? url : null,
-          error_code: state === "uncertain" ? "invalid_cached_url" : null,
-          expires_at: "2026-09-06T15:00:00+00:00",
-          retry_allowed: state === "uncertain",
-        },
-      });
-      const renderer = mount(demoState({ job: succeededJob }), chatState(), undefined, handoff);
-      expect(renderer.container.querySelector(".handoff-controls")).toBeNull();
-      expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
-      expect(hasButton(renderer.container, "Retry shopping list")).toBe(false);
-      expect(screen.queryByRole("link", { name: "Open shopping list" })).toBeNull();
-      expect(handoff.start).not.toHaveBeenCalled();
-      expect(handoff.retry).not.toHaveBeenCalled();
-
-      vi.mocked(useProviderCapabilities).mockReturnValue(instacartProviders());
-      renderer.rerender(createElement(App));
-      if (state === "succeeded") {
-        expect(screen.getByRole("link", { name: "Open shopping list" }).getAttribute("href")).toBe(
-          url,
-        );
-      } else {
-        expect(childText(renderer.container)).toContain(
-          "The shopping link is uncertain. Retry only if you choose to.",
-        );
-        fireEvent.click(buttonNamed(renderer.container, "Retry shopping list"));
-        expect(handoff.retry).toHaveBeenCalledTimes(1);
-      }
-      expect(handoff.start).not.toHaveBeenCalled();
-
-      vi.mocked(useProviderCapabilities).mockReturnValue({
-        ...instacartProviders(),
-        capabilities: providersReady,
-      });
-      renderer.rerender(createElement(App));
-      expect(renderer.container.querySelector(".handoff-controls")).toBeNull();
-      expect(hasButton(renderer.container, "Retry shopping list")).toBe(false);
-      expect(screen.queryByRole("link", { name: "Open shopping list" })).toBeNull();
-      renderer.unmount();
-    },
-  );
-
-  it("hides start when the estimate is dirty", () => {
-    const renderer = mount(
-      demoState({ job: succeededJob, dirty: true }),
-      chatState(),
-      instacartProviders(),
-    );
-    expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
-    renderer.unmount();
-  });
-
-  it("hides start when the plan is not accepted", () => {
-    const result = succeededJob.result;
-    if (result === null) {
-      throw new Error("missing succeeded job result");
-    }
-    const renderer = mount(
-      demoState({
-        job: {
-          ...succeededJob,
-          result: { ...result, plan: { ...result.plan, accepted: false } },
-        },
-      }),
-      chatState(),
-      instacartProviders(),
-    );
-    expect(hasButton(renderer.container, "Create shopping list")).toBe(false);
-    renderer.unmount();
-  });
-
-  it("opens consent before starting handoff with the succeeded job id", () => {
-    const start = vi.fn(async () => undefined);
-    const renderer = mount(
-      demoState({ job: succeededJob }),
-      chatState(),
-      instacartProviders(),
-      handoffState({ start }),
-    );
-    act(() => {
-      fireEvent.click(buttonNamed(renderer.container, "Create shopping list"));
-    });
-    expect(start).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Create shopping list?" })).toBeTruthy();
-    const confirm = buttonNamed(renderer.container, "Confirm shopping list");
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
-    expect(start).toHaveBeenCalledTimes(1);
-    expect(start).toHaveBeenCalledWith("job-1");
-    expect(screen.queryByRole("dialog")).toBeNull();
-    renderer.unmount();
-  });
-
-  it.each(["Cancel", "Escape"])("does not start handoff after %s", (action) => {
-    const handoff = handoffState();
-    const renderer = mount(
-      demoState({ job: succeededJob }),
-      chatState(),
-      instacartProviders(),
-      handoff,
-    );
-    const trigger = buttonNamed(renderer.container, "Create shopping list");
-    fireEvent.click(trigger);
-    if (action === "Cancel") {
-      fireEvent.click(buttonNamed(renderer.container, "Cancel"));
-    } else {
-      fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
-    }
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(document.activeElement).toBe(trigger);
-    expect(handoff.start).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    "provider disabled",
-    "provider pending",
-    "provider error",
-    "catalog blocked",
-    "dirty",
-    "busy",
-    "unaccepted",
-    "no price",
-    "all pantry",
-    "new job",
-    "changed plan",
-  ])("closes consent and rejects stale confirmation after %s", (change) => {
-    const handoff = handoffState();
-    const demo = demoState({ job: succeededJob });
-    const provider = instacartProviders();
-    const renderer = mount(demo, chatState(), provider, handoff);
-    fireEvent.click(buttonNamed(renderer.container, "Create shopping list"));
-    const staleConfirm = buttonNamed(renderer.container, "Confirm shopping list");
-    const result = succeededJob.result;
-    if (result === null) {
-      throw new Error("missing succeeded job result");
-    }
-    switch (change) {
-      case "provider disabled":
-        provider.capabilities = providersReady;
-        break;
-      case "provider pending":
-        provider.pending = true;
-        break;
-      case "provider error":
-        provider.error = PROVIDER_UNAVAILABLE;
-        break;
-      case "catalog blocked":
-        demo.configError = CATALOG_UNAVAILABLE;
-        break;
-      case "dirty":
-        demo.dirty = true;
-        break;
-      case "busy":
-        demo.pending = true;
-        break;
-      case "new job":
-        demo.job = { ...succeededJob, id: "job-2" };
-        break;
-      default:
-        demo.job = {
-          ...succeededJob,
-          result: {
-            ...result,
-            plan: {
-              ...result.plan,
-              accepted: change !== "unaccepted",
-              total_cents: change === "no price" ? null : result.plan.total_cents,
-              lines: result.plan.lines.map((line) => ({
-                ...line,
-                from_pantry: change === "all pantry",
-                quantity: change === "changed plan" ? line.quantity + 1 : line.quantity,
-              })),
-            },
-          },
-        };
-    }
-    vi.mocked(useGroceryDemo).mockReturnValue(demo);
-    vi.mocked(useProviderCapabilities).mockReturnValue(provider);
-    renderer.rerender(createElement(App));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    fireEvent.click(staleConfirm);
-    expect(handoff.start).not.toHaveBeenCalled();
-    vi.mocked(useGroceryDemo).mockReturnValue(demoState({ job: succeededJob }));
-    vi.mocked(useProviderCapabilities).mockReturnValue(instacartProviders());
-    renderer.rerender(createElement(App));
-    expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("marks an unresolved chat estimate as previous and hides shopping start", () => {
+  it("marks an unresolved chat estimate as previous", () => {
     const live = render(createElement(AppUnresolvedHost, { chat: chatState() }));
     act(() => {
       live.rerender(
@@ -982,7 +740,6 @@ describe("App", () => {
     });
     expect(childText(live.container)).toContain("Grocery estimate");
     expect(childText(live.container)).toContain("$17.03");
-    expect(hasButton(live.container, "Create shopping list")).toBe(true);
     act(() => {
       live.rerender(
         createElement(AppUnresolvedHost, {
@@ -1012,7 +769,6 @@ describe("App", () => {
     });
     expect(childText(live.container)).toContain("Previous estimate");
     expect(childText(live.container)).toContain("$17.03");
-    expect(hasButton(live.container, "Create shopping list")).toBe(false);
     live.unmount();
   });
 
@@ -1084,7 +840,6 @@ describe("App", () => {
     expect(childText(live.container)).toContain("This plan is incomplete.");
     expect(childText(live.container)).toContain("Incomplete estimate");
     expect(childText(live.container)).toContain("black beans");
-    expect(hasButton(live.container, "Create shopping list")).toBe(false);
     live.unmount();
   });
 
@@ -1139,7 +894,6 @@ describe("App", () => {
       live.rerender(createElement(AppUnresolvedHost, { chat: clarification }));
     });
     expect(childText(live.container)).toContain("Previous estimate");
-    expect(hasButton(live.container, "Create shopping list")).toBe(false);
     act(() => {
       live.rerender(createElement(AppUnresolvedHost, { chat: clarification, pending: true }));
     });
@@ -1176,7 +930,6 @@ describe("App", () => {
         error: null,
         retry: vi.fn(),
       },
-      handoffState(),
       templateState({
         suggestions: [
           {

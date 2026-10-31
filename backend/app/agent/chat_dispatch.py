@@ -10,12 +10,50 @@ from app.agent.budget_tool import (
     BudgetToolError,
     execute_budget_summary,
 )
+from app.agent.catalog_tool import (
+    TOOL_NAME as CATALOG_TOOL_NAME,
+)
+from app.agent.catalog_tool import CatalogToolError, execute_catalog_search
+from app.agent.ingredient_tool import (
+    INGREDIENT_TOOL,
+    IngredientToolError,
+    execute_ingredient_facts,
+)
+from app.agent.plan_tools import (
+    GET_MEAL_TOOL,
+    GET_PLAN_TOOL,
+    PlanToolError,
+    execute_get_meal,
+    execute_get_plan,
+)
 from app.agent.planning_tool import TOOL_NAME, PlanningToolError, execute_plan
+from app.agent.price_tool import PRICE_TOOL, PriceToolError, execute_price_lines
+from app.agent.proposal_tool import (
+    PROPOSAL_ONCE,
+    PROPOSAL_TOOL,
+    ProposalToolError,
+    Propose,
+    execute_propose,
+)
+from app.agent.substitute_tool import (
+    SUBSTITUTE_TOOL,
+    SubstituteToolError,
+    execute_substitute,
+)
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
+from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
+from app.domain.plan_revision import PlanRevisionInput
 
 EvidenceRecorder = Callable[[dict[str, object]], str]
+_PLAN_READ_TOOLS = (
+    GET_PLAN_TOOL,
+    GET_MEAL_TOOL,
+    SUBSTITUTE_TOOL,
+    PRICE_TOOL,
+    INGREDIENT_TOOL,
+)
 
 
 def _is_revision_id(value: object) -> bool:
@@ -76,6 +114,7 @@ def _entry(
     revision_index: int | None,
     evidence_id: object = None,
     evidence_revision_id: object = None,
+    inputs: dict[str, object] | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "tool": tool,
@@ -84,11 +123,66 @@ def _entry(
         "sequence": sequence,
         "revision_index": revision_index,
     }
+    if inputs is not None:
+        entry["inputs"] = inputs
     if isinstance(evidence_id, str):
         entry["evidence_id"] = evidence_id
     if isinstance(evidence_revision_id, str):
         entry["evidence_revision_id"] = evidence_revision_id
     return entry
+
+
+def _valid_recipe(value: object) -> str:
+    if isinstance(value, str) and value in SUPPORTED_RECIPE_IDS:
+        return value
+    return "invalid"
+
+
+def _trace_inputs(
+    call: msgs.ToolCall, payload: dict[str, object] | None
+) -> dict[str, object]:
+    """Validated values only; model-supplied text never reaches the trace."""
+    raw = call.tool_input if isinstance(call.tool_input, dict) else {}
+    result = {} if payload is None else payload
+    inputs: dict[str, object] = {}
+    if call.name in (GET_MEAL_TOOL, SUBSTITUTE_TOOL):
+        inputs["recipe_id"] = _valid_recipe(raw.get("recipe_id"))
+    elif call.name == PRICE_TOOL:
+        meals = raw.get("meals")
+        items = meals[:3] if isinstance(meals, list) else []
+        inputs["recipe_ids"] = [
+            _valid_recipe(item.get("recipe_id") if isinstance(item, dict) else None)
+            for item in items
+        ]
+    if call.name == PROPOSAL_TOOL and result.get("status") == "proposed":
+        inputs["status"] = "proposed"
+        inputs["proposal_id"] = result.get("proposal_id")
+        inputs["operations"] = result.get("operations")
+    if call.name == INGREDIENT_TOOL and isinstance(result.get("status"), str):
+        inputs["status"] = result["status"]
+        if result["status"] == "found":
+            inputs["ingredient_id"] = result.get("ingredient_id")
+        live = result.get("live")
+        if result["status"] == "live" and isinstance(live, list):
+            inputs["fdc_ids"] = [
+                item["fdc_id"]
+                for item in live
+                if isinstance(item, dict) and type(item.get("fdc_id")) is int
+            ]
+    if call.name == SUBSTITUTE_TOOL and isinstance(result.get("status"), str):
+        inputs["status"] = result["status"]
+        change = result.get("change")
+        if result["status"] == "swapped" and isinstance(change, dict):
+            for key in (
+                "replace_ingredient_id",
+                "with_ingredient_id",
+                "scale_ingredient_id",
+            ):
+                if key in change:
+                    inputs[key] = change[key]
+            inputs["servings"] = result.get("servings")
+            inputs["servings_source"] = result.get("servings_source")
+    return inputs
 
 
 def _dispatch_budget(
@@ -121,6 +215,92 @@ def _dispatch_budget(
     return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
 
 
+def _dispatch_plan_tool(
+    call: msgs.ToolCall,
+    budget: BudgetResult,
+    plan: PlanRevisionInput | None,
+    trace: list[dict[str, object]],
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    payload: dict[str, object] | None
+    try:
+        if call.name == GET_PLAN_TOOL:
+            payload = execute_get_plan(call.tool_input, plan, budget)
+        elif call.name == SUBSTITUTE_TOOL:
+            payload = execute_substitute(call.tool_input, budget, plan)
+        elif call.name == PRICE_TOOL:
+            cap = None if plan is None else plan.snapshot.plan_cap_cents
+            payload = execute_price_lines(call.tool_input, budget, cap, plan)
+        elif call.name == INGREDIENT_TOOL:
+            payload = execute_ingredient_facts(call.tool_input)
+        else:
+            payload = execute_get_meal(call.tool_input)
+    except (PlanToolError, SubstituteToolError, PriceToolError, IngredientToolError):
+        payload = None
+    trace.append(
+        _entry(
+            tool=call.name,
+            outcome="error" if payload is None else "success",
+            tool_use_id=call.tool_use_id,
+            sequence=len(trace) + 1,
+            revision_index=None,
+            inputs=_trace_inputs(call, payload),
+        )
+    )
+    if payload is None:
+        return None, msgs.tool_result_block(
+            call.tool_use_id, {"error": "arguments are invalid"}, success=False
+        )
+    return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
+
+
+def _dispatch_proposal(
+    call: msgs.ToolCall,
+    budget: BudgetResult,
+    plan: PlanRevisionInput,
+    propose: Propose,
+    trace: list[dict[str, object]],
+) -> tuple[dict[str, object] | None, dict[str, object]]:
+    payload: dict[str, object] | None = None
+    error = INVALID_PROPOSAL_MESSAGE
+    if any(
+        item.get("tool") == PROPOSAL_TOOL and item.get("outcome") == "success"
+        for item in trace
+    ):
+        error = PROPOSAL_ONCE
+    else:
+        try:
+            payload = execute_propose(call.tool_input, budget, plan, propose)
+        except ProposalToolError:
+            pass
+    trace.append(
+        _entry(
+            tool=PROPOSAL_TOOL,
+            outcome="error" if payload is None else "success",
+            tool_use_id=call.tool_use_id,
+            sequence=len(trace) + 1,
+            revision_index=None,
+            inputs=_trace_inputs(call, payload),
+        )
+    )
+    if payload is None:
+        return None, msgs.tool_result_block(
+            call.tool_use_id, {"error": error}, success=False
+        )
+    return payload, msgs.tool_result_block(call.tool_use_id, payload, success=True)
+
+
+def _catalog_inputs(discovery: dict[str, object]) -> dict[str, object]:
+    request = discovery["request"]
+    assert isinstance(request, dict)
+    excluded = [item for item in request["exclude"] if item in INGREDIENTS]
+    return {
+        "status": discovery["status"],
+        "recipe_ids": discovery["recipe_ids"],
+        "diet": request["diet"],
+        "exclude": excluded,
+    }
+
+
 def dispatch(
     call: msgs.ToolCall,
     budget: BudgetResult,
@@ -129,7 +309,36 @@ def dispatch(
     source: SpendingSource,
     trace: list[dict[str, object]],
     record_evidence: EvidenceRecorder | None = None,
+    *,
+    plan: PlanRevisionInput | None = None,
+    propose: Propose | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
+    if call.name in _PLAN_READ_TOOLS:
+        return _dispatch_plan_tool(call, budget, plan, trace)
+    if call.name == PROPOSAL_TOOL and plan is not None and propose is not None:
+        return _dispatch_proposal(call, budget, plan, propose, trace)
+    if call.name == CATALOG_TOOL_NAME:
+        try:
+            discovery = execute_catalog_search(call.tool_input)
+        except CatalogToolError:
+            discovery = None
+        trace.append(
+            _entry(
+                tool=CATALOG_TOOL_NAME,
+                outcome="error" if discovery is None else "success",
+                tool_use_id=call.tool_use_id,
+                sequence=len(trace) + 1,
+                revision_index=None,
+                inputs=None if discovery is None else _catalog_inputs(discovery),
+            )
+        )
+        return discovery, msgs.tool_result_block(
+            call.tool_use_id,
+            {"error": "catalog arguments are invalid"}
+            if discovery is None
+            else discovery,
+            success=discovery is not None,
+        )
     if call.name == BUDGET_TOOL_NAME:
         return _dispatch_budget(call, budget, period, source, trace)
     if call.name != TOOL_NAME:

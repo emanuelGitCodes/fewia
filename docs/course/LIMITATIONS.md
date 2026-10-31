@@ -45,7 +45,7 @@ The benchmark does not exhaustively test all 40 meals or every combination of pa
 
 Sample catalog prices and nutrition totals are estimates.
 They are not verified retailer prices, stock, product safety, financial savings, or population health outcomes.
-The [backlog](../FEATURE_BACKLOG.md) records quantity-scaled USDA nutrition estimates and the optional Spoonacular read-time overlay.
+The [backlog](../FEATURE_BACKLOG.md) records quantity-scaled USDA nutrition estimates and the optional Kroger live-price overlay.
 The [scope](../../.codex/project-context.md) keeps sample-catalog cents as the budget figure.
 Neither ingredient diet facts nor estimates certify retailer products or cross-contact safety.
 Every grocery estimate MUST retain this exact notice:

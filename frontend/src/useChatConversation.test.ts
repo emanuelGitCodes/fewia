@@ -173,6 +173,53 @@ describe("useChatConversation", () => {
     bindJob();
   });
 
+  it("ignores a late completion after reset and accepts a reply in the new conversation", async () => {
+    const { result, refresh } = mount();
+    act(() => result.current.setMessage("Old question"));
+    await sendAndSettle(result);
+    act(() => result.current.newConversation());
+    jobState.job = succeeded("late-job", "Old answer");
+    refresh();
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.job).toBeNull();
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = succeeded("new-job", "New answer");
+    });
+    act(() => result.current.setMessage("New question"));
+    await sendAndSettle(result);
+    refresh();
+    expect(result.current.messages.map((turn) => turn.content)).toEqual([
+      "New question",
+      "New answer",
+    ]);
+    expect(submitted(jobState, 1).previous_job_id).toBeNull();
+  });
+
+  it("retains each current answer once through long conversations and resets seen IDs", async () => {
+    let count = 0;
+    jobState.submit.mockImplementation(async () => {
+      count += 1;
+      jobState.job = succeeded(`job-${count}`, `Answer ${count}`);
+    });
+    const { result, refresh } = mount();
+    for (let index = 1; index <= 24; index += 1) {
+      act(() => result.current.setMessage(`Question ${index}`));
+      await sendAndSettle(result);
+      refresh();
+      jobState.job = succeeded(`job-${index}`, `Answer ${index}`);
+      refresh();
+      expect(result.current.messages.length).toBeLessThanOrEqual(16);
+      expect(result.current.messages.filter((turn) => turn.id === `job-${index}`)).toHaveLength(1);
+    }
+    act(() => result.current.newConversation());
+    refresh();
+    count = 0;
+    act(() => result.current.setMessage("Start again"));
+    await sendAndSettle(result);
+    refresh();
+    expect(result.current.messages.map((turn) => turn.id)).toEqual(["user-1", "job-1"]);
+  });
+
   it("sends the first request without a parent and appends the answer once", async () => {
     const caller = { ...budget };
     jobState.submit.mockImplementation(async (_body: ChatJobCreate) => {
@@ -190,11 +237,13 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: null,
       previous_job_id: null,
+      plan_revision_id: null,
     });
     expect(Object.keys(body).sort()).toEqual([
       "message",
       "monthly_limit_cents",
       "plan_cap_cents",
+      "plan_revision_id",
       "previous_job_id",
     ]);
     expect(result.current.hasRequest).toBe(true);
@@ -393,6 +442,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: 4000,
       previous_job_id: null,
+      plan_revision_id: null,
     };
     const received: ChatJobCreate[] = [];
     jobState.submit.mockImplementation(async (body: ChatJobCreate) => {
@@ -423,6 +473,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: 4000,
       previous_job_id: "tampered",
+      plan_revision_id: null,
     });
     await retryAndSettle(result);
     expect(received[1]).toEqual(originalBody);
@@ -431,6 +482,7 @@ describe("useChatConversation", () => {
       monthly_limit_cents: 20000,
       plan_cap_cents: 4000,
       previous_job_id: "tampered",
+      plan_revision_id: null,
     });
   });
 
@@ -665,6 +717,141 @@ describe("useChatConversation", () => {
     });
     await sendAndSettle(result);
     expect(submitted(jobState, 0).previous_job_id).toBe(null);
+  });
+
+  it("composes the request message and keeps the typed text in the user turn", async () => {
+    const { result } = renderHook(() =>
+      useChatConversation(budget, null, { composeMessage: (text) => `PLAN. ${text}` }),
+    );
+    act(() => {
+      result.current.setMessage("  Add tofu.  ");
+    });
+    await sendAndSettle(result);
+    expect(submitted(jobState, 0)).toEqual({
+      message: "PLAN. Add tofu.",
+      monthly_limit_cents: 20000,
+      plan_cap_cents: null,
+      previous_job_id: null,
+      plan_revision_id: null,
+    });
+    expect(result.current.messages).toEqual([{ id: "user-1", role: "user", content: "Add tofu." }]);
+  });
+
+  it("rejects a composed message over the limit without submitting", async () => {
+    const { result } = renderHook(() =>
+      useChatConversation(budget, null, {
+        composeMessage: (text) => `${"x".repeat(3990)}${text}`,
+      }),
+    );
+    act(() => {
+      result.current.setMessage("a".repeat(20));
+    });
+    await sendAndSettle(result);
+    expect(result.current.error).toBe(TEXT_ERROR);
+    expect(jobState.submit).not.toHaveBeenCalled();
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.hasRequest).toBe(false);
+  });
+
+  describe("prepareSend", () => {
+    type Prepared = { message: string; planRevisionId: string | null };
+
+    function deferred(): { promise: Promise<Prepared>; resolve: (value: Prepared) => void } {
+      let resolve: (value: Prepared) => void = () => undefined;
+      const promise = new Promise<Prepared>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+
+    it("is pending while prepareSend runs and ignores a second send", async () => {
+      const wait = deferred();
+      const prepareSend = vi.fn(() => wait.promise);
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      expect(result.current.pending).toBe(true);
+      await sendAndSettle(result);
+      expect(prepareSend).toHaveBeenCalledTimes(1);
+      expect(jobState.submit).not.toHaveBeenCalled();
+      await act(async () => {
+        wait.resolve({ message: "Add tofu.", planRevisionId: "rev-1" });
+      });
+      await flushMicrotasks();
+      expect(jobState.submit).toHaveBeenCalledTimes(1);
+      expect(result.current.pending).toBe(false);
+    });
+
+    it("sends the prepared message and revision ID and shows the typed text", async () => {
+      const prepareSend = vi.fn(async () => ({ message: "PREPARED", planRevisionId: "rev-1" }));
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("  Add tofu.  ");
+      });
+      await sendAndSettle(result);
+      expect(prepareSend).toHaveBeenCalledWith("Add tofu.");
+      expect(submitted(jobState, 0)).toEqual({
+        message: "PREPARED",
+        monthly_limit_cents: 20000,
+        plan_cap_cents: null,
+        previous_job_id: null,
+        plan_revision_id: "rev-1",
+      });
+      expect(result.current.messages).toEqual([{ id: "user-1", role: "user", content: "Add tofu." }]);
+    });
+
+    it("retries the same body including the revision ID", async () => {
+      const prepareSend = vi.fn(async () => ({ message: "PREPARED", planRevisionId: "rev-1" }));
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      await retryAndSettle(result);
+      expect(jobState.submit).toHaveBeenCalledTimes(2);
+      expect(submitted(jobState, 1)).toEqual(submitted(jobState, 0));
+      expect(submitted(jobState, 1).plan_revision_id).toBe("rev-1");
+      expect(prepareSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops a late prepareSend result after New chat", async () => {
+      const wait = deferred();
+      const { result } = renderHook(() =>
+        useChatConversation(budget, null, { prepareSend: () => wait.promise }),
+      );
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      act(() => {
+        result.current.newConversation();
+      });
+      expect(result.current.pending).toBe(false);
+      await act(async () => {
+        wait.resolve({ message: "Add tofu.", planRevisionId: "rev-1" });
+      });
+      await flushMicrotasks();
+      expect(jobState.submit).not.toHaveBeenCalled();
+      expect(result.current.messages).toEqual([]);
+      expect(result.current.hasRequest).toBe(false);
+    });
+
+    it("does not lock the chat when sending throws", async () => {
+      const prepareSend = vi.fn(async () => ({ message: "PREPARED", planRevisionId: null }));
+      jobState.submit.mockImplementationOnce(() => {
+        throw new Error("boom");
+      });
+      const { result } = renderHook(() => useChatConversation(budget, null, { prepareSend }));
+      act(() => {
+        result.current.setMessage("Add tofu.");
+      });
+      await sendAndSettle(result);
+      expect(result.current.pending).toBe(false);
+      await sendAndSettle(result);
+      expect(prepareSend).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("sends the first request with a saved manual job as parent", async () => {

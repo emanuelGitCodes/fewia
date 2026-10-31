@@ -28,6 +28,7 @@ export function copyJobBody(body: ChatJobCreate): ChatJobCreate {
     monthly_limit_cents: body.monthly_limit_cents,
     plan_cap_cents: body.plan_cap_cents,
     previous_job_id: body.previous_job_id,
+    plan_revision_id: body.plan_revision_id,
   };
 }
 
@@ -36,7 +37,8 @@ export function sameJobBody(left: ChatJobCreate, right: ChatJobCreate): boolean 
     left.message === right.message &&
     left.monthly_limit_cents === right.monthly_limit_cents &&
     left.plan_cap_cents === right.plan_cap_cents &&
-    left.previous_job_id === right.previous_job_id
+    left.previous_job_id === right.previous_job_id &&
+    left.plan_revision_id === right.plan_revision_id
   );
 }
 

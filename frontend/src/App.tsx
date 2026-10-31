@@ -1,14 +1,12 @@
-import { useEffect, type JSX } from "react";
+import type { JSX } from "react";
 import { SAMPLE_ESTIMATE_NOTICE, sourceLabel } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
 import { TemplatePicker } from "./TemplatePicker";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
 import { Conversation, type ExampleKind } from "./Conversation";
 import { Estimate } from "./Estimate";
-import { HandoffControls } from "./HandoffControls";
 import { formatDollars } from "./money";
 import { useGroceryDemo } from "./useGroceryDemo";
-import { useHandoff } from "./useHandoff";
 import "./form.css";
 import "./estimate.css";
 import "./chat.css";
@@ -24,37 +22,15 @@ export default function App(): JSX.Element {
     formDirty: demo.dirty,
     formPending: demo.pending,
   });
-  const handoff = useHandoff();
   const blocked = demo.config === null || demo.configPending || demo.configError !== null;
   const busy = demo.pending || chat.pending;
   const estimateJob = chat.estimateJob ?? demo.job;
   const estimateDirty =
     (chat.estimateJob !== null ? chat.estimateDirty : demo.dirty) || chat.unresolvedChatEstimate;
   const showNotice = estimateJob?.status !== "succeeded" || estimateJob.result === null;
-  const jobId = estimateJob?.status === "succeeded" ? estimateJob.id : null;
-  const result = estimateJob?.status === "succeeded" ? estimateJob.result : null;
-  const canStart =
-    chat.instacartConfigured &&
-    !blocked &&
-    !chat.configurationPending &&
-    chat.providerError === null &&
-    !estimateDirty &&
-    !busy &&
-    jobId !== null &&
-    result !== null &&
-    result.plan.accepted &&
-    result.plan.total_cents !== null &&
-    result.plan.lines.some((line) => !line.from_pantry);
   const focusEstimate = (): void => {
     document.getElementById("estimate-heading")?.focus();
   };
-  useEffect(() => {
-    handoff.clear();
-    // handoff.clear is stable via useCallback; the handoff object itself is
-    // recreated every render, and depending on it would re-run this effect
-    // on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, estimateDirty, handoff.clear]);
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -157,23 +133,6 @@ export default function App(): JSX.Element {
               }}
               rebuildDisabled={blocked || busy}
             />
-            {chat.instacartConfigured ? (
-              <HandoffControls
-                key={JSON.stringify([jobId, result?.plan])}
-                view={handoff.view}
-                error={handoff.error}
-                pending={handoff.pending}
-                canStart={canStart}
-                onStart={() => {
-                  if (canStart && typeof jobId === "string") {
-                    void handoff.start(jobId);
-                  }
-                }}
-                onRetry={() => {
-                  void handoff.retry();
-                }}
-              />
-            ) : null}
             {showNotice ? (
               <p className="estimate-notice">{demo.config?.notice ?? SAMPLE_ESTIMATE_NOTICE}</p>
             ) : null}

@@ -1,7 +1,7 @@
 from json import JSONEncoder
 from time import perf_counter
 
-from app.agent.chat_context import read_usage
+from app.agent.chat_context import sum_usage
 from app.agent.chat_messages import parse_provider_response
 from app.agent.provider import LLMProvider
 
@@ -111,6 +111,19 @@ class CaptureProvider:
                     )
             self.tool_results.append(captured)
 
+    def _observe_input(self, messages: list[dict[str, object]]) -> None:
+        try:
+            self._observe_results(messages)
+        except (RecursionError, TypeError, ValueError):
+            self.capture_incomplete = True
+        try:
+            self.leakage |= self._leaks(messages[-1] if messages else None, set())
+        except (RecursionError, TypeError, ValueError):
+            self.capture_incomplete = True
+
+    def observe_terminal_tool_results(self, blocks: list[dict[str, object]]) -> None:
+        self._observe_input([{"role": "user", "content": blocks}])
+
     def converse(
         self,
         system_prompt: str,
@@ -118,11 +131,7 @@ class CaptureProvider:
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
         self.provider_calls += 1
-        try:
-            self._observe_results(messages)
-            self.leakage |= self._leaks(messages[-1] if messages else None, set())
-        except (RecursionError, TypeError, ValueError):
-            self.capture_incomplete = True
+        self._observe_input(messages)
         started = perf_counter()
         try:
             response = self.provider.converse(system_prompt, messages, tools)
@@ -131,12 +140,7 @@ class CaptureProvider:
             raise
         finally:
             self.elapsed_seconds += perf_counter() - started
-        usage = read_usage(response)
-        if usage is None:
-            self.usage = None
-        elif self.usage is not None:
-            for key, value in usage.items():
-                self.usage[key] += value
+        self.usage = sum_usage(self.usage, response, first=self.provider_calls == 1)
         try:
             self.leakage |= self._leaks(response, set())
         except (RecursionError, TypeError, ValueError):

@@ -24,6 +24,10 @@ from app.domain.grocery import GroceryRequest
 
 PERIOD = date(2026, 9, 1)
 _SECRET = "do-not-echo-raw-input"
+_ROLE = (
+    "previous_request is prior state; apply latest explicit additions and removals"
+    "; plan_meals is the user's current plan"
+)
 
 
 def budget(
@@ -103,14 +107,14 @@ def test_followup_history_appends_current_user_and_context() -> None:
         "context_role",
         "period",
         "plan_cap_cents",
+        "plan_meals",
         "previous_request",
         "previous_ingredient_ids",
     }
     assert payload["plan_cap_cents"] is None
+    assert payload["plan_meals"] is None
     assert payload["previous_ingredient_ids"] is None
-    assert payload["context_role"] == (
-        "previous_request is prior state; apply latest explicit additions and removals"
-    )
+    assert payload["context_role"] == _ROLE
     assert payload["period"] == "2026-09-01"
     assert payload["previous_request"] == GroceryRequest.model_validate(
         previous()
@@ -125,6 +129,44 @@ def test_followup_history_appends_current_user_and_context() -> None:
     assert "account" not in dumped
     assert "credential" not in dumped
     assert _SECRET not in dumped
+
+
+def test_plan_meals_reach_the_context_in_order() -> None:
+    meals: list[dict[str, object]] = [
+        {"recipe_id": "bean_tacos", "servings": 2},
+        {"recipe_id": "chicken_tacos", "servings": 8},
+    ]
+    payload = _context(build_messages("hi", budget(), PERIOD, plan_meals=meals))
+    assert payload["plan_meals"] == meals
+    single = _context(
+        build_messages(
+            "hi",
+            budget(),
+            PERIOD,
+            plan_meals=[{"recipe_id": "bean_tacos", "servings": 2}],
+        )
+    )
+    assert single["plan_meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
+    assert _context(build_messages("hi", budget(), PERIOD))["plan_meals"] is None
+
+
+@pytest.mark.parametrize(
+    "plan_meals",
+    [
+        [{"recipe_id": "not_a_recipe", "servings": 2}],
+        [{"recipe_id": "bean_tacos", "servings": 9}],
+        [{"recipe_id": "bean_tacos", "servings": 0}],
+        [{"recipe_id": "bean_tacos", "servings": True}],
+        [{"recipe_id": "bean_tacos", "servings": "2"}],
+        [{"recipe_id": 7, "servings": 2}],
+        [{"servings": 2}],
+        ["bean_tacos"],
+        [{"recipe_id": "bean_tacos", "servings": 1}] * 4,
+    ],
+)
+def test_invalid_plan_meals_raise(plan_meals: list[dict[str, object]]) -> None:
+    with pytest.raises(ChatProtocolError):
+        build_messages("hi", budget(), PERIOD, plan_meals=plan_meals)
 
 
 def test_empty_and_max_history_keep_even_public_pairs() -> None:
@@ -413,6 +455,32 @@ def test_read_usage_invalid_returns_none_without_zero(response: object) -> None:
     assert read_usage(response) is None
 
 
+def test_read_usage_copies_cache_counts_and_drops_unrelated_fields() -> None:
+    counts = {
+        "inputTokens": 3,
+        "outputTokens": 5,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 7,
+    }
+    response = {"usage": {**counts, "totalTokens": 15, "reasoningContent": "hidden"}}
+    result = read_usage(response)
+    assert result == counts
+    response["usage"]["cacheWriteInputTokens"] = 99
+    assert result == counts
+
+
+@pytest.mark.parametrize("key", ["cacheReadInputTokens", "cacheWriteInputTokens"])
+@pytest.mark.parametrize("value", [None, True, False, -1, 1.5, 1.0, "2", [], {}])
+def test_invalid_cache_count_stays_unknown(key: str, value: object) -> None:
+    other = (
+        "cacheWriteInputTokens"
+        if key == "cacheReadInputTokens"
+        else "cacheReadInputTokens"
+    )
+    expected = {"inputTokens": 3, "outputTokens": 5, other: 0}
+    assert read_usage({"usage": {**expected, key: value}}) == expected
+
+
 def test_plan_cap_zero_none_and_positive_stay_explicit() -> None:
     none_messages = build_messages("ok", budget(available_cents=10_000), PERIOD)
     none_payload = _context(none_messages)
@@ -457,9 +525,7 @@ def test_previous_pantry_structure_and_context_before_user_message() -> None:
     assert content[-1] == {"text": "add rice and remove oil"}
     payload = _context(messages)
     assert payload["plan_cap_cents"] == 2_000
-    assert payload["context_role"] == (
-        "previous_request is prior state; apply latest explicit additions and removals"
-    )
+    assert payload["context_role"] == _ROLE
     assert payload["previous_request"] == GroceryRequest.model_validate(
         prev
     ).model_dump(mode="json")

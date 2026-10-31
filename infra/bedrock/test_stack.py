@@ -1,3 +1,4 @@
+import copy
 import re
 from pathlib import Path
 from typing import Any
@@ -6,7 +7,7 @@ import pytest
 from aws_cdk import App, Environment
 from aws_cdk.assertions import Template
 
-from stack import BedrockChatStack
+from stack import BedrockChatStack, guardrail_topics, policy_digest
 
 _ACCOUNT = "111122223333"
 _OTHER_ACCOUNT = "999999999999"
@@ -21,6 +22,25 @@ _MODELS = {
     "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-2-lite-v1:0",
     "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-2-lite-v1:0",
     "arn:aws:bedrock:us-west-2::foundation-model/amazon.nova-2-lite-v1:0",
+}
+_GUARDRAIL_SID = "ApplyFewiaGuardrail"
+_BLOCKED = (
+    "I can help with meals, grocery lists, nutrition facts, and your food budget. "
+    "I cannot help with that request."
+)
+_TOPIC_FLAGS = {
+    "MedicalAdvice": (False, True),
+    "AllergySafety": (True, True),
+    "FinancialTransactions": (True, True),
+    "NonFoodTasks": (True, True),
+}
+_FILTER_STRENGTHS = {
+    "HATE": ("MEDIUM", "MEDIUM"),
+    "INSULTS": ("MEDIUM", "MEDIUM"),
+    "SEXUAL": ("MEDIUM", "MEDIUM"),
+    "VIOLENCE": ("MEDIUM", "MEDIUM"),
+    "MISCONDUCT": ("MEDIUM", "MEDIUM"),
+    "PROMPT_ATTACK": ("HIGH", "NONE"),
 }
 _ROOT = Path(__file__).resolve().parent
 _REQUIRED_TAGS = {
@@ -134,9 +154,20 @@ def _role_tags(template: Template) -> dict[str, str]:
     raise AssertionError("template MUST include one IAM role")
 
 
+def _invoke_statements(statements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [item for item in statements if item.get("Sid") != _GUARDRAIL_SID]
+
+
+def _guardrail_props(template: Template) -> dict[str, Any]:
+    found = template.find_resources("AWS::Bedrock::Guardrail")
+    assert len(found) == 1
+    return dict(next(iter(found.values()))["Properties"])
+
+
 def _split_identity(
     statements: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    statements = _invoke_statements(statements)
     assert len(statements) == 2
     with_condition = [item for item in statements if "Condition" in item]
     without_condition = [item for item in statements if "Condition" not in item]
@@ -194,7 +225,7 @@ def test_policy_inventory_is_selected_nova_2_lite_us_path() -> None:
         assert "*" not in str(statement["Resource"])
         for action in _as_list(statement["Action"]):
             assert action not in _FORBIDDEN_ACTIONS
-            assert action == "bedrock:InvokeModel"
+            assert action in {"bedrock:InvokeModel", "bedrock:ApplyGuardrail"}
 
 
 def test_origin_and_destination_regions() -> None:
@@ -218,7 +249,7 @@ def test_rejects_extra_permissions_and_managed_policies() -> None:
     assert "AWS::IAM::User" not in types
     rendered = str(template.to_json())
     assert "AmazonBedrockFullAccess" not in rendered
-    assert len(_identity_statements(template)) == 2
+    assert len(_identity_statements(template)) == 3
     assert len(_assume_statements(template)) == 1
 
 
@@ -235,12 +266,110 @@ def test_role_model_and_reasoning_effort_tags_are_exact() -> None:
     assert _REQUIRED_TAGS["ReasoningEffort"] == "low"
 
 
-def test_output_is_role_arn_only() -> None:
+def test_outputs_are_role_arn_and_guardrail_only() -> None:
     outputs = Template.from_stack(_stack()).to_json().get("Outputs", {})
-    assert set(outputs) == {"RoleArn"}
-    assert "Value" in outputs["RoleArn"]
+    assert set(outputs) == {"RoleArn", "GuardrailId", "GuardrailVersion"}
+    for output in outputs.values():
+        assert "Value" in output
     assert "AccessKey" not in str(outputs)
     assert "Secret" not in str(outputs)
+
+
+def test_guardrail_topics_and_flags() -> None:
+    props = _guardrail_props(Template.from_stack(_stack()))
+    topics = props["TopicPolicyConfig"]["TopicsConfig"]
+    assert {item["Name"] for item in topics} == set(_TOPIC_FLAGS)
+    assert len(topics) == len(_TOPIC_FLAGS)
+    for item in topics:
+        assert item["Type"] == "DENY"
+        assert len(item["Definition"]) < 200
+        assert 1 <= len(item["Examples"]) <= 5
+        flags = (item["InputEnabled"], item["OutputEnabled"])
+        assert flags == _TOPIC_FLAGS[item["Name"]]
+
+
+def test_guardrail_content_filters() -> None:
+    props = _guardrail_props(Template.from_stack(_stack()))
+    filters = props["ContentPolicyConfig"]["FiltersConfig"]
+    found = {
+        item["Type"]: (item["InputStrength"], item["OutputStrength"])
+        for item in filters
+    }
+    assert len(filters) == len(_FILTER_STRENGTHS)
+    assert found == _FILTER_STRENGTHS
+
+
+def test_guardrail_blocked_messages() -> None:
+    props = _guardrail_props(Template.from_stack(_stack()))
+    assert props["BlockedInputMessaging"] == _BLOCKED
+    assert props["BlockedOutputsMessaging"] == _BLOCKED
+
+
+def test_one_guardrail_version_of_the_guardrail() -> None:
+    template = Template.from_stack(_stack())
+    template.resource_count_is("AWS::Bedrock::Guardrail", 1)
+    template.resource_count_is("AWS::Bedrock::GuardrailVersion", 1)
+    guardrail_id = next(iter(template.find_resources("AWS::Bedrock::Guardrail")))
+    versions = template.find_resources("AWS::Bedrock::GuardrailVersion")
+    props = next(iter(versions.values()))["Properties"]
+    assert props["GuardrailIdentifier"] == {"Fn::GetAtt": [guardrail_id, "GuardrailId"]}
+
+
+def test_guardrail_version_description_carries_policy_digest() -> None:
+    template = Template.from_stack(_stack())
+    versions = template.find_resources("AWS::Bedrock::GuardrailVersion")
+    assert len(versions) == 1
+    props = next(iter(versions.values()))["Properties"]
+    assert props["Description"] == f"policy {policy_digest()}"
+
+
+def test_policy_digest_changes_with_topic_definition() -> None:
+    digest = policy_digest()
+    assert re.fullmatch(r"[0-9a-f]{12}", digest)
+    changed = copy.deepcopy(guardrail_topics())
+    changed[0]["definition"] = f"{changed[0]['definition']} Changed."
+    other = policy_digest(topics=changed)
+    assert re.fullmatch(r"[0-9a-f]{12}", other)
+    assert other != digest
+    assert policy_digest() == digest
+
+
+def test_policy_digest_changes_with_topic_input_enabled() -> None:
+    digest = policy_digest()
+    changed = copy.deepcopy(guardrail_topics())
+    medical = next(item for item in changed if item["name"] == "MedicalAdvice")
+    assert medical["input_enabled"] is False
+    medical["input_enabled"] = True
+    assert policy_digest(topics=changed) != digest
+    assert policy_digest() == digest
+
+
+def test_apply_guardrail_is_scoped_to_the_guardrail() -> None:
+    template = Template.from_stack(_stack())
+    guardrail_id = next(iter(template.find_resources("AWS::Bedrock::Guardrail")))
+    applied = [
+        item
+        for item in _identity_statements(template)
+        if item.get("Sid") == _GUARDRAIL_SID
+    ]
+    assert len(applied) == 1
+    assert applied[0]["Effect"] == "Allow"
+    assert _as_list(applied[0]["Action"]) == ["bedrock:ApplyGuardrail"]
+    assert "Condition" not in applied[0]
+    assert applied[0]["Resource"] == {"Fn::GetAtt": [guardrail_id, "GuardrailArn"]}
+
+
+def test_guardrail_outputs_reference_guardrail_and_version() -> None:
+    template = Template.from_stack(_stack())
+    guardrail_id = next(iter(template.find_resources("AWS::Bedrock::Guardrail")))
+    version_id = next(iter(template.find_resources("AWS::Bedrock::GuardrailVersion")))
+    outputs = template.to_json()["Outputs"]
+    assert outputs["GuardrailId"]["Value"] == {
+        "Fn::GetAtt": [guardrail_id, "GuardrailId"]
+    }
+    assert outputs["GuardrailVersion"]["Value"] == {
+        "Fn::GetAtt": [version_id, "Version"]
+    }
 
 
 def test_missing_trust_config_fails_closed() -> None:

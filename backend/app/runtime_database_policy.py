@@ -17,6 +17,9 @@ RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
         "job_outbox": "SELECT, INSERT, UPDATE",
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
+        "plan_revisions": "SELECT, INSERT",
+        "plan_proposals": "SELECT, INSERT, UPDATE",
+        "kroger_customer_tokens": "SELECT, INSERT, UPDATE, DELETE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
@@ -67,13 +70,21 @@ SELECT
                 n.nspname = 'public' AND (
                     (p.priv = 'SELECT' AND c.relname IN (
                         'users', 'jobs', 'job_outbox', 'shopping_handoffs',
-                        'grocery_evidence', 'plaid_items', 'plaid_transactions'
+                        'grocery_evidence', 'plan_revisions', 'plan_proposals',
+                        'kroger_customer_tokens', 'plaid_items',
+                        'plaid_transactions'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname IN (
-                        'jobs', 'job_outbox', 'shopping_handoffs', 'grocery_evidence'
+                        'jobs', 'job_outbox', 'shopping_handoffs',
+                        'grocery_evidence', 'plan_revisions', 'plan_proposals',
+                        'kroger_customer_tokens'
                     ))
                     OR (p.priv = 'UPDATE' AND c.relname IN (
-                        'jobs', 'job_outbox', 'shopping_handoffs'
+                        'jobs', 'job_outbox', 'shopping_handoffs',
+                        'plan_proposals', 'kroger_customer_tokens'
+                    ))
+                    OR (p.priv = 'DELETE' AND c.relname IN (
+                        'kroger_customer_tokens'
                     ))
                 )
             )

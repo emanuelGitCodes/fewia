@@ -2,21 +2,27 @@ import copy
 import json
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import plan_ingredient_ids
 from app.agent.chat_loop import ChatUnavailable
 from app.agent.planning_tool import TOOL_NAME, execute_plan
+from app.db import Base
 from app.domain.budget import (
     STALE_SPENDING_ERROR,
     SpendingSnapshot,
     StaleSpendingError,
     calculate_budget,
 )
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.plan_models import PlanProposal, PlanRevision
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
 from app.services.plan_job import SpendingInput
@@ -134,7 +140,6 @@ def _planner_then_final() -> list[dict[str, object] | BaseException]:
             ],
             "tool_use",
         ),
-        _reply([{"text": "Here is a labeled estimate."}], "end_turn"),
     ]
 
 
@@ -155,7 +160,7 @@ def _patch_save(
     monkeypatch.setattr(chat_job_module, "save_plan_evidence", fake_save)
 
 
-def test_chat_job_plan_then_final_and_followup(
+def test_chat_job_terminal_plan_and_followup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
@@ -169,6 +174,7 @@ def test_chat_job_plan_then_final_and_followup(
     )
 
     assert result["status"] == "planned"
+    assert len(provider.requests) == 1
     assert result["answer"] == render_public_answer(expected)
     assert "Here is a labeled estimate." not in result["answer"]
     assert result["plan"] == expected["plan"]
@@ -203,6 +209,7 @@ def test_chat_job_plan_then_final_and_followup(
         factory=FACTORY,
     )
     assert follow["status"] == "planned"
+    assert len(follow_provider.requests) == 1
     first_messages = follow_provider.requests[0]["messages"]
     assert isinstance(first_messages, list)
     assert first_messages[0]["role"] == "user"
@@ -211,23 +218,43 @@ def test_chat_job_plan_then_final_and_followup(
     assert json.loads(content[0]["text"])["previous_ingredient_ids"] == ingredient_ids
 
 
-def test_chat_job_stores_snapshot_before_next_model_call(
+def test_chat_job_opts_in_to_validated_model_prose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    seen: list[object] = []
+    real = chat_job_module.run_chat
+
+    def spy(*args: object, **kwargs: object) -> dict[str, object]:
+        seen.append(kwargs.get("model_prose"))
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(chat_job_module, "run_chat", spy)
+    provider = FakeLLM([_reply([{"text": "How many servings?"}], "end_turn")])
+    result = chat_job_module.chat_job(
+        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+    )
+    assert seen == [True]
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+
+
+def test_chat_job_stores_snapshot_before_return(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
     saved: list[dict[str, object]] = []
     _patch_save(monkeypatch, saved)
 
-    def require_store() -> None:
-        assert saved
-
-    provider = FakeLLM(_planner_then_final(), before_next=require_store)
+    provider = FakeLLM(_planner_then_final())
     result = chat_job_module.chat_job(
         chat_payload(), lambda: None, provider=provider, factory=FACTORY
     )
     assert result["status"] == "planned"
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     assert len(saved) == 1
+    assert saved[0]["planning"] == expected_planning()
+    assert result["evidence_revision_id"] == _REV
 
 
 def test_chat_job_clarification_has_no_plan(
@@ -378,6 +405,78 @@ def test_chat_job_input_accepts_manual_spending_source() -> None:
     assert parsed.spending_source == "manual"
 
 
+def test_chat_job_input_carries_plan_revision() -> None:
+    revision = {
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "snapshot": {
+            "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+            "pantry_ingredient_ids": [],
+            "plan_cap_cents": None,
+        },
+    }
+    parsed = chat_job_module.ChatJobInput.model_validate(
+        chat_payload(plan_revision_id=revision["id"], plan_revision=revision)
+    )
+    plain = chat_job_module.ChatJobInput.model_validate(chat_payload())
+
+    assert parsed.plan_revision is not None
+    assert parsed.plan_revision.model_dump(mode="json") == revision
+    assert plain.plan_revision is None
+    assert plain.plan_revision_id is None
+
+
+def test_chat_job_input_rejects_invalid_plan_revision() -> None:
+    revision = {
+        "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "snapshot": {"meals": [], "pantry_ingredient_ids": [], "extra": 1},
+    }
+    with pytest.raises(ValidationError):
+        chat_job_module.ChatJobInput.model_validate(
+            chat_payload(plan_revision=revision)
+        )
+
+
+def test_chat_job_get_plan_reads_the_job_plan_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    revision_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    revision = {
+        "id": revision_id,
+        "snapshot": {
+            "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+            "pantry_ingredient_ids": [],
+            "plan_cap_cents": None,
+        },
+    }
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    {
+                        "toolUse": {
+                            "toolUseId": "g1",
+                            "name": "get_plan",
+                            "input": {},
+                        }
+                    }
+                ],
+                "tool_use",
+            ),
+            _reply([{"text": "Done."}], "end_turn"),
+        ]
+    )
+    result = chat_job_module.chat_job(
+        chat_payload(plan_revision_id=revision_id, plan_revision=revision),
+        lambda: None,
+        provider=provider,
+        factory=FACTORY,
+    )
+    assert result["status"] == "clarification"
+    assert len(provider.requests) == 2
+    assert revision_id in json.dumps(provider.requests[1]["messages"])
+
+
 def test_chat_job_heartbeat_failure_is_before_provider() -> None:
     def heartbeat() -> None:
         raise RuntimeError("heartbeat-lost")
@@ -422,7 +521,7 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
         factory=FACTORY,
     )
     assert result["status"] == "planned"
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 1
     for request in provider.requests:
         messages = request["messages"]
         assert isinstance(messages, list)
@@ -441,5 +540,70 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
         assert loaded["previous_request"]["pantry_ingredients"] == ["salt", "oil"]
         assert loaded["context_role"] == (
             "previous_request is prior state; apply latest explicit "
-            "additions and removals"
+            "additions and removals; plan_meals is the user's current plan"
         )
+        assert loaded["plan_meals"] is None
+
+
+def test_chat_job_proposal_tool_stores_a_committed_proposal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    factory: sessionmaker[Session] = sessionmaker(engine)
+    kept, added = SUPPORTED_RECIPE_IDS[:2]
+    snapshot = {
+        "meals": [{"recipe_id": kept, "servings": 2}],
+        "pantry_ingredient_ids": [],
+        "plan_cap_cents": None,
+    }
+    revision_id = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    try:
+        with factory() as seed:
+            seed.add(PlanRevision(id=UUID(revision_id), user_id=1, snapshot=snapshot))
+            seed.commit()
+        operations = [{"op": "add", "recipe_id": added, "servings": 2}]
+        provider = FakeLLM(
+            [
+                _reply(
+                    [
+                        {
+                            "toolUse": {
+                                "toolUseId": "p1",
+                                "name": "propose_plan_change",
+                                "input": {"operations": operations},
+                            }
+                        }
+                    ],
+                    "tool_use",
+                ),
+                _reply([{"text": "Done."}], "end_turn"),
+            ]
+        )
+        result = chat_job_module.chat_job(
+            chat_payload(
+                message="add another meal",
+                plan_revision_id=revision_id,
+                plan_revision={"id": revision_id, "snapshot": snapshot},
+            ),
+            lambda: None,
+            provider=provider,
+            factory=factory,
+        )
+        proposal_id = result["proposal_id"]
+        assert isinstance(proposal_id, str)
+        with factory() as fresh:
+            rows = fresh.scalars(select(PlanProposal)).all()
+        assert [str(row.id) for row in rows] == [proposal_id]
+        assert rows[0].user_id == 1
+        assert str(rows[0].base_plan_revision_id) == revision_id
+        assert rows[0].status == "pending"
+        assert rows[0].operations == operations
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()

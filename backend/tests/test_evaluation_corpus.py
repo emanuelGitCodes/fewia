@@ -12,11 +12,11 @@ from app.domain.catalog import CATALOG_VERSION
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 
 CORPUS_PATH = Path(__file__).parent / "evaluation" / "scenarios.json"
-VERSION = "grocery-eval-v1"
+VERSION = "grocery-eval-v1.1"
 REPEATS = 3
 MODE_NOTE = "Fixtures do not prove LLM quality or live providers."
 NOTICE = (
-    "Estimated from the demo price catalog. Instacart prices, availability, "
+    "Estimated from the demo price catalog. Store prices, availability, "
     "taxes, delivery fees, and tips are not verified."
 )
 GROUP_COUNTS = {
@@ -441,6 +441,10 @@ def test_accepted_plans_use_integer_cents_full_ingredients_and_explicit_pantry()
         constraints = as_object(expected["constraint_results"], "constraint_results")
         assert constraints["servings_reduced"] is False
         assert constraints["ingredients_omitted"] is False
+
+
+def test_corpus_file_names_no_instacart() -> None:
+    assert "Instacart" not in CORPUS_PATH.read_text(encoding="utf-8")
 
 
 def test_corpus_does_not_claim_a_fake_success_score() -> None:

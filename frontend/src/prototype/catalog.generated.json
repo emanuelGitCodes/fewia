@@ -1,0 +1,2066 @@
+{
+  "catalogVersion": "sample-prices-v2",
+  "ingredients": [
+    {
+      "id": "chicken_breast",
+      "name": "chicken breast",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 799,
+      "isPantry": false
+    },
+    {
+      "id": "eggs",
+      "name": "eggs",
+      "unit": "each",
+      "packageQuantity": 12,
+      "priceCents": 349,
+      "isPantry": false
+    },
+    {
+      "id": "black_beans",
+      "name": "black beans",
+      "unit": "g",
+      "packageQuantity": 425,
+      "priceCents": 129,
+      "isPantry": false
+    },
+    {
+      "id": "tortillas",
+      "name": "corn tortillas",
+      "unit": "each",
+      "packageQuantity": 8,
+      "priceCents": 299,
+      "isPantry": false
+    },
+    {
+      "id": "salsa",
+      "name": "salsa",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 249,
+      "isPantry": false
+    },
+    {
+      "id": "rice",
+      "name": "white rice",
+      "unit": "g",
+      "packageQuantity": 907,
+      "priceCents": 199,
+      "isPantry": false
+    },
+    {
+      "id": "pasta",
+      "name": "dry pasta",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 149,
+      "isPantry": false
+    },
+    {
+      "id": "tomato",
+      "name": "canned tomato",
+      "unit": "g",
+      "packageQuantity": 411,
+      "priceCents": 179,
+      "isPantry": false
+    },
+    {
+      "id": "onion",
+      "name": "onion",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 129,
+      "isPantry": false
+    },
+    {
+      "id": "garlic",
+      "name": "garlic",
+      "unit": "g",
+      "packageQuantity": 100,
+      "priceCents": 89,
+      "isPantry": false
+    },
+    {
+      "id": "olive_oil",
+      "name": "olive oil",
+      "unit": "g",
+      "packageQuantity": 500,
+      "priceCents": 599,
+      "isPantry": true
+    },
+    {
+      "id": "cumin",
+      "name": "ground cumin",
+      "unit": "g",
+      "packageQuantity": 42,
+      "priceCents": 199,
+      "isPantry": true
+    },
+    {
+      "id": "salt",
+      "name": "salt",
+      "unit": "g",
+      "packageQuantity": 737,
+      "priceCents": 99,
+      "isPantry": true
+    },
+    {
+      "id": "lentils",
+      "name": "brown lentils",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 179,
+      "isPantry": false
+    },
+    {
+      "id": "chickpeas",
+      "name": "chickpeas",
+      "unit": "g",
+      "packageQuantity": 425,
+      "priceCents": 129,
+      "isPantry": false
+    },
+    {
+      "id": "coconut_milk",
+      "name": "coconut milk",
+      "unit": "g",
+      "packageQuantity": 400,
+      "priceCents": 249,
+      "isPantry": false
+    },
+    {
+      "id": "curry_powder",
+      "name": "curry powder",
+      "unit": "g",
+      "packageQuantity": 42,
+      "priceCents": 249,
+      "isPantry": true
+    },
+    {
+      "id": "mixed_vegetables",
+      "name": "mixed vegetables",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 199,
+      "isPantry": false
+    },
+    {
+      "id": "soy_sauce",
+      "name": "soy sauce",
+      "unit": "g",
+      "packageQuantity": 296,
+      "priceCents": 199,
+      "isPantry": false
+    },
+    {
+      "id": "potato",
+      "name": "russet potato",
+      "unit": "each",
+      "packageQuantity": 5,
+      "priceCents": 399,
+      "isPantry": false
+    },
+    {
+      "id": "oats",
+      "name": "rolled oats",
+      "unit": "g",
+      "packageQuantity": 454,
+      "priceCents": 349,
+      "isPantry": false
+    },
+    {
+      "id": "oat_milk",
+      "name": "oat milk",
+      "unit": "g",
+      "packageQuantity": 946,
+      "priceCents": 399,
+      "isPantry": false
+    }
+  ],
+  "recipes": [
+    {
+      "id": "chicken_tacos",
+      "name": "Chicken tacos",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "tortillas",
+          2
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 340,
+        "proteinG": 26.4,
+        "carbsG": 27.3,
+        "fatG": 14.3
+      }
+    },
+    {
+      "id": "bean_tacos",
+      "name": "Bean tacos",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "black_beans",
+          120
+        ],
+        [
+          "tortillas",
+          2
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 379,
+        "proteinG": 14.5,
+        "carbsG": 55.8,
+        "fatG": 12.3
+      }
+    },
+    {
+      "id": "vegetable_pasta",
+      "name": "Vegetable pasta",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [],
+      "ingredients": [
+        [
+          "pasta",
+          90
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "mixed_vegetables",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 512,
+        "proteinG": 15.7,
+        "carbsG": 85.2,
+        "fatG": 12.0
+      }
+    },
+    {
+      "id": "chicken_and_rice_bowls",
+      "name": "Chicken and rice bowls",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "mixed_vegetables",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 559,
+        "proteinG": 31.2,
+        "carbsG": 75.2,
+        "fatG": 13.6
+      }
+    },
+    {
+      "id": "lentil_soup",
+      "name": "Lentil soup",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "lentils",
+          80
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 410,
+        "proteinG": 21.3,
+        "carbsG": 59.3,
+        "fatG": 11.3
+      }
+    },
+    {
+      "id": "chickpea_curry",
+      "name": "Chickpea curry",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "chickpeas",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chickpeas",
+          120
+        ],
+        [
+          "coconut_milk",
+          80
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "curry_powder",
+          3
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 750,
+        "proteinG": 18.8,
+        "carbsG": 102.2,
+        "fatG": 31.2
+      }
+    },
+    {
+      "id": "vegetable_stir_fry",
+      "name": "Vegetable stir fry",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [],
+      "ingredients": [
+        [
+          "mixed_vegetables",
+          150
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "soy_sauce",
+          15
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "olive_oil",
+          10
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 498,
+        "proteinG": 12.2,
+        "carbsG": 85.4,
+        "fatG": 11.4
+      }
+    },
+    {
+      "id": "baked_potatoes_with_beans",
+      "name": "Baked potatoes with beans",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "potato",
+          1
+        ],
+        [
+          "black_beans",
+          100
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "olive_oil",
+          5
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 356,
+        "proteinG": 14.0,
+        "carbsG": 64.9,
+        "fatG": 5.8
+      }
+    },
+    {
+      "id": "breakfast_burritos",
+      "name": "Breakfast burritos",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "beans",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "tortillas",
+          1
+        ],
+        [
+          "black_beans",
+          60
+        ],
+        [
+          "salsa",
+          30
+        ],
+        [
+          "onion",
+          20
+        ],
+        [
+          "olive_oil",
+          5
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 335,
+        "proteinG": 19.9,
+        "carbsG": 29.5,
+        "fatG": 15.6
+      }
+    },
+    {
+      "id": "overnight_oats",
+      "name": "Overnight oats",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [],
+      "ingredients": [
+        [
+          "oats",
+          50
+        ],
+        [
+          "oat_milk",
+          180
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 276,
+        "proteinG": 8.0,
+        "carbsG": 43.0,
+        "fatG": 8.2
+      }
+    },
+    {
+      "id": "chicken_pasta",
+      "name": "Chicken pasta",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "pasta",
+          90
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 563,
+        "proteinG": 35.2,
+        "carbsG": 71.6,
+        "fatG": 14.2
+      }
+    },
+    {
+      "id": "chicken_stir_fry",
+      "name": "Chicken stir fry",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "mixed_vegetables",
+          150
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "soy_sauce",
+          15
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "olive_oil",
+          10
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 618,
+        "proteinG": 34.7,
+        "carbsG": 85.4,
+        "fatG": 14.0
+      }
+    },
+    {
+      "id": "chicken_curry",
+      "name": "Chicken curry",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "coconut_milk",
+          80
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "curry_powder",
+          3
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 673,
+        "proteinG": 30.6,
+        "carbsG": 69.3,
+        "fatG": 30.7
+      }
+    },
+    {
+      "id": "chicken_vegetable_soup",
+      "name": "Chicken vegetable soup",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "mixed_vegetables",
+          80
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 302,
+        "proteinG": 26.6,
+        "carbsG": 18.9,
+        "fatG": 13.3
+      }
+    },
+    {
+      "id": "chicken_burrito_bowls",
+      "name": "Chicken burrito bowls",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "beans",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "black_beans",
+          80
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 615,
+        "proteinG": 36.1,
+        "carbsG": 84.8,
+        "fatG": 13.9
+      }
+    },
+    {
+      "id": "chicken_potato_bake",
+      "name": "Chicken potato bake",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "potato",
+          1
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 396,
+        "proteinG": 27.7,
+        "carbsG": 42.9,
+        "fatG": 12.8
+      }
+    },
+    {
+      "id": "chicken_lentil_stew",
+      "name": "Chicken lentil stew",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "lentils",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "lentils",
+          80
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 523,
+        "proteinG": 43.5,
+        "carbsG": 57.6,
+        "fatG": 13.9
+      }
+    },
+    {
+      "id": "chicken_chickpea_skillet",
+      "name": "Chicken chickpea skillet",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "chickpeas",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "chickpeas",
+          120
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 437,
+        "proteinG": 34.4,
+        "carbsG": 40.1,
+        "fatG": 16.0
+      }
+    },
+    {
+      "id": "chicken_fried_rice",
+      "name": "Chicken fried rice",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "egg",
+        "high_protein"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "eggs",
+          1
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "mixed_vegetables",
+          80
+        ],
+        [
+          "soy_sauce",
+          15
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "olive_oil",
+          10
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 631,
+        "proteinG": 38.3,
+        "carbsG": 74.6,
+        "fatG": 18.4
+      }
+    },
+    {
+      "id": "chicken_tortilla_soup",
+      "name": "Chicken tortilla soup",
+      "diets": [],
+      "tags": [
+        "chicken",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chicken_breast",
+          100
+        ],
+        [
+          "tortillas",
+          1
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 289,
+        "proteinG": 25.0,
+        "carbsG": 16.7,
+        "fatG": 13.8
+      }
+    },
+    {
+      "id": "egg_fried_rice",
+      "name": "Egg fried rice",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "mixed_vegetables",
+          80
+        ],
+        [
+          "soy_sauce",
+          15
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 590,
+        "proteinG": 22.4,
+        "carbsG": 76.7,
+        "fatG": 20.6
+      }
+    },
+    {
+      "id": "egg_tacos",
+      "name": "Egg tacos",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "tortillas",
+          2
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 363,
+        "proteinG": 16.4,
+        "carbsG": 28.0,
+        "fatG": 21.2
+      }
+    },
+    {
+      "id": "tomato_egg_pasta",
+      "name": "Tomato egg pasta",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "pasta",
+          90
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 586,
+        "proteinG": 25.2,
+        "carbsG": 72.4,
+        "fatG": 21.1
+      }
+    },
+    {
+      "id": "potato_hash_with_eggs",
+      "name": "Potato hash with eggs",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "potato",
+          1
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 412,
+        "proteinG": 17.4,
+        "carbsG": 42.0,
+        "fatG": 19.7
+      }
+    },
+    {
+      "id": "chickpea_egg_scramble",
+      "name": "Chickpea egg scramble",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "chickpeas",
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "chickpeas",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 386,
+        "proteinG": 20.5,
+        "carbsG": 27.6,
+        "fatG": 21.9
+      }
+    },
+    {
+      "id": "vegetable_egg_stir_fry",
+      "name": "Vegetable egg stir fry",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "lower_carb"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "mixed_vegetables",
+          150
+        ],
+        [
+          "soy_sauce",
+          15
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "olive_oil",
+          10
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 367,
+        "proteinG": 19.4,
+        "carbsG": 26.1,
+        "fatG": 20.4
+      }
+    },
+    {
+      "id": "egg_rice_bowls",
+      "name": "Egg rice bowls",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "beans",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "black_beans",
+          80
+        ],
+        [
+          "salsa",
+          30
+        ],
+        [
+          "onion",
+          20
+        ],
+        [
+          "olive_oil",
+          5
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 583,
+        "proteinG": 25.7,
+        "carbsG": 83.5,
+        "fatG": 15.5
+      }
+    },
+    {
+      "id": "lentil_egg_skillet",
+      "name": "Lentil egg skillet",
+      "diets": [
+        "vegetarian"
+      ],
+      "tags": [
+        "egg",
+        "lentils",
+        "high_protein",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "eggs",
+          2
+        ],
+        [
+          "lentils",
+          80
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 542,
+        "proteinG": 33.4,
+        "carbsG": 57.4,
+        "fatG": 20.8
+      }
+    },
+    {
+      "id": "rice_and_beans",
+      "name": "Rice and beans",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "rice",
+          75
+        ],
+        [
+          "black_beans",
+          120
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 536,
+        "proteinG": 16.5,
+        "carbsG": 91.7,
+        "fatG": 11.4
+      }
+    },
+    {
+      "id": "lentil_pasta",
+      "name": "Lentil pasta",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "high_protein"
+      ],
+      "ingredients": [
+        [
+          "pasta",
+          90
+        ],
+        [
+          "lentils",
+          80
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 736,
+        "proteinG": 32.7,
+        "carbsG": 125.1,
+        "fatG": 12.5
+      }
+    },
+    {
+      "id": "chickpea_tacos",
+      "name": "Chickpea tacos",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "chickpeas",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "chickpeas",
+          120
+        ],
+        [
+          "tortillas",
+          2
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 417,
+        "proteinG": 14.5,
+        "carbsG": 60.2,
+        "fatG": 14.8
+      }
+    },
+    {
+      "id": "potato_curry",
+      "name": "Potato curry",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "potato",
+          1
+        ],
+        [
+          "coconut_milk",
+          80
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "curry_powder",
+          3
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 721,
+        "proteinG": 12.7,
+        "carbsG": 107.8,
+        "fatG": 28.2
+      }
+    },
+    {
+      "id": "tomato_rice",
+      "name": "Tomato rice",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "rice",
+          75
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 398,
+        "proteinG": 6.8,
+        "carbsG": 67.6,
+        "fatG": 11.0
+      }
+    },
+    {
+      "id": "garlic_tomato_pasta",
+      "name": "Garlic tomato pasta",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [],
+      "ingredients": [
+        [
+          "pasta",
+          90
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 443,
+        "proteinG": 12.7,
+        "carbsG": 71.6,
+        "fatG": 11.6
+      }
+    },
+    {
+      "id": "vegetable_soup",
+      "name": "Vegetable soup",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "lower_carb",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "mixed_vegetables",
+          150
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 233,
+        "proteinG": 6.4,
+        "carbsG": 28.4,
+        "fatG": 11.0
+      }
+    },
+    {
+      "id": "lentil_tacos",
+      "name": "Lentil tacos",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "lentils",
+          80
+        ],
+        [
+          "tortillas",
+          2
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 502,
+        "proteinG": 23.6,
+        "carbsG": 78.0,
+        "fatG": 12.5
+      }
+    },
+    {
+      "id": "chickpea_pasta",
+      "name": "Chickpea pasta",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "chickpeas"
+      ],
+      "ingredients": [
+        [
+          "pasta",
+          90
+        ],
+        [
+          "chickpeas",
+          120
+        ],
+        [
+          "tomato",
+          80
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 639,
+        "proteinG": 23.3,
+        "carbsG": 104.5,
+        "fatG": 14.7
+      }
+    },
+    {
+      "id": "coconut_lentil_curry",
+      "name": "Coconut lentil curry",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "lentils",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "lentils",
+          80
+        ],
+        [
+          "coconut_milk",
+          80
+        ],
+        [
+          "rice",
+          75
+        ],
+        [
+          "onion",
+          40
+        ],
+        [
+          "garlic",
+          5
+        ],
+        [
+          "curry_powder",
+          3
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 835,
+        "proteinG": 27.9,
+        "carbsG": 120.0,
+        "fatG": 28.9
+      }
+    },
+    {
+      "id": "potato_tacos",
+      "name": "Potato tacos",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "potato",
+          1
+        ],
+        [
+          "tortillas",
+          2
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 389,
+        "proteinG": 8.4,
+        "carbsG": 65.8,
+        "fatG": 11.9
+      }
+    },
+    {
+      "id": "salsa_rice_bowls",
+      "name": "Salsa rice bowls",
+      "diets": [
+        "vegan",
+        "vegetarian"
+      ],
+      "tags": [
+        "beans",
+        "gluten_free_ingredients"
+      ],
+      "ingredients": [
+        [
+          "rice",
+          75
+        ],
+        [
+          "salsa",
+          40
+        ],
+        [
+          "mixed_vegetables",
+          80
+        ],
+        [
+          "black_beans",
+          80
+        ],
+        [
+          "onion",
+          30
+        ],
+        [
+          "cumin",
+          1
+        ],
+        [
+          "olive_oil",
+          10
+        ],
+        [
+          "salt",
+          1
+        ]
+      ],
+      "nutrition": {
+        "energyKcal": 553,
+        "proteinG": 16.2,
+        "carbsG": 95.6,
+        "fatG": 11.7
+      }
+    }
+  ],
+  "searchTerms": {
+    "keto": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "low carb": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "lowcarb": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "low-carb": {
+      "target": "lower_carb",
+      "note": "No meal in this catalog is keto. These meals have 30 g of carbs or less per serving."
+    },
+    "carnivore": {
+      "target": "chicken",
+      "note": "No meal is strictly carnivore. These meals include chicken."
+    },
+    "meat": {
+      "target": "chicken",
+      "note": "No meal is strictly carnivore. These meals include chicken."
+    },
+    "gf": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "gluten free": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "gluten-free": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "celiac": {
+      "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "plant based": {
+      "target": "vegan",
+      "note": null
+    },
+    "plant-based": {
+      "target": "vegan",
+      "note": null
+    },
+    "veggie": {
+      "target": "vegetarian",
+      "note": null
+    },
+    "protein": {
+      "target": "high_protein",
+      "note": null
+    }
+  }
+}

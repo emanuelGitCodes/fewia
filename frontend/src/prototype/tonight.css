@@ -7,6 +7,7 @@
   --tonight-control-border: #5c6f67;
   --tonight-white: #ffffff;
   --tonight-error: #8b2e1f;
+  --tonight-dock-height: 3.75rem;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -41,6 +42,14 @@
   margin: 0 0 0.45rem;
   font-size: 1.3rem;
   line-height: 1.2;
+}
+.tonight-frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 .tonight-canvas {
   width: min(100%, 1000px);
@@ -158,6 +167,100 @@
   line-height: 1.2;
   text-decoration: none;
 }
+.tonight-idea-card {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  gap: 0.25rem 0.7rem;
+  padding: 0.55rem;
+  border: 2px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+}
+.tonight-idea-card .tonight-thumb {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+.tonight-idea-card > h3,
+.tonight-idea-card > .tonight-diets,
+.tonight-idea-card > .tonight-idea-facts,
+.tonight-idea-card > .tonight-idea-delta {
+  grid-column: 2;
+  margin: 0;
+}
+.tonight-idea-card h3 {
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+.tonight-idea-facts {
+  font-size: 0.88rem;
+  line-height: 1.3;
+  color: var(--tonight-muted);
+}
+.tonight-idea-delta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.45rem;
+  font-size: 0.92rem;
+}
+.tonight-idea-delta strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.tonight-idea-over {
+  color: var(--tonight-error);
+  font-weight: 600;
+}
+.tonight-idea-why {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--tonight-muted);
+}
+.tonight-idea-btn {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.3rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tonight-idea-btn:hover:not(:disabled) {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-idea-btn:focus-visible {
+  outline: 3px solid var(--tonight-green);
+  outline-offset: 2px;
+}
+.tonight-idea-btn:disabled {
+  color: var(--tonight-muted);
+  cursor: not-allowed;
+}
+.tonight-idea-card.is-selected {
+  padding-bottom: 0.9rem;
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+  box-shadow: inset 0 -0.35rem 0 var(--tonight-green);
+}
+.tonight-idea-card.is-selected h3 {
+  text-decoration: underline;
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.18em;
+}
+.tonight-idea-card.is-selected .tonight-idea-btn {
+  border-color: var(--tonight-green);
+  background: var(--tonight-white);
+  color: var(--tonight-green);
+}
 .tonight-diets {
   margin: 0.15rem 0 0.4rem;
   font-size: 0.9rem;
@@ -260,6 +363,11 @@
 .tonight-filter-label {
   display: block;
   margin: 0.2rem 0 0.25rem;
+}
+.tonight-filter-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--tonight-muted);
 }
 .tonight-filter {
   box-sizing: border-box;
@@ -657,7 +765,9 @@
     --tonight-nav-height: 4.5rem;
   }
   html:has(.tonight-prototype) {
-    scroll-padding-bottom: 4.5rem;
+    --tonight-nav-height: 4.5rem;
+    --tonight-dock-height: 3.75rem;
+    scroll-padding-bottom: calc(var(--tonight-nav-height) + var(--tonight-dock-height));
   }
   .tonight-prototype h1 {
     margin: 1.15rem 0 0.7rem;
@@ -717,9 +827,9 @@
     position: sticky;
     top: 1rem;
     align-self: start;
-    max-height: calc(100vh - 2rem - var(--tonight-nav-height));
+    max-height: calc(100vh - 2rem - var(--tonight-nav-height) - var(--tonight-dock-height));
     overflow: auto;
-    scroll-padding-bottom: 0.5rem;
+    scroll-padding-bottom: calc(0.5rem + var(--tonight-dock-height));
     padding: 1rem;
     margin: 0;
   }
@@ -735,7 +845,445 @@
     margin: 0 auto;
   }
 }
+.tonight-dock {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  min-height: var(--tonight-dock-height);
+  padding: 0.4rem 1rem;
+  border-top: 1px solid var(--tonight-line);
+  background: var(--tonight-white);
+}
+.tonight-prototype.is-ask-open .tonight-dock {
+  display: none;
+}
+.tonight-dock-btn {
+  flex: 1;
+  min-height: 44px;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tonight-dock-btn:hover {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-dock-new {
+  color: var(--tonight-green);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+/* Below 1180 px the panel is a sheet: closed it is gone, open it fills the frame under the pinned total. */
+.tonight-ask {
+  container-type: inline-size;
+  display: none;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--tonight-line);
+  background: var(--tonight-white);
+}
+.tonight-ask > * {
+  flex-shrink: 0;
+}
+.tonight-prototype.is-ask-open .tonight-ask {
+  position: absolute;
+  z-index: 4;
+  top: var(--tonight-pinned-height, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  border-width: 1px 0 0;
+  animation: tonight-sheet 180ms ease-out;
+}
+.tonight-ask-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.tonight-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.tonight-ask-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.tonight-ask-head h2 {
+  margin-bottom: 0.15rem;
+}
+.tonight-ask-sub,
+.tonight-ask-hint,
+.tonight-ask-kroger,
+.tonight-ask-est,
+.tonight-ask-who {
+  margin: 0;
+  color: var(--tonight-muted);
+  font-size: 0.9rem;
+}
+.tonight-ask-status {
+  min-height: 1.3rem;
+  margin: 0.4rem 0;
+  font-weight: 600;
+}
+.tonight-ask-off {
+  margin: 0.4rem 0 0;
+  color: var(--tonight-muted);
+}
+.tonight-ask-title {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+.tonight-ask-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.tonight-ask-empty p {
+  margin: 0 0 0.4rem;
+}
+.tonight-ask-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.tonight-ask-btn,
+.tonight-ask-send {
+  min-height: 44px;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tonight-ask-btn:hover:not(:disabled) {
+  border-color: var(--tonight-green);
+  background: var(--tonight-select);
+}
+.tonight-ask-send {
+  border-color: var(--tonight-green);
+  background: var(--tonight-green);
+  color: var(--tonight-white);
+}
+.tonight-ask-btn:disabled,
+.tonight-ask-send:disabled {
+  border-color: var(--tonight-line);
+  background: var(--tonight-white);
+  color: var(--tonight-muted);
+  cursor: not-allowed;
+}
+.tonight-ask-log {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  gap: 1rem;
+  margin: 0.6rem 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-ask-turn.is-user {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-select);
+}
+.tonight-ask-text {
+  margin: 0.15rem 0 0;
+  white-space: pre-line;
+}
+.tonight-ask-ideas {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-ask-est,
+.tonight-ask-kroger {
+  margin-top: 0.5rem;
+}
+.tonight-proposal {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--tonight-line);
+  border-radius: 12px;
+  background: var(--tonight-white);
+}
+.tonight-proposal-changes {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.tonight-proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.tonight-proposal-note {
+  margin: 0.4rem 0 0;
+  color: var(--tonight-muted);
+}
+.tonight-proposal-note:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.tonight-kroger-cart {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.tonight-kroger-cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-kroger-cart-items li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+}
+.tonight-kroger-cart-name {
+  font-weight: 600;
+}
+.tonight-kroger-picker {
+  margin-top: auto;
+  padding-bottom: 0.5rem;
+}
+.tonight-kroger-connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+.tonight-kroger-status {
+  margin: 0;
+  font-weight: 600;
+}
+.tonight-kroger-connect + .tonight-kroger-picker {
+  margin-top: 0;
+}
+.tonight-kroger-picker + .tonight-ask-form {
+  margin-top: 0;
+}
+.tonight-kroger-chosen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tonight-kroger-chosen p {
+  flex: 1 1 100%;
+  margin: 0;
+  font-weight: 600;
+}
+.tonight-kroger-form label {
+  display: block;
+  margin: 0.5rem 0 0.25rem;
+  font-weight: 600;
+}
+.tonight-kroger-form input {
+  flex: 1 1 6rem;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  font: inherit;
+}
+.tonight-kroger-form input:focus-visible {
+  outline: 2px solid var(--tonight-green);
+  outline-offset: 2px;
+}
+.tonight-kroger-stores {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tonight-kroger-stores .tonight-ask-btn {
+  width: 100%;
+  text-align: left;
+}
+.tonight-ask-form {
+  margin-top: auto;
+}
+.tonight-ask-form label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+.tonight-ask-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.tonight-ask-row textarea {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  max-height: 7.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 12px;
+  background: var(--tonight-white);
+  color: var(--tonight-ink);
+  font: inherit;
+  line-height: 1.4;
+  resize: none;
+  caret-color: var(--tonight-green);
+}
+.tonight-ask-row textarea:read-only {
+  background: var(--tonight-select);
+}
+.tonight-ask-hint {
+  margin-top: 0.3rem;
+}
+/* At large text the sheet is narrow in rem, so the idea card puts the photo above the text. */
+@container (max-width: 17rem) {
+  .tonight-idea-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tonight-idea-card .tonight-thumb {
+    grid-row: auto;
+    max-width: 12rem;
+  }
+  .tonight-idea-card > h3,
+  .tonight-idea-card > .tonight-diets,
+  .tonight-idea-card > .tonight-idea-facts,
+  .tonight-idea-card > .tonight-idea-delta {
+    grid-column: 1;
+  }
+}
+/* From 720 px the sheet and the dock sit over the meals column; the Plan summary stays in view. */
+@media (min-width: 720px) {
+  .tonight-prototype {
+    --tonight-ask-left: calc(max(0px, (100% - 1000px) / 2) + 1.5rem);
+    --tonight-ask-width: calc((min(100%, 1000px) - 4.5rem) * 1.4 / 2.4 + 0.5rem);
+  }
+  .tonight-dock {
+    position: sticky;
+    bottom: var(--tonight-nav-height);
+    z-index: 2;
+    width: var(--tonight-ask-width);
+    margin-left: var(--tonight-ask-left);
+    border: 1px solid var(--tonight-line);
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+  }
+  .tonight-prototype.is-ask-open .tonight-ask {
+    position: fixed;
+    top: 1rem;
+    right: auto;
+    bottom: var(--tonight-nav-height);
+    left: var(--tonight-ask-left);
+    width: var(--tonight-ask-width);
+    border-width: 1px 1px 0;
+    border-radius: 6px 6px 0 0;
+  }
+}
+/* From 1180 px Ask FEWIA is a persistent third column and there is no dock bar. */
+@media (min-width: 1180px) {
+  .tonight-prototype {
+    --tonight-dock-height: 0rem;
+  }
+  html:has(.tonight-prototype) {
+    scroll-padding-bottom: 4.5rem;
+  }
+  .tonight-canvas {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 23rem;
+    align-content: start;
+    column-gap: 1.5rem;
+    width: min(100%, 1360px);
+  }
+  .tonight-canvas > .tonight-header {
+    grid-column: 1 / -1;
+  }
+  .tonight-canvas > main {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .tonight-canvas > .tonight-footer {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .tonight-prototype .tonight-ask,
+  .tonight-prototype.is-ask-open .tonight-ask {
+    position: sticky;
+    z-index: auto;
+    top: 1rem;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    display: flex;
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: start;
+    width: auto;
+    height: calc(100vh - 2rem - var(--tonight-nav-height));
+    height: calc(100dvh - 2rem - var(--tonight-nav-height));
+    margin-top: 1.25rem;
+    border-width: 1px;
+    border-radius: 6px;
+    animation: none;
+  }
+  .tonight-dock,
+  .tonight-ask-hide {
+    display: none;
+  }
+  .tonight-macros {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 4.4rem), 1fr));
+  }
+  .tonight-nav {
+    width: min(100%, 1360px);
+  }
+}
+@keyframes tonight-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
+  .tonight-prototype.is-ask-open .tonight-ask {
+    animation: none;
+  }
   .tonight-meals {
     scroll-behavior: auto;
   }

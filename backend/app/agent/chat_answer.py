@@ -1,5 +1,6 @@
 from typing import get_args
 
+from app.agent.catalog_tool import catalog_answer
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS, Diet
@@ -46,6 +47,10 @@ def _examples_question() -> str:
 
 
 CLARIFICATION = _examples_question()
+TYPE_CLARIFICATION = (
+    "I did not search the catalog for that meal type. "
+    f"Ask for the meal type again, or name a catalog meal. {_QUESTION}"
+)
 
 
 def _over_budget_line(candidate: dict[str, object]) -> str:
@@ -128,9 +133,13 @@ def _diet_conflict_answer(error: dict[str, object]) -> str | None:
     return f"{name[:1].upper()}{name[1:]} {verb} not {diet}. {_CHANGE}"
 
 
-def _unsupported_answer(error: dict[str, object]) -> str | None:
+def _unsupported_answer(
+    error: dict[str, object], *, meal_type: bool = False
+) -> str | None:
     if error.get("error_code") != "unsupported_recipe":
         return None
+    if meal_type:
+        return f"That recipe is not in the catalog. {TYPE_CLARIFICATION}"
     names = _vegan_meal_names()
     if not names:
         return None
@@ -154,6 +163,9 @@ def _input_clarification(error: dict[str, object]) -> str | None:
 def render_public_answer(
     candidate: dict[str, object] | None,
     tool_error: dict[str, object] | None = None,
+    discovery: dict[str, object] | None = None,
+    *,
+    meal_type: bool = False,
 ) -> str:
     if candidate is not None:
         planned = _plan_answer(candidate)
@@ -166,10 +178,12 @@ def render_public_answer(
         diet_conflict = _diet_conflict_answer(tool_error)
         if diet_conflict is not None:
             return diet_conflict
-        unsupported = _unsupported_answer(tool_error)
+        unsupported = _unsupported_answer(tool_error, meal_type=meal_type)
         if unsupported is not None:
             return unsupported
         typed = _input_clarification(tool_error)
         if typed is not None:
             return typed
-    return CLARIFICATION
+    if discovery is not None and tool_error is None:
+        return catalog_answer(discovery)
+    return TYPE_CLARIFICATION if meal_type else CLARIFICATION

@@ -2,24 +2,25 @@
 
 from typing import TypedDict
 
+from cryptography.fernet import Fernet
+
 from app.agent.provider import LLMProvider
 from app.domain.budget import SpendingSource
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
     TokenFileResolver,
+    load_kroger_credentials,
     read_secret_file,
 )
 from app.providers.bedrock import BedrockConverseProvider
-from app.providers.instacart import InstacartDevelopmentProvider
+from app.providers.kroger import KrogerClient, kroger_base_url
 from app.providers.plaid import PlaidSandboxProvider
-from app.providers.spoonacular import SpoonacularEstimateProvider
 
 
 class ProviderCapabilities(TypedDict):
     chat_configured: bool
     plaid_configured: bool
-    instacart_configured: bool
     spending_source: SpendingSource
 
 
@@ -27,12 +28,21 @@ def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:
     model_id = settings.bedrock_model_id
     if model_id is None:
         return None
+    guardrail_id = settings.bedrock_guardrail_id
+    guardrail_version = settings.bedrock_guardrail_version
+    guardrail = (
+        (guardrail_id, guardrail_version)
+        if guardrail_id is not None and guardrail_version is not None
+        else None
+    )
     provider: LLMProvider | None = None
     try:
         provider = BedrockConverseProvider(
             model_id,
             region=settings.bedrock_region,
             profile_name=settings.aws_profile,
+            prompt_cache=settings.bedrock_prompt_cache,
+            guardrail=guardrail,
         )
     except Exception:  # noqa: BLE001
         pass
@@ -64,38 +74,37 @@ def build_plaid(settings: GroceryProviderSettings) -> PlaidSandboxProvider | Non
     return provider
 
 
-def build_instacart(
-    settings: GroceryProviderSettings,
-) -> InstacartDevelopmentProvider | None:
-    key_file = settings.instacart_key_file
-    if key_file is None:
+def build_kroger(settings: GroceryProviderSettings) -> KrogerClient | None:
+    if settings.kroger_client_id_file is None or settings.kroger_secret_file is None:
         return None
-    secret = read_secret_file(key_file)
-    provider: InstacartDevelopmentProvider | None = None
+    client_id, secret = load_kroger_credentials(settings)
+    client: KrogerClient | None = None
     try:
-        provider = InstacartDevelopmentProvider(secret.get_secret_value())
-    except Exception:  # noqa: BLE001
+        client = KrogerClient(
+            client_id.get_secret_value(),
+            secret.get_secret_value(),
+            base_url=kroger_base_url(settings.kroger_environment),
+        )
+    except ValueError:
         pass
-    if provider is None:
+    if client is None:
         raise ProviderConfigurationError()
-    return provider
+    return client
 
 
-def build_spoonacular(
-    settings: GroceryProviderSettings,
-) -> SpoonacularEstimateProvider | None:
-    key_file = settings.spoonacular_key_file
+def build_kroger_cipher(settings: GroceryProviderSettings) -> Fernet | None:
+    key_file = settings.kroger_token_key_file
     if key_file is None:
         return None
-    secret = read_secret_file(key_file)
-    provider: SpoonacularEstimateProvider | None = None
+    key = read_secret_file(key_file)
+    cipher: Fernet | None = None
     try:
-        provider = SpoonacularEstimateProvider(secret.get_secret_value())
-    except Exception:  # noqa: BLE001
+        cipher = Fernet(key.get_secret_value())
+    except ValueError:
         pass
-    if provider is None:
+    if cipher is None:
         raise ProviderConfigurationError()
-    return provider
+    return cipher
 
 
 def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
@@ -107,6 +116,5 @@ def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
     return {
         "chat_configured": settings.bedrock_model_id is not None,
         "plaid_configured": plaid_configured,
-        "instacart_configured": settings.instacart_key_file is not None,
         "spending_source": settings.spending_source,
     }

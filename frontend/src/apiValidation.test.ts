@@ -6,9 +6,8 @@ import {
   NUTRITION_PORTION_NOTICE,
   SAMPLE_ESTIMATE_NOTICE,
   SHAPE_ERROR,
-  SPOONACULAR_COST_NOTICE,
 } from "./apiTypes";
-import { copyMealPlanNutrition, copySupermarketEstimate, parseConfig, parseJob } from "./apiValidation";
+import { copyMealPlanNutrition, parseConfig, parseJob } from "./apiValidation";
 import { budget, config, job, jobResult, line, mealPlanNutrition, plan, sampleNutrition } from "../tests/apiFixtures";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -118,44 +117,12 @@ describe("parseJob", () => {
     expect(parseJob(job({ status: "queued", result: null, error_detail: null })).error_detail).toBeNull();
   });
 
-  it("accepts a result with no overlay", () => {
-    const parsed = parseJob(job());
-    expect(parsed.result?.plan.total_cents).toBe(129);
-    expect(parsed.result?.supermarket_estimate).toBeUndefined();
-  });
-
-  it("accepts overlay 1299 with the Spoonacular notice", () => {
+  it("parses a result and ignores an unknown extra key", () => {
     const parsed = parseJob(
-      job({
-        result: jobResult({
-          supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
-        }),
-      }),
+      job({ result: jobResult({ retired_overlay: { total_cents: 1299, notice: "x" } }) }),
     );
     expect(parsed.result?.plan.total_cents).toBe(129);
-    expect(parsed.result?.supermarket_estimate?.total_cents).toBe(1299);
-    expect(parsed.result?.supermarket_estimate?.notice).toBe(SPOONACULAR_COST_NOTICE);
-  });
-
-  it("rejects overlay notice store price and a negative overlay total", () => {
-    expect(() =>
-      parseJob(
-        job({
-          result: jobResult({
-            supermarket_estimate: { total_cents: 1299, notice: "store price" },
-          }),
-        }),
-      ),
-    ).toThrow(SHAPE_ERROR);
-    expect(() =>
-      parseJob(
-        job({
-          result: jobResult({
-            supermarket_estimate: { total_cents: -1, notice: SPOONACULAR_COST_NOTICE },
-          }),
-        }),
-      ),
-    ).toThrow(SHAPE_ERROR);
+    expect(parsed.result?.plan.accepted).toBe(true);
   });
 
   it("accepts required nutrition and keeps budget acceptance unchanged", () => {
@@ -184,15 +151,10 @@ describe("parseJob", () => {
     expect(parsed.result?.plan.total_cents).toBe(129);
   });
 
-  it.each([false, true])("deep-copies job nutrition with overlay=%s", (withOverlay) => {
+  it("deep-copies job nutrition", () => {
     const nutrition = sampleNutrition();
     const original = structuredClone(nutrition);
-    const result = jobResult({
-      meal_nutrition: nutrition,
-      ...(withOverlay ? {
-        supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
-      } : {}),
-    });
+    const result = jobResult({ meal_nutrition: nutrition });
     const input = job({ result });
     const parsed = parseJob(input);
     const copied = parsed.result?.meal_nutrition;
@@ -209,10 +171,8 @@ describe("parseJob", () => {
     expect(result.meal_nutrition).toEqual(original);
   });
 
-  it.each([false, true])("preserves omitted nutrition with overlay=%s", (withOverlay) => {
-    const result = jobResult(withOverlay ? {
-      supermarket_estimate: { total_cents: 1299, notice: SPOONACULAR_COST_NOTICE },
-    } : {});
+  it("preserves omitted nutrition", () => {
+    const result = jobResult();
     delete result.meal_nutrition;
     expect(parseJob(job({ result })).result).not.toHaveProperty("meal_nutrition");
   });
@@ -301,56 +261,6 @@ describe("parseJob", () => {
     expect(() =>
       parseJob(job({ result: jobResult({ meal_nutrition: mealPlanNutrition({ meals: [] }) }) })),
     ).toThrow(SHAPE_ERROR);
-  });
-});
-
-describe("copySupermarketEstimate", () => {
-  it("accepts overlay lines, treats omitted lines as empty, and rejects bad cents", () => {
-    expect(
-      copySupermarketEstimate({
-        total_cents: 1299,
-        notice: SPOONACULAR_COST_NOTICE,
-        lines: [{ ingredient_id: "black_beans", cents: 199 }],
-      }),
-    ).toEqual({
-      total_cents: 1299,
-      notice: SPOONACULAR_COST_NOTICE,
-      lines: [{ ingredient_id: "black_beans", cents: 199 }],
-    });
-    expect(
-      copySupermarketEstimate({ total_cents: 1299, notice: SPOONACULAR_COST_NOTICE }),
-    ).toEqual({ total_cents: 1299, notice: SPOONACULAR_COST_NOTICE, lines: [] });
-    expect(
-      copySupermarketEstimate({
-        total_cents: 1299,
-        notice: SPOONACULAR_COST_NOTICE,
-        lines: [{ ingredient_id: "black_beans", cents: -1 }],
-      }),
-    ).toBeNull();
-    expect(
-      copySupermarketEstimate({
-        total_cents: 1299,
-        notice: SPOONACULAR_COST_NOTICE,
-        lines: [{ ingredient_id: "black_beans", cents: "1" }],
-      }),
-    ).toBeNull();
-  });
-
-  it("rejects a present lines key that is undefined or a non-array", () => {
-    expect(
-      copySupermarketEstimate({
-        total_cents: 1299,
-        notice: SPOONACULAR_COST_NOTICE,
-        lines: undefined,
-      }),
-    ).toBeNull();
-    expect(
-      copySupermarketEstimate({
-        total_cents: 1299,
-        notice: SPOONACULAR_COST_NOTICE,
-        lines: "x",
-      }),
-    ).toBeNull();
   });
 });
 

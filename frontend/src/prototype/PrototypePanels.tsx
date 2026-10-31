@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type JSX } from "react";
-import { formatDollars } from "../money";
 import {
   ESTIMATE_NOTICE,
   PANTRY_IDS,
@@ -7,8 +6,8 @@ import {
   type RecipeId,
 } from "./prototypeData";
 import { MealCards, MealPicker, filterMeals } from "./PlanMeals";
-import { PlanShoppingList, PlanSummary, fitLine } from "./PlanSummary";
-import { planCost, type PlanLine, type PlanState, type PlanView } from "./planModel";
+import { PlanShoppingList, PlanSummary, planFitLine, planTotalLabel } from "./PlanSummary";
+import { planIncomplete, type PlanLine, type PlanState, type PlanView } from "./planModel";
 
 export type IconName = "fork" | "jar" | "pencil" | "back";
 
@@ -56,8 +55,9 @@ export function PlanPanel(props: {
   onEditPantry: () => void;
 }): JSX.Element {
   const { meals } = props.state;
-  const costCents = planCost(props.lines);
-  const cost = formatDollars(costCents);
+  const incomplete = planIncomplete(props.lines);
+  const cost = planTotalLabel(props.lines);
+  const fit = planFitLine(props.lines, props.state.budgetCents);
   const home = props.lines.filter((line) => line.fromPantry).length;
   const pantryStatus = home === 0 ? "None marked" : `${String(home)} at home`;
   const totalServings = meals.reduce((sum, meal) => sum + meal.servings, 0);
@@ -95,7 +95,7 @@ export function PlanPanel(props: {
   return (
     <section className="tonight-home" aria-labelledby="plan-heading">
       <p className="tonight-pinned" aria-hidden="true" ref={pinnedRef}>
-        {`${cost} · ${fitLine(costCents, props.state.budgetCents)}`}
+        {`${cost} · ${fit}`}
       </p>
       <h1 id="plan-heading" ref={headingRef} tabIndex={-1}>Your plan</h1>
       <div className="tonight-plan-grid">
@@ -130,10 +130,15 @@ export function PlanPanel(props: {
           />
         </div>
       </div>
+      {incomplete ? (
+        <p className="tonight-notice">
+          Some ingredients have no sample price, so the total is incomplete.
+        </p>
+      ) : null}
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
       {/* One atomic status announces meals, servings, cost, fit, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
-        {`${noMatch ? "No meals match. " : ""}${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fitLine(costCents, props.state.budgetCents)} Whole packages · Sample estimate.`}
+        {`${noMatch ? "No meals match. " : ""}${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fit} Whole packages · Sample estimate.`}
       </div>
     </section>
   );

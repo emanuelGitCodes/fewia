@@ -8,10 +8,12 @@ import {
   MIN_SERVINGS,
   RECIPES,
   SERVING_ERROR,
+  isKnownRecipe,
   requireIngredient,
   type Nutrition,
   type RecipeId,
 } from "./prototypeData";
+import type { ProposalPreview } from "../proposalApi";
 import { packageCount, withBudgetInput } from "./prototypeModel";
 
 export type PlannedMeal = { recipeId: RecipeId; servings: number };
@@ -36,6 +38,8 @@ export type PlanLine = {
   quantity: number;
   packages: number;
   costCents: number;
+  // True when a bought line has no sample price. Its costCents is 0.
+  unpriced: boolean;
   fromPantry: boolean;
   usedIn: RecipeId[];
 };
@@ -53,7 +57,7 @@ export function initialPlanState(): PlanState {
   };
 }
 
-export function planLines(state: PlanState): PlanLine[] {
+export function planLines(state: Pick<PlanState, "meals" | "pantry">): PlanLine[] {
   const byId = new Map<string, PlanLine>();
   for (const { recipeId, servings } of state.meals) {
     for (const [ingredientId, perServing] of RECIPES[recipeId].ingredients) {
@@ -67,6 +71,7 @@ export function planLines(state: PlanState): PlanLine[] {
           quantity: perServing * servings,
           packages: 0,
           costCents: 0,
+          unpriced: false,
           fromPantry: state.pantry.includes(ingredientId),
           usedIn: [recipeId],
         });
@@ -80,12 +85,20 @@ export function planLines(state: PlanState): PlanLine[] {
   return [...byId.values()].map((line) => {
     const item = requireIngredient(line.ingredientId);
     const packages = line.fromPantry ? 0 : packageCount(line.quantity, item.packageQuantity);
-    return { ...line, packages, costCents: packages * item.priceCents };
+    if (item.priceCents === null) {
+      return { ...line, packages, costCents: 0, unpriced: packages > 0 };
+    }
+    return { ...line, packages, costCents: packages * item.priceCents, unpriced: false };
   });
 }
 
 export function planCost(lines: PlanLine[]): number {
   return lines.reduce((sum, line) => sum + line.costCents, 0);
+}
+
+// The total leaves out every unpriced line, so it is a lower bound.
+export function planIncomplete(lines: PlanLine[]): boolean {
+  return lines.some((line) => line.unpriced);
 }
 
 export function planNutrition(state: PlanState): Nutrition {
@@ -130,11 +143,80 @@ function withMeals(state: PlanState, meals: PlannedMeal[]): PlanState {
   };
 }
 
-export function addMeal(state: PlanState, recipeId: RecipeId): PlanState {
-  if (state.meals.length >= MAX_MEALS || state.meals.some((m) => m.recipeId === recipeId)) {
+function clampServings(servings: number): number {
+  if (!Number.isFinite(servings)) {
+    return INITIAL_SERVINGS;
+  }
+  return Math.min(MAX_SERVINGS, Math.max(MIN_SERVINGS, Math.round(servings)));
+}
+
+export function addMeal(
+  state: PlanState,
+  recipeId: RecipeId,
+  servings: number = INITIAL_SERVINGS,
+): PlanState {
+  if (
+    !isKnownRecipe(recipeId) ||
+    state.meals.length >= MAX_MEALS ||
+    state.meals.some((m) => m.recipeId === recipeId)
+  ) {
     return state;
   }
-  return withMeals(state, [...state.meals, { recipeId, servings: INITIAL_SERVINGS }]);
+  return withMeals(state, [...state.meals, { recipeId, servings: clampServings(servings) }]);
+}
+
+export type AddPreview = {
+  recipeId: string;
+  servings: number;
+  inPlan: boolean;
+  blocked: "unknown_recipe" | "plan_full" | null;
+  deltaCents: number;
+  lines: PlanLine[];
+  sharedIngredientNames: string[];
+};
+
+// Prices an add without changing the plan. Check membership before reading RECIPES.
+// servings is the plan's own value for a planned meal, else the value addMeal uses.
+export function previewAdd(
+  state: Pick<PlanState, "meals" | "pantry">,
+  recipeId: string,
+  servings: number,
+): AddPreview {
+  const lines = planLines(state);
+  const base = { recipeId, servings: clampServings(servings), lines, sharedIngredientNames: [] };
+  if (!isKnownRecipe(recipeId)) {
+    return { ...base, inPlan: false, blocked: "unknown_recipe", deltaCents: 0 };
+  }
+  const planned = state.meals.find((m) => m.recipeId === recipeId);
+  if (planned !== undefined) {
+    const without = planLines({ ...state, meals: state.meals.filter((m) => m.recipeId !== recipeId) });
+    return {
+      ...base,
+      servings: planned.servings,
+      inPlan: true,
+      blocked: null,
+      deltaCents: planCost(lines) - planCost(without),
+    };
+  }
+  if (state.meals.length >= MAX_MEALS) {
+    return { ...base, inPlan: false, blocked: "plan_full", deltaCents: 0 };
+  }
+  const after = planLines({
+    ...state,
+    meals: [...state.meals, { recipeId, servings: base.servings }],
+  });
+  const bought = new Set(lines.filter((line) => !line.fromPantry).map((line) => line.ingredientId));
+  const sharedIngredientNames = RECIPES[recipeId].ingredients
+    .filter(([ingredientId]) => bought.has(ingredientId))
+    .map(([ingredientId]) => requireIngredient(ingredientId).name);
+  return {
+    ...base,
+    lines: after,
+    inPlan: false,
+    blocked: null,
+    deltaCents: planCost(after) - planCost(lines),
+    sharedIngredientNames,
+  };
 }
 
 export function removeMeal(state: PlanState, recipeId: RecipeId): PlanState {
@@ -182,6 +264,13 @@ export function withPlanView(state: PlanState, view: PlanView): PlanState {
     return state;
   }
   return { ...state, view, servingsError: null };
+}
+
+// Proposal operations leave the current budget metadata unchanged.
+export function withProposalSnapshot(state: PlanState, snapshot: ProposalPreview): PlanState {
+  const meals = snapshot.meals.map((meal) => ({ recipeId: meal.recipe_id, servings: meal.servings }));
+  const next = { ...state, meals, pantry: [...snapshot.pantry_ingredient_ids], servingsError: null };
+  return { ...next, checked: retainChecks(planLines(state), planLines(next), state.checked) };
 }
 
 export function withPlanBudgetInput(state: PlanState, input: string): PlanState {

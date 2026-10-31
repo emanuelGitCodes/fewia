@@ -1,7 +1,9 @@
+import json
 from typing import cast
 
 import pytest
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.agent.provider import LLMUnavailable
 from app.providers import bedrock
@@ -197,6 +199,63 @@ def test_nova2_low_effort_sets_tokens_temperature_and_reasoning_config(
     assert "toolConfig" not in request
 
 
+_TOOL_RESULT = {"toolResult": {"toolUseId": "t1", "content": [{"text": "r"}]}}
+
+
+@pytest.mark.parametrize(
+    ("content", "reasoning"),
+    [
+        ([{"text": "hello"}], True),
+        ([_TOOL_RESULT], False),
+        ([{"text": "note"}, _TOOL_RESULT], False),
+    ],
+)
+def test_nova2_reasoning_only_when_not_answering_tool_results(
+    monkeypatch: pytest.MonkeyPatch, content: list[object], reasoning: bool
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_NOVA2_US_ID)
+    messages = [
+        {"role": "user", "content": [{"text": "hi"}]},
+        {"role": "assistant", "content": [{"toolUse": {"name": "x"}}]},
+        {"role": "user", "content": content},
+    ]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    if reasoning:
+        assert request["additionalModelRequestFields"] == _NOVA2_FIELDS
+    else:
+        assert "additionalModelRequestFields" not in request
+
+
+def test_luna_keeps_reasoning_on_tool_result_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=_LUNA_US_ID)
+
+    instance.converse("system", [{"role": "user", "content": [_TOOL_RESULT]}], [])
+
+    extra = client.requests[0]["additionalModelRequestFields"]
+    assert extra == {"reasoning_effort": "low"}
+
+
+@pytest.mark.parametrize("cache", [False, True])
+def test_prompt_cache_point_follows_setting(
+    monkeypatch: pytest.MonkeyPatch, cache: bool
+) -> None:
+    client = FakeClient(response())
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider("model-id", prompt_cache=cache)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "ok"}]}], [])
+
+    expected: list[dict[str, object]] = [{"text": "system"}]
+    if cache:
+        expected.append({"cachePoint": {"type": "default"}})
+    assert client.requests[0]["system"] == expected
+
+
 def test_nova2_forwards_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     instance, _, client = provider(monkeypatch, response(), model_id=_NOVA2_US_ID)
     tools = [{"toolSpec": {"name": "get_context"}}]
@@ -233,6 +292,80 @@ def test_non_us_nova2_identifiers_keep_default_inference(
     assert "additionalModelRequestFields" not in request
 
 
+_NOVA2_PRO_ID = "us.amazon.nova-2-pro-v1:0"
+_NOVA2_PRO_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.amazon.nova-2-pro-v1:0"
+)
+_CLAUDE_ID = "us.anthropic.claude-haiku-5-5"
+_CLAUDE_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/"
+    "us.anthropic.claude-haiku-5-5"
+)
+
+
+@pytest.mark.parametrize("model_id", [_NOVA2_PRO_ID, _NOVA2_PRO_ARN])
+def test_nova2_pro_gets_nova_fields_and_tool_result_rule(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "hi"}]}], tools)
+    instance.converse("system", [{"role": "user", "content": [_TOOL_RESULT]}], tools)
+
+    first, second = client.requests
+    assert first["modelId"] == model_id
+    assert first["inferenceConfig"] == {"maxTokens": 4096, "temperature": 0}
+    assert first["additionalModelRequestFields"] == _NOVA2_FIELDS
+    assert first["toolConfig"] == {"tools": tools}
+    assert "additionalModelRequestFields" not in second
+
+
+@pytest.mark.parametrize("model_id", [_CLAUDE_ID, _CLAUDE_ARN])
+@pytest.mark.parametrize("cache", [False, True])
+def test_claude_omits_temperature_and_nova_fields_but_keeps_tools(
+    monkeypatch: pytest.MonkeyPatch, model_id: str, cache: bool
+) -> None:
+    client = FakeClient(response())
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider(model_id, prompt_cache=cache)
+    tools = [{"toolSpec": {"name": "get_context"}}]
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "hi"}]}], tools)
+
+    request = client.requests[0]
+    system: list[dict[str, object]] = [{"text": "system"}]
+    if cache:
+        system.append({"cachePoint": {"type": "default"}})
+    assert request["modelId"] == model_id
+    assert request["inferenceConfig"] == {"maxTokens": 4096}
+    assert "additionalModelRequestFields" not in request
+    assert request["toolConfig"] == {"tools": tools}
+    assert request["system"] == system
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "anthropic.claude-haiku-5-5",
+        "global.anthropic.claude-haiku-5-5",
+        "us.anthropic.claude-haiku-5-5-extra",
+        "us.amazon.nova-2-pro-v1",
+        "eu.amazon.nova-2-pro-v1:0",
+    ],
+)
+def test_other_claude_and_pro_identifiers_keep_default_inference(
+    monkeypatch: pytest.MonkeyPatch, model_id: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response(), model_id=model_id)
+
+    instance.converse("system", _USER_MESSAGES, [])
+
+    request = client.requests[0]
+    assert request["inferenceConfig"] == {"maxTokens": 1024, "temperature": 0}
+    assert "additionalModelRequestFields" not in request
+
+
 @pytest.mark.parametrize(
     "bad_messages",
     [
@@ -244,6 +377,7 @@ def test_non_us_nova2_identifiers_keep_default_inference(
         [{"role": "user", "content": [123]}],
         [{"role": "user", "content": [{"text": 1}]}],
         [{"role": "user", "content": [{"toolUse": []}]}],
+        [{"role": "user", "content": [{"guardContent": "text"}]}],
     ],
 )
 def test_rejects_invalid_messages_before_client(
@@ -286,6 +420,146 @@ def test_preserves_tool_result_and_extra_content_blocks(
     instance.converse("system", messages, [])
 
     assert client.requests[0]["messages"] == messages
+
+
+_GUARDRAIL = ("abc123def456", "2")
+_GUARDRAIL_CONFIG = {
+    "guardrailIdentifier": "abc123def456",
+    "guardrailVersion": "2",
+    "trace": "disabled",
+}
+
+
+def guarded_provider(
+    monkeypatch: pytest.MonkeyPatch, model_id: str = "model-id"
+) -> tuple[bedrock.BedrockConverseProvider, FakeClient]:
+    client = FakeClient(response())
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider(model_id, guardrail=_GUARDRAIL)
+    return instance, client
+
+
+def test_no_guardrail_leaves_the_request_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, _, client = provider(monkeypatch, response())
+    messages = [{"role": "user", "content": [{"text": "ctx"}, {"text": "hello"}]}]
+
+    instance.converse("system", messages, [{"toolSpec": {"name": "t"}}])
+
+    request = client.requests[0]
+    assert "guardrailConfig" not in request
+    assert request["messages"] == messages
+    assert "guardContent" not in json.dumps(request)
+
+
+def test_guardrail_adds_config_and_wraps_only_the_latest_user_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch)
+    earlier = {"role": "user", "content": [{"text": "earlier question"}]}
+    reply = {"role": "assistant", "content": [{"text": "earlier answer"}]}
+    latest = {"role": "user", "content": [{"text": "ctx"}, {"text": "hello"}]}
+    messages = [earlier, reply, latest]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    assert request["guardrailConfig"] == _GUARDRAIL_CONFIG
+    assert request["messages"] == [
+        earlier,
+        reply,
+        {
+            "role": "user",
+            "content": [
+                {"text": "ctx"},
+                {"guardContent": {"text": {"text": "hello"}}},
+            ],
+        },
+    ]
+    sent = cast(list[dict[str, object]], request["messages"])
+    context_block = cast(list[object], sent[2]["content"])[0]
+    assert "guardContent" not in json.dumps(context_block)
+    assert latest["content"] == [{"text": "ctx"}, {"text": "hello"}]
+
+
+def test_guardrail_skips_tool_result_messages_to_find_user_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch)
+    call = {"toolUse": {"toolUseId": "c1", "name": "t", "input": {}}}
+    result = {"toolResult": {"toolUseId": "c1", "content": [{"text": "tool out"}]}}
+    messages = [
+        {"role": "user", "content": [{"text": "hello"}]},
+        {"role": "assistant", "content": [call]},
+        {"role": "user", "content": [result]},
+    ]
+
+    instance.converse("system", messages, [])
+
+    sent = cast(list[dict[str, object]], client.requests[0]["messages"])
+    assert sent[0]["content"] == [{"guardContent": {"text": {"text": "hello"}}}]
+    assert sent[1:] == messages[1:]
+    assert "tool out" in json.dumps(sent[2])
+    assert client.requests[0]["guardrailConfig"] == _GUARDRAIL_CONFIG
+
+
+def test_guardrail_without_user_text_still_sends_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch)
+    messages = [{"role": "user", "content": [_TOOL_RESULT]}]
+
+    instance.converse("system", messages, [])
+
+    assert client.requests[0]["messages"] == messages
+    assert client.requests[0]["guardrailConfig"] == _GUARDRAIL_CONFIG
+
+
+def test_guardrail_keeps_nova_reasoning_rule_on_original_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch, model_id=_NOVA2_US_ID)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "hi"}]}], [])
+
+    assert client.requests[0]["additionalModelRequestFields"] == _NOVA2_FIELDS
+
+
+def test_guardrail_intervention_response_is_returned_and_not_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    blocked = {
+        "stopReason": "guardrail_intervened",
+        "output": {"message": {"role": "assistant", "content": [{"text": "x"}]}},
+    }
+    client = FakeClient(blocked)
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider("model-id", guardrail=_GUARDRAIL)
+
+    result = instance.converse(
+        "system", [{"role": "user", "content": [{"text": "private words"}]}], []
+    )
+
+    assert result == blocked
+    assert capsys.readouterr().err == ""
+
+
+def test_guardrail_failure_line_holds_no_id_or_user_text(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client = FakeClient(client_error("ValidationException", 400, "abc123def456"))
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider("model-id", guardrail=_GUARDRAIL)
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse(
+            "system", [{"role": "user", "content": [{"text": "private words"}]}], []
+        )
+
+    err = capsys.readouterr().err
+    assert "abc123def456" not in err
+    assert "private words" not in err
 
 
 @pytest.mark.parametrize(
@@ -396,6 +670,177 @@ def test_provider_error_is_static_and_hides_original_text(
 
     assert str(error.value) == ""
     assert "secret-provider-detail" not in str(error.value)
+
+
+_USER_MESSAGES = [{"role": "user", "content": [{"text": "ok"}]}]
+
+
+def failure_line(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
+    lines = capsys.readouterr().err.splitlines()
+    assert len(lines) == 1
+    return cast(dict[str, object], json.loads(lines[0]))
+
+
+def client_error(code: str, status: int, message: str = "msg") -> ClientError:
+    return ClientError(
+        {
+            "Error": {"Code": code, "Message": message},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
+        "Converse",
+    )
+
+
+def test_logs_client_error_code_and_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(monkeypatch, client_error("ExpiredTokenException", 403))
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    assert failure_line(capsys) == {
+        "event": "bedrock_converse_failed",
+        "reason": "client_error",
+        "exception": "ClientError",
+        "error_code": "ExpiredTokenException",
+        "http_status": 403,
+        "stop_reason": None,
+    }
+
+
+def test_overlong_error_code_is_not_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(monkeypatch, client_error("x" * 65, 400))
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["error_code"] is None
+    assert line["http_status"] == 400
+
+
+def test_logs_plain_exception_without_code_or_status(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(monkeypatch, RuntimeError("boom"))
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "client_error"
+    assert line["exception"] == "RuntimeError"
+    assert line["error_code"] is None
+    assert line["http_status"] is None
+
+
+@pytest.mark.parametrize(
+    "bad_response",
+    [
+        "text",
+        {"Error": "x", "ResponseMetadata": []},
+        {"Error": {"Code": 5}, "ResponseMetadata": {"HTTPStatusCode": "403"}},
+    ],
+)
+def test_malformed_exception_response_does_not_raise(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    bad_response: object,
+) -> None:
+    error = RuntimeError("boom")
+    error.response = bad_response  # type: ignore[attr-defined]
+    instance, _, _ = provider(monkeypatch, error)
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["error_code"] is None
+    assert line["http_status"] is None
+
+
+@pytest.mark.parametrize("bad_response", ["nope", {"stopReason": "end_turn"}])
+def test_logs_unexpected_response(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    bad_response: object,
+) -> None:
+    instance, _, _ = provider(monkeypatch, bad_response)
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "unexpected_response"
+    assert line["exception"] is None
+
+
+def test_logs_unsupported_stop_reason(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(
+        monkeypatch, {"stopReason": "invented", "output": response()["output"]}
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "unsupported_stop_reason"
+    assert line["stop_reason"] == "invented"
+
+
+def test_overlong_stop_reason_is_not_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(
+        monkeypatch, {"stopReason": "x" * 65, "output": response()["output"]}
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    assert failure_line(capsys)["stop_reason"] is None
+
+
+def test_logs_invalid_message(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    instance, _, _ = provider(
+        monkeypatch,
+        {"stopReason": "end_turn", "output": {"message": {"role": "user"}}},
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", _USER_MESSAGES, [])
+
+    line = failure_line(capsys)
+    assert line["reason"] == "invalid_message"
+    assert line["stop_reason"] == "end_turn"
+
+
+def test_failure_line_has_no_secrets_or_content(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    arn = "arn:aws:bedrock:us-east-1:123456789012:inference-profile/secret"
+    message = f"Invalid request for account 123456789012 and {arn}"
+    instance, _, _ = provider(
+        monkeypatch,
+        client_error("ValidationException", 400, message),
+        model_id="secret-model-id",
+    )
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse("secret-system-prompt", _USER_MESSAGES, [])
+
+    err = capsys.readouterr().err
+    for secret in (message, arn, "123456789012", "secret-model-id", "us-east-1"):
+        assert secret not in err
+    assert "secret-system-prompt" not in err
+    assert json.loads(err)["error_code"] == "ValidationException"
 
 
 def test_rejects_invalid_model_region_and_messages(

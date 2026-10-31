@@ -11,7 +11,7 @@ from app.evaluation_plan_score import score_plan
 
 _IDS = ("F01", "F02", "F05", "X04", "A01")
 _NOTICE = (
-    "Estimated from the demo price catalog. Instacart prices, availability, taxes, "
+    "Estimated from the demo price catalog. Store prices, availability, taxes, "
     "delivery fees, and tips are not verified."
 )
 

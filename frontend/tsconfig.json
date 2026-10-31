@@ -4,6 +4,7 @@
     "lib": ["ES2020", "ES2022.Error", "DOM", "DOM.Iterable", "ESNext.Disposable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
     "strict": true,
     "noEmit": true,
     "jsx": "react-jsx",

@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FEWIA_BEDROCK_CREDENTIALS_FILE: /tmp/fewia-ci/bedrock-credentials
-      FEWIA_SPOONACULAR_KEY_FILE: /tmp/fewia-ci/spoonacular-key
+      FEWIA_KROGER_CLIENT_ID_FILE: /tmp/fewia-ci/kroger-client-id
+      FEWIA_KROGER_SECRET_FILE: /tmp/fewia-ci/kroger-secret
+      FEWIA_KROGER_TOKEN_KEY_FILE: /tmp/fewia-ci/kroger-token-key
 
     steps:
       - name: Check out the repository
@@ -24,13 +26,15 @@ jobs:
         run: |
           mkdir -p /tmp/fewia-ci
           : > /tmp/fewia-ci/bedrock-credentials
-          : > /tmp/fewia-ci/spoonacular-key
+          : > /tmp/fewia-ci/kroger-client-id
+          : > /tmp/fewia-ci/kroger-secret
+          : > /tmp/fewia-ci/kroger-token-key
 
       - name: Validate compose files
         run: |
           docker compose config --quiet
           docker compose -f compose.yaml -f compose.bedrock.yaml config --quiet
-          docker compose -f compose.yaml -f compose.spoonacular.yaml config --quiet
+          docker compose -f compose.yaml -f compose.kroger.yaml config --quiet
 
   backend:
     name: Backend checks

@@ -61,12 +61,6 @@ horizontal overflow.
 - Pantry rebuild: a pantry change marks the estimate stale. The rebuild
   restores the heading and updates the total.
 - Manual form: the 1-3 meal limits and a submitted estimate.
-- Overlay: with a Spoonacular overlay on the live grocery response, the sample
-  total stays "$17.03". The page also shows the average supermarket estimate,
-  the Spoonacular notice, the sample notice, and one "Spoonacular avg" row for
-  each purchased line. After a rebuild, the fake overlay lists the olive-oil
-  pantry line on purpose, and the page shows no Spoonacular row for it. The
-  overlay total skips that line.
 - Chat success: a held chat request shows one status node with "Your request
   is in progress." The Message box keeps focus, stays enabled, and is
   read-only. The page polls the job. The release shows the answer. The posted
@@ -80,8 +74,8 @@ horizontal overflow.
 
 ## Files
 
-- `grocery.pw.ts` holds the grocery tests. `providers.pw.ts` holds the overlay
-  and chat tests. The `.pw.ts` suffix keeps them out of vitest. Do not rename
+- `grocery.pw.ts` holds the grocery tests. `providers.pw.ts` holds the sample
+  catalog and chat tests. The `.pw.ts` suffix keeps them out of vitest. Do not rename
   them to `.spec.ts`.
 - `fakes.ts` holds the shared `test` fixture with the console, page-error, and
   overflow guard, plus the fakes. It holds no tests.
@@ -89,7 +83,7 @@ horizontal overflow.
 
 ## Scope
 
-The base Compose stack turns off Bedrock chat and the Spoonacular overlay.
+The base Compose stack turns off Bedrock chat and the Kroger overlay.
 `providers.pw.ts` fakes only these with `page.route`:
 
 - The `chat_configured` flag in `GET /api/grocery/providers`. The real
@@ -101,7 +95,6 @@ The base Compose stack turns off Bedrock chat and the Spoonacular overlay.
   budget, nutrition, and spending source of the real grocery job. Its request
   is the captured grocery POST body. It has no evidence ID and a placeholder
   revision of 64 zeros, because a grocery job result holds neither.
-- The `supermarket_estimate` field on a succeeded grocery job.
 
-The suite makes no real Bedrock or Spoonacular call. It does not cover the
-Instacart handoff.
+The suite makes no real Bedrock or Kroger call. The product has no
+Instacart handoff to cover (decision 0023).

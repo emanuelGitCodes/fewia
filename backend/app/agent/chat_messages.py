@@ -1,3 +1,4 @@
+import hashlib
 from typing import NamedTuple
 
 MAX_TOOL_CALLS, MAX_TOOL_FIELD_LEN = 3, 64
@@ -132,13 +133,20 @@ def build_chat_result(
     trace: list[dict[str, object]],
     turns: int,
     revisions: int,
+    *,
+    reply_source: str = "template",
+    reply_check: dict[str, object] | None = None,
+    proposal_id: str | None = None,
 ) -> dict[str, object]:
     keep = (
         candidate if status in {"planned", "needs_revision", "clarification"} else None
     )
-    return {
+    result: dict[str, object] = {
         "status": status,
         "answer": answer,
+        "reply_source": reply_source,
+        "reply_check": reply_check,
+        "reply_sha256": hashlib.sha256(answer.encode()).hexdigest(),
         "plan": None if keep is None else keep.get("plan"),
         "budget": None if keep is None else keep.get("budget"),
         "request": None if keep is None else keep.get("request"),
@@ -152,3 +160,6 @@ def build_chat_result(
         "model_turns": turns,
         "planner_revisions": revisions,
     }
+    if proposal_id is not None:
+        result["proposal_id"] = proposal_id
+    return result

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 import pytest
@@ -354,6 +356,60 @@ def test_build_chat_result_keeps_candidate_for_allowed_status() -> None:
         assert result["tool_trace"] is trace
         assert result["model_turns"] == 2
         assert result["planner_revisions"] == 1
+
+
+def test_build_chat_result_defaults_to_a_template_reply_with_a_hash() -> None:
+    result = build_chat_result("planned", "ok", None, "ledger", [], 1, 0)
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] is None
+    assert result["reply_sha256"] == hashlib.sha256(b"ok").hexdigest()
+
+
+def test_build_chat_result_records_the_reply_source_check_and_utf8_hash() -> None:
+    check: dict[str, object] = {"ok": True, "reasons": [], "unmatched": []}
+    result = build_chat_result(
+        "clarification",
+        "café",
+        None,
+        "ledger",
+        [],
+        2,
+        0,
+        reply_source="model",
+        reply_check=check,
+    )
+    assert result["reply_source"] == "model"
+    assert result["reply_check"] == check
+    assert result["reply_sha256"] == hashlib.sha256("café".encode()).hexdigest()
+
+
+def test_build_chat_result_adds_the_proposal_id_only_when_there_is_one() -> None:
+    without = build_chat_result("clarification", "ok", None, "ledger", [], 1, 0)
+    assert "proposal_id" not in without
+    none_given = build_chat_result(
+        "clarification", "ok", None, "ledger", [], 1, 0, proposal_id=None
+    )
+    assert "proposal_id" not in none_given
+    given = build_chat_result(
+        "clarification", "ok", None, "ledger", [], 1, 0, proposal_id="p-1"
+    )
+    assert given["proposal_id"] == "p-1"
+    assert {k: v for k, v in given.items() if k != "proposal_id"} == without
+
+
+def test_reasoning_block_beside_text_yields_only_the_text() -> None:
+    message = {
+        "role": "assistant",
+        "content": [
+            {"reasoningContent": {"reasoningText": {"text": "hidden-thoughts"}}},
+            {"text": "visible", "reasoningContent": {"text": "hidden-thoughts"}},
+        ],
+    }
+    text, calls, sanitized = parse_assistant_message(message, set())
+    assert text == "visible"
+    assert calls == []
+    assert sanitized == {"role": "assistant", "content": [{"text": "visible"}]}
+    assert "hidden-thoughts" not in json.dumps(sanitized)
 
 
 def test_build_chat_result_drops_candidate_outside_keep_set() -> None:

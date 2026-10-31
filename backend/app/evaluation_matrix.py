@@ -27,7 +27,7 @@ _PROVIDER_DRIVERS = {
     "P04": "protocol",
     "P05": "duplicate",
 }
-_ERROR = "corpus MUST match the finite JSON grocery-eval-v1 matrix contract"
+_ERROR = "corpus MUST match the finite JSON grocery-eval-v1.1 matrix contract"
 
 
 @dataclass(frozen=True)
@@ -113,7 +113,7 @@ def prepare_matrix(corpus: dict[str, object]) -> list[EvaluationSlot]:
         frozen = _object(json.loads(json.dumps(corpus, allow_nan=False)))
         version = frozen.get("version")
         catalog_version = frozen.get("catalog_version")
-        if version != "grocery-eval-v1" or catalog_version != CATALOG_VERSION:
+        if version != "grocery-eval-v1.1" or catalog_version != CATALOG_VERSION:
             raise ValueError(_ERROR)
         if type(frozen.get("repeats")) is not int or frozen["repeats"] != 3:
             raise ValueError(_ERROR)

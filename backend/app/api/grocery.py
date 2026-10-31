@@ -15,7 +15,7 @@ from app.api.grocery_models import (
     PlanJobView,
 )
 from app.demo import DEMO_USER_ID
-from app.deps import get_provider_settings, get_session, get_supermarket_estimator
+from app.deps import get_provider_settings, get_session
 from app.domain.budget import NEW_YORK
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -41,10 +41,6 @@ from app.services.job_submission import (
     submit_job,
 )
 from app.services.plan_job import PlanJobInput, SpendingInput
-from app.services.supermarket_overlay import (
-    IngredientCostEstimator,
-    attach_supermarket_estimate,
-)
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 PERIOD_MISMATCH_MESSAGE = "budget_period must match the current New York month"
@@ -154,9 +150,6 @@ def create_grocery_job(
 def read_grocery_job(
     job_id: UUID,
     session: Annotated[Session, Depends(get_session)],
-    estimator: Annotated[
-        IngredientCostEstimator | None, Depends(get_supermarket_estimator)
-    ],
 ) -> PlanJobView:
     job = session.get(Job, str(job_id))
     if job is None or job.user_id != DEMO_USER_ID or job.kind != "agent":
@@ -171,8 +164,6 @@ def read_grocery_job(
         ):
             error_detail = cast(dict[str, str], detail)
         result = None
-    if job.status == "succeeded" and isinstance(result, dict):
-        result = attach_supermarket_estimate(result, estimator)
     return PlanJobView(
         id=job.id,
         status=job.status,

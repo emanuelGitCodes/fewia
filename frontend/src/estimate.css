@@ -27,19 +27,6 @@
   line-height: 1.2;
 }
 
-.estimate-overlay-label {
-  margin: 0;
-  color: var(--muted);
-}
-
-.estimate-overlay-total {
-  margin: 0;
-  color: var(--accent);
-  font-size: 1.15rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
 .estimate-lines {
   display: flex;
   flex-direction: column;
@@ -162,36 +149,4 @@
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
-}
-
-.handoff-consent {
-  width: min(28rem, calc(100% - 2rem));
-  max-height: calc(100% - 2rem);
-  box-sizing: border-box;
-  overflow: auto;
-  padding: 1.5rem;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper, #fff);
-  color: var(--ink, #1b2921);
-}
-
-.handoff-consent::backdrop {
-  background: rgb(0 0 0 / 45%);
-}
-
-.handoff-consent h2 {
-  margin: 0;
-}
-
-.handoff-consent-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.75rem;
-}
-
-.handoff-consent button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }

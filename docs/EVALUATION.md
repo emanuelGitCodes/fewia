@@ -2,7 +2,7 @@
 
 ## Scope
 
-FEWIA runs a local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and Floci SQS and S3. Real Bedrock calls use `LLMProvider`. The first-release provider boundary includes Plaid Sandbox and Instacart development shopping links. This benchmark supplies Bedrock evidence only; Plaid Sandbox and live Instacart evidence remain open. The product uses a manual budget and sample catalog prices. A development shopping link proves handoff only. It does not verify retailer products or prices. The product does not place orders or check out.
+FEWIA runs a local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and Floci SQS and S3. Real Bedrock calls use `LLMProvider`. The first-release provider boundary includes Plaid Sandbox and the Kroger cart. [Decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md) retires the Instacart adapter; the frozen suite keeps its fixture handoff scenario (P02). This benchmark supplies Bedrock evidence only; Plaid Sandbox and live Instacart evidence remain open. The product uses a manual budget and sample catalog prices. The product does not place orders or check out.
 
 The product supports 40 meals under [decision 0017](../wiki/decisions/0017-forty-meal-catalog.md) and the [current project scope](../.codex/project-context.md). A request supports one to three (1-3) meals. Each meal supports one to eight (1-8) servings. This benchmark does not provide exhaustive catalog coverage.
 
@@ -10,7 +10,9 @@ The current evidence includes [the original benchmark](../wiki/phases/benchmark-
 
 Every grocery estimate MUST show this notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
+
+[Decision 0024](../wiki/decisions/0024-store-neutral-estimate-notice.md) sets this notice. The benchmark corpus is `grocery-eval-v1.1`. The Oct 3 and Oct 5 batches ran `grocery-eval-v1`, whose notice named Instacart; their records stay unchanged. A `grocery-eval-v1.1` batch MUST NOT be compared with them as the same measurement.
 
 ## Current API
 
@@ -18,13 +20,13 @@ Every grocery estimate MUST show this notice:
 
 [`run_evaluation`](../backend/app/evaluation_runner.py) remains a fixture-only legacy API. Its earlier component smoke recorded 42 scored passes and 48 unassessed slots. Those counts are historical component evidence, not the completed batch's live quality.
 
-[`prepare_matrix`](../backend/app/evaluation_matrix.py) validates the finite `grocery-eval-v1` corpus and returns isolated execution slots. It does not execute them.
+[`prepare_matrix`](../backend/app/evaluation_matrix.py) validates the finite `grocery-eval-v1.1` corpus (decision 0024) and returns isolated execution slots. It does not execute them.
 
 The completed fixture and live batches each contain 138 records: 90 primary, 33 `no_tool`, and 15 structured references. The live batch contains 66 real model observations. Its other records remain fixture or local PostgreSQL evidence. See the [readout](../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) and [live integrity record](../eval/results/artifacts/benchmark-20261003/live-integrity.json).
 
 ## Run the CLI
 
-Use the checkout at source revision `4b877d470258561cedd3375e38efc02362ce5f22` for this replay example. Configure Bedrock access outside the command. Keep credentials out of source, model inputs, and logs.
+Use the checkout at source revision `4b877d470258561cedd3375e38efc02362ce5f22` for this replay example. The archived corpus is `grocery-eval-v1`; the current matrix accepts only `grocery-eval-v1.1` (decision 0024), so this replay works only at that revision. Configure Bedrock access outside the command. Keep credentials out of source, model inputs, and logs.
 
 ```sh
 cd backend
@@ -99,6 +101,30 @@ uv run python -m app.evaluate \
   --local-services \
   --live-bedrock
 ```
+
+## Conversation suite (`conversation-eval-v1`)
+
+The conversation suite is separate from the benchmark above (owner decision, 2026-10-30). The benchmark corpus (`grocery-eval-v1.1`, decision 0024) keeps its 30 scenarios, and its batch keeps 138 slots. The benchmark CLI accepts only Nova 2 Lite.
+
+- **Corpus.** [`conversation.json`](../backend/tests/evaluation/conversation.json) holds 12 scenarios (C01 to C12), 22 turns in all, with three repeats: substitutions, a follow-up, a false premise, a budget question, a proposal and an apply, off-topic and medical requests, a prompt injection, a nine-turn thread, and a purchase-override attempt. A test regenerates every gold value from the deterministic tools.
+- **Runner.** [`evaluation_conversation.py`](../backend/app/evaluation_conversation.py) runs `run_chat` with validated model prose on, an in-memory plan revision, and a stub `propose`. Nothing writes the database.
+- **Records.** Each turn record holds the tool trace, the prose gate reason, the validator verdict codes, the count of unmatched numbers, usage, latency, and the reply's SHA-256. A record MUST NOT hold the reply text or the unmatched tokens. A test runs a marker reply and asserts the marker is in no output file.
+- **Scores.** [`evaluation_conversation_score.py`](../backend/app/evaluation_conversation_score.py) scores tools, outcome, gold facts, and grounding (`grounded_replies / prose_attempts`, unsupported numbers, fallbacks by gate reason), and reports p50 and p95 latency and cost per turn. Targets are reported, not enforced: grounded 99%, unsupported 0, p50 under 5 s, p95 under 12 s, cost under USD 0.006 per turn. A fixture run reports the cost and latency targets as `not_applicable`.
+- **Profiles.** [`evaluation_profiles.py`](../backend/app/evaluation_profiles.py) allows `nova-2-lite`, `nova-2-pro`, and `claude-haiku`. Only Nova models are approved in the AWS account, so `claude-haiku` MUST NOT be run live. The `nova-2-pro` model ID is not verified.
+
+Fixture run, from `backend/`:
+
+```bash
+uv run python -m app.evaluate_conversation \
+  --corpus tests/evaluation/conversation.json \
+  --output-dir /tmp/conversation-fixture \
+  --profile nova-2-lite --region us-east-1 \
+  --revision "$(git rev-parse HEAD)" --fixture
+```
+
+A live run replaces `--fixture` with `--live-bedrock` and adds `--rates`. It spends money and needs the owner's approval. Set `AWS_SHARED_CREDENTIALS_FILE` to the file that `infra/bedrock_session.py` writes and `AWS_PROFILE` to `fewia-bedrock-dev`.
+
+First live batch (2026-10-30, Nova 2 Lite, revision `95cfbea3`): [report](../eval/results/artifacts/conversation-20261030/report.md). It recorded 66 of 66 turns. The validator accepted 9 of 36 prose attempts (25%), with 59 unsupported numbers. Latency p50 was 4.6 s and p95 was 16.4 s. Cost was USD 0.0057 per turn. After the verb-led direction rule (revision `b808dfb7`, [report](../eval/results/artifacts/conversation-20261030c/report.md)), the validator accepted 13 of 32 (41%), with 49 unsupported numbers; p50 3.4 s, p95 12.2 s, USD 0.0053 per turn.
 
 ## Component boundaries
 

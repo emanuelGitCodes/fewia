@@ -484,9 +484,8 @@ def test_execute_plan_tool_result_matches_converse_input_shape() -> None:
         validate_parameters(_converse_tool_result_params(rejected), input_shape)
 
 
-def test_default_execute_plan_omits_supermarket_estimate() -> None:
+def test_default_execute_plan_result_keys() -> None:
     result = execute_plan(arguments(), budget(), PERIOD)
-    assert "supermarket_estimate" not in result
     assert set(result) == {
         "request",
         "plan",

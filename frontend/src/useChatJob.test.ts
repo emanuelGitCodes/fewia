@@ -23,6 +23,7 @@ const body: ChatJobCreate = {
   monthly_limit_cents: 20000,
   plan_cap_cents: null,
   previous_job_id: null,
+  plan_revision_id: null,
 };
 
 const otherBody: ChatJobCreate = {
@@ -202,6 +203,35 @@ describe("useChatJob", () => {
     expect(result.current.error).toBeNull();
     expect(result.current.job).toEqual(succeededJob);
     expect(result.current.job?.result?.plan?.notice).toBe(NOTICE);
+    unmount();
+  });
+
+  it("reads with the latest store id without restarting the job", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(async () => jsonOk({ job_id: "job-1", status: "queued" }))
+      .mockImplementationOnce(async () => jsonOk(queuedJob))
+      .mockImplementationOnce(async () => jsonOk(succeededJob));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, rerender, unmount } = renderHook(
+      ({ id }: { id: string | null }) => useChatJob(id),
+      { initialProps: { id: "01400943" } },
+    );
+
+    let finished: Promise<void> | undefined;
+    await act(async () => {
+      finished = result.current.submit(body);
+    });
+    await flushMicrotasks();
+    rerender({ id: "70500822" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+      await finished;
+    });
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls[1]).toMatch(/\?location_id=01400943$/);
+    expect(urls[2]).toMatch(/\?location_id=70500822$/);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     unmount();
   });
 

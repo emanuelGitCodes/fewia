@@ -47,7 +47,7 @@ SUPPORTED_RECIPE_IDS: tuple[str, ...] = (
 )
 Diet = Literal["omnivore", "vegetarian", "vegan"]
 SAMPLE_ESTIMATE_NOTICE = (
-    "Estimated from the demo price catalog. Instacart prices, availability, "
+    "Estimated from the demo price catalog. Store prices, availability, "
     "taxes, delivery fees, and tips are not verified."
 )
 

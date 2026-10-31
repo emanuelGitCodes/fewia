@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent.chat_refusal import parse_refusal
+from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
 
 _SECRETS = (
     "I cannot provide credentials or raw bank records. "
@@ -120,3 +120,12 @@ def test_parse_refusal_does_not_echo_raw_text() -> None:
         assert result is None
         assert result != payload
     assert parse_refusal(None) is None
+
+
+def test_guardrail_decline_is_the_fixed_ascii_sentence() -> None:
+    assert GUARDRAIL_DECLINE == (
+        "I can help with meals, grocery lists, nutrition facts, and your food "
+        "budget. I cannot help with that request."
+    )
+    assert GUARDRAIL_DECLINE.isascii()
+    assert parse_refusal(GUARDRAIL_DECLINE) is None

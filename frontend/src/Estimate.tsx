@@ -6,7 +6,6 @@ import {
   type GroceryJob,
   type GroceryJobResult,
   type PlanLine,
-  type SupermarketLine,
 } from "./apiTypes";
 import { exclusionMessage } from "./exclusionMessage";
 import { formatDollars } from "./money";
@@ -66,24 +65,15 @@ function LineRow(props: {
   pantry: string[];
   pending: boolean;
   onPantryToggle: (id: string) => void;
-  supermarketLine?: SupermarketLine;
 }): JSX.Element {
-  const { line, pantry, pending, onPantryToggle, supermarketLine } = props;
+  const { line, pantry, pending, onPantryToggle } = props;
   const inputId = `pantry-${line.ingredient_id}`;
-  let overlay: string | null = null;
-  if (line.from_pantry === false && supermarketLine !== undefined) {
-    overlay =
-      supermarketLine.cents === null
-        ? "Spoonacular avg unavailable"
-        : `Spoonacular avg ${formatDollars(supermarketLine.cents)} for ${line.quantity} ${line.unit}`;
-  }
   return (
     <li className="estimate-line">
       <p className="estimate-line-name">{line.name}</p>
       <p className="estimate-line-need">{`Needed ${line.quantity} ${line.unit}`}</p>
       <p className="estimate-line-packages">{`${line.packages} ${line.packages === 1 ? "package" : "packages"}`}</p>
       <p className="estimate-line-cost">{formatDollars(line.cost_cents)}</p>
-      {overlay === null ? null : <p className="estimate-line-spoonacular">{overlay}</p>}
       <label className="estimate-pantry" htmlFor={inputId}>
         <input
           id={inputId}
@@ -158,15 +148,6 @@ export function Estimate({
       ) : null}
       <p className="estimate-plan-state">{planWording(result)}</p>
       <p className="estimate-total">{formatDollars(result.plan.total_cents)}</p>
-      {result.supermarket_estimate !== undefined ? (
-        <>
-          <p className="estimate-overlay-label">Average supermarket estimate</p>
-          <p className="estimate-overlay-total">
-            {formatDollars(result.supermarket_estimate.total_cents)}
-          </p>
-          <p className="estimate-notice">{result.supermarket_estimate.notice}</p>
-        </>
-      ) : null}
       <p className="estimate-available">{`Available for this plan ${formatDollars(result.budget.available_cents)}`}</p>
       {result.spending_source === "manual" ? null : (
         <p className="estimate-pending">{`Pending ${formatDollars(result.budget.pending_cents)}`}</p>
@@ -180,9 +161,6 @@ export function Estimate({
             pantry={pantry}
             pending={pending}
             onPantryToggle={onPantryToggle}
-            supermarketLine={result.supermarket_estimate?.lines.find(
-              (item) => item.ingredient_id === line.ingredient_id,
-            )}
           />
         ))}
       </ul>

@@ -1,3 +1,5 @@
+import json
+import sys
 from collections.abc import Mapping
 from typing import NotRequired, Protocol, TypedDict, Unpack, cast
 
@@ -13,8 +15,11 @@ _SUPPORTED_STOP_REASONS = frozenset(
 )
 _LUNA_US_MODEL_ID = "us.openai.gpt-6-luna"
 _NOVA2_US_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
+_NOVA2_PRO_US_MODEL_ID = "us.amazon.nova-2-pro-v1:0"
+_CLAUDE_HAIKU_US_MODEL_ID = "us.anthropic.claude-haiku-5-5"
 _LUNA_MAX_TOKENS = 4096
 _NOVA2_MAX_TOKENS = 4096
+_CLAUDE_MAX_TOKENS = 4096
 _NOVA2_REASONING_FIELDS: dict[str, object] = {
     "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "low"},
 }
@@ -22,11 +27,12 @@ _NOVA2_REASONING_FIELDS: dict[str, object] = {
 
 class ConverseRequest(TypedDict):
     modelId: str
-    system: list[dict[str, str]]
+    system: list[dict[str, object]]
     messages: list[dict[str, object]]
     inferenceConfig: dict[str, int | float]
     toolConfig: NotRequired[dict[str, object]]
     additionalModelRequestFields: NotRequired[dict[str, object]]
+    guardrailConfig: NotRequired[dict[str, str]]
 
 
 class BedrockClient(Protocol):
@@ -42,6 +48,10 @@ def _valid_content(content: object) -> bool:
             or not block
             or ("text" in block and not isinstance(block["text"], str))
             or ("toolUse" in block and not isinstance(block["toolUse"], Mapping))
+            or (
+                "guardContent" in block
+                and not isinstance(block["guardContent"], Mapping)
+            )
         ):
             return False
     return True
@@ -68,7 +78,87 @@ def _is_luna_us_model(model_id: str) -> bool:
 
 
 def _is_nova2_us_model(model_id: str) -> bool:
-    return _is_us_profile(model_id, _NOVA2_US_MODEL_ID)
+    return _is_us_profile(model_id, _NOVA2_US_MODEL_ID) or _is_us_profile(
+        model_id, _NOVA2_PRO_US_MODEL_ID
+    )
+
+
+def _is_claude_us_model(model_id: str) -> bool:
+    return _is_us_profile(model_id, _CLAUDE_HAIKU_US_MODEL_ID)
+
+
+def _answers_tool_results(messages: list[dict[str, object]]) -> bool:
+    last = messages[-1]
+    content = last["content"]
+    return last["role"] == "user" and any(
+        isinstance(block, Mapping) and "toolResult" in block
+        for block in cast(list[object], content)
+    )
+
+
+def _guard_latest_user_text(
+    messages: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    # Only the latest user text goes in guardContent; earlier messages stay as sent.
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        content = cast(list[Mapping[str, object]], message["content"])
+        if message["role"] != "user" or any("toolResult" in b for b in content):
+            continue
+        if not any("text" in block for block in content):
+            continue
+        # The earlier text block is server-built context; only the last is the user's.
+        last_text = max(i for i, block in enumerate(content) if "text" in block)
+        wrapped: list[object] = [
+            {"guardContent": {"text": {"text": block["text"]}}}
+            if i == last_text
+            else block
+            for i, block in enumerate(content)
+        ]
+        guarded = {**message, "content": wrapped}
+        return [*messages[:index], guarded, *messages[index + 1 :]]
+    return messages
+
+
+def _log_failure(
+    reason: str, exc: Exception | None = None, stop_reason: object = None
+) -> None:
+    exception: str | None = None
+    error_code: str | None = None
+    http_status: int | None = None
+    if exc is not None:
+        exception = type(exc).__name__
+        detail = getattr(exc, "response", None)
+        if isinstance(detail, Mapping):
+            error = detail.get("Error")
+            code = error.get("Code") if isinstance(error, Mapping) else None
+            if isinstance(code, str) and len(code) <= 64:
+                error_code = code
+            metadata = detail.get("ResponseMetadata")
+            status = (
+                metadata.get("HTTPStatusCode")
+                if isinstance(metadata, Mapping)
+                else None
+            )
+            if isinstance(status, int) and not isinstance(status, bool):
+                http_status = status
+    logged_stop = (
+        stop_reason if isinstance(stop_reason, str) and len(stop_reason) <= 64 else None
+    )
+    print(
+        json.dumps(
+            {
+                "event": "bedrock_converse_failed",
+                "reason": reason,
+                "exception": exception,
+                "error_code": error_code,
+                "http_status": http_status,
+                "stop_reason": logged_stop,
+            },
+            sort_keys=True,
+        ),
+        file=sys.stderr,
+    )
 
 
 class BedrockConverseProvider:
@@ -77,6 +167,8 @@ class BedrockConverseProvider:
         model_id: str,
         region: str = "us-east-1",
         profile_name: str | None = None,
+        prompt_cache: bool = False,
+        guardrail: tuple[str, str] | None = None,
     ) -> None:
         if not isinstance(model_id, str) or not model_id.strip() or len(model_id) > 256:
             raise ValueError("model_id MUST be nonblank and at most 256 characters")
@@ -100,6 +192,8 @@ class BedrockConverseProvider:
         except Exception:  # noqa: BLE001
             raise LLMUnavailable from None
         self._model_id = model_id
+        self._prompt_cache = prompt_cache
+        self._guardrail = guardrail
 
     def converse(
         self,
@@ -124,40 +218,61 @@ class BedrockConverseProvider:
             raise ValueError("tools MUST be a list of dictionaries")
         luna = _is_luna_us_model(self._model_id)
         nova2 = _is_nova2_us_model(self._model_id)
+        claude = _is_claude_us_model(self._model_id)
         if luna:
             # Converse MUST omit temperature for this reasoning model.
             inference: dict[str, int | float] = {"maxTokens": _LUNA_MAX_TOKENS}
+        elif claude:
+            # Non-default sampling values are rejected, so omit temperature.
+            inference = {"maxTokens": _CLAUDE_MAX_TOKENS}
         elif nova2:
             inference = {"maxTokens": _NOVA2_MAX_TOKENS, "temperature": 0}
         else:
             inference = {"maxTokens": 1024, "temperature": 0}
+        system: list[dict[str, object]] = [{"text": system_prompt}]
+        if self._prompt_cache:
+            system.append({"cachePoint": {"type": "default"}})
         request: ConverseRequest = {
             "modelId": self._model_id,
-            "system": [{"text": system_prompt}],
+            "system": system,
             "messages": messages,
             "inferenceConfig": inference,
         }
         if luna:
             request["additionalModelRequestFields"] = {"reasoning_effort": "low"}
-        elif nova2:
+        elif nova2 and not _answers_tool_results(messages):
             request["additionalModelRequestFields"] = _NOVA2_REASONING_FIELDS
         if tools:
             request["toolConfig"] = {"tools": tools}
+        if self._guardrail is not None:
+            identifier, version = self._guardrail
+            request["messages"] = _guard_latest_user_text(messages)
+            request["guardrailConfig"] = {
+                "guardrailIdentifier": identifier,
+                "guardrailVersion": version,
+                "trace": "disabled",
+            }
         try:
             response = self._client.converse(**request)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            _log_failure("client_error", exc=exc)
             raise LLMUnavailable from None
         if not isinstance(response, dict):
+            _log_failure("unexpected_response")
             raise LLMUnavailable
         stop_reason = response.get("stopReason")
         output = response.get("output")
+        if not isinstance(output, dict):
+            _log_failure("unexpected_response", stop_reason=stop_reason)
+            raise LLMUnavailable
         if (
             not isinstance(stop_reason, str)
             or stop_reason not in _SUPPORTED_STOP_REASONS
-            or not isinstance(output, dict)
         ):
+            _log_failure("unsupported_stop_reason", stop_reason=stop_reason)
             raise LLMUnavailable
         message = output.get("message")
         if not _valid_message(message, "assistant"):
+            _log_failure("invalid_message", stop_reason=stop_reason)
             raise LLMUnavailable
         return response
