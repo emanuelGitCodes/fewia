@@ -10,6 +10,8 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.agent.catalog_tool import TOOL_NAME as CATALOG_TOOL_NAME
+from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import plan_ingredient_ids
 from app.agent.chat_loop import ChatUnavailable
@@ -216,6 +218,47 @@ def test_chat_job_terminal_plan_and_followup(
     assert first_messages[1]["role"] == "assistant"
     content = first_messages[-1]["content"]
     assert json.loads(content[0]["text"])["previous_ingredient_ids"] == ingredient_ids
+
+
+def _search_reply(arguments: dict[str, object]) -> dict[str, object]:
+    call = {"toolUseId": "s1", "name": CATALOG_TOOL_NAME, "input": arguments}
+    return _reply([{"toolUse": call}], "tool_use")
+
+
+def test_chat_job_carries_the_next_search_to_the_next_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    first = chat_job_module.chat_job(
+        chat_payload(message="vegetarian meals"),
+        lambda: None,
+        provider=FakeLLM([_search_reply({"query": "vegetarian"})]),
+        factory=FACTORY,
+    )
+    next_search = first["next_search"]
+    assert isinstance(next_search, dict) and next_search["offset"] == 3
+
+    provider = FakeLLM([_search_reply(next_search)])
+    second = chat_job_module.chat_job(
+        chat_payload(message="more", previous_search=next_search),
+        lambda: None,
+        provider=provider,
+        factory=FACTORY,
+    )
+    messages = provider.requests[0]["messages"]
+    assert isinstance(messages, list)
+    context = json.loads(messages[-1]["content"][0]["text"])
+    assert context["previous_search"] == next_search
+    expected = execute_catalog_search(next_search)
+    assert second["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
+    assert second["choices"] != first["choices"]
+
+
+def test_chat_job_input_defaults_and_validates_previous_search() -> None:
+    model = chat_job_module.ChatJobInput
+    assert model.model_validate(chat_payload()).previous_search is None
+    with pytest.raises(ValidationError):
+        model.model_validate(chat_payload(previous_search="x"))
 
 
 def test_chat_job_opts_in_to_validated_model_prose(

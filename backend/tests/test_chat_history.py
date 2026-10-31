@@ -13,7 +13,12 @@ from app.agent.chat_context import MAX_MESSAGE_LEN
 from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
-from app.services.chat_history import ChatContextUnavailable, load_chat_context
+from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
+from app.services.chat_history import (
+    ChatContextUnavailable,
+    load_chat_context,
+    load_previous_search,
+)
 from tests.test_chat_loop import _SWAP_ANSWER
 from tests.test_model_prose_opt_in import GROUNDED_PLAIN, SENTINEL, _run, _swap
 
@@ -112,6 +117,80 @@ def test_none_parent_returns_empty_context(session: Session) -> None:
     assert history == []
     assert previous is None
     assert _ingredient_ids is None
+
+
+def _search_result(**overrides: object) -> dict[str, object]:
+    first = execute_catalog_search({"query": "vegetarian"})
+    next_search = next_search_arguments(first)
+    assert next_search is not None
+    result: dict[str, object] = {"answer": "Catalog choices."}
+    result["next_search"] = next_search
+    result.update(overrides)
+    return result
+
+
+def test_previous_search_is_the_stored_next_search(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    result = _search_result()
+    job = add_job(session, user_id=1, payload=chat_payload(), result=result)
+
+    assert load_previous_search(session, 1, None) is None
+    loaded = load_previous_search(session, 1, job.id)
+    assert loaded == result["next_search"]
+    assert loaded is not None and loaded["offset"] == 3
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+    assert history[-1] == {"role": "assistant", "text": "Catalog choices."}
+
+
+def test_previous_search_is_none_without_a_next_search(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    result: dict[str, object] = {"answer": "Done."}
+    job = add_job(session, user_id=1, payload=chat_payload(), result=result)
+    assert load_previous_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        {"query": "meals", "tags": ["no_such_tag"], "offset": 3},
+        {"query": "vegetarian", "offset": 40},
+        {"query": "vegetarian", "offset": 39, "limit": 3, "extra": 1},
+        {"query": "zqxsentinel", "offset": 3},
+        {"offset": 3},
+        "vegetarian",
+        ["vegetarian"],
+        3,
+        None,
+    ],
+)
+def test_forged_next_search_loads_as_none(
+    session: Session, seed_user: UserSeeder, forged: object
+) -> None:
+    seed_user(1)
+    result = _search_result(next_search=forged)
+    job = add_job(session, user_id=1, payload=chat_payload(), result=result)
+    assert load_previous_search(session, 1, job.id) is None
+
+
+def test_previous_search_checks_the_job_like_the_chat_context(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    seed_user(2)
+    result = _search_result()
+    foreign = add_job(session, user_id=2, payload=chat_payload(), result=result)
+    pending = add_job(
+        session, user_id=1, payload=chat_payload(), result=result, status="queued"
+    )
+    for job in (foreign, pending):
+        with pytest.raises(ChatContextUnavailable):
+            load_previous_search(session, 1, job.id)
+    with pytest.raises(ChatContextUnavailable):
+        load_previous_search(session, 1, uuid4())
 
 
 def test_rejected_model_text_is_not_in_the_loaded_next_turn(

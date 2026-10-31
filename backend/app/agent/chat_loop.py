@@ -11,7 +11,12 @@ from app.agent.budget_tool import (
     budget_summary_answer,
     budget_tool_spec,
 )
-from app.agent.catalog_tool import DISCOVERY_ERROR, catalog_choices, catalog_tool_spec
+from app.agent.catalog_tool import (
+    DISCOVERY_ERROR,
+    catalog_choices,
+    catalog_tool_spec,
+    next_search_arguments,
+)
 from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
@@ -221,6 +226,7 @@ def run_chat(
     | None = None,
     model_prose: bool = False,
     propose: Propose | None = None,
+    previous_search: dict[str, object] | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -230,6 +236,7 @@ def run_chat(
         spending_source=spending_source,
         previous_request=previous_request,
         previous_ingredient_ids=previous_ingredient_ids,
+        previous_search=previous_search,
         history=history,
         plan_cap_cents=plan_cap_cents,
         plan_meals=None
@@ -342,6 +349,7 @@ def run_chat(
         )
         if pending_results is not None and observe_terminal_tool_results is not None:
             observe_terminal_tool_results(pending_results)
+        found = discovery if shown else None
         result = msgs.build_chat_result(
             status,
             answer,
@@ -353,7 +361,8 @@ def run_chat(
             reply_source=reply_source,
             reply_check=reply_check,
             proposal_id=proposal_id,
-            choices=catalog_choices(discovery) if shown and discovery else None,
+            choices=catalog_choices(found) if found else None,
+            next_search=next_search_arguments(found) if found else None,
         )
         result["usage"] = usage
         return result

@@ -332,6 +332,7 @@ def _run(
     available_cents: int = 10_000,
     record_evidence: EvidenceRecorder | None = None,
     plan_cap_cents: int | None = None,
+    previous_search: dict[str, object] | None = None,
 ) -> tuple[dict[str, object], FakeLLM]:
     provider = FakeLLM(replies)
     pulse = _noop if heartbeat is None else heartbeat
@@ -347,6 +348,7 @@ def _run(
         history=history,
         record_evidence=record_evidence,
         plan_cap_cents=plan_cap_cents,
+        previous_search=previous_search,
     )
     return result, provider
 
@@ -3502,6 +3504,51 @@ def test_a_search_reply_carries_the_checked_choices() -> None:
     assert result["choices"] == [{"recipe_id": rid} for rid in ids]
     assert result["answer"] == catalog_answer(expected)
     assert valid_public_result(result)
+
+
+def _search_reply(arguments: dict[str, object]) -> dict[str, object]:
+    block = _tool_block("d1", name=CATALOG_TOOL_NAME, payload=arguments)
+    return _reply([block], "tool_use")
+
+
+def _choice_ids(result: dict[str, object]) -> list[str]:
+    choices = cast(list[dict[str, str]], result["choices"])
+    return [choice["recipe_id"] for choice in choices]
+
+
+def test_the_next_turn_shows_the_next_page_from_the_carried_arguments() -> None:
+    total = cast(int, execute_catalog_search({"query": "vegetarian"})["total_matches"])
+    assert total > 3
+    first, _ = _run([_search_reply({"query": "vegetarian"})], message="vegetarian")
+    next_search = cast(dict[str, object], first["next_search"])
+    assert next_search["offset"] == 3
+    second, provider = _run(
+        [_search_reply(next_search)], message="more", previous_search=next_search
+    )
+    sent = cast(list[dict[str, list[dict[str, str]]]], provider.requests[0]["messages"])
+    context = json.loads(sent[-1]["content"][0]["text"])
+    assert context["previous_search"] == next_search
+    assert _choice_ids(second) == execute_catalog_search(next_search)["recipe_ids"]
+    assert len(_choice_ids(second)) == min(3, total - 3)
+    assert not set(_choice_ids(first)) & set(_choice_ids(second))
+    assert valid_public_result(second)
+
+
+def test_the_last_page_has_no_next_search() -> None:
+    total = cast(int, execute_catalog_search({"query": "vegetarian"})["total_matches"])
+    last = (total - 1) // 3 * 3
+    arguments: dict[str, object] = {"query": "vegetarian", "offset": last}
+    result, _ = _run([_search_reply(arguments)], message="more")
+    assert "next_search" not in result
+    assert _choice_ids(result)
+
+
+def test_a_forged_previous_search_stops_the_run_before_the_model() -> None:
+    forged: dict[str, object] = {"query": "meals", "tags": ["no_such_tag"]}
+    provider = FakeLLM([])
+    with pytest.raises(ChatProtocolError, match="previous_search is invalid"):
+        run_chat(provider, "more", budget(), PERIOD, previous_search=forged)
+    assert provider.requests == []
 
 
 def test_a_search_with_text_after_it_keeps_the_choices() -> None:

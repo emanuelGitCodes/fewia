@@ -5,6 +5,7 @@ from typing import TypeGuard, cast, get_args
 
 from pydantic import ValidationError
 
+from app.agent.catalog_tool import page_arguments
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -18,7 +19,10 @@ _PREVIOUS = "previous_request is invalid"
 _CONTEXT_ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
     "; plan_meals is the user's current plan"
+    "; previous_search holds the search_meals arguments for the next page of the "
+    "last search: to show more meals, call search_meals with them"
 )
+_PREVIOUS_SEARCH = "previous_search is invalid"
 MAX_PLAN_MEALS = 3
 
 
@@ -132,6 +136,7 @@ def build_messages(
     history: list[dict[str, str]] | None = None,
     plan_cap_cents: int | None = None,
     plan_meals: list[dict[str, object]] | None = None,
+    previous_search: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     if (
         not _public_text(message)
@@ -155,6 +160,9 @@ def build_messages(
     ):
         raise ChatProtocolError(_PREVIOUS)
     meals = _plan_meals(plan_meals)
+    search = None if previous_search is None else page_arguments(previous_search)
+    if previous_search is not None and search is None:
+        raise ChatProtocolError(_PREVIOUS_SEARCH)
     messages = _history(history)
     context = dumps(
         {
@@ -164,6 +172,7 @@ def build_messages(
             "plan_cap_cents": plan_cap_cents,
             "plan_meals": meals,
             "previous_request": previous,
+            "previous_search": search,
             "previous_ingredient_ids": (
                 None
                 if previous_ingredient_ids is None

@@ -366,6 +366,54 @@ def _revalidated(payload: dict[str, object]) -> dict[str, object] | None:
     return validated if payload == validated else None
 
 
+def page_arguments(value: object) -> dict[str, object] | None:
+    try:
+        found = execute_catalog_search(value)
+    except CatalogToolError:
+        return None
+    shows_meals = found["status"] == "ok" and bool(found["recipe_ids"])
+    return cast(dict[str, object], value) if shows_meals else None
+
+
+def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
+    validated = _revalidated(payload)
+    if validated is None or validated["status"] != "ok":
+        return None
+    request = cast(dict[str, object], validated["request"])
+    shown = cast(list[str], validated["recipe_ids"])
+    applied = cast(list[str], validated["applied"])
+    dropped = cast(list[str], validated["dropped"])
+    offset = cast(int, request["offset"])
+    if offset + len(shown) >= cast(int, validated["total_matches"]):
+        return None
+    terms: list[str] = []
+    for unit in _parse(cast(str, request["query"]))[0]:
+        facet = _facet(unit)
+        if facet is None and unit not in dropped:
+            if any(_has_word(unit, r) for r in SUPPORTED_RECIPE_IDS):
+                terms.append(unit)
+        elif facet is not None and facet in _INGREDIENT_TAGS:
+            terms.append(facet)
+    arguments: dict[str, object] = {
+        "query": " ".join(dict.fromkeys(terms)) or "meals",
+        "diet": request["diet"],
+        "tags": [f for f in applied if f in _TAG_TYPES],
+        "exclude": request["exclude"],
+        "offset": offset + len(shown),
+    }
+    for key in ("min_protein_g", "max_cents_per_serving", "limit"):
+        if request[key] is not None:
+            arguments[key] = request[key]
+    if page_arguments(arguments) is None:
+        return None
+    try:
+        same = execute_catalog_search({**arguments, "offset": offset})
+    except CatalogToolError:
+        return None
+    keys = ("status", "applied", "total_matches", "recipe_ids")
+    return arguments if all(same[k] == validated[k] for k in keys) else None
+
+
 def catalog_choices(payload: dict[str, object]) -> list[str]:
     validated = _revalidated(payload)
     if validated is None or validated["status"] != "ok":

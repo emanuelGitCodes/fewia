@@ -27,6 +27,8 @@ _SECRET = "do-not-echo-raw-input"
 _ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
     "; plan_meals is the user's current plan"
+    "; previous_search holds the search_meals arguments for the next page of the "
+    "last search: to show more meals, call search_meals with them"
 )
 
 
@@ -109,8 +111,10 @@ def test_followup_history_appends_current_user_and_context() -> None:
         "plan_cap_cents",
         "plan_meals",
         "previous_request",
+        "previous_search",
         "previous_ingredient_ids",
     }
+    assert payload["previous_search"] is None
     assert payload["plan_cap_cents"] is None
     assert payload["plan_meals"] is None
     assert payload["previous_ingredient_ids"] is None

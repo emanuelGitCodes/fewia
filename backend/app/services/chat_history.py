@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent.catalog_tool import page_arguments
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN, plan_ingredient_ids
 from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
@@ -128,15 +129,13 @@ def _chat_context(
     )
 
 
-def load_chat_context(
-    session: Session,
-    user_id: int,
-    previous_job_id: str | UUID | None,
-) -> tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None]:
+def _previous_job(
+    session: Session, user_id: int, previous_job_id: str | UUID | None
+) -> Job | None:
     if type(user_id) is not int or user_id < 1:
         _fail()
     if previous_job_id is None:
-        return [], None, None
+        return None
     job = session.scalar(
         select(Job).where(
             Job.id == str(previous_job_id),
@@ -146,6 +145,28 @@ def load_chat_context(
     )
     if job is None or job.status != "succeeded":
         _fail()
+    return job
+
+
+def load_previous_search(
+    session: Session,
+    user_id: int,
+    previous_job_id: str | UUID | None,
+) -> dict[str, object] | None:
+    job = _previous_job(session, user_id, previous_job_id)
+    if job is None:
+        return None
+    return page_arguments(_mapping(job.result).get("next_search"))
+
+
+def load_chat_context(
+    session: Session,
+    user_id: int,
+    previous_job_id: str | UUID | None,
+) -> tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None]:
+    job = _previous_job(session, user_id, previous_job_id)
+    if job is None:
+        return [], None, None
     payload = _mapping(job.payload)
     result = _mapping(job.result)
     ingredient_ids = plan_ingredient_ids(result.get("plan"))

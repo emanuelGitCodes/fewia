@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.api import chat as chat_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery import (
@@ -276,6 +277,7 @@ def test_post_chat_stores_fixture_context(
     assert payload["history"] == []
     assert payload["previous_request"] is None
     assert payload["previous_ingredient_ids"] is None
+    assert payload["previous_search"] is None
     assert payload["spending_source"] == "fixture"
     assert payload["spending"]["period"] == "2026-09-01"
     assert payload["spending"]["posted_cents"] == FIXTURE_POSTED_CENTS
@@ -712,6 +714,35 @@ def test_parent_history_is_server_loaded(
     ]
     assert job.payload["previous_request"]["meals"][0]["recipe_id"] == ("chicken_tacos")
     assert job.payload["previous_ingredient_ids"] == ["eggs"]
+    assert job.payload["previous_search"] is None
+
+
+@pytest.mark.parametrize("forged", [False, True])
+def test_parent_next_search_is_server_loaded_and_checked(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    forged: bool,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    parent = add_parent(session)
+    assert parent.result is not None
+    first = execute_catalog_search({"query": "vegetarian"})
+    next_search = next_search_arguments(first)
+    assert next_search is not None
+    stored = {**next_search, "tags": ["no_such_tag"]} if forged else next_search
+    parent.result = {**parent.result, "next_search": stored}
+    session.flush()
+    response = post_chat(
+        client, key="more", body=chat_body(previous_job_id=str(PARENT_ID))
+    )
+    job = session.get(Job, response.json()["job_id"])
+
+    assert response.status_code == 202
+    assert job is not None
+    assert job.payload["previous_search"] == (None if forged else next_search)
 
 
 def test_foreign_parent_returns_static_conflict(

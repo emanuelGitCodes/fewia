@@ -15,6 +15,8 @@ from app.agent.catalog_tool import (
     catalog_choices,
     catalog_tool_spec,
     execute_catalog_search,
+    next_search_arguments,
+    page_arguments,
 )
 from app.agent.estimate import priced_estimate
 from app.domain.budget import BudgetResult
@@ -577,6 +579,83 @@ def test_offset_past_the_end_is_ok_and_empty_or_no_match() -> None:
         assert catalog_answer(past) == "There are no more matching meals."
     nothing = search("vegetarian", min_protein_g=200, offset=5)
     assert nothing["status"] == "no_match" and nothing["total_matches"] == 0
+
+
+def test_next_search_arguments_walk_every_page_without_repeats() -> None:
+    page = search("vegetarian")
+    total = cast(int, page["total_matches"])
+    assert total > 3
+    walked = ids(page)
+    while (arguments := next_search_arguments(page)) is not None:
+        assert arguments["offset"] == len(walked)
+        page = execute_catalog_search(arguments)
+        assert page["status"] == "ok" and page["total_matches"] == total
+        assert not set(walked) & set(ids(page))
+        walked.extend(ids(page))
+    assert len(walked) == total
+    assert next_search_arguments(page) is None
+
+
+def test_next_search_arguments_keep_the_request_and_catalog_words_only() -> None:
+    page = search(
+        "high protein meals please",
+        diet="vegetarian",
+        exclude=["egg"],
+        min_protein_g=1,
+        max_cents_per_serving=10000,
+        limit=1,
+    )
+    arguments = next_search_arguments(page)
+    if arguments is None:
+        assert cast(int, page["total_matches"]) <= 1
+        return
+    assert arguments["offset"] == 1 and arguments["limit"] == 1
+    assert arguments["min_protein_g"] == 1
+    assert arguments["max_cents_per_serving"] == 10000
+    assert arguments["diet"] == "vegetarian"
+    assert arguments["exclude"] == page_request(page)["exclude"]
+    assert execute_catalog_search(arguments)["applied"] == page["applied"]
+
+
+def page_request(payload: dict[str, object]) -> dict[str, object]:
+    return cast(dict[str, object], payload["request"])
+
+
+def test_next_search_arguments_drop_free_text_and_omit_none() -> None:
+    page = search(f"vegetarian {SENTINEL}", limit=1)
+    arguments = next_search_arguments(page)
+    assert arguments is not None
+    assert SENTINEL not in json.dumps(arguments)
+    assert arguments["query"] == "meals" and arguments["tags"] == ["vegetarian"]
+    assert "min_protein_g" not in arguments
+    assert "max_cents_per_serving" not in arguments
+    open_page = search("meals", tags=["lower_carb"], limit=1)
+    open_arguments = next_search_arguments(open_page)
+    if open_arguments is not None:
+        assert open_arguments["query"] == "meals"
+
+
+def test_next_search_arguments_need_a_valid_ok_payload_with_more_matches() -> None:
+    page = search("vegetarian")
+    forged = {**page, "recipe_ids": list(reversed(ids(page)))}
+    assert next_search_arguments(forged) is None
+    assert next_search_arguments({**page, "total_matches": 99}) is None
+    assert next_search_arguments(search(SENTINEL)) is None
+    total = cast(int, page["total_matches"])
+    end = search("vegetarian", offset=(total - 1) // 3 * 3)
+    assert next_search_arguments(end) is None
+
+
+def test_page_arguments_accept_only_a_page_that_shows_meals() -> None:
+    good: dict[str, object] = {"query": "vegetarian", "offset": 3}
+    assert page_arguments(good) == good
+    assert page_arguments({**good, "offset": 40}) is None
+    total = cast(int, search("vegetarian")["total_matches"])
+    assert page_arguments({**good, "offset": min(total, 39)}) is None or total >= 40
+    assert page_arguments({**good, "tags": ["unknown"]}) is None
+    assert page_arguments({"query": SENTINEL}) is None
+    assert page_arguments("vegetarian") is None
+    assert page_arguments(None) is None
 
 
 @pytest.mark.parametrize(
