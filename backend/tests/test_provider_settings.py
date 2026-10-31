@@ -47,6 +47,8 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.bedrock_region == "us-east-1"
     assert settings.aws_profile is None
     assert settings.bedrock_prompt_cache is False
+    assert settings.bedrock_guardrail_id is None
+    assert settings.bedrock_guardrail_version is None
     assert settings.plaid_client_id is None
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
@@ -132,6 +134,57 @@ def test_bedrock_prompt_cache_parses_env(
 ) -> None:
     monkeypatch.setenv("FEWIA_BEDROCK_PROMPT_CACHE", raw)
     assert load_provider_settings().bedrock_prompt_cache is expected
+
+
+_GUARDRAIL_ARN = "arn:aws:bedrock:us-east-1:123456789012:guardrail/abc123def456"
+
+
+@pytest.mark.parametrize(
+    ("guardrail_id", "version"),
+    [
+        ("abc123def456", "DRAFT"),
+        ("abc123def456", "1"),
+        (_GUARDRAIL_ARN, "12"),
+    ],
+)
+def test_guardrail_settings_parse_env(
+    monkeypatch: pytest.MonkeyPatch, guardrail_id: str, version: str
+) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", guardrail_id)
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", version)
+    settings = load_provider_settings()
+    assert settings.bedrock_guardrail_id == guardrail_id
+    assert settings.bedrock_guardrail_version == version
+
+
+@pytest.mark.parametrize(
+    ("guardrail_id", "version"),
+    [
+        ("abc123def456", None),
+        (None, "1"),
+        ("short", "1"),
+        ("ABC123DEF456", "1"),
+        ("abc123def4567", "1"),
+        ("arn:aws:bedrock:us-east-1:123:guardrail/abc123def456", "1"),
+        ("arn:aws:bedrock:us-east-1:123456789012:guardrail/abc", "1"),
+        ("abc123def456", ""),
+        ("abc123def456", "0"),
+        ("abc123def456", "-1"),
+        ("abc123def456", "01"),
+        ("abc123def456", "draft"),
+        ("abc123def456", "1.0"),
+    ],
+)
+def test_guardrail_settings_reject_partial_or_malformed(
+    monkeypatch: pytest.MonkeyPatch, guardrail_id: str | None, version: str | None
+) -> None:
+    if guardrail_id is not None:
+        monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", guardrail_id)
+    if version is not None:
+        monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", version)
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value, guardrail_id or "unused-marker")
 
 
 def test_kroger_credentials_load_and_strip(

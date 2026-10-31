@@ -49,11 +49,13 @@ class FakeBedrock:
         region: str = "us-east-1",
         profile_name: str | None = None,
         prompt_cache: bool = False,
+        guardrail: tuple[str, str] | None = None,
     ) -> None:
         self.model_id = model_id
         self.region = region
         self.profile_name = profile_name
         self.prompt_cache = prompt_cache
+        self.guardrail = guardrail
 
 
 class FakePlaid:
@@ -102,6 +104,7 @@ def test_profile_without_model_does_not_construct(
             region: str = "us-east-1",
             profile_name: str | None = None,
             prompt_cache: bool = False,
+            guardrail: tuple[str, str] | None = None,
         ) -> None:
             calls.append(model_id)
             super().__init__(
@@ -109,6 +112,7 @@ def test_profile_without_model_does_not_construct(
                 region=region,
                 profile_name=profile_name,
                 prompt_cache=prompt_cache,
+                guardrail=guardrail,
             )
 
     monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", Tracking)
@@ -146,6 +150,16 @@ def test_build_bedrock_routes_model_region_and_profile(
     )
     assert isinstance(cached, FakeBedrock)
     assert cached.prompt_cache is True
+    assert defaulted.guardrail is None
+    guarded = build_bedrock(
+        GroceryProviderSettings(
+            bedrock_model_id=MODEL_MARKER,
+            bedrock_guardrail_id="abc123def456",
+            bedrock_guardrail_version="3",
+        )
+    )
+    assert isinstance(guarded, FakeBedrock)
+    assert guarded.guardrail == ("abc123def456", "3")
 
 
 def test_build_bedrock_hides_constructor_errors(
@@ -156,6 +170,7 @@ def test_build_bedrock_hides_constructor_errors(
         region: str = "us-east-1",
         profile_name: str | None = None,
         prompt_cache: bool = False,
+        guardrail: tuple[str, str] | None = None,
     ) -> None:
         raise RuntimeError(f"{model_id}:{profile_name}:aws-leak")
 

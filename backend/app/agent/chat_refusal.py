@@ -2,6 +2,10 @@ import json
 from typing import Any
 
 _MAX_CHARS = 256
+GUARDRAIL_DECLINE = (
+    "I can help with meals, grocery lists, nutrition facts, and your food budget. "
+    "I cannot help with that request."
+)
 _ANSWERS = {
     "secrets": (
         "I cannot provide credentials or raw bank records. "

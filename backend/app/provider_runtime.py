@@ -28,6 +28,13 @@ def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:
     model_id = settings.bedrock_model_id
     if model_id is None:
         return None
+    guardrail_id = settings.bedrock_guardrail_id
+    guardrail_version = settings.bedrock_guardrail_version
+    guardrail = (
+        (guardrail_id, guardrail_version)
+        if guardrail_id is not None and guardrail_version is not None
+        else None
+    )
     provider: LLMProvider | None = None
     try:
         provider = BedrockConverseProvider(
@@ -35,6 +42,7 @@ def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:
             region=settings.bedrock_region,
             profile_name=settings.aws_profile,
             prompt_cache=settings.bedrock_prompt_cache,
+            guardrail=guardrail,
         )
     except Exception:  # noqa: BLE001
         pass

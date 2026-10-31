@@ -18,7 +18,7 @@ from app.agent.catalog_tool import (
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import build_messages, sum_usage
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
-from app.agent.chat_refusal import parse_refusal
+from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
 from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
@@ -364,6 +364,10 @@ def run_chat(
         heartbeat()
         turns += 1
         usage = sum_usage(usage, raw, first=turns == 1)
+        if raw.get("stopReason") == "guardrail_intervened":
+            # The blocked message is never read, kept, or shown.
+            reason = why("guardrail")
+            return out("clarification", GUARDRAIL_DECLINE, None, "template", reason)
         stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)
         if stop != "tool_use":
             kept = sanitized.get("content")

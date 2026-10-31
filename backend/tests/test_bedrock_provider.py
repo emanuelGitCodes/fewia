@@ -377,6 +377,7 @@ def test_other_claude_and_pro_identifiers_keep_default_inference(
         [{"role": "user", "content": [123]}],
         [{"role": "user", "content": [{"text": 1}]}],
         [{"role": "user", "content": [{"toolUse": []}]}],
+        [{"role": "user", "content": [{"guardContent": "text"}]}],
     ],
 )
 def test_rejects_invalid_messages_before_client(
@@ -419,6 +420,143 @@ def test_preserves_tool_result_and_extra_content_blocks(
     instance.converse("system", messages, [])
 
     assert client.requests[0]["messages"] == messages
+
+
+_GUARDRAIL = ("abc123def456", "2")
+_GUARDRAIL_CONFIG = {
+    "guardrailIdentifier": "abc123def456",
+    "guardrailVersion": "2",
+    "trace": "disabled",
+}
+
+
+def guarded_provider(
+    monkeypatch: pytest.MonkeyPatch, model_id: str = "model-id"
+) -> tuple[bedrock.BedrockConverseProvider, FakeClient]:
+    client = FakeClient(response())
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider(model_id, guardrail=_GUARDRAIL)
+    return instance, client
+
+
+def test_no_guardrail_leaves_the_request_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, _, client = provider(monkeypatch, response())
+    messages = [{"role": "user", "content": [{"text": "ctx"}, {"text": "hello"}]}]
+
+    instance.converse("system", messages, [{"toolSpec": {"name": "t"}}])
+
+    request = client.requests[0]
+    assert "guardrailConfig" not in request
+    assert request["messages"] == messages
+    assert "guardContent" not in json.dumps(request)
+
+
+def test_guardrail_adds_config_and_wraps_only_the_latest_user_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch)
+    earlier = {"role": "user", "content": [{"text": "earlier question"}]}
+    reply = {"role": "assistant", "content": [{"text": "earlier answer"}]}
+    latest = {"role": "user", "content": [{"text": "ctx"}, {"text": "hello"}]}
+    messages = [earlier, reply, latest]
+
+    instance.converse("system", messages, [])
+
+    request = client.requests[0]
+    assert request["guardrailConfig"] == _GUARDRAIL_CONFIG
+    assert request["messages"] == [
+        earlier,
+        reply,
+        {
+            "role": "user",
+            "content": [
+                {"guardContent": {"text": {"text": "ctx"}}},
+                {"guardContent": {"text": {"text": "hello"}}},
+            ],
+        },
+    ]
+    assert latest["content"] == [{"text": "ctx"}, {"text": "hello"}]
+
+
+def test_guardrail_skips_tool_result_messages_to_find_user_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch)
+    call = {"toolUse": {"toolUseId": "c1", "name": "t", "input": {}}}
+    result = {"toolResult": {"toolUseId": "c1", "content": [{"text": "tool out"}]}}
+    messages = [
+        {"role": "user", "content": [{"text": "hello"}]},
+        {"role": "assistant", "content": [call]},
+        {"role": "user", "content": [result]},
+    ]
+
+    instance.converse("system", messages, [])
+
+    sent = cast(list[dict[str, object]], client.requests[0]["messages"])
+    assert sent[0]["content"] == [{"guardContent": {"text": {"text": "hello"}}}]
+    assert sent[1:] == messages[1:]
+    assert "tool out" in json.dumps(sent[2])
+    assert client.requests[0]["guardrailConfig"] == _GUARDRAIL_CONFIG
+
+
+def test_guardrail_without_user_text_still_sends_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch)
+    messages = [{"role": "user", "content": [_TOOL_RESULT]}]
+
+    instance.converse("system", messages, [])
+
+    assert client.requests[0]["messages"] == messages
+    assert client.requests[0]["guardrailConfig"] == _GUARDRAIL_CONFIG
+
+
+def test_guardrail_keeps_nova_reasoning_rule_on_original_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, client = guarded_provider(monkeypatch, model_id=_NOVA2_US_ID)
+
+    instance.converse("system", [{"role": "user", "content": [{"text": "hi"}]}], [])
+
+    assert client.requests[0]["additionalModelRequestFields"] == _NOVA2_FIELDS
+
+
+def test_guardrail_intervention_response_is_returned_and_not_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    blocked = {
+        "stopReason": "guardrail_intervened",
+        "output": {"message": {"role": "assistant", "content": [{"text": "x"}]}},
+    }
+    client = FakeClient(blocked)
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider("model-id", guardrail=_GUARDRAIL)
+
+    result = instance.converse(
+        "system", [{"role": "user", "content": [{"text": "private words"}]}], []
+    )
+
+    assert result == blocked
+    assert capsys.readouterr().err == ""
+
+
+def test_guardrail_failure_line_holds_no_id_or_user_text(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    client = FakeClient(client_error("ValidationException", 400, "abc123def456"))
+    install_session(monkeypatch, FakeSession(client))
+    instance = bedrock.BedrockConverseProvider("model-id", guardrail=_GUARDRAIL)
+
+    with pytest.raises(LLMUnavailable):
+        instance.converse(
+            "system", [{"role": "user", "content": [{"text": "private words"}]}], []
+        )
+
+    err = capsys.readouterr().err
+    assert "abc123def456" not in err
+    assert "private words" not in err
 
 
 @pytest.mark.parametrize(

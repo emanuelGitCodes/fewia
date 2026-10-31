@@ -32,6 +32,7 @@ class ConverseRequest(TypedDict):
     inferenceConfig: dict[str, int | float]
     toolConfig: NotRequired[dict[str, object]]
     additionalModelRequestFields: NotRequired[dict[str, object]]
+    guardrailConfig: NotRequired[dict[str, str]]
 
 
 class BedrockClient(Protocol):
@@ -47,6 +48,10 @@ def _valid_content(content: object) -> bool:
             or not block
             or ("text" in block and not isinstance(block["text"], str))
             or ("toolUse" in block and not isinstance(block["toolUse"], Mapping))
+            or (
+                "guardContent" in block
+                and not isinstance(block["guardContent"], Mapping)
+            )
         ):
             return False
     return True
@@ -89,6 +94,28 @@ def _answers_tool_results(messages: list[dict[str, object]]) -> bool:
         isinstance(block, Mapping) and "toolResult" in block
         for block in cast(list[object], content)
     )
+
+
+def _guard_latest_user_text(
+    messages: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    # Only the latest user text goes in guardContent; earlier messages stay as sent.
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        content = cast(list[Mapping[str, object]], message["content"])
+        if message["role"] != "user" or any("toolResult" in b for b in content):
+            continue
+        if not any("text" in block for block in content):
+            continue
+        wrapped: list[object] = [
+            {"guardContent": {"text": {"text": block["text"]}}}
+            if "text" in block
+            else block
+            for block in content
+        ]
+        guarded = {**message, "content": wrapped}
+        return [*messages[:index], guarded, *messages[index + 1 :]]
+    return messages
 
 
 def _log_failure(
@@ -139,6 +166,7 @@ class BedrockConverseProvider:
         region: str = "us-east-1",
         profile_name: str | None = None,
         prompt_cache: bool = False,
+        guardrail: tuple[str, str] | None = None,
     ) -> None:
         if not isinstance(model_id, str) or not model_id.strip() or len(model_id) > 256:
             raise ValueError("model_id MUST be nonblank and at most 256 characters")
@@ -163,6 +191,7 @@ class BedrockConverseProvider:
             raise LLMUnavailable from None
         self._model_id = model_id
         self._prompt_cache = prompt_cache
+        self._guardrail = guardrail
 
     def converse(
         self,
@@ -213,6 +242,14 @@ class BedrockConverseProvider:
             request["additionalModelRequestFields"] = _NOVA2_REASONING_FIELDS
         if tools:
             request["toolConfig"] = {"tools": tools}
+        if self._guardrail is not None:
+            identifier, version = self._guardrail
+            request["messages"] = _guard_latest_user_text(messages)
+            request["guardrailConfig"] = {
+                "guardrailIdentifier": identifier,
+                "guardrailVersion": version,
+                "trace": "disabled",
+            }
         try:
             response = self._client.converse(**request)
         except Exception as exc:  # noqa: BLE001

@@ -48,6 +48,7 @@ from app.agent.chat_messages import (
     ToolCall,
     tool_result_block,
 )
+from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
@@ -1578,7 +1579,6 @@ def test_invalid_then_valid_keeps_last_candidate() -> None:
         "max_tokens",
         "content_filtered",
         "stop_sequence",
-        "guardrail_intervened",
         "model_context_window_exceeded",
     ],
 )
@@ -1596,6 +1596,45 @@ def test_incomplete_stops_drop_plan(stop: str) -> None:
     assert result["evidence_revision_id"] is None
     assert result["model_turns"] == 2
     assert result["planner_revisions"] == 1
+
+
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_guardrail_intervention_returns_the_fixed_decline(model_prose: bool) -> None:
+    blocked = "BLOCKED-MODEL-TEXT"
+    provider = FakeLLM(
+        [
+            _reply(
+                [_tool_block("ok", payload=plan_args(plan_cap_cents=100))], "tool_use"
+            ),
+            _reply([_text_block(blocked)], "guardrail_intervened"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "plan chicken tacos",
+        budget(),
+        PERIOD,
+        heartbeat=_noop,
+        model_prose=model_prose,
+    )
+    assert len(provider.requests) == 2
+    assert result["status"] == "clarification"
+    assert result["answer"] == GUARDRAIL_DECLINE
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == ({"gate": "guardrail"} if model_prose else None)
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert result["evidence_revision_id"] is None
+    assert "proposal_id" not in result
+    assert blocked not in json.dumps(result)
+
+
+def test_guardrail_intervention_without_message_content_still_declines() -> None:
+    provider = FakeLLM([_reply([_text_block("   ")], "guardrail_intervened")])
+    result = run_chat(provider, "hi", budget(), PERIOD, heartbeat=_noop)
+    assert result["status"] == "clarification"
+    assert result["answer"] == GUARDRAIL_DECLINE
+    assert result["model_turns"] == 1
 
 
 def test_blank_end_turn_is_incomplete_and_drops_plan() -> None:
