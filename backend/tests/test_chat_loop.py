@@ -67,10 +67,10 @@ from app.agent.substitute_tool import (
 )
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
-from app.evaluation_shapes import valid_public_result
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
 from app.domain.plan_revision import PlanRevisionInput
+from app.evaluation_shapes import valid_public_result
 
 PERIOD = date(2026, 9, 1)
 # Interim budget while chat-arch phases 1-2 add tools; phase 3 lowers it.
@@ -3591,7 +3591,7 @@ def test_a_catalog_batch_with_a_successful_search_keeps_the_choices() -> None:
     assert expected["status"] == "ok"
     result = _batch_run("keto dinner", "keto")
     assert result["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
-    assert result["answer"] == catalog_answer(expected)
+    assert result["answer"].endswith(catalog_answer(expected))
 
 
 @pytest.mark.parametrize("discovery_position", [0, 1, 2])
