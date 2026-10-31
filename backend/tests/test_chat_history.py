@@ -9,11 +9,11 @@ import pytest
 from conftest import UserSeeder
 from sqlalchemy.orm import Session
 
+from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.agent.chat_context import MAX_MESSAGE_LEN
 from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
-from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,

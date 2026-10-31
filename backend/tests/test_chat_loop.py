@@ -1443,8 +1443,11 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert context["context_role"] == (
         "previous_request is prior state; apply latest explicit additions and removals"
         "; plan_meals is the user's current plan"
+        "; previous_search holds the search_meals arguments for the next page of the "
+        "last search: to show more meals, call search_meals with them"
     )
     assert context["plan_meals"] is None
+    assert context["previous_search"] is None
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
     _assert_public(result)
@@ -2503,8 +2506,11 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         assert context["context_role"] == (
             "previous_request is prior state; apply latest explicit "
             "additions and removals; plan_meals is the user's current plan"
+            "; previous_search holds the search_meals arguments for the next page "
+            "of the last search: to show more meals, call search_meals with them"
         )
         assert context["plan_meals"] is None
+        assert context["previous_search"] is None
 
 
 @pytest.mark.parametrize(
