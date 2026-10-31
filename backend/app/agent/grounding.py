@@ -28,6 +28,15 @@ Direction rule: an unsigned energy, mass, milli, or percent token takes a sign f
 direction word after it (more, less: "2.5 g more fat") or a direction verb before it
 (gains, drops: "drops by 2.8 g", carried over "and" or ","). It is then checked like a
 signed token, against this turn's deltas only. Money, counts, ranges are never bound.
+"changes by N" and "<label> by N" state a change with no direction: such a token
+matches a signed delta only, takes the sign of the direction verb that leads its run
+("Fat drops by 3 g, protein by 5 g"), and fails when there is none.
+"<verb> from X to Y" on energy or a nutrient must read one recorded before and after
+pair of that nutrient (FactSet.moves), and a direction verb must agree with Y - X.
+That holds when a direction verb, "changes", "changed", "went", or "goes" leads the
+"from", or when this turn recorded a pair for that subject. Any other "from X to Y"
+is a range: both values must be facts of that kind.
+A reply over MAX_REPLY_CHARS fails with `too_long` before any scan.
 
 Medical rule: a reply that names a health condition or marker fails with
 `medical_claim` (0025): diabet, glycemi, insulin, glucose, blood sugar, blood
@@ -53,7 +62,12 @@ from decimal import ROUND_HALF_UP, Decimal
 from app.agent.catalog_tool import _SAFETY, TOOL_NAME
 from app.agent.chat_answer import _DIET, _diet_conflict_answer
 from app.agent.nutrient_grounding import (
+    DOWN_VERBS,
+    DOWN_WORDS,
+    LABEL_BY,
     NUTRIENT_KEYS,
+    UP_VERBS,
+    UP_WORDS,
     NutrientFact,
     nutrient_bindings,
     nutrient_grounded,
@@ -86,7 +100,7 @@ _BIG = (
     r"|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|half"
     r"|halves|couple|zero|twice|double|triple|quadruple|quarters?|once|tens"
     r"|thirds?|fifths?|few|several|(?:fourth|sixth|seventh|eighth|ninth|tenth)s?"
-    r"|pair|couple)"
+    r"|pair)"
 )
 # Vulgar fractions U+00BC-U+00BE, U+2150-U+215E, and U+2189.
 _FRACTION = r"[¼-¾⅐-⅞↉]"
@@ -121,20 +135,18 @@ _DETERMINER = re.compile(
 )
 # A direction word right after a unit gives an unsigned change its sign.
 _DIRECTION = re.compile(
-    r"\s*\b(?:(?P<up>more|higher|extra|up)|(?P<down>less|fewer|lower|down))\b",
-    re.IGNORECASE,
+    rf"\s*\b(?:(?P<up>{UP_WORDS})|(?P<down>{DOWN_WORDS}))\b", re.IGNORECASE
 )
 # A direction verb right before a unit number gives it a sign; "and" or "," carry it on.
-_UP = (
-    r"gain(?:s|ed|ing)?|add(?:s|ed|ing)?|ris(?:e|es|ing)|rose"
-    r"|increas(?:e|es|ed|ing)"
+# The verbs and direction words come from nutrient_grounding, so a word added there
+# applies to the nutrient binder as well.
+_VERB = re.compile(
+    rf"\b(?:(?P<up>{UP_VERBS})|(?P<down>{DOWN_VERBS}))\b",
+    re.IGNORECASE,
 )
-_DOWN = (
-    r"los(?:e|es|ing)|lost|drop(?:s|ped|ping)?|fall(?:s|ing)?|fell"
-    r"|(?:decreas|reduc)(?:e|es|ed|ing)"
+_RUN_END = re.compile(
+    rf"from|to|while|but|whereas|than|{UP_VERBS}|{DOWN_VERBS}", re.IGNORECASE
 )
-_VERB = re.compile(rf"\b(?:(?P<up>{_UP})|(?P<down>{_DOWN}))\b", re.IGNORECASE)
-_RUN_END = re.compile(rf"from|to|while|but|whereas|than|{_UP}|{_DOWN}", re.IGNORECASE)
 _BASE = frozenset("gain add rise increase lose drop fall decrease reduce".split())
 _ABOUT = r"(?:(?:about|around|roughly|approximately) +)?"
 _LEAD = re.compile(rf" *(?:by +)?{_ABOUT}(?:\*\*)?", re.IGNORECASE)
@@ -142,6 +154,22 @@ _CARRY = re.compile(
     rf"(?:\*\*)?((?: +[A-Za-z]+){{0,3}}?) *(?:, *and\b|,|\band\b) *{_ABOUT}(?:\*\*)?",
     re.IGNORECASE,
 )
+# "protein by 5 g" elides its verb and inherits the sign of the run it follows.
+_LABEL_BY = re.compile(LABEL_BY, re.IGNORECASE)
+# A number led by "changes by" or "<label> by" states a change with no direction.
+_BARE_BY = re.compile(
+    rf"(?:{LABEL_BY}|\bchang(?:e|es|ed|ing)[^\S\n]+)by[^\S\n]+{_ABOUT}\Z",
+    re.IGNORECASE,
+)
+# "<verb>? from X to Y": the verb, if any, sits right before "from". "changes",
+# "changed", "went", and "goes" lead a change with no direction of its own.
+_FROM = re.compile(
+    rf"(?:\b(?:(?P<up>{UP_VERBS})|(?P<down>{DOWN_VERBS})"
+    r"|(?P<flat>changes|changed|went|goes))[^\S\n]+)?"
+    rf"\bfrom[^\S\n]+{_ABOUT}\Z",
+    re.IGNORECASE,
+)
+_TO = re.compile(rf"[^\S\n]+to[^\S\n]+{_ABOUT}", re.IGNORECASE)
 # A base-form verb at a sentence start is an instruction ("Add 5 g"), not a change.
 _IMPERATIVE = re.compile(r"(?:\A|[.!?:\n])[ *\-]*\Z")
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
@@ -247,6 +275,9 @@ class FactSet:
     # Signed changes as (kind, value); only a signed token may match these.
     deltas: set[tuple[str, Decimal]] = field(default_factory=set)
     nutrition: set[NutrientFact] = field(default_factory=set)
+    # Each before and after pair of one key as (nutrient or "energy", kind, before,
+    # after); a "from X to Y" claim must read one of them.
+    moves: set[tuple[str, str, Decimal, Decimal]] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,6 +384,12 @@ def _changes(
             _changes(old, new, facts)
         elif type(old) is int and type(new) is int:
             now, was = _kinds(str(name), new), _kinds(str(name), old)
+            subject = NUTRIENT_KEYS.get(str(name))
+            facts.moves.update(
+                (subject or k, k, b, a)
+                for (k, a), (_, b) in zip(now, was, strict=False)
+                if subject or k == "energy"
+            )
             if str(name) in NUTRIENT_KEYS:
                 nutrient = NUTRIENT_KEYS[str(name)]
                 facts.nutrition.update(
@@ -461,6 +498,15 @@ def _grounded(
     return value in pool or (kind in ("mass", "count") and value in facts.generic)
 
 
+def _skip_label(text: str, pos: int) -> int:
+    """Step over a label and its "by" ("reduces calories by 20", ", protein by 5")."""
+    label = _LABEL_BY.match(text, pos)
+    if not label:
+        return pos
+    lead = _LEAD.match(text, label.end())
+    return lead.end() if lead else label.end()
+
+
 def _verb_signs(text: str) -> dict[int, str]:
     """Map the start of each unit token that a direction verb binds to its sign."""
     signs: dict[int, str] = {}
@@ -469,7 +515,7 @@ def _verb_signs(text: str) -> dict[int, str]:
             continue
         sign = _MINUS if verb["down"] else "+"
         start = _LEAD.match(text, verb.end())
-        pos = start.end() if start else verb.end()
+        pos = _skip_label(text, start.end() if start else verb.end())
         while token := _TOKEN.match(text, pos):
             if not (token["n1"] and any(token[n] for n in _KINDS)):
                 break
@@ -479,8 +525,80 @@ def _verb_signs(text: str) -> dict[int, str]:
             gap = _CARRY.match(text, token.end())
             if not gap or any(_RUN_END.fullmatch(w) for w in gap[1].split()):
                 break
-            pos = gap.end()
+            pos = _skip_label(text, gap.end())
     return signs
+
+
+def _bare_by(plain: str, start: int) -> bool:
+    """Whether "changes by" or "<label> by" leads the number, with no direction word."""
+    window = plain[max(0, start - 64) : start]
+    return "by" in window.lower() and _BARE_BY.search(window) is not None
+
+
+def _from_to(
+    plain: str,
+    tokens: Sequence[re.Match[str]],
+    nutrients: Mapping[int, str | None],
+    facts: FactSet,
+) -> dict[int, bool]:
+    """Judge each energy or nutrient "from X to Y" claim by token start.
+
+    Only a change is judged: a direction verb or "changes", "changed", "went", or
+    "goes" leads the "from", or this turn recorded a pair for that subject. Any other
+    "from X to Y" is a range, and both values are checked as plain facts.
+    X and Y must be the before and after sides of one recorded pair, Y - X must be a
+    signed delta of that subject, and a direction verb must agree with Y - X.
+    """
+    verdicts: dict[int, bool] = {}
+    for index, token in enumerate(tokens):
+        window = plain[max(0, token.start() - 64) : token.start()]
+        origin = _FROM.search(window) if "from" in window.lower() else None
+        if not (origin and token["n1"]):
+            continue
+        if token["n2"]:
+            ends, raws = (token, token), (token["n1"], token["n2"])
+        else:
+            nxt = tokens[index + 1 : index + 2]
+            if not (
+                nxt
+                and nxt[0]["n1"]
+                and not nxt[0]["n2"]
+                and _TO.fullmatch(plain[token.end() : nxt[0].start()])
+            ):
+                continue
+            ends, raws = (token, nxt[0]), (token["n1"], nxt[0]["n1"])
+        kinds = {_KINDS[n] for end in ends for n in _KINDS if end[n]}
+        if not kinds - {"percent"}:
+            continue
+        kind = kinds.pop() if len(kinds) == 1 else ""
+        subject = "energy" if kind == "energy" else nutrients.get(token.start())
+        if kind != "energy" and token.start() not in nutrients:
+            continue
+        if kind != "energy" and nutrients.get(ends[1].start()) != subject:
+            subject = None
+        led = origin["up"] or origin["down"] or origin["flat"]
+        if not (led or any(move[0] == subject for move in facts.moves)):
+            continue  # "From 474 to 489 kcal" is a range across options, not a change
+        before, after = (
+            _number(raw) * (1000 if end["kg"] else 1)
+            for raw, end in zip(raws, ends, strict=True)
+        )
+        change = after - before
+        ok = bool(
+            kind
+            and subject
+            and not any(end["sign"] for end in ends)
+            and (subject, kind, before, after) in facts.moves
+            and (
+                (kind, change) in facts.deltas
+                if subject == "energy"
+                else (subject, kind, True, change) in facts.nutrition
+            )
+            and not (origin["up"] and change <= 0)
+            and not (origin["down"] and change >= 0)
+        )
+        verdicts.update(dict.fromkeys((end.start() for end in ends), ok))
+    return verdicts
 
 
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
@@ -490,6 +608,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     lead = _verb_signs(plain)
     tokens = list(_TOKEN.finditer(plain))
     nutrients = nutrient_bindings(_without_server_sentences(reply, mask=True), tokens)
+    moves = _from_to(plain, tokens, nutrients, facts)
     plan_counts = {
         match.start(1)
         for match in re.finditer(r"Servings from your plan: (\d+)\.", reply)
@@ -529,6 +648,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
         else:
             kind = next((_KINDS[name] for name in _KINDS if m[name]), "count")
             approx = bool(_APPROX.search(before))
+            directionless = kind != "count" and _bare_by(plain, m.start())
             bound = None
             if kind != "count" and not (m["sign"] or m["n2"]):
                 bound = _DIRECTION.match(plain, m.end())
@@ -553,6 +673,11 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                         if m.start() in nutrients
                         else _grounded(kind, value, nsign, approx, facts)
                     )
+                    if kind == "count" and m.start() in moves:
+                        grounded = moves[m.start()]  # "from 500 kcal to 480"
+                    # A change with no direction needs a sign; a from-to claim a pair.
+                    grounded = grounded and not (directionless and nsign is None)
+                    grounded = grounded and moves.get(m.start(), True)
                 if not grounded:
                     shown = str(int(_number(raw))) if raw[0].isalpha() else raw
                     unmatched.append(f"{nsign or ''}{shown}")
@@ -564,6 +689,9 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
 
 
 def validate(reply: str, facts: FactSet) -> Verdict:
+    # The scan cost grows with the reply, so a long reply is refused before any scan.
+    if len(reply) > MAX_REPLY_CHARS:
+        return Verdict(False, ("too_long",), (), False)
     if _foreign_number(reply) or _UNSUPPORTED.search(_fold(reply)):
         return Verdict(False, ("unsupported_character",), (), False)
     text = normalize(reply)
@@ -575,7 +703,6 @@ def validate(reply: str, facts: FactSet) -> Verdict:
     stale_copy = _squash(STALE_SPENDING_WARNING) in _squash(text)
     checks = (
         ("empty", not text.strip()),
-        ("too_long", len(reply) > MAX_REPLY_CHARS),
         ("store_price", "kroger" in _squash(text)),
         (
             "forbidden_claim",

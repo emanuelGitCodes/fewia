@@ -1,9 +1,22 @@
 """Bind numeric claims to explicit nutrient labels."""
 
 import re
+from bisect import bisect_left
 from collections.abc import Sequence
 from decimal import Decimal
 
+# One source for the direction words: grounding.py builds its verb and direction
+# patterns from these, and so do _PREFIX and _SUFFIX below.
+UP_VERBS = (
+    r"gain(?:s|ed|ing)?|add(?:s|ed|ing)?|ris(?:e|es|ing)|rose"
+    r"|increas(?:e|es|ed|ing)"
+)
+DOWN_VERBS = (
+    r"los(?:e|es|ing)|lost|drop(?:s|ped|ping)?|fall(?:s|ing)?|fell"
+    r"|(?:decreas|reduc)(?:e|es|ed|ing)"
+)
+UP_WORDS = "more|higher|extra|up"
+DOWN_WORDS = "less|fewer|lower|down"
 NUTRIENT_KEYS = {
     "protein_mg": "protein",
     "carbohydrate_mg": "carbohydrate",
@@ -28,22 +41,29 @@ _LABEL = re.compile(
     r"|sodium|potassium|calcium|iron|cholesterol|vitamins?)\b",
     re.IGNORECASE,
 )
+# A binding never crosses a line break, except the "\n- " of a bullet after a colon.
+_H = r"[^\S\n]"
 _PREFIX = re.compile(
-    r"\s*(?::\s*)?(?:(?:is|are|was|were|has|contains|provides|changes?|by|from|to"
-    r"|gains?|gained|gaining|adds?|added|adding|rises?|rising|rose|increases?"
-    r"|increased|increasing|loses?|lost|losing|drops?|dropped|dropping|falls?"
-    r"|falling|fell|decreases?|decreased|decreasing|reduces?|reduced|reducing"
-    r"|about|around|roughly|approximately)\s+)*\s*(?:\n[ \t]*-\s+)?\Z",
+    rf"{_H}*(?::{_H}*)?(?:(?:is|are|was|were|has|contains|provides|changes?|by|from"
+    rf"|to|{UP_VERBS}|{DOWN_VERBS}|about|around|roughly|approximately){_H}+)*"
+    r"(?:\n[ \t]*-\s+)?\Z",
     re.IGNORECASE,
 )
 _SUFFIX = re.compile(
-    r"\s*(?:(?:more|higher|extra|up|less|fewer|lower|down)\s+)?(?:of\s+)?\Z",
-    re.IGNORECASE,
+    rf"{_H}*(?:(?:{UP_WORDS}|{DOWN_WORDS}){_H}+)?(?:of{_H}+)?\Z", re.IGNORECASE
 )
+# A word before a label that is not a qualifier of _LABEL leaves the label unbound.
+_LEFT_OK = frozenset(
+    "the its their this that and or of with in has have had gives contains"
+    " provides".split()
+)
+_LEFT_WORD = re.compile(r"[A-Za-z0-9'-]+\Z")
+# A label then "by", for "protein by 5 g" (no verb) and "reduces calories by 20 kcal".
+LABEL_BY = rf"(?:{_LABEL.pattern}|\b(?:calories?|energy)\b){_H}+(?=by\b)"
 _PAIR = re.compile(r"\s*(?:and|or|/|,|&)\s*\Z", re.IGNORECASE)
 _CONTINUE = re.compile(
-    r"\s*(?:,\s*(?:(?:and|or)\s+)?|(?:and|or|plus|to)\s+"
-    r"|\(\s*(?:from\s+)?)\Z",
+    rf"{_H}*(?:,{_H}*(?:(?:and|or){_H}+)?|(?:and|or|plus|to){_H}+"
+    rf"|\({_H}*(?:from{_H}+)?)\Z",
     re.IGNORECASE,
 )
 _UNCERTAIN_PAIR = re.compile(r"[\s,/&]*(?:(?:and|or|of)\b[\s,/&]*)*\Z", re.IGNORECASE)
@@ -54,13 +74,14 @@ _COUNT_UNIT = re.compile(
     r"\s*(?:servings?|meals?|ounces?|oz|lbs?|pounds?|packages?)\b", re.IGNORECASE
 )
 _TAIL_BOUNDARY = re.compile(r"[!?;\n]|\.(?!\d)")
-_TAIL_END = re.compile(r"\s*\)*\s*\Z")
+_TAIL_END = re.compile(r"\s*(?:\)\s*)*\Z")
 _FDC_CITATION = re.compile(r"\s*\(USDA FDC [0-9]+\)")
 _ENERGY_CLAUSE = re.compile(
     r"\s+(?:but|while(?:\s+protein\s+and)?)\s+\Z", re.IGNORECASE
 )
 _MACRO_JOIN = re.compile(
-    r"\s*\)*\s*(?:,\s*(?:(?:and|or)\s+)?|(?:and|or|plus)\s+|[/&(]\s*)\Z",
+    rf"{_H}*(?:\){_H}*)*(?:,{_H}*(?:(?:and|or){_H}+)?|(?:and|or|plus){_H}+"
+    rf"|[/&(]{_H}*)\Z",
     re.IGNORECASE,
 )
 _BASIS = re.compile(
@@ -71,10 +92,35 @@ _BASIS = re.compile(
 )
 
 
+def _between(
+    labels: Sequence[re.Match[str]], starts: Sequence[int], left: int, right: int
+) -> Sequence[re.Match[str]]:
+    """The labels that start in [left, right), found by bisection on their starts."""
+    return labels[bisect_left(starts, left) : bisect_left(starts, right)]
+
+
+def _within(points: Sequence[int], left: int, right: int) -> bool:
+    """Whether a sorted position falls in [left, right)."""
+    at = bisect_left(points, left)
+    return at < len(points) and points[at] < right
+
+
+def _left_ok(plain: str, label: re.Match[str]) -> bool:
+    """False when an unlisted word sits right before the label ("animal protein")."""
+    before = plain[max(0, label.start() - 16) : label.start()].rstrip(" \t")
+    word = _LEFT_WORD.search(before)
+    return (
+        word is None
+        or not any(c.isalnum() for c in word.group())
+        or word.group().lower() in _LEFT_OK
+    )
+
+
 def _claim_tail_allowed(
     plain: str,
     tokens: Sequence[re.Match[str]],
     labels: Sequence[re.Match[str]],
+    starts: Sequence[int],
     index: int,
     nutrient: str,
 ) -> bool:
@@ -85,10 +131,8 @@ def _claim_tail_allowed(
     boundary = _TAIL_BOUNDARY.search(plain, tail_start)
     clause_end = boundary.start() if boundary else len(plain)
     local_end = min(next_start, clause_end)
-    for label in labels:
-        if tail_start <= label.start() < local_end and _SUFFIX.fullmatch(
-            plain[tail_start : label.start()]
-        ):
+    for label in _between(labels, starts, tail_start, local_end):
+        if _SUFFIX.fullmatch(plain[tail_start : label.start()]):
             if _ALIASES.get(label["label"].lower()) != nutrient:
                 return False
             tail_start = label.end()
@@ -115,11 +159,9 @@ def _claim_tail_allowed(
         return True
     if not basis and _CONTINUE.fullmatch(gap):
         return True
-    for label in labels:
-        if (
-            tail_start <= label.start() < next_start
-            and _PREFIX.fullmatch(plain[label.end() : next_start])
-            and _MACRO_JOIN.fullmatch(plain[tail_start : label.start()])
+    for label in _between(labels, starts, tail_start, next_start):
+        if _PREFIX.fullmatch(plain[label.end() : next_start]) and _MACRO_JOIN.fullmatch(
+            plain[tail_start : label.start()]
         ):
             return True
     return False
@@ -131,6 +173,11 @@ def nutrient_bindings(
     """Return a nutrient, or None for uncertain nutrition grammar, per token."""
     plain = re.sub(r"[*_#]", " ", text)
     labels = list(_LABEL.finditer(plain))
+    # Positions are computed once; the loops below bisect them instead of rescanning.
+    starts = [label.start() for label in labels]
+    token_starts = [token.start() for token in tokens]
+    marks = sorted([*starts, *token_starts])
+    clause_ends = [end.start() for end in _CLAUSE_END.finditer(plain)]
     ambiguous: set[int] = set()
     for left_label, right_label in zip(labels, labels[1:], strict=False):
         if _PAIR.fullmatch(plain[left_label.end() : right_label.start()]):
@@ -142,15 +189,13 @@ def nutrient_bindings(
         end = tokens[index + 1].start() if index + 1 < len(tokens) else len(text)
         prefixes = [
             label
-            for label in labels
-            if start <= label.start() < token.start()
-            and _PREFIX.fullmatch(plain[label.end() : token.start()])
+            for label in _between(labels, starts, start, token.start())
+            if _PREFIX.fullmatch(plain[label.end() : token.start()])
         ]
         suffixes = [
             label
-            for label in labels
-            if token.end() <= label.start() < end
-            and _SUFFIX.fullmatch(plain[token.end() : label.start()])
+            for label in _between(labels, starts, token.end(), end)
+            if _SUFFIX.fullmatch(plain[token.end() : label.start()])
         ]
         direct = prefixes + suffixes
         if direct:
@@ -159,6 +204,7 @@ def nutrient_bindings(
                 _ALIASES.get(label["label"].lower())
                 if label.start() not in ambiguous
                 and (label["qualifier"] or "total").strip().lower() == "total"
+                and (label in suffixes or _left_ok(plain, label))
                 else None
                 for label in direct
             }
@@ -166,7 +212,9 @@ def nutrient_bindings(
     for label in labels:
         if label.start() in consumed:
             continue
-        for token in tokens:
+        # Only the nearest token on each side can have no label or token between.
+        near = bisect_left(token_starts, label.start())
+        for token in tokens[max(near - 1, 0) : near + 1]:
             if not token["n1"] or token["en"]:
                 continue
             left, right = (
@@ -174,17 +222,15 @@ def nutrient_bindings(
                 if token.end() <= label.start()
                 else (label.end(), token.start())
             )
-            gap = plain[left:right]
+            if _within(clause_ends, left, right) or _within(marks, left, right):
+                continue
             if (
                 token.end() <= label.start()
-                and _DEFERRED_ADDITION.fullmatch(gap)
+                and _DEFERRED_ADDITION.fullmatch(plain[left:right])
                 and _DEFERRED_END.match(plain, label.end())
             ):
                 continue
-            if not _CLAUSE_END.search(gap) and not any(
-                left <= other.start() < right for other in [*labels, *tokens]
-            ):
-                bindings[token.start()] = None
+            bindings[token.start()] = None
     for index in range(len(tokens) - 2, -1, -1):
         previous, token = tokens[index], tokens[index + 1]
         if (
@@ -223,8 +269,8 @@ def nutrient_bindings(
             if count_unit:
                 gap = gap[count_unit.end() :]
                 gap_start += count_unit.end()
-        for label in labels:
-            if label.start() in consumed and gap_start <= label.start() < token.start():
+        for label in _between(labels, starts, gap_start, token.start()):
+            if label.start() in consumed:
                 offset = label.start() - gap_start
                 gap = (
                     gap[:offset]
@@ -236,7 +282,7 @@ def nutrient_bindings(
     for index, token in enumerate(tokens):
         nutrient = bindings.get(token.start())
         if nutrient is not None and not _claim_tail_allowed(
-            plain, tokens, labels, index, nutrient
+            plain, tokens, labels, starts, index, nutrient
         ):
             bindings[token.start()] = None
     return bindings

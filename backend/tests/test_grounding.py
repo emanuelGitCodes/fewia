@@ -2,10 +2,11 @@ import re
 import unicodedata
 from datetime import date
 from decimal import Decimal
+from time import perf_counter
 
 import pytest
 
-from app.agent import catalog_tool, chat_answer, grounding
+from app.agent import catalog_tool, chat_answer, grounding, nutrient_grounding
 from app.agent.budget_tool import budget_summary_answer, execute_budget_summary
 from app.agent.catalog_tool import TOOL_NAME, catalog_answer, execute_catalog_search
 from app.agent.chat_answer import CLARIFICATION, render_public_answer
@@ -637,9 +638,12 @@ def test_direction_verb_before_a_number_takes_the_verb_sign() -> None:
     assert validate(reply, drop).ok
     rise = _facts(**_swap(28_400, 31_200))
     verdict = validate(reply, rise)
-    assert verdict.unmatched == ("-2.8",)
+    # Contract 5: "from 31.2 g to 28.4 g" reads the pair backwards, so both fail too.
+    assert verdict.unmatched == ("-2.8", "31.2", "28.4")
     energy = FactSet(
-        deltas={("energy", Decimal(28))}, energy={Decimal(559), Decimal(587)}
+        deltas={("energy", Decimal(28))},
+        energy={Decimal(559), Decimal(587)},
+        moves={("energy", "energy", Decimal(559), Decimal(587))},
     )
     assert validate("Energy rises by 28 kcal (from 559 kcal to 587 kcal)", energy).ok
 
@@ -1040,6 +1044,120 @@ def test_length_and_empty_checks() -> None:
     assert validate("a" * MAX_REPLY_CHARS, FactSet()).ok
     assert validate("a" * (MAX_REPLY_CHARS + 1), FactSet()).reasons == ("too_long",)
     assert validate("  ", FactSet()).reasons == ("empty",)
+
+
+def test_too_long_returns_before_any_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("a reply over the cap must not be scanned")
+
+    monkeypatch.setattr(grounding, "_scan", refuse)
+    expected = Verdict(False, ("too_long",), (), False)
+    assert validate("a" * (MAX_REPLY_CHARS + 1), FactSet()) == expected
+    assert validate("☃" * (MAX_REPLY_CHARS + 1), FactSet()) == expected
+
+
+def test_direction_words_have_one_source() -> None:
+    assert grounding._BIG.count("couple") == 1
+    up = ("gains", "gained", "adds", "rises", "rose", "increased")
+    down = ("loses", "lost", "drops", "falls", "fell", "decreased", "reduced")
+    for verb in (*up, *down):
+        assert grounding._VERB.fullmatch(verb), verb
+        assert nutrient_grounding._PREFIX.fullmatch(f" {verb} "), verb
+    for word in ("more", "higher", "extra", "up", "less", "fewer", "lower", "down"):
+        assert grounding._DIRECTION.fullmatch(f" {word}"), word
+        assert nutrient_grounding._SUFFIX.fullmatch(f" {word} "), word
+    for pattern in (grounding._VERB, grounding._RUN_END, nutrient_grounding._PREFIX):
+        assert nutrient_grounding.UP_VERBS in pattern.pattern
+        assert nutrient_grounding.DOWN_VERBS in pattern.pattern
+    for pattern in (grounding._DIRECTION, nutrient_grounding._SUFFIX):
+        assert nutrient_grounding.UP_WORDS in pattern.pattern
+        assert nutrient_grounding.DOWN_WORDS in pattern.pattern
+
+
+@pytest.mark.parametrize(
+    ("reply", "ok"),
+    [
+        ("Calories fell from 500 kcal to 480 kcal.", True),
+        ("Calories fell from 500 to 480 kcal.", True),
+        ("Calories fell from 500 kcal to 480.", True),
+        ("Energy is down from 500 kcal to 480 kcal.", True),
+        ("Calories rose from 480 kcal to 500 kcal.", False),
+        ("Calories rose from 500 kcal to 480 kcal.", False),
+        ("Calories fell from 480 kcal to 500 kcal.", False),
+        ("Calories fell from 500 kcal to 470 kcal.", False),
+        ("Calories fell from 500 kcal to 480 g.", False),
+    ],
+)
+def test_energy_from_to_reads_one_before_and_after_pair(reply: str, ok: bool) -> None:
+    facts = _facts(before={"energy_kcal": 500}, after={"energy_kcal": 480})
+    assert validate(reply, facts).ok is ok
+
+
+def test_energy_from_to_needs_a_recorded_pair() -> None:
+    absolute = FactSet(energy={Decimal(500), Decimal(480)}, deltas={("energy", -20)})
+    assert not validate("Calories fell from 500 kcal to 480 kcal.", absolute).ok
+    assert validate("About 480 kcal.", absolute).ok
+
+
+@pytest.mark.parametrize(
+    ("reply", "ok"),
+    [
+        ("From 474 to 489 kcal.", True),
+        ("From 474 to 490 kcal.", False),
+        ("Meals range from 474 kcal to 489 kcal.", True),
+        ("Meals range from 474 kcal to 490 kcal.", False),
+        ("Calories changed from 474 to 489 kcal.", False),
+        ("Calories went from 474 kcal to 489 kcal.", False),
+        ("Calories goes from 474 kcal to 489 kcal.", False),
+        ("Calories rose from 474 kcal to 489 kcal.", False),
+    ],
+)
+def test_from_to_is_a_range_unless_a_cue_or_a_pair_makes_it_a_change(
+    reply: str, ok: bool
+) -> None:
+    assert validate(reply, _facts(a_kcal=474, b_kcal=489)).ok is ok
+
+
+@pytest.mark.parametrize(
+    ("reply", "ok"),
+    [
+        ("The swap is from 500 kcal to 480 kcal.", True),
+        ("The swap is from 480 kcal to 500 kcal.", False),
+        ("Calories changed from 500 kcal to 480 kcal.", True),
+        ("Calories went from 500 to 480 kcal.", True),
+        ("Calories changed from 480 kcal to 500 kcal.", False),
+    ],
+)
+def test_from_to_with_a_recorded_pair_reads_the_pair(reply: str, ok: bool) -> None:
+    facts = _facts(before={"energy_kcal": 500}, after={"energy_kcal": 480})
+    assert validate(reply, facts).ok is ok
+
+
+def test_adversarial_replies_validate_within_half_a_second() -> None:
+    facts = _facts(before={"energy_kcal": 500}, after={"energy_kcal": 480})
+    chunks = (
+        "from 1 to 2 ",
+        "Calories fell from 500 kcal to 480 kcal, protein by 5 g, ",
+        "protein and fat and carbs, 3 g, ",
+        "changed from 1 kcal to ",
+    )
+    for chunk in chunks:
+        reply = (chunk * (MAX_REPLY_CHARS // len(chunk) + 1))[:MAX_REPLY_CHARS]
+        start = perf_counter()
+        validate(reply, facts)
+        assert perf_counter() - start < 0.5, chunk
+
+
+def test_changes_record_the_before_and_after_of_each_key() -> None:
+    facts = _facts(
+        before=_macros(500, 20_000, 40_000, 11_000),
+        after=_macros(480, 25_000, 40_000, 8_000),
+    )
+    assert ("energy", "energy", Decimal(500), Decimal(480)) in facts.moves
+    assert ("protein", "mass", Decimal(20), Decimal(25)) in facts.moves
+    assert ("protein", "milli", Decimal(20_000), Decimal(25_000)) in facts.moves
+    assert ("fat", "mass", Decimal(11), Decimal(8)) in facts.moves
+    assert ("protein", "mass", Decimal(25), Decimal(20)) not in facts.moves
 
 
 def test_verdict_names_only_numeric_tokens() -> None:
