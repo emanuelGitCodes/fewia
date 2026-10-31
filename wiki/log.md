@@ -4779,3 +4779,20 @@ false claim passes that the merge base rejects. The design doc
 and the true claims that now fail. Writers were `claude-sonnet-5-5`
 through the supervisor. No live provider call, deployment, or merge claim
 is made.
+
+## 2026-10-31: Plan meal search by type and fix the fallback
+
+`docs/design/meal-search.md` answers the open PR 460 question on meal
+types. Neither store option fixes the defect. Types MUST be hard filters
+on tags that code computes, and a type that the system cannot check MUST
+fail closed. The plan has nine items.
+
+- **Item 1 (meal-search-01).** On a meal-type request with no catalog
+  search, the fallback names no example meals. The system prompt drops a
+  rule that the model could not follow and sends meal types to
+  `search_meals`.
+
+The review model (`claude-opus-5-5`) approved `54cd4494`. The backend
+gates passed (11,989 tests) with 56 added code lines. Whether Nova calls
+`search_meals` on the new prompt sentence is not measured. No live
+provider call is made.
