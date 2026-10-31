@@ -89,11 +89,14 @@ def names_meal_type(text: str) -> bool:
         return True
     words = _WORD.findall(text.lower())
     pairs = (f"{a} {b}" for a, b in zip(words, words[1:], strict=False))
-    skipped = _INGREDIENT_TAGS | {"omnivore"}
     for term in (*words, *pairs):
         target = resolve_meal_term(term)
-        if target is not None and target not in skipped:
-            return True
+        if target is None or target in ("omnivore",):
+            continue
+        # An ingredient word alone is not a meal type; an alias such as "meat" is.
+        if target in _INGREDIENT_TAGS and term in (target, target.replace("_", " ")):
+            continue
+        return True
     return False
 
 

@@ -133,7 +133,9 @@ def _diet_conflict_answer(error: dict[str, object]) -> str | None:
     return f"{name[:1].upper()}{name[1:]} {verb} not {diet}. {_CHANGE}"
 
 
-def _unsupported_answer(error: dict[str, object], meal_type: bool) -> str | None:
+def _unsupported_answer(
+    error: dict[str, object], *, meal_type: bool = False
+) -> str | None:
     if error.get("error_code") != "unsupported_recipe":
         return None
     if meal_type:
@@ -176,7 +178,7 @@ def render_public_answer(
         diet_conflict = _diet_conflict_answer(tool_error)
         if diet_conflict is not None:
             return diet_conflict
-        unsupported = _unsupported_answer(tool_error, meal_type)
+        unsupported = _unsupported_answer(tool_error, meal_type=meal_type)
         if unsupported is not None:
             return unsupported
         typed = _input_clarification(tool_error)

@@ -35,6 +35,10 @@ from app.domain.meal_tags import (
         ("I have tofu", False),
         ("Plan lentil soup", False),
         ("What is in my plan?", False),
+        ("carnivore dinner", True),
+        ("a meat dinner", True),
+        ("two eggs", False),
+        ("beans and rice", False),
     ],
 )
 def test_names_meal_type(text: str, expected: bool) -> None:
