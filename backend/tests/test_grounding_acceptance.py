@@ -2,7 +2,7 @@ from time import perf_counter
 
 import pytest
 
-from app.agent.grounding import facts_from_payloads, validate
+from app.agent.grounding import FactSet, facts_from_payloads, validate
 
 _SERVINGS = 4
 _BEFORE = {
@@ -41,6 +41,24 @@ _PAYLOAD = {
 
 _FACTS = facts_from_payloads([("what_if_substitute", _PAYLOAD)])
 
+_INGREDIENT = {
+    "ingredient_id": "tofu",
+    "name": "Tofu",
+    "quantity": 2,
+    "unit": "block",
+}
+_QUANTITY_PAYLOAD = {
+    **_PAYLOAD,
+    "servings": _SERVINGS,
+    "before": {**_PAYLOAD["before"], "ingredients": [_INGREDIENT]},
+}
+
+
+@pytest.fixture
+def quantity_facts() -> FactSet:
+    return facts_from_payloads([("what_if_substitute", _QUANTITY_PAYLOAD)])
+
+
 ACCEPTANCE = [
     ("Fat drops by 3 g per serving, protein by 25 g.", False),
     ("Fat drops by 3 g per serving, and protein by 25 g.", False),
@@ -76,18 +94,41 @@ ACCEPTANCE = [
     ("The protein is 25 g per serving.", True),
     ("Protein rises by 5 g per serving.", True),
     ("Fat drops by 3 g per serving.", True),
+    ("Calories rose from just 480 kcal to 500 kcal.", False),
+    ("Calories rose from 480 kcal all the way to 500 kcal.", False),
+    ("Calories fell from 500 kcal all the way to 480 kcal.", True),
+    ("Protein changes by" + "*" * 64 + " 25 g.", False),
+    ("Calories rose from" + "_" * 64 + " 480 kcal to 500 kcal.", False),
+    ("Protein decreased from" + "_" * 64 + " 25 g to 20 g per serving.", False),
+    ("The meal has 1920 kcal per person.", False),
+    ("The meal has 1920 kcal, per serving.", False),
+    ("The meal has 480 kcal, per serving.", True),
+    ("Protein from tofu is 25 g.", False),
+]
+
+QUANTITY_ROWS = [
+    ("Protein is 100 g for 2 servings.", False),
+    ("Protein is 100 g for 4 servings.", True),
 ]
 
 ADVERSARIAL = [
     " ".join(f"fiber y {i} z" for i in range(400))[:1200],
     "Protein" + "*" * 1150 + "x 25 g",
     "Protein " + " " * 1180 + "25 g",
+    ("25 g" + "*" * 1180 + "x\nprotein: 25 g")[:1200],
 ]
 
 
 @pytest.mark.parametrize(("text", "expected"), ACCEPTANCE)
 def test_acceptance_table(text: str, expected: bool) -> None:
     assert validate(text, _FACTS).ok == expected
+
+
+@pytest.mark.parametrize(("text", "expected"), QUANTITY_ROWS)
+def test_quantity_payload_servings(
+    text: str, expected: bool, quantity_facts: FactSet
+) -> None:
+    assert validate(text, quantity_facts).ok == expected
 
 
 @pytest.mark.parametrize("text", ADVERSARIAL)

@@ -39,14 +39,22 @@ break right after ":" does not end it) must agree with Y - X: "rose sharply from
 That holds when such a word, "changes", "changed", "went", or "goes" sits anywhere in
 that clause, or when this turn recorded a pair for that subject. Any other
 "from X to Y" is a range: both values must be facts of that kind.
+Any words may sit inside the shape: X is the first energy or nutrient number after the
+"from" in its clause, Y the first number with a unit after a later "to" of that clause
+("from just 480 kcal all the way to 500 kcal"). When such a change has X right after
+"from" and no Y can be read, X fails. No cue, "by", or "from" lookup has a length cap.
 Basis rule: every energy and nutrient fact, absolute or delta, records its basis from
 the nearest basis key on its payload path: "serving" under `per_serving`, "total"
 under `total`, "100g" under `per_100g`, else None (FactSet.tagged). A basis phrase
 right after a claim ("per serving", "per 100 g", "in total", "total", "for the meal",
 "for all servings", "for N servings") gives the claim that basis, and it then matches
 only a fact of that basis or of none. "for 1 serving" and "per meal" name the serving;
-the 1 of "for 1 serving" is no count, but the N of "for N servings" must be a count
-fact (the plan's servings). A signed "(+5 g)" right after an "X to Y" pair, and after
+the 1 of "for 1 serving" is no count, but the N of "for N servings" names the total
+only when N is a servings count that a payload of this turn states under a `servings`
+key (FactSet.servings). Any other N, and any "per <word>" after an energy claim that
+is no known basis ("per person"), gives the basis "unmatched", which matches no fact.
+A known basis phrase after a comma ("480 kcal, per serving") applies as well.
+A signed "(+5 g)" right after an "X to Y" pair, and after
 the pair's own basis phrase, has the basis of that pair.
 A claim with no basis phrase matches any basis.
 Side rule: every absolute energy and nutrient fact records its side: "before" under a
@@ -99,6 +107,7 @@ from app.agent.nutrient_grounding import (
     basis_count,
     before_marker,
     claim_basis,
+    energy_basis,
     nutrient_bindings,
     nutrient_grounded,
     pair_delta,
@@ -188,13 +197,17 @@ _CARRY = re.compile(
 )
 # "protein by 5 g" elides its verb and inherits the sign of the run it follows.
 _LABEL_BY = re.compile(LABEL_BY, re.IGNORECASE)
-# A number led by "changes by" or "<label> by" states a change with no direction.
+# A number led by "changes by" or "<label> by" states a change with no direction. The
+# match ends where the number starts, however long the run of spaces before it is.
 _BARE_BY = re.compile(
-    rf"(?:{LABEL_BY}|\bchang(?:e|es|ed|ing)[^\S\n]+)by[^\S\n]+{_ABOUT}\Z",
+    rf"(?:{LABEL_BY}|\bchang(?:e|es|ed|ing)[^\S\n]+)by[^\S\n]+{_ABOUT}",
     re.IGNORECASE,
 )
-# "from X to Y": the direction comes from _CUE.
-_FROM = re.compile(rf"\b(?P<src>from)[^\S\n]+{_ABOUT}\Z", re.IGNORECASE)
+# "from X to Y": the direction comes from _CUE. The words may sit anywhere in the shape.
+_FROM_WORD = re.compile(r"\bfrom\b", re.IGNORECASE)
+_TO_WORD = re.compile(r"\bto\b", re.IGNORECASE)
+# What may stand between "from" or "to" and a number that it leads directly.
+_GAP = re.compile(rf"[^\S\n]+{_ABOUT}", re.IGNORECASE)
 # Every direction verb or word in the clause before "from", whatever sits between.
 # "changes", "changed", "went", and "goes" lead a change with no direction of its own.
 _CUE = re.compile(
@@ -205,7 +218,6 @@ _CUE = re.compile(
 _CLAUSE_START = re.compile(r"[!?;\n]|\.(?!\d)")
 # A line break right after ":" (a bullet list follows) does not start a clause.
 _COLON_BREAK = re.compile(r":[^\S\n]*\n")
-_TO = re.compile(rf"[^\S\n]+to[^\S\n]+{_ABOUT}", re.IGNORECASE)
 # A base-form verb at a sentence start is an instruction ("Add 5 g"), not a change.
 _IMPERATIVE = re.compile(r"(?:\A|[.!?:\n])[ *\-]*\Z")
 _OF = re.compile(r"\s+of\b", re.IGNORECASE)
@@ -318,6 +330,9 @@ class FactSet:
     # "100g") and side ("before", "after") of its payload path; None when the path
     # names none.
     tagged: set[TaggedFact] = field(default_factory=set)
+    # Every count that a payload states under a `servings` key; only these name the
+    # total basis in "for N servings".
+    servings: set[Decimal] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -479,6 +494,8 @@ def _walk(
     if key in NUTRIENT_KEYS and type(value) is not int:
         return
     if isinstance(value, int):
+        if low == "servings" and not delta:
+            facts.servings.add(Decimal(value))
         entries = _kinds(key, value, forced)
         if key in NUTRIENT_KEYS:
             facts.nutrition.update(
@@ -600,26 +617,43 @@ def _verb_signs(text: str) -> dict[int, str]:
     return signs
 
 
-def _bare_by(plain: str, start: int) -> bool:
-    """Whether "changes by" or "<label> by" leads the number, with no direction word."""
-    window = plain[max(0, start - 64) : start]
-    return "by" in window.lower() and _BARE_BY.search(window) is not None
-
-
 @dataclass(frozen=True, slots=True)
 class _Clauses:
-    """Clause starts and direction cues of one reply, found once and bisected."""
+    """Clause starts and the cue words of one reply, found once and bisected.
 
+    The text is `plain`: "*", "_", and "#" are already spaces, so no run of them can
+    hide a cue, and no lookup has a length cap.
+    """
+
+    size: int
     starts: list[int]
     cues: list[int]
     kinds: list[str]
+    by_ends: frozenset[int]  # where each "changes by" or "<label> by" lead ends
+    froms: list[int]  # the start of each "from"
+    tos: list[int]  # the start of each "to"
 
     def before(self, stop: int) -> tuple[bool, bool, bool]:
         """Whether an up, a down, and a flat word sit in the clause before `stop`."""
-        at = bisect_right(self.starts, stop)
-        first = self.starts[at - 1] if at else 0
+        first, _ = self.bounds(stop)
         found = self.kinds[bisect_left(self.cues, first) : bisect_left(self.cues, stop)]
         return "up" in found, "down" in found, "flat" in found
+
+    def bounds(self, pos: int) -> tuple[int, int]:
+        """The start and the end of the clause that holds `pos`."""
+        at = bisect_right(self.starts, pos)
+        return (
+            self.starts[at - 1] if at else 0,
+            self.starts[at] if at < len(self.starts) else self.size,
+        )
+
+    def origin(self, pos: int, floor: int) -> int | None:
+        """The nearest "from" before `pos`, in its clause and after `floor`."""
+        at = bisect_left(self.froms, pos) - 1
+        if at < 0:
+            return None
+        src = self.froms[at]
+        return src if src > floor and src >= self.bounds(pos)[0] else None
 
 
 def _clauses(plain: str) -> _Clauses:
@@ -627,8 +661,46 @@ def _clauses(plain: str) -> _Clauses:
     starts = [m.end() for m in _CLAUSE_START.finditer(plain) if m.start() not in held]
     cues = list(_CUE.finditer(plain))
     return _Clauses(
-        starts, [m.start() for m in cues], [m.lastgroup or "" for m in cues]
+        len(plain),
+        starts,
+        [m.start() for m in cues],
+        [m.lastgroup or "" for m in cues],
+        frozenset(m.end() for m in _BARE_BY.finditer(plain)),
+        [m.start() for m in _FROM_WORD.finditer(plain)],
+        [m.start() for m in _TO_WORD.finditer(plain)],
     )
+
+
+def _target(
+    plain: str,
+    tokens: Sequence[re.Match[str]],
+    starts: Sequence[int],
+    clauses: _Clauses,
+    index: int,
+) -> re.Match[str] | None:
+    """The Y of "from X to Y" for the X at `index`: a number after a later "to".
+
+    Words may sit before the "to" and between it and Y. Y is the first number after
+    the "to" in X's clause that has a unit, or none and directly follows the "to".
+    """
+    token = tokens[index]
+    end = clauses.bounds(token.start())[1]
+    at = bisect_left(clauses.tos, token.end())
+    if at == len(clauses.tos) or clauses.tos[at] >= end:
+        return None
+    after = clauses.tos[at] + len("to")
+    for other in tokens[bisect_left(starts, after) :]:
+        if other.start() >= end:
+            break
+        if not other["n1"]:
+            continue
+        if other["n2"]:
+            return None
+        if any(other[name] for name in _KINDS) or _GAP.fullmatch(
+            plain, after, other.start()
+        ):
+            return other
+    return None
 
 
 def _from_to(
@@ -636,52 +708,51 @@ def _from_to(
     tokens: Sequence[re.Match[str]],
     nutrients: Mapping[int, str | None],
     facts: FactSet,
+    clauses: _Clauses,
 ) -> dict[int, bool]:
     """Judge each energy or nutrient "from X to Y" claim by token start.
 
+    X is the first energy or nutrient number after a "from" in its clause, and Y the
+    number after a later "to" of that clause; any words may sit between them ("from
+    just 480 kcal all the way to 500 kcal").
     Only a change is judged: a direction verb or word, or "changes", "changed", "went",
     or "goes", sits in the clause before the "from", or this turn recorded a pair for
     that subject. Any other "from X to Y" is a range, and both values are checked as
     plain facts.
     X and Y must be the before and after sides of one recorded pair, Y - X must be a
     signed delta of that subject, and a direction verb must agree with Y - X.
+    When a change leaves X right after "from" with no Y to read, X fails.
     """
     verdicts: dict[int, bool] = {}
-    clauses = _clauses(plain)
+    starts = [token.start() for token in tokens]
+    floor = -1  # the start of the last energy or nutrient number
     for index, token in enumerate(tokens):
-        window = plain[max(0, token.start() - 64) : token.start()]
-        origin = _FROM.search(window) if "from" in window.lower() else None
-        if not (origin and token["n1"]):
+        if not (token["n1"] and (token["en"] or token.start() in nutrients)):
             continue
-        if token["n2"]:
-            ends, raws = (token, token), (token["n1"], token["n2"])
-        else:
-            nxt = tokens[index + 1 : index + 2]
-            if not (
-                nxt
-                and nxt[0]["n1"]
-                and not nxt[0]["n2"]
-                and _TO.fullmatch(plain[token.end() : nxt[0].start()])
-            ):
-                continue
-            ends, raws = (token, nxt[0]), (token["n1"], nxt[0]["n1"])
+        src, floor = clauses.origin(token.start(), floor), token.start()
+        if src is None:
+            continue
+        other = None if token["n2"] else _target(plain, tokens, starts, clauses, index)
+        ends = (token, other or token)
+        second = token["n2"] or (other["n1"] if other else None)
         kinds = {_KINDS[n] for end in ends for n in _KINDS if end[n]}
         if not kinds - {"percent"}:
             continue
         kind = kinds.pop() if len(kinds) == 1 else ""
         subject = "energy" if kind == "energy" else nutrients.get(token.start())
-        if kind != "energy" and token.start() not in nutrients:
-            continue
         if kind != "energy" and nutrients.get(ends[1].start()) != subject:
             subject = None
-        stop = max(0, token.start() - 64) + origin.start("src")
-        up, down, flat = clauses.before(stop)
+        up, down, flat = clauses.before(src)
         led = up or down or flat
         if not (led or any(move[0] == subject for move in facts.moves)):
             continue  # "From 474 to 489 kcal" is a range across options, not a change
+        if second is None:
+            if _GAP.fullmatch(plain, src + len("from"), token.start()):
+                verdicts[token.start()] = False  # a change from X, with no Y to read
+            continue
         before, after = (
             _number(raw) * (1000 if end["kg"] else 1)
-            for raw, end in zip(raws, ends, strict=True)
+            for raw, end in zip((token["n1"], second), ends, strict=True)
         )
         change = after - before
         ok = bool(
@@ -698,7 +769,8 @@ def _from_to(
             and not (up and change <= 0)
             and not (down and change >= 0)
         )
-        verdicts.update(dict.fromkeys((end.start() for end in ends), ok))
+        for end in ends:  # a number that one claim fails stays failed
+            verdicts[end.start()] = verdicts.get(end.start(), True) and ok
     return verdicts
 
 
@@ -711,7 +783,10 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     safe = _without_server_sentences(reply, mask=True)
     nutrients = nutrient_bindings(safe, tokens)
     claims = re.sub(r"[*_#]", " ", safe)  # same offsets as plain, no server sentence
-    moves = _from_to(plain, tokens, nutrients, facts)
+    clauses = _clauses(plain)
+    moves = _from_to(plain, tokens, nutrients, facts, clauses)
+    # Where the next number starts, so that a basis is read only up to it.
+    stops = [token.start() for token in tokens[1:]] + [len(claims)]
     plan_counts = {
         match.start(1)
         for match in re.finditer(r"Servings from your plan: (\d+)\.", reply)
@@ -732,12 +807,12 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                 m["usd"] or m["usdn"] or m["mn"],
                 m["usd2"] or m["usdn2"] or m["mn2"],
             )
-            for index, raw in enumerate(amounts):
+            for part, raw in enumerate(amounts):
                 if raw is None:
                     continue
                 amount = _number(raw)
                 text = str(amount) if raw[0].isalpha() else raw.replace(",", "")
-                sign = msign if index == 0 else None
+                sign = msign if part == 0 else None
                 cents = amount * (1 if m["cents"] else 100)
                 if not _grounded("money", cents, sign, False, facts):
                     label = text if m["cents"] else f"${text}"
@@ -754,27 +829,31 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
         else:
             kind = next((_KINDS[name] for name in _KINDS if m[name]), "count")
             approx = bool(_APPROX.search(before))
-            directionless = kind != "count" and _bare_by(plain, m.start())
+            directionless = kind != "count" and m.start() in clauses.by_ends
             bound = None
             if kind != "count" and not (m["sign"] or m["n2"]):
                 bound = _DIRECTION.match(plain, m.end())
             subject = nutrients[m.start()] if m.start() in nutrients else None
             subject = "energy" if kind == "energy" and not subject else subject
-            basis = claim_basis(claims, m.end()) if subject else None
+            basis = None
+            if subject and kind == "energy":
+                basis = energy_basis(claims, m.end(), stops[index], facts.servings)
+            elif subject:
+                basis = claim_basis(claims, m.end(), facts.servings)
             if subject and index and basis is None:
                 # "(+5 g)" after "20 to 25 g per serving" has the basis of the pair.
                 if pair_delta(claims, tokens[index - 1], m):
-                    basis = claim_basis(claims, tokens[index - 1].end())
+                    basis = claim_basis(claims, tokens[index - 1].end(), facts.servings)
             if subject and (own := basis_count(claims, m.end())) is not None:
                 served.add(own)
             marker = bool(subject) and before_marker(claims, m.start())
-            for index, raw in enumerate((m["n1"], m["n2"])):
+            for part, raw in enumerate((m["n1"], m["n2"])):
                 if raw is None:
                     continue
-                nsign = m["sign"] if index == 0 else None
+                nsign = m["sign"] if part == 0 else None
                 if bound:
                     nsign = _MINUS if bound["down"] else "+"
-                elif index == 0 and not m["sign"]:
+                elif part == 0 and not m["sign"]:
                     nsign = lead.get(m.start())
                 value = _number(raw) * (1000 if m["kg"] else 1)
                 if m.start() in plan_counts:
@@ -785,7 +864,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                     # In "X to Y" the X may be the before side of a recorded pair.
                     upper = _number(m["n2"] or "0") * (1000 if m["kg"] else 1)
                     early = marker or bool(
-                        index == 0
+                        part == 0
                         and m["n2"]
                         and not nsign
                         and (subject, kind, value, upper) in facts.moves

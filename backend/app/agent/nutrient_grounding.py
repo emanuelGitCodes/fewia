@@ -3,7 +3,7 @@
 import re
 import string
 from bisect import bisect_left
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from decimal import Decimal
 
 # One source for the direction words: grounding.py builds its verb and direction
@@ -28,6 +28,8 @@ NutrientFact = tuple[str, str, bool, Decimal]
 # basis, side). The subject is a nutrient or "energy".
 TaggedFact = tuple[str, str, bool, Decimal, str | None, str | None]
 BASIS_KEYS = {"per_serving": "serving", "total": "total", "per_100g": "100g"}
+# The basis of a claim that names none this turn can state; it matches no fact.
+UNMATCHED = "unmatched"
 SIDE_KEYS = {"before": "before", "after": "after"}
 _ALIASES = {
     "protein": "protein",
@@ -101,11 +103,13 @@ _BASIS = re.compile(
     re.IGNORECASE,
 )
 # A line that ends with an amount, "25 g" or "25 g per serving". A number can start
-# only where no digit, letter, "." or "," precedes it, so the search stays linear.
+# only where no digit, letter, "." or "," precedes it, so the search stays linear. The
+# basis starts with its own whitespace; a second run before it would overlap and make
+# a long run of spaces quadratic. The text searched is one line, so no "\n" can follow.
 _AMOUNT_END = re.compile(
     r"(?<![\w.,])(?:\d+(?:,\d{3})*(?:\.\d+)?|\.\d+)[^\S\n]*"
     r"(?:g|grams?|mg|kg|kcal|cal(?:ories?)?|%|percent)"
-    rf"(?:[^\S\n]*{_BASIS.pattern})?\Z",
+    rf"(?:{_BASIS.pattern})?\Z",
     re.IGNORECASE,
 )
 # The change that follows an "X to Y" pair, "(+5 g)", after an optional basis phrase.
@@ -115,6 +119,9 @@ _CLAIM_LEAD = re.compile(
     rf"{_H}*(?:(?:{UP_WORDS}|{DOWN_WORDS}){_H}+)?(?:of{_H}+)?(?:{_LABEL.pattern})?",
     re.IGNORECASE,
 )
+# A comma, then a basis phrase or "per <word>", after an energy claim.
+_COMMA = re.compile(r"[^\S\n]*,[^\S\n]*")
+_PER = re.compile(r"\bper\b", re.IGNORECASE)
 _CLAUSE = re.compile(r"[!?;\n]|\.(?!\d)|,(?!\d{3}\b)")
 _BEFORE = re.compile(
     r"\b(?:from|was|were|before|original(?:ly)?|previously|used\s+to|had)\b",
@@ -349,9 +356,15 @@ def nutrient_bindings(
     return bindings
 
 
-def _basis_name(match: re.Match[str]) -> str:
-    if match["serving"] or match["n"] == "1":
+def _basis_name(match: re.Match[str], servings: Collection[Decimal]) -> str:
+    if match["serving"]:
         return "serving"
+    if match["n"]:
+        count = Decimal(match["n"])
+        if count == 1:
+            return "serving"
+        # "for N servings" is the total only for a servings count of this turn.
+        return "total" if count in servings else UNMATCHED
     if match["total"]:
         return "total"
     grams = Decimal(match["qty"]) * _SCALE.get(match["unit"][0].lower(), Decimal(1))
@@ -365,10 +378,38 @@ def _basis_match(plain: str, end: int) -> re.Match[str] | None:
     return _BASIS.match(plain, start, stop.start() if stop else len(plain))
 
 
-def claim_basis(plain: str, end: int) -> str | None:
-    """The basis a claim names right after its number: "serving", "total", "100g"."""
+def claim_basis(plain: str, end: int, servings: Collection[Decimal] = ()) -> str | None:
+    """The basis a claim names right after its number: "serving", "total", "100g".
+
+    A "for N servings" with an N that is no servings count of this turn names
+    UNMATCHED, which matches no fact.
+    """
     match = _basis_match(plain, end)
-    return _basis_name(match) if match else None
+    return _basis_name(match, servings) if match else None
+
+
+def energy_basis(
+    plain: str, end: int, limit: int, servings: Collection[Decimal] = ()
+) -> str | None:
+    """The basis of an energy claim, read up to `limit` (the next number).
+
+    Besides claim_basis, a basis phrase after a comma ("1920 kcal, per serving") names
+    its basis, and any other "per <word>" in the same clause ("per person") names
+    UNMATCHED.
+    """
+    named = claim_basis(plain, end, servings)
+    if named:
+        return named
+    stop = _TAIL_BOUNDARY.search(plain, end)
+    cap = min(limit, stop.start() if stop else len(plain))
+    comma = _COMMA.match(plain, end, cap)
+    match = _BASIS.match(plain, comma.end(), cap) if comma else None
+    per = _PER.search(plain, end, cap)
+    if not match and per:
+        match = _BASIS.match(plain, per.start(), cap)
+        if not match:
+            return UNMATCHED
+    return _basis_name(match, servings) if match else None
 
 
 def basis_count(plain: str, end: int) -> int | None:
@@ -391,8 +432,11 @@ def tag_ok(
 
     A claim with a basis matches a fact of that basis or of none. A fact that is only
     on the before side matches only a claim whose clause has a before marker. A fact
-    with no tag at all (a hand-built FactSet) has no basis and no side.
+    with no tag at all (a hand-built FactSet) has no basis and no side. The basis
+    UNMATCHED matches no fact.
     """
+    if basis == UNMATCHED:
+        return False
     pairs = [(f[4], f[5]) for f in tagged if f[:4] == fact]
     return not pairs or any(
         basis in (None, have) or have is None
