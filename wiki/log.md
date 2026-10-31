@@ -4596,3 +4596,13 @@ tokens, and 48359 output tokens. These are supervisor counts, not a charge
 estimate. Native-agent token counts are unavailable. Gate and independent
 review records use the committed SHA. The loop record holds later review
 usage. No push or merge is authorized for this item.
+
+The initial gate at `de42f8b1` failed strict mypy because two variable
+names held both regex matches and integer offsets. That run also skipped
+238 tests without the required database setup. A later compiler-only
+repair gives the label variables distinct names. Strict mypy then passed
+for all 186 source files. The coordinator runs final gates through the
+isolated PostgreSQL script with `FEWIA_REQUIRE_DB=1`.
+Writer totals after this repair: four runs, 1293.748 seconds, 3298795 input
+tokens, and 49305 output tokens. These totals supersede the three-run
+writer snapshot above and exclude the later independent review.

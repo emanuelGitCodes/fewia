@@ -59,9 +59,9 @@ def nutrient_bindings(
     plain = re.sub(r"[*_#]", " ", text)
     labels = list(_LABEL.finditer(plain))
     ambiguous: set[int] = set()
-    for left, right in zip(labels, labels[1:], strict=False):
-        if _PAIR.fullmatch(plain[left.end() : right.start()]):
-            ambiguous.update((left.start(), right.start()))
+    for left_label, right_label in zip(labels, labels[1:], strict=False):
+        if _PAIR.fullmatch(plain[left_label.end() : right_label.start()]):
+            ambiguous.update((left_label.start(), right_label.start()))
     bindings: dict[int, str | None] = {}
     consumed: set[int] = set()
     for index, token in enumerate(tokens):
