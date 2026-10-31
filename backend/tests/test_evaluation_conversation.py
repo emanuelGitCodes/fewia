@@ -264,7 +264,7 @@ def test_the_gate_allowlist_covers_every_reason_the_chat_loop_records() -> None:
     assert recorded
     assert recorded <= runner.GATES
     assert {"refusal", "incomplete", "limit"} <= runner.GATES
-    assert {"planned_terminal", "discovery_terminal"} <= runner.GATES
+    assert {"planned_terminal", "discovery_terminal", "guardrail"} <= runner.GATES
 
 
 def test_fact_presence_needs_the_tool_path_and_exact_typed_value() -> None:

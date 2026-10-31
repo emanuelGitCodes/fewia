@@ -29,7 +29,7 @@ from app.evaluation_conversation_corpus import (
 GATES = frozenset(
     ("clean", "proposal", "tool_failed", "not_final", "planner", "no_tools")
     + ("clarification", "refusal", "incomplete", "limit", "planned_terminal")
-    + ("discovery_terminal",)
+    + ("discovery_terminal", "guardrail")
 )
 REASONS = REASON_CODES
 _USAGE_KEYS = (
