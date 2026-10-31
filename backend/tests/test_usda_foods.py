@@ -877,18 +877,88 @@ def test_animal_preparations_and_rennet_cheeses_fail_closed() -> None:
         assert found, prefix
         for description, category in found:
             assert usda_foods._diet_flags(description, category)[1] is False
-    parmesan = [row for row in rows if "parmesan" in row[0].lower()]
+    parmesan = [
+        row
+        for row in rows
+        if "parmesan" in row[0].lower() and "cheese" in row[0].lower()
+    ]
     assert parmesan
     for description, category in parmesan:
-        assert usda_foods._diet_flags(description, category)[0] is False
+        assert usda_foods._diet_flags(description, category) == (False, False)
     tortilla_mix = usda_foods._diet_flags("Wheat flour, white, tortilla mix", 20)
     assert tortilla_mix == (False, False)
     assert usda_foods._diet_flags("Shortening, household", 20)[0] is False
     assert usda_foods._diet_flags("Vegetable shortening, household", 20)[0] is True
 
 
-@needs_bundle
-def test_every_default_points_to_a_bundled_food() -> None:
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Pasta, fresh refrigerated, cooked",
+        "Noodles, fresh refrigerated, cooked",
+        "Noodle, fresh refrigerated, cooked",
+        "Pasta, fresh-refrigerated, cooked",
+        "Fresh refrigerated pasta, cooked",
+        "Fresh-refrigerated noodles, cooked",
+        "Fresh refrigerated noodle, cooked",
+        "Pancake, plain",
+        "Pancakes, plain",
+        "Waffle, plain",
+        "Waffles, plain",
+        "Fritter, plain",
+        "Fritters, plain",
+        "Crepe, plain",
+        "Crepes, plain",
+        "Onion rings, breaded",
+        "Vegetables, battered",
+        "Vegetables, tempura",
+        "Dumpling, plain",
+        "Dumplings, plain",
+        "Gnocchi, plain",
+        "Chicken, meatless",
+        "Veggie burger, plain",
+        "Veggie burgers, plain",
+        "Soyburger, plain",
+        "Soyburgers, plain",
+        "Meat substitute, plain",
+        "Meat substitutes, plain",
+        "Meat analog, plain",
+        "Meat analogs, plain",
+        "Meat analogue, plain",
+        "Meat analogues, plain",
+        "Croissant, plain",
+        "Croissants, plain",
+        "Pastry, plain",
+        "Pastries, plain",
+        "Biscuit, plain",
+        "Biscuits, plain",
+        "Muffin, plain",
+        "Muffins, plain",
+        "Wheat flour, white, tortilla mix",
+    ],
+)
+def test_each_animal_preparation_term_is_not_vegan(description: str) -> None:
+    assert usda_foods._ANIMAL_PREPARATIONS.search(description.lower().replace("-", " "))
+    assert usda_foods._diet_flags(description, 20)[1] is False
+
+
+@pytest.mark.parametrize(
+    "cheese",
+    ["parmesan", "romano", "pecorino", "grana", "gruyère", "emmental", "manchego"]
+    + ["gorgonzola"],
+)
+def test_each_rennet_cheese_is_neither_vegetarian_nor_vegan(cheese: str) -> None:
+    assert usda_foods._diet_flags(f"Cheese, {cheese}", 1) == (False, False)
+    assert usda_foods._diet_flags(f"{cheese} cheese, grated", 1) == (False, False)
+
+
+def test_cheddar_keeps_its_base_flags() -> None:
+    assert usda_foods._diet_flags("Cheese, cheddar", 1) == (True, False)
+
+
+def test_romano_beans_are_not_a_cheese() -> None:
+    assert usda_foods._diet_flags("Beans, romano, raw", 11) == (True, True)
+
     for term, fdc_id in USDA_DEFAULTS.items():
         assert ALL_NUTRITION[f"usda_{fdc_id}"].fdc_id == fdc_id, term
 

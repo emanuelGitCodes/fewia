@@ -67,7 +67,8 @@ _MIXED_DESCRIPTION = re.compile(
     r"refried|flavored|flavoured|stuffed|filling)\b|\bbeans,? baked\b"
 )
 _ANIMAL_PREPARATIONS = re.compile(
-    r"\b(?:(?:pasta|noodles?)\b.*\bfresh refrigerated|pancakes?|waffles?|fritters?|"
+    r"\b(?:(?:pasta|noodles?)\b.*\bfresh refrigerated|"
+    r"fresh refrigerated\b.*\b(?:pasta|noodles?)|pancakes?|waffles?|fritters?|"
     r"crepes?|breaded|battered|tempura|dumplings?|gnocchi|meatless|veggie burgers?|"
     r"soyburgers?|meat (?:substitutes?|analogs?|analogues?)|croissants?|pastry|"
     r"pastries|biscuits?|muffins?|tortilla mix)\b"
@@ -77,6 +78,7 @@ _VEGETABLE_SHORTENING = re.compile(r"\bvegetable shortening\b")
 _RENNET_CHEESES = re.compile(
     r"\b(?:parmesan|romano|pecorino|grana|gruy[eè]re|emmental|manchego|gorgonzola)\b"
 )
+_CHEESE_WORD = re.compile(r"\bcheese\b")
 _MAX_CANDIDATES = 3
 _SHORT_LIMIT = 60
 _LONG_LIMIT = 90
@@ -234,10 +236,10 @@ def _diet_flags(description: str, category: int) -> tuple[bool, bool]:
     # and these cheeses use animal rennet. Check them before the plant-phrase
     # and egg-free rewrites can remove the evidence.
     vegan = vegan and not _ANIMAL_PREPARATIONS.search(raw)
-    if _RENNET_CHEESES.search(raw) or _LARD_FAT.search(
+    if (_RENNET_CHEESES.search(raw) and _CHEESE_WORD.search(raw)) or _LARD_FAT.search(
         _VEGETABLE_SHORTENING.sub("", raw)
     ):
-        vegetarian = False
+        vegetarian = vegan = False
     preparation = _DAIRY_EGG_PREPARATION.sub("", _PLAIN_PREPARATION.sub("", text))
     if _MIXED_DESCRIPTION.search(preparation):
         return False, False
