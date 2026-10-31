@@ -1,5 +1,7 @@
 import json
+import re
 from datetime import date
+from itertools import combinations
 from typing import cast
 
 import pytest
@@ -17,7 +19,14 @@ from app.agent.estimate import priced_estimate
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
-from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE, MEAL_DIETS, MEAL_TAGS
+from app.domain.meal_tags import (
+    CARNIVORE_NOTE,
+    GLUTEN_INGREDIENT_IDS,
+    KETO_NOTE,
+    MEAL_DIETS,
+    MEAL_TAGS,
+    TAG_ORDER,
+)
 from app.services.meal_nutrition import meal_nutrition
 
 SENTINEL = "zqxsentinel"
@@ -173,14 +182,14 @@ def test_negation_ends_at_the_next_stopword() -> None:
 
 
 @pytest.mark.parametrize(
-    ("query", "tag", "note"),
+    ("query", "tag", "note", "other"),
     [
-        ("keto chicken", "lower_carb", KETO_NOTE),
-        ("chicken lentils", "chicken", CARNIVORE_NOTE),
+        ("keto", "lower_carb", KETO_NOTE, CARNIVORE_NOTE),
+        ("chicken", "chicken", CARNIVORE_NOTE, KETO_NOTE),
     ],
 )
-def test_note_needs_every_returned_meal_to_have_the_tag(
-    monkeypatch: pytest.MonkeyPatch, query: str, tag: str, note: str
+def test_a_tag_is_a_hard_filter_and_its_note_follows_it(
+    monkeypatch: pytest.MonkeyPatch, query: str, tag: str, note: str, other: str
 ) -> None:
     keep = ids(search(query))[0]
     tags = {
@@ -189,10 +198,10 @@ def test_note_needs_every_returned_meal_to_have_the_tag(
     }
     monkeypatch.setattr(catalog_tool, "MEAL_TAGS", tags)
     payload = search(query)
-    assert keep in ids(payload)
-    assert tag in tags[keep]
-    assert any(tag not in tags[rid] for rid in ids(payload))
-    assert note not in catalog_answer(payload)
+    assert ids(payload) == [keep]
+    answer = catalog_answer(payload)
+    assert note in answer and other not in answer
+    assert note not in catalog_answer(search("tacos"))
 
 
 def test_note_shows_when_every_returned_meal_has_the_tag() -> None:
@@ -203,7 +212,7 @@ def test_note_shows_when_every_returned_meal_has_the_tag() -> None:
 
 @pytest.mark.parametrize("diet", ["vegetarian", "vegan"])
 def test_diet_filters(diet: str) -> None:
-    payload = search("egg chickpea", diet=diet)
+    payload = search("chickpea", diet=diet)
     assert ids(payload)
     assert all(diet in MEAL_DIETS[rid] for rid in ids(payload))
     assert ids(search("vegan"))
@@ -264,9 +273,9 @@ def test_max_cents_filters_on_sample_price() -> None:
     def cents(rid: str) -> int:
         return cast(int, priced_estimate([(rid, 1)], [], budget)["total_cents"])
 
-    prices = sorted(cents(rid) for rid in SUPPORTED_RECIPE_IDS)
+    prices = sorted(cents(rid) for rid in SUPPORTED_RECIPE_IDS if has(rid, "onion"))
     cap = prices[len(prices) // 2]
-    payload = search("egg chickpea chicken rice bean", max_cents_per_serving=cap)
+    payload = search("onion", max_cents_per_serving=cap)
     assert ids(payload)
     assert all(cents(rid) <= cap for rid in ids(payload))
     assert search("egg", max_cents_per_serving=1)["status"] == "no_match"
@@ -357,7 +366,7 @@ def test_answer_never_echoes_model_words(query: str) -> None:
 
 
 def test_answer_renders_exact_names_and_safety() -> None:
-    payload = search("chickpea")
+    payload = search("chickpea high protein")
     names = ", ".join(rid.replace("_", " ").capitalize() for rid in ids(payload))
     answer = catalog_answer(payload)
     assert answer.startswith(f"Catalog choices: {names}. Which one should I plan? ")
@@ -393,3 +402,122 @@ def test_every_ingredient_name_resolves_as_exclusion() -> None:
         by_name = search("rice", exclude=[INGREDIENTS[ingredient_id].name.upper()])
         assert by_id == by_name
         assert by_id["status"] != "unknown_exclusion"
+
+
+INGREDIENT_WORDS = sorted(
+    {w for item in INGREDIENTS.values() for w in re.findall(r"[a-z]+", item.name)}
+)
+
+
+def has_facet(facet: str, rid: str) -> bool:
+    return facet in MEAL_TAGS[rid] or facet in MEAL_DIETS[rid]
+
+
+def gluten_ids(rid: str) -> set[str]:
+    return GLUTEN_INGREDIENT_IDS & {item for item, _ in RECIPES[rid].ingredients}
+
+
+@pytest.mark.parametrize("diet", ["omnivore", "vegetarian", "vegan"])
+def test_every_returned_meal_has_every_applied_facet_and_text_word(diet: str) -> None:
+    for tag in TAG_ORDER:
+        for word in INGREDIENT_WORDS:
+            payload = search(f"{tag} {word}", diet=diet)
+            applied = cast(list[str], payload["applied"])
+            dropped = cast(list[str], payload["dropped"])
+            assert tag in applied
+            assert (diet in applied) == (diet != "omnivore")
+            kept = [] if catalog_tool._facet(word) or word in dropped else [word]
+            for rid in ids(payload):
+                assert all(has_facet(f, rid) for f in applied), (tag, word, rid)
+                assert all(catalog_tool._has_word(w, rid) for w in kept), (tag, word)
+
+
+def test_gluten_free_pasta_keeps_the_facet_and_drops_the_word() -> None:
+    payload = search("gluten-free pasta")
+    assert payload["status"] == "ok"
+    assert payload["applied"] == ["gluten_free_ingredients"]
+    assert payload["dropped"] == ["pasta"]
+    assert ids(payload) and not any(gluten_ids(rid) for rid in ids(payload))
+    answer = catalog_answer(payload)
+    assert "No meal with those types also matched: pasta." in answer
+    assert answer.index("also matched") < answer.index("Gluten-free ingredients")
+
+
+def test_a_facet_is_never_dropped() -> None:
+    payload = search("gluten-free pasta", diet="vegan")
+    assert payload["applied"] == ["gluten_free_ingredients", "vegan"]
+    assert payload["dropped"] == ["pasta"]
+    assert ids(payload)
+    for rid in ids(payload):
+        assert not gluten_ids(rid) and "vegan" in MEAL_DIETS[rid]
+
+
+def test_high_protein_vegetarian_needs_both() -> None:
+    payload = search("high protein vegetarian")
+    assert payload["applied"] == ["high_protein", "vegetarian"]
+    for rid in ids(payload):
+        assert "high_protein" in MEAL_TAGS[rid] and "vegetarian" in MEAL_DIETS[rid]
+    assert search("high protein", diet="vegetarian")["applied"] == payload["applied"]
+
+
+def test_lentil_soup_still_leads() -> None:
+    assert ids(search("lentil soup"))[0] == "lentil_soup"
+
+
+def test_diet_argument_is_a_facet_and_omnivore_is_not() -> None:
+    assert search("rice", diet="vegan")["applied"] == ["vegan"]
+    assert search("rice")["applied"] == []
+    assert search("rice omnivore")["applied"] == []
+
+
+def test_matches_keep_catalog_order() -> None:
+    expected = [r for r in SUPPORTED_RECIPE_IDS if catalog_tool._has_word("rice", r)]
+    assert ids(search("rice")) == expected[:3]
+
+
+def test_text_words_alone_never_drop_to_every_meal() -> None:
+    first, second = next(
+        (a, b)
+        for a, b in combinations(INGREDIENT_WORDS, 2)
+        if not catalog_tool._facet(a)
+        and not catalog_tool._facet(b)
+        and not any(
+            catalog_tool._has_word(a, r) and catalog_tool._has_word(b, r)
+            for r in SUPPORTED_RECIPE_IDS
+        )
+    )
+    payload = search(f"{first} {second}")
+    assert payload["status"] == "no_match"
+    assert payload["dropped"] == []
+
+
+def test_reply_caveats_follow_the_applied_facets() -> None:
+    sentences = (
+        "High protein means",
+        "Lower carb means",
+        "Gluten-free ingredients describes",
+    )
+    queries: list[tuple[str, int | None]] = [
+        ("tacos", None),
+        ("high protein", 0),
+        ("keto", 1),
+        ("gluten free", 2),
+    ]
+    for query, index in queries:
+        payload = search(query)
+        answer = catalog_answer(payload)
+        assert [s for s in sentences if s in answer] == (
+            [] if index is None else [sentences[index]]
+        )
+        assert "I cannot claim gluten-free, celiac, allergy, or cross" in answer
+        assert "No meal with those types" not in answer
+    assert search("tacos")["applied"] == []
+
+
+def test_forged_applied_or_dropped_cannot_render_choices() -> None:
+    payload = search("high protein")
+    payload["applied"] = []
+    assert catalog_answer(payload) == DISCOVERY_ERROR
+    payload = search("gluten-free pasta")
+    payload["dropped"] = []
+    assert catalog_answer(payload) == DISCOVERY_ERROR

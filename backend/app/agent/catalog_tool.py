@@ -12,6 +12,7 @@ from app.domain.meal_tags import (
     KETO_NOTE,
     MEAL_DIETS,
     MEAL_TAGS,
+    TAG_ORDER,
     normalize_term,
     resolve_ingredient,
     resolve_meal_term,
@@ -32,12 +33,15 @@ DISCOVERY_ERROR = (
     "I cannot find meals from those inputs. "
     "Name a catalog meal type, diet, and exact ingredients to exclude."
 )
-_SAFETY = (
-    "High protein means 30 g or more protein per serving. "
-    "Lower carb means 30 g or less carbohydrate per serving. "
-    "Gluten-free ingredients describes the ingredients only. "
-    "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
-)
+_GLUTEN_FREE = "Gluten-free ingredients describes the ingredients only."
+_CAVEATS = {
+    "high_protein": "High protein means 30 g or more protein per serving.",
+    "lower_carb": "Lower carb means 30 g or less carbohydrate per serving.",
+    "gluten_free_ingredients": _GLUTEN_FREE,
+}
+_CANNOT_CLAIM = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+_SAFETY = " ".join([*_CAVEATS.values(), _CANNOT_CLAIM])
+_FACET_DIETS = ("vegetarian", "vegan")
 _NO_MATCH = (
     "No catalog meal matches that search. Try a meal type, an ingredient, or a diet."
 )
@@ -162,6 +166,19 @@ def _matches(unit: str, recipe_id: str) -> bool:
     )
 
 
+def _facet(unit: str) -> str | None:
+    target = _target(unit)
+    return target if target in (*TAG_ORDER, *_FACET_DIETS) else None
+
+
+def _has_facet(facet: str, recipe_id: str) -> bool:
+    return facet in MEAL_TAGS[recipe_id] or facet in MEAL_DIETS[recipe_id]
+
+
+def _has_word(word: str, recipe_id: str) -> bool:
+    return _stem(word) in _meal_words(recipe_id)
+
+
 @cache
 def _protein_mg(recipe_id: str) -> int:
     request = GroceryRequest(
@@ -230,9 +247,18 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         u for u in units if not any(_matches(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
     unmatched = list(dict.fromkeys([*unmatched, *negated]))
-    scores: dict[str, int] = {}
-    for rid in () if unresolved else SUPPORTED_RECIPE_IDS:
-        if diet not in ("omnivore", *MEAL_DIETS[rid]):
+    query_facets = {f for u in units if (f := _facet(u)) is not None}
+    facets = query_facets | ({diet} - {"omnivore"})
+    applied = [f for f in (*TAG_ORDER, *_FACET_DIETS) if f in facets]
+    words = [
+        u
+        for u in units
+        if _facet(u) is None and any(_has_word(u, r) for r in SUPPORTED_RECIPE_IDS)
+    ]
+    searchable = bool(query_facets or words)
+    eligible: list[str] = []
+    for rid in () if unresolved or not searchable else SUPPORTED_RECIPE_IDS:
+        if not all(_has_facet(f, rid) for f in applied):
             continue
         if excluded.intersection(item for item, _ in RECIPES[rid].ingredients):
             continue
@@ -242,14 +268,14 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
             cents = _serving_cents(rid)
             if cents is None or cents > max_cents:
                 continue
-        score = sum(_matches(u, rid) for u in units)
-        if score:
-            scores[rid] = score
-
-    def rank(rid: str) -> tuple[int, int]:
-        return -scores[rid], -_protein_g(rid) if min_protein is not None else 0
-
-    ids = sorted(scores, key=rank)[:limit]
+        eligible.append(rid)
+    found_ids = [r for r in eligible if all(_has_word(w, r) for w in words)]
+    dropped: list[str] = []
+    if not found_ids and query_facets and eligible:
+        found_ids, dropped = eligible, words
+    if min_protein is not None:
+        found_ids = sorted(found_ids, key=lambda r: -_protein_g(r))
+    ids = found_ids[:limit]
     status = "unknown_exclusion" if unresolved else "ok" if ids else "no_match"
     return {
         "status": status,
@@ -262,6 +288,8 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
             "limit": limit,
         },
         "recipe_ids": ids,
+        "applied": applied,
+        "dropped": dropped,
         "unmatched": unmatched,
         "unresolved_exclusions": unresolved,
     }
@@ -289,15 +317,19 @@ def catalog_answer(payload: dict[str, object]) -> str:
         return _NO_MATCH
     request = cast(dict[str, object], validated["request"])
     chosen = cast(list[str], validated["recipe_ids"])
-    targets = {_target(u) for u in _parse(cast(str, request["query"]))[0]}
+    applied = cast(list[str], validated["applied"])
+    dropped = cast(list[str], validated["dropped"])
     notes = []
-    if "lower_carb" in targets and all("lower_carb" in MEAL_TAGS[r] for r in chosen):
+    if "lower_carb" in applied and all("lower_carb" in MEAL_TAGS[r] for r in chosen):
         notes.append(KETO_NOTE)
-    if "chicken" in targets and all("chicken" in MEAL_TAGS[r] for r in chosen):
+    if "chicken" in applied and all("chicken" in MEAL_TAGS[r] for r in chosen):
         notes.append(CARNIVORE_NOTE)
+    if dropped:
+        notes.append(f"No meal with those types also matched: {', '.join(dropped)}.")
     names = []
     for rid in chosen:
         name = rid.replace("_", " ")
         names.append(name[0].upper() + name[1:])
     lead = f"Catalog choices: {', '.join(names)}. Which one should I plan?"
-    return " ".join([lead, *notes, _SAFETY])
+    caveats = [_CAVEATS[f] for f in applied if f in _CAVEATS]
+    return " ".join([lead, *notes, *caveats, _CANNOT_CLAIM])
