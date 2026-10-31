@@ -4571,3 +4571,28 @@ An optional Bedrock guardrail with four denied topics is defined in the CDK
 stack and wired into Converse behind two settings; it stays off until the
 owner deploys it. Gates at `a7e98ce`: backend 11,111 passed; CDK tests,
 ruff, and mypy passed.
+
+## 2026-10-31: Bind nutrition claims to their nutrient
+
+The local fix on `codex/fix-nutrient-grounding` follows the PR 460 review
+at `d15cea3de026ef00a3d14ac6cc4a01c3d5b8e5a3`. Nutrition facts now keep
+protein, carbohydrate, and fat separate through unit conversion and signed
+changes. A number from another nutrient, note, ingredient quantity, or
+serving count cannot ground a supported nutrition claim. Unsupported or
+ambiguous nutrition wording uses the existing server answer.
+
+The chatbot keeps free-text replies and the same model-call count. The
+fake-provider regression rejects the false claim of 23 g fat in chicken
+breast while accepting the matching protein and fat claims. Rejected prose
+stays out of the public result. The focused suite passed 562 tests with
+one existing Starlette/httpx deprecation warning. Terra checked 40 additional
+adversarial cases with in-memory probes; all matched their expected outcome.
+These checks do not prove food identity or serving-basis attribution in
+arbitrary prose. They make no live Bedrock or deployment claim.
+
+Sol wrote the change at high effort through the supervisor. Writer usage
+for `nutrient-grounding-01`: three runs, 1267.704 seconds, 3195584 input
+tokens, and 48359 output tokens. These are supervisor counts, not a charge
+estimate. Native-agent token counts are unavailable. Gate and independent
+review records use the committed SHA. The loop record holds later review
+usage. No push or merge is authorized for this item.

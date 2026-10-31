@@ -52,6 +52,12 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from app.agent.catalog_tool import _SAFETY, TOOL_NAME
 from app.agent.chat_answer import _DIET, _diet_conflict_answer
+from app.agent.nutrient_grounding import (
+    NUTRIENT_KEYS,
+    NutrientFact,
+    nutrient_bindings,
+    nutrient_grounded,
+)
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
@@ -194,7 +200,7 @@ _SCALED = re.compile(
 
 def _diet_sentences() -> set[str]:
     """The exact sentences that the server templates print with a diet label."""
-    first = {re.split(r"(?<=\.) ", text)[0] for text in (KETO_NOTE, _DIET)}
+    sentences = {*re.split(r"(?<=\.) ", KETO_NOTE), re.split(r"(?<=\.) ", _DIET)[0]}
     for recipe_id, recipe in RECIPES.items():
         for ingredient_id, _quantity in recipe.ingredients:
             for diet in ("vegetarian", "vegan"):
@@ -206,8 +212,8 @@ def _diet_sentences() -> set[str]:
                 }
                 answer = _diet_conflict_answer(error)
                 if answer is not None:
-                    first.add(re.split(r"(?<=\.) ", answer)[0])
-    return first
+                    sentences.add(re.split(r"(?<=\.) ", answer)[0])
+    return sentences
 
 
 # The server notes name the claims they refuse and the diets they state; each exact
@@ -240,6 +246,7 @@ class FactSet:
     generic: set[Decimal] = field(default_factory=set)
     # Signed changes as (kind, value); only a signed token may match these.
     deltas: set[tuple[str, Decimal]] = field(default_factory=set)
+    nutrition: set[NutrientFact] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,14 +293,15 @@ def normalize(text: str) -> str:
     return _SPACE_RUNS.sub(" ", _SPACES.sub(" ", _fold(text)))
 
 
-def _without_server_sentences(reply: str) -> str:
+def _without_server_sentences(reply: str, *, mask: bool = False) -> str:
     def drop(match: re.Match[str]) -> str:
         before = reply[: match.start()]
+        removed = " " * len(match.group()) if mask else " "
         if "Servings from your plan: " in match.group():
-            return " "  # the pattern already fixed its position
+            return removed  # the pattern already fixed its position
         if before and not _SENTENCE_END.search(before):
             return match.group()
-        return " "
+        return removed
 
     return _SERVER_SENTENCE.sub(drop, reply)
 
@@ -345,6 +353,17 @@ def _changes(
             _changes(old, new, facts)
         elif type(old) is int and type(new) is int:
             now, was = _kinds(str(name), new), _kinds(str(name), old)
+            if str(name) in NUTRIENT_KEYS:
+                nutrient = NUTRIENT_KEYS[str(name)]
+                facts.nutrition.update(
+                    (nutrient, k, True, a - b)
+                    for (k, a), (_, b) in zip(now, was, strict=False)
+                )
+                facts.nutrition.update(
+                    (nutrient, k, True, number)
+                    for k, number in _kinds(str(name), new - old)
+                )
+                continue
             facts.deltas.update(
                 (k, a - b) for (k, a), (_, b) in zip(now, was, strict=False)
             )
@@ -365,7 +384,15 @@ def _walk(
         return
     if _is_delta(low):
         delta, forced = True, "percent" if "percent" in low else forced
+    if key in NUTRIENT_KEYS and type(value) is not int:
+        return
     if isinstance(value, int):
+        if key in NUTRIENT_KEYS:
+            facts.nutrition.update(
+                (NUTRIENT_KEYS[key], kind, delta, number)
+                for kind, number in _kinds(key, value, forced)
+            )
+            return
         for kind, number in _kinds(key, value, forced):
             if delta:
                 facts.deltas.add((kind, number))
@@ -459,9 +486,16 @@ def _verb_signs(text: str) -> dict[int, str]:
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     unmatched: list[str] = []
     word = money = False
-    lead = _verb_signs(reply)
-    for m in _TOKEN.finditer(reply):
-        before = reply[max(0, m.start() - 20) : m.start()]
+    plain = re.sub(r"[*_#]", " ", reply)
+    lead = _verb_signs(plain)
+    tokens = list(_TOKEN.finditer(plain))
+    nutrients = nutrient_bindings(_without_server_sentences(reply, mask=True), tokens)
+    plan_counts = {
+        match.start(1)
+        for match in re.finditer(r"Servings from your plan: (\d+)\.", reply)
+    }
+    for m in tokens:
+        before = plain[max(0, m.start() - 20) : m.start()]
         if m["big"]:
             word = True
         elif m["bare"]:
@@ -497,7 +531,7 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
             approx = bool(_APPROX.search(before))
             bound = None
             if kind != "count" and not (m["sign"] or m["n2"]):
-                bound = _DIRECTION.match(reply, m.end())
+                bound = _DIRECTION.match(plain, m.end())
             for index, raw in enumerate((m["n1"], m["n2"])):
                 if raw is None:
                     continue
@@ -507,7 +541,19 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
                 elif index == 0 and not m["sign"]:
                     nsign = lead.get(m.start())
                 value = _number(raw) * (1000 if m["kg"] else 1)
-                if not _grounded(kind, value, nsign, approx, facts):
+                if m.start() in plan_counts:
+                    grounded = (
+                        kind == "count" and nsign is None and value in facts.count
+                    )
+                else:
+                    grounded = (
+                        nutrient_grounded(
+                            nutrients[m.start()], kind, value, nsign, facts.nutrition
+                        )
+                        if m.start() in nutrients
+                        else _grounded(kind, value, nsign, approx, facts)
+                    )
+                if not grounded:
                     shown = str(int(_number(raw))) if raw[0].isalpha() else raw
                     unmatched.append(f"{nsign or ''}{shown}")
     unmatched.extend(

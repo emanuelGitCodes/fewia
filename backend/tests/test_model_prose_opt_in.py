@@ -97,6 +97,46 @@ def test_grounded_reply_without_money_is_used_as_written() -> None:
     assert result["reply_sha256"] == _sha(GROUNDED_PLAIN)
 
 
+@pytest.mark.parametrize(
+    ("text", "accepted"),
+    [
+        ("Chicken breast has 23 g fat per 100 g.", False),
+        ("Chicken breast has 23 g protein per 100 g.", True),
+        ("Chicken breast has 2.6 g fat per 100 g.", True),
+        ("Chicken breast has 23 g protein and 2.6 g fat per 100 g.", True),
+        ("Chicken breast has 23 g protein and 23 g fat per 100 g.", False),
+    ],
+)
+def test_ingredient_prose_keeps_the_nutrient_boundary(
+    text: str, accepted: bool
+) -> None:
+    def replies() -> list[Any]:
+        return [
+            _reply(
+                [
+                    _tool_block(
+                        "i1", name=INGREDIENT_TOOL, payload={"name": "chicken breast"}
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block(text)], "end_turn"),
+        ]
+
+    template, template_provider = _run(replies(), model_prose=False)
+    result, provider = _run(replies())
+    assert len(provider.requests) == len(template_provider.requests) == 2
+    assert result["model_turns"] == template["model_turns"] == 2
+    assert result["reply_source"] == ("model" if accepted else "template")
+    assert result["answer"] == (text if accepted else template["answer"])
+    assert result["reply_sha256"] == _sha(result["answer"])
+    check = cast(dict[str, object], result["reply_check"])
+    assert check["ok"] is accepted
+    assert check["reasons"] == ([] if accepted else ["unmatched_number"])
+    if not accepted:
+        assert text not in json.dumps(result)
+
+
 def test_needs_revision_keeps_the_template_status_plan_and_answer() -> None:
     args = plan_args(plan_cap_cents=100)
     replies: list[Any] = [

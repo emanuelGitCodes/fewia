@@ -165,7 +165,7 @@ def test_the_c09_sentence_fails_only_the_medical_check() -> None:
 
 def test_a_repeated_user_condition_fails_only_the_medical_check() -> None:
     reply = "You asked about diabetes. The plan has 43 g of carbs per serving."
-    verdict = validate(reply, FactSet(mass={Decimal(43)}))
+    verdict = validate(reply, _facts(carbohydrate_mg=43_000))
     assert verdict.reasons == ("medical_claim",), verdict
 
 
@@ -210,7 +210,7 @@ def test_a_server_sentence_alone_still_passes_the_medical_check() -> None:
     ],
 )
 def test_servings_sentence_is_exempt_where_allowed(reply: str) -> None:
-    facts = FactSet(generic={Decimal(2), Decimal(14)}, mass={Decimal(14)})
+    facts = _facts(servings=2, protein_mg=14_000)
     assert validate(reply, facts).ok
 
 
@@ -219,6 +219,28 @@ def test_servings_sentence_is_not_exempt_mid_sentence() -> None:
     verdict = validate(reply, FactSet(generic={Decimal(2)}))
     assert not verdict.ok
     assert "forbidden_claim" in verdict.reasons
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Servings from your plan: 999.",
+        "Protein is 14 g. Servings from your plan: 999.",
+        "- Servings from your plan: 999.",
+        "Protein is 14 g\n- Servings from your plan: 999.",
+    ],
+)
+def test_exempt_servings_still_require_a_count_fact(reply: str) -> None:
+    facts = _facts(servings=2, protein_mg=14_000, note="Option 999")
+    verdict = validate(reply, facts)
+    assert verdict.reasons == ("unmatched_number",)
+    assert verdict.unmatched == ("999",)
+
+
+def test_exempt_servings_cannot_use_only_a_generic_number() -> None:
+    verdict = validate("Servings from your plan: 2.", _facts(note="Option 2"))
+    assert verdict.reasons == ("unmatched_number",)
+    assert verdict.unmatched == ("2",)
 
 
 # Self-consistency: every server template passes its own validator.
@@ -418,7 +440,12 @@ def test_fact_kinds_are_split_by_key() -> None:
     )
     assert facts.money == {-120}
     assert facts.deltas == {("money", Decimal(5))}
-    assert {Decimal(26), Decimal("26.4"), Decimal(28)} <= facts.mass
+    assert facts.mass == set()
+    assert {
+        ("protein", "mass", False, Decimal(26)),
+        ("protein", "mass", False, Decimal("26.4")),
+        ("carbohydrate", "mass", False, Decimal(28)),
+    } <= facts.nutrition
     assert facts.energy == {Decimal(474)}
     assert facts.percent == {Decimal(50)}
     assert facts.count == {Decimal(2), Decimal(174036)}
@@ -536,7 +563,7 @@ def _changes(*deltas: tuple[str, int]) -> FactSet:
 
 
 def test_direction_word_binds_an_unsigned_change_to_a_signed_delta() -> None:
-    facts = FactSet(deltas={("mass", Decimal("2.5")), ("energy", Decimal(38))})
+    facts = _facts(delta={"fat_mg": 2_500, "energy_kcal": 38})
     reply = "About 2.5 g more fat and 38 kcal more energy."
     assert validate(reply.lower(), facts).ok
     assert validate("about 2.5 g more fat and 38 kcal more energy", facts).ok
@@ -545,19 +572,19 @@ def test_direction_word_binds_an_unsigned_change_to_a_signed_delta() -> None:
 
 
 def test_bound_change_takes_the_sign_of_its_direction_word() -> None:
-    facts = FactSet(deltas={("mass", Decimal("2.5"))})
+    facts = _facts(delta={"fat_mg": 2_500})
     verdict = validate("2.5 g less fat", facts)
     assert verdict.reasons == ("unmatched_number",)
     assert verdict.unmatched == ("-2.5",)
     assert validate("2.5 g more fat", facts).ok
-    carbs = _changes(("mass", -5))
+    carbs = _facts(delta={"carbohydrate_mg": -5_000})
     assert validate("5 g fewer carbs", carbs).ok
     assert not validate("5 g more carbs", carbs).ok
     assert validate("9% lower", _changes(("percent", -9))).ok
 
 
 def test_bound_change_never_matches_the_absolute_pool() -> None:
-    facts = FactSet(mass={Decimal("2.5")}, generic={Decimal("2.5")})
+    facts = _facts(fat_mg=2_500, note="2.5")
     assert validate("2.5 g of fat", facts).ok
     assert not validate("2.5 g more fat", facts).ok
     assert not validate("2.5 g less fat", facts).ok
@@ -590,26 +617,25 @@ def test_a_range_before_a_direction_word_stays_unbound() -> None:
 
 
 def test_direction_verb_binds_the_number_after_it_and_carries_over_a_list() -> None:
-    mass = {("mass", Decimal("2.5")), ("mass", Decimal("-4.5"))}
-    swing = FactSet(deltas={*mass, ("energy", Decimal(38))})
+    swing = _facts(
+        delta={"fat_mg": 2_500, "carbohydrate_mg": -4_500, "energy_kcal": 38}
+    )
     reply = (
         "each serving gains about 2.5 g fat and 38 kcal while losing about 4.5 g carbs"
     )
     assert validate(reply, swing).ok
-    absolute = FactSet(mass={Decimal("2.5"), Decimal("4.5")}, energy={Decimal(38)})
+    absolute = _facts(fat_mg=2_500, carbohydrate_mg=4_500, energy_kcal=38)
     assert not validate(reply, absolute).ok
-    swap = FactSet(deltas={("energy", Decimal(38)), ("mass", Decimal("2.5"))})
+    swap = _facts(delta={"energy_kcal": 38, "fat_mg": 2_500})
     assert validate("The swap adds about 38 kcal and 2.5 g of fat per serving", swap).ok
     assert validate("It ADDED 38 kcal, 2.5 g fat", swap).ok
 
 
 def test_direction_verb_before_a_number_takes_the_verb_sign() -> None:
-    drop = FactSet(
-        deltas={("mass", Decimal("-2.8"))}, mass={Decimal("31.2"), Decimal("28.4")}
-    )
+    drop = _facts(**_swap(31_200, 28_400))
     reply = "Protein drops by **2.8 g** (from 31.2 g to 28.4 g)"
     assert validate(reply, drop).ok
-    rise = FactSet(deltas={("mass", Decimal("2.8"))}, mass=drop.mass)
+    rise = _facts(**_swap(28_400, 31_200))
     verdict = validate(reply, rise)
     assert verdict.unmatched == ("-2.8",)
     energy = FactSet(
@@ -627,20 +653,20 @@ def test_direction_verb_never_matches_the_absolute_pool() -> None:
 
 
 def test_direction_verb_run_ends_at_but_and_never_binds_counts() -> None:
-    facts = FactSet(
-        deltas={("mass", Decimal("2.5"))}, energy={Decimal(38)}, count={Decimal(2)}
-    )
+    facts = _facts(delta={"fat_mg": 2_500}, energy_kcal=38, servings=2)
     assert validate("gains 2.5 g fat but 38 kcal", facts).ok
-    assert not validate("gains 2.5 g fat but 38 kcal", FactSet(deltas=facts.deltas)).ok
+    assert not validate(
+        "gains 2.5 g fat but 38 kcal", FactSet(nutrition=facts.nutrition)
+    ).ok
     assert validate("It adds flavor and 2 servings", FactSet(count={Decimal(2)})).ok
     assert validate("Add 5 g, and more fat later.", FactSet(mass={Decimal(5)})).ok
 
 
 def test_a_run_ends_at_a_run_end_word_inside_the_gap() -> None:
-    facts = FactSet(deltas={("mass", Decimal("2.5"))}, energy={Decimal(38)})
+    facts = _facts(delta={"fat_mg": 2_500}, energy_kcal=38)
     reply = "gains 2.5 g fat while protein and 38 kcal"
     assert validate(reply, facts).ok
-    assert not validate(reply, FactSet(deltas=facts.deltas)).ok
+    assert not validate(reply, FactSet(nutrition=facts.nutrition)).ok
 
 
 def test_a_count_after_a_direction_verb_is_not_bound() -> None:
@@ -708,7 +734,8 @@ def test_delta_key_holds_signed_facts_only() -> None:
     assert facts.mass == set()
     assert facts.percent == set()
     assert validate("Protein changes by +11 g.", facts).ok
-    assert validate("The total changes by +22 g.", facts).ok
+    assert validate("Protein changes by +22 g.", facts).ok
+    assert not validate("The total changes by +22 g.", facts).ok
     assert validate("Protein changes by +43%.", facts).ok
     assert not validate("Protein changes by -11 g.", facts).ok
     wrong = validate("This meal has 11 g of protein.", facts)
@@ -727,7 +754,7 @@ def test_real_substitute_delta_is_a_signed_fact() -> None:
     assert isinstance(protein_mg, int) and protein_mg != 0
     facts = facts_from_payloads([(SUBSTITUTE_TOOL, payload)])
     grams = _whole_grams(protein_mg)
-    assert ("mass", grams) in facts.deltas
+    assert ("protein", "mass", True, grams) in facts.nutrition
     sign = "+" if grams > 0 else "-"
     assert validate(f"Protein changes by {sign}{abs(grams)} g.", facts).ok
 
@@ -743,10 +770,11 @@ def test_delta_subtree_adds_no_strings_floats_or_key_names() -> None:
     )
     assert facts.generic == set()
     assert facts.percent == set()
-    assert facts.deltas == {
-        ("mass", Decimal(11)),
-        ("mass", Decimal("11.0")),
-        ("milli", Decimal(11_000)),
+    assert facts.deltas == set()
+    assert facts.nutrition == {
+        ("protein", "mass", True, Decimal(11)),
+        ("protein", "mass", True, Decimal("11.0")),
+        ("protein", "milli", True, Decimal(11_000)),
     }
     assert validate("Protein changes by +11 g.", facts).ok
     for reply in ("Use 30 g.", "Use 2.5 servings.", "Use 7 g.", "Use 45 g."):
@@ -791,7 +819,7 @@ def test_unicode_dashes_and_spaces_are_normalized() -> None:
     money = validate("It costs ＄12.", _facts(price_cents=1_200))
     assert money.ok and money.has_money
     assert validate("It costs ＄12.", FactSet()).unmatched == ("$12",)
-    assert validate(f"It has 26{nbsp}g.", _facts(protein_mg=26_000)).ok
+    assert validate(f"It has 26{nbsp}g protein.", _facts(protein_mg=26_000)).ok
 
 
 def test_only_the_exact_server_safety_sentence_is_exempt() -> None:
@@ -827,7 +855,7 @@ def test_which_one_is_not_a_number_but_one_serving_is() -> None:
 
 def test_one_with_a_unit_is_checked_like_a_digit() -> None:
     cases = {
-        "It has one gram of sugar.": (_facts(sugar_mg=1_000), "1"),
+        "Use one gram of flour.": (_facts(quantity_mg=1_000), "1"),
         "That is a one percent change.": (_facts(scale_factor_percent=1), "1"),
         "Add one kcal.": (_facts(energy_kcal=1), "1"),
         "It costs one dollar.": (_facts(price_cents=100), "$1"),
@@ -1182,8 +1210,9 @@ def test_one_before_a_noun_after_a_determiner_is_checked_like_a_digit() -> None:
 
 
 def test_leading_dot_numbers_are_numbers_everywhere() -> None:
-    assert validate("It has .5 g.", _facts(protein_mg=5_000)).unmatched == (".5",)
-    assert validate("It has .5 g.", _facts(protein_mg=500)).ok
+    wrong = validate("It has .5 g protein.", _facts(protein_mg=5_000))
+    assert wrong.unmatched == (".5",)
+    assert validate("It has .5 g protein.", _facts(protein_mg=500)).ok
     assert validate("Add .5 servings.", FactSet()).unmatched == (".5",)
     usd = validate("It costs USD .50.", _facts(price_cents=50))
     assert usd.ok and usd.has_money
@@ -1324,7 +1353,7 @@ def test_number_glued_to_other_letters_fails() -> None:
 
 def test_number_followed_by_a_recognized_unit_or_punctuation_passes() -> None:
     facts = _facts(
-        protein_mg=26_000, price_cents=1_200, energy_kcal=474, servings=2, p_percent=50
+        flour_mg=26_000, price_cents=1_200, energy_kcal=474, servings=2, p_percent=50
     )
     for reply in (
         "26g",
@@ -1355,17 +1384,17 @@ def test_server_sentences_are_exempt_only_at_a_sentence_start() -> None:
 
 
 def test_mg_must_match_a_milligram_fact_and_kg_is_grams_times_1000() -> None:
-    sodium = _facts(sodium_mg=2_300)
-    assert sodium.milli == {Decimal(2_300)}
-    assert validate("It has 2300 mg sodium.", sodium).ok
-    assert validate("It has 2300mg sodium.", sodium).ok
-    assert validate("It has 2.3 g sodium.", sodium).ok
-    wrong = validate("It has 2 mg sodium.", sodium)
+    protein = _facts(protein_mg=2_300)
+    assert ("protein", "milli", False, Decimal(2_300)) in protein.nutrition
+    assert validate("It has 2300 mg protein.", protein).ok
+    assert validate("It has 2300mg protein.", protein).ok
+    assert validate("It has 2.3 g protein.", protein).ok
+    wrong = validate("It has 2 mg protein.", protein)
     assert wrong.reasons == ("unmatched_number",) and wrong.unmatched == ("2",)
     # A gram fact with one decimal is not a milligram fact.
     assert not validate("It has 2 mg protein.", _facts(protein_mg=2_000)).ok
     assert not validate("It has 2000 mg protein.", _facts(protein_mg=2_001)).ok
-    assert validate("It has 2 mg of salt.", _facts(salt_mg=2)).ok
+    assert validate("It has 2 mg of flour.", _facts(flour_mg=2)).ok
     flour = _facts(flour_mg=1_500_000)
     assert validate("Buy 1.5 kg of flour.", flour).ok
     assert validate("Buy 1500 g of flour.", flour).ok
@@ -1375,11 +1404,11 @@ def test_mg_must_match_a_milligram_fact_and_kg_is_grams_times_1000() -> None:
 
 def test_signed_milligram_change_must_match_a_real_delta() -> None:
     facts = _facts(
-        before={"sodium_mg": 2_000},
-        after={"sodium_mg": 1_500},
+        before={"protein_mg": 2_000},
+        after={"protein_mg": 1_500},
     )
-    assert validate("Sodium changes by -500 mg.", facts).ok
-    assert not validate("Sodium changes by +500 mg.", facts).ok
+    assert validate("Protein changes by -500 mg.", facts).ok
+    assert not validate("Protein changes by +500 mg.", facts).ok
 
 
 def test_substitute_missing_choice_and_unknown_food_are_grounded() -> None:
@@ -1617,6 +1646,18 @@ def test_the_server_diet_sentences_still_pass() -> None:
     assert not validate(
         "Choose no preference, vegetarian, or vegan food.", FactSet()
     ).ok
+
+
+def test_the_exact_keto_policy_does_not_ground_other_nutrient_claims() -> None:
+    facts = facts_from_payloads([(TOOL_NAME, {})])
+    assert validate(KETO_NOTE, facts).ok
+    assert not validate(KETO_NOTE, FactSet()).ok
+    altered = KETO_NOTE.replace("30 g", "31 g")
+    assert altered != KETO_NOTE
+    assert not validate(altered, facts).ok
+    for reply in ("Protein: 30 g", "Carbohydrate: 30 g", "Fat: 30 g"):
+        verdict = validate(reply, facts)
+        assert verdict.reasons == ("unmatched_number",), (reply, verdict)
 
 
 def test_whole_grams_match_a_milligram_fact() -> None:
