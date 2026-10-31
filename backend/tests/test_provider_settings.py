@@ -142,7 +142,6 @@ _GUARDRAIL_ARN = "arn:aws:bedrock:us-east-1:123456789012:guardrail/abc123def456"
 @pytest.mark.parametrize(
     ("guardrail_id", "version"),
     [
-        ("abc123def456", "DRAFT"),
         ("abc123def456", "1"),
         (_GUARDRAIL_ARN, "12"),
     ],
@@ -170,10 +169,10 @@ def test_blank_guardrail_settings_mean_off(
 
 def test_guardrail_settings_strip_whitespace(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_ID", " abc123def456 ")
-    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", " DRAFT ")
+    monkeypatch.setenv("FEWIA_BEDROCK_GUARDRAIL_VERSION", " 3 ")
     settings = load_provider_settings()
     assert settings.bedrock_guardrail_id == "abc123def456"
-    assert settings.bedrock_guardrail_version == "DRAFT"
+    assert settings.bedrock_guardrail_version == "3"
 
 
 @pytest.mark.parametrize(("guardrail_id", "version"), [("abc123def456", ""), ("", "1")])
@@ -201,6 +200,7 @@ def test_one_blank_guardrail_setting_fails_both_or_neither(
         ("abc123def456", "-1"),
         ("abc123def456", "01"),
         ("abc123def456", "draft"),
+        ("abc123def456", "DRAFT"),
         ("abc123def456", "1.0"),
     ],
 )

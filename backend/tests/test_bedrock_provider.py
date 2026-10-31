@@ -472,11 +472,14 @@ def test_guardrail_adds_config_and_wraps_only_the_latest_user_text(
         {
             "role": "user",
             "content": [
-                {"guardContent": {"text": {"text": "ctx"}}},
+                {"text": "ctx"},
                 {"guardContent": {"text": {"text": "hello"}}},
             ],
         },
     ]
+    sent = cast(list[dict[str, object]], request["messages"])
+    context_block = cast(list[object], sent[2]["content"])[0]
+    assert "guardContent" not in json.dumps(context_block)
     assert latest["content"] == [{"text": "ctx"}, {"text": "hello"}]
 
 

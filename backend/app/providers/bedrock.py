@@ -107,11 +107,13 @@ def _guard_latest_user_text(
             continue
         if not any("text" in block for block in content):
             continue
+        # The earlier text block is server-built context; only the last is the user's.
+        last_text = max(i for i, block in enumerate(content) if "text" in block)
         wrapped: list[object] = [
             {"guardContent": {"text": {"text": block["text"]}}}
-            if "text" in block
+            if i == last_text
             else block
-            for block in content
+            for i, block in enumerate(content)
         ]
         guarded = {**message, "content": wrapped}
         return [*messages[:index], guarded, *messages[index + 1 :]]

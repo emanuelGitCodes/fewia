@@ -1699,6 +1699,18 @@ def test_guardrail_intervention_returns_the_fixed_decline(model_prose: bool) -> 
     assert blocked not in json.dumps(result)
 
 
+def test_guardrail_decline_carries_no_proposal_from_an_earlier_round() -> None:
+    proposer = Proposer()
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+        _reply([_text_block("x")], "guardrail_intervened"),
+    ]
+    result, _provider = _propose_run(replies, proposer)
+    assert len(proposer.calls) == 1
+    assert result["answer"] == GUARDRAIL_DECLINE
+    assert result.get("proposal_id") is None
+
+
 def test_guardrail_intervention_without_message_content_still_declines() -> None:
     provider = FakeLLM([_reply([_text_block("   ")], "guardrail_intervened")])
     result = run_chat(provider, "hi", budget(), PERIOD, heartbeat=_noop)

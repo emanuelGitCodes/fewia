@@ -366,6 +366,8 @@ def run_chat(
         usage = sum_usage(usage, raw, first=turns == 1)
         if raw.get("stopReason") == "guardrail_intervened":
             # The blocked message is never read, kept, or shown.
+            # A decline never carries a proposal from an earlier round.
+            proposal_id = None
             reason = why("guardrail")
             return out("clarification", GUARDRAIL_DECLINE, None, "template", reason)
         stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)

@@ -122,6 +122,13 @@ Converse request does not change. Setting only one is a configuration error.
 Then recreate `api` and `worker` as in the credentials steps above. The
 guardrail adds a per-text-unit charge.
 
+Only a numbered version (a positive integer such as `1` or `12`) is accepted.
+`DRAFT` is rejected because its policy can change at any time. The guardrail
+assesses only the user's own message text. The server-built context block and
+earlier messages are sent as plain text. A blocked turn is left out of the
+chat history that later turns see.
+
+
 A policy edit produces a new guardrail version on deploy. The version
 description is `policy <digest>`, a SHA-256 prefix over the topics, filters,
 and blocked messages, so any policy change replaces the version. After the

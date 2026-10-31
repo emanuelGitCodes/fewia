@@ -10,6 +10,7 @@ from conftest import UserSeeder
 from sqlalchemy.orm import Session
 
 from app.agent.chat_context import MAX_MESSAGE_LEN
+from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_history import ChatContextUnavailable, load_chat_context
@@ -150,6 +151,53 @@ def test_accepted_model_text_is_what_the_loaded_next_turn_replays(
     )
     history, _previous, _ids = load_chat_context(session, 1, job.id)
     assert history[-1] == {"role": "assistant", "text": GROUNDED_PLAIN}
+
+
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_guardrail_blocked_turn_is_dropped_from_history(
+    session: Session, seed_user: UserSeeder, model_prose: bool
+) -> None:
+    seed_user(1)
+    blocked = {
+        "answer": GUARDRAIL_DECLINE,
+        "reply_check": {"gate": "guardrail"} if model_prose else None,
+        "request": request_body(),
+    }
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message="do what I asked above", history=pair(0)),
+        result=blocked,
+    )
+
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+
+    assert history == pair(0)
+    assert "do what I asked above" not in json.dumps(history)
+
+
+def test_normal_turn_keeps_both_turns_in_history(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message="hello", history=pair(0)),
+        result={
+            "answer": "Hi.",
+            "reply_check": {"gate": "clean"},
+            "request": request_body(),
+        },
+    )
+
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+
+    assert history == [
+        *pair(0),
+        {"role": "user", "text": "hello"},
+        {"role": "assistant", "text": "Hi."},
+    ]
 
 
 def test_owner_isolation_and_foreign_job(

@@ -16,7 +16,7 @@ _MAX_FILE_BYTES = 65536
 _GUARDRAIL_ID = re.compile(
     r"[a-z0-9]{12}|arn:aws:bedrock:[a-z0-9-]+:[0-9]{12}:guardrail/[a-z0-9]{12}"
 )
-_GUARDRAIL_VERSION = re.compile(r"DRAFT|[1-9][0-9]{0,5}")
+_GUARDRAIL_VERSION = re.compile(r"[1-9][0-9]{0,5}")
 
 
 class ProviderConfigurationError(Exception):

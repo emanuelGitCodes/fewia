@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN, plan_ingredient_ids
+from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_job import ChatHistoryTurn
@@ -106,13 +107,22 @@ def _public(turn: ChatHistoryTurn) -> dict[str, str]:
     return {"role": str(turn.role), "text": turn.text}
 
 
+def _blocked(result: dict[str, object]) -> bool:
+    # A guardrail-blocked turn leaves no trace in later model context.
+    check = result.get("reply_check")
+    gated = isinstance(check, dict) and check.get("gate") == "guardrail"
+    return gated or result.get("answer") == GUARDRAIL_DECLINE
+
+
 def _chat_context(
     payload: dict[str, object], result: dict[str, object]
 ) -> tuple[list[dict[str, str]], dict[str, object] | None]:
     raw_history: object = payload["history"] if "history" in payload else []
     turns = _history(raw_history)
-    user_turn = _turn({"role": _USER, "text": payload.get("message")})
-    turns = [*turns, user_turn, _assistant_turn(result.get("answer"))][-MAX_HISTORY:]
+    if not _blocked(result):
+        user_turn = _turn({"role": _USER, "text": payload.get("message")})
+        turns = [*turns, user_turn, _assistant_turn(result.get("answer"))]
+        turns = turns[-MAX_HISTORY:]
     return [_public(turn) for turn in turns], _previous_request(
         result, payload, chat=True
     )
