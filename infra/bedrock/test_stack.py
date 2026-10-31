@@ -1,3 +1,4 @@
+import copy
 import re
 from pathlib import Path
 from typing import Any
@@ -6,7 +7,7 @@ import pytest
 from aws_cdk import App, Environment
 from aws_cdk.assertions import Template
 
-from stack import BedrockChatStack
+from stack import _TOPICS, BedrockChatStack, policy_digest
 
 _ACCOUNT = "111122223333"
 _OTHER_ACCOUNT = "999999999999"
@@ -312,6 +313,27 @@ def test_one_guardrail_version_of_the_guardrail() -> None:
     versions = template.find_resources("AWS::Bedrock::GuardrailVersion")
     props = next(iter(versions.values()))["Properties"]
     assert props["GuardrailIdentifier"] == {"Fn::GetAtt": [guardrail_id, "GuardrailId"]}
+
+
+def test_guardrail_version_description_carries_policy_digest() -> None:
+    template = Template.from_stack(_stack())
+    versions = template.find_resources("AWS::Bedrock::GuardrailVersion")
+    assert len(versions) == 1
+    props = next(iter(versions.values()))["Properties"]
+    assert props["Description"] == f"policy {policy_digest()}"
+
+
+def test_policy_digest_changes_with_topic_definition() -> None:
+    digest = policy_digest()
+    assert re.fullmatch(r"[0-9a-f]{12}", digest)
+    changed = copy.deepcopy(_TOPICS)
+    name = next(iter(changed))
+    definition, examples = changed[name]
+    changed[name] = (f"{definition} Changed.", examples)
+    other = policy_digest(topics=changed)
+    assert re.fullmatch(r"[0-9a-f]{12}", other)
+    assert other != digest
+    assert policy_digest() == digest
 
 
 def test_apply_guardrail_is_scoped_to_the_guardrail() -> None:
