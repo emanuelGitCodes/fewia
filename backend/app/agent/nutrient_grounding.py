@@ -137,7 +137,7 @@ def _within(points: Sequence[int], left: int, right: int) -> bool:
 
 
 def pair_delta(plain: str, pair: re.Match[str], change: re.Match[str]) -> bool:
-    """Whether `change` is the signed "(+5 g)" that follows the "X to Y" token `pair`."""
+    """Whether `change` is the signed "(+5 g)" after the "X to Y" token `pair`."""
     between = plain[pair.end() : change.start()]
     return bool(pair["n2"] and change["sign"] and _PAIR_DELTA.fullmatch(between))
 
@@ -372,7 +372,7 @@ def claim_basis(plain: str, end: int) -> str | None:
 
 
 def basis_count(plain: str, end: int) -> int | None:
-    """Where the N of a "for N servings" basis phrase starts after a claim, else None."""
+    """Where the N of a "for N servings" phrase after a claim starts, else None."""
     match = _basis_match(plain, end)
     return match.start("n") if match and match["n"] else None
 
