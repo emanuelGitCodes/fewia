@@ -26,9 +26,9 @@ Rules:
 - Evidence records MUST be immutable after creation. Store the source,
   scope, retrieval time, and stable evidence identifier. Do not persist
   raw secrets, access tokens, or unnecessary provider payloads.
-- Plaid data comes from Sandbox spending flows. Instacart data is limited
-  to the development `products_link` handoff. Sample prices MUST be
-  labeled. The database MUST NOT model or enable checkout.
+- Plaid data comes from Sandbox spending flows. Kroger customer tokens
+  are stored encrypted; Kroger product content MUST NOT be stored past its
+  cache header. Sample prices MUST be labeled. The database MUST NOT model or enable checkout.
 - Do not resume health-model training or alter unrelated legacy health
   tables. Keep the schema within the assigned data contract.
 - Verify migrations on an isolated disposable PostgreSQL database. Run a

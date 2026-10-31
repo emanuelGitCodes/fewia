@@ -18,9 +18,9 @@ First-release quality boundary:
   worker, and Floci SQS and S3 integration paths.
 - Keep real Bedrock checks opt-in and separate from deterministic CI tests.
   CI tests MUST use a fake `LLMProvider`.
-- Test Plaid Sandbox and Instacart development provider contracts with
-  deterministic fixtures. Verify the shopping-list handoff stops before
-  checkout or payment.
+- Test Plaid Sandbox and Kroger provider contracts with deterministic
+  synthetic fixtures, never recorded Kroger responses. Verify the cart add
+  stops before checkout or payment.
 - Cover the accepted meal catalog, one to three (1-3) meals, one to eight (1-8)
   servings, budget limits, pantry state, evidence labels, and sample-price
   warnings.

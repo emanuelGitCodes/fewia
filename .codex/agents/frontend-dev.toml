@@ -31,11 +31,11 @@ Rules:
 
 - Use React, TypeScript in strict mode, and Vite. No other framework.
 - The app calls the FastAPI backend only. The frontend MUST NOT call
-  Bedrock, Plaid, Instacart, PostgreSQL, SQS, or S3 directly.
+  Bedrock, Plaid, Kroger, PostgreSQL, SQS, or S3 directly.
 - Provider credentials MUST NOT appear in frontend source, browser storage,
   prompts, logs, or model inputs.
-- Real Bedrock stays behind the backend. Plaid Sandbox and Instacart
-  development data stay behind backend providers.
+- Real Bedrock stays behind the backend. Plaid Sandbox and Kroger data
+  stay behind backend providers.
 - Type API responses from the backend's Pydantic schemas. Keep the
   contract in one `src/api/` module.
 - Preserve evidence labels and warnings returned by the backend.

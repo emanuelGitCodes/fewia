@@ -25,8 +25,8 @@ Rules:
 - Bedrock uses real service endpoints and credentials that are separate
   from Floci credentials. Endpoint overrides MUST be service-specific.
   Do not set a global AWS endpoint that can route Bedrock to Floci.
-- Plaid runs in Sandbox. Instacart uses the development `products_link`
-  handoff. Sample prices MUST be labeled. The project MUST NOT implement
+- Plaid runs in Sandbox. The Kroger client reads prices and adds items to
+  the customer's cart only on a user click. Sample prices MUST be labeled. The project MUST NOT implement
   checkout.
 - Verify AWS state with read-only calls first. Every mutating AWS action
   MUST be confirmed with the user before it runs.

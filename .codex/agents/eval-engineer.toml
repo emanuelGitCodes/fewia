@@ -37,7 +37,7 @@ Metrics:
 - Record P50 and P95 latency, token use, estimated cost, and provider calls
   from each run.
 - Label each result as deterministic fake-provider, local PostgreSQL,
-  Plaid Sandbox, live Instacart development, real Bedrock, or deployed AWS
+  Plaid Sandbox, Kroger Certification, real Bedrock, or deployed AWS
   evidence. One evidence class MUST NOT stand in for another.
 - Every factual claim MUST map to returned evidence. The evaluator MUST NOT
   accept fabricated results or unsupported causal claims.
