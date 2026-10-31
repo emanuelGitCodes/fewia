@@ -22,7 +22,7 @@ possible. Suggestions use labeled sample prices. They do not reserve
 money. `get_budget_summary` returns read-only budget facts. Pending
 cents and stale-spending warnings stay separate.
 FEWIA has no Instacart shopping-link handoff. The Kroger cart is the
-retailer path. Only the frozen `grocery-eval-v1` suite runs the handoff
+retailer path. Only the frozen `grocery-eval-v1.1` suite runs the handoff
 services. See
 [wiki/decisions/0023-retire-instacart-adapter.md](wiki/decisions/0023-retire-instacart-adapter.md).
 The nutrition decision is
@@ -34,7 +34,7 @@ by default. It appears only when the Kroger credential files are set and
 the user picks a store. FEWIA stores no Kroger content. Budget acceptance
 still uses the FEWIA sample-catalog cents, not the Kroger price. Every
 sample-catalog estimate MUST carry this exact notice: "Estimated from the
-demo price catalog. Instacart prices, availability, taxes, delivery fees,
+demo price catalog. Store prices, availability, taxes, delivery fees,
 and tips are not verified." Section 6.7 of
 [docs/design/chat-architecture-proposal.md](docs/design/chat-architecture-proposal.md)
 describes the Kroger overlay.

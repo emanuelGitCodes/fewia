@@ -6,7 +6,7 @@ and S3 evaluation exports. The default spending source is `manual`. The
 monthly limit that the user enters is the whole budget. Fixture spending
 stays optional. Plaid work is last. Decision 0010 adds USDA nutrition.
 Decision 0023 retires the Instacart adapter and keeps the frozen
-`grocery-eval-v1` suite. The Kroger cart is the retailer path. Decision D6 in
+`grocery-eval-v1.1` suite. The Kroger cart is the retailer path. Decision D6 in
 `docs/design/chat-architecture-proposal.md` replaces the Spoonacular cost
 overlay with an optional live Kroger price.
 Decision 0016 keeps sample-catalog cents as the budget figure. Newer
@@ -52,7 +52,7 @@ Never lower servings or omit ingredients to claim budget compliance.
 
 Use versioned sample prices. Always label estimates:
 
-> Estimated from the demo price catalog. Instacart prices, availability,
+> Estimated from the demo price catalog. Store prices, availability,
 > taxes, delivery fees, and tips are not verified.
 
 Missing prices produce incomplete estimates. Validate vegetarian/vegan

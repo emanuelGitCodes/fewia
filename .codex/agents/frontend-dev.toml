@@ -21,8 +21,8 @@ First-release boundary:
 - Support ten versioned meals, one to three (1-3) meals per request, and one
   to eight (1-8) servings per meal. Show a clear validation message outside
   these limits.
-- Display Instacart development links. Show this exact notice with every
-  estimate: "Estimated from the demo price catalog. Instacart prices,
+- Display the Kroger connect and cart states. Show this exact notice with every
+  estimate: "Estimated from the demo price catalog. Store prices,
   availability, taxes, delivery fees, and tips are not verified."
 - Make the chat and status updates keyboard accessible. Provide labels,
   focus states, readable contrast, and screen-reader status text.

@@ -26,7 +26,7 @@ Sample catalog prices are the budget figure under
 [decision 0016](../wiki/decisions/0016-spoonacular-read-time-overlay.md).
 Every estimate MUST show this notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability,
+> Estimated from the demo price catalog. Store prices, availability,
 > taxes, delivery fees, and tips are not verified.
 
 The product has no Instacart handoff under

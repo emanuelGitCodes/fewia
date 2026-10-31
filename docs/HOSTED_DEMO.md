@@ -31,7 +31,7 @@ Application tools MUST use USD integer cents for budget inputs and arithmetic.
 The entered monthly limit remains the whole budget. These limits do not reserve money.
 Every grocery estimate MUST show this exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 Plaid Sandbox remains paused. The product has no Instacart handoff under
 [decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md).

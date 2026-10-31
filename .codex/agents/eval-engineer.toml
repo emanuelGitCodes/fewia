@@ -26,7 +26,7 @@ First-release evaluation boundary:
   worker, Floci SQS and S3 integration, real Bedrock evidence, Plaid
   Sandbox evidence, and Instacart development links as separate classes.
 - Show this exact notice with every estimate: "Estimated from the demo price
-  catalog. Instacart prices, availability, taxes, delivery fees, and tips are
+  catalog. Store prices, availability, taxes, delivery fees, and tips are
   not verified." Do not score estimates as verified checkout prices.
 
 Metrics:

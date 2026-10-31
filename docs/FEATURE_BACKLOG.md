@@ -312,7 +312,7 @@ The owner MUST confirm every mutating AWS step first, including users and invita
 No AWS resources, users, or invitations have been created.
 Every grocery estimate MUST show this exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 ## Part 4. Items that need no writer
 

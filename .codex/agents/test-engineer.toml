@@ -25,7 +25,7 @@ First-release quality boundary:
   servings, budget limits, pantry state, evidence labels, and sample-price
   warnings.
 - Check this exact estimate notice: "Estimated from the demo price catalog.
-  Instacart prices, availability, taxes, delivery fees, and tips are not
+  Store prices, availability, taxes, delivery fees, and tips are not
   verified."
 - Use browser tests to check chat progress polling, budget and plan states,
   link behavior, keyboard access, and screen-reader status text.

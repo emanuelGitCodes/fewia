@@ -18,7 +18,7 @@ First-release documentation boundary:
   worker, Floci SQS and S3 paths, real Bedrock, Plaid Sandbox, and
   Instacart development shopping links.
 - Show this exact notice with every estimate: "Estimated from the demo price
-  catalog. Instacart prices, availability, taxes, delivery fees, and tips are
+  catalog. Store prices, availability, taxes, delivery fees, and tips are
   not verified."
 - Document the accepted meal catalog, one to three (1-3) meals per request, and
   one to eight (1-8) servings per meal.
