@@ -4924,3 +4924,21 @@ Astra approved that revision. Twenty behavior probes and 93 fixture turns passed
 The publication summary credits OpenAI Codex with the repository's existing
 `Co-authored-by` trailer. GitHub resolves that identity to `codex`.
 The summary changes only this log. Hosted CI remains unverified until publication.
+
+## 2026-11-01: Repair round 1 and 2 on PR 469, and the first live conversation-eval-v1.3 batch
+
+Six read-only checks and the review found defects at `9460929c`. The review returned REQUEST_CHANGES.
+Repair round 1 adds a search identity rule: a search with the cursor's filters runs the cursor, and any other search starts at offset 0.
+It also stops a saved cursor from marking a turn as a meal-type turn. A clarification without choices shows no cards.
+The conversation suite moves to `conversation-eval-v1.3`, with literal `total_matches` golds, pinned reference pages, manifest identity, and a per-scenario pass rate.
+Repair round 2 treats a search that drops words as a new search.
+Writers were `claude-sonnet-5-5` through `dev_supervisor`. The review model was `claude-opus-5-5`.
+Head `b5032245` passed the gates (12,550 backend tests, frontend lint, tests, and build, 677 lines) and got APPROVE.
+
+The owner renewed the Bedrock session and approved a live batch.
+The batch ran 93 of 93 turns on Nova 2 Lite in `us-east-1` at `b5032245`. Artifacts are in `eval/results/artifacts/conversation-20261101/`.
+Tools passed 79 of 93, outcome 91 of 93, and gold 67 of 93. The scenario pass rate is 35 of 54 repeats.
+The meal-search scenarios C13 to C18 passed tools and outcome 27 of 27 and gold 23 of 27. C16 passed every repeat.
+C17 failed every repeat: Nova sent "dairy" as an exclusion once and switched to `diet: "vegan"` twice, so no search returned `unsupported_facet`.
+Grounding passed 9 of 39 prose attempts with 91 unsupported numbers, in the range of the earlier batches.
+Latency was 3,145 ms at p50 and 8,227 ms at p95. Cost was USD 0.004677 per turn.
