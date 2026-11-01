@@ -87,7 +87,9 @@ export function ideasFromJob(job: ChatJob, plannedIds: string[]): ChatIdea[] {
     recipe_id: choice.recipe_id,
     servings: INITIAL_SERVINGS,
   }));
-  const meals = choices ?? result.request?.meals ?? [];
+  // A clarification without choices means the planner could not price its meals.
+  const fallback = result.status === "clarification" ? [] : (result.request?.meals ?? []);
+  const meals = choices ?? fallback;
   const ideas: ChatIdea[] = [];
   for (const meal of meals) {
     if (ideas.length >= MAX_IDEAS) {

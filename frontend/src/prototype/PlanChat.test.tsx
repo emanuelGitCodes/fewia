@@ -50,17 +50,14 @@ function chatJob(
     answer,
     plan: null,
     budget: null,
-    request:
-      status === "clarification"
-        ? null
-        : {
-            meals,
-            budget_period: "2026-09-01",
-            plan_cap_cents: null,
-            pantry_ingredients: [],
-            ingredient_exclusions: [],
-            diet: "omnivore",
-          },
+    request: {
+      meals,
+      budget_period: "2026-09-01",
+      plan_cap_cents: null,
+      pantry_ingredients: [],
+      ingredient_exclusions: [],
+      diet: "omnivore",
+    },
     meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
@@ -548,6 +545,18 @@ describe("PlanChat", () => {
     expect(screen.getByText("Which meals should I plan?")).toBeTruthy();
     expect(screen.queryByRole("article")).toBeNull();
     expect(screen.queryByText(SAMPLE_ESTIMATE_NOTICE)).toBeNull();
+  });
+
+  it("shows no idea cards for a clarification with request meals and no choices", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "clarification", "Which meals?", [
+        { recipe_id: "chickpea_curry", servings: 2 },
+      ]);
+    });
+    mount();
+    await submitText("Plan dinner");
+    expect(screen.getByText("Which meals?")).toBeTruthy();
+    expect(screen.queryByRole("article")).toBeNull();
   });
 
   it("shows the failure line and Retry for a failed request, and retries the same body", async () => {

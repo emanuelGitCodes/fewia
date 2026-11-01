@@ -18,17 +18,14 @@ function jobWith(
     answer: "ok",
     plan: null,
     budget: null,
-    request:
-      status === "clarification"
-        ? null
-        : {
-            meals,
-            budget_period: "2026-09-01",
-            plan_cap_cents: null,
-            pantry_ingredients: [],
-            ingredient_exclusions: [],
-            diet: "omnivore",
-          },
+    request: {
+      meals,
+      budget_period: "2026-09-01",
+      plan_cap_cents: null,
+      pantry_ingredients: [],
+      ingredient_exclusions: [],
+      diet: "omnivore",
+    },
     meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
@@ -192,6 +189,7 @@ describe("ideasFromJob", () => {
   });
 
   it("gives no ideas for clarification, limit, incomplete, or a missing result", () => {
+    // Each job carries non-empty request meals; only the status should suppress ideas.
     const meals = [{ recipe_id: "chickpea_curry", servings: 2 }];
     expect(ideasFromJob(jobWith("clarification", meals), [])).toEqual([]);
     expect(ideasFromJob(jobWith("limit", meals), [])).toEqual([]);
