@@ -16,6 +16,7 @@ from app.agent.chat_context import (
     MAX_MESSAGE_LEN,
     build_messages,
     is_modified_search_continuation,
+    is_new_search_request,
     is_search_continuation,
     plan_ingredient_ids,
     read_usage,
@@ -233,6 +234,44 @@ def test_continuation_modifiers_use_the_user_body(
         is_modified_search_continuation(f"{prefix if prefixed else ''}{message}")
         is modified
     )
+
+
+@pytest.mark.parametrize(
+    ("message", "new_search"),
+    [
+        ("Find vegan meals", True),
+        ("vegan", True),
+        ("chicken", True),
+        ("omnivore", True),
+        ("gluten free", True),
+        ("egg", True),
+        ("beans", True),
+        ("lentils", True),
+        ("chickpeas", True),
+        ("Find high protein vegetarian meals.", True),
+        ("gluten free ingredients vegetarian", True),
+        ("show me chicken options, please!", True),
+        ("Please, give me plant-based recipes.", True),
+        ("Find omnivore ideas", True),
+        ("  SHOW\tvegan meals! Please.  ", True),
+        ("How much protein is in my meal?", False),
+        ("Is my current meal vegan?", False),
+        ("what is in chicken tacos?", False),
+        ("what is my remaining budget?", False),
+        ("thanks", False),
+        ("more", False),
+        ("more, but vegan", False),
+        ("Find unsupported meals", False),
+        ("Find vegan meals for my plan", False),
+        ("My current plan: vegan", False),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_explicit_type_requests_use_the_user_body(
+    message: str, new_search: bool, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert is_new_search_request(f"{prefix if prefixed else ''}{message}") is new_search
 
 
 def test_checked_search_context_keeps_every_facet_and_offset() -> None:

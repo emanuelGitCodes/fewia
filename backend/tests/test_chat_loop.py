@@ -3629,7 +3629,16 @@ def test_more_records_the_checked_arguments_in_tool_history() -> None:
 
 
 @pytest.mark.parametrize(
-    "intervening", ["budget", "read", "no_tool", "protein_read", "protein_no_tool"]
+    "intervening",
+    [
+        "budget",
+        "read",
+        "no_tool",
+        "protein_read",
+        "protein_no_tool",
+        "vegan_read",
+        "vegan_no_tool",
+    ],
 )
 @pytest.mark.parametrize("prefixed", [False, True])
 def test_intervening_turn_keeps_the_same_next_page(
@@ -3641,7 +3650,7 @@ def test_intervening_turn_keeps_the_same_next_page(
     if intervening == "budget":
         replies.insert(0, _reply([_budget_block("b1")], "tool_use"))
         message = "what is my remaining budget?"
-    elif intervening in {"read", "protein_read"}:
+    elif intervening in {"read", "protein_read", "vegan_read"}:
         replies.insert(
             0,
             _reply(
@@ -3656,6 +3665,8 @@ def test_intervening_turn_keeps_the_same_next_page(
         message = "what is in bean tacos?"
     if intervening in {"protein_read", "protein_no_tool"}:
         message = "how much protein is in my meal"
+    elif intervening in {"vegan_read", "vegan_no_tool"}:
+        message = "Is my current meal vegan?"
     prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
     result, _ = _run(
         replies,
@@ -3670,6 +3681,72 @@ def test_intervening_turn_keeps_the_same_next_page(
         previous_search=cast(dict[str, object], result["next_search"]),
     )
     assert _choice_ids(more) == execute_catalog_search(cursor)["recipe_ids"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Find vegan meals",
+        "vegan",
+        "chicken",
+        "gluten free",
+        "omnivore",
+        "Find high protein vegetarian meals",
+        "Please show me plant-based recipes, please!",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_no_tool_new_type_request_clears_the_cursor_before_another_more(
+    message: str, prefixed: bool, model_prose: bool
+) -> None:
+    first_page = execute_catalog_search({"query": "chicken"})
+    assert first_page["status"] == "ok"
+    assert first_page["total_matches"] == 12
+    cursor = next_search_arguments(first_page)
+    assert cursor is not None and cursor["offset"] == 3
+    original = copy.deepcopy(cursor)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    provider = FakeLLM(
+        [_reply([_text_block("try chicken tacos or vegetable pasta")], "end_turn")]
+    )
+    changed = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}{message}",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert changed["status"] == "clarification"
+    assert changed["answer"] == TYPE_CLARIFICATION
+    assert changed["reply_source"] == "template"
+    assert changed["tool_trace"] == []
+    assert "choices" not in changed
+    assert "next_search" not in changed
+    assert cursor == original
+    assert len(provider.requests) == 1
+    more_provider = FakeLLM([_search_reply(cursor)])
+    observed: list[list[dict[str, object]]] = []
+    more = run_chat(
+        more_provider,
+        f"{prefix if prefixed else ''}more",
+        budget(),
+        PERIOD,
+        previous_search=cast(dict[str, object] | None, changed.get("next_search")),
+        model_prose=model_prose,
+        observe_terminal_tool_results=observed.append,
+    )
+    assert more["status"] == "clarification"
+    assert more["answer"] == TYPE_CLARIFICATION
+    assert more["reply_source"] == "template"
+    assert more["tool_trace"] == []
+    assert more["model_turns"] == 1
+    assert more["planner_revisions"] == 0
+    assert "choices" not in more
+    assert "next_search" not in more
+    assert observed == []
+    assert len(more_provider.requests) == 1
 
 
 @pytest.mark.parametrize("query", ["gluten free", "chicken"])
@@ -3767,6 +3844,11 @@ def test_repeated_more_visits_each_page_once_and_exhausts_the_cursor() -> None:
 @pytest.mark.parametrize(
     ("message", "arguments"),
     [
+        ("Find vegan meals", {"query": "vegan"}),
+        (
+            "Find high protein vegetarian meals",
+            {"query": "high protein", "diet": "vegetarian"},
+        ),
         ("chicken meals instead", {"query": "chicken"}),
         ("more protein", {"query": "high protein"}),
         ("more, but vegan", {"query": "meals", "diet": "vegan"}),

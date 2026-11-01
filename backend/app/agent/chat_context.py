@@ -12,6 +12,7 @@ from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
+from app.domain.meal_tags import SEARCH_TERMS, TAG_ORDER, resolve_meal_term
 
 MAX_MESSAGE_LEN = 4000
 MAX_HISTORY = 8
@@ -36,6 +37,16 @@ _CONTINUATION = re.compile(
 _MODIFIED_CONTINUATION = re.compile(
     rf"{_CONTINUATION.pattern}(?:,\s*|\s+)(?:but|only|instead|without|exclude)\b"
 )
+_NEW_SEARCH_REQUEST = re.compile(
+    r"(?:please,? )?(?:(?:find|show|give)(?: me)? )?"
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
+_MAX_MEAL_TERM_WORDS = max(
+    len(term.replace("_", " ").replace("-", " ").split())
+    for term in (*SEARCH_TERMS, *TAG_ORDER)
+)
 
 
 def _search_text(message: str) -> str:
@@ -53,6 +64,21 @@ def is_search_continuation(message: str) -> bool:
 
 def is_modified_search_continuation(message: str) -> bool:
     return _MODIFIED_CONTINUATION.match(_search_text(message)) is not None
+
+
+def is_new_search_request(message: str) -> bool:
+    request = _NEW_SEARCH_REQUEST.fullmatch(_search_text(message))
+    if request is None:
+        return False
+    words = request.group(1).split()
+    while words:
+        for size in range(min(len(words), _MAX_MEAL_TERM_WORDS), 0, -1):
+            if resolve_meal_term(" ".join(words[:size])) is not None:
+                words = words[size:]
+                break
+        else:
+            return False
+    return True
 
 
 def validated_previous_search(

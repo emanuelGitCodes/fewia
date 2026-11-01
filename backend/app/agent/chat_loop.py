@@ -24,6 +24,7 @@ from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import (
     build_messages,
     is_modified_search_continuation,
+    is_new_search_request,
     is_search_continuation,
     sum_usage,
     validated_previous_search,
@@ -255,10 +256,12 @@ def run_chat(
     saved_search = validated_previous_search(previous_search)
     continuation = is_search_continuation(message)
     modified_continuation = is_modified_search_continuation(message)
-    retained_search = None if modified_continuation else saved_search
+    new_search = is_new_search_request(message)
+    retained_search = None if modified_continuation or new_search else saved_search
     meal_type = (
         continuation
         or modified_continuation
+        or new_search
         or names_meal_type(message)
         or saved_search is not None
     )
