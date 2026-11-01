@@ -5010,3 +5010,34 @@ tokens, 119,200 output tokens, and 2,106.968 summed CLI seconds.
 Coverage is partial: one interrupted run lacks token counts. Native coordination
 counts are unavailable. These totals are not complete cost or wall-clock time.
 The loop ledger records the later review separately. No new paid provider calls ran.
+
+## 2026-11-01: Preserve normalized named-facet restarts on PR 469
+
+Astra returned REQUEST_CHANGES on `4abf5cd2`. The coordinator reproduced both findings.
+A named gluten-free restart dropped vegetarian, exclusion, threshold, cap and page-size restrictions.
+Its no-tool path cleared the pending cursor. Query normalization had moved facets into tags.
+Sol at `xhigh` repaired the bounded facet comparison through the supervisor.
+Native commit `406b162d` passed 1,190 focused tests and isolated backend gates:
+13,109 passed, one skipped, one warning. Ruff and strict mypy passed. Gitleaks passed.
+Integration commit `9c7eecb3` carries the repair with Codex attribution.
+Tests retain true new-facet and new-word replacement, aliases, prefixes and unknown-query controls.
+
+## 2026-11-01: Reject negated dairy preparation claims on PR 469
+
+The public prose path accepted "This meal is not made with dairy." after a budget tool.
+Sol at `xhigh` added a narrow negated preparation rule through the supervisor.
+Native commit `4a69237e` passed 677 focused tests and isolated backend gates:
+13,073 passed, one skipped, one warning. Ruff and strict mypy passed. Gitleaks passed.
+Integration commit `71528f4c` carries the repair with Codex attribution.
+Positive dairy descriptions, separate garlic negation and partial not-all statements remain allowed.
+The initial lease permission failure occurred before the writer started; an approved retry succeeded.
+
+All 76 expanded integration probes pass. The same pack fails 50 cases on `6cd6554e`
+and 31 cases on the first reviewed repair head, `4abf5cd2`.
+These two repair writers add 1,588,861 input tokens, 23,772 output tokens and 505.56 CLI seconds.
+Recorded writer totals now reach 9,114,807 input, 142,972 output and 2,612.528 CLI seconds.
+Astra review round one used 424,461 input, 3,558 output and 130.13 CLI seconds at `high`.
+The review runner fixes this effort; the async advisors and writers used `xhigh`.
+Writer coverage remains partial. These totals exclude native coordination and are not cost or wall-clock totals.
+The user approved the private Astra review transfer. The loop ledger records the next verdict separately.
+No new live Nova calls ran. Publication is authorized; the PR MUST remain unmerged.

@@ -11,9 +11,9 @@ The first repairs start at `fddb358c`. The latest follow-up starts at `6cd6554e`
 | F4: omnivore regression | Explicit omnivore queries search the unrestricted catalog while preserving explicit filters. | Both query forms, filtered second page, and all forty recipes without repeats. |
 | F5: wrong cards | Checked choices supply cards for clarification, planned, and needs-revision replies. | Model and component tests; desktop and mobile browser checks. |
 | F6: false-positive gold | C18 requires the gluten ingredient constraint. The runner carries checked search cursors. | Both wrong-query counterexamples, repeated/skipped page checks, and cursor propagation. |
-| R1: ignored restart | Explicit restart reuses the active filters and limit at offset zero. A no-tool reply retains that first page as pending. | Restart phrases, omitted model filters, wrong offsets, prefixes, no-tool restart and more. |
+| R1: ignored restart | Explicit restart reuses the active filters and limit at offset zero. Named saved facets preserve those restrictions after cursor normalization. A no-tool reply retains that first page as pending. | Restart phrases, named facets and aliases, omitted model filters, wrong offsets, prefixes, no-tool restart and more. |
 | R2: repeated first page | Search identity treats equivalent conjunctive words as a set. Unsupported and unknown-only searches cannot reuse a cursor. | Reordered, duplicate and stemmed words; filter distinctions; unknown query after omnivore. |
-| R3: dairy prose aliases | Recognized dairy-absence claims use authoritative fallback. Exact server caveats and benign ingredient text remain allowed. | Alias and formatting cases, public budget-tool replies, milk-free and milk-freezing distinctions. |
+| R3: dairy prose aliases | Recognized dairy-absence claims use authoritative fallback. Exact server caveats and benign ingredient text remain allowed. | Aliases, negated preparation, formatting, exact public budget fallback, partial quantifiers, and milk-free versus milk-freezing distinctions. |
 
 The conversation corpus is `conversation-eval-v1.4`, with nineteen scenarios and thirty-two turns.
 It holds literal `total_matches` golds, pinned reference pages, and manifest identity fields.
