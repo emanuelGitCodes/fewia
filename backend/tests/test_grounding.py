@@ -987,6 +987,12 @@ def test_forbidden_claims_fail(reply: str) -> None:
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
 
 
+def test_dairy_free_is_rejected_with_letter_spacing() -> None:
+    verdict = validate("This meal is d-a-i-r-y-f-r-e-e.", FactSet())
+    assert not verdict.ok
+    assert "forbidden_claim" in verdict.reasons
+
+
 @pytest.mark.parametrize(
     ("reply", "reason"),
     [

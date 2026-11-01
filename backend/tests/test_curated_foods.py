@@ -122,6 +122,12 @@ def test_curated_ingredients_are_unpriced_grams_with_diet_flags() -> None:
         assert ingredient.is_pantry is False
 
 
+def test_every_curated_food_fails_closed_on_dairy() -> None:
+    assert CURATED_INGREDIENTS
+    for ingredient in CURATED_INGREDIENTS.values():
+        assert ingredient.contains_dairy is True
+
+
 def test_curated_ids_do_not_collide_with_the_catalog() -> None:
     assert not set(CURATED_INGREDIENTS) & set(INGREDIENTS)
     assert not set(CURATED_NUTRITION) & set(NUTRITION)

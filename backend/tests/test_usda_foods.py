@@ -294,6 +294,12 @@ def test_each_row_becomes_an_unpriced_gram_ingredient_with_facts() -> None:
 
 
 @pytest.mark.parametrize("category", _CATEGORIES)
+def test_every_built_food_fails_closed_on_dairy(category: int) -> None:
+    [food] = parse_bundle(bundle([[100, "Tofu, fried", category, 1, 2, 3, 4, 5]]))
+    assert food.ingredient.contains_dairy is True
+
+
+@pytest.mark.parametrize("category", _CATEGORIES)
 def test_diet_flags_follow_the_category(category: int) -> None:
     [food] = parse_bundle(bundle([row(1, "Thing, x", category)]))
     assert food.ingredient.vegan is (category in _VEGAN)
