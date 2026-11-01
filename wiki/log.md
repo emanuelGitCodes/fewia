@@ -4942,3 +4942,19 @@ The meal-search scenarios C13 to C18 passed tools and outcome 27 of 27 and gold 
 C17 failed every repeat: Nova sent "dairy" as an exclusion once and switched to `diet: "vegan"` twice, so no search returned `unsupported_facet`.
 Grounding passed 9 of 39 prose attempts with 91 unsupported numbers, in the range of the earlier batches.
 Latency was 3,145 ms at p50 and 8,227 ms at p95. Cost was USD 0.004677 per turn.
+
+## 2026-11-01: Add the dairy-free ingredients type and run conversation-eval-v1.4 live
+
+The owner decided that dairy-free MUST NOT map to vegan, because a dairy-free person can eat meat or fish.
+Item 10 adds `dairy_free_ingredients` from a fail-closed allowlist of the 22 catalog ingredients. Swap foods count as dairy.
+The owner raised the prompt and tools budget from 16,500 to 17,000 characters for this item.
+Head `f21f8980` passed the gates (12,577 backend tests, 834 lines) and got APPROVE from `claude-opus-5-5`.
+
+The owner renewed the Bedrock session and approved a live batch of `conversation-eval-v1.4`.
+The batch ran 96 of 96 turns on Nova 2 Lite in `us-east-1` at `f21f8980`. Artifacts are in `eval/results/artifacts/conversation-20261101b/`.
+Tools passed 86 of 96, outcome 93 of 96, and gold 78 of 96. The scenario pass rate is 40 of 57 repeats.
+The meal-search scenarios C13 to C19 passed tools and outcome 30 of 30 and gold 29 of 30.
+C17 (paleo) returned `unsupported_facet` in every repeat. C19 (dairy-free) returned all 40 meals, chicken first, in every repeat.
+C14 (keto) failed one repeat with `no_match`, as in the v1.3 batch.
+Grounding passed 13 of 43 prose attempts with 77 unsupported numbers.
+Latency was 3,151 ms at p50 and 11,425 ms at p95. Cost was USD 0.004760 per turn.
