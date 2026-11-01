@@ -1048,6 +1048,37 @@ def test_dairy_absence_claims_fail(reply: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "reply",
+    [
+        "This meal is _milk-free_.",
+        "This meal is __milk-free__.",
+        "_milk-free_.",
+        "__milk-free__.",
+        "This meal is _milk_ _free_.",
+        "This meal is _milk_-_free_.",
+        "This meal is __milk__-__free__.",
+        "This meal is _m_ _i_ _l_ _k_ _f_ _r_ _e_ _e_.",
+        "This meal is __m__ __i__ __l__ __k__ __f__ __r__ __e__ __e__.",
+        "This meal is milk_free.",
+        "milk_free.",
+        "This meal is m_i_l_k_f_r_e_e.",
+        "This meal is m.i.l.k.f.r.e.e.",
+        "This meal is m i l k f r e e.",
+        "This meal is **milk-free**.",
+        "This meal is (milk-free).",
+        "This meal is [milk-free]!",
+        'This meal is "milk-free".',
+        "This meal is milk/free.",
+    ],
+)
+def test_formatted_milk_free_claims_fail(reply: str) -> None:
+    verdict = validate(reply, FactSet())
+    assert not verdict.ok
+    assert verdict.reasons == ("forbidden_claim",)
+    assert verdict.unmatched == ()
+
+
+@pytest.mark.parametrize(
     ("subject", "negation"),
     [
         ("This meal", "does not"),
@@ -1228,6 +1259,23 @@ def test_dairy_presence_and_ingredient_text_remain_permitted(reply: str) -> None
 
 def test_milk_freezes_is_not_mistaken_for_a_milk_free_claim() -> None:
     assert validate("Milk freezes when chilled.", FactSet()).ok
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "_Milk_ _freezes_ when chilled.",
+        "__Milk__ __freezes__ when chilled.",
+        "**Milk** **freezes** when chilled.",
+        "Milk_freezes when chilled.",
+        "Milk/freezes when chilled.",
+        "_M_ _i_ _l_ _k_ freezes when chilled.",
+        "M.i.l.k freezes when chilled.",
+        "M i l k freezes when chilled.",
+    ],
+)
+def test_formatted_milk_freezing_text_remains_permitted(reply: str) -> None:
+    assert validate(reply, FactSet()).ok, reply
 
 
 @pytest.mark.parametrize(

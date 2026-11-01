@@ -254,7 +254,8 @@ _FORBIDDEN = re.compile(
     r"|yourplanisnow|iaddedit|iremovedit"
 )
 _MILK_FREE = re.compile(
-    r"\bm[\W_]*i[\W_]*l[\W_]*k[\W_]*f[\W_]*r[\W_]*e[\W_]*e\b",
+    r"(?<![a-z0-9])m[\W_]*i[\W_]*l[\W_]*k[\W_]*"
+    r"f[\W_]*r[\W_]*e[\W_]*e(?![a-z0-9])",
     re.IGNORECASE,
 )
 _DAIRY_ABSENCE = re.compile(
