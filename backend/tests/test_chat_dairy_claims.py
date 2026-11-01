@@ -80,6 +80,14 @@ def test_budget_then_dairy_claim_returns_the_template_answer() -> None:
         "This meal is free of all dairy.",
         "Chicken tacos are without any dairy.",
         "Chicken tacos are without dairy.",
+        "This meal is not made with dairy.",
+        "Chicken tacos are not made from dairy.",
+        "This meal isn't prepared with any dairy.",
+        "Chicken tacos aren't cooked from any dairy.",
+        "This meal isn’t cooked with dairy.",
+        "Chicken tacos aren’t prepared from dairy.",
+        "This meal **is not made with dairy**.",
+        "Chicken tacos ARE-NOT-PREPARED-FROM-ANY-DAIRY.",
     ):
         provider = FakeProvider([_tool_reply(), _text_reply(claim)])
 

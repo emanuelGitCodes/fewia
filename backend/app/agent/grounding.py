@@ -248,6 +248,8 @@ _FORBIDDEN = re.compile(
     r"|(?:do(?:es)?(?:not|nt)(?:contain|include|have|use)"
     r"|(?:has|have)(?:not|nt)(?:got)?)(?:any)?dairy"
     r"|free(?:of|from)(?:any|all)?dairy|without(?:any)?dairy"
+    r"|(?:not|(?:is|are)nt)(?:made|prepared|cooked)"
+    r"(?:with|from)(?:any)?dairy"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
