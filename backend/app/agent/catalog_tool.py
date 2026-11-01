@@ -416,6 +416,9 @@ def search_identity(arguments: object) -> dict[str, object] | None:
     # These two statuses drop part of the request, so they name no search.
     if found["status"] in ("unknown_exclusion", "unsupported_facet"):
         return None
+    # Dropped words are never in a stored cursor, so this is a new search.
+    if found["dropped"]:
+        return None
     # A diet is also a tag, so the diet key names the same search twice.
     return {k: v for k, v in _search_filters(found).items() if k != "diet"}
 

@@ -4236,6 +4236,41 @@ def test_more_of_the_saved_type_runs_the_saved_page() -> None:
     assert _choice_ids(result) == execute_catalog_search(veg3)["recipe_ids"]
 
 
+def test_a_same_type_more_keeps_the_cursor_when_the_model_changes_filters() -> None:
+    veg3 = _page_cursor("vegetarian")
+    arguments = {"query": "vegetarian", "exclude": ["eggs"], "offset": 0}
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload=arguments),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies, message="more vegetarian", previous_search=veg3)
+    assert _choice_ids(result) == execute_catalog_search(veg3)["recipe_ids"]
+    assert _sent_calls(provider)[CATALOG_TOOL_NAME] == veg3
+
+
+def test_a_search_with_dropped_words_is_never_a_repeat() -> None:
+    gluten_free: dict[str, object] = {"query": "gluten free", "limit": 3, "offset": 3}
+    assert page_arguments(gluten_free) == gluten_free
+    expected = execute_catalog_search({"query": "gluten-free pasta"})
+    assert expected["dropped"] == ["pasta"]
+    result, _ = _run(
+        [_search_reply({"query": "gluten-free pasta"})],
+        message="Gluten-free pasta, please.",
+        previous_search=gluten_free,
+    )
+    shown = _choice_ids(result)
+    assert shown
+    assert shown == cast(list[str], expected["recipe_ids"])[: len(shown)]
+    answer = cast(str, result["answer"])
+    assert "No meal with those types also matched: pasta." in answer
+
+
 def test_a_forged_previous_search_stops_the_run_before_the_model() -> None:
     forged: dict[str, object] = {"query": "meals", "tags": ["no_such_tag"]}
     provider = FakeLLM([])
