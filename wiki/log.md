@@ -4958,3 +4958,55 @@ C17 (paleo) returned `unsupported_facet` in every repeat. C19 (dairy-free) retur
 C14 (keto) failed one repeat with `no_match`, as in the v1.3 batch.
 Grounding passed 13 of 43 prose attempts with 77 unsupported numbers.
 Latency was 3,151 ms at p50 and 11,425 ms at p95. Cost was USD 0.004760 per turn.
+
+## 2026-11-01: Honor explicit search restarts on PR 469
+
+The owner authorized the three follow-up repairs, Codex attribution, publication,
+and hosted CI verification. The PR MUST remain unmerged.
+Sol at `xhigh` wrote the restart classifier and runtime changes through the supervisor.
+Restart uses the active search filters and limit at offset zero. A no-tool reply
+keeps that first page pending. A supported new type still starts its own search.
+Native commit `281ed233` passed 923 focused tests and isolated backend gates:
+12,705 passed, one skipped, one warning. Gitleaks passed.
+Integration commit `b15ab407` carries the same repair and Codex attribution.
+The root probes cover wrong offsets, omitted restrictions, frontend prefixes,
+and no-tool restart followed by more.
+
+## 2026-11-01: Canonicalize equivalent search identities on PR 469
+
+Terra at `xhigh` wrote the identity changes through the supervisor and its external model registry.
+Conjunctive query words share an identity across ordering, duplicates, and stems.
+Real filter differences remain. Unknown-only searches cannot reuse an unrestricted cursor.
+The first candidate, `65b1f3fa`, passed its gates but collided with an unknown-only query.
+The root probe caught that regression. A same-writer repair produced `3345a802`.
+That commit passed 156 focused tests and isolated backend gates:
+12,586 passed, one skipped, one warning. Gitleaks passed.
+Integration commit `a542d4db` combines the two native commits with Codex attribution.
+The combined root probes preserve both explicit restart and normal continuation.
+
+## 2026-11-01: Complete the PR 469 restart and dairy follow-ups
+
+The root probe found that the restart classifier missed supported rice/onion queries.
+The coordinator added the checked identity dependency to the restart worktree.
+The reversed-word runtime assertions remain. Newly incorrect celiac rejection
+fixtures now use verified unsupported paleo. The catalog's celiac alias remains unchanged.
+The wrong-brief attempt stopped before the corrected launch; its token count is unknown.
+The final restart follow-up, `c4378a68`, passed 1,034 focused tests and static checks.
+Integration commit `988910f4` carries that four-file delta with Codex attribution.
+
+Luna at `xhigh` wrote the initial dairy guard and tests. After two failed I001
+repairs, the native junior stopped. Astra at `xhigh` diagnosed the import rule.
+The coordinator escalated to Sol at `xhigh`, the next compatible writer.
+The format-only fix preserved every assertion. Sol then covered plural absence
+and quantified free-of/from claims, while preserving partial not-all statements.
+Native commit `0c7d79f5` passed 557 focused tests and isolated backend gates:
+12,705 passed, one skipped, one warning. Gitleaks passed.
+Integration commit `de6a5893` combines the dairy changes with Codex attribution.
+All 37 root integration probes pass. The same pack fails 19 cases on `6cd6554e`.
+The remaining 18 baseline controls pass.
+
+Before the final independent review, recorded writer runs total 7,525,946 input
+tokens, 119,200 output tokens, and 2,106.968 summed CLI seconds.
+Coverage is partial: one interrupted run lacks token counts. Native coordination
+counts are unavailable. These totals are not complete cost or wall-clock time.
+The loop ledger records the later review separately. No new paid provider calls ran.

@@ -1,7 +1,7 @@
 # PR 469 repair record
 
-Scope: the six confirmed review findings and the stale-cursor case found during repair.
-The repair branch starts at `fddb358c3aa05c27cb1bdd78aa050c76a6e67ccb`.
+Scope: the six original findings, cursor-state follow-ups, and three findings on `6cd6554e`.
+The first repairs start at `fddb358c`. The latest follow-up starts at `6cd6554e`.
 
 | Finding | Repair contract | Regression proof |
 |---|---|---|
@@ -11,9 +11,12 @@ The repair branch starts at `fddb358c3aa05c27cb1bdd78aa050c76a6e67ccb`.
 | F4: omnivore regression | Explicit omnivore queries search the unrestricted catalog while preserving explicit filters. | Both query forms, filtered second page, and all forty recipes without repeats. |
 | F5: wrong cards | Checked choices supply cards for clarification, planned, and needs-revision replies. | Model and component tests; desktop and mobile browser checks. |
 | F6: false-positive gold | C18 requires the gluten ingredient constraint. The runner carries checked search cursors. | Both wrong-query counterexamples, repeated/skipped page checks, and cursor propagation. |
+| R1: ignored restart | Explicit restart reuses the active filters and limit at offset zero. A no-tool reply retains that first page as pending. | Restart phrases, omitted model filters, wrong offsets, prefixes, no-tool restart and more. |
+| R2: repeated first page | Search identity treats equivalent conjunctive words as a set. Unsupported and unknown-only searches cannot reuse a cursor. | Reordered, duplicate and stemmed words; filter distinctions; unknown query after omnivore. |
+| R3: dairy prose aliases | Recognized dairy-absence claims use authoritative fallback. Exact server caveats and benign ingredient text remain allowed. | Alias and formatting cases, public budget-tool replies, milk-free and milk-freezing distinctions. |
 
-The conversation corpus is `conversation-eval-v1.3`, with eighteen scenarios and thirty-one turns.
-Repair round 1 moved the corpus from v1.2 to v1.3. It adds literal `total_matches` golds, pinned reference pages, and the manifest identity fields.
+The conversation corpus is `conversation-eval-v1.4`, with nineteen scenarios and thirty-two turns.
+It holds literal `total_matches` golds, pinned reference pages, and manifest identity fields.
 C16 checks three vegetarian search pages with a budget question between pages.
 The frozen grocery corpus remains unchanged. New conversation results do not compare directly with v1.1.
 Reference page identities come from fixed deterministic search inputs, independently of the model's actual call.
@@ -29,9 +32,7 @@ Run the required gates with an isolated PostgreSQL database as described by the 
 The final integrated record is keyed by the committed SHA in `.fewia-supervisor-gates/`.
 Review reports are keyed by SHA and model in `.fewia-supervisor-reviews/`.
 The loop ledger records checks, repair rounds, model usage, and live-call limits.
-Six additional live Nova turns used revision `0c18c563`. One continuation needed a retry;
-its neutral reply preserved the cursor. The final new-type guard has deterministic verification only.
+Archived live evidence keeps its recorded revisions. These three follow-up fixes use deterministic verification.
 
 This work does not change provider credentials, retailer writes, deployment, or budget arithmetic.
-The review's remaining parser limitations and local stack revision mismatch stay separate from these six fixes.
-The small measured search cost does not justify a cache or a new recipe database.
+The remaining parser limitations and local stack revision mismatch stay separate from these fixes.
