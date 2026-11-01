@@ -5526,3 +5526,245 @@ def test_a_clean_run_keeps_the_verdict_keys_and_adds_the_clean_gate() -> None:
         "unmatched": ["+999"],
         "gate": "clean",
     }
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        _discovery_block(),
+        _tool_block(
+            "meal", name=GET_MEAL_TOOL, payload={"recipe_id": "vegetable_pasta"}
+        ),
+        _propose_block("proposal", _PROPOSE_OP),
+    ],
+)
+@pytest.mark.parametrize(
+    ("question", "fact"),
+    [
+        ("Are my plan meals vegan?", "is not vegan"),
+        ("Are my plan meals dairy free?", "has no dairy ingredients"),
+    ],
+)
+def test_current_plan_question_does_not_dispatch_model_calls(
+    call: dict[str, object], question: str, fact: str
+) -> None:
+    provider = FakeLLM([_reply([call], "tool_use")])
+    proposer = Proposer()
+    observed: list[list[dict[str, object]]] = []
+    evidence: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        evidence.append(payload)
+        return _REV
+
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        propose=proposer,
+        record_evidence=record,
+        observe_terminal_tool_results=observed.append,
+        model_prose=True,
+    )
+    assert f"Chicken tacos (2 servings) {fact}." in cast(str, result["answer"])
+    assert "Bean tacos (2 servings)" in cast(str, result["answer"])
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["evidence_id"] is None
+    assert "choices" not in result
+    assert not proposer.calls and not observed and not evidence
+
+
+@pytest.mark.parametrize(
+    ("question", "answer"),
+    [
+        (
+            "Which of my plan meals contain gluten?",
+            "Vegetable pasta (2 servings) has gluten ingredients. "
+            "This checks ingredients only.",
+        ),
+        (
+            "Which of my plan meals contain dairy?",
+            "None of the selected meals match that question. "
+            "This checks ingredients only.",
+        ),
+    ],
+)
+def test_which_plan_ingredients_do_not_dispatch_model_search(
+    question: str, answer: str
+) -> None:
+    plan = _two_meal_revision()
+    meals = [
+        plan.snapshot.meals[0],
+        plan.snapshot.meals[1].model_copy(update={"recipe_id": "vegetable_pasta"}),
+    ]
+    snapshot = plan.snapshot.model_copy(update={"meals": meals})
+    plan = plan.model_copy(update={"snapshot": snapshot})
+    provider = FakeLLM([_reply([_discovery_block()], "tool_use")])
+    observed: list[list[dict[str, object]]] = []
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=plan,
+        observe_terminal_tool_results=observed.append,
+        model_prose=True,
+    )
+    assert result["answer"] == answer
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["evidence_id"] is None
+    assert "choices" not in result
+    assert not observed
+
+
+def test_current_plan_question_preserves_refusal_with_tool_call() -> None:
+    provider = FakeLLM(
+        [
+            _reply(
+                [_text_block('{"refusal":"purchase"}'), _discovery_block()],
+                "tool_use",
+            )
+        ]
+    )
+    result = run_chat(
+        provider,
+        "Are my plan meals vegan?",
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        model_prose=True,
+    )
+    assert result["reply_check"] == {"gate": "refusal"}
+    assert result["tool_trace"] == []
+
+
+@pytest.mark.parametrize("kind", ["guardrail", "refusal", "incomplete", "invalid"])
+def test_current_plan_answer_preserves_provider_priority(kind: str) -> None:
+    replies: dict[str, dict[str, object]] = {
+        "guardrail": _reply([_text_block("blocked")], "guardrail_intervened"),
+        "refusal": _reply([_text_block('{"refusal":"purchase"}')], "end_turn"),
+        "incomplete": _reply([_text_block("unfinished")], "max_tokens"),
+        "invalid": _reply([_text_block("bad")], "tool_use"),
+    }
+    provider = FakeLLM([replies[kind]])
+    if kind == "invalid":
+        with pytest.raises(ChatProtocolError):
+            run_chat(provider, "Are my plan meals vegan?", budget(), PERIOD)
+        return
+    result = run_chat(
+        provider,
+        "Are my plan meals vegan?",
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        model_prose=True,
+    )
+    assert result["reply_check"] == {"gate": kind}
+    assert "Chicken tacos" not in cast(str, result["answer"])
+
+
+@pytest.mark.parametrize("order", [False, True])
+def test_proposal_and_search_batch_keep_matching_explanation(order: bool) -> None:
+    calls = [_propose_block("q1", _PROPOSE_OP), _discovery_block()]
+    if order:
+        calls.reverse()
+    result, _ = _propose_run([_reply(calls, "tool_use")], Proposer())
+    assert result["proposal_id"] == "proposal-1"
+    assert _PROPOSED_ANSWER_START in cast(str, result["answer"])
+    assert "Apply it in the plan panel." in cast(str, result["answer"])
+    assert "Catalog choices:" in cast(str, result["answer"])
+
+
+@pytest.mark.parametrize(
+    "terminal", ["turn_limit", "planner_limit", "incomplete", "refusal"]
+)
+def test_proposal_terminal_paths_match_card_or_suppress_it(terminal: str) -> None:
+    replies: list[dict[str, object] | BaseException] = [
+        _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use")
+    ]
+    if terminal == "turn_limit":
+        replies.extend(
+            _reply([_tool_block(f"bad-{i}", name="unsupported")], "tool_use")
+            for i in range(MAX_MODEL_TURNS - 1)
+        )
+    elif terminal == "planner_limit":
+        replies.extend(
+            _reply(
+                [_tool_block(f"p-{i}", payload=plan_args(plan_cap_cents=100))],
+                "tool_use",
+            )
+            for i in range(MAX_PLANNER_REVISIONS + 1)
+        )
+    elif terminal == "incomplete":
+        replies.append(_reply([_text_block("unfinished")], "max_tokens"))
+    else:
+        replies.append(_reply([_text_block('{"refusal":"purchase"}')], "end_turn"))
+    result, _ = _propose_run(replies, Proposer())
+    if terminal in {"incomplete", "refusal"}:
+        assert "proposal_id" not in result
+    else:
+        assert result["proposal_id"] == "proposal-1"
+        assert _PROPOSED_ANSWER_START in cast(str, result["answer"])
+        assert "Apply it in the plan panel." in cast(str, result["answer"])
+        assert _LIMIT in cast(str, result["answer"])
+
+
+@pytest.mark.parametrize("same_batch", [False, True])
+def test_later_failed_proposal_keeps_the_successful_card(same_batch: bool) -> None:
+    second = {"op": "remove", "recipe_id": "bean_tacos"}
+    first = _propose_block("q1", _PROPOSE_OP)
+    later = _propose_block("q2", second)
+    replies: list[dict[str, object] | BaseException] = (
+        [_reply([first, later], "tool_use")]
+        if same_batch
+        else [_reply([first], "tool_use"), _reply([later], "tool_use")]
+    )
+    replies.append(_reply([_text_block("done")], "end_turn"))
+    proposer = Proposer()
+    result, _ = _propose_run(replies, proposer)
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    answer = cast(str, result["answer"])
+    assert _PROPOSED_ANSWER_START in answer
+    assert "remove Bean tacos" not in answer
+    assert "Apply it in the plan panel." in answer
+    assert "A tool call failed." in answer
+
+
+def test_cursorless_continuation_keeps_proposal_explanation() -> None:
+    proposer = Proposer()
+    provider = FakeLLM(
+        [
+            _reply([_propose_block("q1", _PROPOSE_OP)], "tool_use"),
+            _reply([_discovery_block()], "tool_use"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        "more",
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        propose=proposer,
+    )
+    assert result["proposal_id"] == "proposal-1"
+    assert _PROPOSED_ANSWER_START in cast(str, result["answer"])
+    assert "Apply it in the plan panel." in cast(str, result["answer"])
+
+
+def test_current_plan_question_keeps_provider_failure() -> None:
+    provider = FakeLLM([RuntimeError(_SECRET)])
+    with pytest.raises(ChatUnavailable, match=_UNAVAILABLE):
+        run_chat(
+            provider,
+            "Are my plan meals vegan?",
+            budget(),
+            PERIOD,
+            plan_revision=_two_meal_revision(),
+        )
