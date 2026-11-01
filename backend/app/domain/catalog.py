@@ -28,7 +28,7 @@ class Ingredient:
     vegetarian: bool
     vegan: bool
     is_pantry: bool = False
-    # Listed contents only, not a safety claim. An unknown fact MUST be True.
+    # Listed contents only, not safety claims. An unknown fact MUST be True.
     contains_gluten: bool = field(kw_only=True)
     contains_dairy: bool = field(kw_only=True)
 
