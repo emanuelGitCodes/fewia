@@ -585,7 +585,8 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
             "previous_request is prior state; apply latest explicit "
             "additions and removals; plan_meals is the user's current plan"
             "; previous_search holds the search_meals arguments for the next page "
-            "of the last search: to show more meals, call search_meals with them"
+            "of the last search; use them unchanged only for an explicit more "
+            "request with no new restrictions"
         )
         assert loaded["plan_meals"] is None
         assert loaded["previous_search"] is None

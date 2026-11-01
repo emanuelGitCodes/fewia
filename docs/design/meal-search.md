@@ -116,7 +116,7 @@ thresholds. The model MUST NOT assign a tag.
 ### Rule 3: a type the system cannot check fails closed
 
 - The unchecked vocabulary is `UNCHECKED_DIET` in `meal_tags.py`.
-- A type outside it returns `unsupported_facet`. The reply names the
+- An unresolved type in that vocabulary returns `unsupported_facet`. The reply names the
   types that the system can check. It MUST NOT say "no match".
 - For zero results, the server drops text words first, never a facet,
   and reports them in `dropped`.

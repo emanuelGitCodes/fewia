@@ -4823,3 +4823,78 @@ These items build `docs/design/meal-search.md` on one stack branch,
 The review model (`claude-opus-5-5`) approved each item head. Items 02
 and 03 ran at tier L; the probes caught every mutation except one that
 cannot change a result. No live Nova batch ran.
+
+## 2026-11-01: Repair PR 469 mixed-result cards
+
+Luna at `xhigh` wrote item 03 on the PR 469 repair branch.
+Checked search choices now supply cards for planned and needs-revision replies.
+The request-meal fallback keeps its original servings when choices are absent.
+At `67e5f021`, 69 focused tests and all frontend gates passed.
+Four new assertions failed against the original source.
+Sol independently approved that item. The browser showed all three egg cards
+and added Egg fried rice. Mobile overflow was zero, with no page errors.
+
+## 2026-11-01: Restore PR 469 omnivore search
+
+Luna at `xhigh` wrote item 04. Omnivore-only queries search the catalog.
+Canonical cursors retain that intent and preserve explicit filters.
+At `a05aa4f8`, 133 focused tests and all backend gates passed:
+12,093 tests passed, one skipped, and one warning.
+Five new cases failed against the original source.
+Sol independently approved the item. The full traversal visits all forty recipes once.
+
+## 2026-11-01: Strengthen PR 469 conversation evaluation
+
+Terra at `xhigh` wrote item 02. The conversation corpus is v1.2.
+C18 requires the gluten ingredient constraint. C16 checks search pages across a budget turn.
+The runner validates each result cursor before passing it to the next turn.
+The separate frozen grocery corpus stays unchanged.
+At `9c1b22cb`, 108 focused tests and all backend gates passed:
+12,097 tests passed, one skipped, and one warning.
+Luna independently approved the item. Reverting the runner failed three cursor tests;
+restoring the old C18 gold failed both wrong-query tests.
+The initial gate found one formatting error; the corrected commit passed all gates.
+
+The CLI ledger for items 02, 03, and 04 records 4,468,457 input tokens,
+57,628 output tokens, and 509.017 seconds across writers and item reviews.
+These counters do not include native coordination or the later combined review.
+The owner selected the three writer models and permitted `xhigh`.
+Terra used the documented temporary model registry. No global setting changed.
+
+## 2026-11-01: Preserve PR 469 checked search continuation
+
+Sol at `xhigh` wrote item 01 at `7ad40b15`.
+Pure continuation uses the complete checked cursor before tool history and dispatch.
+Ordinary replies retain it. Exhausted searches and explicit modifiers cannot revive it.
+Cursorless searches return neutral text. Stored cursor restoration returns a checked copy.
+The isolated focused suite passed 749 tests, with one warning.
+Ruff, formatting, and strict mypy passed.
+The first full gate found one stale context instruction assertion outside the owned files;
+the other 12,383 backend tests passed, with one skip and one warning.
+In disposable checks, the old loop failed 124 continuation cases and ten retention cases.
+Removing only modifier invalidation failed 112 cases.
+
+## 2026-11-01: Correct the PR 469 modifier test fixture
+
+Item 05 corrects a starting search fixture after the junior's two repair rounds closed.
+Astra diagnosed the unsupported `meals` query. Luna at `xhigh` changed only that
+starting parameter to `gluten free`, which the coordinator verified has 28 matches.
+The chicken variant and all assertions remain. The intentionally suppressed model query stays unchanged.
+The earlier fixture failures used unknown beef, a supported keto alias, and a query with no search terms.
+The final 749-test focused run includes the corrected starting fixture.
+
+## 2026-11-01: Align the PR 469 job context assertion
+
+Luna at `xhigh` wrote item 06. The job-handler test now expects the deliberate
+explicit-more instruction. Its exact-value assertion and other checks remain.
+The affected test, Ruff, and formatting passed.
+The integrated source passes eleven deterministic probes for paging, fallback,
+exhaustion, modifiers, omnivore search, and the two gluten-gold counterexamples.
+The repair record is `docs/reviews/pr-469-repairs.md`.
+
+Before the combined review, the six item ledgers record 8,411,498 input tokens,
+106,704 output tokens, and 1,672.462 summed CLI seconds.
+These counters include writers and item reviews. They exclude native coordination
+and the later combined review; the loop ledger records that final review separately.
+The owner approved six additional Nova chat turns after local checks.
+Publication and merge remain outside this local repair authorization.
