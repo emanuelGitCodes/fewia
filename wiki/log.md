@@ -5066,3 +5066,25 @@ The first two Astra reviews total 930,787 input, 6,284 output and 220.487 CLI se
 Writer coverage remains partial; native coordination and final review are separate.
 These figures are not complete cost or wall-clock totals. No new live Nova calls ran.
 The loop ledger records the third independent verdict and publication status separately.
+
+## 2026-11-01: Reject emphasized milk-free claims on PR 469
+
+Astra round three returned REQUEST_CHANGES on `b5d86971`.
+The public prose path accepted `_milk-free_` and `__milk-free__`.
+The coordinator reproduced both. A prior milk-free test also contained no-dairy
+wording, which masked the dedicated matcher gap. New milk-only tests isolate it.
+The owner lifted the three-round limit with "As many rounds as you need".
+Sol at `xhigh` changed the milk-free boundaries through one supervisor run.
+Native commit `fa42ff91` passed 749 focused tests and 54 direct/public checks.
+Its isolated backend gates passed: 13,301 tests, one skipped, one warning.
+Ruff, strict mypy and gitleaks passed. The temporary database was removed.
+The full 122-case root harness passes on that source. It fails 68 cases on
+original `6cd6554e` and six on `b5d86971`. Benign freezing controls remain allowed.
+No new live Nova calls ran. The repair leaves the public normalization contract intact.
+
+This writer used 539,462 input tokens, 8,723 output tokens and 171.311 CLI seconds.
+Recorded writers total 10,685,943 input, 168,055 output and 3,108.475 CLI seconds.
+The first three Astra reviews total 1,421,484 input, 8,702 output and 286.076 CLI seconds.
+Writer coverage remains partial. Native coordination and later reviews are separate.
+These figures are not complete cost or wall-clock totals. The loop ledger records
+the next independent verdict and publication status. The PR MUST remain unmerged.
