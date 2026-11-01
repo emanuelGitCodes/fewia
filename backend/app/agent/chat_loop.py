@@ -27,7 +27,9 @@ from app.agent.chat_context import (
     is_modified_search_continuation,
     is_new_search_request,
     is_search_continuation,
+    is_search_restart,
     more_type_query,
+    restart_type_query,
     sum_usage,
     validated_previous_search,
 )
@@ -280,12 +282,37 @@ def run_chat(
         and cursor_identity is not None
         and search_identity({"query": typed}) == cursor_identity
     )
+    restart_query = restart_type_query(message)
+    restart_types = (
+        None if restart_query is None else search_identity({"query": restart_query})
+    )
+    cursor_types = (
+        None
+        if saved_search is None or restart_query is None
+        else search_identity(
+            {
+                key: value
+                for key, value in saved_search.items()
+                if key in ("query", "diet", "tags")
+            }
+        )
+    )
+    same_restart_type = restart_types is not None and restart_types == cursor_types
+    restart = is_search_restart(message) and (
+        restart_query is None or same_restart_type
+    )
     continuation = is_search_continuation(message) or same_type
     modified_continuation = is_modified_search_continuation(message)
-    new_search = is_new_search_request(message) and not same_type
+    new_search = is_new_search_request(message) and not (same_type or restart)
+    if restart and saved_search is not None:
+        saved_search = {**saved_search, "offset": 0}
     retained_search = None if modified_continuation or new_search else saved_search
     meal_type = (
-        continuation or modified_continuation or new_search or names_meal_type(message)
+        continuation
+        or modified_continuation
+        or new_search
+        or restart
+        or names_meal_type(message)
     )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
@@ -485,7 +512,7 @@ def run_chat(
             return out("incomplete", _INCOMPLETE, None, "template", reason)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
-        if continuation and saved_search is not None:
+        if (continuation or restart) and saved_search is not None:
             calls = [
                 msgs.ToolCall(call.tool_use_id, call.name, deepcopy(saved_search))
                 if call.name == CATALOG_TOOL_NAME
@@ -503,9 +530,9 @@ def run_chat(
                     why("clarification"),
                 )
             if saved_search is not None:
-                restart = modified_continuation or new_search
+                reset = modified_continuation or new_search
                 calls = [
-                    _checked_search_call(call, saved_search, cursor_identity, restart)
+                    _checked_search_call(call, saved_search, cursor_identity, reset)
                     for call in calls
                 ]
         messages.append(_tool_use_history(calls))

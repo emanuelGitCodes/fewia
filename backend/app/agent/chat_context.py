@@ -50,6 +50,32 @@ _MORE_TYPE_REQUEST = re.compile(
     r"(?: (?:meals|ideas|options|recipes))?"
     r"(?:[,!.?]? please)?[,!.?]*"
 )
+_RESTART_ACTION = (
+    r"(?:(?:start (?:over|again)|restart(?: (?:the )?search)?)"
+    r"(?: (?:from|at) (?:the )?(?:first page|beginning))?"
+    r"|start (?:from|at) (?:the )?first page)"
+)
+_RESTART_REQUEST = re.compile(
+    r"(?:please,? )?(?:"
+    rf"{_RESTART_ACTION}|"
+    r"(?:(?:show|give)(?: me)? )?(?:the )?first page(?: again)?|"
+    r"(?:go (?:back )?to|back to) (?:the )?first page)"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
+_RESTART_TYPE_REQUEST = re.compile(
+    r"(?:please,? )?(?:"
+    rf"{_RESTART_ACTION} (?:with|for) "
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?|"
+    r"(?:show|give)(?: me)? (?:the )?first page of "
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?(?: again)?|"
+    r"(?:find|show|give)(?: me)? "
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?"
+    r" (?:again|(?:from|at) (?:the )?first page))"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
 _MAX_MEAL_TERM_WORDS = max(
     len(term.replace("_", " ").replace("-", " ").split())
     for term in (*SEARCH_TERMS, *TAG_ORDER)
@@ -91,11 +117,28 @@ def more_type_query(message: str) -> str | None:
     return terms if terms and _meal_terms(terms) else None
 
 
+def restart_type_query(message: str) -> str | None:
+    request = _RESTART_TYPE_REQUEST.fullmatch(_search_text(message))
+    if request is None:
+        return None
+    terms = next(term for term in request.groups() if term is not None)
+    return terms if _meal_terms(terms) else None
+
+
+def is_search_restart(message: str) -> bool:
+    return (
+        _RESTART_REQUEST.fullmatch(_search_text(message)) is not None
+        or restart_type_query(message) is not None
+    )
+
+
 def is_new_search_request(message: str) -> bool:
     request = _NEW_SEARCH_REQUEST.fullmatch(_search_text(message))
     if request is not None and _meal_terms(request.group(1)):
         return True
-    return more_type_query(message) is not None
+    return (
+        more_type_query(message) is not None or restart_type_query(message) is not None
+    )
 
 
 def validated_previous_search(

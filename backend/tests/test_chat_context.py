@@ -18,9 +18,11 @@ from app.agent.chat_context import (
     is_modified_search_continuation,
     is_new_search_request,
     is_search_continuation,
+    is_search_restart,
     more_type_query,
     plan_ingredient_ids,
     read_usage,
+    restart_type_query,
 )
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult
@@ -238,6 +240,69 @@ def test_continuation_modifiers_use_the_user_body(
 
 
 @pytest.mark.parametrize(
+    ("message", "restart", "query"),
+    [
+        ("Start over from the first page", True, None),
+        ("Show the first page again", True, None),
+        ("Start over.", True, None),
+        ("Please, start over from the first page!", True, None),
+        ("Start over from the first page, please.", True, None),
+        ("SHOW THE FIRST PAGE AGAIN!", True, None),
+        ("Please give me the first page again.", True, None),
+        ("First page, please.", True, None),
+        ("Go back to the first page.", True, None),
+        ("Please start from the first page.", True, None),
+        ("Start at the first page, please!", True, None),
+        ("Go to the first page.", True, None),
+        ("Restart the search.", True, None),
+        ("Start again at the beginning.", True, None),
+        ("Start over with vegan meals.", True, "vegan"),
+        (
+            "Please, start over from the first page with vegan meals!",
+            True,
+            "vegan",
+        ),
+        (
+            "Show me the first page of gluten free meals again, please.",
+            True,
+            "gluten free",
+        ),
+        (
+            "Find high protein vegetarian meals from the first page.",
+            True,
+            "high protein vegetarian",
+        ),
+        ("Show vegan meals again", True, "vegan"),
+        ("What is my budget at the start of the month?", False, None),
+        ("Show my budget first.", False, None),
+        ("Start with my budget.", False, None),
+        ("What is in my first meal?", False, None),
+        ("Show my first meal again.", False, None),
+        ("Show the first page of my plan.", False, None),
+        ("First show me my meal.", False, None),
+        ("Find vegan meals and start over.", False, None),
+        ("Show the first page again and my budget.", False, None),
+        ("Restart my meal.", False, None),
+        ("More vegetarian.", False, None),
+        ("My current plan: start over", False, None),
+        ("Show the first page of unsupported meals", False, None),
+        ("Start over with unsupported meals", False, None),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_search_restarts_use_bounded_forms_in_the_user_body(
+    message: str, restart: bool, query: str | None, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    full_message = f"{prefix if prefixed else ''}{message}"
+    assert is_search_restart(full_message) is restart
+    assert restart_type_query(full_message) == query
+    if restart:
+        assert not is_search_continuation(full_message)
+        assert not is_modified_search_continuation(full_message)
+
+
+@pytest.mark.parametrize(
     ("message", "new_search"),
     [
         ("Find vegan meals", True),
@@ -260,6 +325,11 @@ def test_continuation_modifiers_use_the_user_body(
         ("show me more vegan meals", True),
         ("Show me the vegan ones", True),
         ("show me the gluten free ones please", True),
+        ("Start over with vegan meals", True),
+        ("Show the first page of vegetarian meals", True),
+        ("Find gluten free meals from the first page", True),
+        ("Start over from the first page", False),
+        ("Show the first page again", False),
         ("more meals", False),
         ("show me more options", False),
         ("more please", False),
