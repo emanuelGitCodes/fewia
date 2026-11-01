@@ -5119,3 +5119,6 @@ Recorded writers total 12,786,330 input, 212,217 output and 4,052.138 CLI second
 The first four Astra reviews total 1,936,909 input, 12,567 output and 394.176 CLI seconds.
 Coverage remains partial. Native coordination and later review are separate from these CLI totals.
 The loop ledger records final gates, the next independent verdict and hosted CI. The PR MUST remain unmerged.
+
+2026-11-01 — PR #469 remains open and unmerged at head `8cee7e1a` on base `34642bf1`. Local gates report 15,442 passed, 1 skipped, and 1 warning. The deterministic `conversation-eval-v1.4` fixture reports 96/96 tool, outcome, and gold checks, plus 57/57 scenario repeats. Four hosted workflows passed all nine jobs and 90 steps each; the source score is 987/1000. See the [phase record](phases/pr469-repair-verification-20261101.md).
+The preceding sentence needs two corrections: nine jobs and 90 steps passed in total across the four workflows. The 987/1000 figure is the added source-line count against the PR limit, not a quality score.
