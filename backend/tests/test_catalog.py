@@ -9,11 +9,13 @@ import pytest
 from app.domain.budget import BudgetResult
 from app.domain.catalog import (
     CATALOG_VERSION,
+    DAIRY_FREE_INGREDIENT_IDS,
     ESTIMATE_NOTICE,
     INGREDIENTS,
     RECIPES,
     Ingredient,
     Recipe,
+    _item,
     _parse_recipe_record,
 )
 from app.domain.grocery import (
@@ -211,8 +213,16 @@ def test_missing_price_constructs_an_incomplete_estimate() -> None:
         True,
         True,
         contains_gluten=False,
+        contains_dairy=False,
     )
     assert ingredient.price_cents is None
+
+
+def test_dairy_free_allowlist_fails_closed() -> None:
+    assert set(INGREDIENTS) <= DAIRY_FREE_INGREDIENT_IDS
+    assert all(item.contains_dairy is False for item in INGREDIENTS.values())
+    outside = _item("unlisted", "unlisted", "g", 100, 100, True, True, gluten=False)
+    assert outside.contains_dairy is True
 
 
 def test_pantry_status_is_explicit() -> None:

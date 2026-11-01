@@ -35,7 +35,15 @@ def budget(
 
 def test_aggregates_shared_ingredients_before_package_rounding() -> None:
     shared = Ingredient(
-        "shared", "shared ingredient", "g", 10, 100, True, True, contains_gluten=False
+        "shared",
+        "shared ingredient",
+        "g",
+        10,
+        100,
+        True,
+        True,
+        contains_gluten=False,
+        contains_dairy=False,
     )
     custom_ingredients = {"shared": shared}
     custom_recipes = {
@@ -157,7 +165,15 @@ def test_missing_recipe_and_ingredient_fail() -> None:
 
 def test_missing_purchase_price_makes_estimate_incomplete() -> None:
     missing = Ingredient(
-        "missing", "missing", "g", 100, None, True, True, contains_gluten=False
+        "missing",
+        "missing",
+        "g",
+        100,
+        None,
+        True,
+        True,
+        contains_gluten=False,
+        contains_dairy=False,
     )
     recipe = Recipe("chicken_tacos", (("missing", 50),))
 
@@ -176,7 +192,15 @@ def test_missing_purchase_price_makes_estimate_incomplete() -> None:
 
 def test_missing_price_on_pantry_item_does_not_block_complete_estimate() -> None:
     missing = Ingredient(
-        "missing", "missing", "g", 100, None, True, True, contains_gluten=False
+        "missing",
+        "missing",
+        "g",
+        100,
+        None,
+        True,
+        True,
+        contains_gluten=False,
+        contains_dairy=False,
     )
     recipe = Recipe("chicken_tacos", (("missing", 50),))
 
