@@ -63,6 +63,24 @@ def test_budget_then_dairy_claim_returns_the_template_answer() -> None:
     budget = BudgetResult(10_000, 250, False, ())
     for claim in (
         "This meal contains no dairy.",
+        "This meal has **no dairy**.",
+        "This meal has n.o d.a.i.r.y.",
+        "This meal has n o d a i r y.",
+        "This meal contains no_dairy.",
+        "This meal has _no dairy_.",
+        "No dairy.",
+        "NO-DAIRY.",
+        "**No** **dairy**.",
+        "_No_ _dairy_.",
+        "N o d a i r y.",
+        "n-o-d-a-i-r-y.",
+        "n_o_d_a_i_r_y.",
+        "**n** **o** **d** **a** **i** **r** **y**.",
+        "This recipe uses non-dairy yogurt.",
+        "This recipe uses **non** **dairy** yogurt.",
+        "This recipe uses _non_dairy_ yogurt.",
+        "This recipe uses n.o.n d.a.i.r.y yogurt.",
+        "This recipe uses n o n d a i r y yogurt.",
         "This meal is milk-free.",
         "Chicken tacos don't contain dairy.",
         "Chicken tacos do not contain dairy.",
@@ -88,6 +106,13 @@ def test_budget_then_dairy_claim_returns_the_template_answer() -> None:
         "Chicken tacos aren’t prepared from dairy.",
         "This meal **is not made with dairy**.",
         "Chicken tacos ARE-NOT-PREPARED-FROM-ANY-DAIRY.",
+        "This garlic knot is not made with dairy.",
+        "This garlic knot is not prepared with dairy.",
+        "This garlic knot is not cooked with dairy.",
+        "This garlic knot is **not made with dairy**.",
+        "This garlic knot is n.o.t m.a.d.e w.i.t.h d.a.i.r.y.",
+        "This garlic knot is n o t p r e p a r e d w i t h d a i r y.",
+        "This garlic knot is NOT-COOKED-WITH-DAIRY.",
     ):
         provider = FakeProvider([_tool_reply(), _text_reply(claim)])
 
@@ -120,3 +145,58 @@ def test_budget_then_dairy_claim_returns_the_template_answer() -> None:
             }
         ]
         assert claim not in json.dumps(result)
+
+
+def test_budget_then_ingredient_text_returns_the_exact_model_answer() -> None:
+    period = date(2026, 9, 1)
+    budget = BudgetResult(10_000, 250, False, ())
+    for reply in (
+        "This recipe contains oregano, dairy, and rice.",
+        "This recipe contains oregano dairy and rice.",
+        "This recipe contains oregano; dairy; rice.",
+        "The ingredients are oregano/dairy/rice.",
+        "This recipe contains oregano. Dairy is listed as an ingredient.",
+        "This recipe contains **oregano**, **dairy**, and rice.",
+        "This recipe contains _oregano_, _dairy_, and rice.",
+        "This recipe contains OREGANO, DAIRY, and rice.",
+        "This recipe contains oregano,\ndairy, and rice.",
+        "This recipe uses Dannon dairy yogurt.",
+        "This recipe uses **Dannon** _dairy_ yogurt.",
+        "A garlic knot made with dairy butter.",
+        "A garlic knot prepared with dairy butter.",
+        "A garlic knot cooked with dairy butter.",
+        "A garlic **knot** made with **dairy** butter.",
+        "This recipe contains Romano, dairy, and rice.",
+        "This recipe contains poblano, dairy, and rice.",
+        "This recipe contains jalapeño, dairy, and rice.",
+        "No garlic. Dairy is listed as an ingredient.",
+        "Milk freezes when chilled.",
+    ):
+        provider = FakeProvider([_tool_reply(), _text_reply(reply)])
+
+        result = run_chat(
+            provider,
+            "What is my remaining budget?",
+            budget,
+            period,
+            model_prose=True,
+        )
+
+        assert len(provider.requests) == 2
+        assert result["answer"] == reply.replace("ñ", "n")
+        assert result["reply_source"] == "model"
+        assert result["reply_check"] == {
+            "ok": True,
+            "reasons": [],
+            "unmatched": [],
+            "gate": "clean",
+        }
+        assert result["tool_trace"] == [
+            {
+                "tool": BUDGET_TOOL_NAME,
+                "outcome": "success",
+                "tool_use_id": "budget-call",
+                "sequence": 1,
+                "revision_index": None,
+            }
+        ]

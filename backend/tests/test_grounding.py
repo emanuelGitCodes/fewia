@@ -999,8 +999,18 @@ def test_dairy_free_is_rejected_with_letter_spacing() -> None:
         "This meal is non-dairy.",
         "This meal is nondairy.",
         "This meal is NON dairy.",
+        "This recipe uses non-dairy yogurt.",
+        "This recipe uses **non** **dairy** yogurt.",
+        "This recipe uses _non_dairy_ yogurt.",
+        "This recipe uses n.o.n d.a.i.r.y yogurt.",
+        "This recipe uses n o n d a i r y yogurt.",
         "This meal contains no dairy.",
         "This meal contains-no-dairy.",
+        "This meal has **no dairy**.",
+        "This meal has n.o d.a.i.r.y.",
+        "This meal has n o d a i r y.",
+        "This meal contains no_dairy.",
+        "This meal has _no dairy_.",
         "This meal does not contain dairy.",
         "This meal doesn't contain dairy.",
         "Chicken tacos don't contain dairy.",
@@ -1016,6 +1026,14 @@ def test_dairy_free_is_rejected_with_letter_spacing() -> None:
         "This meal is without any dairy.",
         "This meal is without any dairy ingredients.",
         "No dairy is used in this meal.",
+        "No dairy.",
+        "NO-DAIRY.",
+        "**No** **dairy**.",
+        "_No_ _dairy_.",
+        "N o d a i r y.",
+        "n-o-d-a-i-r-y.",
+        "n_o_d_a_i_r_y.",
+        "**n** **o** **d** **a** **i** **r** **y**.",
         "This meal is non-\ndairy.",
         "This meal is milk-free.",
         "This meal is milk free.",
@@ -1109,6 +1127,13 @@ def test_negated_dairy_preparation_claims(
         "Chicken tacos a.r.e.n.’.t c.o.o.k.e.d f.r.o.m d.a.i.r.y.",
         "This meal isn’t made\nwith\tany dairy.",
         "Not prepared from dairy.",
+        "This garlic knot is not made with dairy.",
+        "This garlic knot is not prepared with dairy.",
+        "This garlic knot is not cooked with dairy.",
+        "This garlic knot is **not made with dairy**.",
+        "This garlic knot is n.o.t m.a.d.e w.i.t.h d.a.i.r.y.",
+        "This garlic knot is n o t p r e p a r e d w i t h d a i r y.",
+        "This garlic knot is NOT-COOKED-WITH-DAIRY.",
     ],
 )
 def test_formatted_negated_dairy_preparation_claims_fail(reply: str) -> None:
@@ -1203,6 +1228,34 @@ def test_dairy_presence_and_ingredient_text_remain_permitted(reply: str) -> None
 
 def test_milk_freezes_is_not_mistaken_for_a_milk_free_claim() -> None:
     assert validate("Milk freezes when chilled.", FactSet()).ok
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "This recipe contains oregano, dairy, and rice.",
+        "This recipe contains oregano dairy and rice.",
+        "This recipe contains oregano; dairy; rice.",
+        "The ingredients are oregano/dairy/rice.",
+        "This recipe contains oregano. Dairy is listed as an ingredient.",
+        "This recipe contains **oregano**, **dairy**, and rice.",
+        "This recipe contains _oregano_, _dairy_, and rice.",
+        "This recipe contains OREGANO, DAIRY, and rice.",
+        "This recipe contains oregano,\ndairy, and rice.",
+        "This recipe uses Dannon dairy yogurt.",
+        "This recipe uses **Dannon** _dairy_ yogurt.",
+        "A garlic knot made with dairy butter.",
+        "A garlic knot prepared with dairy butter.",
+        "A garlic knot cooked with dairy butter.",
+        "A garlic **knot** made with **dairy** butter.",
+        "This recipe contains Romano, dairy, and rice.",
+        "This recipe contains poblano, dairy, and rice.",
+        "This recipe contains jalapeño, dairy, and rice.",
+        "No garlic. Dairy is listed as an ingredient.",
+    ],
+)
+def test_ingredient_and_dairy_text_keep_their_word_boundaries(reply: str) -> None:
+    assert validate(reply, FactSet()).ok, reply
 
 
 @pytest.mark.parametrize(
