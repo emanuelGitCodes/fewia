@@ -243,19 +243,22 @@ _OPAQUE = re.compile(
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
     r"|diagnos|glutenfree|dairyfree"
-    r"|(?:contains?|containing|has|have|includes?|including|uses?|made|prepared|cooked)"
-    r"(?:any)?nodairy"
-    r"|(?:do(?:es)?(?:not|nt)(?:contain|include|have|use)"
-    r"|(?:has|have)(?:not|nt)(?:got)?)(?:any)?dairy"
-    r"|free(?:of|from)(?:any|all)?dairy|without(?:any)?dairy"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
 )
-_MILK_FREE = re.compile(
-    r"(?<![a-z0-9])m[\W_]*i[\W_]*l[\W_]*k[\W_]*"
-    r"f[\W_]*r[\W_]*e[\W_]*e(?![a-z0-9])",
+_DAIRY_ALIASES = re.compile(
+    r"(?:contains?|containing|has|have|includes?|including|uses?|made|prepared|cooked)"
+    r"(?:any)?nodairy"
+    r"|(?:do(?:es)?(?:not|nt)(?:contain|include|have|use)"
+    r"|(?:has|have)(?:not|nt)(?:got)?)(?:any)?dairy"
+    r"|free(?:of|from)(?:any|all)?dairy|without(?:any)?dairy"
+)
+# Whole words and contractions end clauses; single-letter dots keep spelling joined.
+_DAIRY_CLAUSE_END = re.compile(
+    r"(?:(?<=[a-z0-9]{2})|(?<=n't))"
+    r"[*_'\"\])]*\s*[.,;:!?]+[*_'\"\])]*(?=\s)",
     re.IGNORECASE,
 )
 _DAIRY_ABSENCE = re.compile(
@@ -263,6 +266,7 @@ _DAIRY_ABSENCE = re.compile(
     + "|".join(
         r"[\W_]*".join(phrase)
         for phrase in (
+            "milkfree",
             "nodairy",
             "nondairy",
             *(
@@ -993,8 +997,11 @@ def validate(reply: str, facts: FactSet) -> Verdict:
             "forbidden_claim",
             stale_copy
             or _FORBIDDEN.search(_squash(claims)) is not None
-            or _MILK_FREE.search(claims) is not None
-            or _DAIRY_ABSENCE.search(claims) is not None
+            or any(
+                _DAIRY_ALIASES.search(_squash(clause)) is not None
+                or _DAIRY_ABSENCE.search(clause) is not None
+                for clause in _DAIRY_CLAUSE_END.split(claims)
+            )
             or _DIET_LABEL.search(diet_text) is not None,
         ),
         ("medical_claim", _MEDICAL.search(diet_text) is not None),
