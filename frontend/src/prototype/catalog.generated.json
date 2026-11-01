@@ -186,7 +186,8 @@
       "tags": [
         "chicken",
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -234,7 +235,8 @@
       ],
       "tags": [
         "beans",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -280,7 +282,9 @@
         "vegan",
         "vegetarian"
       ],
-      "tags": [],
+      "tags": [
+        "dairy_free_ingredients"
+      ],
       "ingredients": [
         [
           "pasta",
@@ -325,7 +329,8 @@
       "tags": [
         "chicken",
         "high_protein",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -373,7 +378,8 @@
       ],
       "tags": [
         "lentils",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -421,7 +427,8 @@
       ],
       "tags": [
         "chickpeas",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -471,7 +478,9 @@
         "vegan",
         "vegetarian"
       ],
-      "tags": [],
+      "tags": [
+        "dairy_free_ingredients"
+      ],
       "ingredients": [
         [
           "mixed_vegetables",
@@ -514,7 +523,8 @@
       ],
       "tags": [
         "beans",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -555,7 +565,8 @@
         "egg",
         "beans",
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -601,7 +612,9 @@
         "vegan",
         "vegetarian"
       ],
-      "tags": [],
+      "tags": [
+        "dairy_free_ingredients"
+      ],
       "ingredients": [
         [
           "oats",
@@ -625,7 +638,8 @@
       "diets": [],
       "tags": [
         "chicken",
-        "high_protein"
+        "high_protein",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -666,7 +680,8 @@
       "diets": [],
       "tags": [
         "chicken",
-        "high_protein"
+        "high_protein",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -712,7 +727,8 @@
       "tags": [
         "chicken",
         "high_protein",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -762,7 +778,8 @@
       "tags": [
         "chicken",
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -809,7 +826,8 @@
         "chicken",
         "beans",
         "high_protein",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -858,7 +876,8 @@
       "diets": [],
       "tags": [
         "chicken",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -901,7 +920,8 @@
         "chicken",
         "lentils",
         "high_protein",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -948,7 +968,8 @@
         "chicken",
         "chickpeas",
         "high_protein",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -994,7 +1015,8 @@
       "tags": [
         "chicken",
         "egg",
-        "high_protein"
+        "high_protein",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1040,7 +1062,8 @@
       "tags": [
         "chicken",
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1086,7 +1109,8 @@
         "vegetarian"
       ],
       "tags": [
-        "egg"
+        "egg",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1134,7 +1158,8 @@
       "tags": [
         "egg",
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1180,7 +1205,8 @@
         "vegetarian"
       ],
       "tags": [
-        "egg"
+        "egg",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1223,7 +1249,8 @@
       ],
       "tags": [
         "egg",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1264,7 +1291,8 @@
         "egg",
         "chickpeas",
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1311,7 +1339,8 @@
       ],
       "tags": [
         "egg",
-        "lower_carb"
+        "lower_carb",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1355,7 +1384,8 @@
       "tags": [
         "egg",
         "beans",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1404,7 +1434,8 @@
         "egg",
         "lentils",
         "high_protein",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1452,7 +1483,8 @@
       ],
       "tags": [
         "beans",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1496,7 +1528,8 @@
       ],
       "tags": [
         "lentils",
-        "high_protein"
+        "high_protein",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1544,7 +1577,8 @@
       ],
       "tags": [
         "chickpeas",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1591,7 +1625,8 @@
         "vegetarian"
       ],
       "tags": [
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1642,7 +1677,8 @@
         "vegetarian"
       ],
       "tags": [
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1688,7 +1724,9 @@
         "vegan",
         "vegetarian"
       ],
-      "tags": [],
+      "tags": [
+        "dairy_free_ingredients"
+      ],
       "ingredients": [
         [
           "pasta",
@@ -1727,7 +1765,8 @@
       ],
       "tags": [
         "lower_carb",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1771,7 +1810,8 @@
       ],
       "tags": [
         "lentils",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1818,7 +1858,8 @@
         "vegetarian"
       ],
       "tags": [
-        "chickpeas"
+        "chickpeas",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1862,7 +1903,8 @@
       ],
       "tags": [
         "lentils",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1913,7 +1955,8 @@
         "vegetarian"
       ],
       "tags": [
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -1961,7 +2004,8 @@
       ],
       "tags": [
         "beans",
-        "gluten_free_ingredients"
+        "gluten_free_ingredients",
+        "dairy_free_ingredients"
       ],
       "ingredients": [
         [
@@ -2044,6 +2088,22 @@
     },
     "celiac": {
       "target": "gluten_free_ingredients",
+      "note": null
+    },
+    "dairy free": {
+      "target": "dairy_free_ingredients",
+      "note": null
+    },
+    "dairy-free": {
+      "target": "dairy_free_ingredients",
+      "note": null
+    },
+    "non-dairy": {
+      "target": "dairy_free_ingredients",
+      "note": null
+    },
+    "nondairy": {
+      "target": "dairy_free_ingredients",
       "note": null
     },
     "plant based": {

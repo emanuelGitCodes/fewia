@@ -20,6 +20,10 @@ describe("SEARCH_TERMS", () => {
     [["keto", "low carb", "lowcarb", "low-carb"], withTag("lower_carb")],
     [["carnivore", "meat"], withTag("chicken")],
     [["gf", "gluten free", "gluten-free", "celiac"], withTag("gluten_free_ingredients")],
+    [
+      ["dairy free", "dairy-free", "non-dairy", "nondairy"],
+      withTag("dairy_free_ingredients"),
+    ],
     [["plant based", "plant-based"], RECIPE_ORDER.filter((id) => RECIPES[id].diets.includes("vegan"))],
     [["veggie"], RECIPE_ORDER.filter((id) => RECIPES[id].diets.includes("vegetarian"))],
     [["protein"], withTag("high_protein")],

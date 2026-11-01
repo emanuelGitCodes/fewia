@@ -838,7 +838,7 @@ def test_unicode_dashes_and_spaces_are_normalized() -> None:
 def test_only_the_exact_server_safety_sentence_is_exempt() -> None:
     reply = "I cannot claim gluten-free status, but these tacos are gluten-free."
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
-    sentence = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+    sentence = catalog_tool._CANNOT_CLAIM
     assert validate(sentence, FactSet()).ok
     assert not validate(f"{sentence} These tacos are gluten-free.", FactSet()).ok
     assert not validate(sentence.replace("celiac", "coeliac"), FactSet()).ok
@@ -1470,6 +1470,15 @@ def test_catalog_static_templates_are_grounded() -> None:
     assert verdict.ok, verdict
 
 
+def test_dairy_free_prose_fails_but_the_server_catalog_answer_passes() -> None:
+    verdict = validate("This meal is dairy-free.", FactSet())
+    assert verdict.reasons == ("forbidden_claim",)
+    payload = execute_catalog_search({"query": "dairy-free meals"})
+    facts = facts_from_payloads([(TOOL_NAME, payload)])
+    verdict = validate(catalog_answer(payload), facts)
+    assert verdict.ok, verdict
+
+
 def test_number_glued_to_other_letters_fails() -> None:
     facts = _facts(price_cents=1_200, energy_kcal=2, servings=2, a=3, b=1)
     for reply in (
@@ -1515,7 +1524,7 @@ def test_server_sentences_are_exempt_only_at_a_sentence_start() -> None:
     assert validate(f"Which one? {note}", FactSet()).ok
     no_gap = validate(f"Tacos are here.{note}", FactSet())
     assert no_gap.reasons == ("forbidden_claim",)
-    claim = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+    claim = catalog_tool._CANNOT_CLAIM
     assert validate(f"Hello, {claim}", FactSet()).reasons == ("forbidden_claim",)
     assert validate(f"Tacos! {claim}", FactSet()).ok
 

@@ -16,7 +16,8 @@ export type Tag =
   | "chickpeas"
   | "high_protein"
   | "lower_carb"
-  | "gluten_free_ingredients";
+  | "gluten_free_ingredients"
+  | "dairy_free_ingredients";
 export const TAG_LABELS: Record<Tag, string> = {
   chicken: "Chicken",
   egg: "Egg",
@@ -26,6 +27,7 @@ export const TAG_LABELS: Record<Tag, string> = {
   high_protein: "High protein",
   lower_carb: "Lower carb",
   gluten_free_ingredients: "Gluten-free ingredients",
+  dairy_free_ingredients: "Dairy-free ingredients",
 };
 export type Ingredient = {
   id: string;
