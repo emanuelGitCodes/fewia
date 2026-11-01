@@ -4113,20 +4113,30 @@ def _sent_calls(provider: FakeLLM) -> dict[str, dict[str, object]]:
 
 
 @pytest.mark.parametrize(
-    "message", ["Start over from the first page", "Show the first page again"]
+    ("query", "message"),
+    [
+        ("vegetarian", "Start over from the first page"),
+        ("vegetarian", "Show the first page again"),
+        ("rice onion", "Show me the first page of rice onion meals."),
+        ("rice onion", "Show me the first page of onion rice meals."),
+        ("rice onion", "Please, start over with rice onion meals!"),
+        ("rice onion", "Restart the search for rice onion recipes, please."),
+        ("rice onion", "Find rice onion meals from the first page."),
+        ("rice onion", "Show rice onion meals again."),
+    ],
 )
 @pytest.mark.parametrize("model_offset", [0, 9])
 @pytest.mark.parametrize("prefixed", [False, True])
 def test_an_explicit_restart_shows_the_first_page_before_normal_more(
-    message: str, model_offset: int, prefixed: bool
+    query: str, message: str, model_offset: int, prefixed: bool
 ) -> None:
-    cursor = _page_cursor("vegetarian")
+    cursor = _page_cursor(query)
     original = copy.deepcopy(cursor)
     first_page = {**cursor, "offset": 0}
     expected = execute_catalog_search(first_page)
     prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
     result, provider = _run(
-        [_search_reply({"query": "vegetarian", "limit": 1, "offset": model_offset})],
+        [_search_reply({"query": query, "limit": 1, "offset": model_offset})],
         message=f"{prefix if prefixed else ''}{message}",
         previous_search=cursor,
     )
@@ -4147,6 +4157,78 @@ def test_an_explicit_restart_shows_the_first_page_before_normal_more(
     assert not set(_choice_ids(result)) & set(_choice_ids(more))
     _assert_public(result)
     _assert_public(more)
+
+
+def _catalog_word_cursor() -> dict[str, object]:
+    arguments = {
+        **_constrained_cursor(),
+        "query": "rice onion",
+        "limit": 1,
+        "offset": 0,
+    }
+    cursor = next_search_arguments(execute_catalog_search(arguments))
+    assert cursor is not None and cursor["offset"] == 1
+    assert cursor["limit"] == 1
+    return cursor
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Show me the first page of rice onion meals.",
+        "Please, restart the search with rice onion meals!",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize(
+    "model_arguments",
+    [
+        {"query": "rice onion", "offset": 0},
+        {"query": "rice onion", "limit": 3, "offset": 9},
+        {
+            "query": "chicken",
+            "diet": "omnivore",
+            "tags": [],
+            "exclude": [],
+            "min_protein_g": 200,
+            "max_cents_per_serving": 1,
+            "limit": 3,
+            "offset": 6,
+        },
+    ],
+)
+def test_a_catalog_word_restart_retains_every_filter_and_the_saved_limit(
+    message: str, prefixed: bool, model_arguments: dict[str, object]
+) -> None:
+    cursor = _catalog_word_cursor()
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload=model_arguments),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(
+        replies,
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert _sent_calls(provider)[CATALOG_TOOL_NAME] == first_page
+    assert _choice_ids(result) == expected["recipe_ids"]
+    assert len(_choice_ids(result)) == 1
+    assert result["answer"] == (
+        catalog_answer(expected) + " A tool call failed. Check the request."
+    )
+    assert result["next_search"] == next_search_arguments(expected)
+    assert cursor == original
+    _assert_public(result)
 
 
 @pytest.mark.parametrize(
@@ -4262,6 +4344,43 @@ def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
     _assert_public(more)
 
 
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_a_no_tool_catalog_word_restart_retains_the_first_page_for_more(
+    prefixed: bool, model_prose: bool
+) -> None:
+    cursor = _catalog_word_cursor()
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    provider = FakeLLM([_reply([_text_block("try chicken tacos")], "end_turn")])
+    result = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}Show me the first page of rice onion meals.",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert result["answer"] == TYPE_CLARIFICATION
+    assert result["reply_source"] == "template"
+    assert result["tool_trace"] == []
+    assert "choices" not in result
+    assert result["next_search"] == first_page
+    assert cursor == original
+    more, _ = _run(
+        [_search_reply({"query": "chicken", "limit": 3, "offset": 6})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == expected["recipe_ids"]
+    assert more["answer"] == catalog_answer(expected)
+    assert more["next_search"] == next_search_arguments(expected)
+    _assert_public(result)
+    _assert_public(more)
+
+
 @pytest.mark.parametrize("gate", ["refusal", "guardrail"])
 def test_a_restart_decline_keeps_the_first_page_without_unshown_choices(
     gate: str,
@@ -4307,25 +4426,28 @@ def test_a_restart_decline_keeps_the_first_page_without_unshown_choices(
 
 
 @pytest.mark.parametrize(
-    "message",
+    ("query", "message"),
     [
-        "Start over with vegan meals",
-        "Start over from the first page with vegan meals",
-        "Show me the first page of vegan meals again",
-        "Find vegan meals from the first page",
-        "Show vegan meals again",
+        ("vegan", "Start over with vegan meals"),
+        ("vegan", "Start over from the first page with vegan meals"),
+        ("vegan", "Show me the first page of vegan meals again"),
+        ("vegan", "Find vegan meals from the first page"),
+        ("vegan", "Show vegan meals again"),
+        ("rice onion", "Show me the first page of rice onion meals."),
+        ("rice onion", "Start over with rice onion meals, please!"),
+        ("rice onion", "Find rice onion meals from the first page."),
     ],
 )
 @pytest.mark.parametrize("no_tool", [False, True])
 def test_a_restart_with_a_new_type_replaces_the_saved_search(
-    message: str, no_tool: bool
+    query: str, message: str, no_tool: bool
 ) -> None:
     cursor = _constrained_cursor()
     original = copy.deepcopy(cursor)
     reply = (
         _reply([_text_block("try chicken tacos")], "end_turn")
         if no_tool
-        else _search_reply({"query": "vegan", "offset": 9})
+        else _search_reply({"query": query, "offset": 9})
     )
     result, provider = _run([reply], message=message, previous_search=cursor)
     if no_tool:
@@ -4343,13 +4465,50 @@ def test_a_restart_with_a_new_type_replaces_the_saved_search(
         assert "choices" not in more
         assert "next_search" not in more
     else:
-        expected = execute_catalog_search({"query": "vegan"})
+        expected = execute_catalog_search({"query": query})
         assert _choice_ids(result) == expected["recipe_ids"]
         assert result["answer"] == catalog_answer(expected)
         assert result.get("next_search") == next_search_arguments(expected)
     assert cursor == original
     assert len(provider.requests) == 1
     _assert_public(result)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Show me the first page of zqxsentinel meals.",
+        "Show me the first page of rice zqxsentinel meals.",
+        "Restart the search with zqxsentinel onion meals.",
+        "Show the first page of paleo rice meals.",
+        "Find gluten free pasta meals from the first page.",
+        "Show me the first page of rice onion meals and my budget.",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_an_unrecognized_restart_query_keeps_the_saved_page(
+    message: str, prefixed: bool
+) -> None:
+    cursor = _page_cursor("rice onion")
+    original = copy.deepcopy(cursor)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result, _ = _run(
+        [_reply([_text_block("please clarify")], "end_turn")],
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert result["next_search"] == cursor
+    assert result["tool_trace"] == []
+    assert "choices" not in result
+    assert cursor == original
+    more, _ = _run(
+        [_search_reply({"query": "rice onion", "offset": 0})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == execute_catalog_search(cursor)["recipe_ids"]
+    _assert_public(result)
+    _assert_public(more)
 
 
 @pytest.mark.parametrize(

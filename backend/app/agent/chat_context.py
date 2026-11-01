@@ -7,7 +7,11 @@ from typing import TypeGuard, cast, get_args
 
 from pydantic import ValidationError
 
-from app.agent.catalog_tool import page_arguments
+from app.agent.catalog_tool import (
+    CatalogToolError,
+    execute_catalog_search,
+    page_arguments,
+)
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -122,7 +126,18 @@ def restart_type_query(message: str) -> str | None:
     if request is None:
         return None
     terms = next(term for term in request.groups() if term is not None)
-    return terms if _meal_terms(terms) else None
+    if _meal_terms(terms):
+        return terms
+    try:
+        found = execute_catalog_search({"query": terms})
+    except CatalogToolError:
+        return None
+    return (
+        terms
+        if found["status"] == "ok"
+        and not any(found[key] for key in ("unmatched", "unsupported", "dropped"))
+        else None
+    )
 
 
 def is_search_restart(message: str) -> bool:

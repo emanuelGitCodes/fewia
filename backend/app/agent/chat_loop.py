@@ -297,7 +297,15 @@ def run_chat(
             }
         )
     )
-    same_restart_type = restart_types is not None and restart_types == cursor_types
+    cursor_query_identity = (
+        None
+        if saved_search is None or restart_query is None
+        else search_identity({"query": saved_search["query"]})
+    )
+    same_restart_type = restart_types is not None and restart_types in (
+        cursor_types,
+        cursor_query_identity,
+    )
     restart = is_search_restart(message) and (
         restart_query is None or same_restart_type
     )
