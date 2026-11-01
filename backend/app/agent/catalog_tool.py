@@ -279,10 +279,10 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     unresolved = sorted(name for name, found in resolved.items() if found is None)
     excluded = {found for found in resolved.values() if found is not None}
     units, negated = _parse(query)
-    unmatched = [
+    unmatched_units = [
         u for u in units if not any(_matches(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
-    unmatched = list(dict.fromkeys([*unmatched, *negated]))
+    unmatched = list(dict.fromkeys([*unmatched_units, *negated]))
     query_facets = {f for u in units if (f := _facet(u)) is not None}
     facets = query_facets | ({diet} - {"omnivore"}) | set(tags)
     applied = [f for f in _FACETS if f in facets]
@@ -298,9 +298,13 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         for u in units
         if _facet(u) is None and any(_has_word(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
-    searchable = bool(facets or words)
+    unrestricted_query = any(resolve_meal_term(u) == "omnivore" for u in units)
+    searchable = bool(facets or words or unrestricted_query)
+    unknown_open_query = (
+        unrestricted_query and not (query_facets or words) and bool(unmatched_units)
+    )
     eligible: list[str] = []
-    blocked = unresolved or unsupported or not searchable
+    blocked = unresolved or unsupported or not searchable or unknown_open_query
     for rid in () if blocked else SUPPORTED_RECIPE_IDS:
         if not all(_has_facet(f, rid) for f in applied):
             continue
@@ -390,7 +394,9 @@ def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | Non
     for unit in _parse(cast(str, request["query"]))[0]:
         facet = _facet(unit)
         if facet is None and unit not in dropped:
-            if any(_has_word(unit, r) for r in SUPPORTED_RECIPE_IDS):
+            if resolve_meal_term(unit) == "omnivore" or any(
+                _has_word(unit, r) for r in SUPPORTED_RECIPE_IDS
+            ):
                 terms.append(unit)
         elif facet is not None and facet in _INGREDIENT_TAGS:
             terms.append(facet)

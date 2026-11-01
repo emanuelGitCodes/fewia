@@ -325,6 +325,7 @@ def test_unknown_word_is_no_match_and_unmatched() -> None:
     assert payload["status"] == "no_match"
     assert ids(payload) == []
     assert payload["unmatched"] == ["xyzzy"]
+    assert search("omnivore xyzzy")["status"] == "no_match"
     assert "No catalog meal matches that search" in catalog_answer(payload)
 
 
@@ -403,6 +404,63 @@ def test_diet_filters(diet: str) -> None:
     assert all(diet in MEAL_DIETS[rid] for rid in ids(payload))
     assert ids(search("vegan"))
     assert all("vegan" in MEAL_DIETS[rid] for rid in ids(search("vegan")))
+
+
+@pytest.mark.parametrize("query", ["omnivore", "omnivore meals"])
+def test_omnivore_query_searches_the_full_catalog(query: str) -> None:
+    payload = search(query)
+    assert payload["status"] == "ok"
+    assert payload["total_matches"] == 40
+    assert ids(payload) == list(SUPPORTED_RECIPE_IDS[:3])
+    assert payload["applied"] == []
+    assert payload["unmatched"] == []
+
+
+def test_omnivore_search_keeps_diet_and_exclusion_filters() -> None:
+    payload = search("omnivore meals", diet="vegetarian", exclude=["eggs"], limit=1)
+    expected = [
+        rid
+        for rid in SUPPORTED_RECIPE_IDS
+        if "vegetarian" in MEAL_DIETS[rid] and not has(rid, "eggs")
+    ]
+    assert len(expected) > 1
+    assert payload["status"] == "ok"
+    assert payload["total_matches"] == len(expected)
+    assert ids(payload) == expected[:1]
+    assert payload["applied"] == ["vegetarian"]
+    arguments = next_search_arguments(payload)
+    assert arguments is not None
+    assert arguments["query"] == "omnivore"
+    assert arguments["diet"] == "vegetarian"
+    assert arguments["exclude"] == ["eggs"]
+    assert arguments["offset"] == 1
+    second = execute_catalog_search(arguments)
+    assert ids(second) == expected[1:2]
+    assert second["applied"] == ["vegetarian"]
+
+
+@pytest.mark.parametrize("query", ["omnivore", "omnivore meals"])
+def test_omnivore_cursor_walks_all_recipes_without_repeats(query: str) -> None:
+    page = search(query, limit=3)
+    total = cast(int, page["total_matches"])
+    assert total == 40
+    walked = ids(page)
+    arguments = next_search_arguments(page)
+    assert arguments is not None
+    assert arguments["query"] == "omnivore"
+    assert arguments["offset"] == 3
+    page = execute_catalog_search(arguments)
+    assert ids(page) == list(SUPPORTED_RECIPE_IDS[3:6])
+    assert page["total_matches"] == total
+    assert not set(walked) & set(ids(page))
+    walked.extend(ids(page))
+    while (arguments := next_search_arguments(page)) is not None:
+        assert arguments["offset"] == len(walked)
+        page = execute_catalog_search(arguments)
+        assert page["status"] == "ok" and page["total_matches"] == total
+        assert not set(walked) & set(ids(page))
+        walked.extend(ids(page))
+    assert walked == list(SUPPORTED_RECIPE_IDS)
 
 
 def test_exclusion_removes_meals_and_normalizes_to_ids() -> None:
