@@ -76,14 +76,18 @@ export function ideasFromJob(job: ChatJob, plannedIds: string[]): ChatIdea[] {
   if (result === null) {
     return [];
   }
-  const choices = result.status === "clarification" ? result.choices : undefined;
-  if (choices === undefined && result.status !== "planned" && result.status !== "needs_revision") {
+  if (
+    result.status !== "clarification" &&
+    result.status !== "planned" &&
+    result.status !== "needs_revision"
+  ) {
     return [];
   }
-  const meals =
-    choices?.map((choice) => ({ recipe_id: choice.recipe_id, servings: INITIAL_SERVINGS })) ??
-    result.request?.meals ??
-    [];
+  const choices = result.choices?.map((choice) => ({
+    recipe_id: choice.recipe_id,
+    servings: INITIAL_SERVINGS,
+  }));
+  const meals = choices ?? result.request?.meals ?? [];
   const ideas: ChatIdea[] = [];
   for (const meal of meals) {
     if (ideas.length >= MAX_IDEAS) {

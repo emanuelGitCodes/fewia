@@ -95,7 +95,7 @@ describe("chatBudget", () => {
 describe("ideasFromJob", () => {
   const planned = ["bean_tacos"];
 
-  it("returns known meals that are not yet planned", () => {
+  it("falls back to known request meals and their servings when choices are absent", () => {
     const job = jobWith("planned", [
       { recipe_id: "chickpea_curry", servings: 3 },
       { recipe_id: "egg_fried_rice", servings: 2 },
@@ -133,8 +133,12 @@ describe("ideasFromJob", () => {
   });
 
   describe("choices", () => {
-    const withChoices = (status: ChatResult["status"], ids: string[]): ChatJob => {
-      const job = jobWith(status, []);
+    const withChoices = (
+      status: ChatResult["status"],
+      ids: string[],
+      meals: Array<{ recipe_id: string; servings: number }> = [],
+    ): ChatJob => {
+      const job = jobWith(status, meals);
       const choices = ids.map((recipe_id) => ({ recipe_id }));
       return { ...job, result: { ...job.result, choices } as ChatResult };
     };
@@ -148,6 +152,30 @@ describe("ideasFromJob", () => {
       ]);
     });
 
+    it("uses planned choices instead of request meals", () => {
+      expect(
+        ideasFromJob(
+          withChoices("planned", ["egg_fried_rice"], [{ recipe_id: "chickpea_curry", servings: 4 }]),
+          [],
+        ),
+      ).toEqual([{ recipeId: "egg_fried_rice", servings: 2 }]);
+    });
+
+    it("uses needs-revision choices instead of request meals", () => {
+      expect(
+        ideasFromJob(
+          withChoices("needs_revision", ["lentil_soup"], [{ recipe_id: "egg_fried_rice", servings: 3 }]),
+          [],
+        ),
+      ).toEqual([{ recipeId: "lentil_soup", servings: 2 }]);
+    });
+
+    it("filters planned IDs from planned choices", () => {
+      expect(ideasFromJob(withChoices("planned", ["chickpea_curry", "egg_fried_rice"]), ["egg_fried_rice"])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+      ]);
+    });
+
     it("skips planned and unknown choices", () => {
       expect(ideasFromJob(withChoices("clarification", ids), ["egg_fried_rice"])).toEqual([
         { recipeId: "chickpea_curry", servings: 2 },
@@ -158,8 +186,8 @@ describe("ideasFromJob", () => {
       ]);
     });
 
-    it("ignores choices on other statuses", () => {
-      expect(ideasFromJob(withChoices("limit", ids), [])).toEqual([]);
+    it.each(["limit", "incomplete"] as const)("ignores choices on %s results", (status) => {
+      expect(ideasFromJob(withChoices(status, ids), [])).toEqual([]);
     });
   });
 
