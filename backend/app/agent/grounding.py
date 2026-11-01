@@ -242,11 +242,20 @@ _OPAQUE = re.compile(
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
-    r"|diagnos|glutenfree|dairyfree"
+    r"|diagnos|glutenfree|dairyfree|nondairy|nodairy"
+    r"|(?:contains?|containing|has|have|includes?|including|uses?|made|prepared|cooked)"
+    r"(?:any)?nodairy"
+    r"|(?:do(?:es)?(?:not|nt)(?:contain|include|have|use)"
+    r"|(?:has|have)(?:not|nt)(?:got)?)(?:any)?dairy"
+    r"|free(?:of|from)(?:any|all)?dairy|without(?:any)?dairy"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
+)
+_MILK_FREE = re.compile(
+    r"\bm[\W_]*i[\W_]*l[\W_]*k[\W_]*f[\W_]*r[\W_]*e[\W_]*e\b",
+    re.IGNORECASE,
 )
 # Diet labels match from a word start on the folded text: "tofu" does not match
 # "keto"; "vegetarians" and "ketogenic" do. Spaced letters do not match.
@@ -964,6 +973,7 @@ def validate(reply: str, facts: FactSet) -> Verdict:
             "forbidden_claim",
             stale_copy
             or _FORBIDDEN.search(_squash(claims)) is not None
+            or _MILK_FREE.search(claims) is not None
             or _DIET_LABEL.search(diet_text) is not None,
         ),
         ("medical_claim", _MEDICAL.search(diet_text) is not None),
