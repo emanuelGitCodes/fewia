@@ -1,3 +1,5 @@
+import re
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import date
 from json import dumps
@@ -20,10 +22,46 @@ _CONTEXT_ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
     "; plan_meals is the user's current plan"
     "; previous_search holds the search_meals arguments for the next page of the "
-    "last search: to show more meals, call search_meals with them"
+    "last search; use them unchanged only for an explicit more request with "
+    "no new restrictions"
 )
 _PREVIOUS_SEARCH = "previous_search is invalid"
 MAX_PLAN_MEALS = 3
+_CONTINUATION = re.compile(
+    r"(?:please )?(?:(?:show|give)(?: me)? )?"
+    r"(?:more(?: (?:meals|ideas|options|choices))?|"
+    r"(?:the )?next(?: page| meals| ideas| options| choices)?)"
+    r"(?:,? please)?"
+)
+_MODIFIED_CONTINUATION = re.compile(
+    rf"{_CONTINUATION.pattern}(?:,\s*|\s+)(?:but|only|instead|without|exclude)\b"
+)
+
+
+def _search_text(message: str) -> str:
+    text = message.strip()
+    if text.startswith("My current plan: "):
+        prefix, separator, text = text.partition("\n\n")
+        if not separator or ". Pantry: " not in prefix or ". Plan cap: " not in prefix:
+            return ""
+    return " ".join(text.casefold().strip(" .!?").split())
+
+
+def is_search_continuation(message: str) -> bool:
+    return _CONTINUATION.fullmatch(_search_text(message)) is not None
+
+
+def is_modified_search_continuation(message: str) -> bool:
+    return _MODIFIED_CONTINUATION.match(_search_text(message)) is not None
+
+
+def validated_previous_search(
+    value: dict[str, object] | None,
+) -> dict[str, object] | None:
+    search = None if value is None else page_arguments(value)
+    if value is not None and search is None:
+        raise ChatProtocolError(_PREVIOUS_SEARCH)
+    return deepcopy(search)
 
 
 def plan_ingredient_ids(plan: object) -> list[str] | None:
@@ -160,9 +198,7 @@ def build_messages(
     ):
         raise ChatProtocolError(_PREVIOUS)
     meals = _plan_meals(plan_meals)
-    search = None if previous_search is None else page_arguments(previous_search)
-    if previous_search is not None and search is None:
-        raise ChatProtocolError(_PREVIOUS_SEARCH)
+    search = validated_previous_search(previous_search)
     messages = _history(history)
     context = dumps(
         {

@@ -10,10 +10,13 @@ from botocore.exceptions import ParamValidationError
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
+from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.agent.chat_context import (
     MAX_HISTORY,
     MAX_MESSAGE_LEN,
     build_messages,
+    is_modified_search_continuation,
+    is_search_continuation,
     plan_ingredient_ids,
     read_usage,
 )
@@ -28,7 +31,8 @@ _ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
     "; plan_meals is the user's current plan"
     "; previous_search holds the search_meals arguments for the next page of the "
-    "last search: to show more meals, call search_meals with them"
+    "last search; use them unchanged only for an explicit more request with "
+    "no new restrictions"
 )
 
 
@@ -152,6 +156,117 @@ def test_plan_meals_reach_the_context_in_order() -> None:
     )
     assert single["plan_meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
     assert _context(build_messages("hi", budget(), PERIOD))["plan_meals"] is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["more", "MORE!", "more meals, please", "Show me more options.", "next page"],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_explicit_more_accepts_the_client_plan_prefix(
+    message: str, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert is_search_continuation(f"{prefix if prefixed else ''}{message}")
+    assert not is_modified_search_continuation(f"{prefix if prefixed else ''}{message}")
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "more vegan meals",
+        "more protein",
+        "more, but vegan",
+        "more, but no eggs",
+        "more, but without chicken",
+        "more, but omnivore",
+        "more only vegan",
+        "more instead omnivore",
+        "more exclude chicken",
+        "next page without rice",
+        "show me more under $5",
+        "how much more budget do I have?",
+        "find chicken meals instead",
+        "My current plan: more",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_changed_searches_are_not_plain_continuations(
+    message: str, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert not is_search_continuation(f"{prefix if prefixed else ''}{message}")
+
+
+@pytest.mark.parametrize(
+    ("message", "modified"),
+    [
+        ("more, but vegan", True),
+        ("more, but without chicken", True),
+        ("more, but omnivore", True),
+        ("more only vegan", True),
+        ("more instead omnivore", True),
+        ("more without chicken", True),
+        ("more exclude chicken", True),
+        ("show me more options, but vegan", True),
+        ("please give me more choices, please, only vegan", True),
+        ("next page without rice", True),
+        ("  MORE,\tBUT vegan!  ", True),
+        ("more protein", False),
+        ("more vegan meals", False),
+        ("morebut vegan", False),
+        ("more butternut squash", False),
+        ("more onlyish vegan", False),
+        ("what is my remaining budget?", False),
+        ("what is in bean tacos?", False),
+        ("thanks", False),
+        ("how much protein is in my meal", False),
+        ("My current plan: more, but vegan", False),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_continuation_modifiers_use_the_user_body(
+    message: str, modified: bool, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert (
+        is_modified_search_continuation(f"{prefix if prefixed else ''}{message}")
+        is modified
+    )
+
+
+def test_checked_search_context_keeps_every_facet_and_offset() -> None:
+    found = execute_catalog_search(
+        {
+            "query": "gluten free",
+            "diet": "vegetarian",
+            "exclude": ["eggs"],
+            "min_protein_g": 0,
+            "max_cents_per_serving": 10000,
+            "limit": 3,
+        }
+    )
+    search = next_search_arguments(found)
+    assert search is not None and search["offset"] == 3
+    original = copy.deepcopy(search)
+    messages = build_messages("more", budget(), PERIOD, previous_search=search)
+    assert _context(messages)["previous_search"] == original
+    search["tags"] = []
+    assert _context(messages)["previous_search"] == original
+
+
+@pytest.mark.parametrize(
+    "search",
+    [
+        {"query": "meals", "tags": ["unknown"]},
+        {"query": "vegetarian", "offset": 40},
+        {"query": "vegetarian", "offset": True},
+        {"query": "zqxsentinel"},
+    ],
+)
+def test_invalid_restored_search_is_rejected(search: dict[str, object]) -> None:
+    with pytest.raises(ChatProtocolError, match="previous_search is invalid"):
+        build_messages("more", budget(), PERIOD, previous_search=search)
 
 
 @pytest.mark.parametrize(

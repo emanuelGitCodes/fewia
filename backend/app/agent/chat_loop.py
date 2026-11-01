@@ -21,7 +21,13 @@ from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.chat_answer import render_public_answer
-from app.agent.chat_context import build_messages, sum_usage
+from app.agent.chat_context import (
+    build_messages,
+    is_modified_search_continuation,
+    is_search_continuation,
+    sum_usage,
+    validated_previous_search,
+)
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
 from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
@@ -246,7 +252,16 @@ def run_chat(
             for meal in plan_revision.snapshot.meals
         ],
     )
-    meal_type = names_meal_type(message)
+    saved_search = validated_previous_search(previous_search)
+    continuation = is_search_continuation(message)
+    modified_continuation = is_modified_search_continuation(message)
+    retained_search = None if modified_continuation else saved_search
+    meal_type = (
+        continuation
+        or modified_continuation
+        or names_meal_type(message)
+        or saved_search is not None
+    )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
     candidate: dict[str, object] | None = None
@@ -362,7 +377,7 @@ def run_chat(
             reply_check=reply_check,
             proposal_id=proposal_id,
             choices=catalog_choices(found) if found else None,
-            next_search=next_search_arguments(found) if found else None,
+            next_search=next_search_arguments(found) if found else retained_search,
         )
         result["usage"] = usage
         return result
@@ -445,6 +460,23 @@ def run_chat(
             return out("incomplete", _INCOMPLETE, None, "template", reason)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
+        if continuation and saved_search is not None:
+            calls = [
+                msgs.ToolCall(call.tool_use_id, call.name, deepcopy(saved_search))
+                if call.name == CATALOG_TOOL_NAME
+                else call
+                for call in calls
+            ]
+        elif any(call.name == CATALOG_TOOL_NAME for call in calls):
+            retained_search = None
+            if continuation:
+                return out(
+                    "clarification",
+                    render_public_answer(None, meal_type=True),
+                    None,
+                    "template",
+                    why("clarification"),
+                )
         messages.append(_tool_use_history(calls))
         blocks: list[dict[str, object]] = []
         batch_ok = True

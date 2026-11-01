@@ -1,5 +1,6 @@
 """Load stored chat context for a follow-up job."""
 
+from copy import deepcopy
 from typing import NoReturn, cast
 from uuid import UUID
 
@@ -156,7 +157,8 @@ def load_previous_search(
     job = _previous_job(session, user_id, previous_job_id)
     if job is None:
         return None
-    return page_arguments(_mapping(job.result).get("next_search"))
+    result = _mapping(job.result)
+    return deepcopy(page_arguments(result.get("next_search")))
 
 
 def load_chat_context(
