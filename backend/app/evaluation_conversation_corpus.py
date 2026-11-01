@@ -1,4 +1,4 @@
-"""Strict loader for the conversation-eval-v1.3 corpus.
+"""Strict loader for the conversation-eval-v1.4 corpus.
 
 This suite is separate from the frozen grocery-eval-v1 matrix. It holds data and
 validation only; no runner lives here.
@@ -26,7 +26,7 @@ from app.domain.catalog import CATALOG_VERSION
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.evaluation_budget_inputs import fixture_budget
 
-CORPUS_ERROR = "corpus MUST match the conversation-eval-v1.3 contract"
+CORPUS_ERROR = "corpus MUST match the conversation-eval-v1.4 contract"
 MAX_MEALS = 3
 
 
@@ -87,7 +87,7 @@ def _registered_tool_names() -> frozenset[str]:
 
 
 TOOL_NAMES = _registered_tool_names()
-SCENARIO_IDS = tuple(f"C{number:02}" for number in range(1, 19))
+SCENARIO_IDS = tuple(f"C{number:02}" for number in range(1, 20))
 
 
 def _known_tool(name: str) -> str:
@@ -185,7 +185,7 @@ class Scenario(_Model):
 
 
 class ConversationCorpus(_Model):
-    version: Literal["conversation-eval-v1.3"]
+    version: Literal["conversation-eval-v1.4"]
     repeats: Literal[3]
     catalog_version: StrictStr
     scenarios: list[Scenario]

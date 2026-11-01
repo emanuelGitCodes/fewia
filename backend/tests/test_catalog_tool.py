@@ -38,6 +38,7 @@ TAG_TYPES = [
     "high_protein",
     "lower_carb",
     "gluten_free_ingredients",
+    "dairy_free_ingredients",
     "vegetarian",
     "vegan",
 ]
@@ -65,7 +66,7 @@ def test_catalog_choices_is_empty_for_a_forged_payload() -> None:
 def test_catalog_choices_is_empty_unless_the_status_is_ok() -> None:
     searches = {
         "no_match": {"query": SENTINEL},
-        "unsupported_facet": {"query": "dairy free"},
+        "unsupported_facet": {"query": "lactose free"},
         "unknown_exclusion": {"query": "chickpea", "exclude": ["nightshades"]},
     }
     for status, arguments in searches.items():
@@ -194,11 +195,11 @@ def test_meat_and_carnivore_are_a_chicken_search(query: str) -> None:
 @pytest.mark.parametrize(
     ("query", "texts"),
     [
-        ("dairy free dinner", ["dairy free"]),
+        ("lactose free dinner", ["lactose free"]),
         ("paleo", ["paleo"]),
         ("nut-free lunch", ["nut-free"]),
-        ("paleo and dairy free", ["paleo", "dairy free"]),
-        ("keto dairy-free", ["dairy-free"]),
+        ("paleo and lactose free", ["paleo", "lactose free"]),
+        ("keto lactose-free", ["lactose-free"]),
     ],
 )
 def test_a_type_the_system_cannot_check_fails_closed(
@@ -211,10 +212,42 @@ def test_a_type_the_system_cannot_check_fails_closed(
     answer = catalog_answer(payload)
     assert answer == (
         f"I cannot check {', '.join(texts)} in this catalog. I can search by: "
-        "high protein, lower carb, gluten-free ingredients, vegetarian, vegan, "
-        "chicken, egg, beans, lentils, or chickpeas."
+        "high protein, lower carb, gluten-free ingredients, dairy-free ingredients, "
+        "vegetarian, vegan, chicken, egg, beans, lentils, or chickpeas."
     )
     assert "No catalog meal matches" not in answer
+
+
+def test_dairy_free_is_a_checked_type_and_lactose_free_is_not() -> None:
+    payload = search("dairy-free meals")
+    assert payload["status"] == "ok"
+    assert payload["applied"] == ["dairy_free_ingredients"]
+    assert payload["total_matches"] == 40
+    assert payload["unsupported"] == []
+    answer = catalog_answer(payload)
+    assert "Dairy-free ingredients describes the ingredients only." in answer
+    assert answer.endswith(
+        "I cannot claim gluten-free, dairy-free, celiac, allergy, or cross-contact "
+        "safety."
+    )
+    for query in ("dairy free", "dairy-free", "non-dairy", "nondairy"):
+        assert search(query)["applied"] == ["dairy_free_ingredients"]
+    tagged = search("meals", tags=["dairy_free_ingredients"])
+    assert tagged["status"] == "ok"
+    assert tagged["applied"] == ["dairy_free_ingredients"]
+    assert tagged["total_matches"] == 40
+    lactose = search("lactose free")
+    assert lactose["status"] == "unsupported_facet"
+    assert lactose["unsupported"] == ["lactose free"]
+
+
+def test_dairy_free_chicken_returns_only_chicken_meals() -> None:
+    payload = search("dairy free chicken")
+    assert payload["status"] == "ok"
+    assert payload["applied"] == ["chicken", "dairy_free_ingredients"]
+    assert payload["total_matches"] == 12
+    assert ids(payload) and all(has(rid, "chicken_breast") for rid in ids(payload))
+    assert has("chicken_tacos", "chicken_breast") and "chicken_tacos" in ids(payload)
 
 
 def test_unknown_exclusion_is_checked_before_an_unsupported_type() -> None:
@@ -281,8 +314,8 @@ def test_invalid_tags_fail(tags: object) -> None:
         execute_catalog_search({"query": "dinner", "tags": tags})
 
 
-def test_every_tag_value_is_accepted_and_five_tags_fit() -> None:
-    assert len(TAG_TYPES) == 5
+def test_every_tag_value_is_accepted_and_six_tags_fit() -> None:
+    assert len(TAG_TYPES) == 6
     payload = search("dinner", tags=TAG_TYPES)
     request = cast(dict[str, object], payload["request"])
     assert request["tags"] == TAG_TYPES
@@ -292,6 +325,7 @@ def test_every_tag_value_is_accepted_and_five_tags_fit() -> None:
     "arguments",
     [
         {"query": "dairy free dinner"},
+        {"query": "lactose free dinner"},
         {"query": "paleo"},
         {"query": "nut-free lunch"},
         {"query": "keto"},
@@ -500,7 +534,7 @@ def test_search_identity_matches_the_identity_of_its_own_cursor() -> None:
         {"query": "vegetarian", "bogus": 1},
         {"query": "vegetarian", "min_protein_g": "30"},
         {"query": "vegetarian", "exclude": ["unknown"]},
-        {"query": "dairy free"},
+        {"query": "lactose free"},
         "vegetarian",
         None,
     ],
@@ -989,12 +1023,14 @@ def test_reply_caveats_follow_the_applied_facets() -> None:
         "High protein means",
         "Lower carb means",
         "Gluten-free ingredients describes",
+        "Dairy-free ingredients describes",
     )
     queries: list[tuple[str, int | None]] = [
         ("tacos", None),
         ("high protein", 0),
         ("keto", 1),
         ("gluten free", 2),
+        ("dairy free", 3),
     ]
     for query, index in queries:
         payload = search(query)
@@ -1002,7 +1038,9 @@ def test_reply_caveats_follow_the_applied_facets() -> None:
         assert [s for s in sentences if s in answer] == (
             [] if index is None else [sentences[index]]
         )
-        assert "I cannot claim gluten-free, celiac, allergy, or cross" in answer
+        assert "I cannot claim gluten-free, dairy-free, celiac, allergy, or cross" in (
+            answer
+        )
         assert "No meal with those types" not in answer
     assert search("tacos")["applied"] == []
 

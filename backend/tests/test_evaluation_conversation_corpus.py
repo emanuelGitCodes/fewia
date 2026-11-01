@@ -55,7 +55,7 @@ def _turn(data: Json, scenario: int, turn: int = 0) -> Json:
 
 
 def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
-    assert corpus.version == "conversation-eval-v1.3"
+    assert corpus.version == "conversation-eval-v1.4"
     assert corpus.repeats == 3
     assert corpus.catalog_version == CATALOG_VERSION
     assert tuple(scenario.id for scenario in corpus.scenarios) == SCENARIO_IDS
@@ -331,13 +331,36 @@ def test_paging_reference_has_ordered_distinct_pages(
         for item in turn.expect.gold
         if item.reference
     ]
-    assert references == [["bean_tacos"], ["vegetable_pasta"], ["lentil_soup"]]
+    assert references == [
+        ["bean_tacos"],
+        ["vegetable_pasta"],
+        ["lentil_soup"],
+        ["chicken_tacos", "bean_tacos", "vegetable_pasta"],
+    ]
+
+
+def test_c19_reference_page_is_literal_and_includes_chicken(
+    corpus: ConversationCorpus,
+) -> None:
+    scenario = corpus.scenarios[18]
+    assert scenario.id == "C19"
+    gold = scenario.turns[0].expect.gold
+    page = execute_catalog_search(gold[0].input)["recipe_ids"]
+    assert page == ["chicken_tacos", "bean_tacos", "vegetable_pasta"]
+    assert any(
+        "chicken_breast" in {item for item, _ in RECIPES[recipe_id].ingredients}
+        for recipe_id in cast(list[str], page)
+    )
 
 
 def test_unsupported_diet_keeps_its_expected_status(corpus: ConversationCorpus) -> None:
     turn = corpus.scenarios[16].turns[0]
     assert any(
         item.path == "status" and item.value == "unsupported_facet"
+        for item in turn.expect.gold
+    )
+    assert any(
+        item.path == "unsupported.0" and item.value == "paleo"
         for item in turn.expect.gold
     )
 

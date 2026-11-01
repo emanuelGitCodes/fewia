@@ -76,7 +76,7 @@ from app.evaluation_shapes import valid_public_result
 
 PERIOD = date(2026, 9, 1)
 # Interim budget while chat-arch phases 1-2 add tools; phase 3 lowers it.
-PROMPT_AND_TOOLS_BUDGET = 16500
+PROMPT_AND_TOOLS_BUDGET = 17000
 _SECRET = "do-not-echo-raw-input"
 _UNAVAILABLE = "The language model is unavailable."
 _LIMIT = "The job reached a processing limit."

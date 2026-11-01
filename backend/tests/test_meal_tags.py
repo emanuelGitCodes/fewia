@@ -1,9 +1,14 @@
+from typing import cast
+
 import pytest
 
+from app.agent.catalog_tool import execute_catalog_search
+from app.domain import meal_tags
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import (
     CARNIVORE_NOTE,
+    DAIRY_INGREDIENT_IDS,
     GLUTEN_INGREDIENT_IDS,
     HIGH_PROTEIN_G,
     KETO_NOTE,
@@ -47,12 +52,14 @@ def test_names_meal_type(text: str, expected: bool) -> None:
 
 
 def test_unchecked_diet_finds_the_labels_and_the_resolver_splits_them() -> None:
-    text = "keto paleo dairy free nut-free plant based low fat"
+    text = "keto paleo lactose free nut-free plant based low fat"
     found = [m.group().lower() for m in UNCHECKED_DIET.finditer(text)]
-    expected = ["keto", "paleo", "dairy free", "nut-free", "plant based", "low fat"]
+    expected = ["keto", "paleo", "lactose free", "nut-free", "plant based", "low fat"]
     assert found == expected
     checkable = [term for term in found if resolve_meal_term(term) is not None]
     assert checkable == ["keto", "plant based"]
+    assert UNCHECKED_DIET.search("dairy free dinner") is None
+    assert resolve_meal_term("dairy free") == "dairy_free_ingredients"
 
 
 def test_thresholds_and_gluten_ingredients() -> None:
@@ -68,7 +75,9 @@ def test_thresholds_and_gluten_ingredients() -> None:
         "high_protein",
         "lower_carb",
         "gluten_free_ingredients",
+        "dairy_free_ingredients",
     )
+    assert DAIRY_INGREDIENT_IDS == frozenset()
 
 
 def test_gluten_ids_come_from_ingredient_facts() -> None:
@@ -96,6 +105,7 @@ def test_tag_counts_match_the_catalog() -> None:
         "high_protein": 10,
         "lower_carb": 8,
         "gluten_free_ingredients": 28,
+        "dairy_free_ingredients": 40,
     }
 
 
@@ -112,6 +122,37 @@ def test_tag_rules_and_order() -> None:
         assert ("high_protein" in tags) == (protein_g >= HIGH_PROTEIN_G)
         assert ("lower_carb" in tags) == (carbs_g <= LOWER_CARB_G)
         assert ("gluten_free_ingredients" in tags) == (not ids & GLUTEN_INGREDIENT_IDS)
+        assert ("dairy_free_ingredients" in tags) == (not ids & DAIRY_INGREDIENT_IDS)
+
+
+def test_dairy_ids_come_from_ingredient_facts() -> None:
+    flagged = {item.id for item in INGREDIENTS.values() if item.contains_dairy}
+    assert flagged == set()
+    assert DAIRY_INGREDIENT_IDS == flagged
+
+
+def test_every_recipe_and_chicken_tacos_carry_dairy_free_ingredients() -> None:
+    assert all("dairy_free_ingredients" in tags for tags in MEAL_TAGS.values())
+    assert "dairy_free_ingredients" in MEAL_TAGS["chicken_tacos"]
+
+
+def test_a_dairy_ingredient_removes_the_tag_and_the_search_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = execute_catalog_search({"query": "dairy-free"})
+    assert "chicken_tacos" in cast(list[str], before["recipe_ids"])
+    monkeypatch.setattr(
+        meal_tags, "DAIRY_INGREDIENT_IDS", frozenset({"chicken_breast"})
+    )
+    # _tags is not cached, but MEAL_TAGS is built at import, so rebuild its entries.
+    assert "dairy_free_ingredients" not in meal_tags._tags("chicken_tacos")
+    for recipe_id in SUPPORTED_RECIPE_IDS:
+        monkeypatch.setitem(MEAL_TAGS, recipe_id, meal_tags._tags(recipe_id))
+    assert "dairy_free_ingredients" not in MEAL_TAGS["chicken_tacos"]
+    after = execute_catalog_search({"query": "dairy-free"})
+    assert after["status"] == "ok"
+    assert after["total_matches"] == 28
+    assert "chicken_tacos" not in cast(list[str], after["recipe_ids"])
 
 
 def test_meal_diets_follow_ingredient_flags() -> None:
@@ -151,6 +192,10 @@ def test_search_term_table() -> None:
         "gluten free": ("gluten_free_ingredients", None),
         "gluten-free": ("gluten_free_ingredients", None),
         "celiac": ("gluten_free_ingredients", None),
+        "dairy free": ("dairy_free_ingredients", None),
+        "dairy-free": ("dairy_free_ingredients", None),
+        "non-dairy": ("dairy_free_ingredients", None),
+        "nondairy": ("dairy_free_ingredients", None),
         "plant based": ("vegan", None),
         "plant-based": ("vegan", None),
         "veggie": ("vegetarian", None),
@@ -167,6 +212,10 @@ def test_search_term_table() -> None:
         "gluten free",
         "gluten-free",
         "celiac",
+        "dairy free",
+        "dairy-free",
+        "non-dairy",
+        "nondairy",
         "plant based",
         "plant-based",
         "veggie",
@@ -183,6 +232,8 @@ def test_search_term_table() -> None:
         ("lower-carb", "lower_carb"),
         ("gluten free ingredients", "gluten_free_ingredients"),
         ("gluten-free-ingredients", "gluten_free_ingredients"),
+        ("dairy free ingredients", "dairy_free_ingredients"),
+        ("dairy-free-ingredients", "dairy_free_ingredients"),
         ("low_carb", "lower_carb"),
         ("high", None),
         ("protein bar", None),

@@ -30,6 +30,7 @@ class Ingredient:
     is_pantry: bool = False
     # Listed contents only, not a safety claim. An unknown fact MUST be True.
     contains_gluten: bool = field(kw_only=True)
+    contains_dairy: bool = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,7 @@ def _item(
     vegan: bool,
     *,
     gluten: bool,
+    dairy: bool,
     pantry: bool = False,
 ) -> Ingredient:
     return Ingredient(
@@ -67,6 +69,7 @@ def _item(
         vegan,
         pantry,
         contains_gluten=gluten,
+        contains_dairy=dairy,
     )
 
 
@@ -82,16 +85,51 @@ INGREDIENTS: dict[str, Ingredient] = {
             False,
             False,
             gluten=False,
+            dairy=False,
         ),
-        _item("eggs", "eggs", "each", 12, 349, True, False, gluten=False),
-        _item("black_beans", "black beans", "g", 425, 129, True, True, gluten=False),
-        _item("tortillas", "corn tortillas", "each", 8, 299, True, True, gluten=False),
-        _item("salsa", "salsa", "g", 454, 249, True, True, gluten=False),
-        _item("rice", "white rice", "g", 907, 199, True, True, gluten=False),
-        _item("pasta", "dry pasta", "g", 454, 149, True, True, gluten=True),
-        _item("tomato", "canned tomato", "g", 411, 179, True, True, gluten=False),
-        _item("onion", "onion", "g", 454, 129, True, True, gluten=False),
-        _item("garlic", "garlic", "g", 100, 89, True, True, gluten=False),
+        _item("eggs", "eggs", "each", 12, 349, True, False, gluten=False, dairy=False),
+        _item(
+            "black_beans",
+            "black beans",
+            "g",
+            425,
+            129,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item(
+            "tortillas",
+            "corn tortillas",
+            "each",
+            8,
+            299,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item("salsa", "salsa", "g", 454, 249, True, True, gluten=False, dairy=False),
+        _item(
+            "rice", "white rice", "g", 907, 199, True, True, gluten=False, dairy=False
+        ),
+        _item(
+            "pasta", "dry pasta", "g", 454, 149, True, True, gluten=True, dairy=False
+        ),
+        _item(
+            "tomato",
+            "canned tomato",
+            "g",
+            411,
+            179,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item("onion", "onion", "g", 454, 129, True, True, gluten=False, dairy=False),
+        _item("garlic", "garlic", "g", 100, 89, True, True, gluten=False, dairy=False),
         _item(
             "olive_oil",
             "olive oil",
@@ -102,14 +140,65 @@ INGREDIENTS: dict[str, Ingredient] = {
             True,
             pantry=True,
             gluten=False,
+            dairy=False,
         ),
         _item(
-            "cumin", "ground cumin", "g", 42, 199, True, True, pantry=True, gluten=False
+            "cumin",
+            "ground cumin",
+            "g",
+            42,
+            199,
+            True,
+            True,
+            pantry=True,
+            gluten=False,
+            dairy=False,
         ),
-        _item("salt", "salt", "g", 737, 99, True, True, pantry=True, gluten=False),
-        _item("lentils", "brown lentils", "g", 454, 179, True, True, gluten=False),
-        _item("chickpeas", "chickpeas", "g", 425, 129, True, True, gluten=False),
-        _item("coconut_milk", "coconut milk", "g", 400, 249, True, True, gluten=False),
+        _item(
+            "salt",
+            "salt",
+            "g",
+            737,
+            99,
+            True,
+            True,
+            pantry=True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item(
+            "lentils",
+            "brown lentils",
+            "g",
+            454,
+            179,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item(
+            "chickpeas",
+            "chickpeas",
+            "g",
+            425,
+            129,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item(
+            "coconut_milk",
+            "coconut milk",
+            "g",
+            400,
+            249,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
         _item(
             "curry_powder",
             "curry powder",
@@ -120,6 +209,7 @@ INGREDIENTS: dict[str, Ingredient] = {
             True,
             pantry=True,
             gluten=False,
+            dairy=False,
         ),
         _item(
             "mixed_vegetables",
@@ -130,11 +220,36 @@ INGREDIENTS: dict[str, Ingredient] = {
             True,
             True,
             gluten=False,
+            dairy=False,
         ),
-        _item("soy_sauce", "soy sauce", "g", 296, 199, True, True, gluten=True),
-        _item("potato", "russet potato", "each", 5, 399, True, True, gluten=False),
-        _item("oats", "rolled oats", "g", 454, 349, True, True, gluten=True),
-        _item("oat_milk", "oat milk", "g", 946, 399, True, True, gluten=True),
+        _item(
+            "soy_sauce",
+            "soy sauce",
+            "g",
+            296,
+            199,
+            True,
+            True,
+            gluten=True,
+            dairy=False,
+        ),
+        _item(
+            "potato",
+            "russet potato",
+            "each",
+            5,
+            399,
+            True,
+            True,
+            gluten=False,
+            dairy=False,
+        ),
+        _item(
+            "oats", "rolled oats", "g", 454, 349, True, True, gluten=True, dairy=False
+        ),
+        _item(
+            "oat_milk", "oat milk", "g", 946, 399, True, True, gluten=True, dairy=False
+        ),
     )
 }
 

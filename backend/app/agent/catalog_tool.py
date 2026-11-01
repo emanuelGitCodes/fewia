@@ -48,14 +48,20 @@ _CAVEATS = {
     "high_protein": "High protein means 30 g or more protein per serving.",
     "lower_carb": "Lower carb means 30 g or less carbohydrate per serving.",
     "gluten_free_ingredients": _GLUTEN_FREE,
+    "dairy_free_ingredients": "Dairy-free ingredients describes the ingredients only.",
 }
-_CANNOT_CLAIM = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+_CANNOT_CLAIM = (
+    "I cannot claim gluten-free, dairy-free, celiac, allergy, or cross-contact safety."
+)
 _SAFETY = " ".join([*_CAVEATS.values(), _CANNOT_CLAIM])
 _FACET_DIETS = ("vegetarian", "vegan")
 _FACETS = (*TAG_ORDER, *_FACET_DIETS)
 _INGREDIENT_TAGS = tuple(tag for tag, _ in PROTEIN_TAGS)
 _TAG_TYPES = tuple(f for f in _FACETS if f not in _INGREDIENT_TAGS)
-_LABELS = {"gluten_free_ingredients": "gluten-free ingredients"}
+_LABELS = {
+    "gluten_free_ingredients": "gluten-free ingredients",
+    "dairy_free_ingredients": "dairy-free ingredients",
+}
 _SUPPORTED_LABELS = [
     _LABELS.get(f, f.replace("_", " "))
     for f in (

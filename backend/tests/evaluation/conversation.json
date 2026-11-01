@@ -1,5 +1,5 @@
 {
-  "version": "conversation-eval-v1.3",
+  "version": "conversation-eval-v1.4",
   "repeats": 3,
   "catalog_version": "sample-prices-v2",
   "scenarios": [
@@ -737,7 +737,7 @@
     },
     {
       "id": "C17",
-      "title": "Dairy-free request the catalog cannot check",
+      "title": "Paleo request the catalog cannot check",
       "inputs": {
         "now": "2026-09-06T16:00:00Z",
         "budget_period": "2026-09-01",
@@ -753,15 +753,15 @@
       "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
       "turns": [
         {
-          "user": "Do you have dairy-free meals?",
+          "user": "Do you have paleo meals?",
           "apply_proposal_before": false,
           "expect": {
             "tools_any": ["search_meals"],
             "tools_forbidden": ["propose_plan_change"],
             "outcomes": ["template", "clarification"],
             "gold": [
-              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "status", "value": "unsupported_facet"},
-              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "unsupported.0", "value": "dairy-free"}
+              {"tool": "search_meals", "input": {"query": "paleo meals"}, "path": "status", "value": "unsupported_facet"},
+              {"tool": "search_meals", "input": {"query": "paleo meals"}, "path": "unsupported.0", "value": "paleo"}
             ]
           }
         }
@@ -796,6 +796,40 @@
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "applied.0", "value": "gluten_free_ingredients"},
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "dropped.0", "value": "pasta"},
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "total_matches", "value": 28}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C19",
+      "title": "Dairy-free meal type request",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
+      "turns": [
+        {
+          "user": "Do you have dairy-free meals?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "applied.0", "value": "dairy_free_ingredients"},
+              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "total_matches", "value": 40},
+              {"tool": "search_meals", "input": {"query": "dairy-free meals"}, "path": "recipe_ids", "reference": true}
             ]
           }
         }

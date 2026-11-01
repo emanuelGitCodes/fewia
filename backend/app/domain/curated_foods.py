@@ -85,6 +85,7 @@ def _parse_food(record: object) -> _Food:
             vegan,
             False,
             contains_gluten=True,  # no gluten fact is known: fail closed
+            contains_dairy=True,  # no dairy fact is known: fail closed
         ),
         NutritionFacts(fdc_id, **amounts),
         tuple(synonyms),

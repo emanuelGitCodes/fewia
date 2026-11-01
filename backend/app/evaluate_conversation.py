@@ -1,4 +1,4 @@
-"""CLI for the conversation-eval-v1.3 suite: python -m app.evaluate_conversation."""
+"""CLI for the conversation-eval-v1.4 suite: python -m app.evaluate_conversation."""
 
 import argparse
 import hashlib

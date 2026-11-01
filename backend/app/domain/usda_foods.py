@@ -270,6 +270,7 @@ def _food(row: object) -> UsdaFood:
         vegan,
         False,
         contains_gluten=True,  # no gluten fact is known: fail closed
+        contains_dairy=True,  # no dairy fact is known: fail closed
     )
     return UsdaFood(
         ingredient,

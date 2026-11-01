@@ -242,7 +242,7 @@ _OPAQUE = re.compile(
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
-    r"|diagnos|glutenfree"
+    r"|diagnos|glutenfree|dairyfree"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
