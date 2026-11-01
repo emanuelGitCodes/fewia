@@ -12,7 +12,8 @@ The repair branch starts at `fddb358c3aa05c27cb1bdd78aa050c76a6e67ccb`.
 | F5: wrong cards | Checked choices supply cards for clarification, planned, and needs-revision replies. | Model and component tests; desktop and mobile browser checks. |
 | F6: false-positive gold | C18 requires the gluten ingredient constraint. The runner carries checked search cursors. | Both wrong-query counterexamples, repeated/skipped page checks, and cursor propagation. |
 
-The conversation corpus is `conversation-eval-v1.2`, with eighteen scenarios and thirty-one turns.
+The conversation corpus is `conversation-eval-v1.3`, with eighteen scenarios and thirty-one turns.
+Repair round 1 moved the corpus from v1.2 to v1.3. It adds literal `total_matches` golds, pinned reference pages, and the manifest identity fields.
 C16 checks three vegetarian search pages with a budget question between pages.
 The frozen grocery corpus remains unchanged. New conversation results do not compare directly with v1.1.
 Reference page identities come from fixed deterministic search inputs, independently of the model's actual call.
