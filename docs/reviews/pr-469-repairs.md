@@ -13,7 +13,7 @@ The first repairs start at `fddb358c`. The latest follow-up starts at `6cd6554e`
 | F6: false-positive gold | C18 requires the gluten ingredient constraint. The runner carries checked search cursors. | Both wrong-query counterexamples, repeated/skipped page checks, and cursor propagation. |
 | R1: ignored restart | Explicit restart reuses the active filters and limit at offset zero. Named saved facets preserve those restrictions after cursor normalization. A no-tool reply retains that first page as pending. | Restart phrases, named facets and aliases, omitted model filters, wrong offsets, prefixes, no-tool restart and more. |
 | R2: repeated first page | Search identity treats equivalent conjunctive words as a set. Unsupported and unknown-only searches cannot reuse a cursor. | Reordered, duplicate and stemmed words; filter distinctions; unknown query after omnivore. |
-| R3: dairy prose aliases | Recognized dairy-absence claims use authoritative fallback. Exact server caveats and benign ingredient text remain allowed. | Aliases, negated preparation, formatting, exact public budget fallback, partial quantifiers, and milk-free versus milk-freezing distinctions. |
+| R3: dairy prose aliases | Recognized dairy-absence claims use authoritative fallback. New aliases preserve word boundaries. Exact server caveats and benign ingredient text remain allowed. | Aliases, negated preparation, formatting, public fallback, partial quantifiers, milk freezing, and positive oregano/Dannon/garlic-knot boundaries. |
 
 The conversation corpus is `conversation-eval-v1.4`, with nineteen scenarios and thirty-two turns.
 It holds literal `total_matches` golds, pinned reference pages, and manifest identity fields.

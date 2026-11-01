@@ -5041,3 +5041,28 @@ The review runner fixes this effort; the async advisors and writers used `xhigh`
 Writer coverage remains partial. These totals exclude native coordination and are not cost or wall-clock totals.
 The user approved the private Astra review transfer. The loop ledger records the next verdict separately.
 No new live Nova calls ran. Publication is authorized; the PR MUST remain unmerged.
+
+## 2026-11-01: Preserve dairy alias word boundaries on PR 469
+
+Astra review round two returned REQUEST_CHANGES on `8242d1aa`.
+The squashed no-dairy rule rejected the positive phrase "oregano, dairy".
+The coordinator reproduced the validator and public-chat failure.
+Astra's read-only advisor found Dannon/dairy and garlic-knot/preparation collisions.
+The coordinator reproduced all four additional positive sentences before repair.
+Sol at `xhigh` completed the bounded repair through two supervisor runs.
+The new alias patterns preserve word boundaries while accepting known claim formatting.
+The preexisting dairy-free pattern remains outside this scoped boundary repair.
+Native commit `7513003b` passed 722 focused tests and 64 direct/public checks.
+Its isolated backend gates passed: 13,274 tests, one skipped, one warning.
+Ruff, strict mypy and gitleaks passed. The temporary database was removed.
+The full 107-case root harness passes on that source. It fails 59 cases on
+original `6cd6554e` and 22 on `8242d1aa`.
+Accented public controls use the existing normalized reply contract.
+All prior negative-claim, partial-quantifier and server-caveat assertions remain.
+
+This repair adds 1,031,674 input tokens, 16,360 output tokens and 324.636 CLI seconds.
+Recorded writers total 10,146,481 input, 159,332 output and 2,937.164 CLI seconds.
+The first two Astra reviews total 930,787 input, 6,284 output and 220.487 CLI seconds.
+Writer coverage remains partial; native coordination and final review are separate.
+These figures are not complete cost or wall-clock totals. No new live Nova calls ran.
+The loop ledger records the third independent verdict and publication status separately.
