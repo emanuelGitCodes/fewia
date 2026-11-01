@@ -2061,8 +2061,10 @@ def test_system_prompt_states_the_honest_tag_caveats() -> None:
         in SYSTEM_PROMPT
     )
     assert (
-        "gluten_free_ingredients and dairy_free_ingredients describe the ingredients only. "
-        "You MUST NOT call a meal gluten-free, dairy-free, celiac-safe, or allergy-safe. "
+        "gluten_free_ingredients and dairy_free_ingredients "
+        "describe the ingredients only. "
+        "You MUST NOT call a meal gluten-free, dairy-free, "
+        "celiac-safe, or allergy-safe. "
     ) in SYSTEM_PROMPT
     assert "name up to three catalog meals" not in SYSTEM_PROMPT
 

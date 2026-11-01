@@ -1,7 +1,7 @@
 # Meal search by type: typed facets and hard filters
 
 - Date: 2026-10-31
-- Status: items 1 to 8 and 8b are built; item 9 waits for editable recipes
+- Status: items 1 to 8, 8b, and 10 are built; item 9 waits for editable recipes
 - Context: the open design question on PR 460 ("the agent looks up meals
   by type"), [chat-architecture-proposal.md](chat-architecture-proposal.md),
   [grounding-redesign.md](grounding-redesign.md)
@@ -176,6 +176,7 @@ Each item adds fewer than 150 code lines. Data and tests do not count.
 | 7 | Meal-type scenarios C13 to C17, gold from the tool | `conversation.json`, corpus test | data | The gold answers come from the deterministic tools |
 | 8 | `total_matches` and `offset` | `catalog_tool.py` | 60 | `offset` walks the full set with no repeats |
 | 9 | A `MealIndex` protocol with a PostgreSQL implementation, when recipes become editable | new module, migration | later | Both loaders give the same hash |
+| 10 | A `dairy_free_ingredients` type from a `contains_dairy` ingredient fact | `catalog.py`, `meal_tags.py`, `catalog_tool.py`, prompt, corpus v1.4 | done | "dairy-free meals" returns all 40 meals, chicken meals too |
 
 Item 1 is the smallest change that fixes the reply the user sees.
 
@@ -212,6 +213,8 @@ Run one live Nova 2 Lite batch after item 7.
 | An unknown free word | A hard filter when it matches a catalog word. Otherwise the reply reports it and ignores it: "No meal mentions beef." |
 | Add tags to `catalog_hash` now | Yes. The hash already restarted at decision 0024. |
 | Move the 22 ingredient pairs from the prompt into schema enums | Measure after item 7, then decide. |
-| Allergen types other than gluten | None until ingredients carry allergen facts. |
+| Allergen types other than gluten | Dairy, from the `contains_dairy` fact (item 10). No other type until ingredients carry its fact. |
+| Dairy-free as vegan | No (owner, 2026-11-01). A dairy-free person can eat meat or fish, so dairy-free MUST NOT map to `vegan` or any diet. |
+| Prompt and tools budget | 17,000 characters (owner, 2026-11-01), raised from 16,500 for item 10. |
 | Corpus version | Add the scenarios as v1.1 of the conversation suite. |
 | Recipes in PostgreSQL | Tie the move to `update_recipe`, not to search. |

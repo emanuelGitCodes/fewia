@@ -42,7 +42,7 @@ describe("SEARCH_TERMS", () => {
 
   it("is read from the backend search terms in their order", () => {
     expect(Object.keys(SEARCH_TERMS)).toEqual(Object.keys(CATALOG_SEARCH_TERMS));
-    expect(Object.keys(SEARCH_TERMS)).toHaveLength(14);
+    expect(Object.keys(SEARCH_TERMS)).toHaveLength(18);
     for (const [term, { target, note }] of Object.entries(CATALOG_SEARCH_TERMS)) {
       expect(SEARCH_TERMS[term].target).toBe(target);
       expect(SEARCH_TERMS[term].note).toBe(note ?? undefined);
