@@ -9,6 +9,7 @@ from uuid import UUID
 import pytest
 
 from app.agent import ingredient_tool
+from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_dispatch import dispatch
 from app.agent.chat_loop import ChatUnavailable, run_chat
 from app.agent.chat_messages import ToolCall
@@ -54,7 +55,7 @@ def _turn(data: Json, scenario: int, turn: int = 0) -> Json:
 
 
 def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
-    assert corpus.version == "conversation-eval-v1.1"
+    assert corpus.version == "conversation-eval-v1.2"
     assert corpus.repeats == 3
     assert corpus.catalog_version == CATALOG_VERSION
     assert tuple(scenario.id for scenario in corpus.scenarios) == SCENARIO_IDS
@@ -62,6 +63,7 @@ def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
     assert turns["C04"] == 2
     assert turns["C07"] == 2
     assert turns["C11"] == 9
+    assert turns["C16"] == 4
     outcomes = {
         outcome
         for scenario in corpus.scenarios
@@ -206,6 +208,7 @@ _RULES: dict[str, Callable[[Json], None]] = {
     "long_user": _set(_TURN, "user", "x" * 501),
     "no_turns": _set(["scenarios", 0], "turns", []),
     "gold_float_value": _set(_GOLD, "value", 1.5),
+    "reference_with_value": _set(_GOLD, "reference", True),
     "gold_empty_path": _set(_GOLD, "path", ""),
     "missing_inputs_key": _delete(["scenarios", 0, "inputs"], "diet"),
     "inputs_wrong_type": _set(["scenarios", 0, "inputs"], "posted_cents", "0"),
@@ -290,13 +293,40 @@ def test_gold_regenerates_from_the_tools(
                 )
                 assert payload is not None, f"{where}: {gold.tool} failed"
                 got = _at(payload, gold.path)
-                assert got == gold.value, f"{where}: {gold.tool} {gold.path}"
-                assert type(got) is type(gold.value), f"{where}: {gold.path}"
+                expected = (
+                    _at(execute_catalog_search(gold.input), gold.path)
+                    if gold.reference
+                    else gold.value
+                )
+                assert got == expected, f"{where}: {gold.tool} {gold.path}"
+                assert type(got) is type(expected), f"{where}: {gold.path}"
                 checked += 1
                 if gold.tool == PROPOSAL_TOOL:
                     proposed = cast(list[dict[str, object]], gold.input["operations"])
     assert checked == sum(
         len(turn.expect.gold) for s in corpus.scenarios for turn in s.turns
+    )
+
+
+def test_paging_reference_has_ordered_distinct_pages(corpus: ConversationCorpus) -> None:
+    scenario = corpus.scenarios[15]
+    pages = [
+        execute_catalog_search(turn.expect.gold[0].input)["recipe_ids"]
+        for turn in (scenario.turns[0], scenario.turns[1], scenario.turns[3])
+    ]
+    full = cast(
+        list[str], execute_catalog_search({"query": "vegetarian"})["recipe_ids"]
+    )
+    assert all(isinstance(page, list) and len(page) == 1 for page in pages)
+    assert [cast(list[str], page)[0] for page in pages] == full
+    assert len(set(full)) == 3
+
+
+def test_unsupported_diet_keeps_its_expected_status(corpus: ConversationCorpus) -> None:
+    turn = corpus.scenarios[16].turns[0]
+    assert any(
+        item.path == "status" and item.value == "unsupported_facet"
+        for item in turn.expect.gold
     )
 
 

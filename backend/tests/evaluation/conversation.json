@@ -1,5 +1,5 @@
 {
-  "version": "conversation-eval-v1.1",
+  "version": "conversation-eval-v1.2",
   "repeats": 3,
   "catalog_version": "sample-prices-v2",
   "scenarios": [
@@ -665,7 +665,7 @@
     },
     {
       "id": "C16",
-      "title": "Cheap vegetarian dinner request",
+      "title": "Vegetarian search with paging and a budget turn",
       "inputs": {
         "now": "2026-09-06T16:00:00Z",
         "budget_period": "2026-09-01",
@@ -681,15 +681,54 @@
       "plan": {"meals": [], "pantry_ingredient_ids": [], "plan_cap_cents": null},
       "turns": [
         {
-          "user": "Find me a cheap vegetarian dinner.",
+          "user": "Find vegetarian meals, one at a time.",
           "apply_proposal_before": false,
           "expect": {
             "tools_any": ["search_meals"],
             "tools_forbidden": ["propose_plan_change"],
             "outcomes": ["template", "clarification"],
             "gold": [
-              {"tool": "search_meals", "input": {"query": "vegetarian dinner"}, "path": "status", "value": "ok"},
-              {"tool": "search_meals", "input": {"query": "vegetarian dinner"}, "path": "applied.0", "value": "vegetarian"}
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "applied.0", "value": "vegetarian"},
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "recipe_ids", "reference": true}
+            ]
+          }
+        },
+        {
+          "user": "Show me more.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1, "offset": 1}, "path": "recipe_ids", "reference": true},
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1, "offset": 1}, "path": "request.offset", "value": 1}
+            ]
+          }
+        },
+        {
+          "user": "What is my budget?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["get_budget_summary"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "prose"],
+            "gold": [
+              {"tool": "get_budget_summary", "input": {}, "path": "budget.available_cents", "value": 10000}
+            ]
+          }
+        },
+        {
+          "user": "Show me more meals.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["search_meals"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["template", "clarification"],
+            "gold": [
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1, "offset": 2}, "path": "recipe_ids", "reference": true},
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1, "offset": 2}, "path": "request.offset", "value": 2}
             ]
           }
         }
@@ -753,6 +792,7 @@
             "outcomes": ["template", "clarification"],
             "gold": [
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "status", "value": "ok"},
+              {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "applied.0", "value": "gluten_free_ingredients"},
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "dropped.0", "value": "pasta"}
             ]
           }

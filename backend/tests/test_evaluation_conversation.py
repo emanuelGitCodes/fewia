@@ -9,6 +9,7 @@ import pytest
 from app import evaluation_conversation as runner
 from app import evaluation_model_turn as model_turn
 from app.agent import chat_loop, grounding
+from app.agent.catalog_tool import execute_catalog_search
 from app.agent.provider import LLMProvider
 from app.domain.plan_proposal import ProposalInvalid
 from app.evaluate_conversation import GoldFollowingProvider, main
@@ -282,6 +283,114 @@ def test_fact_presence_needs_the_tool_path_and_exact_typed_value() -> None:
     assert not runner._present(gold("get_meal", "a.b.0.c", 5), payloads)
     assert not runner._present(gold("get_plan", "a.b.0.c", "5"), payloads)
     assert not runner._present(gold("get_plan", "flag", True), payloads)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"query": "lower carb pasta"},
+        {"query": "vegetarian pasta", "exclude": ["pasta"], "offset": 3},
+    ],
+)
+def test_c18_rejects_searches_without_the_gluten_constraint(
+    corpus: ConversationCorpus, arguments: dict[str, object]
+) -> None:
+    turn = corpus.scenarios[17].turns[0]
+    payloads: list[tuple[object, object]] = [
+        ("search_meals", execute_catalog_search(arguments))
+    ]
+    facts = [runner._present(item, payloads) for item in turn.expect.gold]
+    assert not all(facts)
+    record: dict[str, object] = {
+        "tools": [{"name": "search_meals"}],
+        "reply_source": "template",
+        "status": "clarification",
+        "gate": "discovery_terminal",
+        "facts_present": facts,
+        "apply_error": None,
+    }
+    assert not score_turn(turn, record)["gold"]
+
+
+def test_page_reference_rejects_repeated_or_skipped_pages(
+    corpus: ConversationCorpus,
+) -> None:
+    page = corpus.scenarios[15].turns[1].expect.gold[0]
+    for offset in (0, 2):
+        payload = execute_catalog_search(
+            {"query": "vegetarian", "limit": 1, "offset": offset}
+        )
+        assert not runner._present(page, [("search_meals", payload)])
+
+
+@pytest.mark.parametrize("cursor_result", ["retained", "invalid", "missing"])
+def test_search_cursor_reaches_model_context_on_each_turn(
+    corpus: ConversationCorpus, monkeypatch: pytest.MonkeyPatch, cursor_result: str
+) -> None:
+    seen: dict[tuple[int, int], dict[str, object]] = {}
+    real = chat_loop.run_chat
+
+    def with_budget_result(*args: object, **kwargs: object) -> dict[str, object]:
+        result = real(*args, **kwargs)  # type: ignore[arg-type]
+        if args[1] == "What is my budget?":
+            if cursor_result == "retained":
+                result["next_search"] = kwargs.get("previous_search")
+            elif cursor_result == "invalid":
+                result["next_search"] = {"query": ""}
+            else:
+                result.pop("next_search", None)
+        return result
+
+    monkeypatch.setattr(chat_loop, "run_chat", with_budget_result)
+
+    class ContextProvider:
+        def __init__(self, repeat: int, turn: int) -> None:
+            self.repeat = repeat
+            self.turn = turn
+            self.step = 0
+
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            self.step += 1
+            if self.step > 1:
+                return _text("Done.")
+            content = cast(list[dict[str, str]], messages[-1]["content"])
+            context = cast(dict[str, object], json.loads(content[0]["text"]))
+            seen[(self.repeat, self.turn)] = context
+            if self.turn == 3:
+                return _use("get_budget_summary", {})
+            cursor = context.get("previous_search")
+            arguments = (
+                {"query": "vegetarian", "limit": 1}
+                if self.turn == 1 or not isinstance(cursor, dict)
+                else cursor
+            )
+            return _use("search_meals", arguments)
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        return ContextProvider(repeat, turn)
+
+    sub = _only(corpus, "C16")
+    records = list(run_conversation_suite(sub, "p", provider_for))
+    assert len(records) == 12
+    for repeat in (1, 2, 3):
+        assert seen[(repeat, 1)]["previous_search"] is None
+        cursor1 = cast(dict[str, object], seen[(repeat, 2)]["previous_search"])
+        cursor2 = cast(dict[str, object], seen[(repeat, 3)]["previous_search"])
+        assert cursor1["offset"] == 1
+        assert cursor2["offset"] == 2
+        expected = cursor2 if cursor_result == "retained" else None
+        assert seen[(repeat, 4)]["previous_search"] == expected
+        if cursor_result == "retained":
+            own = [record for record in records if record["repeat"] == repeat]
+            assert all(
+                all(score_turn(turn, record).values())
+                for turn, record in zip(sub.scenarios[0].turns, own, strict=True)
+            )
 
 
 def test_the_matrix_turn_passes_exactly_todays_run_chat_arguments(
