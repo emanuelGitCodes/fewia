@@ -4898,3 +4898,18 @@ These counters include writers and item reviews. They exclude native coordinatio
 and the later combined review; the loop ledger records that final review separately.
 The owner approved six additional Nova chat turns after local checks.
 Publication and merge remain outside this local repair authorization.
+
+## 2026-11-01: Clear the PR 469 cursor for a new meal type
+
+A probe after the first combined approval found another stale-state case.
+A chicken search, a no-tool `Find vegan meals` reply, and `more` could return chicken.
+Item 07 clears the cursor for explicit supported type requests, including bare and
+combined types. Budget questions and ordinary reads retain the cursor.
+Sol at `xhigh` wrote the four scoped files. The supervisor stopped at exit 130 after
+the planned edits; its checkpoint remains. Usage counters are unknown.
+The focused run passed 744 tests. Ruff, formatting, and strict mypy passed.
+Commit `c8a09acacf8db01aedd66e93c567efb34ddc0ada` passed the secret hook and
+isolated backend gates: 12,484 passed, one skipped, one warning.
+Integration commit `5d18b53d` passed all nine new cursor probes and the earlier eleven probes.
+Before this patch, five new-request probes failed while four ordinary-read probes passed.
+The six additional live turns used `0c18c563`; the new guard has no live-call evidence.
