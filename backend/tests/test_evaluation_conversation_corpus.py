@@ -308,7 +308,9 @@ def test_gold_regenerates_from_the_tools(
     )
 
 
-def test_paging_reference_has_ordered_distinct_pages(corpus: ConversationCorpus) -> None:
+def test_paging_reference_has_ordered_distinct_pages(
+    corpus: ConversationCorpus,
+) -> None:
     scenario = corpus.scenarios[15]
     pages = [
         execute_catalog_search(turn.expect.gold[0].input)["recipe_ids"]
