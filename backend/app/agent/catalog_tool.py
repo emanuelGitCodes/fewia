@@ -419,14 +419,29 @@ def search_identity(arguments: object) -> dict[str, object] | None:
         found = execute_catalog_search(page)
     except CatalogToolError:
         return None
-    # These two statuses drop part of the request, so they name no search.
     if found["status"] in ("unknown_exclusion", "unsupported_facet"):
         return None
-    # Dropped words are never in a stored cursor, so this is a new search.
     if found["dropped"]:
         return None
-    # A diet is also a tag, so the diet key names the same search twice.
-    return {k: v for k, v in _search_filters(found).items() if k != "diet"}
+    request = cast(dict[str, object], found["request"])
+    query = cast(str, request["query"])
+    if any(word in _NEGATIONS for word in re.findall(r"[a-z]+", query)):
+        return None
+    units, _ = _parse(query)
+    words = {
+        _stem(unit)
+        for unit in units
+        if _facet(unit) is None
+        and any(_has_word(unit, rid) for rid in SUPPORTED_RECIPE_IDS)
+    }
+    if not words and not found["applied"]:
+        unrestricted = any(resolve_meal_term(unit) == "omnivore" for unit in units)
+        if not unrestricted or found["unmatched"]:
+            return None
+    filters = _search_filters(found)
+    filters["query"] = " ".join(sorted(words)) or "meals"
+    filters["tags"] = found["applied"]
+    return {k: v for k, v in filters.items() if k != "diet"}
 
 
 def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:

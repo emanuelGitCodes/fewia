@@ -511,6 +511,68 @@ def test_search_identity_names_the_search_without_page_or_raw_query() -> None:
         assert found is not None and found != base
 
 
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ("dairy free rice onion", "dairy free onion rice"),
+        ("dairy free rice onion", "onions dairy free rice onion rice"),
+        ("keto", "low carb"),
+        ("meat", "carnivore"),
+    ],
+)
+def test_search_identity_canonicalizes_equivalent_terms(
+    first: str, second: str
+) -> None:
+    identity = search_identity({"query": first})
+    assert identity is not None
+    assert search_identity({"query": second, "offset": 3, "limit": 1}) == identity
+
+
+def test_search_identity_keeps_distinct_filters_even_for_equal_results() -> None:
+    base = {"query": "dairy free rice onion"}
+    identity = search_identity(base)
+    assert identity is not None
+    for change in (
+        {"diet": "vegetarian"},
+        {"tags": ["gluten_free_ingredients"]},
+        {"exclude": ["eggs"]},
+        {"min_protein_g": 0},
+        {"max_cents_per_serving": 10000},
+    ):
+        assert search_identity({**base, **change}) != identity
+    assert (
+        execute_catalog_search(base)["recipe_ids"]
+        == execute_catalog_search({**base, "max_cents_per_serving": 10000})[
+            "recipe_ids"
+        ]
+    )
+    assert search_identity({"query": "egg"}) != search_identity({"query": "eggs"})
+
+
+def test_search_identity_rejects_dropped_words_and_query_exclusions() -> None:
+    assert search("gluten free pasta")["dropped"] == ["pasta"]
+    assert search_identity({"query": "gluten free pasta"}) is None
+    assert search_identity({"query": "rice without onion"}) is None
+    assert search_identity({"query": "rice no unknown"}) is None
+    assert search_identity({"query": "rice", "exclude": ["unknown"]}) is None
+    assert search_identity({"query": "lactose free rice"}) is None
+
+
+def test_search_identity_distinguishes_unsearchable_from_omnivore() -> None:
+    omnivore = search_identity({"query": "omnivore"})
+    assert omnivore is not None
+    page = search("omnivore")
+    cursor = next_search_arguments(page)
+    assert cursor is not None
+    assert search_identity(cursor) == omnivore
+    for query in ("unicorn", "meals", "omnivore unicorn"):
+        assert search(query)["status"] == "no_match"
+        assert search_identity({"query": query}) is None
+    assert search_identity({"query": "unicorn", "diet": "vegetarian"}) == (
+        search_identity({"query": "vegetarian"})
+    )
+
+
 def test_search_identity_matches_the_identity_of_its_own_cursor() -> None:
     page = search(
         "gluten free",
