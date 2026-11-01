@@ -16,6 +16,7 @@ from app.agent.catalog_tool import (
     catalog_choices,
     catalog_tool_spec,
     next_search_arguments,
+    search_identity,
 )
 from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
@@ -26,6 +27,7 @@ from app.agent.chat_context import (
     is_modified_search_continuation,
     is_new_search_request,
     is_search_continuation,
+    more_type_query,
     sum_usage,
     validated_previous_search,
 )
@@ -181,6 +183,23 @@ def _tool_use_history(calls: list[msgs.ToolCall]) -> dict[str, object]:
     return {"role": "assistant", "content": content}
 
 
+def _checked_search_call(
+    call: msgs.ToolCall,
+    cursor: dict[str, object],
+    identity: dict[str, object] | None,
+    restart: bool,
+) -> msgs.ToolCall:
+    # A repeat of the saved search runs the saved page; any other search starts at 0.
+    if call.name != CATALOG_TOOL_NAME:
+        return call
+    repeated = identity is not None and search_identity(call.tool_input) == identity
+    if repeated and not restart:
+        return call._replace(tool_input=deepcopy(cursor))
+    if call.tool_input.get("offset", 0) != 0:
+        return call._replace(tool_input={**call.tool_input, "offset": 0})
+    return call
+
+
 def _end_status(candidate: dict[str, object] | None) -> str:
     plan = None if candidate is None else candidate.get("plan")
     if isinstance(plan, dict) and plan.get("accepted") is True:
@@ -254,16 +273,19 @@ def run_chat(
         ],
     )
     saved_search = validated_previous_search(previous_search)
-    continuation = is_search_continuation(message)
+    cursor_identity = None if saved_search is None else search_identity(saved_search)
+    typed = more_type_query(message)
+    same_type = (
+        typed is not None
+        and cursor_identity is not None
+        and search_identity({"query": typed}) == cursor_identity
+    )
+    continuation = is_search_continuation(message) or same_type
     modified_continuation = is_modified_search_continuation(message)
-    new_search = is_new_search_request(message)
+    new_search = is_new_search_request(message) and not same_type
     retained_search = None if modified_continuation or new_search else saved_search
     meal_type = (
-        continuation
-        or modified_continuation
-        or new_search
-        or names_meal_type(message)
-        or saved_search is not None
+        continuation or modified_continuation or new_search or names_meal_type(message)
     )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
@@ -480,6 +502,12 @@ def run_chat(
                     "template",
                     why("clarification"),
                 )
+            if saved_search is not None:
+                restart = modified_continuation or new_search
+                calls = [
+                    _checked_search_call(call, saved_search, cursor_identity, restart)
+                    for call in calls
+                ]
         messages.append(_tool_use_history(calls))
         blocks: list[dict[str, object]] = []
         batch_ok = True

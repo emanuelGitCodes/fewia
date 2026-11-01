@@ -18,6 +18,7 @@ from app.agent.chat_context import (
     is_modified_search_continuation,
     is_new_search_request,
     is_search_continuation,
+    more_type_query,
     plan_ingredient_ids,
     read_usage,
 )
@@ -254,6 +255,17 @@ def test_continuation_modifiers_use_the_user_body(
         ("Please, give me plant-based recipes.", True),
         ("Find omnivore ideas", True),
         ("  SHOW\tvegan meals! Please.  ", True),
+        ("more vegan", True),
+        ("More gluten free meals, please", True),
+        ("show me more vegan meals", True),
+        ("Show me the vegan ones", True),
+        ("show me the gluten free ones please", True),
+        ("more meals", False),
+        ("show me more options", False),
+        ("more please", False),
+        ("more xyzzy", False),
+        ("more butternut squash", False),
+        ("more vegan for my plan", False),
         ("How much protein is in my meal?", False),
         ("Is my current meal vegan?", False),
         ("what is in chicken tacos?", False),
@@ -272,6 +284,25 @@ def test_explicit_type_requests_use_the_user_body(
 ) -> None:
     prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
     assert is_new_search_request(f"{prefix if prefixed else ''}{message}") is new_search
+
+
+@pytest.mark.parametrize(
+    ("message", "query"),
+    [
+        ("more vegan", "vegan"),
+        ("Show me more gluten free meals, please", "gluten free"),
+        ("show me the vegan ones", "vegan"),
+        ("more", None),
+        ("more meals", None),
+        ("more, but vegan", None),
+        ("more without chicken", None),
+        ("vegan", None),
+    ],
+)
+def test_more_type_query_returns_the_meal_terms_of_the_request(
+    message: str, query: str | None
+) -> None:
+    assert more_type_query(message) == query
 
 
 def test_checked_search_context_keeps_every_facet_and_offset() -> None:

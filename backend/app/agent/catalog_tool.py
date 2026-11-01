@@ -301,7 +301,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     unrestricted_query = any(resolve_meal_term(u) == "omnivore" for u in units)
     searchable = bool(facets or words or unrestricted_query)
     unknown_open_query = (
-        unrestricted_query and not (query_facets or words) and bool(unmatched_units)
+        unrestricted_query and not (facets or words) and bool(unmatched_units)
     )
     eligible: list[str] = []
     blocked = unresolved or unsupported or not searchable or unknown_open_query
@@ -379,17 +379,10 @@ def page_arguments(value: object) -> dict[str, object] | None:
     return cast(dict[str, object], value) if shows_meals else None
 
 
-def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
-    validated = _revalidated(payload)
-    if validated is None or validated["status"] != "ok":
-        return None
+def _search_filters(validated: dict[str, object]) -> dict[str, object]:
     request = cast(dict[str, object], validated["request"])
-    shown = cast(list[str], validated["recipe_ids"])
     applied = cast(list[str], validated["applied"])
     dropped = cast(list[str], validated["dropped"])
-    offset = cast(int, request["offset"])
-    if offset + len(shown) >= cast(int, validated["total_matches"]):
-        return None
     terms: list[str] = []
     for unit in _parse(cast(str, request["query"]))[0]:
         facet = _facet(unit)
@@ -400,16 +393,47 @@ def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | Non
                 terms.append(unit)
         elif facet is not None and facet in _INGREDIENT_TAGS:
             terms.append(facet)
-    arguments: dict[str, object] = {
+    filters: dict[str, object] = {
         "query": " ".join(dict.fromkeys(terms)) or "meals",
         "diet": request["diet"],
         "tags": [f for f in applied if f in _TAG_TYPES],
         "exclude": request["exclude"],
+    }
+    for key in ("min_protein_g", "max_cents_per_serving"):
+        if request[key] is not None:
+            filters[key] = request[key]
+    return filters
+
+
+def search_identity(arguments: object) -> dict[str, object] | None:
+    if not isinstance(arguments, dict):
+        return None
+    page = {k: v for k, v in arguments.items() if k not in ("offset", "limit")}
+    try:
+        found = execute_catalog_search(page)
+    except CatalogToolError:
+        return None
+    # These two statuses drop part of the request, so they name no search.
+    if found["status"] in ("unknown_exclusion", "unsupported_facet"):
+        return None
+    # A diet is also a tag, so the diet key names the same search twice.
+    return {k: v for k, v in _search_filters(found).items() if k != "diet"}
+
+
+def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
+    validated = _revalidated(payload)
+    if validated is None or validated["status"] != "ok":
+        return None
+    request = cast(dict[str, object], validated["request"])
+    shown = cast(list[str], validated["recipe_ids"])
+    offset = cast(int, request["offset"])
+    if offset + len(shown) >= cast(int, validated["total_matches"]):
+        return None
+    arguments = {
+        **_search_filters(validated),
+        "limit": request["limit"],
         "offset": offset + len(shown),
     }
-    for key in ("min_protein_g", "max_cents_per_serving", "limit"):
-        if request[key] is not None:
-            arguments[key] = request[key]
     if page_arguments(arguments) is None:
         return None
     try:

@@ -17,6 +17,7 @@ from app.agent.catalog_tool import (
     execute_catalog_search,
     next_search_arguments,
     page_arguments,
+    search_identity,
 )
 from app.agent.estimate import priced_estimate
 from app.domain.budget import BudgetResult
@@ -439,6 +440,77 @@ def test_omnivore_search_keeps_diet_and_exclusion_filters() -> None:
     assert second["applied"] == ["vegetarian"]
 
 
+@pytest.mark.parametrize("restriction", [{"diet": "vegan"}, {"tags": ["vegan"]}])
+def test_omnivore_with_an_unknown_word_keeps_the_explicit_filter(
+    restriction: dict[str, object],
+) -> None:
+    plain = search("xyzzy", **restriction)
+    assert plain["status"] == "ok" and ids(plain)
+    unrestricted = search("omnivore xyzzy", **restriction)
+    assert unrestricted["status"] == "ok"
+    assert ids(unrestricted) == ids(plain)
+    assert unrestricted["total_matches"] == plain["total_matches"]
+    assert search("omnivore xyzzy")["status"] == "no_match"
+
+
+def test_search_identity_names_the_search_without_page_or_raw_query() -> None:
+    base = search_identity({"query": "vegetarian"})
+    assert base is not None
+    assert "offset" not in base and "limit" not in base
+    same = (
+        {"query": "vegetarian meals", "limit": 2, "offset": 9},
+        {"query": "meals", "tags": ["vegetarian"]},
+        {"query": "meals", "diet": "vegetarian", "offset": 3},
+        {"query": "vegetarian", "offset": 99},
+    )
+    for arguments in same:
+        assert search_identity(arguments) == base
+    different = (
+        {"query": "vegan"},
+        {"query": "chicken"},
+        {"query": "vegetarian", "exclude": ["eggs"]},
+        {"query": "vegetarian", "max_cents_per_serving": 10000},
+        {"query": "vegetarian", "min_protein_g": 0},
+    )
+    for arguments in different:
+        found = search_identity(arguments)
+        assert found is not None and found != base
+
+
+def test_search_identity_matches_the_identity_of_its_own_cursor() -> None:
+    page = search(
+        "gluten free",
+        diet="vegetarian",
+        exclude=["eggs"],
+        min_protein_g=0,
+        max_cents_per_serving=10000,
+    )
+    cursor = next_search_arguments(page)
+    assert cursor is not None
+    identity = search_identity(cursor)
+    assert identity is not None
+    assert identity == search_identity(page["request"])
+    assert identity["exclude"] == ["eggs"]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"query": "vegetarian", "bogus": 1},
+        {"query": "vegetarian", "min_protein_g": "30"},
+        {"query": "vegetarian", "exclude": ["unknown"]},
+        {"query": "dairy free"},
+        "vegetarian",
+        None,
+    ],
+)
+def test_search_identity_is_none_when_the_arguments_do_not_name_a_search(
+    arguments: object,
+) -> None:
+    assert search_identity(arguments) is None
+
+
 @pytest.mark.parametrize("query", ["omnivore", "omnivore meals"])
 def test_omnivore_cursor_walks_all_recipes_without_repeats(query: str) -> None:
     page = search(query, limit=3)
@@ -631,10 +703,10 @@ def test_offset_walks_the_full_ordered_set_with_a_stable_total() -> None:
 
 def test_offset_past_the_end_is_ok_and_empty_or_no_match() -> None:
     total = cast(int, search("vegetarian")["total_matches"])
-    past = search("vegetarian", offset=min(total, 39))
-    if total <= 39:
-        assert past["status"] == "ok" and ids(past) == []
-        assert catalog_answer(past) == "There are no more matching meals."
+    assert total <= 39
+    past = search("vegetarian", offset=total)
+    assert past["status"] == "ok" and ids(past) == []
+    assert catalog_answer(past) == "There are no more matching meals."
     nothing = search("vegetarian", min_protein_g=200, offset=5)
     assert nothing["status"] == "no_match" and nothing["total_matches"] == 0
 

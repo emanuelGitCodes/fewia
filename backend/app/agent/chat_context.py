@@ -43,6 +43,13 @@ _NEW_SEARCH_REQUEST = re.compile(
     r"(?: (?:meals|ideas|options|recipes))?"
     r"(?:[,!.?]? please)?[,!.?]*"
 )
+_MORE_TYPE_REQUEST = re.compile(
+    r"(?:please,? )?(?:(?:show|give)(?: me)? )?"
+    r"(?:more ([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"|the ([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?) ones)"
+    r"(?: (?:meals|ideas|options|recipes))?"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
 _MAX_MEAL_TERM_WORDS = max(
     len(term.replace("_", " ").replace("-", " ").split())
     for term in (*SEARCH_TERMS, *TAG_ORDER)
@@ -66,11 +73,8 @@ def is_modified_search_continuation(message: str) -> bool:
     return _MODIFIED_CONTINUATION.match(_search_text(message)) is not None
 
 
-def is_new_search_request(message: str) -> bool:
-    request = _NEW_SEARCH_REQUEST.fullmatch(_search_text(message))
-    if request is None:
-        return False
-    words = request.group(1).split()
+def _meal_terms(text: str) -> bool:
+    words = text.split()
     while words:
         for size in range(min(len(words), _MAX_MEAL_TERM_WORDS), 0, -1):
             if resolve_meal_term(" ".join(words[:size])) is not None:
@@ -79,6 +83,19 @@ def is_new_search_request(message: str) -> bool:
         else:
             return False
     return True
+
+
+def more_type_query(message: str) -> str | None:
+    request = _MORE_TYPE_REQUEST.fullmatch(_search_text(message))
+    terms = None if request is None else request.group(1) or request.group(2)
+    return terms if terms and _meal_terms(terms) else None
+
+
+def is_new_search_request(message: str) -> bool:
+    request = _NEW_SEARCH_REQUEST.fullmatch(_search_text(message))
+    if request is not None and _meal_terms(request.group(1)):
+        return True
+    return more_type_query(message) is not None
 
 
 def validated_previous_search(
