@@ -54,8 +54,13 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
         subject,
     ):
         return None
-    if " in " not in subject and not re.search(
-        r"\b(?:plan|planned|saved|selected|current)\b", subject
+    possessive_meals = re.fullmatch(
+        r"(?:(?:all|any)(?: of)? |each )?(?:my|our) meals?", subject
+    )
+    if (
+        " in " not in subject
+        and not possessive_meals
+        and not re.search(r"\b(?:plan|planned|saved|selected|current)\b", subject)
     ):
         return None
     if groups.get("alternative"):

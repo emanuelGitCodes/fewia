@@ -115,7 +115,52 @@ def test_missing_plan_and_ambiguous_questions_clarify() -> None:
     assert singular is not None
     assert "Which selected meal" in singular
     assert "Chicken tacos" in singular and "Bean tacos" in singular
-    assert current_plan_answer("Are my meals vegan?", None) is None
+    assert current_plan_answer("Are my meals vegan?", None) == (
+        "Your saved plan is unavailable. Please open or provide your plan."
+    )
+
+
+def test_possessive_meals_use_saved_plan_and_singular_clarifies() -> None:
+    plan = _plan()
+    assert current_plan_answer("Are my meals vegan?", plan) == (
+        "Chicken tacos (2 servings) is not vegan. Bean tacos (1 serving) is vegan."
+    )
+    assert current_plan_answer("Are all of our meals vegetarian?", plan) == (
+        "Chicken tacos (2 servings) is not vegetarian. "
+        "Bean tacos (1 serving) is vegetarian."
+    )
+    assert current_plan_answer("Is my meal vegetarian?", plan) == (
+        "Which selected meal do you mean: Chicken tacos, Bean tacos?"
+    )
+    meals = [plan.snapshot.meals[0].model_copy(update={"recipe_id": "vegetable_pasta"})]
+    single = plan.model_copy(
+        update={"snapshot": plan.snapshot.model_copy(update={"meals": meals})}
+    )
+    assert current_plan_answer("Is our meal vegetarian?", single) == (
+        "Vegetable pasta (2 servings) is vegetarian."
+    )
+    assert current_plan_answer("Which of my meals contain gluten?", single) == (
+        "Vegetable pasta (2 servings) has gluten ingredients. "
+        "This checks ingredients only."
+    )
+    assert current_plan_answer("Is our meal vegetarian?", None) == (
+        "Your saved plan is unavailable. Please open or provide your plan."
+    )
+    assert current_plan_answer("Which of my meals contain gluten?", None) == (
+        "Your saved plan is unavailable. Please open or provide your plan."
+    )
+    empty = plan.model_copy(
+        update={"snapshot": plan.snapshot.model_copy(update={"meals": []})}
+    )
+    assert current_plan_answer("Are our meals vegan?", empty) == (
+        "Your saved plan has no meals yet."
+    )
+    assert "one supported characteristic" in str(
+        current_plan_answer("Are my meals vegan or vegetarian?", plan)
+    )
+    assert "one supported characteristic" in str(
+        current_plan_answer("Are my meals keto?", plan)
+    )
 
 
 def test_named_selected_meal_and_plan_reference() -> None:
@@ -220,9 +265,12 @@ def test_duplicate_meals_keep_each_serving_count() -> None:
 @pytest.mark.parametrize(
     "question",
     [
-        "Are my meals vegan?",
-        "Are my meals vegan or vegetarian?",
-        "Are my meals keto?",
+        "Are all meals vegan?",
+        "Are the meals vegan?",
+        "Are my meals vegan? Replace the chicken.",
+        "Are our meals vegan and find cheaper meals?",
+        "Are my meals dairy free for my allergy?",
+        "Which of my meals contain gluten and are safe for celiac disease?",
         "Are my plan meals vegan? Replace the chicken.",
         "Are my plan meals vegan and find cheaper meals?",
         "Are my plan meals dairy free for my allergy?",

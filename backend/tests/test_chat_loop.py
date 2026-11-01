@@ -5623,6 +5623,102 @@ def test_which_plan_ingredients_do_not_dispatch_model_search(
     assert not observed
 
 
+@pytest.mark.parametrize(
+    ("question", "recipe_ids", "answer"),
+    [
+        (
+            "Are my meals vegan?",
+            ["chicken_tacos", "bean_tacos"],
+            "Chicken tacos (2 servings) is not vegan. "
+            "Bean tacos (2 servings) is vegan.",
+        ),
+        (
+            "Is my meal vegetarian?",
+            ["chicken_tacos"],
+            "Chicken tacos (2 servings) is not vegetarian.",
+        ),
+        (
+            "Is my meal vegetarian?",
+            ["chicken_tacos", "bean_tacos"],
+            "Which selected meal do you mean: Chicken tacos, Bean tacos?",
+        ),
+        (
+            "Which of my meals contain gluten?",
+            ["chicken_tacos", "vegetable_pasta"],
+            "Vegetable pasta (2 servings) has gluten ingredients. "
+            "This checks ingredients only.",
+        ),
+    ],
+)
+def test_possessive_meal_questions_do_not_dispatch_search(
+    question: str, recipe_ids: list[str], answer: str
+) -> None:
+    plan = _two_meal_revision()
+    meals = [
+        plan.snapshot.meals[index].model_copy(update={"recipe_id": recipe_id})
+        for index, recipe_id in enumerate(recipe_ids)
+    ]
+    plan = plan.model_copy(
+        update={"snapshot": plan.snapshot.model_copy(update={"meals": meals})}
+    )
+    provider = FakeLLM([_reply([_discovery_block()], "tool_use")])
+    observed: list[list[dict[str, object]]] = []
+    evidence: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        evidence.append(payload)
+        return _REV
+
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=plan,
+        record_evidence=record,
+        observe_terminal_tool_results=observed.append,
+        model_prose=True,
+    )
+    assert result["answer"] == answer
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["evidence_id"] is None
+    assert "choices" not in result
+    assert "Catalog choices:" not in cast(str, result["answer"])
+    assert not observed and not evidence
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are all meals vegan?",
+        "Are my meals vegan? Replace the chicken.",
+        "Are our meals vegan and find cheaper meals?",
+        "Are my meals dairy free for my allergy?",
+        "Which of my meals contain gluten and are safe for celiac disease?",
+    ],
+)
+def test_other_questions_keep_search_dispatch(question: str) -> None:
+    provider = FakeLLM(
+        [
+            _reply([_discovery_block()], "tool_use"),
+            _reply([_text_block("Please clarify your request.")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        model_prose=True,
+    )
+    assert result["tool_trace"][0]["tool"] == CATALOG_TOOL_NAME
+    assert result["tool_trace"][0]["outcome"] == "success"
+    assert result["reply_check"] != {"gate": "no_tools"}
+
+
 def test_current_plan_question_preserves_refusal_with_tool_call() -> None:
     provider = FakeLLM(
         [
