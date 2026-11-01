@@ -302,9 +302,16 @@ def run_chat(
         if saved_search is None or restart_query is None
         else search_identity({"query": saved_search["query"]})
     )
-    same_restart_type = restart_types is not None and restart_types in (
-        cursor_types,
-        cursor_query_identity,
+    same_restart_type = restart_types is not None and (
+        restart_types in (cursor_types, cursor_query_identity)
+        or (
+            cursor_types is not None
+            and restart_types["query"] == cursor_types["query"]
+            and isinstance(restart_tags := restart_types["tags"], list)
+            and isinstance(cursor_tags := cursor_types["tags"], list)
+            and bool(restart_tags)
+            and all(tag in cursor_tags for tag in restart_tags)
+        )
     )
     restart = is_search_restart(message) and (
         restart_query is None or same_restart_type

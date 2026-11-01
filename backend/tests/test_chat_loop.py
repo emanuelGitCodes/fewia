@@ -4172,11 +4172,31 @@ def _catalog_word_cursor() -> dict[str, object]:
     return cursor
 
 
+def _named_facet_cursor() -> dict[str, object]:
+    cursor = next_search_arguments(
+        execute_catalog_search(
+            {
+                "query": "gluten free",
+                "diet": "vegetarian",
+                "exclude": ["eggs"],
+                "min_protein_g": 1,
+                "max_cents_per_serving": 10000,
+                "limit": 2,
+            }
+        )
+    )
+    assert cursor is not None and cursor["offset"] == 2
+    assert cursor["query"] == "meals"
+    assert cursor["limit"] == 2
+    return cursor
+
+
 @pytest.mark.parametrize(
     "message",
     [
         "Show me the first page of rice onion meals.",
         "Please, restart the search with rice onion meals!",
+        "Show me the first page of rice onion gluten free meals.",
     ],
 )
 @pytest.mark.parametrize("prefixed", [False, True])
@@ -4238,11 +4258,18 @@ def test_a_catalog_word_restart_retains_every_filter_and_the_saved_limit(
         "Show the first page again",
         "Start over with gluten free vegetarian meals",
         "Show the first page of gluten free vegetarian meals",
+        "Show the first page of gluten free meals",
+        "Start over with gluten free meals",
+        "Show the first page of gluten-free meals",
+        "Show the first page of celiac meals",
+        "Show the first page of vegetarian meals",
     ],
 )
+@pytest.mark.parametrize("prefixed", [False, True])
 @pytest.mark.parametrize(
     "model_arguments",
     [
+        {"query": "gluten free", "offset": 0},
         {"query": "vegetarian", "offset": 0},
         {"query": "vegetarian", "offset": 9},
         {
@@ -4258,11 +4285,9 @@ def test_a_catalog_word_restart_retains_every_filter_and_the_saved_limit(
     ],
 )
 def test_a_filtered_restart_records_every_checked_filter_and_the_saved_limit(
-    message: str, model_arguments: dict[str, object]
+    message: str, prefixed: bool, model_arguments: dict[str, object]
 ) -> None:
-    cursor = next_search_arguments(
-        execute_catalog_search({**_constrained_cursor(), "offset": 0, "limit": 2})
-    )
+    cursor = _named_facet_cursor()
     assert cursor is not None
     original = copy.deepcopy(cursor)
     first_page = {**cursor, "offset": 0}
@@ -4284,10 +4309,16 @@ def test_a_filtered_restart_records_every_checked_filter_and_the_saved_limit(
         ),
         _reply([_text_block("try chicken tacos for USD $0")], "end_turn"),
     ]
-    result, provider = _run(replies, message=message, previous_search=cursor)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result, provider = _run(
+        replies,
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
     assert _sent_calls(provider)[CATALOG_TOOL_NAME] == first_page
     assert first_page["limit"] == 2
     assert _choice_ids(result) == expected["recipe_ids"]
+    assert _choice_ids(result) == ["coconut_lentil_curry", "lentil_tacos"]
     assert result["answer"] == (
         catalog_answer(expected) + " A tool call failed. Check the request."
     )
@@ -4300,14 +4331,23 @@ def test_a_filtered_restart_records_every_checked_filter_and_the_saved_limit(
 
 
 @pytest.mark.parametrize(
-    "message", ["Start over from the first page", "Show the first page again"]
+    "message",
+    [
+        "Start over from the first page",
+        "Show the first page again",
+        "Show the first page of gluten free meals",
+        "Show the first page of gluten-free meals",
+        "Show the first page of celiac meals",
+        "Show the first page of vegetarian meals",
+    ],
 )
 @pytest.mark.parametrize("prefixed", [False, True])
 @pytest.mark.parametrize("model_prose", [False, True])
+@pytest.mark.parametrize("named_facet", [False, True])
 def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
-    message: str, prefixed: bool, model_prose: bool
+    message: str, prefixed: bool, model_prose: bool, named_facet: bool
 ) -> None:
-    cursor = _constrained_cursor()
+    cursor = _named_facet_cursor() if named_facet else _constrained_cursor()
     original = copy.deepcopy(cursor)
     first_page = {**cursor, "offset": 0}
     expected = execute_catalog_search(first_page)
@@ -4426,23 +4466,41 @@ def test_a_restart_decline_keeps_the_first_page_without_unshown_choices(
 
 
 @pytest.mark.parametrize(
-    ("query", "message"),
+    ("cursor_kind", "query", "message"),
     [
-        ("vegan", "Start over with vegan meals"),
-        ("vegan", "Start over from the first page with vegan meals"),
-        ("vegan", "Show me the first page of vegan meals again"),
-        ("vegan", "Find vegan meals from the first page"),
-        ("vegan", "Show vegan meals again"),
-        ("rice onion", "Show me the first page of rice onion meals."),
-        ("rice onion", "Start over with rice onion meals, please!"),
-        ("rice onion", "Find rice onion meals from the first page."),
+        ("facet", "vegan", "Start over with vegan meals"),
+        ("facet", "vegan", "Start over from the first page with vegan meals"),
+        ("facet", "vegan", "Show me the first page of vegan meals again"),
+        ("facet", "vegan", "Find vegan meals from the first page"),
+        ("facet", "vegan", "Show vegan meals again"),
+        ("facet", "omnivore", "Show the first page of omnivore meals"),
+        ("facet", "rice onion", "Show me the first page of rice onion meals."),
+        ("facet", "rice onion", "Start over with rice onion meals, please!"),
+        ("facet", "rice onion", "Find rice onion meals from the first page."),
+        (
+            "facet",
+            "gluten free vegan",
+            "Show the first page of gluten free vegan meals",
+        ),
+        (
+            "facet",
+            "gluten free rice",
+            "Show the first page of gluten free rice meals",
+        ),
+        ("words", "gluten free", "Show the first page of gluten free meals"),
+        ("words", "rice", "Show the first page of rice meals"),
+        (
+            "words",
+            "rice onion vegan",
+            "Show the first page of rice onion vegan meals",
+        ),
     ],
 )
 @pytest.mark.parametrize("no_tool", [False, True])
 def test_a_restart_with_a_new_type_replaces_the_saved_search(
-    query: str, message: str, no_tool: bool
+    cursor_kind: str, query: str, message: str, no_tool: bool
 ) -> None:
-    cursor = _constrained_cursor()
+    cursor = _catalog_word_cursor() if cursor_kind == "words" else _constrained_cursor()
     original = copy.deepcopy(cursor)
     reply = (
         _reply([_text_block("try chicken tacos")], "end_turn")
@@ -4482,14 +4540,17 @@ def test_a_restart_with_a_new_type_replaces_the_saved_search(
         "Restart the search with zqxsentinel onion meals.",
         "Show the first page of paleo rice meals.",
         "Find gluten free pasta meals from the first page.",
+        "Show the first page of gluten free zqxsentinel meals.",
+        "Show the first page of gluten free paleo meals.",
         "Show me the first page of rice onion meals and my budget.",
     ],
 )
 @pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("named_facet", [False, True])
 def test_an_unrecognized_restart_query_keeps_the_saved_page(
-    message: str, prefixed: bool
+    message: str, prefixed: bool, named_facet: bool
 ) -> None:
-    cursor = _page_cursor("rice onion")
+    cursor = _named_facet_cursor() if named_facet else _page_cursor("rice onion")
     original = copy.deepcopy(cursor)
     prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
     result, _ = _run(
