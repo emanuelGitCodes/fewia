@@ -5088,3 +5088,34 @@ The first three Astra reviews total 1,421,484 input, 8,702 output and 286.076 CL
 Writer coverage remains partial. Native coordination and later reviews are separate.
 These figures are not complete cost or wall-clock totals. The loop ledger records
 the next independent verdict and publication status. The PR MUST remain unmerged.
+
+## 2026-11-01: Preserve dairy claim clause boundaries on PR 469
+
+Astra round four returned REQUEST_CHANGES on `73f34c47`.
+The new dairy matcher joined "No. Dairy is listed as an ingredient." into an absence claim.
+Advisor and root probes found milk/free, not/made and free/from variants across clauses.
+The last variant crossed a new alias still held in the old squashed matcher.
+Sol at `xhigh` moved all new dairy aliases into shared clause handling.
+The original `_FORBIDDEN` pattern remains equal to the `6cd6554e` baseline by AST comparison.
+Whole-word terminal punctuation with whitespace ends a dairy claim segment.
+Dotted single-letter spelling, no-gap punctuation, hyphen-newline and ordinary newlines retain their tested behavior.
+A later genuine claim still fails after a benign clause. Legacy order, plan and gluten rules remain unchanged.
+
+The first candidate passed its focused suite but missed six Markdown/spacing sentences.
+Root and junior probes caught them before commit. The next preflight found contracted-word endings.
+Two bounded local repairs covered those cases, straight/curly apostrophes and quoted-letter controls.
+Native commit `475c1c79` passed 2,890 focused tests and 648 direct/public checks.
+Ruff, strict mypy and gitleaks passed. Root independently passed 250 core and 37 edge checks.
+Integration commit `924a3efb` carries that source with Codex attribution.
+The integrated added-source count is 987 of 1,000 lines against `main`.
+
+Parallel Terra advice suggested backtick/strikethrough cases. Root probes confirmed both
+already fail `unsupported_character` on the original and repaired heads. That policy remains unchanged.
+Luna independently checked the four workflows and nine expected hosted jobs for publication verification.
+No new live Nova calls ran. The source keeps provider, prompt and public normalization contracts intact.
+
+This writer used 2,100,387 input tokens, 44,162 output tokens and 943.663 CLI seconds across three runs.
+Recorded writers total 12,786,330 input, 212,217 output and 4,052.138 CLI seconds.
+The first four Astra reviews total 1,936,909 input, 12,567 output and 394.176 CLI seconds.
+Coverage remains partial. Native coordination and later review are separate from these CLI totals.
+The loop ledger records final gates, the next independent verdict and hosted CI. The PR MUST remain unmerged.
