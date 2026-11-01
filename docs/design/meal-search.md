@@ -176,7 +176,7 @@ Each item adds fewer than 150 code lines. Data and tests do not count.
 | 7 | Meal-type scenarios C13 to C17, gold from the tool | `conversation.json`, corpus test | data | The gold answers come from the deterministic tools |
 | 8 | `total_matches` and `offset` | `catalog_tool.py` | 60 | `offset` walks the full set with no repeats |
 | 9 | A `MealIndex` protocol with a PostgreSQL implementation, when recipes become editable | new module, migration | later | Both loaders give the same hash |
-| 10 | A `dairy_free_ingredients` type from a `contains_dairy` ingredient fact | `catalog.py`, `meal_tags.py`, `catalog_tool.py`, prompt, corpus v1.4 | done | "dairy-free meals" returns all 40 meals, chicken meals too |
+| 10 | A `dairy_free_ingredients` type from a `contains_dairy` ingredient fact | `catalog.py`, `meal_tags.py`, `catalog_tool.py`, prompt, corpus v1.4 | 45 | "dairy-free meals" returns all 40 meals, chicken meals too |
 
 Item 1 is the smallest change that fixes the reply the user sees.
 
