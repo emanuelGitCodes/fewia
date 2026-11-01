@@ -187,9 +187,9 @@ same search.
 
 ## Measurement
 
-Scenarios: gluten-free, keto, high protein vegetarian, "cheap vegetarian
-dinner", dairy-free (unsupported), and "gluten-free pasta" (zero results,
-then the server drops words).
+Scenarios: gluten-free, keto, high protein vegetarian, three vegetarian
+pages across a budget turn, dairy-free (unsupported), and "gluten-free
+pasta" (zero results, then the server drops words).
 
 | Metric | Pass bar |
 |---|---|
