@@ -4913,3 +4913,14 @@ isolated backend gates: 12,484 passed, one skipped, one warning.
 Integration commit `5d18b53d` passed all nine new cursor probes and the earlier eleven probes.
 Before this patch, five new-request probes failed while four ordinary-read probes passed.
 The six additional live turns used `0c18c563`; the new guard has no live-call evidence.
+
+## 2026-11-01: Prepare the Codex repair publication for PR 469
+
+The owner authorized publication to PR 469 and verification of its hosted checks.
+The PR MUST remain open and unmerged.
+Repair revision `7b5d7b44` passed the integrated gates: 12,484 backend tests,
+one skip, one warning, and frontend lint, tests, and build.
+Astra approved that revision. Twenty behavior probes and 93 fixture turns passed.
+The publication summary credits OpenAI Codex with the repository's existing
+`Co-authored-by` trailer. GitHub resolves that identity to `codex`.
+The summary changes only this log. Hosted CI remains unverified until publication.
