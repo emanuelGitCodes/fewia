@@ -15,6 +15,7 @@ from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import plan_ingredient_ids
 from app.agent.chat_loop import ChatUnavailable
+from app.agent.chat_messages import ChatProtocolError
 from app.agent.planning_tool import TOOL_NAME, execute_plan
 from app.db import Base
 from app.domain.budget import (
@@ -28,6 +29,7 @@ from app.plan_models import PlanProposal, PlanRevision
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
 from app.services.plan_job import SpendingInput
+from tests.test_search_recovery import terminal_search
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 PERIOD = date(2026, 9, 1)
@@ -259,6 +261,55 @@ def test_chat_job_input_defaults_and_validates_previous_search() -> None:
     assert model.model_validate(chat_payload()).previous_search is None
     with pytest.raises(ValidationError):
         model.model_validate(chat_payload(previous_search="x"))
+    assert model.model_validate(chat_payload()).previous_exhausted_search is None
+    with pytest.raises(ValidationError):
+        model.model_validate(chat_payload(previous_exhausted_search="x"))
+
+
+def test_chat_job_transports_exhaustion_without_restarting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    exhausted = terminal_search({"query": "vegetarian"})
+    terminal = chat_job_module.chat_job(
+        chat_payload(message="more", previous_search=exhausted),
+        lambda: None,
+        provider=FakeLLM([_search_reply({"query": "chicken"})]),
+        factory=FACTORY,
+    )
+    assert terminal["exhausted_search"] == exhausted
+    assert "next_search" not in terminal
+    provider = FakeLLM([_search_reply({"query": "chicken"})])
+    result = chat_job_module.chat_job(
+        chat_payload(
+            message="more", previous_exhausted_search=terminal["exhausted_search"]
+        ),
+        lambda: None,
+        provider=provider,
+        factory=FACTORY,
+    )
+    messages = provider.requests[0]["messages"]
+    assert isinstance(messages, list)
+    context = json.loads(messages[-1]["content"][0]["text"])
+    assert context["previous_exhausted_search"] == exhausted
+    assert result["answer"] == "There are no more matching meals."
+    assert result["exhausted_search"] == exhausted
+    assert result["tool_trace"] == []
+    assert "choices" not in result and "next_search" not in result
+    assert len(provider.requests) == 1
+
+
+def test_chat_job_rejects_forged_exhaustion_before_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    with pytest.raises(ChatProtocolError, match="previous_exhausted_search is invalid"):
+        chat_job_module.chat_job(
+            chat_payload(previous_exhausted_search={"query": "vegetarian"}),
+            lambda: None,
+            provider=FailLLM(),
+            factory=FACTORY,
+        )
 
 
 def test_chat_job_opts_in_to_validated_model_prose(

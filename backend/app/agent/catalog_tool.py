@@ -444,19 +444,22 @@ def search_identity(arguments: object) -> dict[str, object] | None:
     return {k: v for k, v in filters.items() if k != "diet"}
 
 
-def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
+def _checked_search_arguments(
+    payload: dict[str, object], *, exhausted: bool
+) -> dict[str, object] | None:
     validated = _revalidated(payload)
     if validated is None or validated["status"] != "ok":
         return None
     request = cast(dict[str, object], validated["request"])
     shown = cast(list[str], validated["recipe_ids"])
     offset = cast(int, request["offset"])
-    if offset + len(shown) >= cast(int, validated["total_matches"]):
+    terminal = offset + len(shown) >= cast(int, validated["total_matches"])
+    if not shown or terminal != exhausted:
         return None
     arguments = {
         **_search_filters(validated),
         "limit": request["limit"],
-        "offset": offset + len(shown),
+        "offset": offset if exhausted else offset + len(shown),
     }
     if page_arguments(arguments) is None:
         return None
@@ -466,6 +469,23 @@ def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | Non
         return None
     keys = ("status", "applied", "total_matches", "recipe_ids")
     return arguments if all(same[k] == validated[k] for k in keys) else None
+
+
+def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
+    return _checked_search_arguments(payload, exhausted=False)
+
+
+def exhausted_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
+    return _checked_search_arguments(payload, exhausted=True)
+
+
+def exhausted_page_arguments(value: object) -> dict[str, object] | None:
+    try:
+        found = execute_catalog_search(value)
+    except CatalogToolError:
+        return None
+    checked = exhausted_search_arguments(found)
+    return checked if checked == value else None
 
 
 def catalog_choices(payload: dict[str, object]) -> list[str]:

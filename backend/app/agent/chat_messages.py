@@ -1,5 +1,8 @@
 import hashlib
+from copy import deepcopy
 from typing import NamedTuple
+
+from app.agent.chat_refusal import GUARDRAIL_DECLINE
 
 MAX_TOOL_CALLS, MAX_TOOL_FIELD_LEN = 3, 64
 _STOP_REASONS = frozenset(
@@ -16,6 +19,12 @@ class ToolCall(NamedTuple):
     tool_use_id: str
     name: str
     tool_input: dict[str, object]
+
+
+def is_guardrail_decline(result: dict[str, object]) -> bool:
+    check = result.get("reply_check")
+    gated = isinstance(check, dict) and check.get("gate") == "guardrail"
+    return gated or result.get("answer") == GUARDRAIL_DECLINE
 
 
 def _invalid() -> ChatProtocolError:
@@ -139,6 +148,7 @@ def build_chat_result(
     proposal_id: str | None = None,
     choices: list[str] | None = None,
     next_search: dict[str, object] | None = None,
+    exhausted_search: dict[str, object] | None = None,
 ) -> dict[str, object]:
     keep = (
         candidate if status in {"planned", "needs_revision", "clarification"} else None
@@ -167,5 +177,7 @@ def build_chat_result(
     if choices:
         result["choices"] = [{"recipe_id": rid} for rid in choices]
     if next_search is not None:
-        result["next_search"] = next_search
+        result["next_search"] = deepcopy(next_search)
+    if exhausted_search is not None:
+        result["exhausted_search"] = deepcopy(exhausted_search)
     return result

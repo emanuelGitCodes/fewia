@@ -24,6 +24,7 @@ from app.agent.catalog_tool import (
     catalog_answer,
     catalog_tool_spec,
     execute_catalog_search,
+    exhausted_search_arguments,
     next_search_arguments,
     page_arguments,
 )
@@ -3951,6 +3952,9 @@ def test_the_last_page_has_no_next_search() -> None:
     assert "next_search" not in result
     assert _choice_ids(result)
     assert _choice_ids(result) == execute_catalog_search(arguments)["recipe_ids"]
+    assert result["exhausted_search"] == exhausted_search_arguments(
+        execute_catalog_search(arguments)
+    )
 
 
 @pytest.mark.parametrize("prior", ["none", "last_page", "budget_after_last_page"])
@@ -4422,7 +4426,7 @@ def test_a_no_tool_catalog_word_restart_retains_the_first_page_for_more(
 
 
 @pytest.mark.parametrize("gate", ["refusal", "guardrail"])
-def test_a_restart_decline_keeps_the_first_page_without_unshown_choices(
+def test_a_restart_decline_keeps_checked_state_without_unshown_choices(
     gate: str,
 ) -> None:
     cursor = _constrained_cursor()
@@ -4458,7 +4462,9 @@ def test_a_restart_decline_keeps_the_first_page_without_unshown_choices(
     )
     assert result["answer"] == expected
     assert result["reply_check"] == {"gate": gate}
-    assert result["next_search"] == {**cursor, "offset": 0}
+    assert result["next_search"] == (
+        cursor if gate == "guardrail" else {**cursor, "offset": 0}
+    )
     assert "choices" not in result
     assert "Catalog choices:" not in cast(str, result["answer"])
     assert "blocked model text" not in json.dumps(result)

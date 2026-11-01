@@ -1,6 +1,7 @@
 import json
 import re
 from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,6 +11,7 @@ from app import evaluation_conversation as runner
 from app import evaluation_model_turn as model_turn
 from app.agent import chat_loop, grounding
 from app.agent.catalog_tool import execute_catalog_search
+from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.agent.provider import LLMProvider
 from app.domain.plan_proposal import ProposalInvalid
 from app.evaluate_conversation import GoldFollowingProvider, main
@@ -27,6 +29,7 @@ from app.evaluation_conversation_score import (
 )
 from app.evaluation_inputs import prepare_case
 from app.evaluation_manifest import _hash, catalog_snapshot
+from tests.test_search_recovery import terminal_search
 
 _CORPUS = Path(__file__).parent / "evaluation" / "conversation.json"
 _RECORD_KEYS = {
@@ -423,6 +426,100 @@ def test_search_cursor_reaches_model_context_on_each_turn(
                 all(score_turn(turn, record).values())
                 for turn, record in zip(sub.scenarios[0].turns, own, strict=True)
             )
+
+
+def test_evaluation_keeps_exhaustion_and_drops_blocked_history(
+    corpus: ConversationCorpus,
+) -> None:
+    original = corpus.scenarios[15]
+    users = [
+        "vegetarian meals",
+        "What is my budget?",
+        "more, but vegan",
+        "more",
+        "Start over",
+        "more",
+    ]
+    scenario = original.model_copy(
+        update={
+            "turns": [
+                original.turns[0].model_copy(
+                    update={"user": user, "apply_proposal_before": False}
+                )
+                for user in users
+            ],
+        }
+    )
+    sub = corpus.model_copy(update={"scenarios": [scenario]})
+    exhausted = terminal_search({"query": "vegetarian"})
+    seen: Seen = {}
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        script = [_text("Done.")]
+        if turn == 1:
+            script = [_use("search_meals", exhausted)]
+        elif turn == 2:
+            script.insert(0, _use("get_budget_summary", {}))
+        elif turn == 3:
+            script = [
+                _response("guardrail_intervened", [{"text": "blocked-eval-output"}])
+            ]
+        elif turn in (4, 6):
+            script = [_use("search_meals", {"query": "chicken"})]
+        return Scripted(script, seen.setdefault((repeat, turn), []))
+
+    records = list(run_conversation_suite(sub, "p", provider_for))
+    assert len(records) == len(users) * 3
+    no_more_hash = sha256(b"There are no more matching meals.").hexdigest()
+    for repeat in (1, 2, 3):
+        own = [record for record in records if record["repeat"] == repeat]
+        assert own[2]["gate"] == "guardrail"
+        assert own[3]["reply_sha256"] == no_more_hash
+        assert own[3]["tools"] == []
+        for turn in (2, 3, 4, 5):
+            messages = seen[(repeat, turn)][0]
+            content = cast(list[dict[str, str]], messages[-1]["content"])
+            context = json.loads(content[0]["text"])
+            assert context["previous_search"] is None
+            assert context["previous_exhausted_search"] == exhausted
+        after = seen[(repeat, 4)][0]
+        assert users[2] not in json.dumps(after)
+        assert "blocked-eval-output" not in json.dumps(after)
+        assert GUARDRAIL_DECLINE not in json.dumps(after)
+        content = cast(list[dict[str, str]], seen[(repeat, 6)][0][-1]["content"])
+        context = json.loads(content[0]["text"])
+        assert context["previous_search"] == {**exhausted, "offset": 0}
+        assert context["previous_exhausted_search"] is None
+        assert own[5]["tools"]
+
+
+def test_evaluation_cannot_apply_a_proposal_from_a_blocked_turn(
+    corpus: ConversationCorpus,
+) -> None:
+    seen: Seen = {}
+    operations = [{"op": "add", "recipe_id": "overnight_oats", "servings": 2}]
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        script = [_use("get_plan", {}), _text("Done.")]
+        if turn == 1:
+            script = [
+                _use("propose_plan_change", {"operations": operations}),
+                _response(
+                    "guardrail_intervened", [{"text": "blocked-proposal-output"}]
+                ),
+            ]
+        return Scripted(script, seen.setdefault((repeat, turn), []))
+
+    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    assert len(records) == 6
+    for repeat in (1, 2, 3):
+        own = [record for record in records if record["repeat"] == repeat]
+        assert own[0]["gate"] == "guardrail" and own[0]["proposal"] is False
+        assert own[1]["apply_error"] == "missing"
+        assert _plan_ids(seen[(repeat, 2)][0]) == ["bean_tacos"]
+        assert len(seen[(repeat, 2)][0]) == 1
+        assert "blocked-proposal-output" not in json.dumps(seen[(repeat, 2)])
+        assert GUARDRAIL_DECLINE not in json.dumps(seen[(repeat, 2)])
 
 
 def test_the_matrix_turn_passes_exactly_todays_run_chat_arguments(

@@ -25,6 +25,7 @@ from app.providers.kroger import KrogerClient
 from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,
+    load_previous_exhausted_search,
     load_previous_search,
 )
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
@@ -89,9 +90,13 @@ def create_chat_job(
         tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None] | None
     ) = None
     previous_search: dict[str, object] | None = None
+    previous_exhausted_search: dict[str, object] | None = None
     try:
         context = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
         previous_search = load_previous_search(
+            session, DEMO_USER_ID, body.previous_job_id
+        )
+        previous_exhausted_search = load_previous_exhausted_search(
             session, DEMO_USER_ID, body.previous_job_id
         )
         loaded = context
@@ -127,6 +132,7 @@ def create_chat_job(
             previous_request=previous_request,
             previous_ingredient_ids=previous_ingredient_ids,
             previous_search=previous_search,
+            previous_exhausted_search=previous_exhausted_search,
             spending=spending,
             spending_source=settings.spending_source,
         ).model_dump(mode="json"),

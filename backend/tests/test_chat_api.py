@@ -42,6 +42,7 @@ from app.services.grocery_context import (
     SpendingUnavailable,
 )
 from app.services.job_submission import create_job
+from tests.test_search_recovery import terminal_search
 
 FIXED_NY = datetime(2026, 9, 6, 12, 0, tzinfo=NEW_YORK)
 NEXT_NY_DAY = datetime(2026, 9, 7, 9, 0, tzinfo=NEW_YORK)
@@ -743,6 +744,145 @@ def test_parent_next_search_is_server_loaded_and_checked(
     assert response.status_code == 202
     assert job is not None
     assert job.payload["previous_search"] == (None if forged else next_search)
+
+
+@pytest.mark.parametrize("forged", [False, True])
+@pytest.mark.parametrize("blocked", [False, True])
+def test_parent_exhaustion_is_server_loaded_and_checked(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    forged: bool,
+    blocked: bool,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    exhausted = terminal_search({"query": "vegetarian"})
+    stored = {**exhausted, "tags": ["unknown"]} if forged else exhausted
+    result: dict[str, object] = {
+        "answer": "Done.",
+        "exhausted_search": stored,
+    }
+    if blocked:
+        result["reply_check"] = {"gate": "guardrail"}
+    parent = add_parent(
+        session,
+        payload=stored_chat_payload(
+            message="blocked-user-turn" if blocked else "vegetarian meals",
+            previous_exhausted_search=exhausted,
+        ),
+        result=result,
+    )
+    response = post_chat(
+        client,
+        key="exhausted-more",
+        body=chat_body(message="more", previous_job_id=parent.id),
+    )
+    assert response.status_code == 202
+    job = session.get(Job, response.json()["job_id"])
+    assert job is not None
+    assert job.payload["previous_search"] is None
+    assert job.payload["previous_exhausted_search"] == (None if forged else exhausted)
+    if blocked:
+        assert job.payload["history"] == []
+        assert "blocked-user-turn" not in json.dumps(job.payload)
+
+
+@pytest.mark.parametrize("equal_arguments", [False, True])
+def test_parent_with_combined_search_states_returns_static_conflict(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    equal_arguments: bool,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    forbid_provider_construction(monkeypatch)
+    exhausted = terminal_search({"query": "vegetarian"})
+    next_search = (
+        dict(exhausted)
+        if equal_arguments
+        else next_search_arguments(execute_catalog_search({"query": "chicken"}))
+    )
+    assert next_search is not None
+    parent = add_parent(
+        session,
+        result={
+            "answer": "Done.",
+            "next_search": next_search,
+            "exhausted_search": exhausted,
+        },
+    )
+    response = post_chat(
+        client,
+        key="combined-search-state",
+        body=chat_body(message="more", previous_job_id=parent.id),
+    )
+    assert response.status_code == 409
+    assert response.json() == {
+        "error": {
+            "code": "conflict",
+            "message": chat_api.CHAT_CONTEXT_MESSAGE,
+        }
+    }
+    assert session.scalars(select(Job)).all() == [parent]
+
+
+@pytest.mark.parametrize("invalid_next", [False, True])
+def test_parent_with_one_forged_search_field_keeps_the_other_state(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_next: bool,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    exhausted = terminal_search({"query": "vegetarian"})
+    next_search = next_search_arguments(execute_catalog_search({"query": "chicken"}))
+    assert next_search is not None
+    forged = {"query": "vegetarian", "tags": ["unknown"]}
+    parent = add_parent(
+        session,
+        result={
+            "answer": "Done.",
+            "next_search": forged if invalid_next else next_search,
+            "exhausted_search": exhausted if invalid_next else forged,
+        },
+    )
+    response = post_chat(
+        client,
+        key="one-forged-search-field",
+        body=chat_body(message="more", previous_job_id=parent.id),
+    )
+    assert response.status_code == 202
+    job = session.get(Job, response.json()["job_id"])
+    assert job is not None
+    assert job.payload["previous_job_id"] == parent.id
+    assert job.payload["previous_search"] == (None if invalid_next else next_search)
+    assert job.payload["previous_exhausted_search"] == (
+        exhausted if invalid_next else None
+    )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["previous_search", "previous_exhausted_search", "next_search", "exhausted_search"],
+)
+def test_http_caller_cannot_supply_search_state(
+    client: TestClient,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    response = post_chat(
+        client, key=field, body=chat_body(**{field: {"query": "vegetarian"}})
+    )
+    assert response.status_code == 422
 
 
 def test_foreign_parent_returns_static_conflict(

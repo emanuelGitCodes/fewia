@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from app.agent.catalog_tool import (
     CatalogToolError,
     execute_catalog_search,
+    exhausted_page_arguments,
     page_arguments,
 )
 from app.agent.chat_messages import ChatProtocolError
@@ -165,6 +166,28 @@ def validated_previous_search(
     return deepcopy(search)
 
 
+def validated_previous_exhausted_search(
+    value: dict[str, object] | None,
+) -> dict[str, object] | None:
+    search = None if value is None else exhausted_page_arguments(value)
+    if value is not None and search is None:
+        raise ChatProtocolError("previous_exhausted_search is invalid")
+    return deepcopy(search)
+
+
+def validated_previous_search_state(
+    previous_search: dict[str, object] | None,
+    previous_exhausted_search: dict[str, object] | None,
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+    search = validated_previous_search(previous_search)
+    exhausted = validated_previous_exhausted_search(previous_exhausted_search)
+    if search is not None and exhausted is not None:
+        raise ChatProtocolError(
+            "previous_search and previous_exhausted_search are mutually exclusive"
+        )
+    return search, exhausted
+
+
 def plan_ingredient_ids(plan: object) -> list[str] | None:
     if not isinstance(plan, dict) or not isinstance(plan.get("lines"), list):
         return None
@@ -276,6 +299,7 @@ def build_messages(
     plan_cap_cents: int | None = None,
     plan_meals: list[dict[str, object]] | None = None,
     previous_search: dict[str, object] | None = None,
+    previous_exhausted_search: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     if (
         not _public_text(message)
@@ -299,7 +323,9 @@ def build_messages(
     ):
         raise ChatProtocolError(_PREVIOUS)
     meals = _plan_meals(plan_meals)
-    search = validated_previous_search(previous_search)
+    search, exhausted = validated_previous_search_state(
+        previous_search, previous_exhausted_search
+    )
     messages = _history(history)
     context = dumps(
         {
@@ -310,6 +336,7 @@ def build_messages(
             "plan_meals": meals,
             "previous_request": previous,
             "previous_search": search,
+            "previous_exhausted_search": exhausted,
             "previous_ingredient_ids": (
                 None
                 if previous_ingredient_ids is None

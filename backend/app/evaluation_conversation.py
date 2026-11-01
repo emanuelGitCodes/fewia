@@ -15,9 +15,11 @@ from app.agent import chat_loop
 from app.agent.catalog_tool import (
     CatalogToolError,
     execute_catalog_search,
+    exhausted_page_arguments,
     page_arguments,
 )
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
+from app.agent.chat_messages import is_guardrail_decline
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
@@ -194,6 +196,7 @@ def _run_scenario(
     previous: dict[str, object] | None = None
     previous_ids: list[str] | None = None
     previous_search: dict[str, object] | None = None
+    previous_exhausted_search: dict[str, object] | None = None
     for index, turn in enumerate(scenario.turns, start=1):
         apply_error: str | None = None
         if turn.apply_proposal_before:
@@ -224,6 +227,7 @@ def _run_scenario(
                 previous_request=previous,
                 previous_ingredient_ids=previous_ids,
                 previous_search=previous_search,
+                previous_exhausted_search=previous_exhausted_search,
                 history=history or None,
                 plan_cap_cents=inputs.plan_cap_cents,
                 plan_revision=plan,
@@ -240,6 +244,12 @@ def _run_scenario(
         if result is None:
             return
         previous_search = page_arguments(result.get("next_search"))
+        previous_exhausted_search = exhausted_page_arguments(
+            result.get("exhausted_search")
+        )
+        if is_guardrail_decline(result):
+            pending.clear()
+            continue
         ids = plan_ingredient_ids(result.get("plan"))
         previous_ids = ids if ids is not None else previous_ids
         request, answer = result.get("request"), result.get("answer")

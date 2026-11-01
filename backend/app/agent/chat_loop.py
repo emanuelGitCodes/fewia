@@ -15,6 +15,7 @@ from app.agent.catalog_tool import (
     DISCOVERY_ERROR,
     catalog_choices,
     catalog_tool_spec,
+    exhausted_search_arguments,
     next_search_arguments,
     search_identity,
 )
@@ -31,7 +32,7 @@ from app.agent.chat_context import (
     more_type_query,
     restart_type_query,
     sum_usage,
-    validated_previous_search,
+    validated_previous_search_state,
 )
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
@@ -161,6 +162,7 @@ _FINAL_STATUS = frozenset({"swapped", "found", "live", "ok", "proposed"})
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
+_NO_MORE = "There are no more matching meals."
 
 
 class ChatUnavailable(Exception):
@@ -255,6 +257,7 @@ def run_chat(
     model_prose: bool = False,
     propose: Propose | None = None,
     previous_search: dict[str, object] | None = None,
+    previous_exhausted_search: dict[str, object] | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -265,6 +268,7 @@ def run_chat(
         previous_request=previous_request,
         previous_ingredient_ids=previous_ingredient_ids,
         previous_search=previous_search,
+        previous_exhausted_search=previous_exhausted_search,
         history=history,
         plan_cap_cents=plan_cap_cents,
         plan_meals=None
@@ -274,7 +278,10 @@ def run_chat(
             for meal in plan_revision.snapshot.meals
         ],
     )
-    saved_search = validated_previous_search(previous_search)
+    original_search, original_exhausted = validated_previous_search_state(
+        previous_search, previous_exhausted_search
+    )
+    saved_search = original_search or original_exhausted
     cursor_identity = None if saved_search is None else search_identity(saved_search)
     typed = more_type_query(message)
     same_type = (
@@ -321,7 +328,12 @@ def run_chat(
     new_search = is_new_search_request(message) and not (same_type or restart)
     if restart and saved_search is not None:
         saved_search = {**saved_search, "offset": 0}
-    retained_search = None if modified_continuation or new_search else saved_search
+    reset = modified_continuation or new_search
+    retained_search = None if reset else original_search
+    retained_exhausted = None if reset else original_exhausted
+    if restart and saved_search is not None:
+        retained_search = saved_search
+        retained_exhausted = None
     meal_type = (
         continuation
         or modified_continuation
@@ -424,6 +436,7 @@ def run_chat(
         reply_source: str = "template",
         reply_check: dict[str, object] | None = None,
         public: bool = False,
+        guardrail: bool = False,
     ) -> dict[str, object]:
         # Only a public answer holds the catalog reply that rest() renders.
         shown = (
@@ -432,6 +445,14 @@ def run_chat(
         if pending_results is not None and observe_terminal_tool_results is not None:
             observe_terminal_tool_results(pending_results)
         found = discovery if shown else None
+        next_search = retained_search
+        exhausted_search = retained_exhausted
+        if guardrail:
+            next_search = original_search
+            exhausted_search = original_exhausted
+        elif found is not None:
+            next_search = next_search_arguments(found)
+            exhausted_search = exhausted_search_arguments(found)
         result = msgs.build_chat_result(
             status,
             answer,
@@ -444,7 +465,8 @@ def run_chat(
             reply_check=reply_check,
             proposal_id=proposal_id,
             choices=catalog_choices(found) if found else None,
-            next_search=next_search_arguments(found) if found else retained_search,
+            next_search=next_search,
+            exhausted_search=exhausted_search,
         )
         result["usage"] = usage
         return result
@@ -474,7 +496,14 @@ def run_chat(
             # A decline never carries a proposal from an earlier round.
             proposal_id = None
             reason = why("guardrail")
-            return out("clarification", GUARDRAIL_DECLINE, None, "template", reason)
+            return out(
+                "clarification",
+                GUARDRAIL_DECLINE,
+                None,
+                "template",
+                reason,
+                guardrail=True,
+            )
         stop, text, calls, sanitized = msgs.parse_provider_response(raw, seen)
         if stop != "tool_use":
             kept = sanitized.get("content")
@@ -485,6 +514,14 @@ def run_chat(
                 if refused is not None:
                     reason = why("refusal")
                     return out("clarification", refused, None, "template", reason)
+                if continuation and retained_exhausted is not None:
+                    return out(
+                        "clarification",
+                        _NO_MORE,
+                        None,
+                        "template",
+                        why("clarification"),
+                    )
                 status = _end_status(candidate)
                 gate: str | None = None
                 if proposal_id is not None:
@@ -527,6 +564,18 @@ def run_chat(
             return out("incomplete", _INCOMPLETE, None, "template", reason)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
+        if retained_exhausted is not None and (
+            continuation
+            or any(
+                call.name == CATALOG_TOOL_NAME
+                and cursor_identity is not None
+                and search_identity(call.tool_input) == cursor_identity
+                for call in calls
+            )
+        ):
+            return out(
+                "clarification", _NO_MORE, None, "template", why("clarification")
+            )
         if (continuation or restart) and saved_search is not None:
             calls = [
                 msgs.ToolCall(call.tool_use_id, call.name, deepcopy(saved_search))
@@ -536,6 +585,7 @@ def run_chat(
             ]
         elif any(call.name == CATALOG_TOOL_NAME for call in calls):
             retained_search = None
+            retained_exhausted = None
             if continuation:
                 return out(
                     "clarification",
@@ -617,6 +667,9 @@ def run_chat(
                 blocks.append(block)
                 continue
             if call.name == CATALOG_TOOL_NAME:
+                if not success:
+                    retained_search = None
+                    retained_exhausted = None
                 if not catalog_seen:
                     discovery_failed = False
                     catalog_seen = True
