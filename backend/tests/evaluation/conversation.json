@@ -1,5 +1,5 @@
 {
-  "version": "conversation-eval-v1.2",
+  "version": "conversation-eval-v1.3",
   "repeats": 3,
   "catalog_version": "sample-prices-v2",
   "scenarios": [
@@ -690,6 +690,7 @@
             "gold": [
               {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "status", "value": "ok"},
               {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "applied.0", "value": "vegetarian"},
+              {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "total_matches", "value": 28},
               {"tool": "search_meals", "input": {"query": "vegetarian", "limit": 1}, "path": "recipe_ids", "reference": true}
             ]
           }
@@ -793,7 +794,8 @@
             "gold": [
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "status", "value": "ok"},
               {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "applied.0", "value": "gluten_free_ingredients"},
-              {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "dropped.0", "value": "pasta"}
+              {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "dropped.0", "value": "pasta"},
+              {"tool": "search_meals", "input": {"query": "gluten-free pasta"}, "path": "total_matches", "value": 28}
             ]
           }
         }

@@ -20,8 +20,13 @@ from app.evaluation_conversation_corpus import (
     Scenario,
     load_conversation_corpus,
 )
-from app.evaluation_conversation_score import score_turn
+from app.evaluation_conversation_score import (
+    build_report,
+    render_markdown,
+    score_turn,
+)
 from app.evaluation_inputs import prepare_case
+from app.evaluation_manifest import _hash, catalog_snapshot
 
 _CORPUS = Path(__file__).parent / "evaluation" / "conversation.json"
 _RECORD_KEYS = {
@@ -312,6 +317,33 @@ def test_c18_rejects_searches_without_the_gluten_constraint(
     assert not score_turn(turn, record)["gold"]
 
 
+@pytest.mark.parametrize(
+    ("scenario_id", "arguments"),
+    [
+        ("C16", {"query": "vegetarian", "limit": 3, "diet": "vegan"}),
+        ("C18", {"query": "gluten-free pasta", "diet": "vegan"}),
+    ],
+)
+def test_a_search_with_an_unrequested_diet_fails_the_total_matches_gold(
+    corpus: ConversationCorpus, scenario_id: str, arguments: dict[str, object]
+) -> None:
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        if turn != 1:
+            return Scripted([])
+        return Scripted([_use("search_meals", arguments), _text("Done.")])
+
+    sub = _only(corpus, scenario_id)
+    records = run_conversation_suite(sub, "p", provider_for)
+    first = [r for r in records if r["turn"] == 1]
+    gold = sub.scenarios[0].turns[0].expect.gold
+    index = next(i for i, item in enumerate(gold) if item.path == "total_matches")
+    assert gold[index].value == 28
+    for record in first:
+        facts = cast(list[bool], record["facts_present"])
+        assert facts[index] is False
+        assert not score_turn(sub.scenarios[0].turns[0], record)["gold"]
+
+
 def test_page_reference_rejects_repeated_or_skipped_pages(
     corpus: ConversationCorpus,
 ) -> None:
@@ -481,6 +513,52 @@ def _argv(out: Path) -> list[str]:
         "--revision": "a" * 40,
     }
     return [part for pair in options.items() for part in pair] + ["--fixture"]
+
+
+def test_a_fixture_run_writes_manifest_identity_covered_by_the_hash(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "out"
+    assert main(_argv(out)) == 0
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    manifest = report["manifest"]
+    assert manifest["suite_version"] == "conversation-eval-v1.3"
+    assert manifest["catalog_hash"] == _hash(catalog_snapshot())
+    assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
+    covered = {k: v for k, v in manifest.items() if k != "manifest_hash"}
+    assert report["manifest_hash"] == manifest["manifest_hash"] == _hash(covered)
+    for key in ("suite_version", "catalog_hash", "system_prompt_hash"):
+        changed = {**covered, key: "changed"}
+        assert _hash(changed) != manifest["manifest_hash"]
+
+
+def test_scenario_pass_counts_a_repeat_only_when_every_turn_has_every_gold_fact(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = _only(corpus, "C16")
+    records: list[dict[str, object]] = []
+    for repeat in (1, 2, 3):
+        for number, turn in enumerate(sub.scenarios[0].turns, start=1):
+            present = [True] * len(turn.expect.gold)
+            if (repeat, number) == (2, 3):
+                present[0] = False
+            records.append(
+                {
+                    "scenario_id": "C16",
+                    "repeat": repeat,
+                    "turn": number,
+                    "facts_present": present,
+                    "apply_error": None,
+                }
+            )
+    report = build_report(sub, records, {"manifest_hash": "x"})
+    assert report["scenario_pass"] == {"passed": 2, "total": 3, "rate": 0.6667}
+    gold = cast(dict[str, Any], report["checks"])["gold"]
+    assert (gold["passed"], gold["total"]) == (11, 12)
+    assert "- rate: 0.6667" in render_markdown(report)
+    none = sub.model_copy(update={"scenarios": []})
+    empty = build_report(none, [], {"manifest_hash": "x"})
+    assert cast(dict[str, Any], empty["scenario_pass"])["rate"] is None
 
 
 def test_no_output_file_holds_reply_text(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-"""Strict loader for the conversation-eval-v1.2 corpus.
+"""Strict loader for the conversation-eval-v1.3 corpus.
 
 This suite is separate from the frozen grocery-eval-v1 matrix. It holds data and
 validation only; no runner lives here.
@@ -26,7 +26,7 @@ from app.domain.catalog import CATALOG_VERSION
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.evaluation_budget_inputs import fixture_budget
 
-CORPUS_ERROR = "corpus MUST match the conversation-eval-v1.2 contract"
+CORPUS_ERROR = "corpus MUST match the conversation-eval-v1.3 contract"
 MAX_MEALS = 3
 
 
@@ -185,7 +185,7 @@ class Scenario(_Model):
 
 
 class ConversationCorpus(_Model):
-    version: Literal["conversation-eval-v1.2"]
+    version: Literal["conversation-eval-v1.3"]
     repeats: Literal[3]
     catalog_version: StrictStr
     scenarios: list[Scenario]

@@ -1,4 +1,4 @@
-"""Run conversation-eval-v1.2 and emit hash-only observation records.
+"""Run conversation-eval-v1.3 and emit hash-only observation records.
 
 A record holds the tool trace, the validator verdict, usage, latency, and the
 reply's SHA-256. It never holds the reply text, the model's raw text, or the

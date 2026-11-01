@@ -1,4 +1,4 @@
-"""CLI for the conversation-eval-v1.2 suite: python -m app.evaluate_conversation."""
+"""CLI for the conversation-eval-v1.3 suite: python -m app.evaluate_conversation."""
 
 import argparse
 import hashlib
@@ -10,12 +10,13 @@ from copy import deepcopy
 from pathlib import Path
 from typing import NoReturn
 
+from app.agent import chat_loop
 from app.agent.provider import LLMProvider
 from app.evaluation_conversation import ProviderFor, run_conversation_suite
 from app.evaluation_conversation_corpus import ConversationCorpus, Scenario, Turn
 from app.evaluation_conversation_score import build_report, render_markdown
 from app.evaluation_io import EvaluationOutput
-from app.evaluation_manifest import _hash
+from app.evaluation_manifest import _hash, catalog_snapshot
 from app.evaluation_profiles import ModelProfile, rates_for, resolve_profile
 
 _INVALID = "Invalid evaluation CLI input"
@@ -133,6 +134,9 @@ def main(
             "model_config": profile.model_config,
             "revision": args.revision,
             "evidence_class": evidence,
+            "suite_version": corpus.version,
+            "catalog_hash": _hash(catalog_snapshot()),
+            "system_prompt_hash": _hash(chat_loop.SYSTEM_PROMPT),
         }
         manifest["manifest_hash"] = _hash(manifest)
     except (ValueError, OSError):

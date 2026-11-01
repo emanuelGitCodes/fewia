@@ -55,7 +55,7 @@ def _turn(data: Json, scenario: int, turn: int = 0) -> Json:
 
 
 def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
-    assert corpus.version == "conversation-eval-v1.2"
+    assert corpus.version == "conversation-eval-v1.3"
     assert corpus.repeats == 3
     assert corpus.catalog_version == CATALOG_VERSION
     assert tuple(scenario.id for scenario in corpus.scenarios) == SCENARIO_IDS
@@ -322,6 +322,16 @@ def test_paging_reference_has_ordered_distinct_pages(
     assert all(isinstance(page, list) and len(page) == 1 for page in pages)
     assert [cast(list[str], page)[0] for page in pages] == full
     assert len(set(full)) == 3
+    # Literal pages: a change to search order or the catalog MUST fail here.
+    assert pages == [["bean_tacos"], ["vegetable_pasta"], ["lentil_soup"]]
+    references = [
+        execute_catalog_search(item.input)["recipe_ids"]
+        for s in corpus.scenarios
+        for turn in s.turns
+        for item in turn.expect.gold
+        if item.reference
+    ]
+    assert references == [["bean_tacos"], ["vegetable_pasta"], ["lentil_soup"]]
 
 
 def test_unsupported_diet_keeps_its_expected_status(corpus: ConversationCorpus) -> None:
