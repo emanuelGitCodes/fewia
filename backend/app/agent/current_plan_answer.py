@@ -4,13 +4,15 @@ from app.agent.price_tool import meal_name
 from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS
 from app.domain.plan_revision import PlanRevisionInput
 
-_QUESTION_PROPERTY = r"(?!or\b)[a-z]+(?:[- ](?!or\b)[a-z]+)*"
-_OTHER_REQUEST = re.compile(
-    r"\b(?:and|but|yet|nor|also|then|if|unless|when|while|because|so|for|to|with|without|"
-    r"please|can|could|would|should|will|are|is|do|does|your|me|"
+_QUESTION_PROPERTY = r"[a-z]+(?:[- ][a-z]+)*"
+_ROUTED_INTENT = re.compile(
+    r"\b(?:budgets?|afford(?:able|ability)?|cost(?:s|ing)?|pric(?:e|es|ing)|"
+    r"caps?|limits?|totals?|spend(?:ing)?|spent|money|cheap(?:er|est)?|"
+    r"expens(?:e|es|ive)|economical|"
+    r"dollars?|cents?|usd|balance|allowance|funds?|sav(?:e|es|ing|ings)|"
     r"safe|allerg(?:y|ies|ic)|celiac|diabet(?:es|ic)|pregnan(?:t|cy)|"
     r"add(?:ing)?|remov(?:e|ing|ed)|replac(?:e|ing|ed)|swap(?:ping|ped)?|"
-    r"substitut(?:e|ing|ed)|find|finding|search(?:ing|ed)?|cheaper|chang(?:e|ing|ed)|"
+    r"substitut(?:e|ing|ed)|find|finding|search(?:ing|ed)?|chang(?:e|ing|ed)|"
     r"buy(?:ing)?|bought|purchas(?:e|ing|ed)|order(?:ing|ed)?|"
     r"creat(?:e|ing|ed)|writ(?:e|ing|ten)|show(?:ing)?|give|make|"
     r"shop(?:ping)?|checkout|pay(?:ing)?|deliver(?:ing)?|ship(?:ping)?|"
@@ -18,27 +20,40 @@ _OTHER_REQUEST = re.compile(
     r"exclud(?:e|ing)|choose|prepar(?:e|ing)|send|calculat(?:e|ing)|"
     r"recommend(?:ing|ed)?|suggest(?:ing|ed)?|need|want)\b"
 )
+_OTHER_CLAUSE = re.compile(
+    r"\b(?:but|yet|nor|also|then|if|unless|when|while|because|so|for|to|with|without|"
+    r"please|can|could|would|should|will|are|is|do|does|your|me)\b"
+)
+_CATALOG_NAMES = "|".join(
+    re.escape(name)
+    for name in sorted(
+        (meal_name(recipe_id).casefold() for recipe_id in MEAL_TAGS),
+        key=len,
+        reverse=True,
+    )
+)
+_CATALOG_NAME = re.compile(rf"\b(?:{_CATALOG_NAMES})\b")
+_MEAL_NAME = rf"(?:{_CATALOG_NAMES}|[a-z0-9]+)"
 _SUBJECT = (
     r"(?:(?:all|any)(?: of)? |each |which of )?(?:the |my |our )?"
     r"(?:current |saved |selected |planned )?(?:plan |planned )?meals?"
     r"(?: in (?:my |the |our )?(?:current |saved )?plan)?"
-    r"|(?:the |my )?[a-z0-9 ]+ in (?:my |the |our )"
+    r"|(?:the |my )?[a-z0-9 ]+? in (?:my |the |our )"
     r"(?:current |saved )?plan"
     r"|(?:my |the |our )(?:current |saved )?plan"
-    r"|(?:my |the )?(?:planned |selected |saved )[a-z0-9 ]+"
+    rf"|(?:my |the |our )?(?:planned |selected |saved ){_MEAL_NAME}"
+    rf"(?: (?:and|or) {_MEAL_NAME})*"
 )
 _QUESTION = re.compile(
     rf"(?:(?P<which>which) (?:of )?(?P<which_subject>{_SUBJECT}) are |"
     rf"(?:is|are) (?P<subject>{_SUBJECT}) )"
-    rf"(?P<not>not )?(?P<property>{_QUESTION_PROPERTY})"
-    rf"(?: or (?P<alternative>{_QUESTION_PROPERTY}))?\??",
+    rf"(?P<not>not )?(?P<property>{_QUESTION_PROPERTY})\??",
     re.IGNORECASE,
 )
 _CONTAINS = re.compile(
     rf"(?:(?P<which>which) (?:of )?(?P<which_subject>{_SUBJECT})|"
     rf"(?:does|do) (?P<subject>{_SUBJECT})) contain "
-    rf"(?P<property>{_QUESTION_PROPERTY})"
-    rf"(?: or (?P<alternative>{_QUESTION_PROPERTY}))?\??",
+    rf"(?P<property>{_QUESTION_PROPERTY})\??",
     re.IGNORECASE,
 )
 _CLARIFY = "Please ask about one supported characteristic of your saved plan meals."
@@ -66,6 +81,8 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
         if not separator or ". Pantry: " not in prefix or ". Plan cap: " not in prefix:
             return None
     text = " ".join(text.casefold().split())
+    if _ROUTED_INTENT.search(text):
+        return None
     match = _QUESTION.fullmatch(text)
     contains = match is None
     if match is None:
@@ -74,32 +91,14 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
         return None
     groups = match.groupdict()
     subject = groups.get("subject") or groups.get("which_subject") or ""
-    subject_for_guard = subject
-    trailing_subject_and = bool(
-        subject.endswith(" and")
-        and re.match(r"^(?:my |the )?(?:planned |selected |saved )", subject)
-    )
-    if trailing_subject_and:
-        subject_for_guard = subject_for_guard.removesuffix(" and")
-    if " and " in subject:
-        before_plan, separator, _ = subject.rpartition(" in ")
-        if (separator and " in " not in before_plan) or (
-            not separator
-            and re.match(r"^(?:my |the )?(?:planned |selected |saved )", subject)
-        ):
-            subject_for_guard = subject.replace(" and ", " ")
-    properties = [groups["property"], groups.get("alternative") or ""]
-    parts = [part.strip() for part in re.split(r"\band\b", " ".join(properties))]
-    compound = len(parts) > 1 and all(parts)
-    property_guard = " ".join(parts) if compound else " ".join(properties)
-    if _OTHER_REQUEST.search(subject_for_guard) or _OTHER_REQUEST.search(
-        property_guard
+    prop = groups["property"].replace("-", " ")
+    compound = re.search(r"\b(?:and|or)\b", prop) is not None
+    if _OTHER_CLAUSE.search(_CATALOG_NAME.sub("", subject)) or _OTHER_CLAUSE.search(
+        prop
     ):
         return None
-    if compound and re.search(r"\b(?:in|plan|meals?)\b", property_guard):
+    if compound and re.search(r"\b(?:in|plan|meals?)\b", prop):
         return None
-    if trailing_subject_and:
-        return _CLARIFY
     possessive_meals = re.fullmatch(
         r"(?:(?:all|any)(?: of)? |each )?(?:my|our) meals?", subject
     )
@@ -109,9 +108,8 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
         and not re.search(r"\b(?:plan|planned|saved|selected|current)\b", subject)
     ):
         return None
-    if groups.get("alternative") or compound:
+    if compound:
         return _CLARIFY
-    prop = groups["property"].replace("-", " ")
     if contains and prop not in {"dairy", "gluten"}:
         return _CLARIFY
     if prop not in _SUPPORTED_PROPERTIES:
@@ -149,7 +147,7 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
                 return "Please name one meal in your saved plan."
             meals = selected
     elif not subject.endswith(("meal", "meals", "plan")):
-        name = re.sub(r"^(?:my |the )?(?:planned |selected |saved )", "", subject)
+        name = re.sub(r"^(?:my |the |our )?(?:planned |selected |saved )", "", subject)
         selected = [
             meal for meal in meals if meal_name(meal.recipe_id).casefold() == name
         ]

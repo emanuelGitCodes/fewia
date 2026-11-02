@@ -504,3 +504,162 @@ def test_duplicate_meals_keep_each_serving_count() -> None:
 )
 def test_other_requests_are_not_intercepted(question: str) -> None:
     assert current_plan_answer(question, _plan()) is None
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "my selected chicken tacos",
+        "the chicken tacos in my plan",
+        "my planned chicken tacos",
+        "our saved chicken tacos",
+        "my meal",
+        "the saved meal",
+        "my plan meals",
+        "our meals",
+        "the meals in my current plan",
+        "my saved plan",
+    ],
+)
+@pytest.mark.parametrize(
+    ("property_text", "fact"),
+    [
+        ("vegan", "is not vegan"),
+        ("vegetarian", "is not vegetarian"),
+        ("high protein", "is not high protein"),
+        ("high-protein", "is not high protein"),
+        ("low carb", "is lower carb"),
+        ("low-carb", "is lower carb"),
+        ("lower carb", "is lower carb"),
+        ("lower-carb", "is lower carb"),
+        ("dairy", "has no dairy ingredients"),
+        ("dairy ingredients", "has no dairy ingredients"),
+        ("dairy-ingredients", "has no dairy ingredients"),
+        ("dairy free", "has no dairy ingredients"),
+        ("dairy-free", "has no dairy ingredients"),
+        ("dairy free ingredients", "has no dairy ingredients"),
+        ("dairy-free ingredients", "has no dairy ingredients"),
+        ("dairy free-ingredients", "has no dairy ingredients"),
+        ("dairy-free-ingredients", "has no dairy ingredients"),
+        ("gluten", "has no gluten ingredients"),
+        ("gluten ingredients", "has no gluten ingredients"),
+        ("gluten-ingredients", "has no gluten ingredients"),
+        ("gluten free", "has no gluten ingredients"),
+        ("gluten-free", "has no gluten ingredients"),
+        ("gluten free ingredients", "has no gluten ingredients"),
+        ("gluten-free ingredients", "has no gluten ingredients"),
+        ("gluten free-ingredients", "has no gluten ingredients"),
+        ("gluten-free-ingredients", "has no gluten ingredients"),
+    ],
+)
+def test_complete_single_property_aliases_across_subjects(
+    subject: str, property_text: str, fact: str
+) -> None:
+    plan = _plan()
+    single = plan.model_copy(
+        update={
+            "snapshot": plan.snapshot.model_copy(
+                update={"meals": plan.snapshot.meals[:1]}
+            )
+        }
+    )
+    expected = f"Chicken tacos (2 servings) {fact}."
+    if "ingredients" in fact:
+        expected += " This checks ingredients only."
+    assert current_plan_answer(f"Is {subject} {property_text}?", single) == expected
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "subject",
+    ["my selected chicken tacos", "the chicken tacos in my plan", "my plan meals"],
+)
+@pytest.mark.parametrize(
+    "property_text",
+    [
+        "certified vegan",
+        "locally sourced high protein",
+        "high protein and lower carb",
+        "gluten-free ingredients or dairy-free ingredients",
+        "organic and high protein",
+        "high protein or pasture raised",
+    ],
+)
+def test_complete_unknown_and_compound_properties_clarify_before_plan_lookup(
+    subject: str, property_text: str, plan_available: bool
+) -> None:
+    assert (
+        current_plan_answer(
+            f"Is {subject} {property_text}?", _plan() if plan_available else None
+        )
+        == "Please ask about one supported characteristic of your saved plan meals."
+    )
+
+
+@pytest.mark.parametrize("property_text", ["high protein", "lower carb", "gluten-free"])
+def test_named_property_recognition_does_not_depend_on_selected_meals(
+    property_text: str,
+) -> None:
+    question = f"Is my selected chicken tacos {property_text}?"
+    assert current_plan_answer(question, None) == (
+        "Your saved plan is unavailable. Please open or provide your plan."
+    )
+    plan = _plan()
+    for meals, expected in (
+        ([], "Your saved plan has no meals yet."),
+        (plan.snapshot.meals[1:], "Please name one meal in your saved plan."),
+    ):
+        other = plan.model_copy(
+            update={"snapshot": plan.snapshot.model_copy(update={"meals": meals})}
+        )
+        assert current_plan_answer(question, other) == expected
+    assert current_plan_answer(f"Is my selected sushi {property_text}?", plan) == (
+        "Please name one meal in your saved plan."
+    )
+
+
+@pytest.mark.parametrize(
+    ("recipe_id", "name"),
+    [
+        ("chicken_and_rice_bowls", "Chicken and rice bowls"),
+        ("baked_potatoes_with_beans", "Baked potatoes with beans"),
+        ("potato_hash_with_eggs", "Potato hash with eggs"),
+    ],
+)
+def test_catalog_name_connectors_are_not_property_compounds_or_commands(
+    recipe_id: str, name: str
+) -> None:
+    plan = _plan()
+    meal = plan.snapshot.meals[0].model_copy(update={"recipe_id": recipe_id})
+    single = plan.model_copy(
+        update={"snapshot": plan.snapshot.model_copy(update={"meals": [meal]})}
+    )
+    negative = "" if "high_protein" in MEAL_TAGS[recipe_id] else "not "
+    assert current_plan_answer(f"Is my selected {name} high protein?", single) == (
+        f"{name} (2 servings) is {negative}high protein."
+    )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Is the plan within my monthly budget?",
+        "Is my saved plan affordable?",
+        "Is the plan within my monthly limit?",
+        "Are my selected meals economical?",
+        "Are my plan meals low cost?",
+        "Is my selected chicken tacos within my spending allowance?",
+        "Are my meals vegan and within my budget?",
+        "Is my selected chicken tacos high protein and add beans?",
+        "Is my selected chicken tacos lower carb or buy sushi?",
+        "Is my selected chicken tacos gluten-free for my allergy?",
+        "Is my selected chicken tacos safe for celiac disease?",
+        "Are my meals organic and local and under my plan cap?",
+        "Are chicken tacos in my plan vegan and bean tacos in my plan vegan?",
+    ],
+)
+def test_finance_actions_and_medical_intents_defer_before_properties(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) is None

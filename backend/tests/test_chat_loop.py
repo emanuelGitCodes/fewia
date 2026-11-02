@@ -5637,6 +5637,10 @@ def test_current_plan_question_does_not_dispatch_model_calls(
             "Please ask about one supported characteristic of your saved plan meals.",
         ),
         (
+            "Is my selected chicken tacos certified vegan?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
+        (
             "Do my plan meals contain added sugar?",
             "Please ask about one supported characteristic of your saved plan meals.",
         ),
@@ -5707,6 +5711,10 @@ def test_plan_clarifications_block_search_and_proposal(
         "Are my selected chicken tacos vegan and vegetarian?",
         "Are sushi and ramen in my plan organic and local?",
         "Is my selected sushi organic and vegan?",
+        "Is my selected chicken tacos high protein and lower carb?",
+        "Is my selected chicken tacos organic or high protein?",
+        "Are my plan meals gluten-free ingredients and dairy-free ingredients?",
+        "Is my selected chicken tacos locally sourced high protein?",
     ],
 )
 def test_property_conjunctions_block_search_and_proposal(
@@ -6000,6 +6008,9 @@ def test_possessive_meal_questions_do_not_dispatch_search(
         "Do my plan meals contain added sugar for my allergy?",
         "Are my plan meals locally sourced and safe for celiac disease?",
         "Are my plan meals certified organic? Write a shopping list.",
+        "Is my selected chicken tacos high protein and add beans?",
+        "Is my selected chicken tacos lower carb or buy sushi?",
+        "Is my selected chicken tacos gluten-free for my allergy?",
     ],
 )
 def test_other_questions_keep_search_dispatch(question: str) -> None:
@@ -6028,6 +6039,9 @@ def test_other_questions_keep_search_dispatch(question: str) -> None:
         "Are my plan meals vegan?",
         "Are my plan meals vegan or certified organic?",
         "Do my plan meals contain added sugar?",
+        "Is my selected chicken tacos high protein?",
+        "Is my selected chicken tacos lower carb?",
+        "Is my selected chicken tacos gluten-free ingredients?",
     ],
 )
 def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -> None:
@@ -6061,6 +6075,10 @@ def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -
         "Are my plan meals certified organic and locally sourced?",
         "Are my plan meals vegan and vegetarian?",
         "Do my plan meals contain added sugar?",
+        "Is my selected chicken tacos high protein?",
+        "Is my selected chicken tacos lower carb?",
+        "Is my selected chicken tacos gluten-free ingredients?",
+        "Is my selected chicken tacos certified vegan?",
     ],
 )
 def test_current_plan_answer_preserves_provider_priority(
@@ -6279,13 +6297,246 @@ def test_cursorless_continuation_keeps_proposal_explanation() -> None:
     assert "Apply it in the plan panel." in cast(str, result["answer"])
 
 
-def test_current_plan_question_keeps_provider_failure() -> None:
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my plan meals vegan?",
+        "Is my selected chicken tacos high protein?",
+        "Are my plan meals lower carb?",
+        "Is my selected chicken tacos gluten-free ingredients?",
+    ],
+)
+def test_current_plan_question_keeps_provider_failure(question: str) -> None:
     provider = FakeLLM([RuntimeError(_SECRET)])
     with pytest.raises(ChatUnavailable, match=_UNAVAILABLE):
         run_chat(
             provider,
-            "Are my plan meals vegan?",
+            question,
             budget(),
             PERIOD,
             plan_revision=_two_meal_revision(),
         )
+
+
+@pytest.mark.parametrize(
+    "call", [_discovery_block(), _propose_block("proposal", _PROPOSE_OP), None]
+)
+@pytest.mark.parametrize(
+    ("subject", "named"),
+    [
+        ("my selected chicken tacos", True),
+        ("the chicken tacos in my plan", True),
+        ("my meal", False),
+        ("my plan meals", False),
+    ],
+)
+@pytest.mark.parametrize(
+    ("property_text", "fact"),
+    [
+        ("vegan", "is not vegan"),
+        ("vegetarian", "is not vegetarian"),
+        ("high protein", "is not high protein"),
+        ("high-protein", "is not high protein"),
+        ("low carb", "is lower carb"),
+        ("low-carb", "is lower carb"),
+        ("lower carb", "is lower carb"),
+        ("lower-carb", "is lower carb"),
+        ("dairy", "has no dairy ingredients"),
+        ("dairy ingredients", "has no dairy ingredients"),
+        ("dairy-ingredients", "has no dairy ingredients"),
+        ("dairy free", "has no dairy ingredients"),
+        ("dairy-free", "has no dairy ingredients"),
+        ("dairy free ingredients", "has no dairy ingredients"),
+        ("dairy-free ingredients", "has no dairy ingredients"),
+        ("dairy free-ingredients", "has no dairy ingredients"),
+        ("dairy-free-ingredients", "has no dairy ingredients"),
+        ("gluten", "has no gluten ingredients"),
+        ("gluten ingredients", "has no gluten ingredients"),
+        ("gluten-ingredients", "has no gluten ingredients"),
+        ("gluten free", "has no gluten ingredients"),
+        ("gluten-free", "has no gluten ingredients"),
+        ("gluten free ingredients", "has no gluten ingredients"),
+        ("gluten-free ingredients", "has no gluten ingredients"),
+        ("gluten free-ingredients", "has no gluten ingredients"),
+        ("gluten-free-ingredients", "has no gluten ingredients"),
+    ],
+)
+def test_single_saved_plan_property_aliases_keep_facts_without_dispatch(
+    call: dict[str, object] | None,
+    subject: str,
+    named: bool,
+    property_text: str,
+    fact: str,
+) -> None:
+    plan = _two_meal_revision()
+    single = plan.model_copy(
+        update={
+            "snapshot": plan.snapshot.model_copy(
+                update={"meals": plan.snapshot.meals[:1]}
+            )
+        }
+    )
+    reply = (
+        _reply([call], "tool_use")
+        if call is not None
+        else _reply([_text_block("untrusted model answer")], "end_turn")
+    )
+    provider = FakeLLM([reply])
+    proposer = Proposer()
+    expected = f"Chicken tacos (2 servings) {fact}."
+    if "ingredients" in fact:
+        expected += " This checks ingredients only."
+    result = run_chat(
+        provider,
+        f"Is {subject} {property_text}?",
+        budget(),
+        PERIOD,
+        plan_revision=plan if named else single,
+        propose=proposer,
+        model_prose=True,
+    )
+    assert result["answer"] == expected
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["evidence_id"] is None
+    assert result["model_turns"] == len(provider.requests) == 1
+    assert result["planner_revisions"] == 0
+    assert "choices" not in result and "proposal_id" not in result
+    assert not proposer.calls
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("state", ["unavailable", "empty", "other_meal"])
+@pytest.mark.parametrize("property_text", ["high protein", "lower carb", "gluten-free"])
+def test_named_property_loop_recognition_precedes_plan_lookup(
+    state: str, property_text: str
+) -> None:
+    original = _two_meal_revision()
+    plan: PlanRevisionInput | None = None
+    if state != "unavailable":
+        meals = [] if state == "empty" else original.snapshot.meals[1:]
+        plan = original.model_copy(
+            update={"snapshot": original.snapshot.model_copy(update={"meals": meals})}
+        )
+    expected = {
+        "unavailable": (
+            "Your saved plan is unavailable. Please open or provide your plan."
+        ),
+        "empty": "Your saved plan has no meals yet.",
+        "other_meal": "Please name one meal in your saved plan.",
+    }
+    provider = FakeLLM([_reply([_discovery_block()], "tool_use")])
+    result = run_chat(
+        provider,
+        f"Is my selected chicken tacos {property_text}?",
+        budget(),
+        PERIOD,
+        plan_revision=plan,
+        model_prose=True,
+    )
+    assert result["answer"] == expected[state]
+    assert result["tool_trace"] == []
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert "choices" not in result
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Is the plan within my monthly budget?",
+        "Is my saved plan affordable?",
+        "Is the plan within my monthly limit?",
+        "Are my selected meals economical?",
+        "Are my plan meals low cost?",
+        "Is my selected chicken tacos within my spending allowance?",
+        "Are my meals vegan and within my budget?",
+    ],
+)
+def test_saved_plan_finance_questions_keep_required_budget_dispatch(
+    question: str,
+) -> None:
+    provider = FakeLLM(
+        [
+            _reply([_budget_block("summary")], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        model_prose=False,
+    )
+    assert result["tool_trace"] == [_budget_trace("summary")]
+    assert result["answer"] == budget_summary_answer(
+        budget(), PERIOD, spending_source="fixture"
+    )
+    assert len(provider.requests) == result["model_turns"] == 2
+    assert result["planner_revisions"] == 0
+    assert result["reply_check"] != {"gate": "no_tools"}
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_c11_turn_eight_preserves_budget_and_plan_tool_results(
+    reverse: bool, prefixed: bool
+) -> None:
+    plan = _two_meal_revision()
+    meals = [
+        meal.model_copy(update={"recipe_id": recipe_id})
+        for meal, recipe_id in zip(
+            plan.snapshot.meals, ["bean_tacos", "chicken_and_rice_bowls"], strict=True
+        )
+    ]
+    plan = plan.model_copy(
+        update={"snapshot": plan.snapshot.model_copy(update={"meals": meals})}
+    )
+    calls = [
+        _budget_block("summary"),
+        _tool_block("plan", name=GET_PLAN_TOOL, payload={}),
+    ]
+    if reverse:
+        calls.reverse()
+    provider = FakeLLM(
+        [
+            _reply(calls, "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    question = "Is the plan within my monthly budget?"
+    if prefixed:
+        question = (
+            "My current plan: Bean tacos, Chicken and rice bowls. "
+            "Pantry: empty. Plan cap: none\n\n" + question
+        )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=plan,
+        model_prose=False,
+    )
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [entry["tool"] for entry in trace] == (
+        [GET_PLAN_TOOL, BUDGET_TOOL_NAME]
+        if reverse
+        else [BUDGET_TOOL_NAME, GET_PLAN_TOOL]
+    )
+    assert all(entry["outcome"] == "success" for entry in trace)
+    assert len(provider.requests) == result["model_turns"] == 2
+    messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    returned = {
+        block["toolResult"]["toolUseId"]: block["toolResult"]["content"][0]["json"]
+        for block in messages[-1]["content"]
+    }
+    assert returned["summary"]["budget"]["available_cents"] == 10_000
+    assert returned["plan"]["estimate"]["total_cents"] == 2989
+    assert result["reply_check"] != {"gate": "no_tools"}
+    assert SAMPLE_ESTIMATE_NOTICE in cast(str, result["answer"])
+    assert result["planner_revisions"] == 0
+    assert "proposal_id" not in result
+    _assert_public(result)
