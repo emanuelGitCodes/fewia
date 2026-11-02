@@ -50,7 +50,7 @@ replaces a model reply with a template. It does not give a wrong fact.
 |---|---|---|---|---|
 | 1 | Should fix | `current_plan_answer.py:7,125` | "Is my plan ready?", "Is my plan healthy?" | Server clarifies. The model reply is discarded. |
 | 2 | Should fix | `current_plan_answer.py:88-91,129` | The `planChatPrefix` fallback message, no saved revision, "Is my plan vegan?" | "Your saved plan is unavailable." The user gave the plan in the message. |
-| 3 | Should fix | `chat_loop.py:595-605` | Exhausted vegetarian cursor, "Show me those vegetarian meals again" | "There are no more matching meals." The offset 0 search does not run. |
+| 3 | By design | `chat_loop.py:595-605` | Exhausted vegetarian cursor, "Show me those vegetarian meals again" | "There are no more matching meals." The offset 0 search does not run. `test_exhaustion_uses_canonical_identity_for_a_model_assisted_more` requires this: models send offset 0 for "What else?". |
 | 4 | Optional | `current_plan_answer.py:134-152` | "Is any meal in my plan vegan?" | Asks which meal. "any" SHOULD answer for every meal. |
 | 5 | Optional | `current_plan_answer.py:62-66` | "Does my plan have dairy?", "Is my plan vegan." | Goes to the model. Only `contain` and a question mark are parsed. |
 | 6 | Optional | `evaluation_conversation.py` | `--max-chat-turns 48` | Caps user turns, not provider calls. The ledger shows 82 calls for 48 turns. |
@@ -64,7 +64,7 @@ replaces a model reply with a template. It does not give a wrong fact.
 | 9 | Should fix | `grounding.py` | "This meal contains no milk.", "It is made without milk." | Accepted. Milk absence is checked only as `milkfree`. |
 | 10 | Optional | `chat_loop.py:285-318` | Cursor `{chicken, high_protein}`, "more high protein" | Starts a new search. "start over with high protein" keeps the cursor. |
 | 10a | Should fix | `grounding.py` | "It contains no gluten.", "This is allergy safe." | Accepted. This gap is older than PR 469. |
-| 11 | Optional | `catalog_tool.py:436-439` | Model call "chicken pizza" on a chicken cursor | Continues the cursor. The unmatched "pizza" notice is lost. |
+| 11 | By design | `catalog_tool.py:436-439` | Model call "chicken pizza" on a chicken cursor | Continues the cursor. The unmatched "pizza" notice is lost. `test_search_identity_distinguishes_unsearchable_from_omnivore` requires that unmatched words do not change the identity. |
 
 Neither PR breaks a product rule. Money stays in integer cents. No reply
 calls a meal allergy-safe. Dairy-free does not map to vegan. No evaluation
@@ -92,6 +92,23 @@ record stores model reply text.
 | T1 | `test_chat_dairy_claims.py` | Parametrize the claim loops. Keep three `run_chat` fallback proofs. The unit cases stay in `test_grounding.py`. | about 400 lines |
 | T2 | `test_grounding.py` | Fold `test_formatted_milk_free_claims_fail` and the contracted-alias test into their parametrized neighbors. | about 60 lines |
 | T3 | `test_chat_loop.py` | Make the catalog-word restart test a parameter of the no-tool restart test. | about 40 lines |
+
+### Status in `claude/conversation-polish`
+
+| Item | Status |
+|---|---|
+| Findings 7, 8, 9, 10a and O7 | Built in `ff5efdd2`. One phrase table covers dairy, milk, and gluten. |
+| O4, O5 | Built in `1f0c9418`. |
+| T1, T2, T3 | Built. Every input string stays. |
+| O6 | Not built. An `lru_cache` would keep stale results when a test patches the catalog. The saving is two in-memory searches. |
+| O8 | Not built. The saving is small, and `search_identity` holds owner intent. |
+| Findings 3 and 11 | Withdrawn. Existing tests record the behavior as intent. |
+| Findings 1, 2, 4, 5 and O1, O2, O3 | Wait for the owner decisions below. They change `current_plan_answer.py`. |
+| Finding 6 | Not built. It changes the evaluation CLI contract. |
+| Finding 10 | Not built. It changes the restart rules. |
+
+The app code shrinks by 9 lines net. The phrase table adds one false
+positive: "If you have no milk, use water." now falls back to the template.
 
 ### Evidence
 
