@@ -92,6 +92,7 @@ from bisect import bisect_left, bisect_right
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
+from itertools import product
 
 from app.agent.catalog_tool import _SAFETY, TOOL_NAME
 from app.agent.chat_answer import _DIET, _diet_conflict_answer
@@ -241,19 +242,13 @@ _OPAQUE = re.compile(
 )
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
-    r"safefor|allergyfree|allergenfree|celiacsafe|medical|cures|treats|prevents"
+    r"safefor|allergyfree|allergenfree|allergysafe|celiacsafe|medical|cures|treats"
+    r"|prevents"
     r"|diagnos|glutenfree|dairyfree"
     r"|placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
-)
-_DAIRY_ALIASES = re.compile(
-    r"(?:contains?|containing|has|have|includes?|including|uses?|made|prepared|cooked)"
-    r"(?:any)?nodairy"
-    r"|(?:do(?:es)?(?:not|nt)(?:contain|include|have|use)"
-    r"|(?:has|have)(?:not|nt)(?:got)?)(?:any)?dairy"
-    r"|free(?:of|from)(?:any|all)?dairy|without(?:any)?dairy"
 )
 # Whole words and contractions end clauses; single-letter dots keep spelling joined.
 _DAIRY_CLAUSE_END = re.compile(
@@ -261,24 +256,39 @@ _DAIRY_CLAUSE_END = re.compile(
     r"[*_'\"\])]*\s*[.,;:!?]+[*_'\"\])]*(?=\s)",
     re.IGNORECASE,
 )
+# One phrase table for dairy, milk, and gluten: each row's word choices join in order
+# and then the noun. Letters join with `[\W_]*`, so spacing and punctuation fail closed.
+_ANY = ("", "any")
+_ABSENCE_ROWS = (
+    (("no", "non", "without"), _ANY),
+    (("freeof", "freefrom"), (*_ANY, "all")),
+    (
+        ("donot", "dont", "doesnot", "doesnt", "never"),
+        ("contain", "contains", "include", "includes", "have", "has", "use", "uses"),
+        _ANY,
+    ),
+    (("hasnot", "hasnt", "havenot", "havent"), ("", "got"), _ANY),
+    (
+        ("not", "isnt", "arent", "wasnt", "werent"),
+        ("made", "prepared", "cooked"),
+        ("with", "from", "using"),
+        _ANY,
+    ),
+)
+_ABSENCE_AFTER = ("free", "less", "isnotused", "isntused", "arenotused")
+# "any" and "all" only follow a negation that has one: "no any dairy" is not English,
+# but a match on it is harmless. "I made no dairy claims" is not a claim.
 _DAIRY_ABSENCE = re.compile(
     r"(?<![a-z0-9])(?:"
     + "|".join(
         r"[\W_]*".join(phrase)
+        for noun in ("dairy", "milk", "gluten")
         for phrase in (
-            "milkfree",
-            "nodairy",
-            "nondairy",
-            *(
-                negation + verb + preposition + quantifier + "dairy"
-                for negation in ("not", "isnt", "arent")
-                for verb in ("made", "prepared", "cooked")
-                for preposition in ("with", "from")
-                for quantifier in ("", "any")
-            ),
+            *("".join(p) + noun for row in _ABSENCE_ROWS for p in product(*row)),
+            *(noun + after for after in _ABSENCE_AFTER),
         )
     )
-    + r")(?![a-z0-9])",
+    + r")(?![a-z0-9])(?![\W_]*claims?(?![a-z0-9]))",
     re.IGNORECASE,
 )
 # Diet labels match from a word start on the folded text: "tofu" does not match
@@ -998,8 +1008,7 @@ def validate(reply: str, facts: FactSet) -> Verdict:
             stale_copy
             or _FORBIDDEN.search(_squash(claims)) is not None
             or any(
-                _DAIRY_ALIASES.search(_squash(clause)) is not None
-                or _DAIRY_ABSENCE.search(clause) is not None
+                _DAIRY_ABSENCE.search(clause) is not None
                 for clause in _DAIRY_CLAUSE_END.split(claims)
             )
             or _DIET_LABEL.search(diet_text) is not None,
