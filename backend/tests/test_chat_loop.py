@@ -5579,7 +5579,7 @@ def test_current_plan_question_does_not_dispatch_model_calls(
 
 
 @pytest.mark.parametrize(
-    "call", [_discovery_block(), _propose_block("proposal", _PROPOSE_OP)]
+    "call", [_discovery_block(), _propose_block("proposal", _PROPOSE_OP), None]
 )
 @pytest.mark.parametrize(
     ("question", "answer"),
@@ -5591,6 +5591,14 @@ def test_current_plan_question_does_not_dispatch_model_calls(
         (
             "Is our selected meal in the saved plan vegan?",
             "Which selected meal do you mean: Chicken tacos, Bean tacos?",
+        ),
+        (
+            "Are chicken tacos and bean tacos in my plan vegan?",
+            "Please name one meal in your saved plan.",
+        ),
+        (
+            "Do chicken tacos and bean tacos in my plan contain gluten?",
+            "Please name one meal in your saved plan.",
         ),
         (
             "Are my plan meals vegan or organic?",
@@ -5612,12 +5620,41 @@ def test_current_plan_question_does_not_dispatch_model_calls(
             "Are my plan meals vegan or low sugar?",
             "Please ask about one supported characteristic of your saved plan meals.",
         ),
+        (
+            "Are my plan meals certified organic?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
+        (
+            "Are my plan meals vegan or certified organic?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
+        (
+            "Are my plan meals pasture raised or locally sourced?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
+        (
+            "Is my selected chicken tacos sustainably produced?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
+        (
+            "Do my plan meals contain added sugar?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
+        (
+            "Which of my meals contain artificial sweeteners or food coloring?",
+            "Please ask about one supported characteristic of your saved plan meals.",
+        ),
     ],
 )
 def test_plan_clarifications_block_search_and_proposal(
-    call: dict[str, object], question: str, answer: str
+    call: dict[str, object] | None, question: str, answer: str
 ) -> None:
-    provider = FakeLLM([_reply([call], "tool_use")])
+    reply = (
+        _reply([call], "tool_use")
+        if call is not None
+        else _reply([_text_block("The meals are certified organic.")], "end_turn")
+    )
+    provider = FakeLLM([reply])
     proposer = Proposer()
     observed: list[list[dict[str, object]]] = []
     evidence: list[dict[str, object]] = []
@@ -5647,6 +5684,167 @@ def test_plan_clarifications_block_search_and_proposal(
     assert "choices" not in result
     assert "proposal_id" not in result
     assert not proposer.calls and not observed and not evidence
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "call", [_discovery_block(), _propose_block("p1", _PROPOSE_OP)]
+)
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my plan meals certified organic and locally sourced?",
+        "Are my meals fair trade and sustainably produced?",
+        "Do my plan meals contain added sugar and artificial sweeteners?",
+        "Are my plan meals vegan and locally sourced?",
+        "Are my plan meals vegan and vegetarian?",
+        "Are my plan meals dairy free and gluten free?",
+        "Are my plan meals vegan and vegetarian or organic?",
+        "Are my plan meals organic or vegan and vegetarian?",
+        "Are my plan meals organic and local or sustainable?",
+        "Do my plan meals contain dairy and gluten?",
+        "Are chicken tacos and bean tacos in my plan vegan and vegetarian?",
+        "Are my selected chicken tacos vegan and vegetarian?",
+        "Are sushi and ramen in my plan organic and local?",
+        "Is my selected sushi organic and vegan?",
+    ],
+)
+def test_property_conjunctions_block_search_and_proposal(
+    question: str, call: dict[str, object], plan_available: bool
+) -> None:
+    provider = FakeLLM([_reply([call], "tool_use")])
+    proposer = Proposer()
+    observed: list[list[dict[str, object]]] = []
+    evidence: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        evidence.append(payload)
+        return _REV
+
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision() if plan_available else None,
+        propose=proposer,
+        record_evidence=record,
+        observe_terminal_tool_results=observed.append,
+        model_prose=True,
+    )
+    assert result["answer"] == (
+        "Please ask about one supported characteristic of your saved plan meals."
+    )
+    assert result["status"] == "clarification"
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["plan"] is None
+    assert result["evidence_id"] is None
+    assert "choices" not in result and "proposal_id" not in result
+    assert not proposer.calls and not observed and not evidence
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my meals organic and local and add beans?",
+        "Are my meals organic and local and swap chicken?",
+        "Are my meals organic and local and search for alternatives?",
+        "Are my meals organic and local and buy them?",
+        "Are my meals organic and local and safe for my allergy?",
+        "Are my meals organic and local? Search for alternatives.",
+        "Are my plan meals vegan and vegetarian and find cheaper meals?",
+        "Are my plan meals vegan and vegetarian for my allergy?",
+        "Are my plan meals vegan and vegetarian? Are they organic?",
+    ],
+)
+def test_property_conjunctions_with_other_requests_keep_dispatch(
+    question: str, plan_available: bool
+) -> None:
+    provider = FakeLLM(
+        [
+            _reply([_discovery_block()], "tool_use"),
+            _reply([_text_block("Please clarify your request.")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision() if plan_available else None,
+        model_prose=True,
+    )
+    assert result["tool_trace"][0]["tool"] == CATALOG_TOOL_NAME
+    assert result["tool_trace"][0]["outcome"] == "success"
+    assert result["reply_check"] != {"gate": "no_tools"}
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my selected chicken tacos and sushi vegan?",
+        "Which of the saved sushi and bean tacos are vegetarian?",
+        "Do planned sushi and ramen contain gluten?",
+        "Are chicken tacos and sushi in my plan vegan?",
+    ],
+)
+def test_named_meal_lists_clarify_without_dispatch(
+    question: str, plan_available: bool
+) -> None:
+    provider = FakeLLM([_reply([_discovery_block()], "tool_use")])
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision() if plan_available else None,
+        model_prose=True,
+    )
+    assert result["answer"] == (
+        "Please name one meal in your saved plan."
+        if plan_available
+        else "Your saved plan is unavailable. Please open or provide your plan."
+    )
+    assert result["status"] == "clarification"
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["evidence_id"] is None
+    assert "choices" not in result
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my selected chicken tacos and buy sushi vegan?",
+        "Are my selected chicken tacos and sushi vegan and find cheaper meals?",
+    ],
+)
+def test_named_meal_lists_with_actions_keep_dispatch(
+    question: str, plan_available: bool
+) -> None:
+    provider = FakeLLM(
+        [
+            _reply([_discovery_block()], "tool_use"),
+            _reply([_text_block("Please clarify your request.")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision() if plan_available else None,
+        model_prose=True,
+    )
+    assert result["tool_trace"][0]["tool"] == CATALOG_TOOL_NAME
+    assert result["tool_trace"][0]["outcome"] == "success"
+    assert result["reply_check"] != {"gate": "no_tools"}
 
 
 @pytest.mark.parametrize(
@@ -5782,6 +5980,9 @@ def test_possessive_meal_questions_do_not_dispatch_search(
         "Are all meals vegan?",
         "Are my meals vegan? Replace the chicken.",
         "Are our meals vegan and find cheaper meals?",
+        "Are chicken tacos and bean tacos in my plan vegan and find cheaper meals?",
+        "Are chicken tacos and swap bean tacos in my plan vegan?",
+        "Do chicken tacos and bean tacos in my plan contain gluten and add rice?",
         "Are my meals dairy free for my allergy?",
         "Which of my meals contain gluten and are safe for celiac disease?",
         "Are my plan meals vegan or organic? Find cheaper meals.",
@@ -5791,6 +5992,14 @@ def test_possessive_meal_questions_do_not_dispatch_search(
         "Do my plan meals contain nuts for my allergy?",
         "Are my plan meals organic? Buy them.",
         "Are my plan meals organic? Swap chicken for beans.",
+        "Are my plan meals certified organic and add bean tacos?",
+        "Are my plan meals certified organic or pay now?",
+        "Are my plan meals locally sourced but swap the chicken?",
+        "Are my plan meals certified organic? Find another meal.",
+        "Are my plan meals certified organic? Buy them.",
+        "Do my plan meals contain added sugar for my allergy?",
+        "Are my plan meals locally sourced and safe for celiac disease?",
+        "Are my plan meals certified organic? Write a shopping list.",
     ],
 )
 def test_other_questions_keep_search_dispatch(question: str) -> None:
@@ -5813,7 +6022,15 @@ def test_other_questions_keep_search_dispatch(question: str) -> None:
     assert result["reply_check"] != {"gate": "no_tools"}
 
 
-def test_current_plan_question_preserves_refusal_with_tool_call() -> None:
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my plan meals vegan?",
+        "Are my plan meals vegan or certified organic?",
+        "Do my plan meals contain added sugar?",
+    ],
+)
+def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -> None:
     provider = FakeLLM(
         [
             _reply(
@@ -5824,7 +6041,7 @@ def test_current_plan_question_preserves_refusal_with_tool_call() -> None:
     )
     result = run_chat(
         provider,
-        "Are my plan meals vegan?",
+        question,
         budget(),
         PERIOD,
         plan_revision=_two_meal_revision(),
@@ -5836,7 +6053,15 @@ def test_current_plan_question_preserves_refusal_with_tool_call() -> None:
 
 @pytest.mark.parametrize("kind", ["guardrail", "refusal", "incomplete", "invalid"])
 @pytest.mark.parametrize(
-    "question", ["Are my plan meals vegan?", "Are my plan meals vegan or organic?"]
+    "question",
+    [
+        "Are my plan meals vegan?",
+        "Are my plan meals vegan or organic?",
+        "Are my plan meals vegan or certified organic?",
+        "Are my plan meals certified organic and locally sourced?",
+        "Are my plan meals vegan and vegetarian?",
+        "Do my plan meals contain added sugar?",
+    ],
 )
 def test_current_plan_answer_preserves_provider_priority(
     kind: str, question: str

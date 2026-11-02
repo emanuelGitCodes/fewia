@@ -4,15 +4,19 @@ from app.agent.price_tool import meal_name
 from app.domain.meal_tags import MEAL_DIETS, MEAL_TAGS
 from app.domain.plan_revision import PlanRevisionInput
 
-_PROPERTY = (
-    r"vegan|vegetarian|dairy(?:[- ]free)?(?: ingredients)?|"
-    r"gluten(?:[- ]free)?(?: ingredients)?|high[- ]protein|"
-    r"(?:low|lower)[- ]carb|keto|paleo|halal|kosher|"
-    r"(?:lactose|nut|egg|soy|sugar)[- ]free|low[- ](?:sodium|fat)|high[- ]fiber"
-)
-_QUESTION_PROPERTY = (
-    rf"(?:{_PROPERTY}|(?:low|lower|high|higher|reduced)[- ][a-z]+|"
-    r"[a-z]+(?:[- ]free|(?:-[a-z]+)*))"
+_QUESTION_PROPERTY = r"(?!or\b)[a-z]+(?:[- ](?!or\b)[a-z]+)*"
+_OTHER_REQUEST = re.compile(
+    r"\b(?:and|but|yet|nor|also|then|if|unless|when|while|because|so|for|to|with|without|"
+    r"please|can|could|would|should|will|are|is|do|does|your|me|"
+    r"safe|allerg(?:y|ies|ic)|celiac|diabet(?:es|ic)|pregnan(?:t|cy)|"
+    r"add(?:ing)?|remov(?:e|ing|ed)|replac(?:e|ing|ed)|swap(?:ping|ped)?|"
+    r"substitut(?:e|ing|ed)|find|finding|search(?:ing|ed)?|cheaper|chang(?:e|ing|ed)|"
+    r"buy(?:ing)?|bought|purchas(?:e|ing|ed)|order(?:ing|ed)?|"
+    r"creat(?:e|ing|ed)|writ(?:e|ing|ten)|show(?:ing)?|give|make|"
+    r"shop(?:ping)?|checkout|pay(?:ing)?|deliver(?:ing)?|ship(?:ping)?|"
+    r"check(?:ing)?|tell|explain|use|help|updat(?:e|ing)|includ(?:e|ing)|"
+    r"exclud(?:e|ing)|choose|prepar(?:e|ing)|send|calculat(?:e|ing)|"
+    r"recommend(?:ing|ed)?|suggest(?:ing|ed)?|need|want)\b"
 )
 _SUBJECT = (
     r"(?:(?:all|any)(?: of)? |each |which of )?(?:the |my |our )?"
@@ -38,6 +42,21 @@ _CONTAINS = re.compile(
     re.IGNORECASE,
 )
 _CLARIFY = "Please ask about one supported characteristic of your saved plan meals."
+_SUPPORTED_PROPERTIES = {
+    "vegan",
+    "vegetarian",
+    "dairy",
+    "dairy free",
+    "dairy ingredients",
+    "dairy free ingredients",
+    "gluten",
+    "gluten free",
+    "gluten ingredients",
+    "gluten free ingredients",
+    "high protein",
+    "low carb",
+    "lower carb",
+}
 
 
 def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | None:
@@ -55,12 +74,32 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
         return None
     groups = match.groupdict()
     subject = groups.get("subject") or groups.get("which_subject") or ""
-    if re.search(
-        r"\b(?:add|remove|replace|swap|substitute|find|search|cheaper|change|"
-        r"buy|purchase|order|create|write)\b",
-        " ".join((subject, groups["property"], groups.get("alternative") or "")),
+    subject_for_guard = subject
+    trailing_subject_and = bool(
+        subject.endswith(" and")
+        and re.match(r"^(?:my |the )?(?:planned |selected |saved )", subject)
+    )
+    if trailing_subject_and:
+        subject_for_guard = subject_for_guard.removesuffix(" and")
+    if " and " in subject:
+        before_plan, separator, _ = subject.rpartition(" in ")
+        if (separator and " in " not in before_plan) or (
+            not separator
+            and re.match(r"^(?:my |the )?(?:planned |selected |saved )", subject)
+        ):
+            subject_for_guard = subject.replace(" and ", " ")
+    properties = [groups["property"], groups.get("alternative") or ""]
+    parts = [part.strip() for part in re.split(r"\band\b", " ".join(properties))]
+    compound = len(parts) > 1 and all(parts)
+    property_guard = " ".join(parts) if compound else " ".join(properties)
+    if _OTHER_REQUEST.search(subject_for_guard) or _OTHER_REQUEST.search(
+        property_guard
     ):
         return None
+    if compound and re.search(r"\b(?:in|plan|meals?)\b", property_guard):
+        return None
+    if trailing_subject_and:
+        return _CLARIFY
     possessive_meals = re.fullmatch(
         r"(?:(?:all|any)(?: of)? |each )?(?:my|our) meals?", subject
     )
@@ -70,26 +109,12 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
         and not re.search(r"\b(?:plan|planned|saved|selected|current)\b", subject)
     ):
         return None
-    if groups.get("alternative"):
+    if groups.get("alternative") or compound:
         return _CLARIFY
     prop = groups["property"].replace("-", " ")
     if contains and prop not in {"dairy", "gluten"}:
         return _CLARIFY
-    if prop not in {
-        "vegan",
-        "vegetarian",
-        "dairy",
-        "dairy free",
-        "dairy ingredients",
-        "dairy free ingredients",
-        "gluten",
-        "gluten free",
-        "gluten ingredients",
-        "gluten free ingredients",
-        "high protein",
-        "low carb",
-        "lower carb",
-    }:
+    if prop not in _SUPPORTED_PROPERTIES:
         return _CLARIFY
     if plan is None:
         return "Your saved plan is unavailable. Please open or provide your plan."

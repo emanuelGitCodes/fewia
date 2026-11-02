@@ -120,6 +120,75 @@ def test_missing_plan_and_ambiguous_questions_clarify() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are chicken tacos and bean tacos in my plan vegan?",
+        "Which of chicken tacos and bean tacos in my plan are vegetarian?",
+        "Do chicken tacos and bean tacos in my plan contain gluten?",
+        "Are my selected chicken tacos and bean tacos vegan?",
+        "Are chicken tacos and bean tacos and vegetable pasta in my plan vegan?",
+    ],
+)
+def test_named_meal_lists_ask_for_one_meal(question: str) -> None:
+    assert current_plan_answer(question, _plan()) == (
+        "Please name one meal in your saved plan."
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my selected chicken tacos and sushi vegan?",
+        "Which of the saved sushi and bean tacos are vegetarian?",
+        "Do planned sushi and ramen contain gluten?",
+        "Are chicken tacos and sushi in my plan vegan?",
+    ],
+)
+def test_named_meal_lists_clarify_without_matching_names_or_plan(
+    question: str,
+) -> None:
+    assert current_plan_answer(question, _plan()) == (
+        "Please name one meal in your saved plan."
+    )
+    assert current_plan_answer(question, None) == (
+        "Your saved plan is unavailable. Please open or provide your plan."
+    )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my selected chicken tacos and buy sushi vegan?",
+        "Are my saved sushi and swap bean tacos vegetarian?",
+        "Are my selected chicken tacos and sushi vegan and find cheaper meals?",
+        "Do planned sushi and ramen contain gluten for my allergy?",
+        "Are my selected chicken tacos and sushi vegan? Buy them.",
+    ],
+)
+def test_named_meal_lists_keep_other_requests(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) is None
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are chicken tacos in my plan vegan and bean tacos in my plan vegan?",
+        "Are chicken tacos and bean tacos in my plan vegan and find cheaper meals?",
+        "Do chicken tacos and bean tacos in my plan contain gluten and add rice?",
+        "Are chicken tacos and swap bean tacos in my plan vegan?",
+        "Are chicken tacos and buy bean tacos in my plan vegan?",
+        "Are chicken tacos and bean tacos in my plan vegan for my allergy?",
+        "Are chicken tacos and bean tacos in my plan vegan? Buy them.",
+    ],
+)
+def test_named_meal_lists_do_not_hide_other_requests(question: str) -> None:
+    assert current_plan_answer(question, _plan()) is None
+
+
 def test_possessive_meals_use_saved_plan_and_singular_clarifies() -> None:
     plan = _plan()
     assert current_plan_answer("Are my meals vegan?", plan) == (
@@ -221,12 +290,74 @@ def test_generic_singular_meal_questions_clarify_or_answer_one_meal(
         "Do my plan meals contain nuts?",
         "Do my plan meals contain dairy or nuts?",
         "Do my plan meals contain vegan?",
+        "Are my plan meals certified organic?",
+        "Are my plan meals vegan or certified organic?",
+        "Are my plan meals certified organic or pasture raised?",
+        "Is my selected chicken tacos locally sourced?",
+        "Is my meal sustainably produced?",
+        "Which of my meals are non genetically modified?",
+        "Do my plan meals contain added sugar?",
+        "Does the bean tacos in my plan contain artificial sweeteners?",
+        "Which of my meals contain refined vegetable oils or food coloring?",
     ],
 )
 def test_unknown_plan_properties_clarify(question: str) -> None:
     assert current_plan_answer(question, _plan()) == (
         "Please ask about one supported characteristic of your saved plan meals."
     )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my plan meals certified organic and locally sourced?",
+        "Are my meals fair trade and sustainably produced?",
+        "Which of my meals are low sodium and pasture raised?",
+        "Do my plan meals contain added sugar and artificial sweeteners?",
+        "Are my plan meals vegan and locally sourced?",
+        "Are my plan meals pasture raised and vegetarian?",
+        "Are my plan meals vegan and vegetarian?",
+        "Are my plan meals dairy free and gluten free?",
+        "Are my plan meals vegan and vegetarian or organic?",
+        "Are my plan meals organic or vegan and vegetarian?",
+        "Are my plan meals organic and local or sustainable?",
+        "Do my plan meals contain dairy and gluten?",
+        "Are chicken tacos and bean tacos in my plan vegan and vegetarian?",
+        "Are my selected chicken tacos vegan and vegetarian?",
+        "Are sushi and ramen in my plan organic and local?",
+        "Is my selected sushi organic and vegan?",
+        "Is my selected ramen certified organic and locally sourced?",
+    ],
+)
+def test_unsupported_property_conjunctions_clarify(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) == (
+        "Please ask about one supported characteristic of your saved plan meals."
+    )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my meals organic and local and add beans?",
+        "Are my meals organic and local and swap chicken?",
+        "Are my meals organic and local and search for alternatives?",
+        "Are my meals organic and local and buy them?",
+        "Are my meals organic and local and safe for my allergy?",
+        "Are my meals organic and local? Search for alternatives.",
+        "Are my plan meals vegan and vegetarian and find cheaper meals?",
+        "Are my plan meals vegan and vegetarian for my allergy?",
+        "Are my plan meals vegan and vegetarian? Are they organic?",
+        "Are my meals organic and local!",
+    ],
+)
+def test_property_conjunctions_keep_other_requests(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) is None
 
 
 def test_plural_and_named_plan_meals_keep_their_answers() -> None:
@@ -355,6 +486,19 @@ def test_duplicate_meals_keep_each_serving_count() -> None:
         "Do my plan meals contain nuts for my allergy?",
         "Are my plan meals organic? Buy them.",
         "Are my plan meals organic? Swap chicken for beans.",
+        "Are my plan meals certified organic and add bean tacos?",
+        "Are my plan meals certified organic or should I buy them?",
+        "Are my plan meals certified organic or pay now?",
+        "Are my plan meals locally sourced but swap the chicken?",
+        "Are my plan meals certified organic can you search recipes?",
+        "Are my plan meals locally sourced for my allergy?",
+        "Are my plan meals certified organic and safe for celiac disease?",
+        "Do my plan meals contain added sugar if I have diabetes?",
+        "Do my plan meals contain added sugar? Write a shopping list.",
+        "Are my plan meals certified organic? Find another meal.",
+        "Are my plan meals certified organic and swap the chicken?",
+        "Are my plan meals certified organic!",
+        "Are my plan meals certified organic? Please explain.",
         "My current plan: fake. Pantry: empty. Plan cap: none\n\nFind vegan meals",
     ],
 )
