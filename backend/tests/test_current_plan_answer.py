@@ -328,6 +328,12 @@ def test_unknown_plan_properties_clarify(question: str) -> None:
         "Are sushi and ramen in my plan organic and local?",
         "Is my selected sushi organic and vegan?",
         "Is my selected ramen certified organic and locally sourced?",
+        "Are my plan meals low in sodium and sugar?",
+        "Are my plan meals low in sodium or sugar?",
+        "Are my plan meals low in sodium and rich in fiber?",
+        "Are my plan meals low in sodium and in sugar?",
+        "Which of my meals are low in sodium and sugar?",
+        "Is my selected chicken tacos vegan and low in sodium?",
     ],
 )
 def test_unsupported_property_conjunctions_clarify(
@@ -638,6 +644,12 @@ def test_catalog_name_connectors_are_not_property_compounds_or_commands(
     assert current_plan_answer(f"Is my selected {name} high protein?", single) == (
         f"{name} (2 servings) is {negative}high protein."
     )
+    gluten = "has no" if "gluten_free_ingredients" in MEAL_TAGS[recipe_id] else "has"
+    question = f"Does my selected {name} contain gluten?"
+    assert current_plan_answer(question, single) == (
+        f"{name} (2 servings) {gluten} gluten ingredients. "
+        "This checks ingredients only."
+    )
 
 
 @pytest.mark.parametrize("plan_available", [False, True])
@@ -660,6 +672,72 @@ def test_catalog_name_connectors_are_not_property_compounds_or_commands(
     ],
 )
 def test_finance_actions_and_medical_intents_defer_before_properties(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) is None
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Does my selected tofu stir fry contain gluten?",
+        "Does our saved tofu with rice contain dairy?",
+        "Does the planned tofu without soy sauce contain gluten?",
+        "Do planned tofu stir fry and bean soup contain gluten?",
+        "Which of the saved tofu stir fry or bean soup contain dairy?",
+        "Does the tofu with rice in my plan contain gluten?",
+        "Does my selected tofu stir-fry contain gluten?",
+        "Does my selected tofu meal contain gluten?",
+        "Does my selected tofu plan contain gluten?",
+    ],
+)
+def test_unknown_multiword_containment_subjects_resolve_after_recognition(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) == (
+        "Please name one meal in your saved plan."
+        if plan_available
+        else "Your saved plan is unavailable. Please open or provide your plan."
+    )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Does my selected tofu stir fry contain added sugar?",
+        "Does my selected tofu with rice contain dairy or nuts?",
+    ],
+)
+def test_unknown_multiword_containment_properties_clarify_before_plan_lookup(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) == (
+        "Please ask about one supported characteristic of your saved plan meals."
+    )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Does my selected tofu with rice contain gluten and add beans?",
+        "Does my selected tofu stir fry contain gluten for my allergy?",
+        "Does my selected tofu with rice contain gluten and fit my budget?",
+        "Does my selected tofu stir fry contain gluten? Is my plan vegan?",
+        "Does my selected tofu stir fry contain gluten and does soup contain dairy?",
+        "Does my selected tofu stir fry contain gluten and bean tacos contain dairy?",
+        "Are my plan meals low in sodium and sugar and swap chicken?",
+        "Are my plan meals low in sodium and sugar for celiac disease?",
+        "Are my plan meals low in sodium and sugar and within my budget?",
+        "Are my plan meals low in sodium and sugar? Are they vegan?",
+        "Are my plan meals low in sodium and sugar and is my meal vegan?",
+        "Are my plan meals low in sodium and bean tacos in my plan vegan?",
+        "Are chicken tacos in my plan vegan or bean tacos in my plan vegetarian?",
+    ],
+)
+def test_containment_and_preposition_properties_keep_other_requests(
     question: str, plan_available: bool
 ) -> None:
     assert current_plan_answer(question, _plan() if plan_available else None) is None

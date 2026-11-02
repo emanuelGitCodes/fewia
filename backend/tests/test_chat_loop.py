@@ -6042,6 +6042,9 @@ def test_other_questions_keep_search_dispatch(question: str) -> None:
         "Is my selected chicken tacos high protein?",
         "Is my selected chicken tacos lower carb?",
         "Is my selected chicken tacos gluten-free ingredients?",
+        "Does my selected tofu stir fry contain gluten?",
+        "Does my selected tofu with rice contain gluten?",
+        "Are my plan meals low in sodium and sugar?",
     ],
 )
 def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -> None:
@@ -6079,6 +6082,9 @@ def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -
         "Is my selected chicken tacos lower carb?",
         "Is my selected chicken tacos gluten-free ingredients?",
         "Is my selected chicken tacos certified vegan?",
+        "Does my selected tofu stir fry contain gluten?",
+        "Does my selected tofu with rice contain gluten?",
+        "Are my plan meals low in sodium and sugar?",
     ],
 )
 def test_current_plan_answer_preserves_provider_priority(
@@ -6304,6 +6310,9 @@ def test_cursorless_continuation_keeps_proposal_explanation() -> None:
         "Is my selected chicken tacos high protein?",
         "Are my plan meals lower carb?",
         "Is my selected chicken tacos gluten-free ingredients?",
+        "Does my selected tofu stir fry contain gluten?",
+        "Does my selected tofu with rice contain gluten?",
+        "Are my plan meals low in sodium and sugar?",
     ],
 )
 def test_current_plan_question_keeps_provider_failure(question: str) -> None:
@@ -6451,6 +6460,8 @@ def test_named_property_loop_recognition_precedes_plan_lookup(
         "Are my plan meals low cost?",
         "Is my selected chicken tacos within my spending allowance?",
         "Are my meals vegan and within my budget?",
+        "Are my plan meals low in sodium and sugar and within my budget?",
+        "Does my selected tofu with rice contain gluten and fit my budget?",
     ],
 )
 def test_saved_plan_finance_questions_keep_required_budget_dispatch(
@@ -6540,3 +6551,119 @@ def test_c11_turn_eight_preserves_budget_and_plan_tool_results(
     assert result["planner_revisions"] == 0
     assert "proposal_id" not in result
     _assert_public(result)
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "call", [_discovery_block(), _propose_block("proposal", _PROPOSE_OP), None]
+)
+@pytest.mark.parametrize(
+    ("question", "unknown_subject"),
+    [
+        ("Does my selected tofu stir fry contain gluten?", True),
+        ("Does our saved tofu with rice contain dairy?", True),
+        ("Does the planned tofu without soy sauce contain gluten?", True),
+        ("Do planned tofu stir fry and bean soup contain gluten?", True),
+        ("Which of the saved tofu stir fry or bean soup contain dairy?", True),
+        ("Does the tofu with rice in my plan contain gluten?", True),
+        ("Does my selected tofu stir-fry contain gluten?", True),
+        ("Does my selected tofu meal contain gluten?", True),
+        ("Does my selected tofu plan contain gluten?", True),
+        ("Does my selected tofu stir fry contain added sugar?", False),
+        ("Does my selected tofu with rice contain dairy or nuts?", False),
+        ("Are my plan meals low in sodium and sugar?", False),
+        ("Are my plan meals low in sodium or sugar?", False),
+        ("Are my plan meals low in sodium and rich in fiber?", False),
+        ("Are my plan meals low in sodium and in sugar?", False),
+        ("Which of my meals are low in sodium and sugar?", False),
+        ("Is my selected chicken tacos vegan and low in sodium?", False),
+    ],
+)
+def test_containment_subjects_and_preposition_compounds_block_dispatch(
+    question: str,
+    unknown_subject: bool,
+    call: dict[str, object] | None,
+    plan_available: bool,
+) -> None:
+    reply = (
+        _reply([call], "tool_use")
+        if call is not None
+        else _reply([_text_block("Untrusted model answer.")], "end_turn")
+    )
+    provider = FakeLLM([reply])
+    proposer = Proposer()
+    observed: list[list[dict[str, object]]] = []
+    evidence: list[dict[str, object]] = []
+
+    def record(payload: dict[str, object]) -> str:
+        evidence.append(payload)
+        return _REV
+
+    expected = "Please ask about one supported characteristic of your saved plan meals."
+    if unknown_subject:
+        expected = (
+            "Please name one meal in your saved plan."
+            if plan_available
+            else "Your saved plan is unavailable. Please open or provide your plan."
+        )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision() if plan_available else None,
+        propose=proposer,
+        record_evidence=record,
+        observe_terminal_tool_results=observed.append,
+        model_prose=True,
+    )
+    assert result["answer"] == expected
+    assert result["status"] == "clarification"
+    assert result["reply_source"] == "template"
+    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result["tool_trace"] == []
+    assert result["plan"] is None and result["evidence_id"] is None
+    assert result["model_turns"] == len(provider.requests) == 1
+    assert result["planner_revisions"] == 0
+    assert "choices" not in result and "proposal_id" not in result
+    assert not proposer.calls and not observed and not evidence
+    _assert_public(result)
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Does my selected tofu with rice contain gluten and add beans?",
+        "Does my selected tofu stir fry contain gluten for my allergy?",
+        "Does my selected tofu stir fry contain gluten? Is my plan vegan?",
+        "Does my selected tofu stir fry contain gluten and does soup contain dairy?",
+        "Does my selected tofu stir fry contain gluten and bean tacos contain dairy?",
+        "Are my plan meals low in sodium and sugar and swap chicken?",
+        "Are my plan meals low in sodium and sugar for celiac disease?",
+        "Are my plan meals low in sodium and sugar? Are they vegan?",
+        "Are my plan meals low in sodium and sugar and is my meal vegan?",
+        "Are my plan meals low in sodium and bean tacos in my plan vegan?",
+        "Are chicken tacos in my plan vegan or bean tacos in my plan vegetarian?",
+    ],
+)
+def test_containment_and_preposition_controls_keep_search_dispatch(
+    question: str, plan_available: bool
+) -> None:
+    provider = FakeLLM(
+        [
+            _reply([_discovery_block()], "tool_use"),
+            _reply([_text_block("Please clarify your request.")], "end_turn"),
+        ]
+    )
+    result = run_chat(
+        provider,
+        question,
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision() if plan_available else None,
+        model_prose=True,
+    )
+    assert result["tool_trace"][0]["tool"] == CATALOG_TOOL_NAME
+    assert result["tool_trace"][0]["outcome"] == "success"
+    assert result["reply_check"] != {"gate": "no_tools"}

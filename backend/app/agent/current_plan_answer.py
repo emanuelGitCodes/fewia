@@ -22,7 +22,7 @@ _ROUTED_INTENT = re.compile(
 )
 _OTHER_CLAUSE = re.compile(
     r"\b(?:but|yet|nor|also|then|if|unless|when|while|because|so|for|to|with|without|"
-    r"please|can|could|would|should|will|are|is|do|does|your|me)\b"
+    r"please|can|could|would|should|will|are|is|do|does|contains?|your|me)\b"
 )
 _CATALOG_NAMES = "|".join(
     re.escape(name)
@@ -34,13 +34,17 @@ _CATALOG_NAMES = "|".join(
 )
 _CATALOG_NAME = re.compile(rf"\b(?:{_CATALOG_NAMES})\b")
 _MEAL_NAME = rf"(?:{_CATALOG_NAMES}|[a-z0-9]+)"
-_SUBJECT = (
+_MEAL_SUBJECT = (
     r"(?:(?:all|any)(?: of)? |each |which of )?(?:the |my |our )?"
     r"(?:current |saved |selected |planned )?(?:plan |planned )?meals?"
     r"(?: in (?:my |the |our )?(?:current |saved )?plan)?"
+)
+_PLAN_SUBJECT = r"(?:my |the |our )(?:current |saved )?plan"
+_SUBJECT = (
+    rf"{_MEAL_SUBJECT}"
     r"|(?:the |my )?[a-z0-9 ]+? in (?:my |the |our )"
     r"(?:current |saved )?plan"
-    r"|(?:my |the |our )(?:current |saved )?plan"
+    rf"|{_PLAN_SUBJECT}"
     rf"|(?:my |the |our )?(?:planned |selected |saved ){_MEAL_NAME}"
     rf"(?: (?:and|or) {_MEAL_NAME})*"
 )
@@ -50,9 +54,13 @@ _QUESTION = re.compile(
     rf"(?P<not>not )?(?P<property>{_QUESTION_PROPERTY})\??",
     re.IGNORECASE,
 )
+_CONTAINMENT_SUBJECT = (
+    rf"(?:{_SUBJECT}|(?:my |the |our )?(?:planned |selected |saved )"
+    r"[a-z0-9]+(?:[- ][a-z0-9]+)*)"
+)
 _CONTAINS = re.compile(
-    rf"(?:(?P<which>which) (?:of )?(?P<which_subject>{_SUBJECT})|"
-    rf"(?:does|do) (?P<subject>{_SUBJECT})) contain "
+    rf"(?:(?P<which>which) (?:of )?(?P<which_subject>{_CONTAINMENT_SUBJECT})|"
+    rf"(?:does|do) (?P<subject>{_CONTAINMENT_SUBJECT})) contain "
     rf"(?P<property>{_QUESTION_PROPERTY})\??",
     re.IGNORECASE,
 )
@@ -93,11 +101,12 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
     subject = groups.get("subject") or groups.get("which_subject") or ""
     prop = groups["property"].replace("-", " ")
     compound = re.search(r"\b(?:and|or)\b", prop) is not None
-    if _OTHER_CLAUSE.search(_CATALOG_NAME.sub("", subject)) or _OTHER_CLAUSE.search(
-        prop
-    ):
+    subject_clauses = _CATALOG_NAME.sub("", subject)
+    if contains:
+        subject_clauses = re.sub(r"\b(?:for|to|with|without)\b", "", subject_clauses)
+    if _OTHER_CLAUSE.search(subject_clauses) or _OTHER_CLAUSE.search(prop):
         return None
-    if compound and re.search(r"\b(?:in|plan|meals?)\b", prop):
+    if compound and re.search(rf"\b(?:and|or) (?:{_SUBJECT})(?: |$)", prop):
         return None
     possessive_meals = re.fullmatch(
         r"(?:(?:all|any)(?: of)? |each )?(?:my|our) meals?", subject
@@ -146,7 +155,7 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
             if not selected:
                 return "Please name one meal in your saved plan."
             meals = selected
-    elif not subject.endswith(("meal", "meals", "plan")):
+    elif not re.fullmatch(rf"(?:{_MEAL_SUBJECT}|{_PLAN_SUBJECT})", subject):
         name = re.sub(r"^(?:my |the |our )?(?:planned |selected |saved )", "", subject)
         selected = [
             meal for meal in meals if meal_name(meal.recipe_id).casefold() == name
