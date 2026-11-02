@@ -21,9 +21,10 @@ _ROUTED_INTENT = re.compile(
     r"recommend(?:ing|ed)?|suggest(?:ing|ed)?|need|want)\b"
 )
 _OTHER_CLAUSE = re.compile(
-    r"\b(?:but|yet|nor|also|then|if|unless|when|while|because|so|for|to|with|without|"
+    r"\b(?:but|yet|nor|also|then|if|unless|when|while|because|so|"
     r"please|can|could|would|should|will|are|is|do|does|contains?|your|me)\b"
 )
+_SUBJECT_PREPOSITION = re.compile(r"\b(?:for|to|with|without)\b")
 _CATALOG_NAMES = "|".join(
     re.escape(name)
     for name in sorted(
@@ -102,9 +103,11 @@ def current_plan_answer(message: str, plan: PlanRevisionInput | None) -> str | N
     prop = groups["property"].replace("-", " ")
     compound = re.search(r"\b(?:and|or)\b", prop) is not None
     subject_clauses = _CATALOG_NAME.sub("", subject)
-    if contains:
-        subject_clauses = re.sub(r"\b(?:for|to|with|without)\b", "", subject_clauses)
-    if _OTHER_CLAUSE.search(subject_clauses) or _OTHER_CLAUSE.search(prop):
+    if (
+        _OTHER_CLAUSE.search(subject_clauses)
+        or _OTHER_CLAUSE.search(prop)
+        or (not contains and _SUBJECT_PREPOSITION.search(subject_clauses))
+    ):
         return None
     if compound and re.search(rf"\b(?:and|or) (?:{_SUBJECT})(?: |$)", prop):
         return None

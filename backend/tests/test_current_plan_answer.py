@@ -334,9 +334,43 @@ def test_unknown_plan_properties_clarify(question: str) -> None:
         "Are my plan meals low in sodium and in sugar?",
         "Which of my meals are low in sodium and sugar?",
         "Is my selected chicken tacos vegan and low in sodium?",
+        "Are my plan meals vegan and made without dairy?",
+        "Are my plan meals vegan and made with organic ingredients?",
+        "Are my plan meals vegan and suitable for evening meals?",
+        "Are my plan meals vegan and similar to homemade food?",
+        "Are my plan meals made without dairy and vegan?",
+        "Are my plan meals made with organic ingredients or vegan?",
+        "Which of my meals are vegan and made without dairy?",
+        "Is my selected chicken tacos vegan and made with organic ingredients?",
+        "Are my plan meals not vegan and made without dairy?",
     ],
 )
 def test_unsupported_property_conjunctions_clarify(
+    question: str, plan_available: bool
+) -> None:
+    assert current_plan_answer(question, _plan() if plan_available else None) == (
+        "Please ask about one supported characteristic of your saved plan meals."
+    )
+
+
+@pytest.mark.parametrize("plan_available", [False, True])
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my plan meals made without dairy?",
+        "Are my plan meals made with organic ingredients?",
+        "Are my plan meals vegan without dairy?",
+        "Are my plan meals vegan with organic ingredients?",
+        "Are my plan meals vegan for evening meals?",
+        "Are my plan meals similar to homemade food?",
+        "Are my plan meals dairy free without artificial flavors?",
+        "Is my selected chicken tacos high protein for athletes?",
+        "Do my plan meals contain dairy without preservatives?",
+        "Do my plan meals contain ingredients for baking?",
+        "Does my selected tofu with rice contain dairy with artificial flavors?",
+    ],
+)
+def test_complete_preposition_properties_clarify_before_plan_lookup(
     question: str, plan_available: bool
 ) -> None:
     assert current_plan_answer(question, _plan() if plan_available else None) == (
@@ -735,6 +769,21 @@ def test_unknown_multiword_containment_properties_clarify_before_plan_lookup(
         "Are my plan meals low in sodium and sugar and is my meal vegan?",
         "Are my plan meals low in sodium and bean tacos in my plan vegan?",
         "Are chicken tacos in my plan vegan or bean tacos in my plan vegetarian?",
+        "Are my plan meals vegan and made without dairy and add beans?",
+        "Are my plan meals vegan and made with organic ingredients and swap chicken?",
+        "Are my plan meals vegan and made for dinner and search for alternatives?",
+        "Are my plan meals similar to homemade food and within my budget?",
+        "Are my plan meals vegan and made without dairy for my allergy?",
+        "Are my plan meals vegan and made with organic ingredients for celiac disease?",
+        "Are my plan meals vegan and made without dairy if served cold?",
+        "Are my plan meals vegan and made with organic ingredients unless reheated?",
+        "Are my plan meals vegan and made for dinner? Are they organic?",
+        "Are my plan meals vegan and similar to homemade food and is my meal vegan?",
+        "Are my plan meals made without dairy and bean tacos in my plan vegan?",
+        (
+            "Do my plan meals contain dairy without preservatives "
+            "and does soup contain gluten?"
+        ),
     ],
 )
 def test_containment_and_preposition_properties_keep_other_requests(

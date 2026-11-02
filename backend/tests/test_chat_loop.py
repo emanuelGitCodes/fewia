@@ -6045,6 +6045,8 @@ def test_other_questions_keep_search_dispatch(question: str) -> None:
         "Does my selected tofu stir fry contain gluten?",
         "Does my selected tofu with rice contain gluten?",
         "Are my plan meals low in sodium and sugar?",
+        "Are my plan meals vegan and made without dairy?",
+        "Are my plan meals vegan and made with organic ingredients?",
     ],
 )
 def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -> None:
@@ -6085,6 +6087,8 @@ def test_current_plan_question_preserves_refusal_with_tool_call(question: str) -
         "Does my selected tofu stir fry contain gluten?",
         "Does my selected tofu with rice contain gluten?",
         "Are my plan meals low in sodium and sugar?",
+        "Are my plan meals vegan and made without dairy?",
+        "Are my plan meals vegan and made with organic ingredients?",
     ],
 )
 def test_current_plan_answer_preserves_provider_priority(
@@ -6313,6 +6317,8 @@ def test_cursorless_continuation_keeps_proposal_explanation() -> None:
         "Does my selected tofu stir fry contain gluten?",
         "Does my selected tofu with rice contain gluten?",
         "Are my plan meals low in sodium and sugar?",
+        "Are my plan meals vegan and made without dairy?",
+        "Are my plan meals vegan and made with organic ingredients?",
     ],
 )
 def test_current_plan_question_keeps_provider_failure(question: str) -> None:
@@ -6450,6 +6456,7 @@ def test_named_property_loop_recognition_precedes_plan_lookup(
     assert "choices" not in result
 
 
+@pytest.mark.parametrize("plan_available", [False, True])
 @pytest.mark.parametrize(
     "question",
     [
@@ -6462,10 +6469,12 @@ def test_named_property_loop_recognition_precedes_plan_lookup(
         "Are my meals vegan and within my budget?",
         "Are my plan meals low in sodium and sugar and within my budget?",
         "Does my selected tofu with rice contain gluten and fit my budget?",
+        "Are my plan meals vegan and made without dairy and within my budget?",
+        "Are my plan meals similar to homemade food and within my spending allowance?",
     ],
 )
 def test_saved_plan_finance_questions_keep_required_budget_dispatch(
-    question: str,
+    question: str, plan_available: bool
 ) -> None:
     provider = FakeLLM(
         [
@@ -6478,7 +6487,7 @@ def test_saved_plan_finance_questions_keep_required_budget_dispatch(
         question,
         budget(),
         PERIOD,
-        plan_revision=_two_meal_revision(),
+        plan_revision=_two_meal_revision() if plan_available else None,
         model_prose=False,
     )
     assert result["tool_trace"] == [_budget_trace("summary")]
@@ -6577,6 +6586,32 @@ def test_c11_turn_eight_preserves_budget_and_plan_tool_results(
         ("Are my plan meals low in sodium and in sugar?", False),
         ("Which of my meals are low in sodium and sugar?", False),
         ("Is my selected chicken tacos vegan and low in sodium?", False),
+        ("Are my plan meals vegan and made without dairy?", False),
+        ("Are my plan meals vegan and made with organic ingredients?", False),
+        ("Are my plan meals vegan and suitable for evening meals?", False),
+        ("Are my plan meals vegan and similar to homemade food?", False),
+        ("Are my plan meals made without dairy and vegan?", False),
+        ("Are my plan meals made with organic ingredients or vegan?", False),
+        ("Which of my meals are vegan and made without dairy?", False),
+        (
+            "Is my selected chicken tacos vegan and made with organic ingredients?",
+            False,
+        ),
+        ("Are my plan meals not vegan and made without dairy?", False),
+        ("Are my plan meals made without dairy?", False),
+        ("Are my plan meals made with organic ingredients?", False),
+        ("Are my plan meals vegan without dairy?", False),
+        ("Are my plan meals vegan with organic ingredients?", False),
+        ("Are my plan meals vegan for evening meals?", False),
+        ("Are my plan meals similar to homemade food?", False),
+        ("Are my plan meals dairy free without artificial flavors?", False),
+        ("Is my selected chicken tacos high protein for athletes?", False),
+        ("Do my plan meals contain dairy without preservatives?", False),
+        ("Do my plan meals contain ingredients for baking?", False),
+        (
+            "Does my selected tofu with rice contain dairy with artificial flavors?",
+            False,
+        ),
     ],
 )
 def test_containment_subjects_and_preposition_compounds_block_dispatch(
@@ -6585,10 +6620,13 @@ def test_containment_subjects_and_preposition_compounds_block_dispatch(
     call: dict[str, object] | None,
     plan_available: bool,
 ) -> None:
+    hidden = {"text": "hidden-property-description"}
     reply = (
-        _reply([call], "tool_use")
+        _reply([{"reasoningContent": hidden}, call], "tool_use")
         if call is not None
-        else _reply([_text_block("Untrusted model answer.")], "end_turn")
+        else _reply(
+            [_text_block("Untrusted model answer.", reasoning=hidden)], "end_turn"
+        )
     )
     provider = FakeLLM([reply])
     proposer = Proposer()
@@ -6627,6 +6665,7 @@ def test_containment_subjects_and_preposition_compounds_block_dispatch(
     assert result["planner_revisions"] == 0
     assert "choices" not in result and "proposal_id" not in result
     assert not proposer.calls and not observed and not evidence
+    assert "hidden-property-description" not in json.dumps(result)
     _assert_public(result)
 
 
@@ -6645,6 +6684,20 @@ def test_containment_subjects_and_preposition_compounds_block_dispatch(
         "Are my plan meals low in sodium and sugar and is my meal vegan?",
         "Are my plan meals low in sodium and bean tacos in my plan vegan?",
         "Are chicken tacos in my plan vegan or bean tacos in my plan vegetarian?",
+        "Are my plan meals vegan and made without dairy and add beans?",
+        "Are my plan meals vegan and made with organic ingredients and swap chicken?",
+        "Are my plan meals vegan and made for dinner and search for alternatives?",
+        "Are my plan meals vegan and made without dairy for my allergy?",
+        "Are my plan meals vegan and made with organic ingredients for celiac disease?",
+        "Are my plan meals vegan and made without dairy if served cold?",
+        "Are my plan meals vegan and made with organic ingredients unless reheated?",
+        "Are my plan meals vegan and made for dinner? Are they organic?",
+        "Are my plan meals vegan and similar to homemade food and is my meal vegan?",
+        "Are my plan meals made without dairy and bean tacos in my plan vegan?",
+        (
+            "Do my plan meals contain dairy without preservatives "
+            "and does soup contain gluten?"
+        ),
     ],
 )
 def test_containment_and_preposition_controls_keep_search_dispatch(
