@@ -102,6 +102,19 @@ def test_exhausted_more_waits_for_provider_and_dispatches_nothing(
     assert result["exhausted_search"] is not exhausted
 
 
+def test_an_exhausted_search_still_answers_no_more_for_more() -> None:
+    exhausted = terminal_search({"query": "vegetarian"})
+    result = run_chat(
+        FakeLLM([_search_reply({"query": "vegetarian"})]),
+        "more",
+        budget(),
+        PERIOD,
+        previous_exhausted_search=exhausted,
+    )
+    assert result["answer"] == NO_MORE
+    assert result["tool_trace"] == []
+
+
 @pytest.mark.parametrize("intervening", ["budget", "read", "no_tool", "vegan_read"])
 @pytest.mark.parametrize("model_prose", [False, True])
 def test_exhaustion_survives_unrelated_turns(
