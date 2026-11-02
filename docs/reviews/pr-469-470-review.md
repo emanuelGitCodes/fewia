@@ -25,7 +25,10 @@ gh pr edit 470 --repo emanuelGitCodes/fewia --base main
 After the retarget, the PR 470 size check counts the full 1,589 lines until
 PR 469 merges. A red size check in that window is expected.
 
-Do not use `--delete-branch` on PR 469. The repository does not delete head
+Before you merge PR 470, retarget the follow-up pull request to `main` the
+same way.
+
+Do not use `--delete-branch` on PR 469 or PR 470. The repository does not delete head
 branches on merge, and a deleted base closes the child pull request.
 
 ## Gate results
