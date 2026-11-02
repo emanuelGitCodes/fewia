@@ -1080,10 +1080,20 @@ def test_dairy_free_is_rejected_with_letter_spacing() -> None:
         "This is allergy safe.",
         "This is allergy-safe.",
         "It is allergen-free.",
+        "This meal hasno dairy.",
+        "It is madewithout dairy.",
+        "It isfree of dairy.",
+        "Itdoesnt contain dairy.",
+        "This milk-free claim is verified for this meal.",
+        "Dairy wasn't used in this meal.",
+        "Milk weren't used here.",
     ],
 )
 def test_dairy_absence_claims_fail(reply: str) -> None:
-    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+    verdict = validate(reply, FactSet())
+    assert not verdict.ok
+    assert verdict.reasons == ("forbidden_claim",)
+    assert verdict.unmatched == ()
 
 
 @pytest.mark.parametrize(

@@ -275,20 +275,25 @@ _ABSENCE_ROWS = (
         _ANY,
     ),
 )
-_ABSENCE_AFTER = ("free", "less", "isnotused", "isntused", "arenotused")
+_ABSENCE_AFTER = (
+    "free less isnotused isntused arenotused arentused wasnotused wasntused"
+    " werenotused werentused"
+).split()
+_J = r"[\W_]*".join
+_NEG = [
+    [_J("".join(p) + n) for p in product(*row) for n in ("dairy", "milk", "gluten")]
+    for row in _ABSENCE_ROWS
+]
 # "any" and "all" only follow a negation that has one: "no any dairy" is not English,
-# but a match on it is harmless. "I made no dairy claims" is not a claim.
+# but a match on it is harmless. Negation-first phrases match even when glued to the
+# word before ("hasno dairy"). Only "no/non/without" may precede "claims": "I made no
+# dairy claims" is not a claim.
 _DAIRY_ABSENCE = re.compile(
-    r"(?<![a-z0-9])(?:"
-    + "|".join(
-        r"[\W_]*".join(phrase)
-        for noun in ("dairy", "milk", "gluten")
-        for phrase in (
-            *("".join(p) + noun for row in _ABSENCE_ROWS for p in product(*row)),
-            *(noun + after for after in _ABSENCE_AFTER),
-        )
-    )
-    + r")(?![a-z0-9])(?![\W_]*claims?(?![a-z0-9]))",
+    r"(?:(?:" + "|".join(_NEG[0]) + r")(?![a-z0-9])(?![\W_]*claims?(?![a-z0-9]))"
+    r"|(?:" + "|".join(sum(_NEG[1:], [])) + r")(?![a-z0-9])"
+    r"|(?<![a-z0-9])(?:"
+    + "|".join(_J(n + a) for n in ("dairy", "milk", "gluten") for a in _ABSENCE_AFTER)
+    + r")(?![a-z0-9]))",
     re.IGNORECASE,
 )
 # Diet labels match from a word start on the folded text: "tofu" does not match
