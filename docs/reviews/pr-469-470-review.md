@@ -10,8 +10,10 @@ the merge order and lists the optimizations that the branch
 2. Merge PR 470 (`codex/conversation-quality-final`).
 3. Merge the follow-up pull request from `claude/conversation-polish`.
 
-PR 470 is stacked on PR 469. Its base is `claude/meal-search-stack`, and the
-range against `main` adds 1,589 source lines. That is above the 1,000-line
+PR 470 is stacked on PR 469. Its base is `claude/meal-search-stack`. The
+gates count 987 lines for PR 469 and 602 lines for PR 470, so the range
+against `main` adds 1,589 source lines. The PR 470 body says 1,577, which
+was counted against an earlier PR 469 head. That is above the 1,000-line
 limit, so PR 470 MUST NOT merge first or alone.
 
 Before you merge PR 469, retarget PR 470 to `main`:
@@ -19,6 +21,9 @@ Before you merge PR 469, retarget PR 470 to `main`:
 ```bash
 gh pr edit 470 --repo emanuelGitCodes/fewia --base main
 ```
+
+After the retarget, the PR 470 size check counts the full 1,589 lines until
+PR 469 merges. A red size check in that window is expected.
 
 Do not use `--delete-branch` on PR 469. The repository does not delete head
 branches on merge, and a deleted base closes the child pull request.
@@ -58,6 +63,7 @@ replaces a model reply with a template. It does not give a wrong fact.
 | 8 | Should fix | `grounding.py:274-275` | "It wasn't made with dairy.", "It is not prepared using dairy." | Accepted. The negation and preposition lists are incomplete. |
 | 9 | Should fix | `grounding.py` | "This meal contains no milk.", "It is made without milk." | Accepted. Milk absence is checked only as `milkfree`. |
 | 10 | Optional | `chat_loop.py:285-318` | Cursor `{chicken, high_protein}`, "more high protein" | Starts a new search. "start over with high protein" keeps the cursor. |
+| 10a | Should fix | `grounding.py` | "It contains no gluten.", "This is allergy safe." | Accepted. This gap is older than PR 469. |
 | 11 | Optional | `catalog_tool.py:436-439` | Model call "chicken pizza" on a chicken cursor | Continues the cursor. The unmatched "pizza" notice is lost. |
 
 Neither PR breaks a product rule. Money stays in integer cents. No reply
@@ -93,12 +99,29 @@ record stores model reply text.
 files are intermediate data, not evidence:
 
 - `final-probes.json` is byte-identical to `proposal-warning-probes.json`.
-- `post-astra/fixture-plan-0dc5/completion.pending` is a leftover marker.
 - `pre-warning-probes.json` and the three `post-astra/astra-*-before-root.json`
   files are pre-repair snapshots.
 - `post-astra/review-*.md` (6 files) hold reviewer-model prose. The evidence
   contract forbids model prose in evaluation records. The owner decides
   whether these files stay.
+
+The follow-up branch does not delete evidence files. The PR 470 body links
+this folder as immutable evidence.
+
+## Order of the repairs
+
+The follow-up branch merges third, so the fail-open grounding repairs
+(findings 8, 9, and 10a) reach `main` after PR 470. A separate pull request
+from `claude/meal-search-stack` can carry them earlier. PR 469 has only 13
+lines left, so that pull request MUST be its own stack entry.
+
+## Owner decisions
+
+- Finding 1: PR 470 review round 1 asked that unknown properties such as
+  "organic" clarify. Narrowing the clarify set reverses that choice.
+- Finding 2: The server can answer from the plan that the client states in
+  the message when no revision exists. This is a product choice.
+- The six `post-astra/review-*.md` files.
 
 ## Not verified
 
