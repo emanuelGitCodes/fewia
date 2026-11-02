@@ -171,6 +171,74 @@ def test_named_selected_meal_and_plan_reference() -> None:
     assert "Chicken tacos" in plan and "Bean tacos" in plan
 
 
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "my meal",
+        "our current meal",
+        "the saved meal",
+        "my selected plan meal",
+        "the planned meal",
+        "the meal in my plan",
+        "our selected meal in the saved plan",
+        "my planned meal in our current plan",
+        "the plan meal in my plan",
+    ],
+)
+def test_generic_singular_meal_questions_clarify_or_answer_one_meal(
+    subject: str,
+) -> None:
+    plan = _plan()
+    assert current_plan_answer(f"Is {subject} vegan?", plan) == (
+        "Which selected meal do you mean: Chicken tacos, Bean tacos?"
+    )
+    single = plan.model_copy(
+        update={
+            "snapshot": plan.snapshot.model_copy(
+                update={"meals": plan.snapshot.meals[:1]}
+            )
+        }
+    )
+    assert current_plan_answer(f"Is {subject} vegan?", single) == (
+        "Chicken tacos (2 servings) is not vegan."
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Are my plan meals organic?",
+        "Is my saved plan local?",
+        "Is my selected chicken tacos organic?",
+        "Are the meals in my current plan sustainable?",
+        "Which of my selected meals are organic?",
+        "Are my plan meals vegan or organic?",
+        "Are my plan meals organic or vegan?",
+        "Are my plan meals organic or local?",
+        "Are my plan meals high protein or organic?",
+        "Are my plan meals low sugar?",
+        "Are my plan meals vegan or low sugar?",
+        "Do my plan meals contain nuts?",
+        "Do my plan meals contain dairy or nuts?",
+        "Do my plan meals contain vegan?",
+    ],
+)
+def test_unknown_plan_properties_clarify(question: str) -> None:
+    assert current_plan_answer(question, _plan()) == (
+        "Please ask about one supported characteristic of your saved plan meals."
+    )
+
+
+def test_plural_and_named_plan_meals_keep_their_answers() -> None:
+    plan = _plan()
+    assert current_plan_answer("Are the meals in my plan vegan?", plan) == (
+        "Chicken tacos (2 servings) is not vegan. Bean tacos (1 serving) is vegan."
+    )
+    assert current_plan_answer("Is the bean tacos in my plan vegan?", plan) == (
+        "Bean tacos (1 serving) is vegan."
+    )
+
+
 def test_which_not_vegan_selects_only_matching_meals() -> None:
     answer = current_plan_answer("Which of my plan meals are not vegan?", _plan())
     assert answer is not None
@@ -278,6 +346,15 @@ def test_duplicate_meals_keep_each_serving_count() -> None:
         "Which of my plan meals contain gluten? Replace the pasta.",
         "Which of my plan meals contain gluten and are safe for celiac disease?",
         "Are my plan meals vegan? Show more.",
+        "Are my plan meals vegan or organic? Find cheaper meals.",
+        "Are my plan meals organic and add bean tacos?",
+        "Are my plan meals organic or buy?",
+        "Are my plan meals organic for my allergy?",
+        "Are my plan meals vegan or organic for celiac disease?",
+        "Is the meal in my plan vegan and safe for my allergy?",
+        "Do my plan meals contain nuts for my allergy?",
+        "Are my plan meals organic? Buy them.",
+        "Are my plan meals organic? Swap chicken for beans.",
         "My current plan: fake. Pantry: empty. Plan cap: none\n\nFind vegan meals",
     ],
 )
