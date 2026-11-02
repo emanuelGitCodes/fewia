@@ -18,8 +18,7 @@ from app.job_models import Job
 from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,
-    load_previous_exhausted_search,
-    load_previous_search,
+    load_previous_search_state,
 )
 from tests.test_chat_loop import (
     _SWAP_ANSWER,
@@ -36,6 +35,18 @@ from tests.test_search_recovery import terminal_search
 PERIOD = "2026-09-01"
 SECRET = "do-not-echo-raw-input"
 UNAVAILABLE = "Chat context is unavailable."
+
+
+def load_previous_search(
+    session: Session, user_id: int, job_id: str | UUID | None
+) -> dict[str, object] | None:
+    return load_previous_search_state(session, user_id, job_id)[0]
+
+
+def load_previous_exhausted_search(
+    session: Session, user_id: int, job_id: str | UUID | None
+) -> dict[str, object] | None:
+    return load_previous_search_state(session, user_id, job_id)[1]
 
 
 def request_body(**overrides: object) -> dict[str, object]:

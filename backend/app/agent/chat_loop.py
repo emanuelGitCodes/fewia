@@ -489,6 +489,7 @@ def run_chat(
     def why(reason: str) -> dict[str, object] | None:
         return {"gate": reason} if model_prose else None
 
+    plan_answer = current_plan_answer(message, plan_revision)
     while turns < MAX_MODEL_TURNS:
         heartbeat()
         pending_results = None
@@ -530,7 +531,6 @@ def run_chat(
                     proposal_id = None
                     reason = why("refusal")
                     return out("clarification", refused, None, "template", reason)
-                plan_answer = current_plan_answer(message, plan_revision)
                 if plan_answer is not None and not run_payloads and not trace:
                     return out(
                         "clarification", plan_answer, None, "template", why("no_tools")
@@ -586,7 +586,6 @@ def run_chat(
             return out("incomplete", _INCOMPLETE, None, "template", reason)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
-        plan_answer = current_plan_answer(message, plan_revision)
         if plan_answer is not None and not run_payloads and not trace:
             refused = parse_refusal(text)
             if refused is not None:

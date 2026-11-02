@@ -152,28 +152,15 @@ def _search_state(
     return deepcopy(search), deepcopy(exhausted)
 
 
-def load_previous_search(
+def load_previous_search_state(
     session: Session,
     user_id: int,
     previous_job_id: str | UUID | None,
-) -> dict[str, object] | None:
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
     job = _previous_job(session, user_id, previous_job_id)
     if job is None:
-        return None
-    search, _exhausted = _search_state(_mapping(job.result))
-    return search
-
-
-def load_previous_exhausted_search(
-    session: Session,
-    user_id: int,
-    previous_job_id: str | UUID | None,
-) -> dict[str, object] | None:
-    job = _previous_job(session, user_id, previous_job_id)
-    if job is None:
-        return None
-    _search, exhausted = _search_state(_mapping(job.result))
-    return exhausted
+        return None, None
+    return _search_state(_mapping(job.result))
 
 
 def load_chat_context(
