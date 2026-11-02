@@ -1,0 +1,9 @@
+{
+  "scenarios": [
+    {"scenario_id": "C01", "repeats": [1, 2, 3]},
+    {"scenario_id": "C08", "repeats": [1, 2, 3]},
+    {"scenario_id": "C09", "repeats": [1, 2, 3]},
+    {"scenario_id": "C11", "repeats": [1]},
+    {"scenario_id": "C16", "repeats": [1]}
+  ]
+}

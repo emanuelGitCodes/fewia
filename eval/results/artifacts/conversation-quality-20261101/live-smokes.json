@@ -1,0 +1,79 @@
+{
+  "revision": "155d1dc999bbf59f2ce962c4b8f8d82bdb84fc62",
+  "evidence_class": "live_nova_with_fixture_plan_budget_and_pending_proposal_callback",
+  "settings": {
+    "nova_2_lite": true,
+    "credential_mount_reused": true,
+    "guardrail_enabled": false,
+    "prompt_cache_enabled": false
+  },
+  "records": [
+    {
+      "case": "selected_meals_vegan",
+      "pass": true,
+      "checks": {
+        "selected_facts": true,
+        "no_unrelated_cards": true
+      },
+      "answer_sha256": "2c558c72ebee4b6aff6d4ad41807d1ad6ea98ece7ef062fefa82ee110ca5ac95",
+      "answer_characters": 74,
+      "latency_ms": 2720,
+      "reply_source": "template",
+      "reply_check": {
+        "gate": "no_tools"
+      },
+      "status": "clarification"
+    },
+    {
+      "case": "selected_meals_dairy_ingredients",
+      "pass": true,
+      "checks": {
+        "ingredient_scope": true,
+        "dairy_distinct_from_vegan": true,
+        "no_unrelated_cards": true
+      },
+      "answer_sha256": "87a66136f5f1e6fc161ca9595b85b446bd8a20c61d7e7e9f1010b793ffd9a607",
+      "answer_characters": 132,
+      "latency_ms": 1770,
+      "reply_source": "template",
+      "reply_check": {
+        "gate": "no_tools"
+      },
+      "status": "clarification"
+    },
+    {
+      "case": "exhausted_more",
+      "pass": true,
+      "checks": {
+        "terminal_message": true,
+        "no_dispatch_or_cards": true,
+        "state_retained": true
+      },
+      "answer_sha256": "1a41f18dda6e8076092b214f324eca6ae6a30721c20400d59374d4ff8d35c6a4",
+      "answer_characters": 33,
+      "latency_ms": 2073,
+      "reply_source": "template",
+      "reply_check": {
+        "gate": "clarification"
+      },
+      "status": "clarification"
+    },
+    {
+      "case": "matching_proposal",
+      "pass": true,
+      "checks": {
+        "matching_proposal": true,
+        "exact_operations": true,
+        "pending_only": true
+      },
+      "answer_sha256": "d4f758d0449a29b212ccff227fb610dc7fcfd8673acda882db554d0649f6a8d5",
+      "answer_characters": 245,
+      "latency_ms": 4552,
+      "reply_source": "template",
+      "reply_check": {
+        "gate": "proposal"
+      },
+      "status": "clarification"
+    }
+  ]
+}

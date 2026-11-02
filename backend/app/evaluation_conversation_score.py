@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from math import ceil
 
+from app.evaluation_conversation import ConversationSelection
 from app.evaluation_conversation_corpus import ConversationCorpus, Turn
 from app.evaluation_cost_rates import EvaluationRates
 
@@ -143,13 +144,27 @@ def build_report(
     records: list[dict[str, object]],
     manifest: dict[str, object],
     rates: EvaluationRates | None = None,
+    *,
+    selection: ConversationSelection | None = None,
 ) -> dict[str, object]:
     keyed = {key: r for r in records if (key := _key(r)) is not None}
+    selected_repeats = (
+        {item.scenario_id: item.repeats for item in selection.scenarios}
+        if selection is not None
+        else None
+    )
     totals = _Totals()
     rows: list[dict[str, object]] = []
     for scenario in corpus.scenarios:
+        repeats = (
+            range(1, corpus.repeats + 1)
+            if selected_repeats is None
+            else selected_repeats.get(scenario.id)
+        )
+        if repeats is None:
+            continue
         failing: list[str] = []
-        for repeat in range(1, corpus.repeats + 1):
+        for repeat in repeats:
             repeat_gold = True
             totals.repeats += 1
             for index, turn in enumerate(scenario.turns, start=1):
@@ -164,15 +179,17 @@ def build_report(
                 if record is not None:
                     totals.add(record, rates)
             totals.repeats_passed += repeat_gold
-        rows.append(
-            {
-                "scenario_id": scenario.id,
-                "title": scenario.title,
-                "turns": len(scenario.turns),
-                "failing_turns": failing,
-                "passed": not failing,
-            }
-        )
+        row: dict[str, object] = {
+            "scenario_id": scenario.id,
+            "title": scenario.title,
+            "turns": len(scenario.turns),
+            "failing_turns": failing,
+            "passed": not failing,
+        }
+        if selected_repeats is not None:
+            row["repeats"] = repeats
+            row["turns_expected"] = len(scenario.turns) * len(repeats)
+        rows.append(row)
     p50, p95 = _percentile(totals.latencies, 50), _percentile(totals.latencies, 95)
     grounded_rate = _rate(totals.grounded, totals.attempts)
     average = totals.cost / totals.cost_turns if totals.cost_turns else None
@@ -221,7 +238,7 @@ def build_report(
         "manifest": manifest,
         "manifest_hash": manifest["manifest_hash"],
         "counts": {
-            "scenarios": len(corpus.scenarios),
+            "scenarios": len(rows),
             "repeats": corpus.repeats,
             "turns_expected": totals.expected,
             "turns_recorded": totals.recorded,
@@ -279,13 +296,38 @@ def render_markdown(report: dict[str, object]) -> str:
                 f"| {target['name']} | {target['target']} | {target['value']} "
                 f"| {target['status']} |"
             )
-    lines += ["", "## Scenarios", "", "| scenario | turns | passed | failing |"]
-    lines.append("|---|---|---|---|")
-    for scenario in _list(report, "scenarios"):
+    scenarios = _list(report, "scenarios")
+    selected = bool(scenarios) and all(
+        isinstance(scenario, dict)
+        and isinstance(scenario.get("repeats"), (list, tuple))
+        and bool(scenario["repeats"])
+        and all(type(repeat) is int for repeat in scenario["repeats"])
+        and type(scenario.get("turns_expected")) is int
+        for scenario in scenarios
+    )
+    lines += ["", "## Scenarios", ""]
+    if selected:
+        lines.append(
+            "| scenario | turns per repeat | repeats | selected turns | "
+            "passed | failing |"
+        )
+        lines.append("|---|---|---|---|---|---|")
+    else:
+        lines.append("| scenario | turns | passed | failing |")
+        lines.append("|---|---|---|---|")
+    for scenario in scenarios:
         if isinstance(scenario, dict):
             failing = ", ".join(scenario["failing_turns"]) or "-"
-            lines.append(
-                f"| {scenario['scenario_id']} | {scenario['turns']} "
-                f"| {_status(scenario['passed'])} | {failing} |"
-            )
+            if selected:
+                repeats = ", ".join(str(number) for number in scenario["repeats"])
+                lines.append(
+                    f"| {scenario['scenario_id']} | {scenario['turns']} | {repeats} "
+                    f"| {scenario['turns_expected']} | {_status(scenario['passed'])} "
+                    f"| {failing} |"
+                )
+            else:
+                lines.append(
+                    f"| {scenario['scenario_id']} | {scenario['turns']} "
+                    f"| {_status(scenario['passed'])} | {failing} |"
+                )
     return "\n".join(lines) + "\n"

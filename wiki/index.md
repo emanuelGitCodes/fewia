@@ -81,6 +81,8 @@ keeps its 2026-10-03 heads, parents, and CI observations.
 The [final record](phases/backlog-final-20261003.md) lists the 60 created pull requests #322-#381 as of its 2026-10-04 snapshot; all merged later that day, see the [integrity check](phases/integrity-20261004.md).
 The 2026-10-03 hosting snapshot observed main at `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
 Latest verification: [PR #469](https://github.com/emanuelGitCodes/fewia/pull/469) remains open and unmerged at `8cee7e1a`; all four hosted workflows pass.
+The [conversation-quality follow-up](phases/conversation-quality-20261101.md) records local work on
+recovery, saved plans, proposal explanations, and answer quality. It has no publication or hosted CI result.
 [Decision 0019](decisions/0019-invitation-only-hosting.md) accepts owner and invited-user access with no public signup.
 Invited users share the current server-selected demo context. They have no private application accounts.
 D5 source, preflight CLI, and runbook are published. Live deployment still awaits owner inputs and confirmations.

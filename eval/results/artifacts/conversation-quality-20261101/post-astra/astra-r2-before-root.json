@@ -1,0 +1,223 @@
+{
+  "scope_revision": "ff51cf2058e145d673f607f1f6f5a128a9481491",
+  "scope_matches_revision": true,
+  "other_integration_paths_dirty": true,
+  "records": [
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 1,
+      "answer_sha256": "d4f758d0449a29b212ccff227fb610dc7fcfd8673acda882db554d0649f6a8d5"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": false,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Does my selected tofu stir fry contain gluten?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": false,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 1,
+      "answer_sha256": "d4f758d0449a29b212ccff227fb610dc7fcfd8673acda882db554d0649f6a8d5"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": false,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Does my selected tofu with rice contain gluten?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": false,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 1,
+      "answer_sha256": "d4f758d0449a29b212ccff227fb610dc7fcfd8673acda882db554d0649f6a8d5"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": false,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": false,
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Are my plan meals low in sodium and sugar?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": false,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "87e4dd813ef36464b8651f2ce7042b5b33fd182435e703ec85149d32ab9ad3aa"
+    },
+    {
+      "case": "Are chicken tacos in my plan vegan and bean tacos in my plan vegan?",
+      "mode": "true_other_request_control",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals low in sodium and add rice?",
+      "mode": "true_other_request_control",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    }
+  ]
+}

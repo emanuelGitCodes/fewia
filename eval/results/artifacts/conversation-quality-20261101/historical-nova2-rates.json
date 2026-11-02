@@ -1,0 +1,12 @@
+{
+  "model_id": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-east-1",
+  "currency": "USD",
+  "input_usd_per_1000": "0.0003300000",
+  "output_usd_per_1000": "0.0027500000",
+  "source_url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/20261003001138/us-east-1/index.json",
+  "source_version": "20261003001138",
+  "published_at": "2026-10-03T00:11:38Z",
+  "effective_date": "2026-10-01",
+  "retrieved_at": "2026-10-03"
+}

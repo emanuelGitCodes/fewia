@@ -46,6 +46,7 @@ _RECORD_KEYS = {
     "tools",
     "facts_present",
     "usage",
+    "provider_requests",
     "latency_ms",
     "apply_error",
 }
@@ -129,6 +130,8 @@ def test_a_run_emits_one_hash_only_record_per_repeat(
             "cache_read": 0,
             "cache_write": 0,
         }
+        assert type(record["provider_requests"]) is int
+        assert record["provider_requests"] == 2
         tools = cast(list[dict[str, Any]], record["tools"])
         assert [t["name"] for t in tools] == ["what_if_substitute"]
         assert tools[0]["inputs"]["recipe_id"] == "bean_tacos"
@@ -168,8 +171,58 @@ def test_a_provider_failure_records_a_failed_turn_and_stops(
         assert record["reply_sha256"] is None
         assert record["gate"] is None
         assert record["tools"] == []
+        assert type(record["provider_requests"]) is int
+        assert record["provider_requests"] == 1
         assert not any(cast(list[bool], record["facts_present"]))
         assert set(cast(dict[str, object], record["usage"]).values()) == {None}
+
+
+def test_selection_normalizes_order_and_limits_runner_pairs(
+    corpus: ConversationCorpus,
+) -> None:
+    raw = runner.ConversationSelection.model_validate(
+        {
+            "scenarios": [
+                {"scenario_id": "C16", "repeats": [1]},
+                {"scenario_id": "C11", "repeats": [1]},
+                {"scenario_id": "C09", "repeats": [3, 2, 1]},
+                {"scenario_id": "C08", "repeats": [3, 2, 1]},
+                {"scenario_id": "C01", "repeats": [3, 2, 1]},
+            ]
+        }
+    )
+    selection = runner.normalize_selection(corpus, raw)
+    normalized = [(item.scenario_id, item.repeats) for item in selection.scenarios]
+    assert normalized == [
+        ("C01", [1, 2, 3]),
+        ("C08", [1, 2, 3]),
+        ("C09", [1, 2, 3]),
+        ("C11", [1]),
+        ("C16", [1]),
+    ]
+    assert runner.logical_chat_turn_count(corpus, selection) == 22
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        return GoldFollowingProvider(scenario.turns[index - 1])
+
+    records = list(
+        run_conversation_suite(corpus, "p", provider_for, selection=selection)
+    )
+    assert len(records) == 22
+    assert {(record["scenario_id"], record["repeat"]) for record in records} == {
+        ("C01", 1),
+        ("C01", 2),
+        ("C01", 3),
+        ("C08", 1),
+        ("C08", 2),
+        ("C08", 3),
+        ("C09", 1),
+        ("C09", 2),
+        ("C09", 3),
+        ("C11", 1),
+        ("C16", 1),
+    }
+    assert all(type(record["provider_requests"]) is int for record in records)
 
 
 def test_apply_proposal_before_changes_the_plan_in_memory_only(
@@ -678,3 +731,7 @@ def test_no_output_file_holds_reply_text(tmp_path: Path) -> None:
     assert flagged
     assert all("unmatched_number" in r["verdict"]["reasons"] for r in flagged)
     assert any(r["reply_source"] == "model" for r in records)
+    assert all(type(record["provider_requests"]) is int for record in records)
+    assert all(
+        "reply_text" not in record and "unmatched" not in record for record in records
+    )

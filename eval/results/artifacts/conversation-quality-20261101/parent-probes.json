@@ -1,0 +1,116 @@
+[
+  {
+    "name": "guardrail preserves original cursor: show me vegan meals",
+    "pass": false,
+    "proposal_id": null,
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 0,
+    "answer_sha256": "d9dfe2f75fe72763c40883342e7392e1f4f8caab8d2933c92b1066ea4d5841a3",
+    "answer_characters": 109
+  },
+  {
+    "name": "guardrail preserves original cursor: more without rice",
+    "pass": false,
+    "proposal_id": null,
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 0,
+    "answer_sha256": "d9dfe2f75fe72763c40883342e7392e1f4f8caab8d2933c92b1066ea4d5841a3",
+    "answer_characters": 109
+  },
+  {
+    "name": "guardrail preserves original cursor: Show the first page again",
+    "pass": false,
+    "proposal_id": null,
+    "next_search": {
+      "query": "meals",
+      "diet": "vegetarian",
+      "tags": [
+        "gluten_free_ingredients",
+        "vegetarian"
+      ],
+      "exclude": [
+        "eggs"
+      ],
+      "min_protein_g": 0,
+      "max_cents_per_serving": 10000,
+      "limit": 3,
+      "offset": 0
+    },
+    "exhausted_search": null,
+    "tool_count": 0,
+    "answer_sha256": "d9dfe2f75fe72763c40883342e7392e1f4f8caab8d2933c92b1066ea4d5841a3",
+    "answer_characters": 109
+  },
+  {
+    "name": "terminal page more: model_search=False",
+    "pass": false,
+    "proposal_id": null,
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 0,
+    "answer_sha256": "4137bf98c4a27f61b8c5bfcdcb8936d41c0d8db6353a3eac832e9ba597918de8",
+    "answer_characters": 184
+  },
+  {
+    "name": "terminal page more: model_search=True",
+    "pass": false,
+    "proposal_id": null,
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 0,
+    "answer_sha256": "4137bf98c4a27f61b8c5bfcdcb8936d41c0d8db6353a3eac832e9ba597918de8",
+    "answer_characters": 184
+  },
+  {
+    "name": "current plan facts override unrelated model search",
+    "pass": false,
+    "proposal_id": null,
+    "next_search": {
+      "query": "meals",
+      "diet": "vegetarian",
+      "tags": [
+        "vegetarian",
+        "vegan"
+      ],
+      "exclude": [],
+      "limit": 3,
+      "offset": 3
+    },
+    "exhausted_search": null,
+    "tool_count": 1,
+    "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335",
+    "answer_characters": 216
+  },
+  {
+    "name": "proposal card invariant after cursorless search",
+    "pass": false,
+    "proposal_id": "proposal-1",
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 1,
+    "answer_sha256": "4137bf98c4a27f61b8c5bfcdcb8936d41c0d8db6353a3eac832e9ba597918de8",
+    "answer_characters": 184
+  },
+  {
+    "name": "proposal card invariant after refusal",
+    "pass": false,
+    "proposal_id": "proposal-1",
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 1,
+    "answer_sha256": "f5d3a8fd41862dd395c0f694bcf186b1f5736ed74fa50bf919ea98ed607c1e56",
+    "answer_characters": 70
+  },
+  {
+    "name": "proposal card invariant after incomplete",
+    "pass": false,
+    "proposal_id": "proposal-1",
+    "next_search": null,
+    "exhausted_search": null,
+    "tool_count": 1,
+    "answer_sha256": "f0885280f545f05907f9049a661e62035bf8cce9b1b0fc896dfa07269373661f",
+    "answer_characters": 35
+  }
+]

@@ -5,10 +5,21 @@ from pathlib import Path
 import pytest
 
 from app import evaluate_conversation as cli
-from app.evaluation_conversation_corpus import load_conversation_corpus
+from app.agent import chat_loop
+from app.agent.provider import LLMProvider
+from app.evaluation_conversation_corpus import Scenario, load_conversation_corpus
+from app.evaluation_manifest import _hash
+from app.evaluation_profiles import resolve_profile
 from app.providers import bedrock
 
 _CORPUS = Path(__file__).parent / "evaluation" / "conversation.json"
+_SELECTION = (
+    Path(__file__).resolve().parents[2]
+    / "eval"
+    / "experiments"
+    / "conversation-quality"
+    / "selection.json"
+)
 _REVISION = "b" * 40
 
 
@@ -19,11 +30,15 @@ def _argv(out: Path, **override: str | None) -> list[str]:
         "--profile": "nova-2-lite",
         "--region": "us-east-1",
         "--revision": _REVISION,
+        "--selection-file": None,
+        "--max-chat-turns": None,
     }
     options.update(override)
-    return [part for pair in options.items() for part in pair if part is not None] + [
-        "--fixture"
-    ]
+    args: list[str] = []
+    for option, value in options.items():
+        if value is not None:
+            args.extend((option, value))
+    return [*args, "--fixture"]
 
 
 def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
@@ -38,6 +53,7 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     assert {Path(line).name for line in printed} == names - {"slots.jsonl"}
 
     expected = sum(len(s.turns) for s in corpus.scenarios) * corpus.repeats
+    assert expected == 96
     slots = (out / "slots.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(slots) == expected
     completion = json.loads((out / "completion.json").read_text(encoding="utf-8"))
@@ -48,9 +64,28 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     assert len(ids) == 19
     assert [row["scenario_id"] for row in report["scenarios"]] == ids
     assert report["counts"]["turns_recorded"] == expected
+    assert report["counts"]["turns_expected"] == 96
+    assert all(check["total"] == 96 for check in report["checks"].values())
     assert report["manifest"]["evidence_class"] == "deterministic_fake_provider"
     assert report["manifest"]["profile"] == "nova-2-lite"
     assert report["manifest"]["revision"] == _REVISION
+    assert "selection" not in report["manifest"]
+    assert "selection_hash" not in report["manifest"]
+    assert "selected_turn_count" not in report["manifest"]
+    assert set(report["manifest"]) == {
+        "version",
+        "corpus_sha256",
+        "profile",
+        "model_id",
+        "region",
+        "model_config",
+        "revision",
+        "evidence_class",
+        "suite_version",
+        "catalog_hash",
+        "system_prompt_hash",
+        "manifest_hash",
+    }
     markdown = (out / "report.md").read_text(encoding="utf-8")
     for scenario_id in ids:
         assert f"| {scenario_id} |" in markdown
@@ -61,6 +96,70 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     found = {t["name"]: t["status"] for t in report["targets"]}
     for name in ("latency_p50_ms", "latency_p95_ms", "cost_per_turn_usd"):
         assert found[name] == "not_applicable"
+
+
+def test_a_selected_fixture_run_emits_only_the_selected_turns(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "selected"
+    assert (
+        cli.main(
+            _argv(
+                out,
+                **{
+                    "--selection-file": str(_SELECTION),
+                    "--max-chat-turns": "22",
+                },
+            )
+        )
+        == 0
+    )
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    records = [
+        json.loads(line)
+        for line in (out / "slots.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    expected_selection = {
+        "scenarios": [
+            {"scenario_id": "C01", "repeats": [1, 2, 3]},
+            {"scenario_id": "C08", "repeats": [1, 2, 3]},
+            {"scenario_id": "C09", "repeats": [1, 2, 3]},
+            {"scenario_id": "C11", "repeats": [1]},
+            {"scenario_id": "C16", "repeats": [1]},
+        ]
+    }
+    manifest = report["manifest"]
+    assert manifest["corpus_sha256"] == hashlib.sha256(_CORPUS.read_bytes()).hexdigest()
+    assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
+    assert (
+        manifest["model_config"]
+        == resolve_profile("nova-2-lite", "us-east-1").model_config
+    )
+    assert manifest["evidence_class"] == "deterministic_fake_provider"
+    assert manifest["selection"] == expected_selection
+    assert manifest["selection_hash"] == _hash(expected_selection)
+    assert manifest["selected_turn_count"] == 22
+    covered = {key: value for key, value in manifest.items() if key != "manifest_hash"}
+    assert manifest["manifest_hash"] == _hash(covered)
+
+    pairs = {(row["scenario_id"], row["repeat"]) for row in records}
+    assert pairs == {
+        (item["scenario_id"], repeat)
+        for item in expected_selection["scenarios"]
+        for repeat in item["repeats"]
+    }
+    assert len(records) == 22
+    assert report["counts"]["turns_expected"] == 22
+    assert report["counts"]["turns_recorded"] == 22
+    assert report["scenario_pass"]["total"] == 11
+    assert [row["scenario_id"] for row in report["scenarios"]] == [
+        "C01",
+        "C08",
+        "C09",
+        "C11",
+        "C16",
+    ]
+    assert [row["turns_expected"] for row in report["scenarios"]] == [3, 3, 3, 9, 4]
 
 
 def test_the_manifest_hashes_the_bytes_that_were_parsed(
@@ -102,6 +201,95 @@ def test_bad_arguments_exit_2_and_write_nothing(
     assert cli.main(_argv(out, **override)) == 2
     assert not out.exists()
     assert capsys.readouterr().err.strip() == "Invalid evaluation CLI input"
+
+
+@pytest.mark.parametrize(
+    "selection_data",
+    [
+        "{",
+        json.dumps({"scenarios": []}),
+        json.dumps(
+            {
+                "scenarios": [
+                    {"scenario_id": "C01", "repeats": [1]},
+                    {"scenario_id": "C01", "repeats": [2]},
+                ]
+            }
+        ),
+        json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [1, 1]}]}),
+        json.dumps({"scenarios": [{"scenario_id": "C20", "repeats": [1]}]}),
+        json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [4]}]}),
+        json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [True]}]}),
+    ],
+)
+def test_invalid_selection_is_rejected_before_factory_or_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    selection_data: str,
+) -> None:
+    selection_file = tmp_path / "selection.json"
+    selection_file.write_text(selection_data, encoding="utf-8")
+    out = tmp_path / "out"
+    factory_calls: list[tuple[str, int, int]] = []
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        factory_calls.append((scenario.id, repeat, index))
+        return cli.GoldFollowingProvider(scenario.turns[index - 1])
+
+    args = _argv(
+        out,
+        **{
+            "--selection-file": str(selection_file),
+            "--max-chat-turns": "22",
+        },
+    )
+    assert cli.main(args, fixture_provider_for=provider_for) == 2
+    assert factory_calls == []
+    assert not out.exists()
+    assert capsys.readouterr().err.strip() == "Invalid evaluation CLI input"
+
+
+@pytest.mark.parametrize("cap", ["true", "invalid", "0", "-1", "21"])
+def test_invalid_cap_is_rejected_before_factory_or_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], cap: str
+) -> None:
+    out = tmp_path / "out"
+    factory_calls: list[tuple[str, int, int]] = []
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        factory_calls.append((scenario.id, repeat, index))
+        return cli.GoldFollowingProvider(scenario.turns[index - 1])
+
+    args = _argv(
+        out,
+        **{"--selection-file": str(_SELECTION), "--max-chat-turns": cap},
+    )
+    assert cli.main(args, fixture_provider_for=provider_for) == 2
+    assert factory_calls == []
+    assert not out.exists()
+    assert capsys.readouterr().err.strip() == "Invalid evaluation CLI input"
+
+
+def test_selection_requires_a_cap_before_factory_or_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "out"
+    factory_calls: list[tuple[str, int, int]] = []
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        factory_calls.append((scenario.id, repeat, index))
+        return cli.GoldFollowingProvider(scenario.turns[index - 1])
+
+    args = _argv(out, **{"--selection-file": str(_SELECTION)})
+    assert cli.main(args, fixture_provider_for=provider_for) == 2
+    assert factory_calls == []
+    assert not out.exists()
+    assert capsys.readouterr().err.strip() == "Invalid evaluation CLI input"
+
+
+def test_cap_parser_rejects_a_boolean() -> None:
+    with pytest.raises(ValueError):
+        cli._parse_max_chat_turns(True)
 
 
 def test_an_existing_output_dir_is_rejected_and_left_untouched(

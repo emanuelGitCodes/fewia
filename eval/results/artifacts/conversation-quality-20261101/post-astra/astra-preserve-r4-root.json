@@ -1,0 +1,549 @@
+{
+  "revision": "0dc50a6facf4d62350b6bf3492409cc9ba61c53a",
+  "records": [
+    {
+      "case": "Is my selected Chicken tacos vegan?",
+      "pass": true,
+      "answer_sha256": "f53558e381b6e773aa0f64a9042b723b736d0eeb34c6501d244a733dbf9c6de9"
+    },
+    {
+      "case": "Is my planned Chicken tacos vegan?",
+      "pass": true,
+      "answer_sha256": "f53558e381b6e773aa0f64a9042b723b736d0eeb34c6501d244a733dbf9c6de9"
+    },
+    {
+      "case": "Is my saved Chicken tacos vegan?",
+      "pass": true,
+      "answer_sha256": "f53558e381b6e773aa0f64a9042b723b736d0eeb34c6501d244a733dbf9c6de9"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan vegan?",
+      "pass": true,
+      "answer_sha256": "f53558e381b6e773aa0f64a9042b723b736d0eeb34c6501d244a733dbf9c6de9"
+    },
+    {
+      "case": "Is my selected Chicken tacos vegetarian?",
+      "pass": true,
+      "answer_sha256": "49fe7f2ac3dd6684281fe49df44272b96dc148adf6db3ad239fe74838ebbf025"
+    },
+    {
+      "case": "Is my planned Chicken tacos vegetarian?",
+      "pass": true,
+      "answer_sha256": "49fe7f2ac3dd6684281fe49df44272b96dc148adf6db3ad239fe74838ebbf025"
+    },
+    {
+      "case": "Is my saved Chicken tacos vegetarian?",
+      "pass": true,
+      "answer_sha256": "49fe7f2ac3dd6684281fe49df44272b96dc148adf6db3ad239fe74838ebbf025"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan vegetarian?",
+      "pass": true,
+      "answer_sha256": "49fe7f2ac3dd6684281fe49df44272b96dc148adf6db3ad239fe74838ebbf025"
+    },
+    {
+      "case": "Is my selected Chicken tacos dairy?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my planned Chicken tacos dairy?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my saved Chicken tacos dairy?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan dairy?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my selected Chicken tacos dairy free?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my planned Chicken tacos dairy free?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my saved Chicken tacos dairy free?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan dairy free?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my selected Chicken tacos dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my planned Chicken tacos dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my saved Chicken tacos dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my selected Chicken tacos dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my planned Chicken tacos dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my saved Chicken tacos dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "4f6fec423ad7ba516aae9adeb04ef79f7966a8f04fc6048f7569305e3c1e1786"
+    },
+    {
+      "case": "Is my selected Chicken tacos gluten?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my planned Chicken tacos gluten?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my saved Chicken tacos gluten?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan gluten?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my selected Chicken tacos gluten free?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my planned Chicken tacos gluten free?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my saved Chicken tacos gluten free?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan gluten free?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my selected Chicken tacos gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my planned Chicken tacos gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my saved Chicken tacos gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my selected Chicken tacos gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my planned Chicken tacos gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my saved Chicken tacos gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "dfd63d0ea20ce293d0b85676230a3aa23284e5050c363a09b7f76322759a0fb4"
+    },
+    {
+      "case": "Is my selected Chicken tacos high protein?",
+      "pass": true,
+      "answer_sha256": "5e20131ed97a029217e7d494eb0b112e0592e54694168e3f25b142dc3507b569"
+    },
+    {
+      "case": "Is my planned Chicken tacos high protein?",
+      "pass": true,
+      "answer_sha256": "5e20131ed97a029217e7d494eb0b112e0592e54694168e3f25b142dc3507b569"
+    },
+    {
+      "case": "Is my saved Chicken tacos high protein?",
+      "pass": true,
+      "answer_sha256": "5e20131ed97a029217e7d494eb0b112e0592e54694168e3f25b142dc3507b569"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan high protein?",
+      "pass": true,
+      "answer_sha256": "5e20131ed97a029217e7d494eb0b112e0592e54694168e3f25b142dc3507b569"
+    },
+    {
+      "case": "Is my selected Chicken tacos low carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is my planned Chicken tacos low carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is my saved Chicken tacos low carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan low carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is my selected Chicken tacos lower carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is my planned Chicken tacos lower carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is my saved Chicken tacos lower carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is the Chicken tacos in my plan lower carb?",
+      "pass": true,
+      "answer_sha256": "8f7844bf8f503e707c8e3aa86a3a5d5e9e50b8b929a530c18e4961d2322c8c4a"
+    },
+    {
+      "case": "Is my selected Bean tacos vegan?",
+      "pass": true,
+      "answer_sha256": "bf1eccb9d78b7fbacb0300c021b5eb7de263eee1179ab6cee3892e7b14d0d1b4"
+    },
+    {
+      "case": "Is my planned Bean tacos vegan?",
+      "pass": true,
+      "answer_sha256": "bf1eccb9d78b7fbacb0300c021b5eb7de263eee1179ab6cee3892e7b14d0d1b4"
+    },
+    {
+      "case": "Is my saved Bean tacos vegan?",
+      "pass": true,
+      "answer_sha256": "bf1eccb9d78b7fbacb0300c021b5eb7de263eee1179ab6cee3892e7b14d0d1b4"
+    },
+    {
+      "case": "Is the Bean tacos in my plan vegan?",
+      "pass": true,
+      "answer_sha256": "bf1eccb9d78b7fbacb0300c021b5eb7de263eee1179ab6cee3892e7b14d0d1b4"
+    },
+    {
+      "case": "Is my selected Bean tacos vegetarian?",
+      "pass": true,
+      "answer_sha256": "1ac6d9a32e7fac462bfd5fbb4f3165c3499ffaea3add46541a9508300e38a83a"
+    },
+    {
+      "case": "Is my planned Bean tacos vegetarian?",
+      "pass": true,
+      "answer_sha256": "1ac6d9a32e7fac462bfd5fbb4f3165c3499ffaea3add46541a9508300e38a83a"
+    },
+    {
+      "case": "Is my saved Bean tacos vegetarian?",
+      "pass": true,
+      "answer_sha256": "1ac6d9a32e7fac462bfd5fbb4f3165c3499ffaea3add46541a9508300e38a83a"
+    },
+    {
+      "case": "Is the Bean tacos in my plan vegetarian?",
+      "pass": true,
+      "answer_sha256": "1ac6d9a32e7fac462bfd5fbb4f3165c3499ffaea3add46541a9508300e38a83a"
+    },
+    {
+      "case": "Is my selected Bean tacos dairy?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my planned Bean tacos dairy?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my saved Bean tacos dairy?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is the Bean tacos in my plan dairy?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my selected Bean tacos dairy free?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my planned Bean tacos dairy free?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my saved Bean tacos dairy free?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is the Bean tacos in my plan dairy free?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my selected Bean tacos dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my planned Bean tacos dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my saved Bean tacos dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is the Bean tacos in my plan dairy ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my selected Bean tacos dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my planned Bean tacos dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my saved Bean tacos dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is the Bean tacos in my plan dairy free ingredients?",
+      "pass": true,
+      "answer_sha256": "05c18aab3fc3f1f0a52ac43849a6cef3ab1cb7cd7769a45412532e12b4b4ca66"
+    },
+    {
+      "case": "Is my selected Bean tacos gluten?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my planned Bean tacos gluten?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my saved Bean tacos gluten?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is the Bean tacos in my plan gluten?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my selected Bean tacos gluten free?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my planned Bean tacos gluten free?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my saved Bean tacos gluten free?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is the Bean tacos in my plan gluten free?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my selected Bean tacos gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my planned Bean tacos gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my saved Bean tacos gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is the Bean tacos in my plan gluten ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my selected Bean tacos gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my planned Bean tacos gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my saved Bean tacos gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is the Bean tacos in my plan gluten free ingredients?",
+      "pass": true,
+      "answer_sha256": "92eb2acbd90b63aa670834162cc1c051c17e67802e4b91c70017d18b8017bd98"
+    },
+    {
+      "case": "Is my selected Bean tacos high protein?",
+      "pass": true,
+      "answer_sha256": "3697d99526a41add352ecfdb3a63e6c83743edae709ea27cb296524936754c3d"
+    },
+    {
+      "case": "Is my planned Bean tacos high protein?",
+      "pass": true,
+      "answer_sha256": "3697d99526a41add352ecfdb3a63e6c83743edae709ea27cb296524936754c3d"
+    },
+    {
+      "case": "Is my saved Bean tacos high protein?",
+      "pass": true,
+      "answer_sha256": "3697d99526a41add352ecfdb3a63e6c83743edae709ea27cb296524936754c3d"
+    },
+    {
+      "case": "Is the Bean tacos in my plan high protein?",
+      "pass": true,
+      "answer_sha256": "3697d99526a41add352ecfdb3a63e6c83743edae709ea27cb296524936754c3d"
+    },
+    {
+      "case": "Is my selected Bean tacos low carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is my planned Bean tacos low carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is my saved Bean tacos low carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is the Bean tacos in my plan low carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is my selected Bean tacos lower carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is my planned Bean tacos lower carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is my saved Bean tacos lower carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is the Bean tacos in my plan lower carb?",
+      "pass": true,
+      "answer_sha256": "a5c0806375063bab079e4026c1fb20871de5205eac7ecced84d75f48d98817a9"
+    },
+    {
+      "case": "Is the plan within my monthly budget?",
+      "pass": true,
+      "tool_calls": 1,
+      "answer_sha256": "a4c3ed04a95a3da14a9d235c83d868bed7c0f45cf7f3faa751ee8f50598d2211"
+    },
+    {
+      "case": "Is my plan within my budget?",
+      "pass": true,
+      "tool_calls": 1,
+      "answer_sha256": "a4c3ed04a95a3da14a9d235c83d868bed7c0f45cf7f3faa751ee8f50598d2211"
+    },
+    {
+      "case": "Is my plan affordable?",
+      "pass": true,
+      "tool_calls": 1,
+      "answer_sha256": "a4c3ed04a95a3da14a9d235c83d868bed7c0f45cf7f3faa751ee8f50598d2211"
+    },
+    {
+      "case": "Are my plan meals within my budget?",
+      "pass": true,
+      "tool_calls": 1,
+      "answer_sha256": "a4c3ed04a95a3da14a9d235c83d868bed7c0f45cf7f3faa751ee8f50598d2211"
+    }
+  ]
+}

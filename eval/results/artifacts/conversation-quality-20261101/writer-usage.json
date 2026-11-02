@@ -1,0 +1,71 @@
+{
+  "scope": "CLI writer usage only; native coordination, advice and independent reviews excluded",
+  "cached_tokens_are_part_of_input": true,
+  "reasoning_tokens_are_part_of_output": true,
+  "items": {
+    "conversation-quality-01": {
+      "runs": 3,
+      "models": [
+        "gpt-6.1-sol"
+      ],
+      "efforts": [
+        "xhigh"
+      ],
+      "input_tokens": 5985993,
+      "cached_tokens": 5731840,
+      "output_tokens": 56959,
+      "reasoning_tokens": 23677,
+      "elapsed_ms": 1078208
+    },
+    "conversation-quality-02": {
+      "runs": 5,
+      "models": [
+        "gpt-6.1-terra"
+      ],
+      "efforts": [
+        "xhigh"
+      ],
+      "input_tokens": 4823734,
+      "cached_tokens": 4640512,
+      "output_tokens": 32834,
+      "reasoning_tokens": 7933,
+      "elapsed_ms": 378194
+    },
+    "conversation-quality-03": {
+      "runs": 6,
+      "models": [
+        "gpt-6-luna"
+      ],
+      "efforts": [
+        "xhigh"
+      ],
+      "input_tokens": 3880211,
+      "cached_tokens": 3553920,
+      "output_tokens": 129169,
+      "reasoning_tokens": 113048,
+      "elapsed_ms": 946167
+    },
+    "conversation-quality-03-prep": {
+      "runs": 4,
+      "models": [
+        "gpt-6-luna"
+      ],
+      "efforts": [
+        "xhigh"
+      ],
+      "input_tokens": 5269717,
+      "cached_tokens": 5054976,
+      "output_tokens": 77206,
+      "reasoning_tokens": 54282,
+      "elapsed_ms": 584893
+    }
+  },
+  "total": {
+    "runs": 18,
+    "input_tokens": 19959655,
+    "cached_tokens": 18981248,
+    "output_tokens": 296168,
+    "reasoning_tokens": 198940,
+    "elapsed_ms": 2987462
+  }
+}

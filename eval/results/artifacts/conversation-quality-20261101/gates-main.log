@@ -1,0 +1,10 @@
+PASS backend:ruff-check All checks passed!
+PASS backend:ruff-format 380 files already formatted
+PASS backend:mypy Success: no issues found in 187 source files
+PASS backend:pytest 15708 passed, 1 skipped, 1 warning in 54.11s
+SKIP frontend:npm-ci node_modules present
+PASS frontend:lint > eslint .
+PASS frontend:test    Duration  10.90s (transform 2.38s, setup 0ms, import 5.57s, tests 16.60s, environment 12.53s)
+PASS frontend:build ✓ built in 118ms
+LINES 1520/1000
+RESULT PASS

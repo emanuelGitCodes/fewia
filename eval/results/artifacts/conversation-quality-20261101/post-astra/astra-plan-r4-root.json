@@ -1,0 +1,205 @@
+{
+  "revision": "0dc50a6facf4d62350b6bf3492409cc9ba61c53a",
+  "records": [
+    {
+      "case": "Is the meal in my plan vegan?",
+      "pass": true,
+      "answer_sha256": "342b898c20b2d000028e94838bc6e9c982c2570fd0a8cd237cfef79420aafec6"
+    },
+    {
+      "case": "Is my meal in my plan vegan?",
+      "pass": true,
+      "answer_sha256": "342b898c20b2d000028e94838bc6e9c982c2570fd0a8cd237cfef79420aafec6"
+    },
+    {
+      "case": "Are my plan meals vegan or organic?",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals organic?",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan or certified organic?",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals certified organic?",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Do my plan meals contain added sugar?",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals certified organic and locally sourced?",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "mixed/new-search control: Are my plan meals vegan? Add Vegetable pasta.",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "mixed/new-search control: Search for organic meals.",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "named selected meal control",
+      "pass": true,
+      "answer_sha256": "f53558e381b6e773aa0f64a9042b723b736d0eeb34c6501d244a733dbf9c6de9"
+    },
+    {
+      "case": "plural selected meals control",
+      "pass": true,
+      "answer_sha256": "2c558c72ebee4b6aff6d4ad41807d1ad6ea98ece7ef062fefa82ee110ca5ac95"
+    },
+    {
+      "case": "selection clarification: Are my selected chicken tacos and sushi vegan?",
+      "pass": true,
+      "answer_sha256": "66c9018f554f7bf9400d46061ba936eb92c9bf1841ad773e13a5f3d76b9560fd"
+    },
+    {
+      "case": "selection intercept: Are my selected chicken tacos and sushi vegan?",
+      "pass": true,
+      "answer_sha256": "66c9018f554f7bf9400d46061ba936eb92c9bf1841ad773e13a5f3d76b9560fd"
+    },
+    {
+      "case": "selection clarification: Are my selected chicken tacos and bean tacos vegan?",
+      "pass": true,
+      "answer_sha256": "e112f9f061dab683b54316786e77121f487471bb838d9e8c922ebc9aaeb21b90"
+    },
+    {
+      "case": "selection intercept: Are my selected chicken tacos and bean tacos vegan?",
+      "pass": true,
+      "answer_sha256": "e112f9f061dab683b54316786e77121f487471bb838d9e8c922ebc9aaeb21b90"
+    },
+    {
+      "case": "Are my plan meals vegan or organic? intercepts search",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals vegan or organic? intercepts proposal",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals vegan or organic? intercepts no_tool",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals vegan or certified organic? intercepts search",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals vegan or certified organic? intercepts proposal",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals vegan or certified organic? intercepts no_tool",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals certified organic? intercepts search",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals certified organic? intercepts proposal",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals certified organic? intercepts no_tool",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Do my plan meals contain added sugar? intercepts search",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Do my plan meals contain added sugar? intercepts proposal",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Do my plan meals contain added sugar? intercepts no_tool",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals certified organic and locally sourced? intercepts search",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals certified organic and locally sourced? intercepts proposal",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    },
+    {
+      "case": "Are my plan meals certified organic and locally sourced? intercepts no_tool",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    }
+  ]
+}

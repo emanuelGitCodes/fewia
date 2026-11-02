@@ -1,0 +1,576 @@
+{
+  "scope_revision": "0dc50a6facf4d62350b6bf3492409cc9ba61c53a",
+  "scope_matches_revision": true,
+  "other_integration_paths_dirty": false,
+  "case_group": "property_prepositions",
+  "records": [
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made without dairy?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and appealing to adults?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made without dairy?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals made with organic ingredients?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals suitable for vegetarians?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": true,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": true,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": true,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": true,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": false,
+      "mode": "helper",
+      "pass": true,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": false,
+      "mode": "search",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": false,
+      "mode": "proposal",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals appealing to adults?",
+      "plan_available": false,
+      "mode": "no_tool",
+      "pass": true,
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "answer_sha256": "7d820dc91e5cf3dae4e007ab340b3a7901cc73c2a47bc890a1bbc5dfc63de3f7"
+    },
+    {
+      "case": "Are my plan meals vegan and can you shop for organic ingredients?",
+      "mode": "true_other_request_control",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals vegan and made with organic ingredients? Add bean tacos.",
+      "mode": "true_other_request_control",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals vegan and safe for my allergy?",
+      "mode": "true_other_request_control",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals vegan and within my monthly budget?",
+      "mode": "true_other_request_control",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    }
+  ]
+}
