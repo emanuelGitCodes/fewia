@@ -164,6 +164,7 @@ _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
 _NO_MORE = "There are no more matching meals."
+_TOOL_FAILURE = "A tool call failed. Check the request."
 
 
 class ChatUnavailable(Exception):
@@ -370,6 +371,7 @@ def run_chat(
         tools.append(proposal_tool_spec())
         system_prompt += PROPOSAL_PROMPT_SUFFIX
     proposal_id: str | None = None
+    proposal_failed = False
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
     proposal_read: list[tuple[str, dict[str, object]]] = []
@@ -389,7 +391,7 @@ def run_chat(
             or (catalog_batch and (discovery is not None or discovery_failed))
         )
         if not more and other_failed:
-            return f"{proposed} A tool call failed. Check the request."
+            return f"{proposed} {_TOOL_FAILURE}"
         return f"{proposed} {rest()}" if more else proposed
 
     def rest() -> str:
@@ -423,7 +425,7 @@ def run_chat(
                 budget_summary_answer(budget, period, spending_source=spending_source)
             )
         if other_failed and parts:
-            parts.append("A tool call failed. Check the request.")
+            parts.append(_TOOL_FAILURE)
         return (
             " ".join(parts)
             if parts
@@ -447,8 +449,10 @@ def run_chat(
                 answer = f"{proposed} {answer}"
             if status == "limit" and discovery_failed:
                 answer = f"{answer} {DISCOVERY_ERROR}"
-            if status == "limit" and other_failed:
-                answer = f"{answer} A tool call failed. Check the request."
+            if (proposal_failed or (status == "limit" and other_failed)) and (
+                _TOOL_FAILURE not in answer
+            ):
+                answer = f"{answer} {_TOOL_FAILURE}"
         # Only a public answer holds the catalog reply that rest() renders.
         shown = (
             public and catalog_batch and discovery is not None and not discovery_failed
@@ -674,6 +678,9 @@ def run_chat(
                 if call.name == PROPOSAL_TOOL:
                     proposal_id = str(payload["proposal_id"])
                     proposal_read = [(call.name, payload)]
+                    proposal_failed = False
+            elif call.name == PROPOSAL_TOOL and proposal_id is not None:
+                proposal_failed = True
             if call.name == TOOL_NAME and _end_status(payload) != "planned":
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:

@@ -5833,6 +5833,107 @@ def test_later_failed_proposal_keeps_the_successful_card(same_batch: bool) -> No
     assert "A tool call failed." in answer
 
 
+@pytest.mark.parametrize("later", ["budget", "search", "cursorless_search"])
+def test_proposal_failure_survives_later_success_or_search_terminal(later: str) -> None:
+    proposer = Proposer()
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    call = (
+        _tool_block("b1", name=BUDGET_TOOL_NAME, payload={})
+        if later == "budget"
+        else _discovery_block("d1")
+    )
+    provider = FakeLLM(
+        [
+            _reply([_propose_block("p1", _PROPOSE_OP)], "tool_use"),
+            _reply([_propose_block("p2", bad)], "tool_use"),
+            _reply([call], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ]
+    )
+    cursor = _constrained_cursor() if later == "search" else None
+    result = run_chat(
+        provider,
+        "more",
+        budget(),
+        PERIOD,
+        plan_revision=_two_meal_revision(),
+        propose=proposer,
+        previous_search=cursor,
+        model_prose=True,
+    )
+    answer = cast(str, result["answer"])
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    assert _PROPOSED_ANSWER_START in answer
+    assert "Apply it in the plan panel." in answer
+    assert answer.count("A tool call failed. Check the request.") == 1
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert trace[0]["inputs"] == {
+        "status": "proposed",
+        "proposal_id": "proposal-1",
+        "operations": [_PROPOSE_OP],
+    }
+    assert [item["outcome"] for item in trace] == (
+        ["success", "error"]
+        if later == "cursorless_search"
+        else ["success", "error", "success"]
+    )
+    if later == "search":
+        assert "Catalog choices:" in answer
+
+
+@pytest.mark.parametrize("first_failed", [False, True])
+def test_successful_proposal_after_prior_calls_has_no_failure_warning(
+    first_failed: bool,
+) -> None:
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    first = (
+        _propose_block("p1", bad)
+        if first_failed
+        else _tool_block("b1", name=BUDGET_TOOL_NAME, payload={})
+    )
+    proposer = Proposer()
+    result, _ = _propose_run(
+        [
+            _reply([first], "tool_use"),
+            _reply([_propose_block("p2", _PROPOSE_OP)], "tool_use"),
+            _reply([_tool_block("b2", name=BUDGET_TOOL_NAME, payload={})], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        proposer,
+        model_prose=True,
+    )
+    answer = cast(str, result["answer"])
+    assert proposer.calls == [[_PROPOSE_OP]]
+    assert result["proposal_id"] == "proposal-1"
+    assert _PROPOSED_ANSWER_START in answer
+    assert "Apply it in the plan panel." in answer
+    assert "A tool call failed." not in answer
+
+
+@pytest.mark.parametrize("terminal", ["guardrail", "refusal", "incomplete"])
+def test_proposal_failure_does_not_override_terminal_priority(terminal: str) -> None:
+    bad = {"op": "remove", "recipe_id": "not_a_meal"}
+    endings = {
+        "guardrail": _reply([_text_block("blocked")], "guardrail_intervened"),
+        "refusal": _reply([_text_block('{"refusal":"purchase"}')], "end_turn"),
+        "incomplete": _reply([_text_block("unfinished")], "max_tokens"),
+    }
+    result, _ = _propose_run(
+        [
+            _reply([_propose_block("p1", _PROPOSE_OP)], "tool_use"),
+            _reply([_propose_block("p2", bad)], "tool_use"),
+            endings[terminal],
+        ],
+        Proposer(),
+        model_prose=True,
+    )
+    assert "proposal_id" not in result
+    assert result["reply_check"] == {"gate": terminal}
+    assert _PROPOSED_ANSWER_START not in cast(str, result["answer"])
+    assert "A tool call failed." not in cast(str, result["answer"])
+
+
 def test_cursorless_continuation_keeps_proposal_explanation() -> None:
     proposer = Proposer()
     provider = FakeLLM(
