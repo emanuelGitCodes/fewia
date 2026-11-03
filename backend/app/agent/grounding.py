@@ -286,8 +286,17 @@ _NEG = [
 ]
 # "any" and "all" only follow a negation that has one: "no any dairy" is not English,
 # but a match on it is harmless. Negation-first phrases match even when glued to the
-# word before ("hasno dairy"). Only "no/non/without" may precede "claims": "I made no
-# dairy claims" is not a claim.
+# word before ("hasno dairy"); "no" and "non" only glue to a verb, so "Dannon dairy"
+# is not "non dairy". Only "no/non/without" may precede "claims": "I made no dairy
+# claims" is not a claim.
+_VERBS = "contain contains containing has have include includes including".split()
+_NO_START = (
+    "(?:(?<![a-z0-9])|"
+    + "|".join(f"(?<={v})" for v in _VERBS + "use uses made prepared cooked".split())
+    + ")"
+)
+_NEG[0] = [n if n[0] == "w" else _NO_START + n for n in _NEG[0]]
+_NEG[4] = ["(?<![a-z0-9])" + n for n in _NEG[4]]
 _DAIRY_ABSENCE = re.compile(
     r"(?:(?:" + "|".join(_NEG[0]) + r")(?![a-z0-9])(?![\W_]*claims?(?![a-z0-9]))"
     r"|(?:" + "|".join(sum(_NEG[1:], [])) + r")(?![a-z0-9])"
