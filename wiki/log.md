@@ -5190,3 +5190,11 @@ The follow-up passes the gates at `48fcbef3`: 17,291 backend tests, 37 of 1,000 
 `claude-opus-5-5` approves the same head. Writers: `claude-sonnet-5-5` at `medium`, then `low` for one polish-c repair.
 The [review](../docs/reviews/pr-469-470-review.md) lists the findings, the build status, and three owner decisions.
 No push, pull request, or merge has run.
+
+## 2026-11-05 — Repairs to the follow-up branch `claude/conversation-polish`
+
+The approval at `48fcbef3` does not cover the current head. Later review rounds found two fail-open regressions in the phrase table.
+Glued negations such as "hasno dairy" passed, and the `claims` exemption accepted punctuation before "claim".
+Three repairs restore the base behavior for both. A bare "no", "non", or "not" MUST start a word, so "Dannon dairy" passes.
+The pull request body records the final head, the gates, and the review verdict.
+Writers: `claude-sonnet-5-5` at `medium`. Three runs stopped with no edits while the CLI sign-in had expired.

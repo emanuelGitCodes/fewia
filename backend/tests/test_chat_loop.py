@@ -4344,7 +4344,12 @@ _RESTART_MESSAGES = [
     "Show the first page of vegetarian meals",
 ]
 _RESTART_CASES = [
-    (make_cursor, message, {"query": "chicken", "offset": 6})
+    (
+        make_cursor,
+        message,
+        {"query": "chicken", "offset": 6},
+        "try chicken tacos or vegetable pasta",
+    )
     for make_cursor in (_constrained_cursor, _named_facet_cursor)
     for message in _RESTART_MESSAGES
 ] + [
@@ -4352,17 +4357,21 @@ _RESTART_CASES = [
         _catalog_word_cursor,
         "Show me the first page of rice onion meals.",
         {"query": "chicken", "limit": 3, "offset": 6},
+        "try chicken tacos",
     )
 ]
 
 
-@pytest.mark.parametrize(("make_cursor", "message", "more_arguments"), _RESTART_CASES)
+@pytest.mark.parametrize(
+    ("make_cursor", "message", "more_arguments", "provider_text"), _RESTART_CASES
+)
 @pytest.mark.parametrize("prefixed", [False, True])
 @pytest.mark.parametrize("model_prose", [False, True])
 def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
     make_cursor: Callable[[], dict[str, object]],
     message: str,
     more_arguments: dict[str, object],
+    provider_text: str,
     prefixed: bool,
     model_prose: bool,
 ) -> None:
@@ -4371,9 +4380,7 @@ def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
     first_page = {**cursor, "offset": 0}
     expected = execute_catalog_search(first_page)
     prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
-    provider = FakeLLM(
-        [_reply([_text_block("try chicken tacos or vegetable pasta")], "end_turn")]
-    )
+    provider = FakeLLM([_reply([_text_block(provider_text)], "end_turn")])
     result = run_chat(
         provider,
         f"{prefix if prefixed else ''}{message}",

@@ -110,8 +110,15 @@ record stores model reply text.
 | Finding 6 | Not built. It changes the evaluation CLI contract. |
 | Finding 10 | Not built. It changes the restart rules. |
 
-The app code shrinks by 9 lines net. The phrase table adds one false
-positive: "If you have no milk, use water." now falls back to the template.
+The phrase table adds two false positives. "If you have no milk, use
+water." and "It uses milk less than cream." now fall back to the template.
+Both fail closed.
+
+The phrase table also catches the glued forms that the base caught, such as
+"hasno dairy" and "madewithout dairy". A bare "no", "non", or "not" MUST
+start a word, so "Dannon dairy" and "knot made with dairy" pass. The
+`claims` exemption covers only "no", "non", or "without" before the noun,
+with spaces or tabs before "claim".
 
 ### Evidence
 

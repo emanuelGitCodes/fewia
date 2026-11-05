@@ -298,7 +298,7 @@ _NO_START = (
 _NEG[0] = [n if n[0] == "w" else _NO_START + n for n in _NEG[0]]
 _NEG[4] = ["(?<![a-z0-9])" + n for n in _NEG[4]]
 _DAIRY_ABSENCE = re.compile(
-    r"(?:(?:" + "|".join(_NEG[0]) + r")(?![a-z0-9])(?![\W_]*claims?(?![a-z0-9]))"
+    r"(?:(?:" + "|".join(_NEG[0]) + r")(?![a-z0-9])(?![ \t]+claims?(?![a-z0-9]))"
     r"|(?:" + "|".join(sum(_NEG[1:], [])) + r")(?![a-z0-9])"
     r"|(?<![a-z0-9])(?:"
     + "|".join(_J(n + a) for n in ("dairy", "milk", "gluten") for a in _ABSENCE_AFTER)

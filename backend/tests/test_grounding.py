@@ -1087,6 +1087,11 @@ def test_dairy_free_is_rejected_with_letter_spacing() -> None:
         "This milk-free claim is verified for this meal.",
         "Dairy wasn't used in this meal.",
         "Milk weren't used here.",
+        "This meal has no dairy (claim verified).",
+        "No gluten — claims confirmed.",
+        "It contains no milk - claim checked.",
+        "It has no dairy claimsless.",
+        "This meal has no dairy\nclaims aside.",
     ],
 )
 def test_dairy_absence_claims_fail(reply: str) -> None:
@@ -1100,6 +1105,8 @@ def test_dairy_absence_claims_fail(reply: str) -> None:
     "reply",
     [
         "I made no dairy claims.",
+        "I made no gluten claims about this meal.",
+        "I make no milk claims.",
         "The kale salad has no dairyman story.",
         "Add milk if you like.",
         "Serve it with milk.",
