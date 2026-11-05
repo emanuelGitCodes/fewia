@@ -10,7 +10,7 @@ const CHAT_MESSAGE = "Make the tacos cheaper.";
 test.describe.configure({ timeout: 60_000 });
 
 async function open(page: Page): Promise<void> {
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.getByLabel("Recipe 1", { exact: true })).toBeVisible();
 }
 

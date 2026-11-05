@@ -2,7 +2,7 @@
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { selectRoot } from "./rootView";
+import { canonicalPath, selectRoot } from "./rootView";
 
 vi.mock("./App", () => ({
   default: () => <p>App stub</p>,
@@ -32,9 +32,22 @@ describe("selectRoot", () => {
     ).toBeTruthy();
   }, 15_000);
 
-  it("renders the App at /", () => {
-    render(selectRoot("/"));
+  it("renders the App at /app", () => {
+    render(selectRoot("/app"));
     expect(screen.getByText("App stub")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Your plan" })).toBeNull();
   });
+});
+
+describe("canonicalPath", () => {
+  it.each(["/", ""])("sends %j to /prototype", (pathname) => {
+    expect(canonicalPath(pathname)).toBe("/prototype");
+  });
+
+  it.each(["/prototype", "/prototype/", "/app"])(
+    "leaves %s unchanged",
+    (pathname) => {
+      expect(canonicalPath(pathname)).toBe(pathname);
+    },
+  );
 });
