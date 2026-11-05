@@ -5,7 +5,13 @@ import pytest
 
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
-from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE, MEAL_TAGS, SEARCH_TERMS
+from app.domain.meal_tags import (
+    CARNIVORE_NOTE,
+    DAIRY_INGREDIENT_IDS,
+    KETO_NOTE,
+    MEAL_TAGS,
+    SEARCH_TERMS,
+)
 from app.prototype_catalog_export import (
     build_catalog,
     main,
@@ -106,6 +112,7 @@ TAG_ORDER = [
     "high_protein",
     "lower_carb",
     "gluten_free_ingredients",
+    "dairy_free_ingredients",
 ]
 
 
@@ -135,6 +142,7 @@ def test_tag_counts_match_the_catalog() -> None:
         "high_protein": 10,
         "lower_carb": 8,
         "gluten_free_ingredients": 28,
+        "dairy_free_ingredients": 40,
     }
 
 
@@ -152,6 +160,7 @@ def test_tag_rules_and_order() -> None:
         assert ("lower_carb" in tags) == (recipe["nutrition"]["carbsG"] <= 30)
         gluten = ids & {"pasta", "soy_sauce", "oats", "oat_milk"}
         assert ("gluten_free_ingredients" in tags) == (not gluten)
+        assert ("dairy_free_ingredients" in tags) == (not ids & DAIRY_INGREDIENT_IDS)
 
 
 def test_tags_come_from_meal_tags() -> None:

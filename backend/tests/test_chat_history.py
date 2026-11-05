@@ -9,11 +9,16 @@ import pytest
 from conftest import UserSeeder
 from sqlalchemy.orm import Session
 
+from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.agent.chat_context import MAX_MESSAGE_LEN
 from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
-from app.services.chat_history import ChatContextUnavailable, load_chat_context
+from app.services.chat_history import (
+    ChatContextUnavailable,
+    load_chat_context,
+    load_previous_search,
+)
 from tests.test_chat_loop import _SWAP_ANSWER
 from tests.test_model_prose_opt_in import GROUNDED_PLAIN, SENTINEL, _run, _swap
 
@@ -112,6 +117,193 @@ def test_none_parent_returns_empty_context(session: Session) -> None:
     assert history == []
     assert previous is None
     assert _ingredient_ids is None
+
+
+def _search_result(**overrides: object) -> dict[str, object]:
+    first = execute_catalog_search({"query": "vegetarian"})
+    next_search = next_search_arguments(first)
+    assert next_search is not None
+    result: dict[str, object] = {"answer": "Catalog choices."}
+    result["next_search"] = next_search
+    result.update(overrides)
+    return result
+
+
+def test_previous_search_is_the_stored_next_search(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    result = _search_result()
+    job = add_job(session, user_id=1, payload=chat_payload(), result=result)
+
+    assert load_previous_search(session, 1, None) is None
+    loaded = load_previous_search(session, 1, job.id)
+    assert loaded == result["next_search"]
+    assert loaded is not None and loaded["offset"] == 3
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+    assert history[-1] == {"role": "assistant", "text": "Catalog choices."}
+
+
+def test_previous_search_is_none_without_a_next_search(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    result: dict[str, object] = {"answer": "Done."}
+    job = add_job(session, user_id=1, payload=chat_payload(), result=result)
+    assert load_previous_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize("tool", [None, "get_budget_summary", "get_meal"])
+def test_intervening_turn_without_result_cursor_ignores_the_payload(
+    session: Session, seed_user: UserSeeder, tool: str | None
+) -> None:
+    seed_user(1)
+    cursor = _search_result()["next_search"]
+    payload = chat_payload(message="thanks", previous_search=cursor)
+    result = {
+        "answer": "Done.",
+        "tool_trace": [] if tool is None else [{"tool": tool, "outcome": "success"}],
+    }
+    job = add_job(session, user_id=1, payload=payload, result=result)
+    assert load_previous_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize("tool", [None, "get_budget_summary", "get_meal"])
+def test_intervening_turn_restores_only_the_checked_result_cursor(
+    session: Session, seed_user: UserSeeder, tool: str | None
+) -> None:
+    seed_user(1)
+    result = _search_result(
+        tool_trace=[] if tool is None else [{"tool": tool, "outcome": "success"}]
+    )
+    payload = chat_payload(message="thanks", previous_search={"query": "chicken"})
+    original_result = copy.deepcopy(result)
+    original_payload = copy.deepcopy(payload)
+    job = add_job(session, user_id=1, payload=payload, result=result)
+    assert load_previous_search(session, 1, job.id) == result["next_search"]
+    assert job.result == original_result
+    assert job.payload == original_payload
+
+
+def test_restored_cursor_does_not_share_nested_values_with_the_job(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    result = _search_result()
+    job = add_job(session, user_id=1, payload=chat_payload(), result=result)
+    original = copy.deepcopy(result)
+    loaded = load_previous_search(session, 1, job.id)
+    assert loaded is not None
+    cast(list[str], loaded["tags"]).clear()
+    assert job.result == original
+    cast(list[str], loaded["exclude"]).append("eggs")
+    assert job.result == original
+    stored_result = cast(dict[str, object], job.result)
+    stored = cast(dict[str, object], stored_result["next_search"])
+    cast(list[str], stored["tags"]).append("unknown")
+    assert loaded["tags"] == []
+    again = load_previous_search(session, 1, job.id)
+    assert again is None
+
+
+@pytest.mark.parametrize("outcome", ["success", "error"])
+def test_a_catalog_turn_does_not_resurrect_the_payload_cursor(
+    session: Session, seed_user: UserSeeder, outcome: str
+) -> None:
+    seed_user(1)
+    cursor = _search_result()["next_search"]
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_search=cursor),
+        result={
+            "answer": "No more matching meals.",
+            "tool_trace": [{"tool": "search_meals", "outcome": outcome}],
+        },
+    )
+    assert load_previous_search(session, 1, job.id) is None
+
+
+def test_an_explicitly_cleared_cursor_does_not_use_the_payload(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    cursor = _search_result()["next_search"]
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_search=cursor),
+        result={"answer": "Done.", "next_search": None},
+    )
+    assert load_previous_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        {"query": "meals", "tags": ["unknown"], "offset": 3},
+        {"query": "vegetarian", "offset": 40},
+        {"query": "vegetarian", "offset": True},
+        {"query": "zqxsentinel"},
+        ["vegetarian"],
+    ],
+)
+def test_intervening_turn_ignores_the_payload_cursor(
+    session: Session, seed_user: UserSeeder, forged: object
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_search=forged),
+        result={"answer": "Done.", "tool_trace": []},
+    )
+    assert load_previous_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        {"query": "meals", "tags": ["no_such_tag"], "offset": 3},
+        {"query": "vegetarian", "offset": 40},
+        {"query": "vegetarian", "offset": 39, "limit": 3, "extra": 1},
+        {"query": "zqxsentinel", "offset": 3},
+        {"offset": 3},
+        "vegetarian",
+        ["vegetarian"],
+        3,
+        None,
+    ],
+)
+def test_forged_next_search_loads_as_none(
+    session: Session, seed_user: UserSeeder, forged: object
+) -> None:
+    seed_user(1)
+    result = _search_result(next_search=forged)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_search=_search_result()["next_search"]),
+        result=result,
+    )
+    assert load_previous_search(session, 1, job.id) is None
+
+
+def test_previous_search_checks_the_job_like_the_chat_context(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    seed_user(2)
+    result = _search_result()
+    foreign = add_job(session, user_id=2, payload=chat_payload(), result=result)
+    pending = add_job(
+        session, user_id=1, payload=chat_payload(), result=result, status="queued"
+    )
+    for job in (foreign, pending):
+        with pytest.raises(ChatContextUnavailable):
+            load_previous_search(session, 1, job.id)
+    with pytest.raises(ChatContextUnavailable):
+        load_previous_search(session, 1, uuid4())
 
 
 def test_rejected_model_text_is_not_in_the_loaded_next_turn(

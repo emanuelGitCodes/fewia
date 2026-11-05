@@ -1,4 +1,4 @@
-"""Score conversation-eval-v1 observation records and render the report.
+"""Score conversation-eval-v1.4 observation records and render the report.
 
 Scoring reads hashes, counts, tool names, and fact flags only; no reply text.
 """
@@ -104,6 +104,8 @@ def _fallback(record: dict[str, object]) -> str | None:
 class _Totals:
     passes: dict[str, int] = field(default_factory=lambda: dict.fromkeys(CHECKS, 0))
     expected: int = 0
+    repeats: int = 0
+    repeats_passed: int = 0
     recorded: int = 0
     attempts: int = 0
     grounded: int = 0
@@ -148,9 +150,12 @@ def build_report(
     for scenario in corpus.scenarios:
         failing: list[str] = []
         for repeat in range(1, corpus.repeats + 1):
+            repeat_gold = True
+            totals.repeats += 1
             for index, turn in enumerate(scenario.turns, start=1):
                 record = keyed.get((scenario.id, repeat, index))
                 scores = score_turn(turn, record)
+                repeat_gold = repeat_gold and scores["gold"]
                 totals.expected += 1
                 for check in CHECKS:
                     totals.passes[check] += scores[check]
@@ -158,6 +163,7 @@ def build_report(
                     failing.append(f"{repeat}.{index}")
                 if record is not None:
                     totals.add(record, rates)
+            totals.repeats_passed += repeat_gold
         rows.append(
             {
                 "scenario_id": scenario.id,
@@ -228,6 +234,11 @@ def build_report(
             }
             for check in CHECKS
         },
+        "scenario_pass": {
+            "passed": totals.repeats_passed,
+            "total": totals.repeats,
+            "rate": _rate(totals.repeats_passed, totals.repeats),
+        },
         "grounding": {
             "prose_attempts": totals.attempts,
             "grounded_replies": totals.grounded,
@@ -254,6 +265,9 @@ def render_markdown(report: dict[str, object]) -> str:
     for name, item in _map(report, "checks").items():
         row = item if isinstance(item, dict) else {}
         lines.append(f"| {name} | {row['passed']} | {row['total']} | {row['rate']} |")
+    whole = _map(report, "scenario_pass")
+    lines += ["", "## Scenario pass (every turn has every gold fact)", ""]
+    lines += [f"- {key}: {value}" for key, value in whole.items()]
     grounding = _map(report, "grounding")
     lines += ["", "## Grounding", ""]
     lines += [f"- {key}: {value}" for key, value in grounding.items()]

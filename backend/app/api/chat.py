@@ -22,7 +22,11 @@ from app.plan_models import PlanRevision
 from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import KrogerClient
-from app.services.chat_history import ChatContextUnavailable, load_chat_context
+from app.services.chat_history import (
+    ChatContextUnavailable,
+    load_chat_context,
+    load_previous_search,
+)
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
 from app.services.job_submission import (
     JobConflict,
@@ -84,8 +88,13 @@ def create_chat_job(
     loaded: (
         tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None] | None
     ) = None
+    previous_search: dict[str, object] | None = None
     try:
-        loaded = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
+        context = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
+        previous_search = load_previous_search(
+            session, DEMO_USER_ID, body.previous_job_id
+        )
+        loaded = context
     except ChatContextUnavailable:
         pass
     if loaded is None:
@@ -117,6 +126,7 @@ def create_chat_job(
             history=turns,
             previous_request=previous_request,
             previous_ingredient_ids=previous_ingredient_ids,
+            previous_search=previous_search,
             spending=spending,
             spending_source=settings.spending_source,
         ).model_dump(mode="json"),

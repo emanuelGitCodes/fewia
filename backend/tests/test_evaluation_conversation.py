@@ -9,6 +9,7 @@ import pytest
 from app import evaluation_conversation as runner
 from app import evaluation_model_turn as model_turn
 from app.agent import chat_loop, grounding
+from app.agent.catalog_tool import execute_catalog_search
 from app.agent.provider import LLMProvider
 from app.domain.plan_proposal import ProposalInvalid
 from app.evaluate_conversation import GoldFollowingProvider, main
@@ -19,8 +20,13 @@ from app.evaluation_conversation_corpus import (
     Scenario,
     load_conversation_corpus,
 )
-from app.evaluation_conversation_score import score_turn
+from app.evaluation_conversation_score import (
+    build_report,
+    render_markdown,
+    score_turn,
+)
 from app.evaluation_inputs import prepare_case
+from app.evaluation_manifest import _hash, catalog_snapshot
 
 _CORPUS = Path(__file__).parent / "evaluation" / "conversation.json"
 _RECORD_KEYS = {
@@ -284,6 +290,141 @@ def test_fact_presence_needs_the_tool_path_and_exact_typed_value() -> None:
     assert not runner._present(gold("get_plan", "flag", True), payloads)
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"query": "lower carb pasta"},
+        {"query": "vegetarian pasta", "exclude": ["pasta"], "offset": 3},
+    ],
+)
+def test_c18_rejects_searches_without_the_gluten_constraint(
+    corpus: ConversationCorpus, arguments: dict[str, object]
+) -> None:
+    turn = corpus.scenarios[17].turns[0]
+    payloads: list[tuple[object, object]] = [
+        ("search_meals", execute_catalog_search(arguments))
+    ]
+    facts = [runner._present(item, payloads) for item in turn.expect.gold]
+    assert not all(facts)
+    record: dict[str, object] = {
+        "tools": [{"name": "search_meals"}],
+        "reply_source": "template",
+        "status": "clarification",
+        "gate": "discovery_terminal",
+        "facts_present": facts,
+        "apply_error": None,
+    }
+    assert not score_turn(turn, record)["gold"]
+
+
+@pytest.mark.parametrize(
+    ("scenario_id", "arguments"),
+    [
+        ("C16", {"query": "vegetarian", "limit": 3, "diet": "vegan"}),
+        ("C18", {"query": "gluten-free pasta", "diet": "vegan"}),
+    ],
+)
+def test_a_search_with_an_unrequested_diet_fails_the_total_matches_gold(
+    corpus: ConversationCorpus, scenario_id: str, arguments: dict[str, object]
+) -> None:
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        if turn != 1:
+            return Scripted([])
+        return Scripted([_use("search_meals", arguments), _text("Done.")])
+
+    sub = _only(corpus, scenario_id)
+    records = run_conversation_suite(sub, "p", provider_for)
+    first = [r for r in records if r["turn"] == 1]
+    gold = sub.scenarios[0].turns[0].expect.gold
+    index = next(i for i, item in enumerate(gold) if item.path == "total_matches")
+    assert gold[index].value == 28
+    for record in first:
+        facts = cast(list[bool], record["facts_present"])
+        assert facts[index] is False
+        assert not score_turn(sub.scenarios[0].turns[0], record)["gold"]
+
+
+def test_page_reference_rejects_repeated_or_skipped_pages(
+    corpus: ConversationCorpus,
+) -> None:
+    page = corpus.scenarios[15].turns[1].expect.gold[0]
+    for offset in (0, 2):
+        payload = execute_catalog_search(
+            {"query": "vegetarian", "limit": 1, "offset": offset}
+        )
+        assert not runner._present(page, [("search_meals", payload)])
+
+
+@pytest.mark.parametrize("cursor_result", ["retained", "invalid", "missing"])
+def test_search_cursor_reaches_model_context_on_each_turn(
+    corpus: ConversationCorpus, monkeypatch: pytest.MonkeyPatch, cursor_result: str
+) -> None:
+    seen: dict[tuple[int, int], dict[str, object]] = {}
+    real = chat_loop.run_chat
+
+    def with_budget_result(*args: object, **kwargs: object) -> dict[str, object]:
+        result = real(*args, **kwargs)  # type: ignore[arg-type]
+        if args[1] == "What is my budget?":
+            if cursor_result == "retained":
+                result["next_search"] = kwargs.get("previous_search")
+            elif cursor_result == "invalid":
+                result["next_search"] = {"query": ""}
+            else:
+                result.pop("next_search", None)
+        return result
+
+    monkeypatch.setattr(chat_loop, "run_chat", with_budget_result)
+
+    class ContextProvider:
+        def __init__(self, repeat: int, turn: int) -> None:
+            self.repeat = repeat
+            self.turn = turn
+            self.step = 0
+
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            self.step += 1
+            if self.step > 1:
+                return _text("Done.")
+            content = cast(list[dict[str, str]], messages[-1]["content"])
+            context = cast(dict[str, object], json.loads(content[0]["text"]))
+            seen[(self.repeat, self.turn)] = context
+            if self.turn == 3:
+                return _use("get_budget_summary", {})
+            cursor = context.get("previous_search")
+            arguments = (
+                {"query": "vegetarian", "limit": 1}
+                if self.turn == 1 or not isinstance(cursor, dict)
+                else cursor
+            )
+            return _use("search_meals", arguments)
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        return ContextProvider(repeat, turn)
+
+    sub = _only(corpus, "C16")
+    records = list(run_conversation_suite(sub, "p", provider_for))
+    assert len(records) == 12
+    for repeat in (1, 2, 3):
+        assert seen[(repeat, 1)]["previous_search"] is None
+        cursor1 = cast(dict[str, object], seen[(repeat, 2)]["previous_search"])
+        cursor2 = cast(dict[str, object], seen[(repeat, 3)]["previous_search"])
+        assert cursor1["offset"] == 1
+        assert cursor2["offset"] == 2
+        expected = cursor2 if cursor_result == "retained" else None
+        assert seen[(repeat, 4)]["previous_search"] == expected
+        if cursor_result == "retained":
+            own = [record for record in records if record["repeat"] == repeat]
+            assert all(
+                all(score_turn(turn, record).values())
+                for turn, record in zip(sub.scenarios[0].turns, own, strict=True)
+            )
+
+
 def test_the_matrix_turn_passes_exactly_todays_run_chat_arguments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -372,6 +513,52 @@ def _argv(out: Path) -> list[str]:
         "--revision": "a" * 40,
     }
     return [part for pair in options.items() for part in pair] + ["--fixture"]
+
+
+def test_a_fixture_run_writes_manifest_identity_covered_by_the_hash(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "out"
+    assert main(_argv(out)) == 0
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    manifest = report["manifest"]
+    assert manifest["suite_version"] == "conversation-eval-v1.4"
+    assert manifest["catalog_hash"] == _hash(catalog_snapshot())
+    assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
+    covered = {k: v for k, v in manifest.items() if k != "manifest_hash"}
+    assert report["manifest_hash"] == manifest["manifest_hash"] == _hash(covered)
+    for key in ("suite_version", "catalog_hash", "system_prompt_hash"):
+        changed = {**covered, key: "changed"}
+        assert _hash(changed) != manifest["manifest_hash"]
+
+
+def test_scenario_pass_counts_a_repeat_only_when_every_turn_has_every_gold_fact(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = _only(corpus, "C16")
+    records: list[dict[str, object]] = []
+    for repeat in (1, 2, 3):
+        for number, turn in enumerate(sub.scenarios[0].turns, start=1):
+            present = [True] * len(turn.expect.gold)
+            if (repeat, number) == (2, 3):
+                present[0] = False
+            records.append(
+                {
+                    "scenario_id": "C16",
+                    "repeat": repeat,
+                    "turn": number,
+                    "facts_present": present,
+                    "apply_error": None,
+                }
+            )
+    report = build_report(sub, records, {"manifest_hash": "x"})
+    assert report["scenario_pass"] == {"passed": 2, "total": 3, "rate": 0.6667}
+    gold = cast(dict[str, Any], report["checks"])["gold"]
+    assert (gold["passed"], gold["total"]) == (11, 12)
+    assert "- rate: 0.6667" in render_markdown(report)
+    none = sub.model_copy(update={"scenarios": []})
+    empty = build_report(none, [], {"manifest_hash": "x"})
+    assert cast(dict[str, Any], empty["scenario_pass"])["rate"] is None
 
 
 def test_no_output_file_holds_reply_text(tmp_path: Path) -> None:

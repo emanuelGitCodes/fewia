@@ -6,7 +6,7 @@ from dataclasses import asdict
 from typing import cast
 
 from app.agent import chat_loop
-from app.domain import catalog
+from app.domain import catalog, meal_tags
 from app.evaluation_baseline_response import BASELINE_SYSTEM_PROMPT
 
 _CONFIG_KEYS = frozenset({"max_tokens", "temperature", "reasoning_effort"})
@@ -74,6 +74,16 @@ def catalog_snapshot() -> dict[str, object]:
                 catalog.INGREDIENTS.values(), key=lambda item: item.id
             )
         ],
+        "meal_tags": {
+            rid: list(meal_tags.MEAL_TAGS[rid]) for rid in sorted(meal_tags.MEAL_TAGS)
+        },
+        "meal_diets": {
+            rid: list(meal_tags.MEAL_DIETS[rid]) for rid in sorted(meal_tags.MEAL_DIETS)
+        },
+        "tag_thresholds": {
+            "high_protein_g": meal_tags.HIGH_PROTEIN_G,
+            "lower_carb_g": meal_tags.LOWER_CARB_G,
+        },
     }
     return _copy_object(snapshot)
 

@@ -20,6 +20,10 @@ describe("SEARCH_TERMS", () => {
     [["keto", "low carb", "lowcarb", "low-carb"], withTag("lower_carb")],
     [["carnivore", "meat"], withTag("chicken")],
     [["gf", "gluten free", "gluten-free", "celiac"], withTag("gluten_free_ingredients")],
+    [
+      ["dairy free", "dairy-free", "non-dairy", "nondairy"],
+      withTag("dairy_free_ingredients"),
+    ],
     [["plant based", "plant-based"], RECIPE_ORDER.filter((id) => RECIPES[id].diets.includes("vegan"))],
     [["veggie"], RECIPE_ORDER.filter((id) => RECIPES[id].diets.includes("vegetarian"))],
     [["protein"], withTag("high_protein")],
@@ -38,7 +42,7 @@ describe("SEARCH_TERMS", () => {
 
   it("is read from the backend search terms in their order", () => {
     expect(Object.keys(SEARCH_TERMS)).toEqual(Object.keys(CATALOG_SEARCH_TERMS));
-    expect(Object.keys(SEARCH_TERMS)).toHaveLength(14);
+    expect(Object.keys(SEARCH_TERMS)).toHaveLength(18);
     for (const [term, { target, note }] of Object.entries(CATALOG_SEARCH_TERMS)) {
       expect(SEARCH_TERMS[term].target).toBe(target);
       expect(SEARCH_TERMS[term].note).toBe(note ?? undefined);

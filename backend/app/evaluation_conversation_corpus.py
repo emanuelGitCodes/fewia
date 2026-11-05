@@ -1,4 +1,4 @@
-"""Strict loader for the conversation-eval-v1 corpus.
+"""Strict loader for the conversation-eval-v1.4 corpus.
 
 This suite is separate from the frozen grocery-eval-v1 matrix. It holds data and
 validation only; no runner lives here.
@@ -26,7 +26,7 @@ from app.domain.catalog import CATALOG_VERSION
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.evaluation_budget_inputs import fixture_budget
 
-CORPUS_ERROR = "corpus MUST match the conversation-eval-v1 contract"
+CORPUS_ERROR = "corpus MUST match the conversation-eval-v1.4 contract"
 MAX_MEALS = 3
 
 
@@ -87,7 +87,7 @@ def _registered_tool_names() -> frozenset[str]:
 
 
 TOOL_NAMES = _registered_tool_names()
-SCENARIO_IDS = tuple(f"C{number:02}" for number in range(1, 13))
+SCENARIO_IDS = tuple(f"C{number:02}" for number in range(1, 20))
 
 
 def _known_tool(name: str) -> str:
@@ -121,7 +121,21 @@ class Gold(_Model):
     tool: ToolName
     input: dict[StrictStr, object]
     path: Annotated[StrictStr, Field(min_length=1)]
-    value: StrictBool | StrictInt | StrictStr
+    value: StrictBool | StrictInt | StrictStr | None = None
+    reference: StrictBool = False
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.reference:
+            if (
+                self.tool != "search_meals"
+                or self.path != "recipe_ids"
+                or self.value is not None
+            ):
+                raise ValueError(CORPUS_ERROR)
+        elif self.value is None:
+            raise ValueError(CORPUS_ERROR)
+        return self
 
 
 class Expect(_Model):
@@ -155,7 +169,7 @@ class Scenario(_Model):
     @model_validator(mode="after")
     def _check(self) -> Self:
         if (
-            not 1 <= len(self.plan.meals) <= MAX_MEALS
+            len(self.plan.meals) > MAX_MEALS
             or self.plan.plan_cap_cents != self.inputs.plan_cap_cents
         ):
             raise ValueError(CORPUS_ERROR)
@@ -171,7 +185,7 @@ class Scenario(_Model):
 
 
 class ConversationCorpus(_Model):
-    version: Literal["conversation-eval-v1"]
+    version: Literal["conversation-eval-v1.4"]
     repeats: Literal[3]
     catalog_version: StrictStr
     scenarios: list[Scenario]

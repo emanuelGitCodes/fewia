@@ -12,6 +12,9 @@ from app.domain.meal_tags import (
     KETO_NOTE,
     MEAL_DIETS,
     MEAL_TAGS,
+    PROTEIN_TAGS,
+    TAG_ORDER,
+    UNCHECKED_DIET,
     normalize_term,
     resolve_ingredient,
     resolve_meal_term,
@@ -20,24 +23,55 @@ from app.services.meal_nutrition import meal_nutrition
 
 TOOL_NAME = "search_meals"
 _DIETS = ("omnivore", "vegetarian", "vegan")
-_UI_ONLY_TERMS = ("meat", "carnivore")
 _STOPWORDS = frozenset(
     "a an the and or with for of to me some something meal meals dinner lunch "
     "breakfast recipe recipes idea ideas please want need i my".split()
 )
 _NEGATIONS = frozenset({"without", "no"})
 _ARTICLES = frozenset({"a", "an", "the", "some"})
-_KEYS = {"query", "diet", "exclude", "min_protein_g", "max_cents_per_serving", "limit"}
+_KEYS = {
+    "query",
+    "diet",
+    "tags",
+    "exclude",
+    "min_protein_g",
+    "max_cents_per_serving",
+    "limit",
+    "offset",
+}
 DISCOVERY_ERROR = (
     "I cannot find meals from those inputs. "
     "Name a catalog meal type, diet, and exact ingredients to exclude."
 )
-_SAFETY = (
-    "High protein means 30 g or more protein per serving. "
-    "Lower carb means 30 g or less carbohydrate per serving. "
-    "Gluten-free ingredients describes the ingredients only. "
-    "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+_GLUTEN_FREE = "Gluten-free ingredients describes the ingredients only."
+_CAVEATS = {
+    "high_protein": "High protein means 30 g or more protein per serving.",
+    "lower_carb": "Lower carb means 30 g or less carbohydrate per serving.",
+    "gluten_free_ingredients": _GLUTEN_FREE,
+    "dairy_free_ingredients": "Dairy-free ingredients describes the ingredients only.",
+}
+_CANNOT_CLAIM = (
+    "I cannot claim gluten-free, dairy-free, celiac, allergy, or cross-contact safety."
 )
+_SAFETY = " ".join([*_CAVEATS.values(), _CANNOT_CLAIM])
+_FACET_DIETS = ("vegetarian", "vegan")
+_FACETS = (*TAG_ORDER, *_FACET_DIETS)
+_INGREDIENT_TAGS = tuple(tag for tag, _ in PROTEIN_TAGS)
+_TAG_TYPES = tuple(f for f in _FACETS if f not in _INGREDIENT_TAGS)
+_LABELS = {
+    "gluten_free_ingredients": "gluten-free ingredients",
+    "dairy_free_ingredients": "dairy-free ingredients",
+}
+_SUPPORTED_LABELS = [
+    _LABELS.get(f, f.replace("_", " "))
+    for f in (
+        *(t for t in TAG_ORDER if t not in _INGREDIENT_TAGS),
+        *_FACET_DIETS,
+        *_INGREDIENT_TAGS,
+    )
+]
+*_FIRST, _LAST = _SUPPORTED_LABELS
+_CAN_SEARCH = f"I can search by: {', '.join(_FIRST)}, or {_LAST}."
 _NO_MATCH = (
     "No catalog meal matches that search. Try a meal type, an ingredient, or a diet."
 )
@@ -45,6 +79,7 @@ _UNKNOWN_EXCLUSION = (
     "I could not match an ingredient to exclude, so I did not search. "
     "Name the ingredient another way."
 )
+_NO_MORE = "There are no more matching meals."
 _BAD = "arguments are invalid"
 
 
@@ -61,13 +96,12 @@ def catalog_tool_spec() -> dict[str, object]:
         "toolSpec": {
             "name": TOOL_NAME,
             "description": (
-                "Search catalog meals by free text, such as a meal, ingredient, "
-                "or tag. Returns up to three recipe IDs and the words that "
-                "matched nothing. max_cents_per_serving is the sample grocery "
-                "cost for one serving, in whole packages. "
-                "Put exclusions in exclude, not query. "
+                "Search catalog meals by type. "
+                "Every result has every type in query and tags. "
+                "max_cents_per_serving is the sample grocery cost for one "
+                "serving, in whole packages. Exclusions go in exclude. "
                 "Not for a meal the user names or has in the plan. "
-                "Ask before planning an alternative; plan_groceries validates."
+                "plan_groceries validates."
             ),
             "inputSchema": {
                 "json": {
@@ -75,6 +109,11 @@ def catalog_tool_spec() -> dict[str, object]:
                     "properties": {
                         "query": {"type": "string", "minLength": 1, "maxLength": 120},
                         "diet": {"type": "string", "enum": list(_DIETS)},
+                        "tags": {
+                            "type": "array",
+                            "uniqueItems": True,
+                            "items": {"type": "string", "enum": list(_TAG_TYPES)},
+                        },
                         "exclude": {
                             "type": "array",
                             "maxItems": 22,
@@ -87,6 +126,7 @@ def catalog_tool_spec() -> dict[str, object]:
                         "min_protein_g": _number(0, 200),
                         "max_cents_per_serving": _number(1, 10000),
                         "limit": _number(1, 3),
+                        "offset": _number(0, 39),
                     },
                     "required": ["query"],
                     "additionalProperties": False,
@@ -136,7 +176,7 @@ def _units(words: list[str]) -> list[str]:
     while i < len(words):
         pair = words[i : i + 2]
         phrase = " ".join(pair)
-        if len(pair) == 2 and _target(phrase) is not None:
+        if len(pair) == 2 and resolve_meal_term(phrase) is not None:
             units.append(phrase)
             i += 2
         else:
@@ -145,21 +185,28 @@ def _units(words: list[str]) -> list[str]:
     return list(dict.fromkeys(units))
 
 
-def _target(unit: str) -> str | None:
-    if set(unit.split()) & set(_UI_ONLY_TERMS):
-        return None
-    return resolve_meal_term(unit)
-
-
 def _matches(unit: str, recipe_id: str) -> bool:
     if " " not in unit and _stem(unit) in _meal_words(recipe_id):
         return True
-    target = _target(unit)
+    target = resolve_meal_term(unit)
     return target is not None and (
         target == "omnivore"
         or target in MEAL_TAGS[recipe_id]
         or target in MEAL_DIETS[recipe_id]
     )
+
+
+def _facet(unit: str) -> str | None:
+    target = resolve_meal_term(unit)
+    return target if target in _FACETS else None
+
+
+def _has_facet(facet: str, recipe_id: str) -> bool:
+    return facet in MEAL_TAGS[recipe_id] or facet in MEAL_DIETS[recipe_id]
+
+
+def _has_word(word: str, recipe_id: str) -> bool:
+    return _stem(word) in _meal_words(recipe_id)
 
 
 @cache
@@ -206,6 +253,16 @@ def _names(value: object) -> list[str]:
     return names
 
 
+def _tags(value: object) -> list[str]:
+    if not isinstance(value, list) or len(value) > 10:
+        raise CatalogToolError(_BAD)
+    if not all(isinstance(t, str) and t in _TAG_TYPES for t in value):
+        raise CatalogToolError(_BAD)
+    if len(set(value)) != len(value):
+        raise CatalogToolError(_BAD)
+    return [f for f in _TAG_TYPES if f in value]
+
+
 def execute_catalog_search(arguments: object) -> dict[str, object]:
     if not isinstance(arguments, dict) or not {"query"} <= set(arguments) <= _KEYS:
         raise CatalogToolError(_BAD)
@@ -219,20 +276,43 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
     min_protein = _int(arguments.get("min_protein_g"), 0, 200, True)
     max_cents = _int(arguments.get("max_cents_per_serving"), 1, 10000, True)
     limit = _int(arguments.get("limit", 3), 1, 3)
+    offset = _int(arguments.get("offset", 0), 0, 39)
     names = _names(arguments.get("exclude", []))
-    if not query or diet not in _DIETS or limit is None:
+    tags = _tags(arguments.get("tags", []))
+    if not query or diet not in _DIETS or limit is None or offset is None:
         raise CatalogToolError(_BAD)
     resolved = {name: resolve_ingredient(name) for name in names}
     unresolved = sorted(name for name, found in resolved.items() if found is None)
     excluded = {found for found in resolved.values() if found is not None}
     units, negated = _parse(query)
-    unmatched = [
+    unmatched_units = [
         u for u in units if not any(_matches(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
-    unmatched = list(dict.fromkeys([*unmatched, *negated]))
-    scores: dict[str, int] = {}
-    for rid in () if unresolved else SUPPORTED_RECIPE_IDS:
-        if diet not in ("omnivore", *MEAL_DIETS[rid]):
+    unmatched = list(dict.fromkeys([*unmatched_units, *negated]))
+    query_facets = {f for u in units if (f := _facet(u)) is not None}
+    facets = query_facets | ({diet} - {"omnivore"}) | set(tags)
+    applied = [f for f in _FACETS if f in facets]
+    unsupported = list(
+        dict.fromkeys(
+            m.group()
+            for m in UNCHECKED_DIET.finditer(query)
+            if resolve_meal_term(m.group()) is None
+        )
+    )
+    words = [
+        u
+        for u in units
+        if _facet(u) is None and any(_has_word(u, r) for r in SUPPORTED_RECIPE_IDS)
+    ]
+    unrestricted_query = any(resolve_meal_term(u) == "omnivore" for u in units)
+    searchable = bool(facets or words or unrestricted_query)
+    unknown_open_query = (
+        unrestricted_query and not (facets or words) and bool(unmatched_units)
+    )
+    eligible: list[str] = []
+    blocked = unresolved or unsupported or not searchable or unknown_open_query
+    for rid in () if blocked else SUPPORTED_RECIPE_IDS:
+        if not all(_has_facet(f, rid) for f in applied):
             continue
         if excluded.intersection(item for item, _ in RECIPES[rid].ingredients):
             continue
@@ -242,32 +322,44 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
             cents = _serving_cents(rid)
             if cents is None or cents > max_cents:
                 continue
-        score = sum(_matches(u, rid) for u in units)
-        if score:
-            scores[rid] = score
-
-    def rank(rid: str) -> tuple[int, int]:
-        return -scores[rid], -_protein_g(rid) if min_protein is not None else 0
-
-    ids = sorted(scores, key=rank)[:limit]
-    status = "unknown_exclusion" if unresolved else "ok" if ids else "no_match"
+        eligible.append(rid)
+    found_ids = [r for r in eligible if all(_has_word(w, r) for w in words)]
+    dropped: list[str] = []
+    if not found_ids and facets and eligible:
+        found_ids, dropped = eligible, words
+    if min_protein is not None:
+        found_ids = sorted(found_ids, key=lambda r: -_protein_g(r))
+    ids = found_ids[offset : offset + limit]
+    status = "no_match"
+    if unresolved:
+        status = "unknown_exclusion"
+    elif unsupported:
+        status = "unsupported_facet"
+    elif found_ids:
+        status = "ok"
     return {
         "status": status,
         "request": {
             "query": query,
             "diet": diet,
+            "tags": tags,
             "exclude": sorted(excluded),
             "min_protein_g": min_protein,
             "max_cents_per_serving": max_cents,
             "limit": limit,
+            "offset": offset,
         },
+        "total_matches": len(found_ids),
         "recipe_ids": ids,
+        "applied": applied,
+        "dropped": dropped,
         "unmatched": unmatched,
         "unresolved_exclusions": unresolved,
+        "unsupported": unsupported,
     }
 
 
-def catalog_answer(payload: dict[str, object]) -> str:
+def _revalidated(payload: dict[str, object]) -> dict[str, object] | None:
     request = payload.get("request")
     unresolved = payload.get("unresolved_exclusions")
     if (
@@ -280,24 +372,140 @@ def catalog_answer(payload: dict[str, object]) -> str:
     try:
         validated = execute_catalog_search(request)
     except CatalogToolError:
-        return DISCOVERY_ERROR
-    if payload != validated:
+        return None
+    return validated if payload == validated else None
+
+
+def page_arguments(value: object) -> dict[str, object] | None:
+    try:
+        found = execute_catalog_search(value)
+    except CatalogToolError:
+        return None
+    shows_meals = found["status"] == "ok" and bool(found["recipe_ids"])
+    return cast(dict[str, object], value) if shows_meals else None
+
+
+def _search_filters(validated: dict[str, object]) -> dict[str, object]:
+    request = cast(dict[str, object], validated["request"])
+    applied = cast(list[str], validated["applied"])
+    dropped = cast(list[str], validated["dropped"])
+    terms: list[str] = []
+    for unit in _parse(cast(str, request["query"]))[0]:
+        facet = _facet(unit)
+        if facet is None and unit not in dropped:
+            if resolve_meal_term(unit) == "omnivore" or any(
+                _has_word(unit, r) for r in SUPPORTED_RECIPE_IDS
+            ):
+                terms.append(unit)
+        elif facet is not None and facet in _INGREDIENT_TAGS:
+            terms.append(facet)
+    filters: dict[str, object] = {
+        "query": " ".join(dict.fromkeys(terms)) or "meals",
+        "diet": request["diet"],
+        "tags": [f for f in applied if f in _TAG_TYPES],
+        "exclude": request["exclude"],
+    }
+    for key in ("min_protein_g", "max_cents_per_serving"):
+        if request[key] is not None:
+            filters[key] = request[key]
+    return filters
+
+
+def search_identity(arguments: object) -> dict[str, object] | None:
+    if not isinstance(arguments, dict):
+        return None
+    page = {k: v for k, v in arguments.items() if k not in ("offset", "limit")}
+    try:
+        found = execute_catalog_search(page)
+    except CatalogToolError:
+        return None
+    if found["status"] in ("unknown_exclusion", "unsupported_facet"):
+        return None
+    if found["dropped"]:
+        return None
+    request = cast(dict[str, object], found["request"])
+    query = cast(str, request["query"])
+    if any(word in _NEGATIONS for word in re.findall(r"[a-z]+", query)):
+        return None
+    units, _ = _parse(query)
+    words = {
+        _stem(unit)
+        for unit in units
+        if _facet(unit) is None
+        and any(_has_word(unit, rid) for rid in SUPPORTED_RECIPE_IDS)
+    }
+    if not words and not found["applied"]:
+        unrestricted = any(resolve_meal_term(unit) == "omnivore" for unit in units)
+        if not unrestricted or found["unmatched"]:
+            return None
+    filters = _search_filters(found)
+    filters["query"] = " ".join(sorted(words)) or "meals"
+    filters["tags"] = found["applied"]
+    return {k: v for k, v in filters.items() if k != "diet"}
+
+
+def next_search_arguments(payload: dict[str, object]) -> dict[str, object] | None:
+    validated = _revalidated(payload)
+    if validated is None or validated["status"] != "ok":
+        return None
+    request = cast(dict[str, object], validated["request"])
+    shown = cast(list[str], validated["recipe_ids"])
+    offset = cast(int, request["offset"])
+    if offset + len(shown) >= cast(int, validated["total_matches"]):
+        return None
+    arguments = {
+        **_search_filters(validated),
+        "limit": request["limit"],
+        "offset": offset + len(shown),
+    }
+    if page_arguments(arguments) is None:
+        return None
+    try:
+        same = execute_catalog_search({**arguments, "offset": offset})
+    except CatalogToolError:
+        return None
+    keys = ("status", "applied", "total_matches", "recipe_ids")
+    return arguments if all(same[k] == validated[k] for k in keys) else None
+
+
+def catalog_choices(payload: dict[str, object]) -> list[str]:
+    validated = _revalidated(payload)
+    if validated is None or validated["status"] != "ok":
+        return []
+    return list(cast(list[str], validated["recipe_ids"]))
+
+
+def catalog_answer(payload: dict[str, object]) -> str:
+    validated = _revalidated(payload)
+    if validated is None:
         return DISCOVERY_ERROR
     if validated["status"] == "unknown_exclusion":
         return _UNKNOWN_EXCLUSION
+    if validated["status"] == "unsupported_facet":
+        texts = ", ".join(cast(list[str], validated["unsupported"]))
+        return f"I cannot check {texts} in this catalog. {_CAN_SEARCH}"
     if validated["status"] == "no_match":
         return _NO_MATCH
     request = cast(dict[str, object], validated["request"])
     chosen = cast(list[str], validated["recipe_ids"])
-    targets = {_target(u) for u in _parse(cast(str, request["query"]))[0]}
+    if not chosen:
+        return _NO_MORE
+    applied = cast(list[str], validated["applied"])
+    dropped = cast(list[str], validated["dropped"])
     notes = []
-    if "lower_carb" in targets and all("lower_carb" in MEAL_TAGS[r] for r in chosen):
+    if "lower_carb" in applied and all("lower_carb" in MEAL_TAGS[r] for r in chosen):
         notes.append(KETO_NOTE)
-    if "chicken" in targets and all("chicken" in MEAL_TAGS[r] for r in chosen):
+    if "chicken" in applied and all("chicken" in MEAL_TAGS[r] for r in chosen):
         notes.append(CARNIVORE_NOTE)
+    if dropped:
+        notes.append(f"No meal with those types also matched: {', '.join(dropped)}.")
     names = []
     for rid in chosen:
         name = rid.replace("_", " ")
         names.append(name[0].upper() + name[1:])
     lead = f"Catalog choices: {', '.join(names)}. Which one should I plan?"
-    return " ".join([lead, *notes, _SAFETY])
+    total = cast(int, validated["total_matches"])
+    if cast(int, request["offset"]) + len(chosen) < total:
+        lead += f" {total} meals match. Ask for more to see the next ones."
+    caveats = [_CAVEATS[f] for f in applied if f in _CAVEATS]
+    return " ".join([lead, *notes, *caveats, _CANNOT_CLAIM])

@@ -373,8 +373,17 @@ def test_catalog_answer_is_grounded(query: str, note: str | None) -> None:
     assert verdict.ok, (answer, verdict)
 
 
+def test_catalog_more_matches_sentence_is_grounded() -> None:
+    payload = execute_catalog_search({"query": "vegetarian", "limit": 1})
+    answer = catalog_answer(payload)
+    assert f"{payload['total_matches']} meals match. Ask for more" in answer
+    verdict = validate(answer, facts_from_payloads([(TOOL_NAME, payload)]))
+    assert verdict.ok and not verdict.unmatched, (answer, verdict)
+
+
 def test_catalog_server_notes_only_ground_for_the_search_tool() -> None:
-    payload = execute_catalog_search({"query": "tacos"})
+    payload = execute_catalog_search({"query": "high protein"})
+    assert "high_protein" in payload["applied"]
     verdict = validate(catalog_answer(payload), facts_from_payloads([("t", payload)]))
     assert verdict.unmatched == ("30",)
 
@@ -829,7 +838,7 @@ def test_unicode_dashes_and_spaces_are_normalized() -> None:
 def test_only_the_exact_server_safety_sentence_is_exempt() -> None:
     reply = "I cannot claim gluten-free status, but these tacos are gluten-free."
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
-    sentence = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+    sentence = catalog_tool._CANNOT_CLAIM
     assert validate(sentence, FactSet()).ok
     assert not validate(f"{sentence} These tacos are gluten-free.", FactSet()).ok
     assert not validate(sentence.replace("celiac", "coeliac"), FactSet()).ok
@@ -976,6 +985,529 @@ def test_kroger_fails_with_store_price() -> None:
 )
 def test_forbidden_claims_fail(reply: str) -> None:
     assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+def test_dairy_free_is_rejected_with_letter_spacing() -> None:
+    verdict = validate("This meal is d-a-i-r-y-f-r-e-e.", FactSet())
+    assert not verdict.ok
+    assert "forbidden_claim" in verdict.reasons
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "This meal is non-dairy.",
+        "This meal is nondairy.",
+        "This meal is NON dairy.",
+        "This recipe uses non-dairy yogurt.",
+        "This recipe uses **non** **dairy** yogurt.",
+        "This recipe uses _non_dairy_ yogurt.",
+        "This recipe uses n.o.n d.a.i.r.y yogurt.",
+        "This recipe uses n o n d a i r y yogurt.",
+        "This meal contains no dairy.",
+        "This meal contains-no-dairy.",
+        "This meal has **no dairy**.",
+        "This meal has n.o d.a.i.r.y.",
+        "This meal has n o d a i r y.",
+        "This meal contains no_dairy.",
+        "This meal has _no dairy_.",
+        "This meal does not contain dairy.",
+        "This meal doesn't contain dairy.",
+        "Chicken tacos don't contain dairy.",
+        "Chicken tacos do not contain dairy.",
+        "Chicken tacos are free from all dairy.",
+        "This meal is free of dairy.",
+        "This meal is free.of.dairy.",
+        "This meal is free of any dairy.",
+        "This meal is free of all dairy.",
+        "This meal is free from dairy.",
+        "This meal is free-from-any dairy.",
+        "This meal is without dairy.",
+        "This meal is without any dairy.",
+        "This meal is without any dairy ingredients.",
+        "No dairy is used in this meal.",
+        "No dairy.",
+        "NO-DAIRY.",
+        "**No** **dairy**.",
+        "_No_ _dairy_.",
+        "N o d a i r y.",
+        "n-o-d-a-i-r-y.",
+        "n_o_d_a_i_r_y.",
+        "**n** **o** **d** **a** **i** **r** **y**.",
+        "This meal is non-\ndairy.",
+        "This meal is milk-free.",
+        "This meal is milk free.",
+        "This meal is milk.free.",
+        "This meal is milk-\nfree.",
+        "This meal is m-i-l-k-f-r-e-e.",
+        "This milk_free meal has no dairy.",
+    ],
+)
+def test_dairy_absence_claims_fail(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "This meal is _milk-free_.",
+        "This meal is __milk-free__.",
+        "_milk-free_.",
+        "__milk-free__.",
+        "This meal is _milk_ _free_.",
+        "This meal is _milk_-_free_.",
+        "This meal is __milk__-__free__.",
+        "This meal is _m_ _i_ _l_ _k_ _f_ _r_ _e_ _e_.",
+        "This meal is __m__ __i__ __l__ __k__ __f__ __r__ __e__ __e__.",
+        "This meal is milk_free.",
+        "milk_free.",
+        "This meal is m_i_l_k_f_r_e_e.",
+        "This meal is m.i.l.k.f.r.e.e.",
+        "This meal is m i l k f r e e.",
+        "This meal is **milk-free**.",
+        "This meal is (milk-free).",
+        "This meal is [milk-free]!",
+        'This meal is "milk-free".',
+        "This meal is milk/free.",
+    ],
+)
+def test_formatted_milk_free_claims_fail(reply: str) -> None:
+    verdict = validate(reply, FactSet())
+    assert not verdict.ok
+    assert verdict.reasons == ("forbidden_claim",)
+    assert verdict.unmatched == ()
+
+
+@pytest.mark.parametrize(
+    ("subject", "negation"),
+    [
+        ("This meal", "does not"),
+        ("This meal", "doesn't"),
+        ("This meal", "doesn’t"),
+        ("Chicken tacos", "do not"),
+        ("Chicken tacos", "don't"),
+        ("Chicken tacos", "don’t"),
+    ],
+)
+@pytest.mark.parametrize("verb", ["contain", "include", "have", "use"])
+@pytest.mark.parametrize("quantifier", ["", "any "])
+def test_dairy_absence_verbs_fail(
+    subject: str, negation: str, verb: str, quantifier: str
+) -> None:
+    reply = f"{subject} {negation} {verb} {quantifier}dairy."
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    ("subject", "negation"),
+    [
+        ("This meal", "has not"),
+        ("This meal", "hasn't"),
+        ("Chicken tacos", "have not"),
+        ("Chicken tacos", "haven't"),
+    ],
+)
+@pytest.mark.parametrize("got", ["", "got "])
+@pytest.mark.parametrize("quantifier", ["", "any "])
+def test_dairy_absence_have_forms_fail(
+    subject: str, negation: str, got: str, quantifier: str
+) -> None:
+    reply = f"{subject} {negation} {got}{quantifier}dairy."
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    ("subject", "negation"),
+    [
+        ("This meal", "is not"),
+        ("This meal", "isn't"),
+        ("This meal", "isn’t"),
+        ("Chicken tacos", "are not"),
+        ("Chicken tacos", "aren't"),
+        ("Chicken tacos", "aren’t"),
+    ],
+)
+@pytest.mark.parametrize("verb", ["made", "prepared", "cooked"])
+@pytest.mark.parametrize("preposition", ["with", "from"])
+@pytest.mark.parametrize(
+    ("tail", "expected_reasons"),
+    [
+        ("dairy.", ("forbidden_claim",)),
+        ("any dairy.", ("forbidden_claim",)),
+        ("all dairy ingredients.", ()),
+    ],
+)
+def test_negated_dairy_preparation_claims(
+    subject: str,
+    negation: str,
+    verb: str,
+    preposition: str,
+    tail: str,
+    expected_reasons: tuple[str, ...],
+) -> None:
+    reply = f"{subject} {negation} {verb} {preposition} {tail}"
+    assert validate(reply, FactSet()).reasons == expected_reasons
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "THIS MEAL IS NOT MADE WITH ANY DAIRY.",
+        "This meal **isn't made with dairy**.",
+        "Chicken tacos are-not-prepared-from-any-dairy.",
+        "Chicken tacos a.r.e.n.’.t c.o.o.k.e.d f.r.o.m d.a.i.r.y.",
+        "This meal isn’t made\nwith\tany dairy.",
+        "Not prepared from dairy.",
+        "This garlic knot is not made with dairy.",
+        "This garlic knot is not prepared with dairy.",
+        "This garlic knot is not cooked with dairy.",
+        "This garlic knot is **not made with dairy**.",
+        "This garlic knot is n.o.t m.a.d.e w.i.t.h d.a.i.r.y.",
+        "This garlic knot is n o t p r e p a r e d w i t h d a i r y.",
+        "This garlic knot is NOT-COOKED-WITH-DAIRY.",
+    ],
+)
+def test_formatted_negated_dairy_preparation_claims_fail(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize("verb", ["made", "prepared", "cooked"])
+@pytest.mark.parametrize("preposition", ["with", "from"])
+def test_dairy_preparation_controls_remain_permitted(
+    verb: str, preposition: str
+) -> None:
+    for reply in (
+        f"This meal is {verb} {preposition} dairy.",
+        f"Chicken tacos are {verb} {preposition} dairy.",
+        f"This meal is not {verb} {preposition} garlic. It contains dairy.",
+        f"Chicken tacos aren’t {verb} {preposition} garlic and contain dairy.",
+    ):
+        assert validate(reply, FactSet()).ok, reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Chicken tacos do not contain all dairy ingredients.",
+        "Chicken tacos don't contain all dairy ingredients.",
+        "Chicken tacos don’t contain all dairy ingredients.",
+        "This meal does not contain all dairy ingredients.",
+        "This meal doesn't contain all dairy ingredients.",
+        "This meal doesn’t contain all dairy ingredients.",
+        "Chicken tacos do not include all dairy.",
+        "This meal doesn't include all dairy.",
+        "Chicken tacos don't have all dairy.",
+        "This meal does not have all dairy.",
+        "Chicken tacos do not use all dairy.",
+        "This meal doesn't use all dairy.",
+        "This meal has not got all dairy.",
+        "This meal hasn't got all dairy.",
+        "Chicken tacos have not got all dairy.",
+        "Chicken tacos haven't got all dairy.",
+        "This meal has not all dairy.",
+        "This meal hasn't all dairy.",
+        "Chicken tacos have not all dairy.",
+        "Chicken tacos haven't all dairy.",
+        "This meal is without all dairy.",
+        "Chicken tacos are without all dairy.",
+        "Chicken tacos are without all dairy ingredients.",
+    ],
+)
+def test_partial_quantified_dairy_statements_remain_permitted(reply: str) -> None:
+    assert validate(reply, FactSet()).ok
+
+
+def test_only_the_exact_dairy_ingredient_caveat_is_exempt() -> None:
+    exact = "Dairy-free ingredients describes the ingredients only."
+    assert validate(exact, FactSet()).ok
+    assert validate(
+        "Dairy-free ingredients describe the ingredients only.", FactSet()
+    ).reasons == ("forbidden_claim",)
+    assert validate("This meal uses dairy-free ingredients.", FactSet()).reasons == (
+        "forbidden_claim",
+    )
+    for claim in (
+        "Chicken tacos don't contain dairy.",
+        "Chicken tacos do not contain dairy.",
+        "Chicken tacos are free from all dairy.",
+        "This meal is not made with dairy.",
+        "Chicken tacos aren’t prepared from any dairy.",
+    ):
+        assert validate(f"{exact} {claim}", FactSet()).reasons == ("forbidden_claim",)
+        assert validate(f"{claim} {exact}", FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Milk is listed as an ingredient.",
+        "Dairy is listed as an ingredient.",
+        "A meal can contain dairy.",
+        "This recipe contains milk and cheese.",
+        "This meal includes dairy.",
+        "The ingredient list names yogurt.",
+        "Dairy does not mean only milk.",
+        "These dishes do not establish whether dairy is present.",
+        "Milk is not always the only dairy ingredient.",
+        "This meal does not contain garlic. It contains dairy.",
+        "Chicken tacos don't contain garlic. Dairy is listed as an ingredient.",
+    ],
+)
+def test_dairy_presence_and_ingredient_text_remain_permitted(reply: str) -> None:
+    assert "forbidden_claim" not in validate(reply, FactSet()).reasons
+
+
+def test_milk_freezes_is_not_mistaken_for_a_milk_free_claim() -> None:
+    assert validate("Milk freezes when chilled.", FactSet()).ok
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "_Milk_ _freezes_ when chilled.",
+        "__Milk__ __freezes__ when chilled.",
+        "**Milk** **freezes** when chilled.",
+        "Milk_freezes when chilled.",
+        "Milk/freezes when chilled.",
+        "_M_ _i_ _l_ _k_ freezes when chilled.",
+        "M.i.l.k freezes when chilled.",
+        "M i l k freezes when chilled.",
+    ],
+)
+def test_formatted_milk_freezing_text_remains_permitted(reply: str) -> None:
+    assert validate(reply, FactSet()).ok, reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "This recipe contains oregano, dairy, and rice.",
+        "This recipe contains oregano dairy and rice.",
+        "This recipe contains oregano; dairy; rice.",
+        "The ingredients are oregano/dairy/rice.",
+        "This recipe contains oregano. Dairy is listed as an ingredient.",
+        "This recipe contains **oregano**, **dairy**, and rice.",
+        "This recipe contains _oregano_, _dairy_, and rice.",
+        "This recipe contains OREGANO, DAIRY, and rice.",
+        "This recipe contains oregano,\ndairy, and rice.",
+        "This recipe uses Dannon dairy yogurt.",
+        "This recipe uses **Dannon** _dairy_ yogurt.",
+        "A garlic knot made with dairy butter.",
+        "A garlic knot prepared with dairy butter.",
+        "A garlic knot cooked with dairy butter.",
+        "A garlic **knot** made with **dairy** butter.",
+        "This recipe contains Romano, dairy, and rice.",
+        "This recipe contains poblano, dairy, and rice.",
+        "This recipe contains jalapeño, dairy, and rice.",
+        "No garlic. Dairy is listed as an ingredient.",
+        "**No.** Dairy is listed as an ingredient.",
+        "**Milk.** **Free** delivery is available.",
+        "No : Dairy is listed as an ingredient.",
+        "Milk : Free delivery is available.",
+        "**No** . **Dairy** is listed as an ingredient.",
+        "_Milk_ : _Free_ delivery is available.",
+        "**No**. **Dairy** is listed as an ingredient.",
+        "_Milk_. _Free_ delivery is available.",
+        '"No". "Dairy" is listed as an ingredient.',
+        "No?! Dairy is listed as an ingredient.",
+        "No... Dairy is listed as an ingredient.",
+    ],
+)
+def test_ingredient_and_dairy_text_keep_their_word_boundaries(reply: str) -> None:
+    assert validate(reply, FactSet()).ok, reply
+
+
+@pytest.mark.parametrize("punctuation", list(".,;:!?") + ["?!", "..."])
+@pytest.mark.parametrize("whitespace", [" ", "  ", "\n", "\n\n", "\t"])
+@pytest.mark.parametrize(
+    ("lead", "tail"),
+    [
+        ("No", "Dairy is listed as an ingredient."),
+        ("**No**", "**Dairy** is listed as an ingredient."),
+        ("_No_", "_Dairy_ is listed as an ingredient."),
+        ('"No"', '"Dairy" is listed as an ingredient.'),
+        ("Milk", "Free delivery is available."),
+        ("Milk", "**Free** delivery is available."),
+        ("It is not", "Made with dairy butter, the sauce contains milk."),
+        ("Delivery is free", "From dairy ingredients, the recipe uses milk."),
+        ("Delivery is free", "Of dairy ingredients, milk is listed."),
+        ("This meal contains no", "Dairy is listed as an ingredient."),
+        ("This meal does not contain", "Dairy is listed as an ingredient."),
+        ("This meal has not got", "Dairy is listed as an ingredient."),
+        ("This meal is without", "Dairy is listed as an ingredient."),
+        ("This meal is not prepared", "From dairy ingredients, milk is listed."),
+        ("This meal is not cooked", "With dairy butter, the sauce contains milk."),
+    ],
+)
+def test_new_dairy_aliases_stop_at_clause_boundaries(
+    lead: str, tail: str, punctuation: str, whitespace: str
+) -> None:
+    reply = f"{lead}{punctuation}{whitespace}{tail}"
+    assert validate(reply, FactSet()) == Verdict(True, (), (), False)
+
+
+@pytest.mark.parametrize("apostrophe", ["'", "’"])
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "{lead}. {tail}",
+        "{lead}, {tail}",
+        "{lead}; {tail}",
+        "{lead}: {tail}",
+        "{lead}! {tail}",
+        "{lead}? {tail}",
+        "{lead}?! {tail}",
+        "{lead}... {tail}",
+        "{lead}  :\t{tail}",
+        "{lead}.\n{tail}",
+        "**{lead}.** **{tail}**",
+        "**{lead}** . **{tail}**",
+        "_{lead}_ : _{tail}_",
+        '"{lead}." "{tail}"',
+    ],
+)
+@pytest.mark.parametrize(
+    ("lead", "tail"),
+    [
+        ("This meal doesn't", "Include dairy."),
+        ("Chicken tacos don't", "Contain dairy."),
+        ("This meal hasn't", "Got dairy butter."),
+        ("Chicken tacos haven't", "Got dairy butter."),
+        ("This meal isn't", "Made with dairy butter."),
+        ("Chicken tacos aren't", "Cooked from dairy butter."),
+    ],
+)
+def test_contracted_dairy_aliases_stop_at_clause_boundaries(
+    lead: str, tail: str, layout: str, apostrophe: str
+) -> None:
+    reply = layout.format(lead=lead.replace("'", apostrophe), tail=tail)
+    assert validate(reply, FactSet()) == Verdict(True, (), (), False)
+
+
+@pytest.mark.parametrize("apostrophe", ["'", "’"])
+@pytest.mark.parametrize("separator", [" ", "\n", "-\n", "_", "/", ".", "** **"])
+@pytest.mark.parametrize(
+    ("lead", "tail"),
+    [
+        ("This meal doesn't", "include dairy."),
+        ("Chicken tacos don't", "contain dairy."),
+        ("This meal hasn't", "got dairy butter."),
+        ("Chicken tacos haven't", "got dairy butter."),
+        ("This meal isn't", "made with dairy butter."),
+        ("Chicken tacos aren't", "cooked from dairy butter."),
+    ],
+)
+def test_contracted_dairy_claims_keep_no_boundary_formats(
+    lead: str, tail: str, separator: str, apostrophe: str
+) -> None:
+    lead = lead.replace("'", apostrophe)
+    reply = f"{lead}{separator}{tail}"
+    assert validate(reply, FactSet()) == Verdict(False, ("forbidden_claim",), (), False)
+
+
+@pytest.mark.parametrize("separator", [*".,;:!?", "\n", "-\n", "_", "/", "** **"])
+@pytest.mark.parametrize(
+    ("lead", "tail"),
+    [
+        ("No", "Dairy."),
+        ("Milk", "Free."),
+        ("This meal is free", "of dairy."),
+        ("This meal does not", "contain dairy."),
+        ("This meal hasn't got", "dairy."),
+        ("This meal is without", "dairy."),
+        ("This meal is not", "made with dairy."),
+    ],
+)
+def test_new_dairy_aliases_keep_no_gap_and_line_break_formats(
+    lead: str, tail: str, separator: str
+) -> None:
+    reply = f"{lead}{separator}{tail}"
+    assert validate(reply, FactSet()) == Verdict(False, ("forbidden_claim",), (), False)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "n.o d.a.i.r.y.",
+        "n.o. d.a.i.r.y.",
+        "n.o.n. d.a.i.r.y.",
+        "n'o. d.a.i.r.y.",
+        "m'i'l'k. f.r.e.e.",
+        "m.i.l.k f.r.e.e.",
+        "m.i.l.k. f.r.e.e.",
+        "This meal is n.o.t. m.a.d.e. w.i.t.h. d.a.i.r.y.",
+        "This meal is i.s.n.t. p.r.e.p.a.r.e.d. f.r.o.m. a.n.y. d.a.i.r.y.",
+        "This meal is a.r.e.n.t. c.o.o.k.e.d. w.i.t.h. d.a.i.r.y.",
+        "This meal c.o.n.t.a.i.n.s. n.o. d.a.i.r.y.",
+        "This meal d.o.e.s. n.o.t. c.o.n.t.a.i.n. d.a.i.r.y.",
+        "This meal h.a.s. n.o.t. g.o.t. a.n.y. d.a.i.r.y.",
+        "This meal is f.r.e.e. o.f. d.a.i.r.y.",
+        "This meal is f.r.e.e. f.r.o.m. a.l.l. d.a.i.r.y.",
+        "This meal is w.i.t.h.o.u.t. a.n.y. d.a.i.r.y.",
+        "**n.o.** **d.a.i.r.y.**",
+        "_m.i.l.k._ _f.r.e.e._",
+        "This meal is **n.o.t.** **m.a.d.e.** **w.i.t.h.** **d.a.i.r.y.**",
+        "This meal is n.o.t . m.a.d.e w.i.t.h d.a.i.r.y.",
+        "_Milk_._Free_.",
+        "**No.****Dairy**.",
+    ],
+)
+def test_new_dairy_aliases_keep_single_letter_dots(reply: str) -> None:
+    assert validate(reply, FactSet()) == Verdict(False, ("forbidden_claim",), (), False)
+
+
+@pytest.mark.parametrize("punctuation", list(".,;:!?"))
+@pytest.mark.parametrize("whitespace", [" ", "\n", "\t"])
+@pytest.mark.parametrize(
+    ("lead", "claim"),
+    [
+        ("No", "This meal contains no dairy."),
+        ("Milk", "This meal is milk-free."),
+        ("No", "This meal does not contain dairy."),
+        ("Milk", "This meal is not made with dairy."),
+        ("Delivery is free", "This meal is free from all dairy."),
+    ],
+)
+def test_later_dairy_claims_fail_after_benign_clauses(
+    lead: str, claim: str, punctuation: str, whitespace: str
+) -> None:
+    reply = f"{lead}{punctuation}{whitespace}{claim}"
+    assert validate(reply, FactSet()) == Verdict(False, ("forbidden_claim",), (), False)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "The order was. Placed.",
+        "Your plan is. Now updated.",
+        "This meal is gluten.free.",
+        "No. This meal contains no dairy.",
+        "Milk. _milk-free_.",
+        "**No.** This meal contains no dairy.",
+        "**Milk.** _milk-free_.",
+        "**No** . This meal contains no dairy.",
+        "_Milk_ : _milk-free_.",
+        "This meal contains no dairy. Milk is listed as an ingredient.",
+        "This meal is milk-free. Delivery is available.",
+        "This meal doesn't include dairy. Milk is listed.",
+        "Chicken tacos don't contain dairy. Milk is listed.",
+        "This meal hasn't got dairy butter. Milk is listed.",
+        "Chicken tacos haven't got dairy butter. Milk is listed.",
+        "This meal isn't made with dairy butter. Milk is listed.",
+        "Chicken tacos aren't cooked from dairy butter. Milk is listed.",
+    ],
+)
+def test_forbidden_claims_survive_formatted_clause_boundaries(reply: str) -> None:
+    assert validate(reply, FactSet()) == Verdict(False, ("forbidden_claim",), (), False)
+
+
+@pytest.mark.parametrize("punctuation", list(".,;:!?"))
+@pytest.mark.parametrize("lead", ["Dairy", "Gluten"])
+def test_original_free_claim_rules_still_cross_clause_boundaries(
+    lead: str, punctuation: str
+) -> None:
+    reply = f"{lead}{punctuation} Free delivery is available."
+    assert validate(reply, FactSet()) == Verdict(False, ("forbidden_claim",), (), False)
 
 
 @pytest.mark.parametrize(
@@ -1461,6 +1993,15 @@ def test_catalog_static_templates_are_grounded() -> None:
     assert verdict.ok, verdict
 
 
+def test_dairy_free_prose_fails_but_the_server_catalog_answer_passes() -> None:
+    verdict = validate("This meal is dairy-free.", FactSet())
+    assert verdict.reasons == ("forbidden_claim",)
+    payload = execute_catalog_search({"query": "dairy-free meals"})
+    facts = facts_from_payloads([(TOOL_NAME, payload)])
+    verdict = validate(catalog_answer(payload), facts)
+    assert verdict.ok, verdict
+
+
 def test_number_glued_to_other_letters_fails() -> None:
     facts = _facts(price_cents=1_200, energy_kcal=2, servings=2, a=3, b=1)
     for reply in (
@@ -1506,7 +2047,7 @@ def test_server_sentences_are_exempt_only_at_a_sentence_start() -> None:
     assert validate(f"Which one? {note}", FactSet()).ok
     no_gap = validate(f"Tacos are here.{note}", FactSet())
     assert no_gap.reasons == ("forbidden_claim",)
-    claim = "I cannot claim gluten-free, celiac, allergy, or cross-contact safety."
+    claim = catalog_tool._CANNOT_CLAIM
     assert validate(f"Hello, {claim}", FactSet()).reasons == ("forbidden_claim",)
     assert validate(f"Tacos! {claim}", FactSet()).ok
 

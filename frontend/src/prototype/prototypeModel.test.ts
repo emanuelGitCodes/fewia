@@ -101,8 +101,9 @@ describe("prototype recipes", () => {
       "Chicken",
       "High protein",
       "Gluten-free ingredients",
+      "Dairy-free ingredients",
     ]);
-    expect(Object.keys(TAG_LABELS)).toHaveLength(8);
+    expect(Object.keys(TAG_LABELS)).toHaveLength(9);
   });
 
   it("maps every catalog recipe to a unique photo", () => {

@@ -1,3 +1,5 @@
+import re
+from copy import deepcopy
 from dataclasses import asdict
 from datetime import date
 from json import dumps
@@ -5,10 +7,16 @@ from typing import TypeGuard, cast, get_args
 
 from pydantic import ValidationError
 
+from app.agent.catalog_tool import (
+    CatalogToolError,
+    execute_catalog_search,
+    page_arguments,
+)
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest
+from app.domain.meal_tags import SEARCH_TERMS, TAG_ORDER, resolve_meal_term
 
 MAX_MESSAGE_LEN = 4000
 MAX_HISTORY = 8
@@ -18,8 +26,143 @@ _PREVIOUS = "previous_request is invalid"
 _CONTEXT_ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
     "; plan_meals is the user's current plan"
+    "; previous_search holds the search_meals arguments for the next page of the "
+    "last search; use them unchanged only for an explicit more request with "
+    "no new restrictions"
 )
+_PREVIOUS_SEARCH = "previous_search is invalid"
 MAX_PLAN_MEALS = 3
+_CONTINUATION = re.compile(
+    r"(?:please )?(?:(?:show|give)(?: me)? )?"
+    r"(?:more(?: (?:meals|ideas|options|choices))?|"
+    r"(?:the )?next(?: page| meals| ideas| options| choices)?)"
+    r"(?:,? please)?"
+)
+_MODIFIED_CONTINUATION = re.compile(
+    rf"{_CONTINUATION.pattern}(?:,\s*|\s+)(?:but|only|instead|without|exclude)\b"
+)
+_NEW_SEARCH_REQUEST = re.compile(
+    r"(?:please,? )?(?:(?:find|show|give)(?: me)? )?"
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
+_MORE_TYPE_REQUEST = re.compile(
+    r"(?:please,? )?(?:(?:show|give)(?: me)? )?"
+    r"(?:more ([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"|the ([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?) ones)"
+    r"(?: (?:meals|ideas|options|recipes))?"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
+_RESTART_ACTION = (
+    r"(?:(?:start (?:over|again)|restart(?: (?:the )?search)?)"
+    r"(?: (?:from|at) (?:the )?(?:first page|beginning))?"
+    r"|start (?:from|at) (?:the )?first page)"
+)
+_RESTART_REQUEST = re.compile(
+    r"(?:please,? )?(?:"
+    rf"{_RESTART_ACTION}|"
+    r"(?:(?:show|give)(?: me)? )?(?:the )?first page(?: again)?|"
+    r"(?:go (?:back )?to|back to) (?:the )?first page)"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
+_RESTART_TYPE_REQUEST = re.compile(
+    r"(?:please,? )?(?:"
+    rf"{_RESTART_ACTION} (?:with|for) "
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?|"
+    r"(?:show|give)(?: me)? (?:the )?first page of "
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?(?: again)?|"
+    r"(?:find|show|give)(?: me)? "
+    r"([a-z][a-z_-]*(?: [a-z][a-z_-]*)*?)"
+    r"(?: (?:meals|ideas|options|recipes))?"
+    r" (?:again|(?:from|at) (?:the )?first page))"
+    r"(?:[,!.?]? please)?[,!.?]*"
+)
+_MAX_MEAL_TERM_WORDS = max(
+    len(term.replace("_", " ").replace("-", " ").split())
+    for term in (*SEARCH_TERMS, *TAG_ORDER)
+)
+
+
+def _search_text(message: str) -> str:
+    text = message.strip()
+    if text.startswith("My current plan: "):
+        prefix, separator, text = text.partition("\n\n")
+        if not separator or ". Pantry: " not in prefix or ". Plan cap: " not in prefix:
+            return ""
+    return " ".join(text.casefold().strip(" .!?").split())
+
+
+def is_search_continuation(message: str) -> bool:
+    return _CONTINUATION.fullmatch(_search_text(message)) is not None
+
+
+def is_modified_search_continuation(message: str) -> bool:
+    return _MODIFIED_CONTINUATION.match(_search_text(message)) is not None
+
+
+def _meal_terms(text: str) -> bool:
+    words = text.split()
+    while words:
+        for size in range(min(len(words), _MAX_MEAL_TERM_WORDS), 0, -1):
+            if resolve_meal_term(" ".join(words[:size])) is not None:
+                words = words[size:]
+                break
+        else:
+            return False
+    return True
+
+
+def more_type_query(message: str) -> str | None:
+    request = _MORE_TYPE_REQUEST.fullmatch(_search_text(message))
+    terms = None if request is None else request.group(1) or request.group(2)
+    return terms if terms and _meal_terms(terms) else None
+
+
+def restart_type_query(message: str) -> str | None:
+    request = _RESTART_TYPE_REQUEST.fullmatch(_search_text(message))
+    if request is None:
+        return None
+    terms = next(term for term in request.groups() if term is not None)
+    if _meal_terms(terms):
+        return terms
+    try:
+        found = execute_catalog_search({"query": terms})
+    except CatalogToolError:
+        return None
+    return (
+        terms
+        if found["status"] == "ok"
+        and not any(found[key] for key in ("unmatched", "unsupported", "dropped"))
+        else None
+    )
+
+
+def is_search_restart(message: str) -> bool:
+    return (
+        _RESTART_REQUEST.fullmatch(_search_text(message)) is not None
+        or restart_type_query(message) is not None
+    )
+
+
+def is_new_search_request(message: str) -> bool:
+    request = _NEW_SEARCH_REQUEST.fullmatch(_search_text(message))
+    if request is not None and _meal_terms(request.group(1)):
+        return True
+    return (
+        more_type_query(message) is not None or restart_type_query(message) is not None
+    )
+
+
+def validated_previous_search(
+    value: dict[str, object] | None,
+) -> dict[str, object] | None:
+    search = None if value is None else page_arguments(value)
+    if value is not None and search is None:
+        raise ChatProtocolError(_PREVIOUS_SEARCH)
+    return deepcopy(search)
 
 
 def plan_ingredient_ids(plan: object) -> list[str] | None:
@@ -132,6 +275,7 @@ def build_messages(
     history: list[dict[str, str]] | None = None,
     plan_cap_cents: int | None = None,
     plan_meals: list[dict[str, object]] | None = None,
+    previous_search: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     if (
         not _public_text(message)
@@ -155,6 +299,7 @@ def build_messages(
     ):
         raise ChatProtocolError(_PREVIOUS)
     meals = _plan_meals(plan_meals)
+    search = validated_previous_search(previous_search)
     messages = _history(history)
     context = dumps(
         {
@@ -164,6 +309,7 @@ def build_messages(
             "plan_cap_cents": plan_cap_cents,
             "plan_meals": meals,
             "previous_request": previous,
+            "previous_search": search,
             "previous_ingredient_ids": (
                 None
                 if previous_ingredient_ids is None

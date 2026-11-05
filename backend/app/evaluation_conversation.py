@@ -1,4 +1,4 @@
-"""Run conversation-eval-v1 and emit hash-only observation records.
+"""Run conversation-eval-v1.4 and emit hash-only observation records.
 
 A record holds the tool trace, the validator verdict, usage, latency, and the
 reply's SHA-256. It never holds the reply text, the model's raw text, or the
@@ -12,6 +12,11 @@ from time import perf_counter
 from uuid import UUID
 
 from app.agent import chat_loop
+from app.agent.catalog_tool import (
+    CatalogToolError,
+    execute_catalog_search,
+    page_arguments,
+)
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
@@ -73,13 +78,21 @@ def _payloads(
 
 
 def _present(gold: Gold, payloads: list[tuple[object, object]]) -> bool:
+    expected: object = gold.value
+    if gold.reference:
+        try:
+            expected = _lookup(execute_catalog_search(gold.input), gold.path)
+        except CatalogToolError:
+            return False
+        if expected is _MISSING:
+            return False
     for name, payload in payloads:
         got = _lookup(payload, gold.path)
         if (
             name == gold.tool
             and got is not _MISSING
-            and got == gold.value
-            and type(got) is type(gold.value)
+            and got == expected
+            and type(got) is type(expected)
         ):
             return True
     return False
@@ -180,6 +193,7 @@ def _run_scenario(
     history: list[dict[str, str]] = []
     previous: dict[str, object] | None = None
     previous_ids: list[str] | None = None
+    previous_search: dict[str, object] | None = None
     for index, turn in enumerate(scenario.turns, start=1):
         apply_error: str | None = None
         if turn.apply_proposal_before:
@@ -209,6 +223,7 @@ def _run_scenario(
                 spending_source="fixture",
                 previous_request=previous,
                 previous_ingredient_ids=previous_ids,
+                previous_search=previous_search,
                 history=history or None,
                 plan_cap_cents=inputs.plan_cap_cents,
                 plan_revision=plan,
@@ -224,6 +239,7 @@ def _run_scenario(
         )
         if result is None:
             return
+        previous_search = page_arguments(result.get("next_search"))
         ids = plan_ingredient_ids(result.get("plan"))
         previous_ids = ids if ids is not None else previous_ids
         request, answer = result.get("request"), result.get("answer")

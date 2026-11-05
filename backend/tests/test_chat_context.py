@@ -10,12 +10,19 @@ from botocore.exceptions import ParamValidationError
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
+from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.agent.chat_context import (
     MAX_HISTORY,
     MAX_MESSAGE_LEN,
     build_messages,
+    is_modified_search_continuation,
+    is_new_search_request,
+    is_search_continuation,
+    is_search_restart,
+    more_type_query,
     plan_ingredient_ids,
     read_usage,
+    restart_type_query,
 )
 from app.agent.chat_messages import ChatProtocolError
 from app.domain.budget import BudgetResult
@@ -27,6 +34,9 @@ _SECRET = "do-not-echo-raw-input"
 _ROLE = (
     "previous_request is prior state; apply latest explicit additions and removals"
     "; plan_meals is the user's current plan"
+    "; previous_search holds the search_meals arguments for the next page of the "
+    "last search; use them unchanged only for an explicit more request with "
+    "no new restrictions"
 )
 
 
@@ -109,8 +119,10 @@ def test_followup_history_appends_current_user_and_context() -> None:
         "plan_cap_cents",
         "plan_meals",
         "previous_request",
+        "previous_search",
         "previous_ingredient_ids",
     }
+    assert payload["previous_search"] is None
     assert payload["plan_cap_cents"] is None
     assert payload["plan_meals"] is None
     assert payload["previous_ingredient_ids"] is None
@@ -148,6 +160,297 @@ def test_plan_meals_reach_the_context_in_order() -> None:
     )
     assert single["plan_meals"] == [{"recipe_id": "bean_tacos", "servings": 2}]
     assert _context(build_messages("hi", budget(), PERIOD))["plan_meals"] is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["more", "MORE!", "more meals, please", "Show me more options.", "next page"],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_explicit_more_accepts_the_client_plan_prefix(
+    message: str, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert is_search_continuation(f"{prefix if prefixed else ''}{message}")
+    assert not is_modified_search_continuation(f"{prefix if prefixed else ''}{message}")
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "more vegan meals",
+        "more protein",
+        "more, but vegan",
+        "more, but no eggs",
+        "more, but without chicken",
+        "more, but omnivore",
+        "more only vegan",
+        "more instead omnivore",
+        "more exclude chicken",
+        "next page without rice",
+        "show me more under $5",
+        "how much more budget do I have?",
+        "find chicken meals instead",
+        "more rice onion",
+        "My current plan: more",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_changed_searches_are_not_plain_continuations(
+    message: str, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert not is_search_continuation(f"{prefix if prefixed else ''}{message}")
+
+
+@pytest.mark.parametrize(
+    ("message", "modified"),
+    [
+        ("more, but vegan", True),
+        ("more, but without chicken", True),
+        ("more, but omnivore", True),
+        ("more only vegan", True),
+        ("more instead omnivore", True),
+        ("more without chicken", True),
+        ("more exclude chicken", True),
+        ("show me more options, but vegan", True),
+        ("please give me more choices, please, only vegan", True),
+        ("next page without rice", True),
+        ("  MORE,\tBUT vegan!  ", True),
+        ("more protein", False),
+        ("more vegan meals", False),
+        ("morebut vegan", False),
+        ("more butternut squash", False),
+        ("more onlyish vegan", False),
+        ("what is my remaining budget?", False),
+        ("what is in bean tacos?", False),
+        ("thanks", False),
+        ("how much protein is in my meal", False),
+        ("My current plan: more, but vegan", False),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_continuation_modifiers_use_the_user_body(
+    message: str, modified: bool, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert (
+        is_modified_search_continuation(f"{prefix if prefixed else ''}{message}")
+        is modified
+    )
+
+
+@pytest.mark.parametrize(
+    ("message", "restart", "query"),
+    [
+        ("Start over from the first page", True, None),
+        ("Show the first page again", True, None),
+        ("Start over.", True, None),
+        ("Please, start over from the first page!", True, None),
+        ("Start over from the first page, please.", True, None),
+        ("SHOW THE FIRST PAGE AGAIN!", True, None),
+        ("Please give me the first page again.", True, None),
+        ("First page, please.", True, None),
+        ("Go back to the first page.", True, None),
+        ("Please start from the first page.", True, None),
+        ("Start at the first page, please!", True, None),
+        ("Go to the first page.", True, None),
+        ("Restart the search.", True, None),
+        ("Start again at the beginning.", True, None),
+        ("Start over with vegan meals.", True, "vegan"),
+        (
+            "Please, start over from the first page with vegan meals!",
+            True,
+            "vegan",
+        ),
+        (
+            "Show me the first page of gluten free meals again, please.",
+            True,
+            "gluten free",
+        ),
+        ("Show the first page of gluten-free meals", True, "gluten-free"),
+        ("Show the first page of celiac meals", True, "celiac"),
+        (
+            "Show the first page of gluten free ingredients meals",
+            True,
+            "gluten free ingredients",
+        ),
+        (
+            "Find high protein vegetarian meals from the first page.",
+            True,
+            "high protein vegetarian",
+        ),
+        ("Show vegan meals again", True, "vegan"),
+        ("Show me the first page of rice onion meals.", True, "rice onion"),
+        ("Show me the first page of onion rice meals.", True, "onion rice"),
+        (
+            "Please, start over from the first page with rice onion meals!",
+            True,
+            "rice onion",
+        ),
+        ("Restart the search for rice onion recipes, please.", True, "rice onion"),
+        ("Start again at the beginning with rice onion meals.", True, "rice onion"),
+        ("Show rice onion meals again.", True, "rice onion"),
+        ("Find rice onion ideas from the first page.", True, "rice onion"),
+        ("Give me rice meals at the first page, please!", True, "rice"),
+        ("Start over with onion meals.", True, "onion"),
+        ("Please show the first page of pasta recipes again!", True, "pasta"),
+        ("What is my budget at the start of the month?", False, None),
+        ("Show my budget first.", False, None),
+        ("Start with my budget.", False, None),
+        ("What is in my first meal?", False, None),
+        ("Show my first meal again.", False, None),
+        ("Show the first page of my plan.", False, None),
+        ("First show me my meal.", False, None),
+        ("Find vegan meals and start over.", False, None),
+        ("Show the first page again and my budget.", False, None),
+        ("Restart my meal.", False, None),
+        ("More vegetarian.", False, None),
+        ("My current plan: start over", False, None),
+        ("Show the first page of unsupported meals", False, None),
+        ("Start over with unsupported meals", False, None),
+        ("Show me the first page of zqxsentinel meals.", False, None),
+        ("Show me the first page of rice zqxsentinel meals.", False, None),
+        ("Start over with zqxsentinel onion meals.", False, None),
+        ("Find rice zqxsentinel meals again.", False, None),
+        ("Show the first page of paleo rice meals.", False, None),
+        ("Show the first page of gluten free zqxsentinel meals.", False, None),
+        ("Show the first page of gluten free paleo meals.", False, None),
+        ("Find gluten free pasta meals from the first page.", False, None),
+        ("Show me the first page of rice onion meals and my budget.", False, None),
+        ("What is in my rice meal?", False, None),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_search_restarts_use_bounded_forms_in_the_user_body(
+    message: str, restart: bool, query: str | None, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    full_message = f"{prefix if prefixed else ''}{message}"
+    assert is_search_restart(full_message) is restart
+    assert restart_type_query(full_message) == query
+    if restart:
+        assert not is_search_continuation(full_message)
+        assert not is_modified_search_continuation(full_message)
+
+
+@pytest.mark.parametrize(
+    ("message", "new_search"),
+    [
+        ("Find vegan meals", True),
+        ("vegan", True),
+        ("chicken", True),
+        ("omnivore", True),
+        ("gluten free", True),
+        ("egg", True),
+        ("beans", True),
+        ("lentils", True),
+        ("chickpeas", True),
+        ("Find high protein vegetarian meals.", True),
+        ("gluten free ingredients vegetarian", True),
+        ("show me chicken options, please!", True),
+        ("Please, give me plant-based recipes.", True),
+        ("Find omnivore ideas", True),
+        ("  SHOW\tvegan meals! Please.  ", True),
+        ("more vegan", True),
+        ("More gluten free meals, please", True),
+        ("show me more vegan meals", True),
+        ("Show me the vegan ones", True),
+        ("show me the gluten free ones please", True),
+        ("Start over with vegan meals", True),
+        ("Show the first page of vegetarian meals", True),
+        ("Find gluten free meals from the first page", True),
+        ("Show the first page of gluten-free meals", True),
+        ("Show the first page of celiac meals", True),
+        ("Show me the first page of rice onion meals.", True),
+        ("Restart the search for onion meals.", True),
+        ("Start over from the first page", False),
+        ("Show the first page again", False),
+        ("more meals", False),
+        ("show me more options", False),
+        ("more please", False),
+        ("more xyzzy", False),
+        ("more butternut squash", False),
+        ("more vegan for my plan", False),
+        ("How much protein is in my meal?", False),
+        ("Is my current meal vegan?", False),
+        ("what is in chicken tacos?", False),
+        ("what is my remaining budget?", False),
+        ("thanks", False),
+        ("more", False),
+        ("more, but vegan", False),
+        ("Find unsupported meals", False),
+        ("Show me the first page of rice zqxsentinel meals.", False),
+        ("Find gluten free pasta meals from the first page.", False),
+        ("Show the first page of paleo rice meals.", False),
+        ("Show the first page of gluten free zqxsentinel meals.", False),
+        ("Show the first page of gluten free paleo meals.", False),
+        ("rice onion", False),
+        ("more rice onion", False),
+        ("Find vegan meals for my plan", False),
+        ("My current plan: vegan", False),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_explicit_type_requests_use_the_user_body(
+    message: str, new_search: bool, prefixed: bool
+) -> None:
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    assert is_new_search_request(f"{prefix if prefixed else ''}{message}") is new_search
+
+
+@pytest.mark.parametrize(
+    ("message", "query"),
+    [
+        ("more vegan", "vegan"),
+        ("Show me more gluten free meals, please", "gluten free"),
+        ("show me the vegan ones", "vegan"),
+        ("more", None),
+        ("more meals", None),
+        ("more, but vegan", None),
+        ("more without chicken", None),
+        ("more rice onion", None),
+        ("vegan", None),
+    ],
+)
+def test_more_type_query_returns_the_meal_terms_of_the_request(
+    message: str, query: str | None
+) -> None:
+    assert more_type_query(message) == query
+
+
+def test_checked_search_context_keeps_every_facet_and_offset() -> None:
+    found = execute_catalog_search(
+        {
+            "query": "gluten free",
+            "diet": "vegetarian",
+            "exclude": ["eggs"],
+            "min_protein_g": 0,
+            "max_cents_per_serving": 10000,
+            "limit": 3,
+        }
+    )
+    search = next_search_arguments(found)
+    assert search is not None and search["offset"] == 3
+    original = copy.deepcopy(search)
+    messages = build_messages("more", budget(), PERIOD, previous_search=search)
+    assert _context(messages)["previous_search"] == original
+    search["tags"] = []
+    assert _context(messages)["previous_search"] == original
+
+
+@pytest.mark.parametrize(
+    "search",
+    [
+        {"query": "meals", "tags": ["unknown"]},
+        {"query": "vegetarian", "offset": 40},
+        {"query": "vegetarian", "offset": True},
+        {"query": "zqxsentinel"},
+    ],
+)
+def test_invalid_restored_search_is_rejected(search: dict[str, object]) -> None:
+    with pytest.raises(ChatProtocolError, match="previous_search is invalid"):
+        build_messages("more", budget(), PERIOD, previous_search=search)
 
 
 @pytest.mark.parametrize(

@@ -137,6 +137,8 @@ def build_chat_result(
     reply_source: str = "template",
     reply_check: dict[str, object] | None = None,
     proposal_id: str | None = None,
+    choices: list[str] | None = None,
+    next_search: dict[str, object] | None = None,
 ) -> dict[str, object]:
     keep = (
         candidate if status in {"planned", "needs_revision", "clarification"} else None
@@ -162,4 +164,8 @@ def build_chat_result(
     }
     if proposal_id is not None:
         result["proposal_id"] = proposal_id
+    if choices:
+        result["choices"] = [{"recipe_id": rid} for rid in choices]
+    if next_search is not None:
+        result["next_search"] = next_search
     return result

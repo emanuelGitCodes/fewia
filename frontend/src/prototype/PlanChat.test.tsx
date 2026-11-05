@@ -50,17 +50,14 @@ function chatJob(
     answer,
     plan: null,
     budget: null,
-    request:
-      status === "clarification"
-        ? null
-        : {
-            meals,
-            budget_period: "2026-09-01",
-            plan_cap_cents: null,
-            pantry_ingredients: [],
-            ingredient_exclusions: [],
-            diet: "omnivore",
-          },
+    request: {
+      meals,
+      budget_period: "2026-09-01",
+      plan_cap_cents: null,
+      pantry_ingredients: [],
+      ingredient_exclusions: [],
+      diet: "omnivore",
+    },
     meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
@@ -378,6 +375,36 @@ describe("PlanChat", () => {
     expect(onToggleIdea).toHaveBeenCalledWith("chickpea_curry", 2, false);
   });
 
+  it("shows the egg meal named in a planned answer instead of its request meal", async () => {
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-1", "planned", "Egg fried rice fits your request.", [
+        { recipe_id: "chicken_tacos", servings: 3 },
+      ]);
+      jobState.job = {
+        ...job,
+        result: { ...job.result, choices: [{ recipe_id: "egg_fried_rice" }] } as ChatResult,
+      };
+    });
+    mount();
+    await submitText("Suggest an egg meal");
+    expect(screen.getByText("Egg fried rice fits your request.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Egg fried rice" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Chicken tacos" })).toBeNull();
+  });
+
+  it("shows idea cards for the choices of a clarification reply", async () => {
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-1", "clarification", "Three dinners to pick from.");
+      const choices = ["chickpea_curry", "egg_fried_rice", "lentil_soup"].map((recipe_id) => ({ recipe_id }));
+      jobState.job = { ...job, result: { ...job.result, choices } as ChatResult };
+    });
+    const { onToggleIdea } = mount();
+    await submitText("Something for dinner");
+    expect(screen.getAllByRole("article")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: /^Add Egg fried rice, 2 servings/ }));
+    expect(onToggleIdea).toHaveBeenCalledWith("egg_fried_rice", 2, false);
+  });
+
   it("shows the Kroger quote under the reply and passes the store id to the job", async () => {
     const quote = {
       kind: "store_live", ingredient_id: "rice", product_label: "Long grain rice", brand: null,
@@ -520,6 +547,18 @@ describe("PlanChat", () => {
     expect(screen.queryByText(SAMPLE_ESTIMATE_NOTICE)).toBeNull();
   });
 
+  it("shows no idea cards for a clarification with request meals and no choices", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "clarification", "Which meals?", [
+        { recipe_id: "chickpea_curry", servings: 2 },
+      ]);
+    });
+    mount();
+    await submitText("Plan dinner");
+    expect(screen.getByText("Which meals?")).toBeTruthy();
+    expect(screen.queryByRole("article")).toBeNull();
+  });
+
   it("shows the failure line and Retry for a failed request, and retries the same body", async () => {
     jobState.submit.mockImplementation(async () => {
       jobState.job = { id: "job-1", status: "failed", result: null, error_code: "tool" };
@@ -540,10 +579,14 @@ describe("PlanChat", () => {
   });
 
   it.each(["limit", "incomplete"] as const)(
-    "shows the failure line and Ask again for a %s result and hides its answer",
+    "shows the failure line and Ask again for a %s result and hides its answer and choices",
     async (status) => {
       jobState.submit.mockImplementation(async () => {
-        jobState.job = chatJob("job-1", status, "Internal turn limit text.");
+        const job = chatJob("job-1", status, "Internal turn limit text.");
+        jobState.job = {
+          ...job,
+          result: { ...job.result, choices: [{ recipe_id: "egg_fried_rice" }] } as ChatResult,
+        };
       });
       mount();
       await submitText("Cheap dinner");
@@ -551,6 +594,7 @@ describe("PlanChat", () => {
       expect(screen.queryByText("Internal turn limit text.")).toBeNull();
       expect(screen.getByRole("button", { name: "Ask again" })).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+      expect(screen.queryByRole("article")).toBeNull();
     },
   );
 

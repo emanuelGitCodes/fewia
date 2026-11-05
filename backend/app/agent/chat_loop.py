@@ -11,12 +11,28 @@ from app.agent.budget_tool import (
     budget_summary_answer,
     budget_tool_spec,
 )
-from app.agent.catalog_tool import DISCOVERY_ERROR, catalog_tool_spec
+from app.agent.catalog_tool import (
+    DISCOVERY_ERROR,
+    catalog_choices,
+    catalog_tool_spec,
+    next_search_arguments,
+    search_identity,
+)
 from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
 )
 from app.agent.chat_answer import render_public_answer
-from app.agent.chat_context import build_messages, sum_usage
+from app.agent.chat_context import (
+    build_messages,
+    is_modified_search_continuation,
+    is_new_search_request,
+    is_search_continuation,
+    is_search_restart,
+    more_type_query,
+    restart_type_query,
+    sum_usage,
+    validated_previous_search,
+)
 from app.agent.chat_dispatch import EvidenceRecorder, dispatch
 from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
 from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
@@ -120,8 +136,8 @@ SYSTEM_PROMPT = (
     "high_protein means 30 g or more protein per serving. "
     "lower_carb means 30 g or less carbohydrate per serving. "
     "No meal in this catalog is keto. No meal is strictly carnivore. "
-    "gluten_free_ingredients describes the ingredients only. "
-    "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe. "
+    "gluten_free_ingredients and dairy_free_ingredients describe the ingredients only. "
+    "You MUST NOT call a meal gluten-free, dairy-free, celiac-safe, or allergy-safe. "
     "Call get_plan for the plan's totals and prices. "
     "Call get_meal to read one catalog meal's ingredients and macros. "
     "To compare a swap or a smaller or larger portion of one ingredient, "
@@ -167,6 +183,23 @@ def _tool_use_history(calls: list[msgs.ToolCall]) -> dict[str, object]:
         for call in calls
     ]
     return {"role": "assistant", "content": content}
+
+
+def _checked_search_call(
+    call: msgs.ToolCall,
+    cursor: dict[str, object],
+    identity: dict[str, object] | None,
+    restart: bool,
+) -> msgs.ToolCall:
+    # A repeat of the saved search runs the saved page; any other search starts at 0.
+    if call.name != CATALOG_TOOL_NAME:
+        return call
+    repeated = identity is not None and search_identity(call.tool_input) == identity
+    if repeated and not restart:
+        return call._replace(tool_input=deepcopy(cursor))
+    if call.tool_input.get("offset", 0) != 0:
+        return call._replace(tool_input={**call.tool_input, "offset": 0})
+    return call
 
 
 def _end_status(candidate: dict[str, object] | None) -> str:
@@ -221,6 +254,7 @@ def run_chat(
     | None = None,
     model_prose: bool = False,
     propose: Propose | None = None,
+    previous_search: dict[str, object] | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -230,6 +264,7 @@ def run_chat(
         spending_source=spending_source,
         previous_request=previous_request,
         previous_ingredient_ids=previous_ingredient_ids,
+        previous_search=previous_search,
         history=history,
         plan_cap_cents=plan_cap_cents,
         plan_meals=None
@@ -239,7 +274,61 @@ def run_chat(
             for meal in plan_revision.snapshot.meals
         ],
     )
-    meal_type = names_meal_type(message)
+    saved_search = validated_previous_search(previous_search)
+    cursor_identity = None if saved_search is None else search_identity(saved_search)
+    typed = more_type_query(message)
+    same_type = (
+        typed is not None
+        and cursor_identity is not None
+        and search_identity({"query": typed}) == cursor_identity
+    )
+    restart_query = restart_type_query(message)
+    restart_types = (
+        None if restart_query is None else search_identity({"query": restart_query})
+    )
+    cursor_types = (
+        None
+        if saved_search is None or restart_query is None
+        else search_identity(
+            {
+                key: value
+                for key, value in saved_search.items()
+                if key in ("query", "diet", "tags")
+            }
+        )
+    )
+    cursor_query_identity = (
+        None
+        if saved_search is None or restart_query is None
+        else search_identity({"query": saved_search["query"]})
+    )
+    same_restart_type = restart_types is not None and (
+        restart_types in (cursor_types, cursor_query_identity)
+        or (
+            cursor_types is not None
+            and restart_types["query"] == cursor_types["query"]
+            and isinstance(restart_tags := restart_types["tags"], list)
+            and isinstance(cursor_tags := cursor_types["tags"], list)
+            and bool(restart_tags)
+            and all(tag in cursor_tags for tag in restart_tags)
+        )
+    )
+    restart = is_search_restart(message) and (
+        restart_query is None or same_restart_type
+    )
+    continuation = is_search_continuation(message) or same_type
+    modified_continuation = is_modified_search_continuation(message)
+    new_search = is_new_search_request(message) and not (same_type or restart)
+    if restart and saved_search is not None:
+        saved_search = {**saved_search, "offset": 0}
+    retained_search = None if modified_continuation or new_search else saved_search
+    meal_type = (
+        continuation
+        or modified_continuation
+        or new_search
+        or restart
+        or names_meal_type(message)
+    )
     seen: set[str] = set()
     trace: list[dict[str, object]] = []
     candidate: dict[str, object] | None = None
@@ -334,9 +423,15 @@ def run_chat(
         plan: dict[str, object] | None,
         reply_source: str = "template",
         reply_check: dict[str, object] | None = None,
+        public: bool = False,
     ) -> dict[str, object]:
+        # Only a public answer holds the catalog reply that rest() renders.
+        shown = (
+            public and catalog_batch and discovery is not None and not discovery_failed
+        )
         if pending_results is not None and observe_terminal_tool_results is not None:
             observe_terminal_tool_results(pending_results)
+        found = discovery if shown else None
         result = msgs.build_chat_result(
             status,
             answer,
@@ -348,6 +443,8 @@ def run_chat(
             reply_source=reply_source,
             reply_check=reply_check,
             proposal_id=proposal_id,
+            choices=catalog_choices(found) if found else None,
+            next_search=next_search_arguments(found) if found else retained_search,
         )
         result["usage"] = usage
         return result
@@ -403,9 +500,12 @@ def run_chat(
                 ):
                     gate = "not_final"
                 if not model_prose:
-                    return out(status, answer(), candidate)
+                    return out(status, answer(), candidate, public=True)
                 if gate is not None:
-                    return out(status, answer(), candidate, "template", {"gate": gate})
+                    shown_gate: dict[str, object] = {"gate": gate}
+                    return out(
+                        status, answer(), candidate, "template", shown_gate, True
+                    )
                 verdict = grounding.validate(
                     text, grounding.facts_from_payloads(run_payloads)
                 )
@@ -416,7 +516,7 @@ def run_chat(
                     "gate": "clean",
                 }
                 if not verdict.ok:
-                    return out(status, answer(), candidate, "template", check)
+                    return out(status, answer(), candidate, "template", check, True)
                 reply = grounding.normalize(text).strip()
                 stale = budget.stale or any(_has_stale(p) for _, p in run_payloads)
                 if stale and STALE_SPENDING_WARNING not in reply:
@@ -427,6 +527,29 @@ def run_chat(
             return out("incomplete", _INCOMPLETE, None, "template", reason)
         if not calls:
             raise msgs.ChatProtocolError("assistant message is invalid")
+        if (continuation or restart) and saved_search is not None:
+            calls = [
+                msgs.ToolCall(call.tool_use_id, call.name, deepcopy(saved_search))
+                if call.name == CATALOG_TOOL_NAME
+                else call
+                for call in calls
+            ]
+        elif any(call.name == CATALOG_TOOL_NAME for call in calls):
+            retained_search = None
+            if continuation:
+                return out(
+                    "clarification",
+                    render_public_answer(None, meal_type=True),
+                    None,
+                    "template",
+                    why("clarification"),
+                )
+            if saved_search is not None:
+                reset = modified_continuation or new_search
+                calls = [
+                    _checked_search_call(call, saved_search, cursor_identity, reset)
+                    for call in calls
+                ]
         messages.append(_tool_use_history(calls))
         blocks: list[dict[str, object]] = []
         batch_ok = True
@@ -514,7 +637,7 @@ def run_chat(
             return out("limit", _LIMIT, None, "template", why("limit"))
         if batch_ok and candidate is not None and _end_status(candidate) == "planned":
             reason = why("planned_terminal")
-            return out("planned", answer(), candidate, "template", reason)
+            return out("planned", answer(), candidate, "template", reason, True)
         if (
             batch_ok
             and candidate is None
@@ -524,5 +647,5 @@ def run_chat(
             and discovery is not None
         ):
             reason = why("discovery_terminal")
-            return out("clarification", answer(), None, "template", reason)
+            return out("clarification", answer(), None, "template", reason, True)
     return out("limit", _LIMIT, None, "template", why("limit"))

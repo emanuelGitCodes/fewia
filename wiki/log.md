@@ -4796,3 +4796,326 @@ The review model (`claude-opus-5-5`) approved `54cd4494`. The backend
 gates passed (11,989 tests) with 56 added code lines. Whether Nova calls
 `search_meals` on the new prompt sentence is not measured. No live
 provider call is made.
+
+## 2026-10-31: Build meal search by type, items 2 to 8b
+
+These items build `docs/design/meal-search.md` on one stack branch,
+`claude/meal-search-stack`, for one pull request.
+
+- **02.** Every meal type in a search is a hard AND filter. With zero
+  results, the search drops text words, never a type. The reply shows only
+  the caveats of the applied types.
+- **06.** Each ingredient states `contains_gluten`; unknown swap foods
+  pass True. The meal tags, diets, and thresholds enter `catalog_hash`.
+- **03.** `search_meals` takes typed `tags` (five types that are not
+  ingredients). A diet label that the catalog cannot check returns
+  `unsupported_facet` and names the types it can check. The agent maps
+  "meat" and "carnivore" to chicken, as the meal picker does.
+- **08.** The search returns `total_matches` and takes `offset`.
+- **04, 05.** The chat result carries checked `choices`, and the chat
+  shows meal cards for them.
+- **08b.** The result stores `next_search`; the next turn checks it and
+  puts it in the model context as `previous_search`, so "more" continues
+  the same search.
+- **07.** The conversation suite is `conversation-eval-v1.1` with six
+  meal-type scenarios, C13 to C18. Every gold value comes from the tool.
+
+The review model (`claude-opus-5-5`) approved each item head. Items 02
+and 03 ran at tier L; the probes caught every mutation except one that
+cannot change a result. No live Nova batch ran.
+
+## 2026-11-01: Repair PR 469 mixed-result cards
+
+Luna at `xhigh` wrote item 03 on the PR 469 repair branch.
+Checked search choices now supply cards for planned and needs-revision replies.
+The request-meal fallback keeps its original servings when choices are absent.
+At `67e5f021`, 69 focused tests and all frontend gates passed.
+Four new assertions failed against the original source.
+Sol independently approved that item. The browser showed all three egg cards
+and added Egg fried rice. Mobile overflow was zero, with no page errors.
+
+## 2026-11-01: Restore PR 469 omnivore search
+
+Luna at `xhigh` wrote item 04. Omnivore-only queries search the catalog.
+Canonical cursors retain that intent and preserve explicit filters.
+At `a05aa4f8`, 133 focused tests and all backend gates passed:
+12,093 tests passed, one skipped, and one warning.
+Five new cases failed against the original source.
+Sol independently approved the item. The full traversal visits all forty recipes once.
+
+## 2026-11-01: Strengthen PR 469 conversation evaluation
+
+Terra at `xhigh` wrote item 02. The conversation corpus is v1.2.
+C18 requires the gluten ingredient constraint. C16 checks search pages across a budget turn.
+The runner validates each result cursor before passing it to the next turn.
+The separate frozen grocery corpus stays unchanged.
+At `9c1b22cb`, 108 focused tests and all backend gates passed:
+12,097 tests passed, one skipped, and one warning.
+Luna independently approved the item. Reverting the runner failed three cursor tests;
+restoring the old C18 gold failed both wrong-query tests.
+The initial gate found one formatting error; the corrected commit passed all gates.
+
+The CLI ledger for items 02, 03, and 04 records 4,468,457 input tokens,
+57,628 output tokens, and 509.017 seconds across writers and item reviews.
+These counters do not include native coordination or the later combined review.
+The owner selected the three writer models and permitted `xhigh`.
+Terra used the documented temporary model registry. No global setting changed.
+
+## 2026-11-01: Preserve PR 469 checked search continuation
+
+Sol at `xhigh` wrote item 01 at `7ad40b15`.
+Pure continuation uses the complete checked cursor before tool history and dispatch.
+Ordinary replies retain it. Exhausted searches and explicit modifiers cannot revive it.
+Cursorless searches return neutral text. Stored cursor restoration returns a checked copy.
+The isolated focused suite passed 749 tests, with one warning.
+Ruff, formatting, and strict mypy passed.
+The first full gate found one stale context instruction assertion outside the owned files;
+the other 12,383 backend tests passed, with one skip and one warning.
+In disposable checks, the old loop failed 124 continuation cases and ten retention cases.
+Removing only modifier invalidation failed 112 cases.
+
+## 2026-11-01: Correct the PR 469 modifier test fixture
+
+Item 05 corrects a starting search fixture after the junior's two repair rounds closed.
+Astra diagnosed the unsupported `meals` query. Luna at `xhigh` changed only that
+starting parameter to `gluten free`, which the coordinator verified has 28 matches.
+The chicken variant and all assertions remain. The intentionally suppressed model query stays unchanged.
+The earlier fixture failures used unknown beef, a supported keto alias, and a query with no search terms.
+The final 749-test focused run includes the corrected starting fixture.
+
+## 2026-11-01: Align the PR 469 job context assertion
+
+Luna at `xhigh` wrote item 06. The job-handler test now expects the deliberate
+explicit-more instruction. Its exact-value assertion and other checks remain.
+The affected test, Ruff, and formatting passed.
+The integrated source passes eleven deterministic probes for paging, fallback,
+exhaustion, modifiers, omnivore search, and the two gluten-gold counterexamples.
+The repair record is `docs/reviews/pr-469-repairs.md`.
+
+Before the combined review, the six item ledgers record 8,411,498 input tokens,
+106,704 output tokens, and 1,672.462 summed CLI seconds.
+These counters include writers and item reviews. They exclude native coordination
+and the later combined review; the loop ledger records that final review separately.
+The owner approved six additional Nova chat turns after local checks.
+Publication and merge remain outside this local repair authorization.
+
+## 2026-11-01: Clear the PR 469 cursor for a new meal type
+
+A probe after the first combined approval found another stale-state case.
+A chicken search, a no-tool `Find vegan meals` reply, and `more` could return chicken.
+Item 07 clears the cursor for explicit supported type requests, including bare and
+combined types. Budget questions and ordinary reads retain the cursor.
+Sol at `xhigh` wrote the four scoped files. The supervisor stopped at exit 130 after
+the planned edits; its checkpoint remains. Usage counters are unknown.
+The focused run passed 744 tests. Ruff, formatting, and strict mypy passed.
+Commit `c8a09acacf8db01aedd66e93c567efb34ddc0ada` passed the secret hook and
+isolated backend gates: 12,484 passed, one skipped, one warning.
+Integration commit `5d18b53d` passed all nine new cursor probes and the earlier eleven probes.
+Before this patch, five new-request probes failed while four ordinary-read probes passed.
+The six additional live turns used `0c18c563`; the new guard has no live-call evidence.
+
+## 2026-11-01: Prepare the Codex repair publication for PR 469
+
+The owner authorized publication to PR 469 and verification of its hosted checks.
+The PR MUST remain open and unmerged.
+Repair revision `7b5d7b44` passed the integrated gates: 12,484 backend tests,
+one skip, one warning, and frontend lint, tests, and build.
+Astra approved that revision. Twenty behavior probes and 93 fixture turns passed.
+The publication summary credits OpenAI Codex with the repository's existing
+`Co-authored-by` trailer. GitHub resolves that identity to `codex`.
+The summary changes only this log. Hosted CI remains unverified until publication.
+
+## 2026-11-01: Repair round 1 and 2 on PR 469, and the first live conversation-eval-v1.3 batch
+
+Six read-only checks and the review found defects at `9460929c`. The review returned REQUEST_CHANGES.
+Repair round 1 adds a search identity rule: a search with the cursor's filters runs the cursor, and any other search starts at offset 0.
+It also stops a saved cursor from marking a turn as a meal-type turn. A clarification without choices shows no cards.
+The conversation suite moves to `conversation-eval-v1.3`, with literal `total_matches` golds, pinned reference pages, manifest identity, and a per-scenario pass rate.
+Repair round 2 treats a search that drops words as a new search.
+Writers were `claude-sonnet-5-5` through `dev_supervisor`. The review model was `claude-opus-5-5`.
+Head `b5032245` passed the gates (12,550 backend tests, frontend lint, tests, and build, 677 lines) and got APPROVE.
+
+The owner renewed the Bedrock session and approved a live batch.
+The batch ran 93 of 93 turns on Nova 2 Lite in `us-east-1` at `b5032245`. Artifacts are in `eval/results/artifacts/conversation-20261101/`.
+Tools passed 79 of 93, outcome 91 of 93, and gold 67 of 93. The scenario pass rate is 35 of 54 repeats.
+The meal-search scenarios C13 to C18 passed tools and outcome 27 of 27 and gold 23 of 27. C16 passed every repeat.
+C17 failed every repeat: Nova sent "dairy" as an exclusion once and switched to `diet: "vegan"` twice, so no search returned `unsupported_facet`.
+Grounding passed 9 of 39 prose attempts with 91 unsupported numbers, in the range of the earlier batches.
+Latency was 3,145 ms at p50 and 8,227 ms at p95. Cost was USD 0.004677 per turn.
+
+## 2026-11-01: Add the dairy-free ingredients type and run conversation-eval-v1.4 live
+
+The owner decided that dairy-free MUST NOT map to vegan, because a dairy-free person can eat meat or fish.
+Item 10 adds `dairy_free_ingredients` from a fail-closed allowlist of the 22 catalog ingredients. Swap foods count as dairy.
+The owner raised the prompt and tools budget from 16,500 to 17,000 characters for this item.
+Head `f21f8980` passed the gates (12,577 backend tests, 834 lines) and got APPROVE from `claude-opus-5-5`.
+
+The owner renewed the Bedrock session and approved a live batch of `conversation-eval-v1.4`.
+The batch ran 96 of 96 turns on Nova 2 Lite in `us-east-1` at `f21f8980`. Artifacts are in `eval/results/artifacts/conversation-20261101b/`.
+Tools passed 86 of 96, outcome 93 of 96, and gold 78 of 96. The scenario pass rate is 40 of 57 repeats.
+The meal-search scenarios C13 to C19 passed tools and outcome 30 of 30 and gold 29 of 30.
+C17 (paleo) returned `unsupported_facet` in every repeat. C19 (dairy-free) returned all 40 meals, chicken first, in every repeat.
+C14 (keto) failed one repeat with `no_match`, as in the v1.3 batch.
+Grounding passed 13 of 43 prose attempts with 77 unsupported numbers.
+Latency was 3,151 ms at p50 and 11,425 ms at p95. Cost was USD 0.004760 per turn.
+
+## 2026-11-01: Honor explicit search restarts on PR 469
+
+The owner authorized the three follow-up repairs, Codex attribution, publication,
+and hosted CI verification. The PR MUST remain unmerged.
+Sol at `xhigh` wrote the restart classifier and runtime changes through the supervisor.
+Restart uses the active search filters and limit at offset zero. A no-tool reply
+keeps that first page pending. A supported new type still starts its own search.
+Native commit `281ed233` passed 923 focused tests and isolated backend gates:
+12,705 passed, one skipped, one warning. Gitleaks passed.
+Integration commit `b15ab407` carries the same repair and Codex attribution.
+The root probes cover wrong offsets, omitted restrictions, frontend prefixes,
+and no-tool restart followed by more.
+
+## 2026-11-01: Canonicalize equivalent search identities on PR 469
+
+Terra at `xhigh` wrote the identity changes through the supervisor and its external model registry.
+Conjunctive query words share an identity across ordering, duplicates, and stems.
+Real filter differences remain. Unknown-only searches cannot reuse an unrestricted cursor.
+The first candidate, `65b1f3fa`, passed its gates but collided with an unknown-only query.
+The root probe caught that regression. A same-writer repair produced `3345a802`.
+That commit passed 156 focused tests and isolated backend gates:
+12,586 passed, one skipped, one warning. Gitleaks passed.
+Integration commit `a542d4db` combines the two native commits with Codex attribution.
+The combined root probes preserve both explicit restart and normal continuation.
+
+## 2026-11-01: Complete the PR 469 restart and dairy follow-ups
+
+The root probe found that the restart classifier missed supported rice/onion queries.
+The coordinator added the checked identity dependency to the restart worktree.
+The reversed-word runtime assertions remain. Newly incorrect celiac rejection
+fixtures now use verified unsupported paleo. The catalog's celiac alias remains unchanged.
+The wrong-brief attempt stopped before the corrected launch; its token count is unknown.
+The final restart follow-up, `c4378a68`, passed 1,034 focused tests and static checks.
+Integration commit `988910f4` carries that four-file delta with Codex attribution.
+
+Luna at `xhigh` wrote the initial dairy guard and tests. After two failed I001
+repairs, the native junior stopped. Astra at `xhigh` diagnosed the import rule.
+The coordinator escalated to Sol at `xhigh`, the next compatible writer.
+The format-only fix preserved every assertion. Sol then covered plural absence
+and quantified free-of/from claims, while preserving partial not-all statements.
+Native commit `0c7d79f5` passed 557 focused tests and isolated backend gates:
+12,705 passed, one skipped, one warning. Gitleaks passed.
+Integration commit `de6a5893` combines the dairy changes with Codex attribution.
+All 37 root integration probes pass. The same pack fails 19 cases on `6cd6554e`.
+The remaining 18 baseline controls pass.
+
+Before the final independent review, recorded writer runs total 7,525,946 input
+tokens, 119,200 output tokens, and 2,106.968 summed CLI seconds.
+Coverage is partial: one interrupted run lacks token counts. Native coordination
+counts are unavailable. These totals are not complete cost or wall-clock time.
+The loop ledger records the later review separately. No new paid provider calls ran.
+
+## 2026-11-01: Preserve normalized named-facet restarts on PR 469
+
+Astra returned REQUEST_CHANGES on `4abf5cd2`. The coordinator reproduced both findings.
+A named gluten-free restart dropped vegetarian, exclusion, threshold, cap and page-size restrictions.
+Its no-tool path cleared the pending cursor. Query normalization had moved facets into tags.
+Sol at `xhigh` repaired the bounded facet comparison through the supervisor.
+Native commit `406b162d` passed 1,190 focused tests and isolated backend gates:
+13,109 passed, one skipped, one warning. Ruff and strict mypy passed. Gitleaks passed.
+Integration commit `9c7eecb3` carries the repair with Codex attribution.
+Tests retain true new-facet and new-word replacement, aliases, prefixes and unknown-query controls.
+
+## 2026-11-01: Reject negated dairy preparation claims on PR 469
+
+The public prose path accepted "This meal is not made with dairy." after a budget tool.
+Sol at `xhigh` added a narrow negated preparation rule through the supervisor.
+Native commit `4a69237e` passed 677 focused tests and isolated backend gates:
+13,073 passed, one skipped, one warning. Ruff and strict mypy passed. Gitleaks passed.
+Integration commit `71528f4c` carries the repair with Codex attribution.
+Positive dairy descriptions, separate garlic negation and partial not-all statements remain allowed.
+The initial lease permission failure occurred before the writer started; an approved retry succeeded.
+
+All 76 expanded integration probes pass. The same pack fails 50 cases on `6cd6554e`
+and 31 cases on the first reviewed repair head, `4abf5cd2`.
+These two repair writers add 1,588,861 input tokens, 23,772 output tokens and 505.56 CLI seconds.
+Recorded writer totals now reach 9,114,807 input, 142,972 output and 2,612.528 CLI seconds.
+Astra review round one used 424,461 input, 3,558 output and 130.13 CLI seconds at `high`.
+The review runner fixes this effort; the async advisors and writers used `xhigh`.
+Writer coverage remains partial. These totals exclude native coordination and are not cost or wall-clock totals.
+The user approved the private Astra review transfer. The loop ledger records the next verdict separately.
+No new live Nova calls ran. Publication is authorized; the PR MUST remain unmerged.
+
+## 2026-11-01: Preserve dairy alias word boundaries on PR 469
+
+Astra review round two returned REQUEST_CHANGES on `8242d1aa`.
+The squashed no-dairy rule rejected the positive phrase "oregano, dairy".
+The coordinator reproduced the validator and public-chat failure.
+Astra's read-only advisor found Dannon/dairy and garlic-knot/preparation collisions.
+The coordinator reproduced all four additional positive sentences before repair.
+Sol at `xhigh` completed the bounded repair through two supervisor runs.
+The new alias patterns preserve word boundaries while accepting known claim formatting.
+The preexisting dairy-free pattern remains outside this scoped boundary repair.
+Native commit `7513003b` passed 722 focused tests and 64 direct/public checks.
+Its isolated backend gates passed: 13,274 tests, one skipped, one warning.
+Ruff, strict mypy and gitleaks passed. The temporary database was removed.
+The full 107-case root harness passes on that source. It fails 59 cases on
+original `6cd6554e` and 22 on `8242d1aa`.
+Accented public controls use the existing normalized reply contract.
+All prior negative-claim, partial-quantifier and server-caveat assertions remain.
+
+This repair adds 1,031,674 input tokens, 16,360 output tokens and 324.636 CLI seconds.
+Recorded writers total 10,146,481 input, 159,332 output and 2,937.164 CLI seconds.
+The first two Astra reviews total 930,787 input, 6,284 output and 220.487 CLI seconds.
+Writer coverage remains partial; native coordination and final review are separate.
+These figures are not complete cost or wall-clock totals. No new live Nova calls ran.
+The loop ledger records the third independent verdict and publication status separately.
+
+## 2026-11-01: Reject emphasized milk-free claims on PR 469
+
+Astra round three returned REQUEST_CHANGES on `b5d86971`.
+The public prose path accepted `_milk-free_` and `__milk-free__`.
+The coordinator reproduced both. A prior milk-free test also contained no-dairy
+wording, which masked the dedicated matcher gap. New milk-only tests isolate it.
+The owner lifted the three-round limit with "As many rounds as you need".
+Sol at `xhigh` changed the milk-free boundaries through one supervisor run.
+Native commit `fa42ff91` passed 749 focused tests and 54 direct/public checks.
+Its isolated backend gates passed: 13,301 tests, one skipped, one warning.
+Ruff, strict mypy and gitleaks passed. The temporary database was removed.
+The full 122-case root harness passes on that source. It fails 68 cases on
+original `6cd6554e` and six on `b5d86971`. Benign freezing controls remain allowed.
+No new live Nova calls ran. The repair leaves the public normalization contract intact.
+
+This writer used 539,462 input tokens, 8,723 output tokens and 171.311 CLI seconds.
+Recorded writers total 10,685,943 input, 168,055 output and 3,108.475 CLI seconds.
+The first three Astra reviews total 1,421,484 input, 8,702 output and 286.076 CLI seconds.
+Writer coverage remains partial. Native coordination and later reviews are separate.
+These figures are not complete cost or wall-clock totals. The loop ledger records
+the next independent verdict and publication status. The PR MUST remain unmerged.
+
+## 2026-11-01: Preserve dairy claim clause boundaries on PR 469
+
+Astra round four returned REQUEST_CHANGES on `73f34c47`.
+The new dairy matcher joined "No. Dairy is listed as an ingredient." into an absence claim.
+Advisor and root probes found milk/free, not/made and free/from variants across clauses.
+The last variant crossed a new alias still held in the old squashed matcher.
+Sol at `xhigh` moved all new dairy aliases into shared clause handling.
+The original `_FORBIDDEN` pattern remains equal to the `6cd6554e` baseline by AST comparison.
+Whole-word terminal punctuation with whitespace ends a dairy claim segment.
+Dotted single-letter spelling, no-gap punctuation, hyphen-newline and ordinary newlines retain their tested behavior.
+A later genuine claim still fails after a benign clause. Legacy order, plan and gluten rules remain unchanged.
+
+The first candidate passed its focused suite but missed six Markdown/spacing sentences.
+Root and junior probes caught them before commit. The next preflight found contracted-word endings.
+Two bounded local repairs covered those cases, straight/curly apostrophes and quoted-letter controls.
+Native commit `475c1c79` passed 2,890 focused tests and 648 direct/public checks.
+Ruff, strict mypy and gitleaks passed. Root independently passed 250 core and 37 edge checks.
+Integration commit `924a3efb` carries that source with Codex attribution.
+The integrated added-source count is 987 of 1,000 lines against `main`.
+
+Parallel Terra advice suggested backtick/strikethrough cases. Root probes confirmed both
+already fail `unsupported_character` on the original and repaired heads. That policy remains unchanged.
+Luna independently checked the four workflows and nine expected hosted jobs for publication verification.
+No new live Nova calls ran. The source keeps provider, prompt and public normalization contracts intact.
+
+This writer used 2,100,387 input tokens, 44,162 output tokens and 943.663 CLI seconds across three runs.
+Recorded writers total 12,786,330 input, 212,217 output and 4,052.138 CLI seconds.
+The first four Astra reviews total 1,936,909 input, 12,567 output and 394.176 CLI seconds.
+Coverage remains partial. Native coordination and later review are separate from these CLI totals.
+The loop ledger records final gates, the next independent verdict and hosted CI. The PR MUST remain unmerged.

@@ -24,6 +24,8 @@ from app.agent.catalog_tool import (
     catalog_answer,
     catalog_tool_spec,
     execute_catalog_search,
+    next_search_arguments,
+    page_arguments,
 )
 from app.agent.catalog_tool import (
     TOOL_NAME as CATALOG_TOOL_NAME,
@@ -31,6 +33,7 @@ from app.agent.catalog_tool import (
 from app.agent.chat_answer import (
     _UNKNOWN_RESTRICTION,
     CLARIFICATION,
+    TYPE_CLARIFICATION,
     render_public_answer,
 )
 from app.agent.chat_dispatch import EvidenceRecorder
@@ -69,10 +72,11 @@ from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
 from app.domain.plan_revision import PlanRevisionInput
+from app.evaluation_shapes import valid_public_result
 
 PERIOD = date(2026, 9, 1)
 # Interim budget while chat-arch phases 1-2 add tools; phase 3 lowers it.
-PROMPT_AND_TOOLS_BUDGET = 16500
+PROMPT_AND_TOOLS_BUDGET = 17000
 _SECRET = "do-not-echo-raw-input"
 _UNAVAILABLE = "The language model is unavailable."
 _LIMIT = "The job reached a processing limit."
@@ -330,6 +334,7 @@ def _run(
     available_cents: int = 10_000,
     record_evidence: EvidenceRecorder | None = None,
     plan_cap_cents: int | None = None,
+    previous_search: dict[str, object] | None = None,
 ) -> tuple[dict[str, object], FakeLLM]:
     provider = FakeLLM(replies)
     pulse = _noop if heartbeat is None else heartbeat
@@ -345,6 +350,7 @@ def _run(
         history=history,
         record_evidence=record_evidence,
         plan_cap_cents=plan_cap_cents,
+        previous_search=previous_search,
     )
     return result, provider
 
@@ -1439,8 +1445,12 @@ def test_followup_history_and_previous_request_are_context_only() -> None:
     assert context["context_role"] == (
         "previous_request is prior state; apply latest explicit additions and removals"
         "; plan_meals is the user's current plan"
+        "; previous_search holds the search_meals arguments for the next page of the "
+        "last search; use them unchanged only for an explicit more request with "
+        "no new restrictions"
     )
     assert context["plan_meals"] is None
+    assert context["previous_search"] is None
     dumped = json.dumps(provider.requests)
     assert _SECRET not in dumped
     _assert_public(result)
@@ -1483,7 +1493,8 @@ def test_parser_rejects_more_than_three_calls() -> None:
     assert len(provider.requests) == 1
 
 
-def test_eight_unsupported_turns_hit_model_cap_without_ninth_call() -> None:
+@pytest.mark.parametrize("message", ["plan chicken tacos", "more"])
+def test_eight_unsupported_turns_hit_model_cap_without_ninth_call(message: str) -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [_tool_block(f"u-{index}", name="purchase_items", payload={"token": "x"})],
@@ -1491,7 +1502,7 @@ def test_eight_unsupported_turns_hit_model_cap_without_ninth_call() -> None:
         )
         for index in range(MAX_MODEL_TURNS)
     ]
-    result, provider = _run(replies)
+    result, provider = _run(replies, message=message)
     assert len(provider.requests) == MAX_MODEL_TURNS
     assert result["status"] == "limit"
     assert result["answer"] == _LIMIT
@@ -1525,7 +1536,8 @@ def test_eighth_turn_may_finish_with_text() -> None:
     assert result["planner_revisions"] == 0
 
 
-def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
+@pytest.mark.parametrize("message", ["plan chicken tacos", "more"])
+def test_fourth_planner_call_is_limit_and_drops_candidate(message: str) -> None:
     replies: list[dict[str, object] | BaseException] = [
         _reply(
             [_tool_block(f"p-{index}", payload=plan_args(plan_cap_cents=100))],
@@ -1533,7 +1545,7 @@ def test_fourth_planner_call_is_limit_and_drops_candidate() -> None:
         )
         for index in range(MAX_PLANNER_REVISIONS + 1)
     ]
-    result, provider = _run(replies)
+    result, provider = _run(replies, message=message)
     assert len(provider.requests) == MAX_PLANNER_REVISIONS + 1
     assert result["status"] == "limit"
     assert result["answer"] == _LIMIT
@@ -2049,8 +2061,10 @@ def test_system_prompt_states_the_honest_tag_caveats() -> None:
         in SYSTEM_PROMPT
     )
     assert (
-        "gluten_free_ingredients describes the ingredients only. "
-        "You MUST NOT call a meal gluten-free, celiac-safe, or allergy-safe."
+        "gluten_free_ingredients and dairy_free_ingredients "
+        "describe the ingredients only. "
+        "You MUST NOT call a meal gluten-free, dairy-free, "
+        "celiac-safe, or allergy-safe. "
     ) in SYSTEM_PROMPT
     assert "name up to three catalog meals" not in SYSTEM_PROMPT
 
@@ -2499,8 +2513,12 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         assert context["context_role"] == (
             "previous_request is prior state; apply latest explicit "
             "additions and removals; plan_meals is the user's current plan"
+            "; previous_search holds the search_meals arguments for the next page "
+            "of the last search; use them unchanged only for an explicit more "
+            "request with no new restrictions"
         )
         assert context["plan_meals"] is None
+        assert context["previous_search"] is None
 
 
 @pytest.mark.parametrize(
@@ -3484,6 +3502,1373 @@ def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
     assert "hidden-discovery" not in dumped
     assert "injected-model-prose" not in dumped
     assert "reasoningContent" not in dumped
+
+
+def test_a_search_reply_carries_the_checked_choices() -> None:
+    expected = execute_catalog_search({"query": "lentils"})
+    ids = cast(list[str], expected["recipe_ids"])
+    assert expected["status"] == "ok" and ids
+    replies = [
+        _reply(
+            [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "lentils"})],
+            "tool_use",
+        )
+    ]
+    result, _ = _run(replies, message="lentil meals")
+    assert result["choices"] == [{"recipe_id": rid} for rid in ids]
+    assert result["answer"] == catalog_answer(expected)
+    assert valid_public_result(result)
+
+
+def _search_reply(arguments: dict[str, object]) -> dict[str, object]:
+    block = _tool_block("d1", name=CATALOG_TOOL_NAME, payload=arguments)
+    return _reply([block], "tool_use")
+
+
+def _choice_ids(result: dict[str, object]) -> list[str]:
+    choices = cast(list[dict[str, str]], result["choices"])
+    return [choice["recipe_id"] for choice in choices]
+
+
+def test_the_next_turn_shows_the_next_page_from_the_carried_arguments() -> None:
+    total = cast(int, execute_catalog_search({"query": "vegetarian"})["total_matches"])
+    assert total > 3
+    first, _ = _run([_search_reply({"query": "vegetarian"})], message="vegetarian")
+    next_search = cast(dict[str, object], first["next_search"])
+    assert next_search["offset"] == 3
+    second, provider = _run(
+        [_search_reply(next_search)], message="more", previous_search=next_search
+    )
+    sent = cast(list[dict[str, list[dict[str, str]]]], provider.requests[0]["messages"])
+    context = json.loads(sent[-1]["content"][0]["text"])
+    assert context["previous_search"] == next_search
+    assert _choice_ids(second) == execute_catalog_search(next_search)["recipe_ids"]
+    assert len(_choice_ids(second)) == min(3, total - 3)
+    assert not set(_choice_ids(first)) & set(_choice_ids(second))
+    assert valid_public_result(second)
+
+
+def _constrained_cursor() -> dict[str, object]:
+    found = execute_catalog_search(
+        {
+            "query": "gluten free",
+            "diet": "vegetarian",
+            "exclude": ["eggs"],
+            "min_protein_g": 0,
+            "max_cents_per_serving": 10000,
+        }
+    )
+    cursor = next_search_arguments(found)
+    assert cursor is not None and cursor["offset"] == 3
+    return cursor
+
+
+@pytest.mark.parametrize(
+    "model_arguments",
+    [
+        None,
+        {"query": "gluten free", "diet": "vegetarian", "offset": 6},
+        {"query": "meals", "offset": 6},
+        {
+            "query": "chicken",
+            "diet": "omnivore",
+            "tags": ["chicken"],
+            "exclude": [],
+            "offset": 0,
+        },
+        {
+            "query": "vegan",
+            "diet": "vegan",
+            "tags": [],
+            "exclude": ["rice"],
+            "min_protein_g": 200,
+            "max_cents_per_serving": 1,
+            "limit": 1,
+            "offset": 6,
+        },
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_more_dispatches_the_checked_cursor_instead_of_model_arguments(
+    model_arguments: dict[str, object] | None, prefixed: bool
+) -> None:
+    cursor = _constrained_cursor()
+    original = copy.deepcopy(cursor)
+    expected = execute_catalog_search(cursor)
+    arguments = {**cursor, "offset": 6} if model_arguments is None else model_arguments
+    provider = FakeLLM([_search_reply(arguments)])
+    observed: list[list[dict[str, object]]] = []
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}more",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        observe_terminal_tool_results=observed.append,
+    )
+    assert observed == [[tool_result_block("d1", expected, success=True)]]
+    assert _choice_ids(result) == expected["recipe_ids"]
+    assert result["answer"] == catalog_answer(expected)
+    assert cursor == original
+
+
+def test_more_records_the_checked_arguments_in_tool_history() -> None:
+    cursor = _constrained_cursor()
+    replies = [
+        _reply(
+            [
+                _discovery_block(query="chicken", offset=6),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies, message="more", previous_search=cursor)
+    messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    assert messages[-2]["content"][0]["toolUse"]["input"] == cursor
+    assert _choice_ids(result) == execute_catalog_search(cursor)["recipe_ids"]
+
+
+@pytest.mark.parametrize(
+    "intervening",
+    [
+        "budget",
+        "read",
+        "no_tool",
+        "protein_read",
+        "protein_no_tool",
+        "vegan_read",
+        "vegan_no_tool",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_intervening_turn_keeps_the_same_next_page(
+    intervening: str, prefixed: bool
+) -> None:
+    cursor = _constrained_cursor()
+    replies = [_reply([_text_block("done")], "end_turn")]
+    message = "thanks"
+    if intervening == "budget":
+        replies.insert(0, _reply([_budget_block("b1")], "tool_use"))
+        message = "what is my remaining budget?"
+    elif intervening in {"read", "protein_read", "vegan_read"}:
+        replies.insert(
+            0,
+            _reply(
+                [
+                    _tool_block(
+                        "r1", name=GET_MEAL_TOOL, payload={"recipe_id": "bean_tacos"}
+                    )
+                ],
+                "tool_use",
+            ),
+        )
+        message = "what is in bean tacos?"
+    if intervening in {"protein_read", "protein_no_tool"}:
+        message = "how much protein is in my meal"
+    elif intervening in {"vegan_read", "vegan_no_tool"}:
+        message = "Is my current meal vegan?"
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    full_message = f"{prefix if prefixed else ''}{message}"
+    cursorless, _ = _run(
+        copy.deepcopy(replies), message=full_message, previous_search=None
+    )
+    result, _ = _run(replies, message=full_message, previous_search=cursor)
+    assert result["next_search"] == cursor
+    assert "choices" not in result
+    assert result["answer"] == cursorless["answer"]
+    more, _ = _run(
+        [_search_reply({"query": "chicken", "offset": 6})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == execute_catalog_search(cursor)["recipe_ids"]
+    assert TYPE_CLARIFICATION not in cast(str, more["answer"])
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Find vegan meals",
+        "vegan",
+        "chicken",
+        "gluten free",
+        "omnivore",
+        "Find high protein vegetarian meals",
+        "Please show me plant-based recipes, please!",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_no_tool_new_type_request_clears_the_cursor_before_another_more(
+    message: str, prefixed: bool, model_prose: bool
+) -> None:
+    first_page = execute_catalog_search({"query": "chicken"})
+    assert first_page["status"] == "ok"
+    assert first_page["total_matches"] == 12
+    cursor = next_search_arguments(first_page)
+    assert cursor is not None and cursor["offset"] == 3
+    original = copy.deepcopy(cursor)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    provider = FakeLLM(
+        [_reply([_text_block("try chicken tacos or vegetable pasta")], "end_turn")]
+    )
+    changed = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}{message}",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert changed["status"] == "clarification"
+    assert changed["answer"] == TYPE_CLARIFICATION
+    assert changed["reply_source"] == "template"
+    assert changed["tool_trace"] == []
+    assert "choices" not in changed
+    assert "next_search" not in changed
+    assert cursor == original
+    assert len(provider.requests) == 1
+    more_provider = FakeLLM([_search_reply(cursor)])
+    observed: list[list[dict[str, object]]] = []
+    more = run_chat(
+        more_provider,
+        f"{prefix if prefixed else ''}more",
+        budget(),
+        PERIOD,
+        previous_search=cast(dict[str, object] | None, changed.get("next_search")),
+        model_prose=model_prose,
+        observe_terminal_tool_results=observed.append,
+    )
+    assert more["status"] == "clarification"
+    assert more["answer"] == TYPE_CLARIFICATION
+    assert more["reply_source"] == "template"
+    assert more["tool_trace"] == []
+    assert more["model_turns"] == 1
+    assert more["planner_revisions"] == 0
+    assert "choices" not in more
+    assert "next_search" not in more
+    assert observed == []
+    assert len(more_provider.requests) == 1
+
+
+@pytest.mark.parametrize("query", ["gluten free", "chicken"])
+@pytest.mark.parametrize(
+    "message",
+    [
+        "more, but vegan",
+        "more, but without chicken",
+        "more, but omnivore",
+        "more only vegan",
+        "more instead omnivore",
+        "more without chicken",
+        "more exclude chicken",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+@pytest.mark.parametrize("model_arguments", [{"query": "meals"}, {"query": "chicken"}])
+def test_no_tool_modifiers_clear_the_cursor_before_another_more(
+    query: str,
+    message: str,
+    prefixed: bool,
+    model_prose: bool,
+    model_arguments: dict[str, object],
+) -> None:
+    first_page = execute_catalog_search({"query": query})
+    assert first_page["status"] == "ok"
+    cursor = next_search_arguments(first_page)
+    assert cursor is not None
+    original = copy.deepcopy(cursor)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    provider = FakeLLM(
+        [_reply([_text_block("try chicken tacos or vegetable pasta")], "end_turn")]
+    )
+    changed = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}{message}",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert changed["status"] == "clarification"
+    assert changed["answer"] == TYPE_CLARIFICATION
+    assert changed["reply_source"] == "template"
+    assert changed["tool_trace"] == []
+    assert "choices" not in changed
+    assert "next_search" not in changed
+    assert cursor == original
+    assert len(provider.requests) == 1
+    more_provider = FakeLLM([_search_reply(model_arguments)])
+    observed: list[list[dict[str, object]]] = []
+    more = run_chat(
+        more_provider,
+        f"{prefix if prefixed else ''}more",
+        budget(),
+        PERIOD,
+        previous_search=cast(dict[str, object] | None, changed.get("next_search")),
+        model_prose=model_prose,
+        observe_terminal_tool_results=observed.append,
+    )
+    assert more["status"] == "clarification"
+    assert more["answer"] == TYPE_CLARIFICATION
+    assert more["reply_source"] == "template"
+    assert more["tool_trace"] == []
+    assert more["model_turns"] == 1
+    assert more["planner_revisions"] == 0
+    assert "choices" not in more
+    assert "next_search" not in more
+    assert observed == []
+    assert len(more_provider.requests) == 1
+
+
+def test_repeated_more_visits_each_page_once_and_exhausts_the_cursor() -> None:
+    page, _ = _run([_search_reply({"query": "vegetarian"})], message="vegetarian")
+    shown = _choice_ids(page)
+    total = cast(int, execute_catalog_search({"query": "vegetarian"})["total_matches"])
+    for _ in range(40):
+        cursor = page.get("next_search")
+        if cursor is None:
+            break
+        assert isinstance(cursor, dict)
+        assert cursor["offset"] == len(shown)
+        page, _ = _run(
+            [_search_reply({"query": "chicken", "offset": 6})],
+            message="more",
+            previous_search=cursor,
+        )
+        assert not set(shown).intersection(_choice_ids(page))
+        shown.extend(_choice_ids(page))
+    assert len(shown) == total
+    assert "next_search" not in page
+
+
+@pytest.mark.parametrize(
+    ("message", "arguments"),
+    [
+        ("Find vegan meals", {"query": "vegan"}),
+        (
+            "Find high protein vegetarian meals",
+            {"query": "high protein", "diet": "vegetarian"},
+        ),
+        ("chicken meals instead", {"query": "chicken"}),
+        ("more protein", {"query": "high protein"}),
+        ("more, but vegan", {"query": "meals", "diet": "vegan"}),
+        ("more, but make it vegan", {"query": "meals", "diet": "vegan"}),
+        (
+            "more without eggs",
+            {"query": "vegetarian", "exclude": ["eggs"]},
+        ),
+        ("find zqxsentinel meals instead", {"query": "zqxsentinel"}),
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_new_searches_and_restrictions_replace_the_saved_search(
+    message: str, arguments: dict[str, object], prefixed: bool
+) -> None:
+    cursor = _constrained_cursor()
+    expected = execute_catalog_search(arguments)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result, _ = _run(
+        [_search_reply(arguments)],
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert result["answer"] == catalog_answer(expected)
+    next_search = next_search_arguments(expected)
+    assert result.get("next_search") == next_search
+    assert result.get("choices", []) == [
+        {"recipe_id": rid} for rid in cast(list[str], expected["recipe_ids"])
+    ]
+
+
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_no_tool_more_keeps_diet_context_and_uses_neutral_clarification(
+    model_prose: bool,
+) -> None:
+    cursor = _constrained_cursor()
+    provider = FakeLLM([_reply([_text_block("try vegetable pasta")], "end_turn")])
+    result = run_chat(
+        provider,
+        "more",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert result["answer"] == TYPE_CLARIFICATION
+    assert "pasta" not in cast(str, result["answer"])
+    assert result["next_search"] == cursor
+    assert "choices" not in result
+    assert result["reply_source"] == "template"
+
+
+@pytest.mark.parametrize("gate", ["refusal", "guardrail"])
+def test_more_declines_do_not_publish_undisplayed_search_choices(gate: str) -> None:
+    cursor = _constrained_cursor()
+    terminal = (
+        _reply([_text_block('{"refusal":"purchase"}')], "end_turn")
+        if gate == "refusal"
+        else _reply([_text_block("blocked model text")], "guardrail_intervened")
+    )
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _discovery_block(query="chicken", offset=6),
+                    _tool_block("bad", name="unsupported", payload={}),
+                ],
+                "tool_use",
+            ),
+            terminal,
+        ]
+    )
+    result = run_chat(
+        provider,
+        "more",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=True,
+    )
+    assert result["reply_check"] == {"gate": gate}
+    assert result["next_search"] == cursor
+    assert "choices" not in result
+    assert "Catalog choices:" not in cast(str, result["answer"])
+    assert "blocked model text" not in json.dumps(result)
+
+
+def test_the_last_page_has_no_next_search() -> None:
+    total = cast(int, execute_catalog_search({"query": "vegetarian"})["total_matches"])
+    last = (total - 1) // 3 * 3
+    arguments: dict[str, object] = {"query": "vegetarian", "offset": last}
+    result, _ = _run(
+        [_search_reply(arguments)], message="more", previous_search=arguments
+    )
+    assert "next_search" not in result
+    assert _choice_ids(result)
+    assert _choice_ids(result) == execute_catalog_search(arguments)["recipe_ids"]
+
+
+@pytest.mark.parametrize("prior", ["none", "last_page", "budget_after_last_page"])
+@pytest.mark.parametrize(
+    "model_arguments",
+    [None, {"query": "vegetarian", "offset": 0}, {"query": "meals"}],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_cursorless_more_never_restarts_search(
+    prior: str,
+    model_arguments: dict[str, object] | None,
+    prefixed: bool,
+    model_prose: bool,
+) -> None:
+    previous: dict[str, object] = {}
+    history: list[dict[str, str]] = []
+    if prior != "none":
+        total = cast(
+            int, execute_catalog_search({"query": "vegetarian"})["total_matches"]
+        )
+        cursor: dict[str, object] = {
+            "query": "vegetarian",
+            "offset": (total - 1) // 3 * 3,
+        }
+        previous, _ = _run(
+            [_search_reply(cursor)], message="more", previous_search=cursor
+        )
+        assert _choice_ids(previous)
+        assert "next_search" not in previous
+        history = [
+            {"role": "user", "text": "vegetarian meals"},
+            {"role": "assistant", "text": cast(str, previous["answer"])},
+        ]
+    if prior == "budget_after_last_page":
+        previous, _ = _run(
+            [
+                _reply([_budget_block("b1")], "tool_use"),
+                _reply([_text_block("done")], "end_turn"),
+            ],
+            message="what is my remaining budget?",
+            history=history,
+            previous_search=cast(dict[str, object] | None, previous.get("next_search")),
+        )
+        assert "next_search" not in previous
+        history.extend(
+            [
+                {"role": "user", "text": "what is my remaining budget?"},
+                {"role": "assistant", "text": cast(str, previous["answer"])},
+            ]
+        )
+    reply = (
+        _reply([_text_block("try vegetable pasta")], "end_turn")
+        if model_arguments is None
+        else _search_reply(model_arguments)
+    )
+    provider = FakeLLM([reply])
+    observed: list[list[dict[str, object]]] = []
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}more",
+        budget(),
+        PERIOD,
+        history=history,
+        previous_search=cast(dict[str, object] | None, previous.get("next_search")),
+        model_prose=model_prose,
+        observe_terminal_tool_results=observed.append,
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == TYPE_CLARIFICATION
+    assert result["reply_source"] == "template"
+    assert result["tool_trace"] == []
+    assert result["model_turns"] == 1
+    assert result["planner_revisions"] == 0
+    assert result["plan"] is result["request"] is None
+    assert "choices" not in result
+    assert "next_search" not in result
+    assert observed == []
+    assert len(provider.requests) == 1
+
+
+@pytest.mark.parametrize("gate", ["refusal", "guardrail"])
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_cursorless_more_preserves_refusal_and_guardrail_handling(
+    gate: str, prefixed: bool
+) -> None:
+    terminal = (
+        _reply([_text_block('{"refusal":"purchase"}')], "end_turn")
+        if gate == "refusal"
+        else _reply([_text_block("blocked model text")], "guardrail_intervened")
+    )
+    provider = FakeLLM([terminal])
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}more",
+        budget(),
+        PERIOD,
+        model_prose=True,
+    )
+    expected = (
+        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        if gate == "refusal"
+        else GUARDRAIL_DECLINE
+    )
+    assert result["answer"] == expected
+    assert result["reply_check"] == {"gate": gate}
+    assert result["tool_trace"] == []
+    assert "choices" not in result
+    assert "next_search" not in result
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"query": "zqxsentinel"},
+        {"query": "meals", "diet": "keto"},
+        {"query": "vegetarian", "exclude": ["unknown"]},
+        {},
+    ],
+)
+def test_an_unsuccessful_new_search_cannot_restore_the_prior_cursor(
+    arguments: dict[str, object],
+) -> None:
+    cursor = _constrained_cursor()
+    failed, _ = _run(
+        [
+            _search_reply(arguments),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        message="find different meals instead",
+        previous_search=cursor,
+    )
+    assert "next_search" not in failed
+    assert "choices" not in failed
+    more, _ = _run(
+        [_search_reply({"query": "vegetarian", "offset": 0})],
+        message="more",
+        previous_search=cast(dict[str, object] | None, failed.get("next_search")),
+    )
+    assert more["answer"] == TYPE_CLARIFICATION
+    assert more["tool_trace"] == []
+    assert "choices" not in more
+    assert "next_search" not in more
+
+
+def _page_cursor(query: str) -> dict[str, object]:
+    cursor: dict[str, object] = {"query": query, "limit": 3, "offset": 3}
+    assert page_arguments(cursor) == cursor
+    return cursor
+
+
+def _sent_calls(provider: FakeLLM) -> dict[str, dict[str, object]]:
+    messages = cast(list[dict[str, Any]], provider.requests[1]["messages"])
+    return {
+        block["toolUse"]["name"]: block["toolUse"]["input"]
+        for block in messages[-2]["content"]
+    }
+
+
+@pytest.mark.parametrize(
+    ("query", "message"),
+    [
+        ("vegetarian", "Start over from the first page"),
+        ("vegetarian", "Show the first page again"),
+        ("rice onion", "Show me the first page of rice onion meals."),
+        ("rice onion", "Show me the first page of onion rice meals."),
+        ("rice onion", "Please, start over with rice onion meals!"),
+        ("rice onion", "Restart the search for rice onion recipes, please."),
+        ("rice onion", "Find rice onion meals from the first page."),
+        ("rice onion", "Show rice onion meals again."),
+    ],
+)
+@pytest.mark.parametrize("model_offset", [0, 9])
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_an_explicit_restart_shows_the_first_page_before_normal_more(
+    query: str, message: str, model_offset: int, prefixed: bool
+) -> None:
+    cursor = _page_cursor(query)
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result, provider = _run(
+        [_search_reply({"query": query, "limit": 1, "offset": model_offset})],
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert _choice_ids(result) == expected["recipe_ids"]
+    assert result["answer"] == catalog_answer(expected)
+    assert result["next_search"] == next_search_arguments(expected)
+    assert result["model_turns"] == len(provider.requests) == 1
+    assert result["planner_revisions"] == 0
+    assert cursor == original
+    next_page = cast(dict[str, object], result["next_search"])
+    assert next_page["offset"] == 3
+    more, _ = _run(
+        [_search_reply({"query": "chicken", "offset": 0})],
+        message="more",
+        previous_search=next_page,
+    )
+    assert _choice_ids(more) == execute_catalog_search(next_page)["recipe_ids"]
+    assert not set(_choice_ids(result)) & set(_choice_ids(more))
+    _assert_public(result)
+    _assert_public(more)
+
+
+def _catalog_word_cursor() -> dict[str, object]:
+    arguments = {
+        **_constrained_cursor(),
+        "query": "rice onion",
+        "limit": 1,
+        "offset": 0,
+    }
+    cursor = next_search_arguments(execute_catalog_search(arguments))
+    assert cursor is not None and cursor["offset"] == 1
+    assert cursor["limit"] == 1
+    return cursor
+
+
+def _named_facet_cursor() -> dict[str, object]:
+    cursor = next_search_arguments(
+        execute_catalog_search(
+            {
+                "query": "gluten free",
+                "diet": "vegetarian",
+                "exclude": ["eggs"],
+                "min_protein_g": 1,
+                "max_cents_per_serving": 10000,
+                "limit": 2,
+            }
+        )
+    )
+    assert cursor is not None and cursor["offset"] == 2
+    assert cursor["query"] == "meals"
+    assert cursor["limit"] == 2
+    return cursor
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Show me the first page of rice onion meals.",
+        "Please, restart the search with rice onion meals!",
+        "Show me the first page of rice onion gluten free meals.",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize(
+    "model_arguments",
+    [
+        {"query": "rice onion", "offset": 0},
+        {"query": "rice onion", "limit": 3, "offset": 9},
+        {
+            "query": "chicken",
+            "diet": "omnivore",
+            "tags": [],
+            "exclude": [],
+            "min_protein_g": 200,
+            "max_cents_per_serving": 1,
+            "limit": 3,
+            "offset": 6,
+        },
+    ],
+)
+def test_a_catalog_word_restart_retains_every_filter_and_the_saved_limit(
+    message: str, prefixed: bool, model_arguments: dict[str, object]
+) -> None:
+    cursor = _catalog_word_cursor()
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload=model_arguments),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(
+        replies,
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert _sent_calls(provider)[CATALOG_TOOL_NAME] == first_page
+    assert _choice_ids(result) == expected["recipe_ids"]
+    assert len(_choice_ids(result)) == 1
+    assert result["answer"] == (
+        catalog_answer(expected) + " A tool call failed. Check the request."
+    )
+    assert result["next_search"] == next_search_arguments(expected)
+    assert cursor == original
+    _assert_public(result)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Start over from the first page",
+        "Show the first page again",
+        "Start over with gluten free vegetarian meals",
+        "Show the first page of gluten free vegetarian meals",
+        "Show the first page of gluten free meals",
+        "Start over with gluten free meals",
+        "Show the first page of gluten-free meals",
+        "Show the first page of celiac meals",
+        "Show the first page of vegetarian meals",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize(
+    "model_arguments",
+    [
+        {"query": "gluten free", "offset": 0},
+        {"query": "vegetarian", "offset": 0},
+        {"query": "vegetarian", "offset": 9},
+        {
+            "query": "chicken",
+            "diet": "omnivore",
+            "tags": ["chicken"],
+            "exclude": [],
+            "min_protein_g": 200,
+            "max_cents_per_serving": 1,
+            "limit": 1,
+            "offset": 6,
+        },
+    ],
+)
+def test_a_filtered_restart_records_every_checked_filter_and_the_saved_limit(
+    message: str, prefixed: bool, model_arguments: dict[str, object]
+) -> None:
+    cursor = _named_facet_cursor()
+    assert cursor is not None
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    hidden = {"text": "hidden-restart"}
+    replies = [
+        _reply(
+            [
+                {"reasoningContent": hidden},
+                _tool_block(
+                    "d1",
+                    name=CATALOG_TOOL_NAME,
+                    payload=model_arguments,
+                    reasoning=hidden,
+                ),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("try chicken tacos for USD $0")], "end_turn"),
+    ]
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result, provider = _run(
+        replies,
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert _sent_calls(provider)[CATALOG_TOOL_NAME] == first_page
+    assert first_page["limit"] == 2
+    assert _choice_ids(result) == expected["recipe_ids"]
+    assert _choice_ids(result) == ["coconut_lentil_curry", "lentil_tacos"]
+    assert result["answer"] == (
+        catalog_answer(expected) + " A tool call failed. Check the request."
+    )
+    assert result["next_search"] == next_search_arguments(expected)
+    assert cursor == original
+    assert len(provider.requests) == 2
+    assert "hidden-restart" not in json.dumps(provider.requests[1])
+    assert "reasoningContent" not in json.dumps(provider.requests[1])
+    _assert_public(result, "hidden-restart")
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Start over from the first page",
+        "Show the first page again",
+        "Show the first page of gluten free meals",
+        "Show the first page of gluten-free meals",
+        "Show the first page of celiac meals",
+        "Show the first page of vegetarian meals",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+@pytest.mark.parametrize("named_facet", [False, True])
+def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
+    message: str, prefixed: bool, model_prose: bool, named_facet: bool
+) -> None:
+    cursor = _named_facet_cursor() if named_facet else _constrained_cursor()
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    provider = FakeLLM(
+        [_reply([_text_block("try chicken tacos or vegetable pasta")], "end_turn")]
+    )
+    result = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}{message}",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert result["status"] == "clarification"
+    assert result["answer"] == TYPE_CLARIFICATION
+    assert result["reply_source"] == "template"
+    assert result["tool_trace"] == []
+    assert "choices" not in result
+    assert result["next_search"] == first_page
+    assert result["model_turns"] == len(provider.requests) == 1
+    assert result["planner_revisions"] == 0
+    assert cursor == original
+    more, _ = _run(
+        [_search_reply({"query": "chicken", "offset": 6})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == expected["recipe_ids"]
+    assert more["answer"] == catalog_answer(expected)
+    assert more["next_search"] == next_search_arguments(expected)
+    _assert_public(result)
+    _assert_public(more)
+
+
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("model_prose", [False, True])
+def test_a_no_tool_catalog_word_restart_retains_the_first_page_for_more(
+    prefixed: bool, model_prose: bool
+) -> None:
+    cursor = _catalog_word_cursor()
+    original = copy.deepcopy(cursor)
+    first_page = {**cursor, "offset": 0}
+    expected = execute_catalog_search(first_page)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    provider = FakeLLM([_reply([_text_block("try chicken tacos")], "end_turn")])
+    result = run_chat(
+        provider,
+        f"{prefix if prefixed else ''}Show me the first page of rice onion meals.",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=model_prose,
+    )
+    assert result["answer"] == TYPE_CLARIFICATION
+    assert result["reply_source"] == "template"
+    assert result["tool_trace"] == []
+    assert "choices" not in result
+    assert result["next_search"] == first_page
+    assert cursor == original
+    more, _ = _run(
+        [_search_reply({"query": "chicken", "limit": 3, "offset": 6})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == expected["recipe_ids"]
+    assert more["answer"] == catalog_answer(expected)
+    assert more["next_search"] == next_search_arguments(expected)
+    _assert_public(result)
+    _assert_public(more)
+
+
+@pytest.mark.parametrize("gate", ["refusal", "guardrail"])
+def test_a_restart_decline_keeps_the_first_page_without_unshown_choices(
+    gate: str,
+) -> None:
+    cursor = _constrained_cursor()
+    terminal = (
+        _reply([_text_block('{"refusal":"purchase"}')], "end_turn")
+        if gate == "refusal"
+        else _reply([_text_block("blocked model text")], "guardrail_intervened")
+    )
+    provider = FakeLLM(
+        [
+            _reply(
+                [
+                    _discovery_block(query="chicken", offset=6),
+                    _tool_block("bad", name="unsupported", payload={}),
+                ],
+                "tool_use",
+            ),
+            terminal,
+        ]
+    )
+    result = run_chat(
+        provider,
+        "Show the first page again",
+        budget(),
+        PERIOD,
+        previous_search=cursor,
+        model_prose=True,
+    )
+    expected = (
+        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        if gate == "refusal"
+        else GUARDRAIL_DECLINE
+    )
+    assert result["answer"] == expected
+    assert result["reply_check"] == {"gate": gate}
+    assert result["next_search"] == {**cursor, "offset": 0}
+    assert "choices" not in result
+    assert "Catalog choices:" not in cast(str, result["answer"])
+    assert "blocked model text" not in json.dumps(result)
+    _assert_public(result)
+
+
+@pytest.mark.parametrize(
+    ("cursor_kind", "query", "message"),
+    [
+        ("facet", "vegan", "Start over with vegan meals"),
+        ("facet", "vegan", "Start over from the first page with vegan meals"),
+        ("facet", "vegan", "Show me the first page of vegan meals again"),
+        ("facet", "vegan", "Find vegan meals from the first page"),
+        ("facet", "vegan", "Show vegan meals again"),
+        ("facet", "omnivore", "Show the first page of omnivore meals"),
+        ("facet", "rice onion", "Show me the first page of rice onion meals."),
+        ("facet", "rice onion", "Start over with rice onion meals, please!"),
+        ("facet", "rice onion", "Find rice onion meals from the first page."),
+        (
+            "facet",
+            "gluten free vegan",
+            "Show the first page of gluten free vegan meals",
+        ),
+        (
+            "facet",
+            "gluten free rice",
+            "Show the first page of gluten free rice meals",
+        ),
+        ("words", "gluten free", "Show the first page of gluten free meals"),
+        ("words", "rice", "Show the first page of rice meals"),
+        (
+            "words",
+            "rice onion vegan",
+            "Show the first page of rice onion vegan meals",
+        ),
+    ],
+)
+@pytest.mark.parametrize("no_tool", [False, True])
+def test_a_restart_with_a_new_type_replaces_the_saved_search(
+    cursor_kind: str, query: str, message: str, no_tool: bool
+) -> None:
+    cursor = _catalog_word_cursor() if cursor_kind == "words" else _constrained_cursor()
+    original = copy.deepcopy(cursor)
+    reply = (
+        _reply([_text_block("try chicken tacos")], "end_turn")
+        if no_tool
+        else _search_reply({"query": query, "offset": 9})
+    )
+    result, provider = _run([reply], message=message, previous_search=cursor)
+    if no_tool:
+        assert result["answer"] == TYPE_CLARIFICATION
+        assert result["tool_trace"] == []
+        assert "choices" not in result
+        assert "next_search" not in result
+        more, _ = _run(
+            [_search_reply(cursor)],
+            message="more",
+            previous_search=cast(dict[str, object] | None, result.get("next_search")),
+        )
+        assert more["answer"] == TYPE_CLARIFICATION
+        assert more["tool_trace"] == []
+        assert "choices" not in more
+        assert "next_search" not in more
+    else:
+        expected = execute_catalog_search({"query": query})
+        assert _choice_ids(result) == expected["recipe_ids"]
+        assert result["answer"] == catalog_answer(expected)
+        assert result.get("next_search") == next_search_arguments(expected)
+    assert cursor == original
+    assert len(provider.requests) == 1
+    _assert_public(result)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Show me the first page of zqxsentinel meals.",
+        "Show me the first page of rice zqxsentinel meals.",
+        "Restart the search with zqxsentinel onion meals.",
+        "Show the first page of paleo rice meals.",
+        "Find gluten free pasta meals from the first page.",
+        "Show the first page of gluten free zqxsentinel meals.",
+        "Show the first page of gluten free paleo meals.",
+        "Show me the first page of rice onion meals and my budget.",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+@pytest.mark.parametrize("named_facet", [False, True])
+def test_an_unrecognized_restart_query_keeps_the_saved_page(
+    message: str, prefixed: bool, named_facet: bool
+) -> None:
+    cursor = _named_facet_cursor() if named_facet else _page_cursor("rice onion")
+    original = copy.deepcopy(cursor)
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    result, _ = _run(
+        [_reply([_text_block("please clarify")], "end_turn")],
+        message=f"{prefix if prefixed else ''}{message}",
+        previous_search=cursor,
+    )
+    assert result["next_search"] == cursor
+    assert result["tool_trace"] == []
+    assert "choices" not in result
+    assert cursor == original
+    more, _ = _run(
+        [_search_reply({"query": "rice onion", "offset": 0})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == execute_catalog_search(cursor)["recipe_ids"]
+    _assert_public(result)
+    _assert_public(more)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Show my budget first",
+        "What is my budget at the start of the month?",
+        "Start with my budget",
+        "What is in my first meal?",
+        "Show my first meal again",
+        "Does my meal start with beans?",
+    ],
+)
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_ordinary_reads_with_first_or_start_keep_the_saved_page(
+    message: str, prefixed: bool
+) -> None:
+    cursor = _page_cursor("vegetarian")
+    block = (
+        _budget_block("b1")
+        if "budget" in message
+        else _tool_block("r1", name=GET_MEAL_TOOL, payload={"recipe_id": "bean_tacos"})
+    )
+    replies = [
+        _reply([block], "tool_use"),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
+    full_message = f"{prefix if prefixed else ''}{message}"
+    cursorless, _ = _run(copy.deepcopy(replies), message=full_message)
+    result, _ = _run(replies, message=full_message, previous_search=cursor)
+    assert result["answer"] == cursorless["answer"]
+    assert result["next_search"] == cursor
+    assert "choices" not in result
+    more, _ = _run(
+        [_search_reply({"query": "vegetarian", "offset": 0})],
+        message="more",
+        previous_search=cast(dict[str, object], result["next_search"]),
+    )
+    assert _choice_ids(more) == execute_catalog_search(cursor)["recipe_ids"]
+
+
+def test_a_non_search_turn_with_a_cursor_does_not_flag_the_meal_type() -> None:
+    cursor = _page_cursor("vegetarian")
+    result, _ = _run(
+        [_reply([_text_block("You are welcome.")], "end_turn")],
+        message="thanks",
+        previous_search=cursor,
+    )
+    assert TYPE_CLARIFICATION not in cast(str, result["answer"])
+    assert result["answer"] == CLARIFICATION
+    assert result["next_search"] == cursor
+
+
+def test_an_unsupported_plan_turn_with_a_cursor_keeps_the_untyped_answer() -> None:
+    cursor = _page_cursor("vegetarian")
+    bad_plan = plan_args(meals=[{"recipe_id": "not_a_catalog_meal", "servings": 2}])
+    result, _ = _run(
+        [
+            _reply([_tool_block("p1", payload=bad_plan)], "tool_use"),
+            _reply([_text_block("done")], "end_turn"),
+        ],
+        message="plan pizza for 2",
+        previous_search=cursor,
+    )
+    assert result["answer"] == f"That recipe is not in the catalog. {CLARIFICATION}"
+    assert TYPE_CLARIFICATION not in cast(str, result["answer"])
+    assert result["next_search"] == cursor
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["can I see more?", "3 more", "any more?", "next one", "what else?"],
+)
+@pytest.mark.parametrize("model_offset", [9, 0])
+def test_the_same_search_runs_the_saved_page_not_the_model_offset(
+    message: str, model_offset: int
+) -> None:
+    veg3 = _page_cursor("vegetarian")
+    page3 = execute_catalog_search(veg3)["recipe_ids"]
+    arguments = {"query": "vegetarian meals", "limit": 3, "offset": model_offset}
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload=arguments),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies, message=message, previous_search=veg3)
+    assert _choice_ids(result) == page3
+    assert cast(dict[str, object], result["next_search"])["offset"] == 6
+    assert _sent_calls(provider)[CATALOG_TOOL_NAME] == veg3
+
+
+def test_a_different_search_restarts_at_the_first_page() -> None:
+    chicken = _page_cursor("chicken")
+    expected = execute_catalog_search({"query": "vegan"})
+    result, _ = _run(
+        [_search_reply({"query": "vegan", "offset": 3})],
+        message="show me vegan meals",
+        previous_search=chicken,
+    )
+    assert _choice_ids(result) == expected["recipe_ids"]
+    assert result["answer"] == catalog_answer(expected)
+
+
+def test_a_different_search_beside_a_budget_call_restarts_and_keeps_the_budget() -> (
+    None
+):
+    chicken = _page_cursor("chicken")
+    expected = execute_catalog_search({"query": "vegan"})
+    replies = [
+        _reply(
+            [
+                _budget_block("b1"),
+                _tool_block(
+                    "d1",
+                    name=CATALOG_TOOL_NAME,
+                    payload={"query": "vegan", "offset": 3},
+                ),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(
+        replies, message="what is my budget?", previous_search=chicken
+    )
+    sent = _sent_calls(provider)
+    assert sent[BUDGET_TOOL_NAME] == {}
+    assert sent[CATALOG_TOOL_NAME] == {"query": "vegan", "offset": 0}
+    assert _choice_ids(result) == expected["recipe_ids"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "show me more vegan meals",
+        "more vegan",
+        "more vegetarian",
+        "show me the vegan ones",
+    ],
+)
+def test_more_of_another_type_drops_the_saved_search(message: str) -> None:
+    chicken = _page_cursor("chicken")
+    result, _ = _run(
+        [_reply([_text_block("try chicken tacos")], "end_turn")],
+        message=message,
+        previous_search=chicken,
+    )
+    assert "next_search" not in result
+    assert "choices" not in result
+
+
+def test_more_of_the_saved_type_runs_the_saved_page() -> None:
+    veg3 = _page_cursor("vegetarian")
+    result, _ = _run(
+        [_search_reply({"query": "vegetarian", "offset": 0})],
+        message="more vegetarian",
+        previous_search=veg3,
+    )
+    assert _choice_ids(result) == execute_catalog_search(veg3)["recipe_ids"]
+
+
+def test_a_same_type_more_keeps_the_cursor_when_the_model_changes_filters() -> None:
+    veg3 = _page_cursor("vegetarian")
+    arguments = {"query": "vegetarian", "exclude": ["eggs"], "offset": 0}
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload=arguments),
+                _tool_block("bad", name="unsupported", payload={}),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, provider = _run(replies, message="more vegetarian", previous_search=veg3)
+    assert _choice_ids(result) == execute_catalog_search(veg3)["recipe_ids"]
+    assert _sent_calls(provider)[CATALOG_TOOL_NAME] == veg3
+
+
+def test_a_search_with_dropped_words_is_never_a_repeat() -> None:
+    gluten_free: dict[str, object] = {"query": "gluten free", "limit": 3, "offset": 3}
+    assert page_arguments(gluten_free) == gluten_free
+    expected = execute_catalog_search({"query": "gluten-free pasta"})
+    assert expected["dropped"] == ["pasta"]
+    result, _ = _run(
+        [_search_reply({"query": "gluten-free pasta"})],
+        message="Gluten-free pasta, please.",
+        previous_search=gluten_free,
+    )
+    shown = _choice_ids(result)
+    assert shown
+    assert shown == cast(list[str], expected["recipe_ids"])[: len(shown)]
+    answer = cast(str, result["answer"])
+    assert "No meal with those types also matched: pasta." in answer
+
+
+def test_a_forged_previous_search_stops_the_run_before_the_model() -> None:
+    forged: dict[str, object] = {"query": "meals", "tags": ["no_such_tag"]}
+    provider = FakeLLM([])
+    with pytest.raises(ChatProtocolError, match="previous_search is invalid"):
+        run_chat(provider, "more", budget(), PERIOD, previous_search=forged)
+    assert provider.requests == []
+
+
+def test_a_search_with_text_after_it_keeps_the_choices() -> None:
+    expected = execute_catalog_search({"query": "lentils"})
+    replies = [
+        _reply(
+            [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": "lentils"})],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, _ = _run(replies, message="lentil meals")
+    assert result["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
+
+
+@pytest.mark.parametrize(
+    ("query", "status"),
+    [("xyzzy", "no_match"), ("lactose free", "unsupported_facet")],
+)
+def test_a_search_without_choices_has_no_choices_key(query: str, status: str) -> None:
+    assert execute_catalog_search({"query": query})["status"] == status
+    replies = [
+        _reply(
+            [_tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": query})],
+            "tool_use",
+        )
+    ]
+    result, _ = _run(replies, message="meals")
+    assert "choices" not in result
+    assert valid_public_result(result)
+
+
+def test_planner_and_limit_results_have_no_choices() -> None:
+    planned, _ = _run(_planner_then_final())
+    assert planned["status"] == "planned"
+    plain, _ = _run([_reply([_text_block("hi")], "end_turn")])
+    limit, _ = _run(
+        [_reply([_tool_block(f"p{i}", payload={})], "tool_use") for i in range(5)]
+    )
+    assert limit["status"] == "limit"
+    for result in (planned, plain, limit):
+        assert "choices" not in result
+
+
+def _batch_run(message: str, query: str) -> dict[str, object]:
+    bad_plan = plan_args(meals=[{"recipe_id": "not_a_catalog_meal", "servings": 2}])
+    replies = [
+        _reply(
+            [
+                _tool_block("d1", name=CATALOG_TOOL_NAME, payload={"query": query}),
+                _tool_block("p1", payload=bad_plan),
+            ],
+            "tool_use",
+        ),
+        _reply([_text_block("done")], "end_turn"),
+    ]
+    result, _ = _run(replies, message=message)
+    return result
+
+
+def _typed_batch_run(message: str) -> str:
+    assert execute_catalog_search({"query": "xyzzy"})["status"] == "no_match"
+    result = _batch_run(message, "xyzzy")
+    assert "choices" not in result
+    return str(result["answer"])
+
+
+def test_a_typed_catalog_batch_with_an_unsupported_recipe_names_no_recipe() -> None:
+    answer = _typed_batch_run("keto dinner")
+    assert TYPE_CLARIFICATION in answer
+    assert "That recipe is not in the catalog." in answer
+    for name in ("bean tacos", "vegetable pasta", "lentil soup"):
+        assert name not in answer
+    assert "Examples:" not in answer
+
+
+def test_a_catalog_batch_with_an_unsupported_recipe_gives_examples_otherwise() -> None:
+    answer = _typed_batch_run("plan pad thai for 2")
+    assert "Examples:" in answer
+    assert TYPE_CLARIFICATION not in answer
+    for name in ("bean tacos", "vegetable pasta", "lentil soup"):
+        assert name in answer
+
+
+def test_a_catalog_batch_with_a_successful_search_keeps_the_choices() -> None:
+    expected = execute_catalog_search({"query": "keto"})
+    assert expected["status"] == "ok"
+    result = _batch_run("keto dinner", "keto")
+    assert result["choices"] == [{"recipe_id": r} for r in expected["recipe_ids"]]
+    assert result["answer"].endswith(catalog_answer(expected))
 
 
 @pytest.mark.parametrize("discovery_position", [0, 1, 2])

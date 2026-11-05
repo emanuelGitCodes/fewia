@@ -1,7 +1,7 @@
 # Meal search by type: typed facets and hard filters
 
 - Date: 2026-10-31
-- Status: proposal; item 1 is built (meal-search-01)
+- Status: items 1 to 8, 8b, and 10 are built; item 9 waits for editable recipes
 - Context: the open design question on PR 460 ("the agent looks up meals
   by type"), [chat-architecture-proposal.md](chat-architecture-proposal.md),
   [grounding-redesign.md](grounding-redesign.md)
@@ -101,8 +101,11 @@ thresholds. The model MUST NOT assign a tag.
 ### Rule 2: every type is a hard filter
 
 - Keep the tool name `search_meals`.
-- Add `tags`: an array of an enum of `TAG_ORDER` and the diets, in the
-  pattern of `proposal_tool.py:28`.
+- Add `tags`: an array of an enum of the five types that are not
+  ingredients (`high_protein`, `lower_carb`, `gluten_free_ingredients`,
+  `vegetarian`, `vegan`). The ingredient tags stay hard filters when they
+  appear in `query`. The narrow enum keeps the prompt and tool schemas
+  under the 16,500-character budget.
 - The server also resolves type words found in `query` to tags.
 - Every tag, diet, resolved exclusion, and resolved text word is an AND
   filter. Every returned meal MUST have every applied facet.
@@ -112,8 +115,8 @@ thresholds. The model MUST NOT assign a tag.
 
 ### Rule 3: a type the system cannot check fails closed
 
-- The supported vocabulary starts from `grounding.py:254-258`.
-- A type outside it returns `unsupported_facet`. The reply names the
+- The unchecked vocabulary is `UNCHECKED_DIET` in `meal_tags.py`.
+- An unresolved type in that vocabulary returns `unsupported_facet`. The reply names the
   types that the system can check. It MUST NOT say "no match".
 - For zero results, the server drops text words first, never a facet,
   and reports them in `dropped`.
@@ -130,8 +133,9 @@ thresholds. The model MUST NOT assign a tag.
 - The prompt keeps one sentence of type vocabulary, the 30 g thresholds,
   the rule against safety claims, and "call search_meals for any meal
   type or open request". Lines 124-125 go.
-- The "meat" and "carnivore" aliases go. `mealSearch.ts` filters on the
-  exported tags only, so the picker and the agent agree.
+- The agent resolves "meat" and "carnivore" to the chicken facet, as the
+  meal picker does, so the picker and the agent agree. The reply carries
+  `CARNIVORE_NOTE`.
 
 ### Scale
 
@@ -172,14 +176,21 @@ Each item adds fewer than 150 code lines. Data and tests do not count.
 | 7 | Meal-type scenarios C13 to C17, gold from the tool | `conversation.json`, corpus test | data | The gold answers come from the deterministic tools |
 | 8 | `total_matches` and `offset` | `catalog_tool.py` | 60 | `offset` walks the full set with no repeats |
 | 9 | A `MealIndex` protocol with a PostgreSQL implementation, when recipes become editable | new module, migration | later | Both loaders give the same hash |
+| 10 | A `dairy_free_ingredients` type from a `contains_dairy` ingredient fact | `catalog.py`, `meal_tags.py`, `catalog_tool.py`, prompt, corpus v1.4 | 45 | "dairy-free meals" returns all 40 meals, chicken meals too |
 
 Item 1 is the smallest change that fixes the reply the user sees.
 
+Item 8b carries the next page into the next turn. The chat result stores
+`next_search`: search arguments built from catalog words only and checked
+against the shown page. The next turn loads and checks them again and puts
+them in the model context as `previous_search`, so "more" continues the
+same search.
+
 ## Measurement
 
-Scenarios: gluten-free, keto, high protein vegetarian, "cheap vegetarian
-dinner", dairy-free (unsupported), and "gluten-free pasta" (zero results,
-then the server drops words).
+Scenarios: gluten-free, keto, high protein vegetarian, three vegetarian
+pages across a budget turn, dairy-free (unsupported), and "gluten-free
+pasta" (zero results, then the server drops words).
 
 | Metric | Pass bar |
 |---|---|
@@ -202,6 +213,8 @@ Run one live Nova 2 Lite batch after item 7.
 | An unknown free word | A hard filter when it matches a catalog word. Otherwise the reply reports it and ignores it: "No meal mentions beef." |
 | Add tags to `catalog_hash` now | Yes. The hash already restarted at decision 0024. |
 | Move the 22 ingredient pairs from the prompt into schema enums | Measure after item 7, then decide. |
-| Allergen types other than gluten | None until ingredients carry allergen facts. |
+| Allergen types other than gluten | Dairy, from the `contains_dairy` fact (item 10). No other type until ingredients carry its fact. |
+| Dairy-free as vegan | No (owner, 2026-11-01). A dairy-free person can eat meat or fish, so dairy-free MUST NOT map to `vegan` or any diet. |
+| Prompt and tools budget | 17,000 characters (owner, 2026-11-01), raised from 16,500 for item 10. |
 | Corpus version | Add the scenarios as v1.1 of the conversation suite. |
 | Recipes in PostgreSQL | Tie the move to `update_recipe`, not to search. |

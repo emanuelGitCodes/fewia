@@ -18,17 +18,14 @@ function jobWith(
     answer: "ok",
     plan: null,
     budget: null,
-    request:
-      status === "clarification"
-        ? null
-        : {
-            meals,
-            budget_period: "2026-09-01",
-            plan_cap_cents: null,
-            pantry_ingredients: [],
-            ingredient_exclusions: [],
-            diet: "omnivore",
-          },
+    request: {
+      meals,
+      budget_period: "2026-09-01",
+      plan_cap_cents: null,
+      pantry_ingredients: [],
+      ingredient_exclusions: [],
+      diet: "omnivore",
+    },
     meal_nutrition: null,
     evidence_id: null,
     evidence_revision_id: null,
@@ -95,7 +92,7 @@ describe("chatBudget", () => {
 describe("ideasFromJob", () => {
   const planned = ["bean_tacos"];
 
-  it("returns known meals that are not yet planned", () => {
+  it("falls back to known request meals and their servings when choices are absent", () => {
     const job = jobWith("planned", [
       { recipe_id: "chickpea_curry", servings: 3 },
       { recipe_id: "egg_fried_rice", servings: 2 },
@@ -132,7 +129,67 @@ describe("ideasFromJob", () => {
     expect(ideasFromJob(job, [])).toHaveLength(3);
   });
 
+  describe("choices", () => {
+    const withChoices = (
+      status: ChatResult["status"],
+      ids: string[],
+      meals: Array<{ recipe_id: string; servings: number }> = [],
+    ): ChatJob => {
+      const job = jobWith(status, meals);
+      const choices = ids.map((recipe_id) => ({ recipe_id }));
+      return { ...job, result: { ...job.result, choices } as ChatResult };
+    };
+    const ids = ["chickpea_curry", "egg_fried_rice", "lentil_soup"];
+
+    it("returns clarification choices in order with the default servings", () => {
+      expect(ideasFromJob(withChoices("clarification", ids), [])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+        { recipeId: "egg_fried_rice", servings: 2 },
+        { recipeId: "lentil_soup", servings: 2 },
+      ]);
+    });
+
+    it("uses planned choices instead of request meals", () => {
+      expect(
+        ideasFromJob(
+          withChoices("planned", ["egg_fried_rice"], [{ recipe_id: "chickpea_curry", servings: 4 }]),
+          [],
+        ),
+      ).toEqual([{ recipeId: "egg_fried_rice", servings: 2 }]);
+    });
+
+    it("uses needs-revision choices instead of request meals", () => {
+      expect(
+        ideasFromJob(
+          withChoices("needs_revision", ["lentil_soup"], [{ recipe_id: "egg_fried_rice", servings: 3 }]),
+          [],
+        ),
+      ).toEqual([{ recipeId: "lentil_soup", servings: 2 }]);
+    });
+
+    it("filters planned IDs from planned choices", () => {
+      expect(ideasFromJob(withChoices("planned", ["chickpea_curry", "egg_fried_rice"]), ["egg_fried_rice"])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+      ]);
+    });
+
+    it("skips planned and unknown choices", () => {
+      expect(ideasFromJob(withChoices("clarification", ids), ["egg_fried_rice"])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+        { recipeId: "lentil_soup", servings: 2 },
+      ]);
+      expect(ideasFromJob(withChoices("clarification", ["nope", "chickpea_curry"]), [])).toEqual([
+        { recipeId: "chickpea_curry", servings: 2 },
+      ]);
+    });
+
+    it.each(["limit", "incomplete"] as const)("ignores choices on %s results", (status) => {
+      expect(ideasFromJob(withChoices(status, ids), [])).toEqual([]);
+    });
+  });
+
   it("gives no ideas for clarification, limit, incomplete, or a missing result", () => {
+    // Each job carries non-empty request meals; only the status should suppress ideas.
     const meals = [{ recipe_id: "chickpea_curry", servings: 2 }];
     expect(ideasFromJob(jobWith("clarification", meals), [])).toEqual([]);
     expect(ideasFromJob(jobWith("limit", meals), [])).toEqual([]);

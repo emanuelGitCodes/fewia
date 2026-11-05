@@ -16,8 +16,12 @@ PROTEIN_TAGS = (
     ("lentils", "lentils"),
     ("chickpeas", "chickpeas"),
 )
-# Oats and oat milk count as gluten ingredients.
-GLUTEN_INGREDIENT_IDS = frozenset({"pasta", "soy_sauce", "oats", "oat_milk"})
+GLUTEN_INGREDIENT_IDS = frozenset(
+    item.id for item in INGREDIENTS.values() if item.contains_gluten
+)
+DAIRY_INGREDIENT_IDS = frozenset(
+    item.id for item in INGREDIENTS.values() if item.contains_dairy
+)
 TAG_ORDER = (
     "chicken",
     "egg",
@@ -27,6 +31,7 @@ TAG_ORDER = (
     "high_protein",
     "lower_carb",
     "gluten_free_ingredients",
+    "dairy_free_ingredients",
 )
 KETO_NOTE = (
     "No meal in this catalog is keto. "
@@ -45,6 +50,10 @@ SEARCH_TERMS: dict[str, tuple[str, str | None]] = {
     "gluten free": ("gluten_free_ingredients", None),
     "gluten-free": ("gluten_free_ingredients", None),
     "celiac": ("gluten_free_ingredients", None),
+    "dairy free": ("dairy_free_ingredients", None),
+    "dairy-free": ("dairy_free_ingredients", None),
+    "non-dairy": ("dairy_free_ingredients", None),
+    "nondairy": ("dairy_free_ingredients", None),
     "plant based": ("vegan", None),
     "plant-based": ("vegan", None),
     "veggie": ("vegetarian", None),
@@ -74,10 +83,11 @@ def resolve_meal_term(value: str) -> str | None:
 
 
 _INGREDIENT_TAGS = frozenset({"chicken", "egg", "beans", "lentils", "chickpeas"})
-# Diet labels the system cannot check; the same vocabulary as grounding.py.
-_UNCHECKED_DIET = re.compile(
+# Diet labels the system cannot check. Dairy-free is a checked type, so "dairy" is
+# absent here; grounding.py still bars model prose from using any of these labels.
+UNCHECKED_DIET = re.compile(
     r"\b(?:keto|paleo|halal|kosher|plant[- ]?based"
-    r"|(?:dairy|lactose|nut|egg|soy|sugar)[- ]?free"
+    r"|(?:lactose|nut|egg|soy|sugar)[- ]?free"
     r"|low[- ]?(?:sodium|fat)|high[- ]?fiber)\b",
     re.IGNORECASE,
 )
@@ -85,7 +95,7 @@ _WORD = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)*")
 
 
 def names_meal_type(text: str) -> bool:
-    if _UNCHECKED_DIET.search(text) is not None:
+    if UNCHECKED_DIET.search(text) is not None:
         return True
     words = _WORD.findall(text.lower())
     pairs = (f"{a} {b}" for a, b in zip(words, words[1:], strict=False))
@@ -130,6 +140,8 @@ def _tags(recipe_id: str) -> tuple[str, ...]:
         tags.append("lower_carb")
     if not ids & GLUTEN_INGREDIENT_IDS:
         tags.append("gluten_free_ingredients")
+    if not ids & DAIRY_INGREDIENT_IDS:
+        tags.append("dairy_free_ingredients")
     return tuple(tags)
 
 

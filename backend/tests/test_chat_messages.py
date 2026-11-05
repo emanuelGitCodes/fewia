@@ -365,6 +365,21 @@ def test_build_chat_result_defaults_to_a_template_reply_with_a_hash() -> None:
     assert result["reply_sha256"] == hashlib.sha256(b"ok").hexdigest()
 
 
+def test_build_chat_result_adds_choices_only_when_non_empty() -> None:
+    plain = build_chat_result("clarification", "ok", None, "ledger", [], 1, 0)
+    for empty in (None, []):
+        result = build_chat_result(
+            "clarification", "ok", None, "ledger", [], 1, 0, choices=empty
+        )
+        assert result == plain
+        assert "choices" not in result
+    result = build_chat_result(
+        "clarification", "ok", None, "ledger", [], 1, 0, choices=["a", "b"]
+    )
+    assert result["choices"] == [{"recipe_id": "a"}, {"recipe_id": "b"}]
+    assert {k: v for k, v in result.items() if k != "choices"} == plain
+
+
 def test_build_chat_result_records_the_reply_source_check_and_utf8_hash() -> None:
     check: dict[str, object] = {"ok": True, "reasons": [], "unmatched": []}
     result = build_chat_result(
