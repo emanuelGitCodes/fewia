@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Callable
 from datetime import date
 from itertools import permutations
 from typing import Any, Literal, cast
@@ -4334,31 +4335,52 @@ def test_a_filtered_restart_records_every_checked_filter_and_the_saved_limit(
     _assert_public(result, "hidden-restart")
 
 
+_RESTART_MESSAGES = [
+    "Start over from the first page",
+    "Show the first page again",
+    "Show the first page of gluten free meals",
+    "Show the first page of gluten-free meals",
+    "Show the first page of celiac meals",
+    "Show the first page of vegetarian meals",
+]
+_RESTART_CASES = [
+    (
+        make_cursor,
+        message,
+        {"query": "chicken", "offset": 6},
+        "try chicken tacos or vegetable pasta",
+    )
+    for make_cursor in (_constrained_cursor, _named_facet_cursor)
+    for message in _RESTART_MESSAGES
+] + [
+    (
+        _catalog_word_cursor,
+        "Show me the first page of rice onion meals.",
+        {"query": "chicken", "limit": 3, "offset": 6},
+        "try chicken tacos",
+    )
+]
+
+
 @pytest.mark.parametrize(
-    "message",
-    [
-        "Start over from the first page",
-        "Show the first page again",
-        "Show the first page of gluten free meals",
-        "Show the first page of gluten-free meals",
-        "Show the first page of celiac meals",
-        "Show the first page of vegetarian meals",
-    ],
+    ("make_cursor", "message", "more_arguments", "provider_text"), _RESTART_CASES
 )
 @pytest.mark.parametrize("prefixed", [False, True])
 @pytest.mark.parametrize("model_prose", [False, True])
-@pytest.mark.parametrize("named_facet", [False, True])
 def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
-    message: str, prefixed: bool, model_prose: bool, named_facet: bool
+    make_cursor: Callable[[], dict[str, object]],
+    message: str,
+    more_arguments: dict[str, object],
+    provider_text: str,
+    prefixed: bool,
+    model_prose: bool,
 ) -> None:
-    cursor = _named_facet_cursor() if named_facet else _constrained_cursor()
+    cursor = make_cursor()
     original = copy.deepcopy(cursor)
     first_page = {**cursor, "offset": 0}
     expected = execute_catalog_search(first_page)
     prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
-    provider = FakeLLM(
-        [_reply([_text_block("try chicken tacos or vegetable pasta")], "end_turn")]
-    )
+    provider = FakeLLM([_reply([_text_block(provider_text)], "end_turn")])
     result = run_chat(
         provider,
         f"{prefix if prefixed else ''}{message}",
@@ -4377,44 +4399,7 @@ def test_a_no_tool_restart_retains_the_first_page_for_the_next_more(
     assert result["planner_revisions"] == 0
     assert cursor == original
     more, _ = _run(
-        [_search_reply({"query": "chicken", "offset": 6})],
-        message="more",
-        previous_search=cast(dict[str, object], result["next_search"]),
-    )
-    assert _choice_ids(more) == expected["recipe_ids"]
-    assert more["answer"] == catalog_answer(expected)
-    assert more["next_search"] == next_search_arguments(expected)
-    _assert_public(result)
-    _assert_public(more)
-
-
-@pytest.mark.parametrize("prefixed", [False, True])
-@pytest.mark.parametrize("model_prose", [False, True])
-def test_a_no_tool_catalog_word_restart_retains_the_first_page_for_more(
-    prefixed: bool, model_prose: bool
-) -> None:
-    cursor = _catalog_word_cursor()
-    original = copy.deepcopy(cursor)
-    first_page = {**cursor, "offset": 0}
-    expected = execute_catalog_search(first_page)
-    prefix = "My current plan: no meals. Pantry: none. Plan cap: $40.00.\n\n"
-    provider = FakeLLM([_reply([_text_block("try chicken tacos")], "end_turn")])
-    result = run_chat(
-        provider,
-        f"{prefix if prefixed else ''}Show me the first page of rice onion meals.",
-        budget(),
-        PERIOD,
-        previous_search=cursor,
-        model_prose=model_prose,
-    )
-    assert result["answer"] == TYPE_CLARIFICATION
-    assert result["reply_source"] == "template"
-    assert result["tool_trace"] == []
-    assert "choices" not in result
-    assert result["next_search"] == first_page
-    assert cursor == original
-    more, _ = _run(
-        [_search_reply({"query": "chicken", "limit": 3, "offset": 6})],
+        [_search_reply(more_arguments)],
         message="more",
         previous_search=cast(dict[str, object], result["next_search"]),
     )

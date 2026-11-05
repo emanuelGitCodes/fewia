@@ -60,10 +60,9 @@ def _text_reply(text: str) -> dict[str, object]:
     }
 
 
-def test_budget_then_dairy_claim_returns_the_template_answer() -> None:
-    period = date(2026, 9, 1)
-    budget = BudgetResult(10_000, 250, False, ())
-    for claim in (
+@pytest.mark.parametrize(
+    "claim",
+    [
         "This meal contains no dairy.",
         "This meal has **no dairy**.",
         "This meal has n.o d.a.i.r.y.",
@@ -134,44 +133,15 @@ def test_budget_then_dairy_claim_returns_the_template_answer() -> None:
         "This garlic knot is n.o.t m.a.d.e w.i.t.h d.a.i.r.y.",
         "This garlic knot is n o t p r e p a r e d w i t h d a i r y.",
         "This garlic knot is NOT-COOKED-WITH-DAIRY.",
-    ):
-        provider = FakeProvider([_tool_reply(), _text_reply(claim)])
-
-        result = run_chat(
-            provider,
-            "What is my remaining budget?",
-            budget,
-            period,
-            model_prose=True,
-        )
-
-        assert len(provider.requests) == 2
-        assert result["reply_source"] == "template"
-        assert result["answer"] == budget_summary_answer(
-            budget, period, spending_source="fixture"
-        )
-        assert result["reply_check"] == {
-            "ok": False,
-            "reasons": ["forbidden_claim"],
-            "unmatched": [],
-            "gate": "clean",
-        }
-        assert result["tool_trace"] == [
-            {
-                "tool": BUDGET_TOOL_NAME,
-                "outcome": "success",
-                "tool_use_id": "budget-call",
-                "sequence": 1,
-                "revision_index": None,
-            }
-        ]
-        assert claim not in json.dumps(result)
+    ],
+)
+def test_budget_then_dairy_claim_returns_the_template_answer(claim: str) -> None:
+    _assert_budget_claim_rejected(claim)
 
 
-def test_budget_then_ingredient_text_returns_the_exact_model_answer() -> None:
-    period = date(2026, 9, 1)
-    budget = BudgetResult(10_000, 250, False, ())
-    for reply in (
+@pytest.mark.parametrize(
+    "reply",
+    [
         "This recipe contains oregano, dairy, and rice.",
         "This recipe contains oregano dairy and rice.",
         "This recipe contains oregano; dairy; rice.",
@@ -211,35 +181,41 @@ def test_budget_then_ingredient_text_returns_the_exact_model_answer() -> None:
         "_M_ _i_ _l_ _k_ freezes when chilled.",
         "M.i.l.k freezes when chilled.",
         "M i l k freezes when chilled.",
-    ):
-        provider = FakeProvider([_tool_reply(), _text_reply(reply)])
+    ],
+)
+def test_budget_then_ingredient_text_returns_the_exact_model_answer(
+    reply: str,
+) -> None:
+    period = date(2026, 9, 1)
+    budget = BudgetResult(10_000, 250, False, ())
+    provider = FakeProvider([_tool_reply(), _text_reply(reply)])
 
-        result = run_chat(
-            provider,
-            "What is my remaining budget?",
-            budget,
-            period,
-            model_prose=True,
-        )
+    result = run_chat(
+        provider,
+        "What is my remaining budget?",
+        budget,
+        period,
+        model_prose=True,
+    )
 
-        assert len(provider.requests) == 2
-        assert result["answer"] == reply.replace("ñ", "n")
-        assert result["reply_source"] == "model"
-        assert result["reply_check"] == {
-            "ok": True,
-            "reasons": [],
-            "unmatched": [],
-            "gate": "clean",
+    assert len(provider.requests) == 2
+    assert result["answer"] == reply.replace("ñ", "n")
+    assert result["reply_source"] == "model"
+    assert result["reply_check"] == {
+        "ok": True,
+        "reasons": [],
+        "unmatched": [],
+        "gate": "clean",
+    }
+    assert result["tool_trace"] == [
+        {
+            "tool": BUDGET_TOOL_NAME,
+            "outcome": "success",
+            "tool_use_id": "budget-call",
+            "sequence": 1,
+            "revision_index": None,
         }
-        assert result["tool_trace"] == [
-            {
-                "tool": BUDGET_TOOL_NAME,
-                "outcome": "success",
-                "tool_use_id": "budget-call",
-                "sequence": 1,
-                "revision_index": None,
-            }
-        ]
+    ]
 
 
 @pytest.mark.parametrize("punctuation", list(".,;:!?") + ["?!", "..."])

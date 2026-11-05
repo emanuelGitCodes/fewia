@@ -5177,3 +5177,24 @@ They total 409,676 output tokens, including 249,408 reasoning tokens, over 5,864
 The final integration review follows this cutoff. Native coordination and advice are excluded.
 One blocked launcher has unknown usage outside these totals. Its explicit Astra retry succeeds.
 The [phase record](phases/conversation-quality-20261101.md) links immutable study records and subsequent repair evidence.
+
+## 2026-11-02 — Review of PR 469 and PR 470, and the follow-up branch
+
+The merge order is PR 469, PR 470, then `claude/conversation-polish`. PR 470 is stacked on PR 469.
+PR 469 passes the gates at `8cee7e1a`: 15,442 backend tests, frontend PASS, 987 of 1,000 lines.
+PR 470 passes the gates at `27a8f73c`: 17,156 backend tests, 602 of 1,000 lines.
+The follow-up has two work items. polish-a puts dairy, milk, and gluten claims in one phrase table.
+It also adds `allergysafe` to `_FORBIDDEN`. polish-c loads the previous search state once and computes the plan answer once.
+Findings 3 and 11 are withdrawn because existing tests record that behavior as intent.
+The follow-up passes the gates at `48fcbef3`: 17,291 backend tests, 37 of 1,000 lines.
+`claude-opus-5-5` approves the same head. Writers: `claude-sonnet-5-5` at `medium`, then `low` for one polish-c repair.
+The [review](../docs/reviews/pr-469-470-review.md) lists the findings, the build status, and three owner decisions.
+No push, pull request, or merge has run.
+
+## 2026-11-05 — Repairs to the follow-up branch `claude/conversation-polish`
+
+The approval at `48fcbef3` does not cover the current head. Later review rounds found two fail-open regressions in the phrase table.
+Glued negations such as "hasno dairy" passed, and the `claims` exemption accepted punctuation before "claim".
+Three repairs restore the base behavior for both. A bare "no", "non", or "not" MUST start a word, so "Dannon dairy" passes.
+The pull request body records the final head, the gates, and the review verdict.
+Writers: `claude-sonnet-5-5` at `medium`. Three runs stopped with no edits while the CLI sign-in had expired.
