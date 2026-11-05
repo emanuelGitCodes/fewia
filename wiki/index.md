@@ -31,6 +31,7 @@ chronological record lives in [log.md](log.md).
 
 ## Phases
 
+- [PR 469 repair verification — local and hosted evidence](phases/pr469-repair-verification-20261101.md)
 - [Phase 0 — Repo bootstrap and the agent team](phases/phase-0.md)
 - [Phase 1 — Skeleton: Compose, schema, CI](phases/phase-1.md)
 - [Phase 2 — Synthetic data](phases/phase-2.md)
@@ -78,7 +79,10 @@ course pack #361, and later hosting source through runbook #381.
 The [hosting snapshot](phases/hosting-preparation-20261003.md)
 keeps its 2026-10-03 heads, parents, and CI observations.
 The [final record](phases/backlog-final-20261003.md) lists the 60 created pull requests #322-#381 as of its 2026-10-04 snapshot; all merged later that day, see the [integrity check](phases/integrity-20261004.md).
-Observed main remains `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
+The 2026-10-03 hosting snapshot observed main at `8bfd4b80c71bca85cb1245446d933f965b17b86a`.
+Latest verification: [PR #469](https://github.com/emanuelGitCodes/fewia/pull/469) remains open and unmerged at `8cee7e1a`; all four hosted workflows pass.
+The [conversation-quality follow-up](phases/conversation-quality-20261101.md) records local work on
+recovery, saved plans, proposal explanations, and answer quality. It has no publication or hosted CI result.
 [Decision 0019](decisions/0019-invitation-only-hosting.md) accepts owner and invited-user access with no public signup.
 Invited users share the current server-selected demo context. They have no private application accounts.
 D5 source, preflight CLI, and runbook are published. Live deployment still awaits owner inputs and confirmations.

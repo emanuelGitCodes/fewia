@@ -9,15 +9,20 @@ from collections.abc import Callable, Iterator
 from copy import deepcopy
 from datetime import date
 from time import perf_counter
+from typing import Annotated
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 
 from app.agent import chat_loop
 from app.agent.catalog_tool import (
     CatalogToolError,
     execute_catalog_search,
+    exhausted_page_arguments,
     page_arguments,
 )
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
+from app.agent.chat_messages import is_guardrail_decline
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
@@ -45,6 +50,58 @@ _USAGE_KEYS = (
 )
 _MISSING = object()
 ProviderFor = Callable[[Scenario, int, int], LLMProvider]
+
+
+class _SelectionModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+
+class ScenarioRepeatSelection(_SelectionModel):
+    scenario_id: StrictStr
+    repeats: Annotated[list[StrictInt], Field(min_length=1)]
+
+
+class ConversationSelection(_SelectionModel):
+    scenarios: Annotated[list[ScenarioRepeatSelection], Field(min_length=1)]
+
+
+def normalize_selection(
+    corpus: ConversationCorpus, selection: ConversationSelection
+) -> ConversationSelection:
+    """Validate a selection and order it by corpus scenario and repeat."""
+    available = {scenario.id for scenario in corpus.scenarios}
+    selected: dict[str, list[int]] = {}
+    for item in selection.scenarios:
+        if item.scenario_id in selected or item.scenario_id not in available:
+            raise ValueError("invalid conversation selection")
+        if len(set(item.repeats)) != len(item.repeats):
+            raise ValueError("invalid conversation selection")
+        if any(repeat < 1 or repeat > corpus.repeats for repeat in item.repeats):
+            raise ValueError("invalid conversation selection")
+        selected[item.scenario_id] = sorted(item.repeats)
+    return ConversationSelection(
+        scenarios=[
+            ScenarioRepeatSelection(
+                scenario_id=scenario.id,
+                repeats=selected[scenario.id],
+            )
+            for scenario in corpus.scenarios
+            if scenario.id in selected
+        ]
+    )
+
+
+def logical_chat_turn_count(
+    corpus: ConversationCorpus, selection: ConversationSelection | None = None
+) -> int:
+    """Count user turns across the selected scenarios and repeats."""
+    turns_by_id = {scenario.id: len(scenario.turns) for scenario in corpus.scenarios}
+    if selection is None:
+        return sum(turns_by_id.values()) * corpus.repeats
+    return sum(
+        turns_by_id[item.scenario_id] * len(item.repeats)
+        for item in selection.scenarios
+    )
 
 
 def _lookup(payload: object, path: str) -> object:
@@ -132,6 +189,7 @@ def _observation(
         "tools": [],
         "facts_present": [False] * len(gold),
         "usage": _usage(None),
+        "provider_requests": capture.provider_calls,
         "latency_ms": latency_ms,
         "apply_error": apply_error,
     }
@@ -194,6 +252,7 @@ def _run_scenario(
     previous: dict[str, object] | None = None
     previous_ids: list[str] | None = None
     previous_search: dict[str, object] | None = None
+    previous_exhausted_search: dict[str, object] | None = None
     for index, turn in enumerate(scenario.turns, start=1):
         apply_error: str | None = None
         if turn.apply_proposal_before:
@@ -224,6 +283,7 @@ def _run_scenario(
                 previous_request=previous,
                 previous_ingredient_ids=previous_ids,
                 previous_search=previous_search,
+                previous_exhausted_search=previous_exhausted_search,
                 history=history or None,
                 plan_cap_cents=inputs.plan_cap_cents,
                 plan_revision=plan,
@@ -240,6 +300,12 @@ def _run_scenario(
         if result is None:
             return
         previous_search = page_arguments(result.get("next_search"))
+        previous_exhausted_search = exhausted_page_arguments(
+            result.get("exhausted_search")
+        )
+        if is_guardrail_decline(result):
+            pending.clear()
+            continue
         ids = plan_ingredient_ids(result.get("plan"))
         previous_ids = ids if ids is not None else previous_ids
         request, answer = result.get("request"), result.get("answer")
@@ -253,9 +319,23 @@ def _run_scenario(
 
 
 def run_conversation_suite(
-    corpus: ConversationCorpus, profile: str, provider_for: ProviderFor
+    corpus: ConversationCorpus,
+    profile: str,
+    provider_for: ProviderFor,
+    *,
+    selection: ConversationSelection | None = None,
 ) -> Iterator[dict[str, object]]:
-    """Yield one record per turn, for each scenario and each of three repeats."""
+    """Yield one record per turn and selected repeat."""
+    selected_repeats = (
+        {item.scenario_id: item.repeats for item in selection.scenarios}
+        if selection is not None
+        else None
+    )
     for scenario in corpus.scenarios:
-        for repeat in range(1, corpus.repeats + 1):
+        repeats = (
+            range(1, corpus.repeats + 1)
+            if selected_repeats is None
+            else selected_repeats.get(scenario.id, [])
+        )
+        for repeat in repeats:
             yield from _run_scenario(scenario, repeat, profile, provider_for)

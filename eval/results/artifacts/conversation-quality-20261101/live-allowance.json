@@ -1,0 +1,37 @@
+{
+  "authorized_chat_turns": 48,
+  "started_chat_turns": 48,
+  "api_attempts": 82,
+  "batches": {
+    "baseline": {
+      "started": 22,
+      "api_attempts": 40,
+      "settings": {
+        "nova_2_lite": true,
+        "credential_mount_reused": true,
+        "guardrail_enabled": false,
+        "prompt_cache_enabled": false
+      }
+    },
+    "candidate": {
+      "started": 22,
+      "api_attempts": 37,
+      "settings": {
+        "nova_2_lite": true,
+        "credential_mount_reused": true,
+        "guardrail_enabled": false,
+        "prompt_cache_enabled": false
+      }
+    },
+    "smokes": {
+      "started": 4,
+      "api_attempts": 5,
+      "settings": {
+        "nova_2_lite": true,
+        "credential_mount_reused": true,
+        "guardrail_enabled": false,
+        "prompt_cache_enabled": false
+      }
+    }
+  }
+}

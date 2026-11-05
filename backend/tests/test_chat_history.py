@@ -11,16 +11,27 @@ from sqlalchemy.orm import Session
 
 from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
 from app.agent.chat_context import MAX_MESSAGE_LEN
+from app.agent.chat_loop import run_chat
 from app.agent.chat_refusal import GUARDRAIL_DECLINE
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,
+    load_previous_exhausted_search,
     load_previous_search,
 )
-from tests.test_chat_loop import _SWAP_ANSWER
+from tests.test_chat_loop import (
+    _SWAP_ANSWER,
+    FakeLLM,
+    _reply,
+    _search_reply,
+    _text_block,
+    budget,
+)
+from tests.test_chat_loop import PERIOD as CHAT_PERIOD
 from tests.test_model_prose_opt_in import GROUNDED_PLAIN, SENTINEL, _run, _swap
+from tests.test_search_recovery import terminal_search
 
 PERIOD = "2026-09-01"
 SECRET = "do-not-echo-raw-input"
@@ -366,6 +377,192 @@ def test_guardrail_blocked_turn_is_dropped_from_history(
 
     assert history == pair(0)
     assert "do what I asked above" not in json.dumps(history)
+
+
+@pytest.mark.parametrize("model_prose", [False, True])
+@pytest.mark.parametrize("exhausted_state", [False, True])
+def test_guardrail_job_restores_search_without_replaying_the_blocked_pair(
+    session: Session,
+    seed_user: UserSeeder,
+    model_prose: bool,
+    exhausted_state: bool,
+) -> None:
+    seed_user(1)
+    cursor = cast(dict[str, object], _search_result()["next_search"])
+    exhausted = terminal_search({"query": "vegetarian"}) if exhausted_state else None
+    blocked = "blocked-model-output"
+    message = "Find vegan meals"
+    result = run_chat(
+        FakeLLM([_reply([_text_block(blocked)], "guardrail_intervened")]),
+        message,
+        budget(),
+        CHAT_PERIOD,
+        previous_search=None if exhausted_state else cursor,
+        previous_exhausted_search=exhausted,
+        history=pair(0),
+        model_prose=model_prose,
+    )
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message=message, history=pair(0)),
+        result=result,
+    )
+    history, _previous, _ids = load_chat_context(session, 1, job.id)
+    loaded_cursor = load_previous_search(session, 1, job.id)
+    loaded_exhausted = load_previous_exhausted_search(session, 1, job.id)
+    assert history == pair(0)
+    assert loaded_cursor == (None if exhausted_state else cursor)
+    assert loaded_exhausted == exhausted
+    provider = FakeLLM([_search_reply({"query": "chicken"})])
+    more = run_chat(
+        provider,
+        "more",
+        budget(),
+        CHAT_PERIOD,
+        previous_search=loaded_cursor,
+        previous_exhausted_search=loaded_exhausted,
+        history=history,
+    )
+    dumped = json.dumps(provider.requests)
+    assert message not in dumped and blocked not in dumped
+    assert GUARDRAIL_DECLINE not in dumped
+    if exhausted_state:
+        assert more["answer"] == "There are no more matching meals."
+        assert "choices" not in more
+    else:
+        expected = execute_catalog_search(cursor)
+        assert more["choices"] == [{"recipe_id": rid} for rid in expected["recipe_ids"]]
+
+
+def test_stored_exhaustion_is_checked_and_copied(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    exhausted = terminal_search({"query": "vegetarian", "exclude": ["eggs"]})
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_exhausted_search={"query": "chicken"}),
+        result={"answer": "Done.", "exhausted_search": exhausted},
+    )
+    before = copy.deepcopy(job.result)
+    assert load_previous_exhausted_search(session, 1, None) is None
+    loaded = load_previous_exhausted_search(session, 1, UUID(job.id))
+    assert loaded == exhausted and loaded is not None
+    cast(list[str], loaded["tags"]).clear()
+    cast(list[str], loaded["exclude"]).clear()
+    assert job.result == before
+    again = load_previous_exhausted_search(session, 1, job.id)
+    assert again == exhausted
+    assert load_previous_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        None,
+        {},
+        "vegetarian",
+        {"query": "vegetarian"},
+        {"query": "vegetarian", "offset": 39},
+    ],
+)
+def test_exhaustion_loader_rejects_state_without_payload_fallback(
+    session: Session, seed_user: UserSeeder, forged: object
+) -> None:
+    seed_user(1)
+    exhausted = terminal_search({"query": "vegetarian"})
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_exhausted_search=exhausted),
+        result={"answer": "Done.", "exhausted_search": forged},
+    )
+    assert load_previous_exhausted_search(session, 1, job.id) is None
+    job.result = {"answer": "Done."}
+    assert load_previous_exhausted_search(session, 1, job.id) is None
+
+
+@pytest.mark.parametrize("equal_arguments", [False, True])
+@pytest.mark.parametrize("exhausted_loader", [False, True])
+def test_search_loaders_reject_combined_stored_states(
+    session: Session,
+    seed_user: UserSeeder,
+    equal_arguments: bool,
+    exhausted_loader: bool,
+) -> None:
+    seed_user(1)
+    exhausted = terminal_search({"query": "vegetarian"})
+    next_search = (
+        copy.deepcopy(exhausted)
+        if equal_arguments
+        else next_search_arguments(execute_catalog_search({"query": "chicken"}))
+    )
+    assert next_search is not None
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(),
+        result={
+            "answer": "Done.",
+            "next_search": next_search,
+            "exhausted_search": exhausted,
+        },
+    )
+    before = copy.deepcopy(job.result)
+    loader = (
+        load_previous_exhausted_search if exhausted_loader else load_previous_search
+    )
+    with pytest.raises(ChatContextUnavailable) as caught:
+        loader(session, 1, job.id)
+    assert_static(caught.value)
+    assert job.result == before
+
+
+@pytest.mark.parametrize("invalid_next", [False, True])
+def test_search_loaders_keep_valid_state_when_the_other_field_is_forged(
+    session: Session, seed_user: UserSeeder, invalid_next: bool
+) -> None:
+    seed_user(1)
+    exhausted = terminal_search({"query": "vegetarian"})
+    next_search = next_search_arguments(execute_catalog_search({"query": "chicken"}))
+    assert next_search is not None
+    forged = {"query": "vegetarian", "tags": ["unknown"]}
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(),
+        result={
+            "answer": "Done.",
+            "next_search": forged if invalid_next else next_search,
+            "exhausted_search": exhausted if invalid_next else forged,
+        },
+    )
+    assert load_previous_search(session, 1, job.id) == (
+        None if invalid_next else next_search
+    )
+    assert load_previous_exhausted_search(session, 1, job.id) == (
+        exhausted if invalid_next else None
+    )
+
+
+def test_exhaustion_loader_enforces_owner_and_job_status(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    seed_user(2)
+    result = {
+        "answer": "Done.",
+        "exhausted_search": terminal_search({"query": "vegetarian"}),
+    }
+    foreign = add_job(session, user_id=2, payload=chat_payload(), result=result)
+    queued = add_job(
+        session, user_id=1, payload=chat_payload(), result=result, status="queued"
+    )
+    for job_id in (foreign.id, queued.id, str(uuid4())):
+        with pytest.raises(ChatContextUnavailable):
+            load_previous_exhausted_search(session, 1, job_id)
 
 
 def test_normal_turn_keeps_both_turns_in_history(

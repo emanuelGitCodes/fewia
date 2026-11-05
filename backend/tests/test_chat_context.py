@@ -10,7 +10,11 @@ from botocore.exceptions import ParamValidationError
 from botocore.session import Session
 from botocore.validate import validate_parameters
 
-from app.agent.catalog_tool import execute_catalog_search, next_search_arguments
+from app.agent.catalog_tool import (
+    execute_catalog_search,
+    exhausted_search_arguments,
+    next_search_arguments,
+)
 from app.agent.chat_context import (
     MAX_HISTORY,
     MAX_MESSAGE_LEN,
@@ -120,9 +124,11 @@ def test_followup_history_appends_current_user_and_context() -> None:
         "plan_meals",
         "previous_request",
         "previous_search",
+        "previous_exhausted_search",
         "previous_ingredient_ids",
     }
     assert payload["previous_search"] is None
+    assert payload["previous_exhausted_search"] is None
     assert payload["plan_cap_cents"] is None
     assert payload["plan_meals"] is None
     assert payload["previous_ingredient_ids"] is None
@@ -437,6 +443,32 @@ def test_checked_search_context_keeps_every_facet_and_offset() -> None:
     assert _context(messages)["previous_search"] == original
     search["tags"] = []
     assert _context(messages)["previous_search"] == original
+
+
+def test_checked_exhausted_search_reaches_context_without_next_page() -> None:
+    arguments: dict[str, object] = {
+        "query": "gluten free",
+        "diet": "vegetarian",
+        "exclude": ["eggs"],
+        "limit": 3,
+    }
+    first = execute_catalog_search(arguments)
+    total = cast(int, first["total_matches"])
+    assert total > 0
+    terminal = execute_catalog_search({**arguments, "offset": (total - 1) // 3 * 3})
+    search = exhausted_search_arguments(terminal)
+    assert search is not None
+    original = copy.deepcopy(search)
+    messages = build_messages(
+        "more", budget(), PERIOD, previous_exhausted_search=search
+    )
+    payload = _context(messages)
+    assert payload["previous_search"] is None
+    assert payload["previous_exhausted_search"] == original
+    assert search == original
+    cast(list[str], search["tags"]).clear()
+    cast(list[str], search["exclude"]).clear()
+    assert _context(messages)["previous_exhausted_search"] == original
 
 
 @pytest.mark.parametrize(

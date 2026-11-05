@@ -3,7 +3,11 @@ from typing import Any, cast
 
 import pytest
 
-from app.evaluation_conversation import GATES
+from app.evaluation_conversation import (
+    GATES,
+    ConversationSelection,
+    normalize_selection,
+)
 from app.evaluation_conversation_corpus import (
     ConversationCorpus,
     Turn,
@@ -253,6 +257,61 @@ def test_a_failed_fact_fails_only_its_scenario_and_check(
     assert checks["tools"]["passed"] == checks["tools"]["total"]
 
 
+def test_a_selected_report_uses_only_selected_denominators_and_rows(
+    corpus: ConversationCorpus,
+) -> None:
+    selection = normalize_selection(
+        corpus,
+        ConversationSelection.model_validate(
+            {
+                "scenarios": [
+                    {"scenario_id": "C01", "repeats": [1, 2, 3]},
+                    {"scenario_id": "C08", "repeats": [1, 2, 3]},
+                    {"scenario_id": "C09", "repeats": [1, 2, 3]},
+                    {"scenario_id": "C11", "repeats": [1]},
+                    {"scenario_id": "C16", "repeats": [1]},
+                ]
+            }
+        ),
+    )
+    records = [
+        item
+        for item in perfect_run(corpus)
+        if (item["scenario_id"], item["repeat"]) != ("C11", 1) or item["turn"] != 1
+    ]
+    report = build_report(corpus, records, _MANIFEST, selection=selection)
+
+    assert report["counts"]["scenarios"] == 5
+    assert report["counts"]["turns_expected"] == 22
+    assert report["counts"]["turns_recorded"] == 21
+    assert section(report, "checks")["tools"]["total"] == 22
+    assert section(report, "checks")["outcome"]["total"] == 22
+    assert section(report, "checks")["gold"]["total"] == 22
+    assert report["scenario_pass"] == {
+        "passed": 10,
+        "total": 11,
+        "rate": 0.9091,
+    }
+    selected_rows = rows(report)
+    assert [row["scenario_id"] for row in selected_rows] == [
+        "C01",
+        "C08",
+        "C09",
+        "C11",
+        "C16",
+    ]
+    assert [row["turns_expected"] for row in selected_rows] == [3, 3, 3, 9, 4]
+    assert selected_rows[3]["failing_turns"] == ["1.1"]
+    assert selected_rows[3]["passed"] is False
+    rendered = render_markdown(report)
+    assert (
+        "| scenario | turns per repeat | repeats | selected turns | passed | failing |"
+        in rendered
+    )
+    assert "| C11 | 9 | 1 | 9 | FAIL | 1.1 |" in rendered
+    assert "| C02 |" not in rendered
+
+
 def test_missing_and_malformed_records_count_as_failures(
     corpus: ConversationCorpus,
 ) -> None:
@@ -403,6 +462,7 @@ def test_markdown_lists_ids_counts_and_targets_without_reply_text(
     assert text.endswith("\n")
     assert f"- manifest_hash: {'h' * 64}" in text
     assert "| grounded_rate | >= 0.99 | 1.0 | PASS |" in text
+    assert "| scenario | turns | passed | failing |" in text
     assert "| C01 | 1 | PASS | - |" in text
     assert "| C11 | 9 | PASS | - |" in text
     assert "LEAKED REPLY" not in text

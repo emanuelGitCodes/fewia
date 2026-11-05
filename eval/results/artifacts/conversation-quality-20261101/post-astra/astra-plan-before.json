@@ -1,0 +1,69 @@
+{
+  "revision": "e10dd5837e84f28996dd43862dc83c7f382bc28c",
+  "records": [
+    {
+      "case": "Is the meal in my plan vegan?",
+      "pass": false,
+      "answer_sha256": "2c558c72ebee4b6aff6d4ad41807d1ad6ea98ece7ef062fefa82ee110ca5ac95"
+    },
+    {
+      "case": "Is my meal in my plan vegan?",
+      "pass": false,
+      "answer_sha256": "2c558c72ebee4b6aff6d4ad41807d1ad6ea98ece7ef062fefa82ee110ca5ac95"
+    },
+    {
+      "case": "Are my plan meals vegan or organic?",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "Are my plan meals organic?",
+      "pass": false,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "mixed/new-search control: Are my plan meals vegan? Add Vegetable pasta.",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "mixed/new-search control: Search for organic meals.",
+      "pass": true,
+      "answer_sha256": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
+    },
+    {
+      "case": "named selected meal control",
+      "pass": true,
+      "answer_sha256": "f53558e381b6e773aa0f64a9042b723b736d0eeb34c6501d244a733dbf9c6de9"
+    },
+    {
+      "case": "plural selected meals control",
+      "pass": true,
+      "answer_sha256": "2c558c72ebee4b6aff6d4ad41807d1ad6ea98ece7ef062fefa82ee110ca5ac95"
+    },
+    {
+      "case": "unknown alternative intercepts search",
+      "pass": false,
+      "answer_sha256": "d37d66557afbe44be137159dc78ecee228027750de0670ed5c888cb4d4ae0335",
+      "tool_calls": 1,
+      "proposal_calls": 0,
+      "cards": true
+    },
+    {
+      "case": "unknown alternative intercepts proposal",
+      "pass": false,
+      "answer_sha256": "d4f758d0449a29b212ccff227fb610dc7fcfd8673acda882db554d0649f6a8d5",
+      "tool_calls": 1,
+      "proposal_calls": 1,
+      "cards": false
+    },
+    {
+      "case": "unknown alternative intercepts no_tool",
+      "pass": false,
+      "answer_sha256": "4137bf98c4a27f61b8c5bfcdcb8936d41c0d8db6353a3eac832e9ba597918de8",
+      "tool_calls": 0,
+      "proposal_calls": 0,
+      "cards": false
+    }
+  ]
+}

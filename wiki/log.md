@@ -5119,3 +5119,61 @@ Recorded writers total 12,786,330 input, 212,217 output and 4,052.138 CLI second
 The first four Astra reviews total 1,936,909 input, 12,567 output and 394.176 CLI seconds.
 Coverage remains partial. Native coordination and later review are separate from these CLI totals.
 The loop ledger records final gates, the next independent verdict and hosted CI. The PR MUST remain unmerged.
+
+2026-11-01 — PR #469 remains open and unmerged at head `8cee7e1a` on base `34642bf1`. Local gates report 15,442 passed, 1 skipped, and 1 warning. The deterministic `conversation-eval-v1.4` fixture reports 96/96 tool, outcome, and gold checks, plus 57/57 scenario repeats. Four hosted workflows passed all nine jobs and 90 steps each; the source score is 987/1000. See the [phase record](phases/pr469-repair-verification-20261101.md).
+The preceding sentence needs two corrections: nine jobs and 90 steps passed in total across the four workflows. The 987/1000 figure is the added source-line count against the PR limit, not a quality score.
+
+## 2026-11-01: Local conversation follow-up
+
+Sol, Terra, and Luna wrote the recovery, plan/proposal, and evaluation work at `xhigh`.
+Local source `155d1dc9` combines checked search exhaustion, guardrail state recovery,
+selected-plan facts, matching proposal explanations, and persistent failed-proposal warnings.
+The stack ranges add 167, 185, and 193 source lines. The full range from main is 1,520 lines.
+It MUST remain a follow-up stack. PR 469 remains open and unmerged at `8cee7e1a`.
+
+Gates at `155d1dc9` pass Ruff, strict mypy, 15,708 backend tests, frontend lint/tests/build,
+with one skipped backend test and one existing Starlette warning. The command prints
+`LINES 1520/1000` and `RESULT PASS`; that result does not approve an oversized PR.
+Coordinator checks pass 10/10. The full fixture passes 96/96 tool, outcome, and gold checks,
+plus 57/57 scenario repeats. Desktop and mobile browser fixture checks pass with no console errors.
+
+The paired Nova study uses 22 baseline turns and 22 candidate turns. Validated prose falls
+from 3/14 to 1/14; tools fall from 21/22 to 19/22; gold facts fall from 18/22 to 16/22.
+The candidate is rejected. The final stack keeps the original prompt and strict validation.
+Four final live behavior checks pass. All 48 approved turns are used.
+The [phase record](phases/conversation-quality-20261101.md) retains the negative result and limits.
+Answer quality remains open. No new live allowance is assumed.
+
+The 18 CLI writer runs record 19,959,655 input tokens, including 18,981,248 cached tokens,
+and 296,168 output tokens, including 198,940 reasoning tokens. Aggregate CLI time is
+2,987.462 seconds. These totals exclude native coordination and advice, and are not wall time.
+The required Astra transfers await owner approval after automatic approval review rejected
+the new private scope. No independent review, publication, hosted CI, or merge has run for this follow-up.
+The generated study files first lived outside `artifacts/`, so the leaf counter reported 2,216 lines.
+The records now use `eval/results/artifacts/conversation-quality-20261101/`.
+Completed report and slot bytes are unchanged. The correction changes no application source.
+
+## 2026-11-01 — Conversation follow-up review and parser repair
+
+The owner approved private Astra transfers for all three follow-ups.
+Astra approves recovery at `6f86836b` and the earlier evaluation leaf at `e10dd583`.
+Three current-plan reviews find ambiguous singulars, unknown multiword subjects, and unsupported property descriptions.
+One intermediate repair also breaks the budget route. The writer escalates from Terra to Sol at `xhigh`.
+The repaired source `0dc50a6f` passes 17,139 backend tests, Ruff, formatting, and strict mypy.
+One test is skipped. One existing Starlette warning remains. Source count is 242 of 1,000 against `6f86836b`.
+All 233 independent cases and the full 96-turn fixture pass. All 57 scenario repeats pass.
+Astra's fourth current-plan review approves that exact source. The owner authorized further repair rounds.
+
+The final branch `codex/conversation-quality-final` retains the original prompt and restacks the unchanged evaluation patch.
+The patch adds 193 source lines. Exact-head gates and review records live in the ignored supervisor directories.
+The durable evidence bundle retains the final integration verification.
+The four live smoke checks predate these parser repairs. New parser evidence uses local fixtures only.
+The rejected prompt candidate remains separate. Answer quality remains open. All 48 approved live turns are used.
+No follow-up push, hosted CI, merge, or deployment has run. PR469 remains open at `8cee7e1a`.
+
+Through the approved plan review, 28 writers and six reviews record 34 CLI runs.
+They total 32,015,087 input tokens, including 30,100,480 cached tokens.
+They total 409,676 output tokens, including 249,408 reasoning tokens, over 5,864.277 aggregate CLI seconds.
+The final integration review follows this cutoff. Native coordination and advice are excluded.
+One blocked launcher has unknown usage outside these totals. Its explicit Astra retry succeeds.
+The [phase record](phases/conversation-quality-20261101.md) links immutable study records and subsequent repair evidence.

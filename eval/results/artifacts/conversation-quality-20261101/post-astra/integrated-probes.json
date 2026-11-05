@@ -1,0 +1,155 @@
+{
+  "scope": "uncommitted evaluation leaf on committed plan repair0dc50a6f",
+  "records": [
+    {
+      "name": "guardrail preserves original cursor: show me vegan meals",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": {
+        "query": "meals",
+        "diet": "vegetarian",
+        "tags": [
+          "gluten_free_ingredients",
+          "vegetarian"
+        ],
+        "exclude": [
+          "eggs"
+        ],
+        "min_protein_g": 0,
+        "max_cents_per_serving": 10000,
+        "limit": 3,
+        "offset": 3
+      },
+      "exhausted_search": null,
+      "tool_count": 0,
+      "answer_sha256": "d9dfe2f75fe72763c40883342e7392e1f4f8caab8d2933c92b1066ea4d5841a3"
+    },
+    {
+      "name": "guardrail preserves original cursor: more without rice",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": {
+        "query": "meals",
+        "diet": "vegetarian",
+        "tags": [
+          "gluten_free_ingredients",
+          "vegetarian"
+        ],
+        "exclude": [
+          "eggs"
+        ],
+        "min_protein_g": 0,
+        "max_cents_per_serving": 10000,
+        "limit": 3,
+        "offset": 3
+      },
+      "exhausted_search": null,
+      "tool_count": 0,
+      "answer_sha256": "d9dfe2f75fe72763c40883342e7392e1f4f8caab8d2933c92b1066ea4d5841a3"
+    },
+    {
+      "name": "guardrail preserves original cursor: Show the first page again",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": {
+        "query": "meals",
+        "diet": "vegetarian",
+        "tags": [
+          "gluten_free_ingredients",
+          "vegetarian"
+        ],
+        "exclude": [
+          "eggs"
+        ],
+        "min_protein_g": 0,
+        "max_cents_per_serving": 10000,
+        "limit": 3,
+        "offset": 3
+      },
+      "exhausted_search": null,
+      "tool_count": 0,
+      "answer_sha256": "d9dfe2f75fe72763c40883342e7392e1f4f8caab8d2933c92b1066ea4d5841a3"
+    },
+    {
+      "name": "terminal page more: model_search=False",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": null,
+      "exhausted_search": {
+        "query": "meals",
+        "diet": "omnivore",
+        "tags": [
+          "vegetarian"
+        ],
+        "exclude": [],
+        "limit": 3,
+        "offset": 27
+      },
+      "tool_count": 0,
+      "answer_sha256": "1a41f18dda6e8076092b214f324eca6ae6a30721c20400d59374d4ff8d35c6a4"
+    },
+    {
+      "name": "terminal page more: model_search=True",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": null,
+      "exhausted_search": {
+        "query": "meals",
+        "diet": "omnivore",
+        "tags": [
+          "vegetarian"
+        ],
+        "exclude": [],
+        "limit": 3,
+        "offset": 27
+      },
+      "tool_count": 0,
+      "answer_sha256": "1a41f18dda6e8076092b214f324eca6ae6a30721c20400d59374d4ff8d35c6a4"
+    },
+    {
+      "name": "current plan facts override unrelated model search",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": null,
+      "exhausted_search": null,
+      "tool_count": 0,
+      "answer_sha256": "342b898c20b2d000028e94838bc6e9c982c2570fd0a8cd237cfef79420aafec6"
+    },
+    {
+      "name": "proposal card invariant after cursorless search",
+      "pass": true,
+      "proposal_id": "proposal-1",
+      "next_search": null,
+      "exhausted_search": null,
+      "tool_count": 1,
+      "answer_sha256": "9526be252434030ec5236d759d1703ddea63e73e0a738177528f6880b3c34016"
+    },
+    {
+      "name": "proposal card invariant after refusal",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": null,
+      "exhausted_search": null,
+      "tool_count": 1,
+      "answer_sha256": "f5d3a8fd41862dd395c0f694bcf186b1f5736ed74fa50bf919ea98ed607c1e56"
+    },
+    {
+      "name": "proposal card invariant after incomplete",
+      "pass": true,
+      "proposal_id": null,
+      "next_search": null,
+      "exhausted_search": null,
+      "tool_count": 1,
+      "answer_sha256": "f0885280f545f05907f9049a661e62035bf8cce9b1b0fc896dfa07269373661f"
+    },
+    {
+      "name": "proposal failure survives later successful budget read",
+      "pass": true,
+      "proposal_id": "proposal-1",
+      "next_search": null,
+      "exhausted_search": null,
+      "tool_count": 3,
+      "answer_sha256": "e0293a6b63406581f36fd5bdc3a2744c19c051d1b8ce2f34549fa6b07b885fe2"
+    }
+  ]
+}

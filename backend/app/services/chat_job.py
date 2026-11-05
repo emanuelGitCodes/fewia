@@ -43,6 +43,7 @@ class ChatJobInput(BaseModel):
     previous_request: dict[str, object] | None = None
     previous_ingredient_ids: list[StrictStr] | None = None
     previous_search: dict[str, object] | None = None
+    previous_exhausted_search: dict[str, object] | None = None
     history: list[ChatHistoryTurn] = Field(default_factory=list, max_length=MAX_HISTORY)
     previous_job_id: UUID | None = Field(default=None)
     plan_revision_id: UUID | None = None
@@ -116,6 +117,7 @@ def chat_job(
         previous_request=parsed.previous_request,
         previous_ingredient_ids=parsed.previous_ingredient_ids,
         previous_search=parsed.previous_search,
+        previous_exhausted_search=parsed.previous_exhausted_search,
         history=history,
         record_evidence=record_evidence,
         plan_cap_cents=parsed.plan_cap_cents,

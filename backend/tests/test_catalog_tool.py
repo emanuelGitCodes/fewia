@@ -15,6 +15,8 @@ from app.agent.catalog_tool import (
     catalog_choices,
     catalog_tool_spec,
     execute_catalog_search,
+    exhausted_page_arguments,
+    exhausted_search_arguments,
     next_search_arguments,
     page_arguments,
     search_identity,
@@ -899,6 +901,89 @@ def test_page_arguments_accept_only_a_page_that_shows_meals() -> None:
     assert page_arguments({"query": SENTINEL}) is None
     assert page_arguments("vegetarian") is None
     assert page_arguments(None) is None
+
+
+def test_exhausted_arguments_keep_only_checked_filters_and_terminal_page() -> None:
+    arguments: dict[str, object] = {
+        "query": f"gluten free {SENTINEL}",
+        "diet": "vegetarian",
+        "exclude": ["eggs"],
+        "min_protein_g": 1,
+        "max_cents_per_serving": 10000,
+        "limit": 2,
+    }
+    first = execute_catalog_search(arguments)
+    total = cast(int, first["total_matches"])
+    assert total > 2
+    last = execute_catalog_search({**arguments, "offset": (total - 1) // 2 * 2})
+    exhausted = exhausted_search_arguments(last)
+    assert exhausted == {
+        "query": "meals",
+        "diet": "vegetarian",
+        "tags": ["gluten_free_ingredients", "vegetarian"],
+        "exclude": ["eggs"],
+        "min_protein_g": 1,
+        "max_cents_per_serving": 10000,
+        "limit": 2,
+        "offset": (total - 1) // 2 * 2,
+    }
+    assert SENTINEL not in json.dumps(exhausted)
+    assert next_search_arguments(last) is None
+    assert exhausted_page_arguments(exhausted) == exhausted
+    assert execute_catalog_search(exhausted)["recipe_ids"] == last["recipe_ids"]
+    assert exhausted_search_arguments(first) is None
+    assert exhausted_search_arguments({**last, "total_matches": 99}) is None
+    assert exhausted_search_arguments({**last, "recipe_ids": []}) is None
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        None,
+        "vegetarian",
+        ["vegetarian"],
+        {},
+        {"query": "vegetarian", "offset": 0},
+        {"query": "vegetarian", "offset": 39},
+        {"query": "vegetarian", "offset": 40},
+        {"query": "vegetarian", "offset": True},
+        {"query": SENTINEL},
+        {"query": "vegetarian", "exclude": ["nightshades"]},
+        {"query": "paleo"},
+        {"query": "vegetarian", "tags": ["unknown"]},
+    ],
+)
+def test_exhausted_page_rejects_forged_empty_and_nonterminal_state(
+    forged: object,
+) -> None:
+    assert exhausted_page_arguments(forged) is None
+
+
+def test_exhausted_page_rejects_unsanitized_terminal_arguments() -> None:
+    total = cast(int, search("vegetarian")["total_matches"])
+    offset = (total - 1) // 3 * 3
+    page = search("vegetarian", offset=offset)
+    checked = exhausted_search_arguments(page)
+    assert checked is not None
+    assert exhausted_page_arguments(checked) == checked
+    assert (
+        exhausted_page_arguments({**checked, "query": f"vegetarian {SENTINEL}"}) is None
+    )
+    assert exhausted_page_arguments({**checked, "extra": 1}) is None
+    assert exhausted_page_arguments({**checked, "limit": 0}) is None
+    assert exhausted_page_arguments({"query": "vegetarian", "offset": offset}) is None
+
+
+def test_exhaustion_cross_checks_the_rebuilt_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = search("chicken", tags=["lower_carb"], limit=1)
+    total = cast(int, first["total_matches"])
+    last = search("chicken", tags=["lower_carb"], limit=1, offset=total - 1)
+    assert exhausted_search_arguments(last) is not None
+    monkeypatch.setattr(catalog_tool, "_INGREDIENT_TAGS", ())
+    assert execute_catalog_search(page_request(last)) == last
+    assert exhausted_search_arguments(last) is None
 
 
 @pytest.mark.parametrize(

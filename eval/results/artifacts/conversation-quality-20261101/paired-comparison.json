@@ -1,0 +1,466 @@
+{
+  "cohort": "paired selected22-turn arms; one exploratory candidate; no significance claim",
+  "fixed_manifest_fields": [
+    "catalog_hash",
+    "corpus_sha256",
+    "model_config",
+    "model_id",
+    "profile",
+    "region",
+    "selected_turn_count",
+    "selection",
+    "selection_hash",
+    "suite_version",
+    "evidence_class"
+  ],
+  "baseline": {
+    "manifest": {
+      "catalog_hash": "a9855a4c69ff1497270fcd095d0b2ab854b7a1f821096af9d1d41c58342f1f4f",
+      "corpus_sha256": "d884237cd6374302bc65f9a2dcde2597f0bf13b3189ef08dbabdaaf684e37be5",
+      "evidence_class": "real_bedrock",
+      "manifest_hash": "e64c45c64dfdbb058bbf9fc9a12d1b4b81ed69d235b447f0eaa837bf46478a7b",
+      "model_config": {
+        "max_tokens": 4096,
+        "reasoning_effort": "low",
+        "temperature": 0
+      },
+      "model_id": "us.amazon.nova-2-lite-v1:0",
+      "profile": "nova-2-lite",
+      "region": "us-east-1",
+      "revision": "a0f2ae81acc36ba33fa6c1c888fefda458d94d4c",
+      "selected_turn_count": 22,
+      "selection": {
+        "scenarios": [
+          {
+            "repeats": [
+              1,
+              2,
+              3
+            ],
+            "scenario_id": "C01"
+          },
+          {
+            "repeats": [
+              1,
+              2,
+              3
+            ],
+            "scenario_id": "C08"
+          },
+          {
+            "repeats": [
+              1,
+              2,
+              3
+            ],
+            "scenario_id": "C09"
+          },
+          {
+            "repeats": [
+              1
+            ],
+            "scenario_id": "C11"
+          },
+          {
+            "repeats": [
+              1
+            ],
+            "scenario_id": "C16"
+          }
+        ]
+      },
+      "selection_hash": "171209bdb5235c82b4d9f8c050317f2e54622d4118dad5262e61cbe71c309ab4",
+      "suite_version": "conversation-eval-v1.4",
+      "system_prompt_hash": "06a3f92a4240a8ad9f6c402c0b66ce18e8b6900b64c50b7d59681bc53bd6760a",
+      "version": "conversation-manifest-v1"
+    },
+    "checks": {
+      "gold": {
+        "passed": 18,
+        "rate": 0.8182,
+        "total": 22
+      },
+      "outcome": {
+        "passed": 22,
+        "rate": 1.0,
+        "total": 22
+      },
+      "tools": {
+        "passed": 21,
+        "rate": 0.9545,
+        "total": 22
+      }
+    },
+    "grounding": {
+      "fallbacks": {
+        "discovery_terminal": 3,
+        "no_tools": 3,
+        "planned_terminal": 1,
+        "tool_failed": 1,
+        "validator": 11
+      },
+      "grounded_rate": 0.2143,
+      "grounded_replies": 3,
+      "prose_attempts": 14,
+      "unsupported_numbers": 27
+    },
+    "scenario_pass": {
+      "passed": 7,
+      "rate": 0.6364,
+      "total": 11
+    },
+    "scenarios": [
+      {
+        "failing_turns": [],
+        "passed": true,
+        "repeats": [
+          1,
+          2,
+          3
+        ],
+        "scenario_id": "C01",
+        "title": "Substitute a catalog ingredient in a plan meal",
+        "turns": 1,
+        "turns_expected": 3
+      },
+      {
+        "failing_turns": [],
+        "passed": true,
+        "repeats": [
+          1,
+          2,
+          3
+        ],
+        "scenario_id": "C08",
+        "title": "Off-topic request",
+        "turns": 1,
+        "turns_expected": 3
+      },
+      {
+        "failing_turns": [
+          "1.1",
+          "2.1",
+          "3.1"
+        ],
+        "passed": false,
+        "repeats": [
+          1,
+          2,
+          3
+        ],
+        "scenario_id": "C09",
+        "title": "Medical question about the plan",
+        "turns": 1,
+        "turns_expected": 3
+      },
+      {
+        "failing_turns": [
+          "1.7"
+        ],
+        "passed": false,
+        "repeats": [
+          1
+        ],
+        "scenario_id": "C11",
+        "title": "Nine-turn thread mixing swaps and price questions",
+        "turns": 9,
+        "turns_expected": 9
+      },
+      {
+        "failing_turns": [],
+        "passed": true,
+        "repeats": [
+          1
+        ],
+        "scenario_id": "C16",
+        "title": "Vegetarian search with paging and a budget turn",
+        "turns": 4,
+        "turns_expected": 4
+      }
+    ],
+    "targets": [
+      {
+        "name": "grounded_rate",
+        "status": "FAIL",
+        "target": ">= 0.99",
+        "value": 0.2143
+      },
+      {
+        "name": "unsupported_numbers",
+        "status": "FAIL",
+        "target": "0",
+        "value": 27
+      },
+      {
+        "name": "latency_p50_ms",
+        "status": "PASS",
+        "target": "< 5000",
+        "value": 4208
+      },
+      {
+        "name": "latency_p95_ms",
+        "status": "PASS",
+        "target": "< 12000",
+        "value": 11380
+      },
+      {
+        "name": "cost_per_turn_usd",
+        "status": "PASS",
+        "target": "< 0.006",
+        "value": "0.005142"
+      }
+    ],
+    "latency_ms": {
+      "p50": 4208,
+      "p95": 11380
+    },
+    "cost_historical_snapshot": {
+      "per_turn_usd": "0.005142",
+      "turns_priced": 22
+    },
+    "validation_reason_counts_overlap": {
+      "unmatched_number": 11,
+      "forbidden_claim": 3,
+      "medical_claim": 3,
+      "number_word": 2
+    },
+    "accepted_answer_audit": {
+      "count": 3,
+      "minimum_words": 49,
+      "maximum_words": 64,
+      "with_digits": 3,
+      "with_money_display": 3,
+      "generic_placeholders": 0
+    },
+    "api_attempts": 40
+  },
+  "candidate": {
+    "manifest": {
+      "catalog_hash": "a9855a4c69ff1497270fcd095d0b2ab854b7a1f821096af9d1d41c58342f1f4f",
+      "corpus_sha256": "d884237cd6374302bc65f9a2dcde2597f0bf13b3189ef08dbabdaaf684e37be5",
+      "evidence_class": "real_bedrock",
+      "manifest_hash": "e76372e586562df9d8d9d9baad2262182f910ce79cc3b0c5eef8d1e579ae1c24",
+      "model_config": {
+        "max_tokens": 4096,
+        "reasoning_effort": "low",
+        "temperature": 0
+      },
+      "model_id": "us.amazon.nova-2-lite-v1:0",
+      "profile": "nova-2-lite",
+      "region": "us-east-1",
+      "revision": "ecf8c5a3e6183c44dfbaedfd7b799fb73b4fd232",
+      "selected_turn_count": 22,
+      "selection": {
+        "scenarios": [
+          {
+            "repeats": [
+              1,
+              2,
+              3
+            ],
+            "scenario_id": "C01"
+          },
+          {
+            "repeats": [
+              1,
+              2,
+              3
+            ],
+            "scenario_id": "C08"
+          },
+          {
+            "repeats": [
+              1,
+              2,
+              3
+            ],
+            "scenario_id": "C09"
+          },
+          {
+            "repeats": [
+              1
+            ],
+            "scenario_id": "C11"
+          },
+          {
+            "repeats": [
+              1
+            ],
+            "scenario_id": "C16"
+          }
+        ]
+      },
+      "selection_hash": "171209bdb5235c82b4d9f8c050317f2e54622d4118dad5262e61cbe71c309ab4",
+      "suite_version": "conversation-eval-v1.4",
+      "system_prompt_hash": "c7aefb41797c2d180782fe01cea9ac014401a4349f9a1ac9ab7797bd2f9b658c",
+      "version": "conversation-manifest-v1"
+    },
+    "checks": {
+      "gold": {
+        "passed": 16,
+        "rate": 0.7273,
+        "total": 22
+      },
+      "outcome": {
+        "passed": 21,
+        "rate": 0.9545,
+        "total": 22
+      },
+      "tools": {
+        "passed": 19,
+        "rate": 0.8636,
+        "total": 22
+      }
+    },
+    "grounding": {
+      "fallbacks": {
+        "discovery_terminal": 3,
+        "no_tools": 4,
+        "planned_terminal": 1,
+        "validator": 13
+      },
+      "grounded_rate": 0.0714,
+      "grounded_replies": 1,
+      "prose_attempts": 14,
+      "unsupported_numbers": 26
+    },
+    "scenario_pass": {
+      "passed": 7,
+      "rate": 0.6364,
+      "total": 11
+    },
+    "scenarios": [
+      {
+        "failing_turns": [],
+        "passed": true,
+        "repeats": [
+          1,
+          2,
+          3
+        ],
+        "scenario_id": "C01",
+        "title": "Substitute a catalog ingredient in a plan meal",
+        "turns": 1,
+        "turns_expected": 3
+      },
+      {
+        "failing_turns": [],
+        "passed": true,
+        "repeats": [
+          1,
+          2,
+          3
+        ],
+        "scenario_id": "C08",
+        "title": "Off-topic request",
+        "turns": 1,
+        "turns_expected": 3
+      },
+      {
+        "failing_turns": [
+          "1.1",
+          "2.1",
+          "3.1"
+        ],
+        "passed": false,
+        "repeats": [
+          1,
+          2,
+          3
+        ],
+        "scenario_id": "C09",
+        "title": "Medical question about the plan",
+        "turns": 1,
+        "turns_expected": 3
+      },
+      {
+        "failing_turns": [
+          "1.6",
+          "1.7",
+          "1.8"
+        ],
+        "passed": false,
+        "repeats": [
+          1
+        ],
+        "scenario_id": "C11",
+        "title": "Nine-turn thread mixing swaps and price questions",
+        "turns": 9,
+        "turns_expected": 9
+      },
+      {
+        "failing_turns": [],
+        "passed": true,
+        "repeats": [
+          1
+        ],
+        "scenario_id": "C16",
+        "title": "Vegetarian search with paging and a budget turn",
+        "turns": 4,
+        "turns_expected": 4
+      }
+    ],
+    "targets": [
+      {
+        "name": "grounded_rate",
+        "status": "FAIL",
+        "target": ">= 0.99",
+        "value": 0.0714
+      },
+      {
+        "name": "unsupported_numbers",
+        "status": "FAIL",
+        "target": "0",
+        "value": 26
+      },
+      {
+        "name": "latency_p50_ms",
+        "status": "PASS",
+        "target": "< 5000",
+        "value": 3050
+      },
+      {
+        "name": "latency_p95_ms",
+        "status": "PASS",
+        "target": "< 12000",
+        "value": 5983
+      },
+      {
+        "name": "cost_per_turn_usd",
+        "status": "PASS",
+        "target": "< 0.006",
+        "value": "0.004649"
+      }
+    ],
+    "latency_ms": {
+      "p50": 3050,
+      "p95": 5983
+    },
+    "cost_historical_snapshot": {
+      "per_turn_usd": "0.004649",
+      "turns_priced": 22
+    },
+    "validation_reason_counts_overlap": {
+      "forbidden_claim": 4,
+      "unmatched_number": 13,
+      "medical_claim": 3,
+      "number_word": 1
+    },
+    "accepted_answer_audit": {
+      "count": 1,
+      "minimum_words": 60,
+      "maximum_words": 60,
+      "with_digits": 1,
+      "with_money_display": 1,
+      "generic_placeholders": 0
+    },
+    "api_attempts": 37
+  },
+  "limits": [
+    "Gold checks tool-result fact flags, not complete prose relevance.",
+    "Audit checks answer length and numeric content, not complete semantic usefulness.",
+    "Unsupported numeric tokens were rejected by strict validation and used a template fallback.",
+    "Price estimates use the historical 2026-10-03 snapshot; they are not a current bill.",
+    "Later proposal-warning repair is outside both frozen paired study arms."
+  ]
+}

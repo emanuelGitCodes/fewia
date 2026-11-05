@@ -1,0 +1,11 @@
+{
+  "baseline_revision": "a0f2ae81acc36ba33fa6c1c888fefda458d94d4c",
+  "candidate_revision": "ecf8c5a3e6183c44dfbaedfd7b799fb73b4fd232",
+  "only_system_prompt_ast_changed": true,
+  "outside_reply_paragraph_identical": true,
+  "baseline_reply_chars": 302,
+  "candidate_reply_chars": 742,
+  "serialized_prompt_and_schemas_chars": 16977,
+  "budget_chars": 17000,
+  "system_prompt_utf8_sha256": "ea06b73f34f88f745256e0612b3dd1553234c37353b2e075828d947788dbf06c"
+}

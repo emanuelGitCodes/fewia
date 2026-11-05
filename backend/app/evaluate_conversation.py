@@ -12,7 +12,13 @@ from typing import NoReturn
 
 from app.agent import chat_loop
 from app.agent.provider import LLMProvider
-from app.evaluation_conversation import ProviderFor, run_conversation_suite
+from app.evaluation_conversation import (
+    ConversationSelection,
+    ProviderFor,
+    logical_chat_turn_count,
+    normalize_selection,
+    run_conversation_suite,
+)
 from app.evaluation_conversation_corpus import ConversationCorpus, Scenario, Turn
 from app.evaluation_conversation_score import build_report, render_markdown
 from app.evaluation_io import EvaluationOutput
@@ -83,10 +89,30 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
     for name in ("--corpus", "--output-dir", "--profile", "--region", "--revision"):
         parser.add_argument(name, required=True)
     parser.add_argument("--rates")
+    parser.add_argument("--selection-file")
+    parser.add_argument("--max-chat-turns")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--live-bedrock", action="store_true")
     mode.add_argument("--fixture", action="store_true")
     return parser.parse_args(argv)
+
+
+def _parse_max_chat_turns(value: object) -> int:
+    if type(value) is not str or re.fullmatch(r"[0-9]+", value) is None:
+        raise ValueError(_INVALID)
+    parsed = int(value)
+    if parsed <= 0:
+        raise ValueError(_INVALID)
+    return parsed
+
+
+def _selection_value(selection: ConversationSelection) -> dict[str, object]:
+    return {
+        "scenarios": [
+            {"scenario_id": item.scenario_id, "repeats": list(item.repeats)}
+            for item in selection.scenarios
+        ]
+    }
 
 
 def _live_provider_for(profile: ModelProfile, region: str) -> ProviderFor:
@@ -119,6 +145,19 @@ def main(
         # One read: the bytes that are hashed are the bytes that are parsed.
         corpus_bytes = Path(args.corpus).read_bytes()
         corpus = ConversationCorpus.model_validate_json(corpus_bytes)
+        selection: ConversationSelection | None = None
+        if args.selection_file is not None:
+            if args.max_chat_turns is None:
+                raise ValueError(_INVALID)
+            raw_selection = ConversationSelection.model_validate_json(
+                Path(args.selection_file).read_bytes()
+            )
+            selection = normalize_selection(corpus, raw_selection)
+        turn_count = logical_chat_turn_count(corpus, selection)
+        if args.max_chat_turns is not None:
+            max_chat_turns = _parse_max_chat_turns(args.max_chat_turns)
+            if max_chat_turns < turn_count:
+                raise ValueError(_INVALID)
         rates = (
             rates_for(profile, Path(args.rates), args.region) if args.rates else None
         )
@@ -138,6 +177,13 @@ def main(
             "catalog_hash": _hash(catalog_snapshot()),
             "system_prompt_hash": _hash(chat_loop.SYSTEM_PROMPT),
         }
+        if selection is not None:
+            selection_value = _selection_value(selection)
+            manifest.update(
+                selection=selection_value,
+                selection_hash=_hash(selection_value),
+                selected_turn_count=turn_count,
+            )
         manifest["manifest_hash"] = _hash(manifest)
     except (ValueError, OSError):
         print(_INVALID, file=sys.stderr)
@@ -148,10 +194,12 @@ def main(
             provider_for = _live_provider_for(profile, args.region)
         with EvaluationOutput(Path(args.output_dir)) as output:
             records: list[dict[str, object]] = []
-            for record in run_conversation_suite(corpus, profile.name, provider_for):
+            for record in run_conversation_suite(
+                corpus, profile.name, provider_for, selection=selection
+            ):
                 output.append_slot(record)
                 records.append(record)
-            report = build_report(corpus, records, manifest, rates)
+            report = build_report(corpus, records, manifest, rates, selection=selection)
             paths = output.finish(report, render_markdown(report))
         for path in paths:
             print(path)
