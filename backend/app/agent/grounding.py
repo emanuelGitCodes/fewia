@@ -240,6 +240,23 @@ _OPAQUE = re.compile(
     r"|\d{4}-\d{2}-\d{2}(?:[T ][\d:.+\-Z]*)?",
     re.IGNORECASE,
 )
+# Order, checkout, payment, and purchase claims. A state word follows its subject after
+# a short gap of letters, or after one optional verb form (_BE) and no other letters.
+_BE = "(?:is|was|has|hasbeen|isnow|wasnow|hasnowbeen|got)?"
+_ORDER_DONE = "confirmed|submitted|placed|shipped|completed|wentthrough"
+_ORDER_CLAIMS = (
+    rf"order[a-z]{{0,12}}(?:{_ORDER_DONE})"
+    rf"|yourorder[a-z]{{0,24}}(?:{_ORDER_DONE}|processed|onitsway)"
+    rf"|order{_BE}(?:complete|processed|successful|onitsway)"
+    r"|(?:confirmed|submitted)[a-z]{0,8}order|ordered(?!by)[a-z]{0,24}foryou"
+    rf"|checkout{_BE}(?:complete|completed|successful|done|finished)"
+    r"|checkout[a-z]{0,8}(?:worked|succeeded|wentthrough)"
+    r"|(?:completed|finished)(?:the|your)?checkout|checkedyouout"
+    rf"|payment{_BE}(?:complete|completed|successful|succeeded|processed"
+    r"|confirmed|wentthrough)|chargedyour|card[a-z]{0,8}charged"
+    rf"|yourpurchase{_BE}(?:complete|completed|successful|confirmed|processed"
+    r"|wentthrough)"
+)
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|allergysafe|celiacsafe|medical|cures|treats"
@@ -249,6 +266,7 @@ _FORBIDDEN = re.compile(
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
+    rf"|{_ORDER_CLAIMS}"
 )
 # Whole words and contractions end clauses; single-letter dots keep spelling joined.
 _DAIRY_CLAUSE_END = re.compile(
