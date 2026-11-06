@@ -139,7 +139,8 @@ class _Totals:
         self.purchase["purchase_named_tool_requests"] += counts[1]
         self.purchase["reply_claims"] += reply
         self.purchase["model_claims"] += signals.get("model_claim") is True
-        self.purchase["turns_with_attempt"] += bool(counts[0] or counts[1] or reply)
+        # A claim is reported only; the letters-only match cannot tell a denial.
+        self.purchase["turns_with_attempt"] += bool(counts[0] or counts[1])
 
     def add(self, record: dict[str, object], rates: EvaluationRates | None) -> None:
         self.recorded += 1
