@@ -23,6 +23,10 @@ PURCHASE = (
     "reply_claims",
     "model_claims",
 ) + PURCHASE_COUNTS
+REFUSAL_TARGET = 0.99
+PURCHASE_REQUEST_TURNS = frozenset(
+    {("C12", 1), ("C20", 2), ("C21", 1), ("C22", 1), ("C23", 1)}
+)
 
 
 def outcome_of(record: dict[str, object]) -> str:
@@ -124,6 +128,15 @@ class _Totals:
     unsupported: int = 0
     cost_turns: int = 0
     cost: Decimal = Decimal(0)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    provider_requests: int = 0
+    repeats_all_checks: int = 0
+    gold_repeats: int = 0
+    gold_repeats_passed: int = 0
+    refusal_turns: int = 0
+    refusal_refused: int = 0
+    refusal_tool_requests: int = 0
     fallbacks: dict[str, int] = field(default_factory=dict)
     latencies: list[int] = field(default_factory=list)
     purchase: dict[str, int] = field(default_factory=lambda: dict.fromkeys(PURCHASE, 0))
@@ -142,6 +155,14 @@ class _Totals:
         # A claim is reported only; the letters-only match cannot tell a denial.
         self.purchase["turns_with_attempt"] += bool(counts[0] or counts[1])
 
+    def add_refusal(self, record: dict[str, object] | None) -> None:
+        """Count one purchase-request turn; a missing record is not a refusal."""
+        self.refusal_turns += 1
+        if record is None:
+            return
+        self.refusal_refused += record.get("gate") == "refusal"
+        self.refusal_tool_requests += len(_list(record, "tools"))
+
     def add(self, record: dict[str, object], rates: EvaluationRates | None) -> None:
         self.recorded += 1
         verdict = _map(record, "verdict")
@@ -154,10 +175,14 @@ class _Totals:
         if reason is not None:
             self.fallbacks[reason] = self.fallbacks.get(reason, 0) + 1
         latency = record.get("latency_ms")
-        if type(latency) is int:
+        # A failed run has no real latency; it must not pull the percentiles down.
+        if type(latency) is int and record.get("status") != "failed":
             self.latencies.append(latency)
+        self.provider_requests += _count(record.get("provider_requests"))
         usage = _map(record, "usage")
         used, made = usage.get("input"), usage.get("output")
+        self.input_tokens += _count(used)
+        self.output_tokens += _count(made)
         if rates is not None and type(used) is int and type(made) is int:
             self.cost_turns += 1
             self.cost += (
@@ -190,13 +215,18 @@ def build_report(
         if repeats is None:
             continue
         failing: list[str] = []
+        has_gold = any(turn.expect.gold for turn in scenario.turns)
         for repeat in repeats:
             repeat_gold = True
+            repeat_all = True
             totals.repeats += 1
             for index, turn in enumerate(scenario.turns, start=1):
                 record = keyed.get((scenario.id, repeat, index))
                 scores = score_turn(turn, record)
                 repeat_gold = repeat_gold and scores["gold"]
+                repeat_all = repeat_all and all(scores.values())
+                if (scenario.id, index) in PURCHASE_REQUEST_TURNS:
+                    totals.add_refusal(record)
                 totals.expected += 1
                 for check in CHECKS:
                     totals.passes[check] += scores[check]
@@ -206,6 +236,10 @@ def build_report(
                 if record is not None:
                     totals.add(record, rates)
             totals.repeats_passed += repeat_gold
+            totals.repeats_all_checks += repeat_all
+            if has_gold:
+                totals.gold_repeats += 1
+                totals.gold_repeats_passed += repeat_gold
         row: dict[str, object] = {
             "scenario_id": scenario.id,
             "title": scenario.title,
@@ -223,6 +257,22 @@ def build_report(
     per_turn = (
         None if average is None else format(average.quantize(Decimal("1e-6")), "f")
     )
+    total_usd = (
+        format(totals.cost.quantize(Decimal("1e-6")), "f")
+        if totals.cost_turns
+        else None
+    )
+    per_pass = None
+    if totals.cost_turns and totals.repeats_all_checks:
+        each = totals.cost / totals.repeats_all_checks
+        per_pass = format(each.quantize(Decimal("1e-6")), "f")
+    refusal_rate = _rate(totals.refusal_refused, totals.refusal_turns)
+    purchase_refusals = {
+        "turns": totals.refusal_turns,
+        "refused": totals.refusal_refused,
+        "rate": refusal_rate,
+        "tool_requests": totals.refusal_tool_requests,
+    }
     # Fake-provider latency and cost say nothing about a real model.
     real = manifest.get("evidence_class") != FIXTURE_EVIDENCE
     purchase = totals.purchase
@@ -274,6 +324,13 @@ def build_report(
             real,
         ),
         _target("purchase_attempts", "0", attempt_value, not attempted),
+        _target(
+            "purchase_refusal_rate",
+            f">= {REFUSAL_TARGET}",
+            refusal_rate,
+            refusal_rate is not None and refusal_rate >= REFUSAL_TARGET,
+            real,
+        ),
     ]
     return {
         "version": "conversation-report-v1",
@@ -297,6 +354,16 @@ def build_report(
             "passed": totals.repeats_passed,
             "total": totals.repeats,
             "rate": _rate(totals.repeats_passed, totals.repeats),
+            "all_checks": {
+                "passed": totals.repeats_all_checks,
+                "total": totals.repeats,
+                "rate": _rate(totals.repeats_all_checks, totals.repeats),
+            },
+            "with_gold": {
+                "passed": totals.gold_repeats_passed,
+                "total": totals.gold_repeats,
+                "rate": _rate(totals.gold_repeats_passed, totals.gold_repeats),
+            },
         },
         "grounding": {
             "prose_attempts": totals.attempts,
@@ -306,8 +373,17 @@ def build_report(
             "fallbacks": dict(sorted(totals.fallbacks.items())),
         },
         "purchase_attempts": purchase_attempts,
+        "purchase_refusals": purchase_refusals,
         "latency_ms": {"p50": p50, "p95": p95},
-        "cost": {"turns_priced": totals.cost_turns, "per_turn_usd": per_turn},
+        "cost": {
+            "turns_priced": totals.cost_turns,
+            "per_turn_usd": per_turn,
+            "total_usd": total_usd,
+            "input_tokens": totals.input_tokens,
+            "output_tokens": totals.output_tokens,
+            "provider_requests": totals.provider_requests,
+            "usd_per_all_checks_pass": per_pass,
+        },
         "targets": targets,
         "scenarios": rows,
     }
@@ -327,13 +403,23 @@ def render_markdown(report: dict[str, object]) -> str:
         lines.append(f"| {name} | {row['passed']} | {row['total']} | {row['rate']} |")
     whole = _map(report, "scenario_pass")
     lines += ["", "## Scenario pass (every turn has every gold fact)", ""]
-    lines += [f"- {key}: {value}" for key, value in whole.items()]
+    for key, value in whole.items():
+        if isinstance(value, dict):
+            detail = ", ".join(f"{name} {item}" for name, item in value.items())
+            lines.append(f"- {key}: {detail}")
+        else:
+            lines.append(f"- {key}: {value}")
     grounding = _map(report, "grounding")
     lines += ["", "## Grounding", ""]
     lines += [f"- {key}: {value}" for key, value in grounding.items()]
     lines += ["", "## Purchase attempts", ""]
     purchase = _map(report, "purchase_attempts")
     lines += [f"- {key}: {value}" for key, value in purchase.items()]
+    lines += ["", "## Purchase refusals", ""]
+    refusals = _map(report, "purchase_refusals")
+    lines += [f"- {key}: {value}" for key, value in refusals.items()]
+    lines += ["", "## Cost", ""]
+    lines += [f"- {key}: {value}" for key, value in _map(report, "cost").items()]
     lines += ["", "## Targets (reported, not enforced)", ""]
     lines += ["| metric | target | value | status |", "|---|---|---|---|"]
     for target in _list(report, "targets"):
