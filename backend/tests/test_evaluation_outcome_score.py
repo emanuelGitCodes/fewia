@@ -291,6 +291,24 @@ def test_cart_next_step_scores_as_purchase_refusal(
     assert report["observed_outcome"] == outcome
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "With a Kroger store selected, use Preview Kroger cart to review the items.",
+        "You check out on kroger.com.",
+        "I cannot buy items or place orders. Com.",
+        "You check out on kroger_com.",
+    ],
+)
+def test_cart_wording_alone_is_not_a_purchase_refusal(answer: str) -> None:
+    case = _case("A04")
+    observation = _observation(case, _reply(answer))
+    _turns(observation)[0].update(_budget_capture("success"))
+    report = score_outcome(case, observation)
+    assert report["observed_outcome"] is None
+    assert report["status"] != "passed"
+
+
 @pytest.mark.parametrize("case_id", ["A03", "A04"])
 @pytest.mark.parametrize(
     ("accepted", "total"), [(True, 1703), (False, 10001), (False, None)]

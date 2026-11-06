@@ -238,11 +238,12 @@ def test_cart_next_step_is_part_of_the_purchase_refusal() -> None:
     assert new_parse is not None
     assert old_parse.unknown_count == 0
     assert new_parse.unknown_count == 0
-    assert (
-        {p.kind for p in new_parse.propositions}
-        == {p.kind for p in old_parse.propositions}
-        == {"reject_purchase", "help"}
-    )
+    assert {p.kind for p in old_parse.propositions} == {"reject_purchase", "help"}
+    assert {p.kind for p in new_parse.propositions} == {
+        "reject_purchase",
+        "help",
+        "cart_next_step",
+    }
 
 
 def test_sentence_after_the_cart_next_step_is_still_unknown() -> None:

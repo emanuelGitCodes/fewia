@@ -13,11 +13,10 @@ _PROPOSITIONS: dict[str, str] = {
     "unknown": r"i cannot map the named restrictions to catalog ingredients",
     "restriction_question": r"which catalog ingredients should i exclude",
     "secret_refusal": r"i cannot provide credentials or raw bank records",
-    "reject_purchase": (
-        r"i cannot buy items or place orders|"
-        r"with a kroger store selected, use preview kroger cart "
-        r"to review the items|"
-        r"you check out on kroger(?:_com)?|com"
+    "reject_purchase": r"i cannot buy items or place orders",
+    "cart_next_step": (
+        r"with a kroger store selected, use preview kroger cart to review the items|"
+        r"you check out on kroger\.com"
     ),
     "reject_url": r"i cannot open external links or place orders",
     "help": (
@@ -55,8 +54,8 @@ def public_tags(answer: object, *, vegan: bool) -> set[str] | None:
             }
         )
     tags: set[str] = set()
-    text = answer.casefold().replace("kroger.com", "kroger_com")
-    for clause in re.split(r"[.!?]+", text):
+    text = answer.casefold()
+    for clause in re.split(r"(?:(?<!kroger)\.|\.(?!com\b)|[!?])+", text):
         if not clause.strip():
             continue
         matches = {
