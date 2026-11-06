@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
@@ -239,10 +240,25 @@ def test_a_perfect_run_passes_every_check_and_target(
     assert grounding["grounded_rate"] == 1.0
     assert grounding["unsupported_numbers"] == 0
     assert report["latency_ms"] == {"p50": 1000, "p95": 1000}
-    assert report["cost"] == {"turns_priced": total, "per_turn_usd": "0.000088"}
-    assert set(statuses(report).values()) == {"PASS"}
-    assert len(statuses(report)) == 6
-    assert statuses(report)["purchase_attempts"] == "PASS"
+    spent = Decimal("0.000088") * total
+    assert report["cost"] == {
+        "turns_priced": total,
+        "per_turn_usd": "0.000088",
+        "total_usd": format(spent.quantize(Decimal("1e-6")), "f"),
+        "input_tokens": 100 * total,
+        "output_tokens": 20 * total,
+        "provider_requests": 0,
+        "usd_per_all_checks_pass": format((spent / 69).quantize(Decimal("1e-6")), "f"),
+    }
+    found = statuses(report)
+    assert len(found) == 7
+    # The perfect run never emits a refusal gate, so only that target fails.
+    assert {k: v for k, v in found.items() if v != "PASS"} == {
+        "purchase_refusal_rate": "FAIL"
+    }
+    targets = {t["name"]: t for t in cast(list[Record], report["targets"])}
+    assert targets["purchase_refusal_rate"]["value"] == 0.0
+    assert found["purchase_attempts"] == "PASS"
     assert len(rows(report)) == 23
     assert all(r["passed"] and r["failing_turns"] == [] for r in rows(report))
     assert report["manifest_hash"] == "h" * 64
@@ -296,10 +312,13 @@ def test_a_selected_report_uses_only_selected_denominators_and_rows(
     assert section(report, "checks")["tools"]["total"] == 22
     assert section(report, "checks")["outcome"]["total"] == 22
     assert section(report, "checks")["gold"]["total"] == 22
+    # C08 has no gold facts, so it counts toward all_checks but not with_gold.
     assert report["scenario_pass"] == {
         "passed": 10,
         "total": 11,
         "rate": 0.9091,
+        "all_checks": {"passed": 10, "total": 11, "rate": 0.9091},
+        "with_gold": {"passed": 7, "total": 8, "rate": 0.875},
     }
     selected_rows = rows(report)
     assert [row["scenario_id"] for row in selected_rows] == [
@@ -456,6 +475,38 @@ def test_a_failed_turn_adds_no_latency_and_all_failed_gives_not_available(
     assert found["latency_p95_ms"] == "N/A"
     targets = cast(list[dict[str, Any]], only_bad["targets"])
     assert next(t for t in targets if t["name"] == "latency_p50_ms")["value"] is None
+
+
+def test_a_real_run_excludes_failed_turns_from_latency_targets(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    base = perfect("C01", 1, 1, sub.scenarios[0].turns[0])
+    manifest = _MANIFEST | {"evidence_class": "real_bedrock"}
+    bad = base | {"repeat": 2, "status": "failed", "latency_ms": 9}
+    mixed = build_report(sub, [base | {"latency_ms": 700}, bad], manifest)
+    assert mixed["latency_ms"] == {"p50": 700, "p95": 700}
+    assert statuses(mixed)["latency_p50_ms"] == "PASS"
+    assert statuses(mixed)["latency_p95_ms"] == "PASS"
+    only_bad = build_report(sub, [bad], manifest)
+    assert only_bad["latency_ms"] == {"p50": None, "p95": None}
+    targets = {t["name"]: t for t in cast(list[Record], only_bad["targets"])}
+    for name in ("latency_p50_ms", "latency_p95_ms"):
+        assert targets[name]["value"] is None
+        assert targets[name]["status"] == "N/A"
+
+
+def test_markdown_renders_the_cost_section_and_scenario_pass_splits(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    base = perfect("C01", 1, 1, sub.scenarios[0].turns[0])
+    records = [base | {"repeat": number} for number in (1, 2, 3)]
+    text = render_markdown(build_report(sub, records, _MANIFEST, rates()))
+    assert "## Cost" in text
+    assert "- total_usd: 0.000264" in text
+    assert "- all_checks: passed 3, total 3, rate 1.0" in text
+    assert "- with_gold: passed 3, total 3, rate 1.0" in text
 
 
 def test_scenario_pass_separates_all_checks_and_gold_scenarios(

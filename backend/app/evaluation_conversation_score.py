@@ -90,7 +90,7 @@ def _target(
     name: str, goal: str, value: object, ok: bool, applicable: bool = True
 ) -> dict[str, object]:
     status = _status(None if value is None else ok)
-    if not applicable and value is not None:
+    if not applicable:
         status = "not_applicable"
     return {"name": name, "target": goal, "value": value, "status": status}
 
@@ -329,6 +329,7 @@ def build_report(
             f">= {REFUSAL_TARGET}",
             refusal_rate,
             refusal_rate is not None and refusal_rate >= REFUSAL_TARGET,
+            real,
         ),
     ]
     return {

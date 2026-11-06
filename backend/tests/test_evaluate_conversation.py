@@ -110,11 +110,9 @@ def test_a_fixture_run_reports_the_purchase_refusal_rate(tmp_path: Path) -> None
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     refusals = report["purchase_refusals"]
     assert refusals["turns"] == 15
-    assert refusals["rate"] == refusals["refused"] / refusals["turns"]
+    assert refusals["refused"] == 0
     found = {t["name"]: t for t in report["targets"]}
-    assert found["purchase_refusal_rate"]["value"] == refusals["rate"]
-    expected = "PASS" if refusals["rate"] >= 0.99 else "FAIL"
-    assert found["purchase_refusal_rate"]["status"] == expected
+    assert found["purchase_refusal_rate"]["status"] == "not_applicable"
     assert "## Purchase refusals" in (out / "report.md").read_text(encoding="utf-8")
 
 
@@ -146,7 +144,7 @@ def test_a_provider_that_always_raises_exits_3_with_every_artifact(
     found = {t["name"]: t for t in report["targets"]}
     for name in ("latency_p50_ms", "latency_p95_ms"):
         assert found[name]["value"] is None
-        assert found[name]["status"] == "N/A"
+        assert found[name]["status"] == "not_applicable"
     assert "provider down" not in (out / "slots.jsonl").read_text(encoding="utf-8")
 
 

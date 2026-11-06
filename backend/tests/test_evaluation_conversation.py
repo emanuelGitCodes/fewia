@@ -703,7 +703,13 @@ def test_scenario_pass_counts_a_repeat_only_when_every_turn_has_every_gold_fact(
                 }
             )
     report = build_report(sub, records, {"manifest_hash": "x"})
-    assert report["scenario_pass"] == {"passed": 2, "total": 3, "rate": 0.6667}
+    assert report["scenario_pass"] == {
+        "passed": 2,
+        "total": 3,
+        "rate": 0.6667,
+        "all_checks": {"passed": 0, "total": 3, "rate": 0.0},
+        "with_gold": {"passed": 2, "total": 3, "rate": 0.6667},
+    }
     gold = cast(dict[str, Any], report["checks"])["gold"]
     assert (gold["passed"], gold["total"]) == (11, 12)
     assert "- rate: 0.6667" in render_markdown(report)
