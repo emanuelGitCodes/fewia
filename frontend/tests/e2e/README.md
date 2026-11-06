@@ -54,6 +54,8 @@ Each test MUST finish with no console errors, no uncaught page errors, and no
 horizontal overflow.
 
 - Smoke: default budget values, catalog size, and the chat-unavailable note.
+  The test forces `chat_configured` to `false`, so it passes with or without
+  Bedrock chat.
 - Example: the "Bean tacos for two" estimate, source label, sample notice, and
   nutrition total.
 - Live regions: the estimate section has one status node. The conversation
@@ -83,11 +85,13 @@ horizontal overflow.
 
 ## Scope
 
-The base Compose stack turns off Bedrock chat and the Kroger overlay.
-`providers.pw.ts` fakes only these with `page.route`:
+The live stack MAY run with or without Bedrock chat. The tests do not depend
+on that setting. `fakes.ts` fakes only these surfaces with `page.route`:
 
-- The `chat_configured` flag in `GET /api/grocery/providers`. The real
-  response is fetched and every other field stays unchanged.
+- The `chat_configured` flag in `GET /api/grocery/providers`.
+  `forceChatConfigured` sets it to `true` for the `chat` fixture in
+  `providers.pw.ts` and to `false` for the smoke test. The real response is
+  fetched and every other field stays unchanged.
 - The `/api/grocery/chat/jobs` endpoints. Any other `/api/grocery/chat/**`
   request fails the test. The fake follows `create_chat_job`: the same
   `Idempotency-Key` with an equal body returns the existing job, and the same
