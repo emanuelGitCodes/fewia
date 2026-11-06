@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from app.agent import catalog_tool
+from app.agent import catalog_tool, meal_search_rank
 from app.agent.catalog_tool import execute_catalog_search, search_result_ids
 from app.agent.meal_search_rank import bm25_order, bm25_score
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
@@ -33,9 +33,19 @@ def test_ties_keep_the_input_order() -> None:
     assert bm25_order(["zzzz"], ids[::-1]) == ids[::-1]
 
 
-def test_a_recipe_id_word_outranks_an_ingredient_only_word() -> None:
-    ordered = bm25_order(["tacos"], list(SUPPORTED_RECIPE_IDS))
-    assert "tacos" in ordered[0]
+def test_recipe_id_words_count_twice_in_a_document() -> None:
+    docs, _, _ = meal_search_rank._corpus()
+    document = docs["chicken_tacos"]
+    assert document.count("taco") == 2  # id word only
+    assert document.count("salsa") == 1  # ingredient-only word
+    assert document.count("chicken") == 3  # id word twice plus the ingredient name
+
+
+def test_a_doubled_word_outscores_a_single_word_in_equal_length_documents() -> None:
+    frequencies = {"x": 1, "y": 1}
+    doubled = bm25_score(["x"], ["x", "x", "z"], frequencies, 4, 3.0)
+    single = bm25_score(["y"], ["y", "z", "z"], frequencies, 4, 3.0)
+    assert doubled > single
 
 
 def test_word_query_changes_order_not_membership_status_or_total() -> None:
@@ -63,6 +73,67 @@ def test_search_applies_bm25_to_a_word_query() -> None:
 
 def _reversed(words: list[str], recipe_ids: list[str]) -> list[str]:
     return recipe_ids[::-1]
+
+
+def _raises(words: list[str], recipe_ids: list[str]) -> list[str]:
+    raise AssertionError("bm25_order must not run without rank terms")
+
+
+def test_ingredient_facet_query_ranks_on_its_tag() -> None:
+    ranked = search_result_ids({"query": "chicken"})
+    assert ranked == [
+        "chicken_pasta",
+        "chicken_tacos",
+        "chicken_potato_bake",
+        "chicken_chickpea_skillet",
+        "chicken_curry",
+        "chicken_vegetable_soup",
+        "chicken_stir_fry",
+        "chicken_lentil_stew",
+        "chicken_fried_rice",
+        "chicken_tortilla_soup",
+        "chicken_and_rice_bowls",
+        "chicken_burrito_bowls",
+    ]
+    assert ranked != search_result_ids({"query": "chicken"}, rank=False)
+
+
+def test_egg_query_ranks_on_its_tag() -> None:
+    assert search_result_ids({"query": "egg"}) == [
+        "egg_tacos",
+        "tomato_egg_pasta",
+        "potato_hash_with_eggs",
+        "chickpea_egg_scramble",
+        "egg_rice_bowls",
+        "egg_fried_rice",
+        "vegetable_egg_stir_fry",
+        "lentil_egg_skillet",
+        "breakfast_burritos",
+        "chicken_fried_rice",
+    ]
+
+
+def test_beans_tacos_ranks_on_both_terms(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+    original = catalog_tool.bm25_order
+
+    def spy(words: list[str], recipe_ids: list[str]) -> list[str]:
+        calls.append(list(words))
+        return original(words, recipe_ids)
+
+    monkeypatch.setattr(catalog_tool, "bm25_order", spy)
+    ranked = search_result_ids({"query": "beans tacos"})
+    assert ranked == ["bean_tacos"]
+    assert calls == [["tacos", "beans"]]
+    plain = search_result_ids({"query": "beans tacos"}, rank=False)
+    assert bm25_order(["tacos", "beans"], plain) == ranked
+
+
+def test_diet_only_query_never_calls_bm25(monkeypatch: pytest.MonkeyPatch) -> None:
+    plain = search_result_ids({"query": "vegan"}, rank=False)
+    assert len(plain) > 1
+    monkeypatch.setattr(catalog_tool, "bm25_order", _raises)
+    assert search_result_ids({"query": "vegan"}) == plain
 
 
 def test_facet_only_query_never_calls_bm25(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -27,7 +27,7 @@ def _fail(message: str) -> NoReturn:
 def load_queries(path: Path) -> list[tuple[str, frozenset[str]]]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         _fail("queries file is unreadable")
     rows = data.get("queries") if isinstance(data, dict) else None
     if not isinstance(rows, list) or not rows:

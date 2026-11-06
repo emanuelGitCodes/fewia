@@ -307,6 +307,7 @@ def _search(arguments: object, rank: bool) -> tuple[dict[str, object], list[str]
         for u in units
         if _facet(u) is None and any(_has_word(u, r) for r in SUPPORTED_RECIPE_IDS)
     ]
+    rank_terms = [*words, *sorted(f for f in query_facets if f in _INGREDIENT_TAGS)]
     unrestricted_query = any(resolve_meal_term(u) == "omnivore" for u in units)
     searchable = bool(facets or words or unrestricted_query)
     unknown_open_query = (
@@ -330,8 +331,8 @@ def _search(arguments: object, rank: bool) -> tuple[dict[str, object], list[str]
     dropped: list[str] = []
     if not found_ids and facets and eligible:
         found_ids, dropped = eligible, words
-    elif rank and words and min_protein is None:
-        found_ids = bm25_order(words, found_ids)
+    elif rank and rank_terms and min_protein is None:
+        found_ids = bm25_order(rank_terms, found_ids)
     if min_protein is not None:
         found_ids = sorted(found_ids, key=lambda r: -_protein_g(r))
     ids = found_ids[offset : offset + limit]

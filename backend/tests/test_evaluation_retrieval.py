@@ -57,6 +57,17 @@ def test_cli_exits_2_without_a_traceback_on_a_catalog_tool_error(
     assert "Traceback" not in capsys.readouterr().err
 
 
+def test_cli_exits_2_on_a_deeply_nested_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    deep = tmp_path / "deep.json"
+    deep.write_text("[" * 100_000 + "]" * 100_000, encoding="utf-8")
+    output = tmp_path / "report.json"
+    assert main(["--queries", str(deep), "--output", str(output)]) == 2
+    assert not output.exists()
+    assert "Traceback" not in capsys.readouterr().err
+
+
 def test_cli_rejects_invalid_queries(tmp_path: Path) -> None:
     bad = tmp_path / "bad.json"
     bad.write_text(
