@@ -4,8 +4,8 @@ import type { ChatJobCreate, ChatResult } from "../../src/chatTypes";
 
 export { expect };
 
-// The base Compose stack turns off Bedrock chat. These helpers fake only that
-// surface with `page.route`: the providers flag and the chat endpoints. Every
+// The live stack may or may not enable Bedrock chat. These helpers fake only that
+// surface with `page.route`: the providers flag (forced true or false) and the chat endpoints. Every
 // grocery request stays live, and the chat fake reads the real grocery responses.
 
 export const CHAT_ANSWER = "Here is a plan that fits your budget.";
@@ -67,7 +67,8 @@ async function horizontalOverflow(page: Page): Promise<number> {
   return width - viewport.width;
 }
 
-async function installProviders(page: Page): Promise<void> {
+// Forces the providers flag so a test does not depend on the live stack's chat setting.
+export async function forceChatConfigured(page: Page, configured: boolean): Promise<void> {
   await page.route(/\/api\/grocery\/providers$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
@@ -75,8 +76,12 @@ async function installProviders(page: Page): Promise<void> {
     }
     const response = await route.fetch();
     const providers = (await response.json()) as Record<string, unknown>;
-    await route.fulfill({ response, json: { ...providers, chat_configured: true } });
+    await route.fulfill({ response, json: { ...providers, chat_configured: configured } });
   });
+}
+
+async function installProviders(page: Page): Promise<void> {
+  await forceChatConfigured(page, true);
 }
 
 async function installGroceryTap(page: Page): Promise<GroceryTap> {
