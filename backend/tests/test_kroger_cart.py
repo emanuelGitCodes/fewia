@@ -138,7 +138,9 @@ def test_preview_skips_an_out_of_stock_product() -> None:
     catalog = Catalog(
         {
             "chicken_breast": [
-                _product("12345678", "Sold Out", stock_level=kroger_cart.OUT_OF_STOCK),
+                _product(
+                    "12345678", "Sold Out", stock_level="TEMPORARILY_OUT_OF_STOCK"
+                ),
                 _product("0001112223334", "In Stock", stock_level="HIGH"),
             ]
         }
@@ -156,7 +158,7 @@ def test_preview_allows_an_unknown_stock_level() -> None:
 
 
 def test_preview_leaves_a_line_unmatched_when_every_product_is_out_of_stock() -> None:
-    sold_out = kroger_cart.OUT_OF_STOCK
+    sold_out = "TEMPORARILY_OUT_OF_STOCK"
     catalog = Catalog(
         {
             "chicken_breast": [

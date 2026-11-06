@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 
 from app.demo import DEMO_USER_ID
 from app.deps import get_kroger_cipher, get_kroger_client, get_provider_settings
-from app.kroger_cart import OUT_OF_STOCK
 from app.kroger_customer import store_tokens
 from app.kroger_models import KrogerCustomerToken
 from app.main import app
@@ -35,6 +34,7 @@ SOLD_OUT_UPC = "0009998887776"
 IN_STOCK_UPC = "0001112223334"
 SALSA_UPC = "12345678"
 ALL_SOLD_OUT_UPC = "87654321"
+OUT_OF_STOCK = "TEMPORARILY_OUT_OF_STOCK"
 PANTRY = ["olive_oil", "cumin", "salt"]
 
 
@@ -65,6 +65,7 @@ CATALOG: dict[str | None, list[object]] = {
 class Transport:
     def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
+        self.cipher: Fernet | None = None
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -92,6 +93,14 @@ class Transport:
             term = request.url.params["filter.term"]
             return httpx.Response(200, json={"data": CATALOG.get(term, [])})
         return httpx.Response(404)
+
+    def product_requests(self) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path == kroger.PRODUCTS_PATH]
+
+    def customer_requests(self) -> list[httpx.Request]:
+        return [
+            r for r in self.requests if ACCESS in r.headers.get("authorization", "")
+        ]
 
     def cart_requests(self) -> list[httpx.Request]:
         return [r for r in self.requests if r.url.path == kroger.CART_ADD_PATH]
@@ -124,11 +133,7 @@ def transport(
         get_provider_settings: lambda: settings,
     }
     app.dependency_overrides.update(overrides)
-    store_tokens(session, DEMO_USER_ID, cipher, CustomerTokens(ACCESS, REFRESH, 1800))
-    row = session.get(KrogerCustomerToken, DEMO_USER_ID)
-    assert row is not None
-    row.access_expires_at = datetime.now(UTC) + timedelta(seconds=1800)
-    session.flush()
+    mock.cipher = cipher
     try:
         yield mock
     finally:
@@ -136,8 +141,16 @@ def transport(
             app.dependency_overrides.pop(dependency, None)
 
 
+def _seed_customer_token(session: Session, cipher: Fernet) -> None:
+    store_tokens(session, DEMO_USER_ID, cipher, CustomerTokens(ACCESS, REFRESH, 1800))
+    row = session.get(KrogerCustomerToken, DEMO_USER_ID)
+    assert row is not None
+    row.access_expires_at = datetime.now(UTC) + timedelta(seconds=1800)
+    session.flush()
+
+
 def test_plan_to_cart_path_on_one_transport(
-    client: TestClient, transport: Transport
+    client: TestClient, session: Session, transport: Transport
 ) -> None:
     responses: list[httpx.Response] = []
 
@@ -158,6 +171,10 @@ def test_plan_to_cart_path_on_one_transport(
     assert found.status_code == 200
     location_id = found.json()["stores"][0]["location_id"]
     assert location_id == LOCATION
+    assert transport.customer_requests() == []
+
+    assert transport.cipher is not None
+    _seed_customer_token(session, transport.cipher)
 
     previewed = client.post(
         "/grocery/kroger/cart/preview",
@@ -167,6 +184,10 @@ def test_plan_to_cart_path_on_one_transport(
     assert previewed.status_code == 200
     preview = previewed.json()
     assert transport.cart_requests() == []
+    searches = transport.product_requests()
+    assert searches
+    for search in searches:
+        assert search.url.params["filter.locationId"] == location_id
 
     by_line = {item["ingredient_id"]: item for item in preview["items"]}
     assert by_line["chicken_breast"]["upc"] == IN_STOCK_UPC
