@@ -71,8 +71,8 @@ Evidence: [App](../../frontend/src/App.tsx), [Compose](../../compose.yaml),
 [agent handler](../../backend/app/services/agent_jobs.py),
 [plan job](../../backend/app/services/plan_job.py), and
 [outbox publisher](../../backend/app/services/outbox_publisher.py).
-The [scope](../../.codex/project-context.md) identifies S3 exports, Plaid Sandbox, and Instacart development shopping links.
-The [browser record](../GROCERY_VERIFICATION_PLAN.md) bounds fixture handoff evidence.
+The [scope](../../.codex/project-context.md) identifies S3 exports and Plaid Sandbox.
+[Decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md) replaces the Instacart handoff with the Kroger cart. [API_CHANGE.md](API_CHANGE.md) records the provider change.
 
 ### Evaluation method
 

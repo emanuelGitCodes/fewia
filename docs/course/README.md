@@ -45,7 +45,7 @@ Every grocery estimate MUST show this exact notice:
 | Queue and evidence | [Outbox publisher](../../backend/app/services/outbox_publisher.py) sends committed jobs with at-least-once delivery. Compose supplies PostgreSQL, workers, and Floci SQS/S3. The scope assigns S3 evaluation exports. |
 | Language model | [Chat loop](../../backend/app/agent/chat_loop.py) uses `LLMProvider`, typed tools, eight model turns, and three planner revisions. Real Bedrock evidence comes from the archived benchmark. |
 | Plaid Sandbox | The scope permits Sandbox only, with no real accounts. D4 remains paused; this archive supplies no Sandbox run. |
-| Instacart development shopping links | The scope defines development link handoff. The [browser record](../GROCERY_VERIFICATION_PLAN.md) uses fixture responses. A link does not verify prices, stock, checkout, or purchases. Live development evidence remains pending. |
+| Kroger cart | [Decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md) replaces the Instacart handoff with store search, read-time prices, cart preview, and a cart add that the user clicks. No live cart add is on record. FEWIA does not check out or pay. |
 
 Source inspection describes behavior and design. It does not prove that a provider or deployed service works.
 The local runtime uses one server-selected demo user with shared context.
