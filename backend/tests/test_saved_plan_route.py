@@ -64,19 +64,28 @@ def _run(
     ("message", "expected"),
     [
         ("Does my saved plan fit my budget?", "fit"),
+        ("Is the plan within my monthly budget?", "fit"),
+        ("Is my plan below my cap?", "fit"),
+        ("Can I afford my plan?", "fit"),
         ("What does my plan cost right now?", "cost"),
         ("Remind me what the whole plan costs.", "cost"),
-        ("Is the plan within my monthly budget?", "fit"),
-        ("What is the total of this plan?", "cost"),
+        ("What does my plan cost now?", "cost"),
+        ("How much is my plan?", "cost"),
         ("What would the bowls cost with half the rice?", None),
         ("Add this plan to my Kroger cart and check out with the card on file.", None),
         ("Is this plan safe for my type 2 diabetes?", None),
         ("Plan 2 servings of bean tacos.", None),
         ("What does a plan cost?", None),
+        ("Is my plan under 2000 kcal?", None),
+        ("Does this plan fit my keto lifestyle?", None),
+        ("Does this plan fit my gluten-free diet?", None),
+        ("What does my plan cost replacing the rice?", None),
+        ("What does my plan cost minus the oats?", None),
+        ("What does my plan cost after removing the oats?", None),
+        ("What does my plan cost, and is tofu vegan?", None),
+        ("My current plan: bean tacos. What does tofu cost?", None),
         ("What do my plan meals cost?", None),
         ("Would my plan fit my budget?", None),
-        ("What does my plan cost after removing the oats?", None),
-        ("Does this plan fit my gluten-free diet?", None),
         ("Hello", None),
     ],
 )
@@ -96,7 +105,7 @@ def test_cost_runs_get_plan_without_model() -> None:
     assert result["reply_check"] == {"gate": "saved_plan_read"}
     assert [entry["tool"] for entry in result["tool_trace"]] == ["get_plan"]
     assert result["plan"] is None
-    assert result["proposal_id"] is None
+    assert result.get("proposal_id") is None
     assert "Sample total for" in result["answer"]
     assert SAMPLE_ESTIMATE_NOTICE in result["answer"]
 

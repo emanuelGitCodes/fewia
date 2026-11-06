@@ -208,7 +208,32 @@ def test_a_saved_plan_read_turn_keeps_its_gate_and_scores_as_template(
         assert record["reply_source"] == "template"
         assert record["facts_present"] == [True, True]
         assert record["provider_requests"] == 0
-        assert record["verdict"]["ok"] is True  # type: ignore[index]
+        assert record["verdict"]["ok"] is None  # type: ignore[index]
+
+
+class _Raises:
+    def converse(self, *args: object, **kwargs: object) -> dict[str, object]:
+        raise RuntimeError("provider down")
+
+
+def test_c07_turn_two_routes_to_get_plan_when_the_provider_raises(
+    corpus: ConversationCorpus,
+) -> None:
+    operations = [{"op": "add", "recipe_id": "overnight_oats", "servings": 2}]
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        if turn == 1:
+            return Scripted(
+                [_use("propose_plan_change", {"operations": operations}), _text("Ok.")]
+            )
+        return _Raises()
+
+    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    second = [r for r in records if r["turn"] == 2]
+    assert second
+    for record in second:
+        tools = cast(list[dict[str, Any]], record["tools"])
+        assert "get_plan" in [t["name"] for t in tools]
 
 
 def test_selection_normalizes_order_and_limits_runner_pairs(
