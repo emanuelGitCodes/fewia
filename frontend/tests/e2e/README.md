@@ -1,8 +1,8 @@
 # FEWIA browser tests
 
 These Playwright tests drive the real local stack. The grocery journeys use
-the live API, worker, and database. Only the provider tests fake anything,
-and only the three surfaces that the base stack turns off (see Scope).
+the live API, worker, and database. The provider tests and the smoke test
+fake only the chat surfaces listed in Scope.
 
 CI does not run this suite. The coordinator or a developer MUST run it by hand.
 

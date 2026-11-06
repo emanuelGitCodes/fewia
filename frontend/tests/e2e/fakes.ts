@@ -4,9 +4,10 @@ import type { ChatJobCreate, ChatResult } from "../../src/chatTypes";
 
 export { expect };
 
-// The live stack may or may not enable Bedrock chat. These helpers fake only that
-// surface with `page.route`: the providers flag (forced true or false) and the chat endpoints. Every
-// grocery request stays live, and the chat fake reads the real grocery responses.
+// The live stack can run with or without Bedrock chat. These helpers fake
+// only the chat surface with `page.route`. That surface is the providers flag,
+// forced to `true` or `false`, and the chat endpoints. Every grocery request
+// stays live. The chat fake reads the real grocery responses.
 
 export const CHAT_ANSWER = "Here is a plan that fits your budget.";
 
@@ -67,7 +68,8 @@ async function horizontalOverflow(page: Page): Promise<number> {
   return width - viewport.width;
 }
 
-// Forces the providers flag so a test does not depend on the live stack's chat setting.
+// Sets `chat_configured` in the `GET /api/grocery/providers` response to
+// `configured` and keeps every other field.
 export async function forceChatConfigured(page: Page, configured: boolean): Promise<void> {
   await page.route(/\/api\/grocery\/providers$/, async (route) => {
     if (route.request().method() !== "GET") {
