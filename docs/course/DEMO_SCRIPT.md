@@ -156,11 +156,11 @@ This is a deliberate safety and testing decision.
   cart add. A person pays, outside FEWIA.
 - State the test consequence: the whole path runs and is tested with no
   purchase. A test needs no grocery order.
-- Show the placeholder:
-
-> Purchase attempts: pending a conversation-eval-v1.5 live batch.
-
-- The operator MUST NOT state a purchase-attempt result. No v1.5 batch has run.
+- Show the `Purchase attempts` section of [the 2026-11-06 report](../../eval/results/artifacts/conversation-20261106b/report.md).
+  Label it `archived`: 2026-11-06, revision `8468e5da`, `live provider`.
+- Observe `turns_observed` 111, `turns_with_attempt` 0, and the target `purchase_attempts` at `PASS`.
+- State: the count covers these 111 turns. It does not prove that an attempt cannot occur.
+- A live checkout request can show a tool error. Scenario C22 did so in 3 of 3 repeats. Say this if the audience asks.
 
 ### Shot 6. How it is tested (1:30)
 
@@ -172,6 +172,7 @@ Show each class with its label. Do not blend them.
 | `local emulator` | Floci SQS and S3, Compose worker, dedicated `postgres:16`. | same record |
 | `live provider` | Real Bedrock, Nova 2 Lite, `tool_enabled` and `no_tool`. | same record |
 | `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
+| `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
 
 Also run the gates on screen only if time remains:
 `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
@@ -185,10 +186,11 @@ Label each row with its date, revision, and class. These are archived results.
 |---|---|---|---|---|---|
 | 2026-10-05 benchmark, `tool_enabled` | `d50572a1` | `live provider` | 8.01 s | 16.75 s | USD 0.1807 for 33 slots, estimate |
 | 2026-11-01 conversation, 96 turns | `f21f8980` | `live provider` | 3151 ms | 11425 ms | USD 0.004760 per turn |
+| 2026-11-06 conversation, 111 turns | `8468e5da` | `live provider` | 3119 ms | 10323 ms | USD 0.004478 per turn |
 
 - Cost is an estimate from published rates. It is not an AWS bill.
-- The 2026-11-01 targets: p50 under 5000 ms (met), p95 under 12000 ms (met),
-  cost per turn under USD 0.006 (met).
+- The targets: p50 under 5000 ms, p95 under 12000 ms, and cost per turn under
+  USD 0.006. Both conversation batches meet all three.
 
 ### Shot 8. One real failure (0:45)
 
@@ -212,10 +214,12 @@ Show [LIMITATIONS.md](LIMITATIONS.md) and the results below.
 | Task pass, fresh batch | 2026-10-05 | `d50572a1` | `live provider` | 25/33 (75.8%); target 90%: FAIL |
 | Supported claims | 2026-10-05 | `d50572a1` | `live provider` | 109 supported, 3 unknown (97.3%) |
 | Scenario pass, conversation | 2026-11-01 | `f21f8980` | `live provider` | 40/57 (70.2%) |
+| Scenario pass, conversation, C01 to C19 | 2026-11-06 | `8468e5da` | `live provider` | 39/57 (68.4%) |
+| Grounded replies, conversation | 2026-11-06 | `8468e5da` | `live provider` | 10/39; target 0.99: FAIL |
 
 - State: `main` has changed since each of these runs.
 - State: release is not certified. The 90% task target fails.
-- State: purchase attempts are unmeasured. See shot 5.
+- State: 0 purchase attempts in 111 observed turns is a count for these prompts, not a proof. See shot 5.
 - State: the demo is local. There is no deployed demo and no public hosting.
 - State: Plaid is paused. No real bank data appears.
 - State: sample prices are the budget figure. A Kroger price is read-time and is never stored.
