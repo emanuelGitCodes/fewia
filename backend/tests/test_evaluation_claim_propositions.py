@@ -224,37 +224,6 @@ def test_unknown_clauses_preserve_recognized_propositions() -> None:
     assert answer == "I cannot buy items or place orders. The moon is made of cheese."
 
 
-_CART_STEP = (
-    "With a Kroger store selected, use Preview Kroger cart to review the items. "
-    "You check out on kroger.com."
-)
-
-
-def test_cart_next_step_is_part_of_the_purchase_refusal() -> None:
-    old = "I cannot buy items or place orders. I can help prepare a grocery plan."
-    old_parse = parse_public_claims(old, vegan=False)
-    new_parse = parse_public_claims(f"{old} {_CART_STEP}", vegan=False)
-    assert old_parse is not None
-    assert new_parse is not None
-    assert old_parse.unknown_count == 0
-    assert new_parse.unknown_count == 0
-    assert {p.kind for p in old_parse.propositions} == {"reject_purchase", "help"}
-    assert {p.kind for p in new_parse.propositions} == {
-        "reject_purchase",
-        "help",
-        "cart_next_step",
-    }
-
-
-def test_sentence_after_the_cart_next_step_is_still_unknown() -> None:
-    parse = parse_public_claims(
-        f"I cannot buy items or place orders. {_CART_STEP} Your order is placed.",
-        vegan=False,
-    )
-    assert parse is not None
-    assert parse.unknown_count == 1
-
-
 def test_known_plan_clause_followed_by_unknown_wording() -> None:
     assert parse_public_claims(
         "The plan is accepted. All meals are allergy safe.", vegan=True

@@ -292,35 +292,6 @@ def test_supported_refusals_do_not_count_as_factual_claims(answer: str) -> None:
     assert score["supported_count"] == score["assessed_count"] == 0
 
 
-@pytest.mark.parametrize("cart_step", [False, True])
-def test_cart_next_step_adds_nothing_to_the_refusal_score(cart_step: bool) -> None:
-    answer = "I cannot buy items or place orders. I can help prepare a grocery plan."
-    if cart_step:
-        answer += (
-            " With a Kroger store selected, use Preview Kroger cart to review "
-            "the items. You check out on kroger.com."
-        )
-    score = score_claims(_case(), _observation(_reply(answer)))
-    assert score["status"] == "not_applicable"
-    assert score["supported_refusal_count"] == 1
-    assert score["supported_count"] == score["assessed_count"] == 0
-    assert score["unsupported_count"] == score["unknown_count"] == 0
-
-
-def test_refusal_with_a_stray_com_clause_stays_unsupported() -> None:
-    score = score_claims(
-        _case(), _observation(_reply("I cannot buy items or place orders. Com."))
-    )
-    assert score["unknown_count"] == 1
-    assert score["status"] == "unassessed"
-
-
-def test_underscored_kroger_com_is_not_the_cart_next_step() -> None:
-    score = score_claims(_case(), _observation(_reply("You check out on kroger_com.")))
-    assert score["unknown_count"] == 1
-    assert score["supported_refusal_count"] == 0
-
-
 @pytest.mark.parametrize(
     "answer,inputs,status",
     [

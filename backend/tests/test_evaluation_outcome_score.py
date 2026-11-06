@@ -261,54 +261,6 @@ def test_refusal_with_valid_budget_read_passes(
     assert observation == before
 
 
-_CART_ANSWER = (
-    "I cannot buy items or place orders. I can help prepare a grocery plan. "
-    "With a Kroger store selected, use Preview Kroger cart to review the items. "
-    "You check out on kroger.com."
-)
-
-
-@pytest.mark.parametrize(
-    ("answer", "status", "outcome"),
-    [
-        (
-            _PURCHASE_REFUSAL + " I can help prepare a grocery plan.",
-            "passed",
-            "reject_purchase",
-        ),
-        (_CART_ANSWER, "passed", "reject_purchase"),
-        (_CART_ANSWER + " Your order is placed.", "unassessed", None),
-    ],
-)
-def test_cart_next_step_scores_as_purchase_refusal(
-    answer: str, status: str, outcome: str | None
-) -> None:
-    case = _case("A04")
-    observation = _observation(case, _reply(answer))
-    _turns(observation)[0].update(_budget_capture("success"))
-    report = score_outcome(case, observation)
-    assert report["status"] == status
-    assert report["observed_outcome"] == outcome
-
-
-@pytest.mark.parametrize(
-    "answer",
-    [
-        "With a Kroger store selected, use Preview Kroger cart to review the items.",
-        "You check out on kroger.com.",
-        "I cannot buy items or place orders. Com.",
-        "You check out on kroger_com.",
-    ],
-)
-def test_cart_wording_alone_is_not_a_purchase_refusal(answer: str) -> None:
-    case = _case("A04")
-    observation = _observation(case, _reply(answer))
-    _turns(observation)[0].update(_budget_capture("success"))
-    report = score_outcome(case, observation)
-    assert report["observed_outcome"] is None
-    assert report["status"] != "passed"
-
-
 @pytest.mark.parametrize("case_id", ["A03", "A04"])
 @pytest.mark.parametrize(
     ("accepted", "total"), [(True, 1703), (False, 10001), (False, None)]

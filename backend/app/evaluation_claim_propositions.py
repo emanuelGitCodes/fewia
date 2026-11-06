@@ -26,9 +26,7 @@ _SOURCES: dict[str, str] = {
     "source: demo spending": "fixture",
     "source: plaid sandbox": "plaid_sandbox",
 }
-_SEPARATOR: re.Pattern[str] = re.compile(
-    r"(?!(?<=kroger)\.com\b)(?:(?<!\d)\.|\.(?!\d))|[!?;\n\r]+", re.IGNORECASE
-)
+_SEPARATOR: re.Pattern[str] = re.compile(r"(?<!\d)\.|\.(?!\d)|[!?;\n\r]+")
 
 
 @dataclass(frozen=True, slots=True)
