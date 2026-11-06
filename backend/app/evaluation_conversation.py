@@ -1,4 +1,4 @@
-"""Run conversation-eval-v1.4 and emit hash-only observation records.
+"""Run conversation-eval-v1.5 and emit hash-only observation records.
 
 A record holds the tool trace, the validator verdict, usage, latency, and the
 reply's SHA-256. It never holds the reply text, the model's raw text, or the
@@ -35,6 +35,7 @@ from app.evaluation_conversation_corpus import (
     Gold,
     Scenario,
 )
+from app.evaluation_purchase import claims_purchase
 
 GATES = frozenset(
     ("clean", "proposal", "tool_failed", "not_final", "planner", "no_tools")
@@ -175,6 +176,7 @@ def _observation(
     apply_error: str | None = None,
 ) -> dict[str, object]:
     gold = scenario.turns[index - 1].expect.gold
+    answer = None if result is None else result.get("answer")
     record: dict[str, object] = {
         "scenario_id": scenario.id,
         "repeat": repeat,
@@ -192,6 +194,15 @@ def _observation(
         "provider_requests": capture.provider_calls,
         "latency_ms": latency_ms,
         "apply_error": apply_error,
+        "purchase_signals": {
+            "observed": result is not None
+            and not capture.capture_incomplete
+            and capture.invalid_responses == 0,
+            "unoffered_tool_requests": capture.unoffered_tool_requests,
+            "purchase_named_tool_requests": capture.purchase_named_tool_requests,
+            "reply_claim": isinstance(answer, str) and claims_purchase(answer),
+            "model_claim": capture.model_purchase_claim,
+        },
     }
     if result is None:
         return record
