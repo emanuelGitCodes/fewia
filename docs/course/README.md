@@ -18,6 +18,8 @@ The outline includes references within eight pages as a conservative planning as
 | [Demo script](DEMO_SCRIPT.md) | Prepare an authorized local runtime. Record observable states and explain the evidence limits. |
 | [Failure log](FAILURE_LOG.md) | Inspect each selected case and distinguish triage from proven causes. |
 | [Limitations](LIMITATIONS.md) | Select the limits that bind your claims. |
+| [Evidence tables](EVIDENCE_TABLES.md) | Select the numbers you cite. Each row keeps its revision, date, evidence class, and denominator. |
+| [Rehearsal checklist](REHEARSAL_CHECKLIST.md) | Rehearse the live demo and record each result. Every box starts unchecked. |
 
 Use the [backlog](../FEATURE_BACKLOG.md) for remaining owner work.
 Supporting documents do not establish completion of the final paper or video.
@@ -34,7 +36,7 @@ The authoritative meal list is `backend/app/domain/catalog_recipes.json`, as nam
 
 Every grocery estimate MUST show this exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 | Path | Source and boundary |
 |---|---|

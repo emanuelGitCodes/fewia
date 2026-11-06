@@ -55,7 +55,7 @@ Keep immutable course sources in their original context.
 
 Every grocery estimate MUST carry the exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 ### Architecture
 

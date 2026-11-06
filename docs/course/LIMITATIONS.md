@@ -50,7 +50,7 @@ The [scope](../../.codex/project-context.md) keeps sample-catalog cents as the b
 Neither ingredient diet facts nor estimates certify retailer products or cross-contact safety.
 Every grocery estimate MUST retain this exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 Plans do not reserve money. The manual monthly limit is user input, not independently verified financial evidence.
 The local runtime uses one server-selected demo user with shared context.
