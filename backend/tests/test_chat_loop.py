@@ -3498,7 +3498,7 @@ def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
     expected = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     assert content == [{"json": expected}]
     assert result["answer"] == catalog_answer(expected)
-    assert "Breakfast burritos" in result["answer"]
+    assert cast(list[str], expected["recipe_ids"])[0] == "egg_tacos"
     assert "bean tacos" not in result["answer"]
     assert result["status"] == "clarification"
     assert result["planner_revisions"] == 0
