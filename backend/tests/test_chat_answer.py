@@ -356,9 +356,9 @@ def test_discovery_names_match_meal_type_without_a_plan() -> None:
     answer = render_public_answer(None, discovery=discovery)
     assert answer == catalog_answer(discovery)
     ids = cast(list[str], discovery["recipe_ids"])
-    assert ids == ["chicken_tacos", "chicken_and_rice_bowls", "chicken_pasta"]
+    assert ids == ["chicken_pasta", "chicken_tacos", "chicken_potato_bake"]
     assert answer.startswith(
-        "Catalog choices: Chicken tacos, Chicken and rice bowls, Chicken pasta. "
+        "Catalog choices: Chicken pasta, Chicken tacos, Chicken potato bake. "
         "Which one should I plan? "
     )
     assert "bean tacos" not in answer

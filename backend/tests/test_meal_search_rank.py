@@ -1,9 +1,14 @@
 import math
+from typing import cast
 
 import pytest
 
 from app.agent import catalog_tool, meal_search_rank
-from app.agent.catalog_tool import execute_catalog_search, search_result_ids
+from app.agent.catalog_tool import (
+    execute_catalog_search,
+    next_search_arguments,
+    search_result_ids,
+)
 from app.agent.meal_search_rank import bm25_order, bm25_score
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 
@@ -159,7 +164,23 @@ def test_facet_fallback_keeps_eligible_order(monkeypatch: pytest.MonkeyPatch) ->
     assert search_result_ids(arguments) == eligible
 
 
-def test_min_protein_keeps_its_sort() -> None:
+def test_dropped_word_pages_in_the_ranked_ingredient_order() -> None:
+    first = execute_catalog_search({"query": "chicken scramble"})
+    assert first["dropped"] == ["scramble"]
+    expected = search_result_ids({"query": "chicken"})
+    arguments = next_search_arguments(first)
+    assert arguments is not None
+    seen = list(cast(list[str], first["recipe_ids"]))
+    while arguments is not None:
+        page = execute_catalog_search(arguments)
+        seen.extend(cast(list[str], page["recipe_ids"]))
+        arguments = next_search_arguments(page)
+    assert seen == expected
+    assert len(seen) == len(set(seen))
+
+
+def test_min_protein_keeps_its_sort(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(catalog_tool, "bm25_order", _raises)
     arguments = {"query": "rice", "min_protein_g": 1}
     ranked = search_result_ids(arguments)
     assert ranked == search_result_ids(arguments, rank=False)
