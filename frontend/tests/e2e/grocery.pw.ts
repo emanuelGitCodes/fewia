@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "./fakes";
+import { expect, forceChatConfigured, test } from "./fakes";
 
 const SAMPLE_NOTICE =
   "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.";
@@ -24,6 +24,7 @@ async function expectEstimate(page: Page, total: string): Promise<void> {
 }
 
 test("smoke: page loads with default budget, catalog, and chat unavailable", async ({ page }) => {
+  await forceChatConfigured(page, false);
   await open(page);
   await expect(
     page.getByRole("heading", { level: 1, name: "Meals that fit your budget" }),

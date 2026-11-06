@@ -81,6 +81,7 @@ test("chat: a held request shows progress, then the answer", async ({
     message: CHAT_MESSAGE,
     monthly_limit_cents: 10000,
     plan_cap_cents: 4000,
+    plan_revision_id: null,
     previous_job_id: parentId,
   });
 });
