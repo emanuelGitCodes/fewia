@@ -40,7 +40,7 @@ from app.evaluation_purchase import claims_purchase
 GATES = frozenset(
     ("clean", "proposal", "tool_failed", "not_final", "planner", "no_tools")
     + ("clarification", "refusal", "incomplete", "limit", "planned_terminal")
-    + ("discovery_terminal", "guardrail")
+    + ("discovery_terminal", "guardrail", "saved_plan_read")
 )
 REASONS = REASON_CODES
 _USAGE_KEYS = (

@@ -1,14 +1,15 @@
 from datetime import date
-from hashlib import sha256
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 from app.agent import chat_loop
-from app.agent.saved_plan_route import saved_plan_read
+from app.agent import chat_messages as msgs
+from app.agent.saved_plan_route import saved_plan_read, saved_plan_reply
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.plan_revision import PlanRevisionInput
+from app.evaluation_manifest import _hash
 
 PERIOD = date(2026, 7, 1)
 
@@ -17,7 +18,7 @@ class _NoModel:
     def __init__(self) -> None:
         self.calls = 0
 
-    def converse(self, *args: Any, **kwargs: Any) -> dict[str, object]:
+    def converse(self, *args: object, **kwargs: object) -> dict[str, object]:
         self.calls += 1
         raise AssertionError("no model call expected")
 
@@ -43,8 +44,8 @@ def _run(
     *,
     plan: PlanRevisionInput | None = None,
     stale: bool = False,
-    provider: _NoModel | None = None,
-    **extra: Any,
+    provider: object | None = None,
+    **extra: object,
 ) -> dict[str, Any]:
     held = BudgetResult(10_000, 250, stale, (STALE_SPENDING_WARNING,) if stale else ())
     result = chat_loop.run_chat(
@@ -74,11 +75,17 @@ def _run(
         ("What does a plan cost?", None),
         ("What do my plan meals cost?", None),
         ("Would my plan fit my budget?", None),
+        ("What does my plan cost after removing the oats?", None),
+        ("Does this plan fit my gluten-free diet?", None),
         ("Hello", None),
     ],
 )
 def test_saved_plan_read(message: str, expected: str | None) -> None:
     assert saved_plan_read(message) == expected
+
+
+def test_corpus_probe_message_does_not_route() -> None:
+    assert saved_plan_read("What does a plan cost?") is None
 
 
 def test_cost_runs_get_plan_without_model() -> None:
@@ -131,11 +138,94 @@ def test_tool_results_reach_the_observer() -> None:
     assert len(seen[0]) == 2
 
 
-def test_empty_plan_falls_through_without_trace() -> None:
-    provider = _NoModel()
-    with pytest.raises(chat_loop.ChatUnavailable):
-        _run("What does my plan cost right now?", plan=_plan([]), provider=provider)
-    assert provider.calls == 1
+def test_fit_with_incomplete_price_states_available_and_not_fit() -> None:
+    plan = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+        "estimate": {"total_cents": None},
+    }
+    summary = {"money_display": {"available": "USD $100.00", "pending": "USD $2.50"}}
+    reply = saved_plan_reply(plan, summary, stale=False)
+    assert reply is not None
+    assert "Available: USD $100.00." in reply
+    assert "fits" not in reply
+    assert "incomplete" in reply
+
+
+class _ToolThenDone:
+    """Model that reads the budget once, then ends its turn."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def converse(self, *args: object, **kwargs: object) -> dict[str, object]:
+        self.calls += 1
+        if self.calls == 1:
+            call = {"toolUseId": "m1", "name": "get_budget_summary", "input": {}}
+            content: list[dict[str, object]] = [{"toolUse": call}]
+            stop = "tool_use"
+        else:
+            content = [{"text": "Done."}]
+            stop = "end_turn"
+        return {
+            "output": {"message": {"role": "assistant", "content": content}},
+            "stopReason": stop,
+            "usage": {"inputTokens": 1, "outputTokens": 1},
+        }
+
+
+def _assert_model_only_trace(result: dict[str, Any], provider: _ToolThenDone) -> None:
+    assert provider.calls == 2
+    assert [entry["tool"] for entry in result["tool_trace"]] == ["get_budget_summary"]
+    assert result["reply_check"] != {"gate": "saved_plan_read"}
+
+
+def _fail_route_tool(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    real = chat_loop.dispatch
+
+    def failing(
+        call: msgs.ToolCall, *args: object, **kwargs: object
+    ) -> tuple[dict[str, object] | None, dict[str, object]]:
+        if call.name != name or not call.tool_use_id.startswith("saved-plan"):
+            return real(call, *args, **kwargs)  # type: ignore[arg-type]
+        trace = cast(list[dict[str, object]], args[4])
+        trace.append({"tool": name, "outcome": "error", "sequence": len(trace) + 1})
+        block = msgs.tool_result_block(call.tool_use_id, {"error": "x"}, success=False)
+        return None, block
+
+    monkeypatch.setattr(chat_loop, "dispatch", failing)
+
+
+@pytest.mark.parametrize(
+    ("message", "tool"),
+    [
+        ("What does my plan cost right now?", "get_plan"),
+        ("Does my saved plan fit my budget?", "get_plan"),
+        ("Does my saved plan fit my budget?", "get_budget_summary"),
+    ],
+)
+def test_tool_failure_falls_through_to_the_model(
+    monkeypatch: pytest.MonkeyPatch, message: str, tool: str
+) -> None:
+    _fail_route_tool(monkeypatch, tool)
+    provider = _ToolThenDone()
+    _assert_model_only_trace(_run(message, provider=provider), provider)
+
+
+def test_search_continuation_does_not_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_loop, "is_search_continuation", lambda message: True)
+    provider = _ToolThenDone()
+    result = _run("What does my plan cost right now?", provider=provider)
+    _assert_model_only_trace(result, provider)
+
+
+def test_empty_plan_falls_through_without_a_route_trace() -> None:
+    provider = _ToolThenDone()
+    result = _run(
+        "What does my plan cost right now?", plan=_plan([]), provider=provider
+    )
+    _assert_model_only_trace(result, provider)
 
 
 def test_no_plan_revision_keeps_model_path() -> None:
@@ -158,6 +248,6 @@ def test_unrouted_message_calls_the_model() -> None:
 
 
 def test_system_prompt_is_unchanged() -> None:
-    digest = sha256(chat_loop.SYSTEM_PROMPT.encode()).hexdigest()
-    assert len(digest) == 64
-    assert "plan_groceries" in chat_loop.SYSTEM_PROMPT
+    assert _hash(chat_loop.SYSTEM_PROMPT) == (
+        "06a3f92a4240a8ad9f6c402c0b66ce18e8b6900b64c50b7d59681bc53bd6760a"
+    )

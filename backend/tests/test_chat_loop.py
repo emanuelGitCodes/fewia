@@ -6445,9 +6445,9 @@ def test_named_property_loop_recognition_precedes_plan_lookup(
 @pytest.mark.parametrize(
     "question",
     [
-        "Is the plan within my monthly budget?",
-        "Is my saved plan affordable?",
-        "Is the plan within my monthly limit?",
+        "Are my plan meals within my monthly budget?",
+        "Are my saved meals affordable?",
+        "Are my selected meals within my monthly limit?",
         "Are my selected meals economical?",
         "Are my plan meals low cost?",
         "Is my selected chicken tacos within my spending allowance?",
@@ -6511,7 +6511,7 @@ def test_c11_turn_eight_preserves_budget_and_plan_tool_results(
             _reply([_text_block("done")], "end_turn"),
         ]
     )
-    question = "Is the plan within my monthly budget?"
+    question = "Are my plan meals within my monthly budget?"
     if prefixed:
         question = (
             "My current plan: Bean tacos, Chicken and rice bowls. "

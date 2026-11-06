@@ -98,6 +98,17 @@ def _only(corpus: ConversationCorpus, scenario_id: str) -> ConversationCorpus:
     return corpus.model_copy(update={"scenarios": chosen})
 
 
+def _c07_unrouted(corpus: ConversationCorpus) -> ConversationCorpus:
+    """C07 with turn 2 reworded so the saved-plan route leaves it to the model."""
+    sub = _only(corpus, "C07")
+    scenario = sub.scenarios[0]
+    turns = list(scenario.turns)
+    turns[1] = turns[1].model_copy(update={"user": "What do my plan meals cost now?"})
+    return sub.model_copy(
+        update={"scenarios": [scenario.model_copy(update={"turns": turns})]}
+    )
+
+
 def _plan_ids(messages: list[dict[str, object]]) -> list[str]:
     content = cast(list[dict[str, str]], messages[-1]["content"])
     meals = json.loads(content[0]["text"])["plan_meals"]
@@ -164,7 +175,7 @@ def test_a_provider_failure_records_a_failed_turn_and_stops(
     def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
         return Scripted([])
 
-    records = list(run_conversation_suite(_only(corpus, "C11"), "p", provider_for))
+    records = list(run_conversation_suite(_only(corpus, "C01"), "p", provider_for))
     assert [(r["repeat"], r["turn"]) for r in records] == [(1, 1), (2, 1), (3, 1)]
     for record in records:
         assert record["status"] == "failed"
@@ -176,6 +187,28 @@ def test_a_provider_failure_records_a_failed_turn_and_stops(
         assert record["provider_requests"] == 1
         assert not any(cast(list[bool], record["facts_present"]))
         assert set(cast(dict[str, object], record["usage"]).values()) == {None}
+
+
+def test_a_saved_plan_read_turn_keeps_its_gate_and_scores_as_template(
+    corpus: ConversationCorpus,
+) -> None:
+    calls: list[int] = []
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        calls.append(turn)
+        return Scripted([])
+
+    sub = _only(corpus, "C11")
+    scenario = sub.scenarios[0]
+    first = scenario.model_copy(update={"turns": scenario.turns[:1]})
+    sub = sub.model_copy(update={"scenarios": [first]})
+    records = list(run_conversation_suite(sub, "p", provider_for))
+    for record in records:
+        assert record["gate"] == "saved_plan_read"
+        assert record["reply_source"] == "template"
+        assert record["facts_present"] == [True, True]
+        assert record["provider_requests"] == 0
+        assert record["verdict"]["ok"] is True  # type: ignore[index]
 
 
 def test_selection_normalizes_order_and_limits_runner_pairs(
@@ -240,7 +273,7 @@ def test_apply_proposal_before_changes_the_plan_in_memory_only(
         )
         return Scripted([first, _text("Done.")], seen.setdefault((repeat, turn), []))
 
-    sub = _only(corpus, "C07")
+    sub = _c07_unrouted(corpus)
     records = list(run_conversation_suite(sub, "p", provider_for))
     assert len(records) == 6
     for repeat in (1, 2, 3):
@@ -266,7 +299,7 @@ def test_no_proposal_is_applied_when_none_was_recorded(
         )
         return Scripted(script, seen.setdefault((repeat, turn), []))
 
-    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    records = list(run_conversation_suite(_c07_unrouted(corpus), "p", provider_for))
     assert _plan_ids(seen[(1, 2)][0]) == ["bean_tacos"]
     assert [r["apply_error"] for r in records] == [None, "missing"] * 3
 
@@ -290,7 +323,7 @@ def test_a_proposal_that_fails_to_apply_is_recorded_and_fails_the_turn(
         )
         return Scripted([first, _text("Done.")], seen.setdefault((repeat, turn), []))
 
-    sub = _only(corpus, "C07")
+    sub = _c07_unrouted(corpus)
     records = list(run_conversation_suite(sub, "p", provider_for))
     assert [r["apply_error"] for r in records] == [None, "invalid"] * 3
     assert _plan_ids(seen[(1, 2)][0]) == ["bean_tacos"]
@@ -564,7 +597,7 @@ def test_evaluation_cannot_apply_a_proposal_from_a_blocked_turn(
             ]
         return Scripted(script, seen.setdefault((repeat, turn), []))
 
-    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    records = list(run_conversation_suite(_c07_unrouted(corpus), "p", provider_for))
     assert len(records) == 6
     for repeat in (1, 2, 3):
         own = [record for record in records if record["repeat"] == repeat]

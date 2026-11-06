@@ -75,7 +75,7 @@ def _registered_tool_names() -> frozenset[str]:
     with suppress(ChatUnavailable):
         run_chat(
             recorder,
-            "What does my plan cost?",
+            "What does a plan cost?",
             budget,
             date(2026, 9, 1),
             plan_revision=plan,
