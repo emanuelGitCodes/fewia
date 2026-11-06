@@ -8,6 +8,7 @@ import pytest
 
 from app import evaluation_kroger, kroger_cart
 from app.evaluation_kroger import main, run_evaluation
+from app.providers.kroger import KrogerCartUnknown, KrogerClient
 
 ERROR_CLASSES = [
     "http_429",
@@ -71,7 +72,7 @@ def test_product_match_values() -> None:
     assert match["matched"] == 4
     assert match["unmatched"] == 3
     assert match["rate"] == round(4 / 7, 4)
-    assert match["out_of_stock_chosen"] == 0
+    assert "out_of_stock_chosen" not in match
 
 
 def test_targets_for_product_match() -> None:
@@ -92,8 +93,7 @@ def test_removed_stock_filter_fails_the_measure(
 ) -> None:
     monkeypatch.setattr(kroger_cart, "OUT_OF_STOCK", "NO_SUCH_LEVEL")
     report = run_evaluation()
-    match = _measures(report)["product_match"]
-    chosen = match["out_of_stock_chosen"]
+    chosen = _target(report, "out_of_stock_chosen")["value"]
     assert isinstance(chosen, int) and chosen > 0
     assert _target(report, "out_of_stock_chosen")["status"] == "FAIL"
     assert _target(report, "unmatched_listed")["status"] == "FAIL"
@@ -170,6 +170,50 @@ def test_cli_exits_zero_when_a_measure_fails(
     assert any(t["status"] == "FAIL" for t in written["targets"])
 
 
+def test_cli_exits_zero_when_add_to_cart_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(self: KrogerClient, token: str, items: object) -> None:
+        raise KrogerCartUnknown
+
+    monkeypatch.setattr(KrogerClient, "add_to_cart", boom)
+    path = tmp_path / "cart.json"
+    assert main(["--output", str(path)]) == 0
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert _target(written, "add_items_equal_preview")["status"] == "FAIL"
+    assert "did not confirm" not in path.read_text(encoding="utf-8")
+
+
+def test_cli_exits_zero_when_attach_kroger_quote_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("invented quote failure")
+
+    monkeypatch.setattr(evaluation_kroger, "attach_kroger_quote", boom)
+    path = tmp_path / "quote.json"
+    assert main(["--output", str(path)]) == 0
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert _target(written, "quote_store_label")["status"] == "FAIL"
+    assert _target(written, "quote_utc_read_time")["status"] == "FAIL"
+    assert "invented quote failure" not in path.read_text(encoding="utf-8")
+
+
+def test_injected_leak_fails_secret_hits(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        evaluation_kroger,
+        "_error_text",
+        lambda error: f"leak {evaluation_kroger.APP_TOKEN}",
+    )
+    report = run_evaluation()
+    target = _target(report, "secret_hits")
+    value = target["value"]
+    assert isinstance(value, int) and value > 0
+    assert target["status"] == "FAIL"
+    scan = _measures(report)["secret_scan"]
+    assert scan["count"] == value
+
+
 def test_cli_rejects_existing_path(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -211,6 +255,7 @@ def test_output_holds_no_descriptions_or_tokens(tmp_path: Path) -> None:
         "Bearer",
         "Authorization",
     ]
+    forbidden.append(str(evaluation_kroger._QUOTE_PRODUCT["description"]))
     for products in evaluation_kroger.LINE_PRODUCTS.values():
         for product in products:
             forbidden.append(str(product["description"]))

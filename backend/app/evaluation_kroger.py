@@ -224,7 +224,15 @@ def _cart_safety(
 ) -> dict[str, object]:
     client = shop.client()
     before = len(shop.cart_requests())
-    client.add_to_cart(CUSTOMER_TOKEN, _add_items(preview))
+    try:
+        client.add_to_cart(CUSTOMER_TOKEN, _add_items(preview))
+    except Exception as error:  # noqa: BLE001
+        errors.append(_error_text(error))
+        return {
+            "cart_requests_before_add": before,
+            "cart_requests_by_add": len(shop.cart_requests()) - before,
+            "add_items_equal_preview": False,
+        }
     sent = shop.cart_requests()[before:]
     expected = [{"upc": i.upc, "quantity": i.quantity} for i in preview.items]
     equal = len(sent) == 1 and json.loads(sent[0].content) == {"items": expected}
@@ -244,7 +252,7 @@ def _cart_safety(
 def _status_class(error: BaseException | None) -> str:
     if error is None:
         return "none"
-    classes = {
+    classes: dict[type[BaseException], str] = {
         KrogerUnavailable: "unavailable",
         KrogerCartUnknown: "cart_unknown",
         KrogerAuthRejected: "auth_rejected",
@@ -291,10 +299,10 @@ def _secret_needles() -> list[str]:
 
 
 def _hits(text: str) -> int:
-    return sum(1 for needle in _secret_needles() if needle in text)
+    return sum(text.count(needle) for needle in _secret_needles())
 
 
-def _quote_label() -> dict[str, object]:
+def _quote_label(errors: list[str]) -> dict[str, object]:
     result: dict[str, object] = {
         "tool_trace": [
             {
@@ -304,7 +312,13 @@ def _quote_label() -> dict[str, object]:
             }
         ]
     }
-    attached = attach_kroger_quote(result, Shop().client(), LOCATION, lambda: QUOTE_NOW)
+    try:
+        attached = attach_kroger_quote(
+            result, Shop().client(), LOCATION, lambda: QUOTE_NOW
+        )
+    except Exception as error:  # noqa: BLE001
+        errors.append(_error_text(error))
+        return {"store_label": False, "utc_read_time": False}
     quote = attached.get("kroger_quote")
     if not isinstance(quote, dict):
         return {"store_label": False, "utc_read_time": False}
@@ -320,17 +334,21 @@ def _percentile(sorted_ms: list[float], percent: int) -> float:
     return round(sorted_ms[max(rank, 1) - 1], 3)
 
 
-def _code_latency() -> dict[str, object]:
+def _code_latency(errors: list[str]) -> dict[str, object]:
     samples: list[float] = []
     for _ in range(LATENCY_RUNS):
         client = Shop().client()
         start = time.perf_counter()
-        build_preview(PLAN, client, LOCATION)
+        try:
+            build_preview(PLAN, client, LOCATION)
+        except Exception as error:  # noqa: BLE001
+            errors.append(_error_text(error))
+            break
         samples.append((time.perf_counter() - start) * 1000)
     samples.sort()
     return {
-        "p50": _percentile(samples, 50),
-        "p95": _percentile(samples, 95),
+        "p50": _percentile(samples, 50) if samples else 0.0,
+        "p95": _percentile(samples, 95) if samples else 0.0,
         "runs": len(samples),
         "scope": LATENCY_SCOPE,
     }
@@ -351,24 +369,45 @@ def run_evaluation() -> dict[str, object]:
     if set(ids) != set(LINE_PRODUCTS):
         raise ValueError("fixture lines MUST match the plan lines")
     shop = Shop()
-    preview = build_preview(PLAN, shop.client(), LOCATION)
-    match = _product_match(preview)
-    sold_out_chosen = sum(1 for item in preview.items if item.upc in SOLD_OUT_UPCS)
+    preview: CartPreview | None = None
+    try:
+        preview = build_preview(PLAN, shop.client(), LOCATION)
+    except Exception as error:  # noqa: BLE001
+        errors.append(_error_text(error))
+    match: dict[str, object]
+    safety: dict[str, object]
+    if preview is None:
+        match = {
+            "lines": len(LINE_PRODUCTS),
+            "matched": 0,
+            "unmatched": -1,
+            "rate": 0.0,
+        }
+        sold_out_chosen = -1
+        safety = {
+            "cart_requests_before_add": -1,
+            "cart_requests_by_add": 0,
+            "add_items_equal_preview": False,
+        }
+    else:
+        match = _product_match(preview)
+        sold_out_chosen = sum(1 for item in preview.items if item.upc in SOLD_OUT_UPCS)
+        safety = _cart_safety(shop, preview, errors)
     expected_unmatched = sum(
         1 for products in LINE_PRODUCTS.values() if not _choosable(products)
     )
-    safety = _cart_safety(shop, preview, errors)
     failures = _failure_handling(errors)
-    quote = _quote_label()
+    quote = _quote_label(errors)
+    latency = _code_latency(errors)
     measures: dict[str, object] = {
         "product_match": match,
         "cart_safety": safety,
         "failure_handling": failures,
         "secret_scan": {},
         "quote_label": quote,
-        "code_latency_ms": _code_latency(),
+        "code_latency_ms": latency,
     }
-    targets = [
+    head = [
         _target("out_of_stock_chosen", 0, sold_out_chosen),
         _target("unmatched_listed", expected_unmatched, match["unmatched"]),
         _target("cart_requests_before_add", 0, safety["cart_requests_before_add"]),
@@ -377,14 +416,13 @@ def run_evaluation() -> dict[str, object]:
             _target(f"partial_preview_{row['error']}", False, row["partial_preview"])
             for row in failures
         ),
-        _target("secret_hits", 0, 0),
+    ]
+    targets = [
+        *head,
         _target("quote_store_label", True, quote["store_label"]),
         _target("quote_utc_read_time", True, quote["utc_read_time"]),
+        _target("timing_runs_completed", LATENCY_RUNS, latency["runs"]),
     ]
-    secret_target = next(
-        index for index, row in enumerate(targets) if row["name"] == "secret_hits"
-    )
-    measures["product_match"] = {**match, "out_of_stock_chosen": sold_out_chosen}
     report: dict[str, object] = {
         "version": VERSION,
         "evidence_class": EVIDENCE_CLASS,
@@ -392,7 +430,7 @@ def run_evaluation() -> dict[str, object]:
         "targets": targets,
     }
     scan = {
-        "preview": _hits(preview.model_dump_json()),
+        "preview": _hits(preview.model_dump_json()) if preview is not None else 0,
         "errors": _hits("\n".join(errors)),
         "report": 0,
     }
@@ -400,7 +438,7 @@ def run_evaluation() -> dict[str, object]:
     scan["report"] = _hits(json.dumps(report, sort_keys=True))
     total = sum(scan.values())
     measures["secret_scan"] = {**scan, "count": total}
-    targets[secret_target] = _target("secret_hits", 0, total)
+    targets.insert(len(head), _target("secret_hits", 0, total))
     return report
 
 
