@@ -1,0 +1,20 @@
+{
+  "relevance": "recipe id holds every query word",
+  "queries": [
+    {"query": "chicken", "relevant": ["chicken_tacos", "chicken_and_rice_bowls", "chicken_pasta", "chicken_stir_fry", "chicken_curry", "chicken_vegetable_soup", "chicken_burrito_bowls", "chicken_potato_bake", "chicken_lentil_stew", "chicken_chickpea_skillet", "chicken_fried_rice", "chicken_tortilla_soup"]},
+    {"query": "rice", "relevant": ["chicken_and_rice_bowls", "chicken_fried_rice", "egg_fried_rice", "egg_rice_bowls", "rice_and_beans", "tomato_rice", "salsa_rice_bowls"]},
+    {"query": "beans tacos", "relevant": ["bean_tacos"]},
+    {"query": "egg", "relevant": ["egg_fried_rice", "egg_tacos", "tomato_egg_pasta", "potato_hash_with_eggs", "chickpea_egg_scramble", "vegetable_egg_stir_fry", "egg_rice_bowls", "lentil_egg_skillet"]},
+    {"query": "lentil", "relevant": ["lentil_soup", "chicken_lentil_stew", "lentil_egg_skillet", "lentil_pasta", "lentil_tacos", "coconut_lentil_curry"]},
+    {"query": "curry", "relevant": ["chickpea_curry", "chicken_curry", "potato_curry", "coconut_lentil_curry"]},
+    {"query": "pasta", "relevant": ["vegetable_pasta", "chicken_pasta", "tomato_egg_pasta", "lentil_pasta", "garlic_tomato_pasta", "chickpea_pasta"]},
+    {"query": "tacos", "relevant": ["chicken_tacos", "bean_tacos", "egg_tacos", "chickpea_tacos", "lentil_tacos", "potato_tacos"]},
+    {"query": "soup", "relevant": ["lentil_soup", "chicken_vegetable_soup", "chicken_tortilla_soup", "vegetable_soup"]},
+    {"query": "potato", "relevant": ["baked_potatoes_with_beans", "chicken_potato_bake", "potato_hash_with_eggs", "potato_curry", "potato_tacos"]},
+    {"query": "chickpea", "relevant": ["chickpea_curry", "chicken_chickpea_skillet", "chickpea_egg_scramble", "chickpea_tacos", "chickpea_pasta"]},
+    {"query": "tomato rice", "relevant": ["tomato_rice"]},
+    {"query": "vegetable soup", "relevant": ["chicken_vegetable_soup", "vegetable_soup"]},
+    {"query": "egg rice", "relevant": ["egg_fried_rice", "egg_rice_bowls"]},
+    {"query": "lentil tacos", "relevant": ["lentil_tacos"]}
+  ]
+}

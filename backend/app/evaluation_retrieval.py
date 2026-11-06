@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from app.agent.catalog_tool import search_result_ids
+from app.agent.catalog_tool import CatalogToolError, search_result_ids
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 
 RECALL_RANK = 3
@@ -89,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         with args.output.open("x", encoding="utf-8") as handle:
             json.dump(report, handle, indent=2, sort_keys=True)
             handle.write("\n")
-    except (RetrievalInputError, OSError) as error:
+    except (RetrievalInputError, CatalogToolError, OSError) as error:
         print(f"invalid input: {error}", file=sys.stderr)
         return 2
     return 0
