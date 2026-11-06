@@ -7,7 +7,8 @@
 
 A visit to `/` lands on `/prototype`. The address bar shows `/prototype`. The
 older `App` page stays reachable at `/app`. Agents and developers MUST start a
-local test or demo at `http://127.0.0.1:5173/prototype`.
+local test or demo at `/prototype`. A test or walkthrough of `App` MUST open
+`/app`.
 
 ## Options considered
 

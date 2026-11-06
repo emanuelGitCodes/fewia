@@ -73,6 +73,8 @@ API_HOST_PORT=8020 WEB_HOST_PORT=5183 POSTGRES_HOST_PORT=55445 FLOCI_HOST_PORT=4
 
 ## Try the demo
 
+Open `http://127.0.0.1:5173/app`. These controls are on the older page.
+
 1. Select "Bean tacos for two". The estimate shows $17.03 and the sample
    notice.
 2. Select "I have olive oil" in the estimate. The heading changes to

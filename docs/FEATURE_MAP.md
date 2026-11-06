@@ -31,7 +31,7 @@ Plaid dormant.
 
 ```mermaid
 flowchart TB
-  web["web · nginx :8080<br/>React app at /<br/>Plan page at /prototype"]
+  web["web · nginx :8080<br/>Plan page at /prototype, the redirect target of /<br/>React app at /app"]
   api["api · FastAPI<br/>routes under /grocery, plus /healthz"]
   pg[("postgres<br/>jobs, job_outbox, evidence<br/>frozen-suite handoffs, plaid, legacy")]
   floci["floci · SQS and S3<br/>fewia-agent, fewia-sync, dead letters<br/>bucket fewia-eval"]
