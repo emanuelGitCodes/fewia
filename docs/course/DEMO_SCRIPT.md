@@ -8,7 +8,7 @@ Use the GUI and explain the states that actually appear.
 
 Use an owner-prepared, isolated local runtime from [Compose](../../compose.yaml).
 The runtime contains React and TypeScript, FastAPI, PostgreSQL, workers, and Floci SQS/S3.
-The default web address is `http://127.0.0.1:5173`; the owner identifies any local port override.
+The default web address is `http://127.0.0.1:5173/app`; the owner identifies any local port override.
 The operator MUST NOT modify or run shared services for this shot list.
 This document supplies no startup command or API payload.
 

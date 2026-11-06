@@ -5198,3 +5198,15 @@ Glued negations such as "hasno dairy" passed, and the `claims` exemption accepte
 Three repairs restore the base behavior for both. A bare "no", "non", or "not" MUST start a word, so "Dannon dairy" passes.
 The pull request body records the final head, the gates, and the review verdict.
 Writers: `claude-sonnet-5-5` at `medium`. Three runs stopped with no edits while the CLI sign-in had expired.
+
+## 2026-11-05 — PR 469 to 473 merged
+
+PR 469 merged as `43c0e462`, PR 470 as `b7c70d56`, PR 471 as `5c1ebaca`, PR 472 as `f316f48c`, and PR 473 as `1a90152a`.
+All nine hosted checks passed on each head before its merge.
+The gates passed on `main` after each of the first three merges: 15,442, then 17,156, then 17,305 backend tests.
+The frontend passed at `43c0e462` and `5c1ebaca`. PR 471 approved at `8e85972c` on review round 3 with `claude-opus-5-5`.
+A browser smoke test at `5c1ebaca` ran a vegetarian search, "more", and a dairy-free question. The server made no dairy-free claim.
+[Decision 0026](decisions/0026-prototype-default-route.md) makes `/prototype` the default route. PR 472 ships it.
+PR 473 repairs two stale Playwright tests. The suite passes 16 of 16 at `b03687dd`, with Bedrock on.
+The owner decides four open items. "contains no dairyproducts" passes on `main`: keep the word boundary, or reject glued compounds and accept "dairyman" false positives.
+The other three are in the [review](../docs/reviews/pr-469-470-review.md): the clarify set, a plan stated in the message, and the six reviewer-prose files.

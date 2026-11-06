@@ -31,7 +31,7 @@ Plaid dormant.
 
 ```mermaid
 flowchart TB
-  web["web · nginx :8080<br/>React app at /<br/>Plan page at /prototype"]
+  web["web · nginx :8080<br/>Plan page at /prototype, the redirect target of /<br/>React app at /app"]
   api["api · FastAPI<br/>routes under /grocery, plus /healthz"]
   pg[("postgres<br/>jobs, job_outbox, evidence<br/>frozen-suite handoffs, plaid, legacy")]
   floci["floci · SQS and S3<br/>fewia-agent, fewia-sync, dead letters<br/>bucket fewia-eval"]
@@ -58,7 +58,7 @@ environment to `api` and `worker`.
 
 ## Feature inventory
 
-Twenty-three built features. Thirteen serve the `/` application today,
+Twenty-three built features. Thirteen serve the `/app` application today,
 four are tooling that no route serves, one serves `/prototype`, one sits
 dormant by decision, two are retired, and two wait on the owner or on
 deployment.
@@ -336,8 +336,8 @@ One line per folder, grouped by layer. Tests sit next to their code:
 
 **Frontend, `frontend/src/`**
 
-- `main.tsx`, `rootView.tsx`: pick `App` for `/` or the lazy
-  `TonightPrototype` for `/prototype`.
+- `main.tsx`, `rootView.tsx`: send `/` to `/prototype`, and pick the lazy
+  `TonightPrototype` for `/prototype` or `App` for every other path.
 - `App.tsx`: composes `Conversation`, `BudgetForm`, `TemplatePicker`,
   `ChatWorkspace`, `Estimate`.
 - `ChatWorkspace.tsx`, `ChatPanel.tsx`, `useChatConversation.ts`,

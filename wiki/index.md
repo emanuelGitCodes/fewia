@@ -28,6 +28,10 @@ chronological record lives in [log.md](log.md).
 - [0020 — One hook set for every agent CLI](decisions/0020-shared-hooks-for-every-agent-cli.md)
 - [0021 — Claude-only delegation in Claude Code sessions](decisions/0021-claude-only-delegation.md)
 - [0022 — Grounded model prose in the chat](decisions/0022-grounded-model-prose.md)
+- [0023 — Retire the Instacart adapter and keep the frozen suite](decisions/0023-retire-instacart-adapter.md)
+- [0024 — Store-neutral estimate notice and grocery-eval-v1.1](decisions/0024-store-neutral-estimate-notice.md)
+- [0025 — Medical claims check and an optional Bedrock guardrail](decisions/0025-medical-claims-and-bedrock-guardrail.md)
+- [0026 — `/prototype` is the default route](decisions/0026-prototype-default-route.md)
 
 ## Phases
 

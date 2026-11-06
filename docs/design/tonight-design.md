@@ -60,7 +60,7 @@ components:
 
 The Tonight prototype puts a plan of one to three meals on one page with its grocery total, plan cap, nutrition, and combined shopping list. Familiar supplies the forest-green selection and focus color and the pale-sage selection surface. Pantry Edit supplies Source Sans 3 and the compact, direct layout.
 
-This system applies only to `/prototype`. It does not restyle the existing `/` application. The Plan page keeps the meal cards, the package-based estimate, the budget fit, and the shopping list together. The Pantry view is the only other view.
+This system applies only to `/prototype`. It does not restyle the older `/app` application. The Plan page keeps the meal cards, the package-based estimate, the budget fit, and the shopping list together. The Pantry view is the only other view.
 
 **Key Characteristics:**
 - One card per planned meal, with its image, servings, and ingredients together.
