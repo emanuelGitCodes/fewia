@@ -1,5 +1,6 @@
 """Tests for the deterministic Kroger evaluation. Everything here is invented."""
 
+import base64
 import json
 import socket
 from pathlib import Path
@@ -8,7 +9,12 @@ import pytest
 
 from app import evaluation_kroger, kroger_cart
 from app.evaluation_kroger import main, run_evaluation
-from app.providers.kroger import KrogerCartUnknown, KrogerClient
+from app.providers.kroger import (
+    CartItem,
+    KrogerCartUnknown,
+    KrogerClient,
+    KrogerUnavailable,
+)
 
 ERROR_CLASSES = [
     "http_429",
@@ -125,6 +131,10 @@ def test_secret_scan_is_clean_and_can_detect() -> None:
     assert scan == {"preview": 0, "errors": 0, "report": 0, "count": 0}
     assert evaluation_kroger._hits(f"x {evaluation_kroger.APP_TOKEN} y") == 1
     assert evaluation_kroger._hits(f"Bearer {evaluation_kroger.CUSTOMER_TOKEN}") == 2
+    basic = base64.b64encode(
+        f"{evaluation_kroger.CLIENT_ID}:{evaluation_kroger.CLIENT_SECRET}".encode()
+    ).decode()
+    assert evaluation_kroger._hits(f"x {basic} y") == 1
 
 
 def test_quote_label() -> None:
@@ -147,7 +157,16 @@ def test_code_latency_shape() -> None:
     assert 0 <= p50 <= p95
     targets = report["targets"]
     assert isinstance(targets, list)
-    assert not any("latency" in str(t["name"]) for t in targets)
+    assert {t["name"] for t in targets} == {
+        "out_of_stock_chosen",
+        "unmatched_listed",
+        "cart_requests_before_add",
+        "add_items_equal_preview",
+        *(f"partial_preview_{name}" for name in ERROR_CLASSES),
+        "secret_hits",
+        "quote_store_label",
+        "quote_utc_read_time",
+    }
 
 
 def test_cli_writes_report_and_exits_zero(
@@ -182,6 +201,79 @@ def test_cli_exits_zero_when_add_to_cart_raises(
     written = json.loads(path.read_text(encoding="utf-8"))
     assert _target(written, "add_items_equal_preview")["status"] == "FAIL"
     assert "did not confirm" not in path.read_text(encoding="utf-8")
+
+
+def test_cli_exits_zero_when_a_rejection_raises_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = KrogerClient.add_to_cart
+    calls: list[int] = []
+
+    def flaky(self: KrogerClient, token: str, items: list[CartItem]) -> None:
+        calls.append(1)
+        if len(calls) > 1:
+            raise KrogerUnavailable
+        original(self, token, items)
+
+    monkeypatch.setattr(KrogerClient, "add_to_cart", flaky)
+    path = tmp_path / "rejection.json"
+    assert main(["--output", str(path)]) == 0
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert _target(written, "add_items_equal_preview")["value"] is False
+    assert _target(written, "add_items_equal_preview")["status"] == "FAIL"
+
+
+def test_cli_exits_zero_when_build_preview_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("invented preview failure")
+
+    monkeypatch.setattr(evaluation_kroger, "build_preview", boom)
+    path = tmp_path / "preview.json"
+    assert main(["--output", str(path)]) == 0
+    written = json.loads(path.read_text(encoding="utf-8"))
+    for name in (
+        "out_of_stock_chosen",
+        "unmatched_listed",
+        "cart_requests_before_add",
+        "add_items_equal_preview",
+    ):
+        assert _target(written, name)["status"] == "FAIL"
+
+
+def test_cart_request_before_add_fails_the_measure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = kroger_cart.build_preview
+
+    def early(plan: object, client: KrogerClient, location: str) -> object:
+        preview = original(plan, client, location)  # type: ignore[arg-type]
+        client.add_to_cart(
+            evaluation_kroger.CUSTOMER_TOKEN, evaluation_kroger._add_items(preview)
+        )
+        return preview
+
+    monkeypatch.setattr(evaluation_kroger, "build_preview", early)
+    report = run_evaluation()
+    before = _measures(report)["cart_safety"]["cart_requests_before_add"]
+    assert isinstance(before, int) and before > 0
+    assert _target(report, "cart_requests_before_add")["status"] == "FAIL"
+
+
+def test_add_items_differing_from_preview_fail_the_measure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = KrogerClient.add_to_cart
+
+    def fewer(self: KrogerClient, token: str, items: list[CartItem]) -> None:
+        original(self, token, items[:1])
+
+    monkeypatch.setattr(KrogerClient, "add_to_cart", fewer)
+    report = run_evaluation()
+    safety = _measures(report)["cart_safety"]
+    assert safety["add_items_equal_preview"] is False
+    assert _target(report, "add_items_equal_preview")["status"] == "FAIL"
 
 
 def test_cli_exits_zero_when_attach_kroger_quote_raises(

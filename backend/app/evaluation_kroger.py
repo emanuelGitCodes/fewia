@@ -226,6 +226,15 @@ def _cart_safety(
     before = len(shop.cart_requests())
     try:
         client.add_to_cart(CUSTOMER_TOKEN, _add_items(preview))
+        sent = shop.cart_requests()[before:]
+        expected = [{"upc": i.upc, "quantity": i.quantity} for i in preview.items]
+        equal = len(sent) == 1 and json.loads(sent[0].content) == {"items": expected}
+        for status in (401, 503):
+            rejecting = Shop(cart_status=status)
+            try:
+                rejecting.client().add_to_cart(CUSTOMER_TOKEN, _add_items(preview))
+            except (KrogerAuthRejected, KrogerCartUnknown) as error:
+                errors.append(_error_text(error))
     except Exception as error:  # noqa: BLE001
         errors.append(_error_text(error))
         return {
@@ -233,15 +242,6 @@ def _cart_safety(
             "cart_requests_by_add": len(shop.cart_requests()) - before,
             "add_items_equal_preview": False,
         }
-    sent = shop.cart_requests()[before:]
-    expected = [{"upc": i.upc, "quantity": i.quantity} for i in preview.items]
-    equal = len(sent) == 1 and json.loads(sent[0].content) == {"items": expected}
-    for status in (401, 503):
-        rejecting = Shop(cart_status=status)
-        try:
-            rejecting.client().add_to_cart(CUSTOMER_TOKEN, _add_items(preview))
-        except (KrogerAuthRejected, KrogerCartUnknown) as error:
-            errors.append(_error_text(error))
     return {
         "cart_requests_before_add": before,
         "cart_requests_by_add": len(sent),
@@ -295,6 +295,7 @@ def _secret_needles() -> list[str]:
         f"Bearer {APP_TOKEN}",
         f"Bearer {CUSTOMER_TOKEN}",
         f"Basic {basic}",
+        basic,
     ]
 
 
@@ -421,7 +422,6 @@ def run_evaluation() -> dict[str, object]:
         *head,
         _target("quote_store_label", True, quote["store_label"]),
         _target("quote_utc_read_time", True, quote["utc_read_time"]),
-        _target("timing_runs_completed", LATENCY_RUNS, latency["runs"]),
     ]
     report: dict[str, object] = {
         "version": VERSION,
