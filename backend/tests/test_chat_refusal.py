@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
+from app.agent.chat_refusal import (
+    GUARDRAIL_DECLINE,
+    NEW_PURCHASE_ANSWER,
+    OLD_PURCHASE_ANSWER,
+    parse_refusal,
+    scored_answer,
+)
 
 _SECRETS = (
     "I cannot provide credentials or raw bank records. "
@@ -124,6 +130,18 @@ def test_parse_refusal_does_not_echo_raw_text() -> None:
         assert result is None
         assert result != payload
     assert parse_refusal(None) is None
+
+
+def test_scored_answer_maps_only_the_exact_new_answer_to_the_old_one() -> None:
+    assert NEW_PURCHASE_ANSWER == _PURCHASE
+    assert scored_answer(NEW_PURCHASE_ANSWER) == OLD_PURCHASE_ANSWER
+    assert scored_answer(OLD_PURCHASE_ANSWER) == OLD_PURCHASE_ANSWER
+    assert scored_answer(NEW_PURCHASE_ANSWER + "x") == NEW_PURCHASE_ANSWER + "x"
+    new_sentences = (
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
+    )
+    assert scored_answer(new_sentences) == new_sentences
 
 
 def test_guardrail_decline_is_the_fixed_ascii_sentence() -> None:

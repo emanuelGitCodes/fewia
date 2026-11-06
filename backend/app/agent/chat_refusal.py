@@ -6,21 +6,29 @@ GUARDRAIL_DECLINE = (
     "I can help with meals, grocery lists, nutrition facts, and your food budget. "
     "I cannot help with that request."
 )
+OLD_PURCHASE_ANSWER = (
+    "I cannot buy items or place orders. I can help prepare a grocery plan."
+)
+NEW_PURCHASE_ANSWER = (
+    "I cannot buy items or place orders. I can help prepare a grocery plan. "
+    "With a Kroger store selected, use Preview Kroger cart to review the items. "
+    "You check out on kroger.com."
+)
 _ANSWERS = {
     "secrets": (
         "I cannot provide credentials or raw bank records. "
         "I can help plan meals using the budget summary."
     ),
-    "purchase": (
-        "I cannot buy items or place orders. I can help prepare a grocery plan. "
-        "With a Kroger store selected, use Preview Kroger cart to review the items. "
-        "You check out on kroger.com."
-    ),
+    "purchase": NEW_PURCHASE_ANSWER,
     "external_url": (
         "I cannot open external links or place orders. "
         "I can help prepare a grocery plan."
     ),
 }
+
+
+def scored_answer(answer: str) -> str:
+    return OLD_PURCHASE_ANSWER if answer == NEW_PURCHASE_ANSWER else answer
 
 
 def _one_pair(pairs: list[tuple[Any, Any]]) -> dict[str, object]:
