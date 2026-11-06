@@ -808,6 +808,16 @@ def test_substitute_ingredient_question_names_the_meal() -> None:
     )
 
 
+def test_substitute_ingredient_not_in_meal_names_the_meal_and_choices() -> None:
+    payload = _question(
+        "ingredient_not_in_meal", "vegetable_pasta", ["pasta", "tomato", "basil"]
+    )
+    assert read_tool_answer([(SUBSTITUTE_TOOL, payload)]) == (
+        "Vegetable pasta does not list that ingredient. "
+        "Its ingredients are pasta, tomato, or basil."
+    )
+
+
 def test_substitute_unknown_status_and_missing_candidates_return_none() -> None:
     assert read_tool_answer([(SUBSTITUTE_TOOL, {"status": "odd"})]) is None
     broken: dict[str, object] = {"status": "unknown_food", "recipe_id": "bean_tacos"}
