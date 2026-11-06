@@ -1,15 +1,17 @@
 import re
 from typing import Literal
 
+from app.agent.chat_answer import _usd
 from app.agent.plan_tools import GET_PLAN_TOOL
 from app.agent.read_answers import read_tool_answer
 from app.domain.budget import STALE_SPENDING_WARNING
 
 _SUBJECT = r"(?:my|the|this|our)(?: saved| current| whole)? plan"
 _WHEN = r"(?: right now| now| today)?"
-_LIMIT = r"(?:my |the )?(?:monthly |weekly )?(?:budget|allowance|cap)"
+_LIMIT = r"(?:my |the )?(?:monthly )?(?:budget|allowance|cap)"
 _COST = re.compile(
-    rf"(?:(?:what(?:'s| is| does)|remind me what|tell me what) {_SUBJECT} (?:costs?|total){_WHEN}"
+    rf"(?:(?:what(?:'s| is| does)|remind me what|tell me what) {_SUBJECT} "
+    rf"(?:costs?|total){_WHEN}"
     rf"|how much (?:is|does) {_SUBJECT}(?: cost)?{_WHEN})"
 )
 _FIT = re.compile(
@@ -51,7 +53,11 @@ def saved_plan_reply(
             display = {}
         estimate = plan.get("estimate")
         total = estimate.get("total_cents") if isinstance(estimate, dict) else None
-        available = display.get("available")
+        available: object = display.get("available")
+        if isinstance(estimate, dict):
+            cents = estimate.get("available_cents")
+            if type(cents) is int:
+                available = _usd(cents)
         if type(total) is not int and isinstance(available, str):
             text = f"{text} Available: {available}."
         pending = display.get("pending")

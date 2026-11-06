@@ -86,6 +86,7 @@ def _run(
         ("My current plan: bean tacos. What does tofu cost?", None),
         ("What do my plan meals cost?", None),
         ("Would my plan fit my budget?", None),
+        ("Does my plan fit my weekly budget?", None),
         ("Hello", None),
     ],
 )
@@ -158,6 +159,29 @@ def test_fit_with_incomplete_price_states_available_and_not_fit() -> None:
     assert "Available: USD $100.00." in reply
     assert "fits" not in reply
     assert "incomplete" in reply
+
+
+def test_incomplete_price_uses_the_plan_cap_as_available() -> None:
+    plan = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+        "estimate": {"total_cents": None, "available_cents": 5_000},
+    }
+    summary = {"money_display": {"available": "USD $100.00"}}
+    reply = saved_plan_reply(plan, summary, stale=False)
+    assert reply is not None
+    assert "USD $50.00" in reply
+    assert "USD $100.00" not in reply
+
+
+def test_incomplete_price_with_stale_budget_holds_the_warning() -> None:
+    plan = {
+        "meals": [{"recipe_id": "chicken_tacos", "servings": 2}],
+        "estimate": {"total_cents": None},
+    }
+    summary = {"money_display": {"available": "USD $100.00"}}
+    reply = saved_plan_reply(plan, summary, stale=True)
+    assert reply is not None
+    assert STALE_SPENDING_WARNING in reply
 
 
 class _ToolThenDone:

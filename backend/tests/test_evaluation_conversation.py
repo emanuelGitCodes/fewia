@@ -236,6 +236,33 @@ def test_c07_turn_two_routes_to_get_plan_when_the_provider_raises(
         assert "get_plan" in [t["name"] for t in tools]
 
 
+@pytest.mark.parametrize(
+    ("scenario_id", "turn", "expected"),
+    [
+        ("C06", 1, {"get_plan", "get_budget_summary"}),
+        ("C11", 7, {"get_plan"}),
+        ("C11", 8, {"get_plan", "get_budget_summary"}),
+    ],
+)
+def test_saved_plan_turns_record_their_tools_when_the_provider_raises(
+    corpus: ConversationCorpus,
+    scenario_id: str,
+    turn: int,
+    expected: set[str],
+) -> None:
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        return _Raises()
+
+    records = list(
+        run_conversation_suite(_only(corpus, scenario_id), "p", provider_for)
+    )
+    held = [r for r in records if r["turn"] == turn]
+    assert held
+    for record in held:
+        tools = cast(list[dict[str, Any]], record["tools"])
+        assert expected <= {t["name"] for t in tools}
+
+
 def test_selection_normalizes_order_and_limits_runner_pairs(
     corpus: ConversationCorpus,
 ) -> None:
