@@ -14,6 +14,7 @@ from app.evaluation_conversation_corpus import (
     load_conversation_corpus,
 )
 from app.evaluation_conversation_score import (
+    PURCHASE_REQUEST_TURNS,
     build_report,
     outcome_of,
     render_markdown,
@@ -391,19 +392,155 @@ def test_cost_needs_rates_and_known_usage(corpus: ConversationCorpus) -> None:
         return build_report(sub, rows_, _MANIFEST, priced)
 
     unpriced = cost(None, records)
-    assert unpriced["cost"] == {"turns_priced": 0, "per_turn_usd": None}
-    assert statuses(unpriced)["cost_per_turn_usd"] == "N/A"
-    cheap = cost(rates(), records)
-    assert cheap["cost"] == {"turns_priced": 3, "per_turn_usd": "0.000088"}
-    assert statuses(cheap)["cost_per_turn_usd"] == "PASS"
-    dear = cost(rates("100", "0"), records)
-    assert dear["cost"] == {"turns_priced": 3, "per_turn_usd": "10.000000"}
-    assert statuses(dear)["cost_per_turn_usd"] == "FAIL"
-    unknown = [r | {"usage": {"input": None, "output": None}} for r in records]
-    assert cost(rates(), unknown)["cost"] == {
+    assert unpriced["cost"] == {
         "turns_priced": 0,
         "per_turn_usd": None,
+        "total_usd": None,
+        "input_tokens": 300,
+        "output_tokens": 60,
+        "provider_requests": 0,
+        "usd_per_all_checks_pass": None,
     }
+    assert statuses(unpriced)["cost_per_turn_usd"] == "N/A"
+    cheap = cost(rates(), records)
+    assert cheap["cost"] == {
+        "turns_priced": 3,
+        "per_turn_usd": "0.000088",
+        "total_usd": "0.000264",
+        "input_tokens": 300,
+        "output_tokens": 60,
+        "provider_requests": 0,
+        "usd_per_all_checks_pass": "0.000088",
+    }
+    assert statuses(cheap)["cost_per_turn_usd"] == "PASS"
+    dear = cost(rates("100", "0"), records)
+    assert section(dear, "cost")["per_turn_usd"] == "10.000000"
+    assert section(dear, "cost")["total_usd"] == "30.000000"
+    assert statuses(dear)["cost_per_turn_usd"] == "FAIL"
+    unknown = [r | {"usage": {"input": None, "output": None}} for r in records]
+    found = section(cost(rates(), unknown), "cost")
+    assert found["turns_priced"] == 0
+    assert found["total_usd"] is None
+    assert found["input_tokens"] == 0
+
+
+def test_cost_counts_provider_requests_and_has_no_per_pass_without_a_pass(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    base = perfect("C01", 1, 1, sub.scenarios[0].turns[0])
+    records = [
+        base | {"repeat": 1, "provider_requests": 2},
+        base | {"repeat": 2, "provider_requests": 3, "gate": "refusal", "tools": []},
+    ]
+    found = section(build_report(sub, records, _MANIFEST, rates()), "cost")
+    assert found["provider_requests"] == 5
+    failing = [base | {"tools": [], "facts_present": [False]}]
+    none = section(build_report(sub, failing, _MANIFEST, rates()), "cost")
+    assert none["usd_per_all_checks_pass"] is None
+    assert none["total_usd"] == "0.000088"
+
+
+def test_a_failed_turn_adds_no_latency_and_all_failed_gives_not_available(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    base = perfect("C01", 1, 1, sub.scenarios[0].turns[0])
+    bad = base | {"repeat": 2, "status": "failed", "latency_ms": 9}
+    mixed = build_report(sub, [base | {"latency_ms": 700}, bad], _MANIFEST)
+    assert mixed["latency_ms"] == {"p50": 700, "p95": 700}
+    only_bad = build_report(sub, [bad], _MANIFEST)
+    assert only_bad["latency_ms"] == {"p50": None, "p95": None}
+    found = statuses(only_bad)
+    assert found["latency_p50_ms"] == "N/A"
+    assert found["latency_p95_ms"] == "N/A"
+    targets = cast(list[dict[str, Any]], only_bad["targets"])
+    assert next(t for t in targets if t["name"] == "latency_p50_ms")["value"] is None
+
+
+def test_scenario_pass_separates_all_checks_and_gold_scenarios(
+    corpus: ConversationCorpus,
+) -> None:
+    gold_turn = turn(any_of=("get_plan",), gold=1)
+    empty_turn = turn(any_of=("get_plan",), gold=0)
+    gold_scenario = corpus.scenarios[0].model_copy(
+        update={"id": "G1", "turns": [gold_turn]}
+    )
+    empty_scenario = corpus.scenarios[0].model_copy(
+        update={"id": "E1", "turns": [empty_turn]}
+    )
+    sub = corpus.model_copy(
+        update={"scenarios": [gold_scenario, empty_scenario], "repeats": 2}
+    )
+    records = [
+        record(scenario_id="G1", repeat=1, facts_present=[True]),
+        record(scenario_id="G1", repeat=2, facts_present=[False]),
+        record(scenario_id="E1", repeat=1),
+        record(scenario_id="E1", repeat=2, tools=[]),
+    ]
+    whole = section(build_report(sub, records, _MANIFEST), "scenario_pass")
+    # Today's meaning: gold only; E1 passes vacuously.
+    assert (whole["passed"], whole["total"], whole["rate"]) == (3, 4, 0.75)
+    assert whole["all_checks"] == {"passed": 2, "total": 4, "rate": 0.5}
+    assert whole["with_gold"] == {"passed": 1, "total": 2, "rate": 0.5}
+    empty = section(build_report(only_c01(corpus), [], _MANIFEST), "scenario_pass")
+    assert empty["all_checks"]["passed"] == 0
+
+
+def refusal_run(corpus: ConversationCorpus, **changes: object) -> list[Record]:
+    records = []
+    for scenario_id, index in sorted(PURCHASE_REQUEST_TURNS):
+        scenario = next(s for s in corpus.scenarios if s.id == scenario_id)
+        for repeat in range(1, corpus.repeats + 1):
+            item = perfect(scenario_id, repeat, index, scenario.turns[index - 1])
+            records.append(item | {"gate": "refusal", "tools": []} | changes)
+    return records
+
+
+def test_purchase_refusals_count_refused_tool_requests_and_missing_turns(
+    corpus: ConversationCorpus,
+) -> None:
+    turns = len(PURCHASE_REQUEST_TURNS) * corpus.repeats
+    clean = build_report(corpus, refusal_run(corpus), _MANIFEST)
+    assert section(clean, "purchase_refusals") == {
+        "turns": turns,
+        "refused": turns,
+        "rate": 1.0,
+        "tool_requests": 0,
+    }
+    assert statuses(clean)["purchase_refusal_rate"] == "PASS"
+    records = refusal_run(corpus)[1:]
+    tool = {"name": "add_to_cart", "outcome": "ok", "inputs": {}}
+    records[0] = records[0] | {"gate": "clean", "tools": [tool, tool]}
+    report = build_report(corpus, records, _MANIFEST)
+    found = section(report, "purchase_refusals")
+    assert found == {
+        "turns": turns,
+        "refused": turns - 2,
+        "rate": round((turns - 2) / turns, 4),
+        "tool_requests": 2,
+    }
+    assert statuses(report)["purchase_refusal_rate"] == "FAIL"
+    assert "## Purchase refusals" in render_markdown(report)
+
+
+def test_purchase_refusals_count_only_selected_turns(
+    corpus: ConversationCorpus,
+) -> None:
+    only = ConversationSelection.model_validate(
+        {"scenarios": [{"scenario_id": "C20", "repeats": [1]}]}
+    )
+    selection = normalize_selection(corpus, only)
+    report = build_report(corpus, refusal_run(corpus), _MANIFEST, selection=selection)
+    assert section(report, "purchase_refusals")["turns"] == 1
+    none = ConversationSelection.model_validate(
+        {"scenarios": [{"scenario_id": "C01", "repeats": [1]}]}
+    )
+    report = build_report(
+        corpus, [], _MANIFEST, selection=normalize_selection(corpus, none)
+    )
+    assert section(report, "purchase_refusals")["rate"] is None
+    assert statuses(report)["purchase_refusal_rate"] == "N/A"
 
 
 @pytest.mark.parametrize("error", ["missing", "invalid"])

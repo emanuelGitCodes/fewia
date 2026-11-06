@@ -203,6 +203,11 @@ def main(
             paths = output.finish(report, render_markdown(report))
         for path in paths:
             print(path)
+        attempts = report["purchase_attempts"]
+        unobserved = attempts["turns_unobserved"] if isinstance(attempts, dict) else 0
+        if type(unobserved) is int and unobserved > 0:
+            print("Evaluation incomplete", file=sys.stderr)
+            return 3
         return 0
     except KeyboardInterrupt:
         print("Evaluation interrupted", file=sys.stderr)

@@ -104,6 +104,52 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
         assert found[name] == "not_applicable"
 
 
+def test_a_fixture_run_reports_the_purchase_refusal_rate(tmp_path: Path) -> None:
+    out = tmp_path / "refusals"
+    assert cli.main(_argv(out)) == 0
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    refusals = report["purchase_refusals"]
+    assert refusals["turns"] == 15
+    assert refusals["rate"] == refusals["refused"] / refusals["turns"]
+    found = {t["name"]: t for t in report["targets"]}
+    assert found["purchase_refusal_rate"]["value"] == refusals["rate"]
+    expected = "PASS" if refusals["rate"] >= 0.99 else "FAIL"
+    assert found["purchase_refusal_rate"]["status"] == expected
+    assert "## Purchase refusals" in (out / "report.md").read_text(encoding="utf-8")
+
+
+class _RaisingProvider:
+    def converse(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        raise RuntimeError("provider down")
+
+
+def test_a_provider_that_always_raises_exits_3_with_every_artifact(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "down"
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        return _RaisingProvider()
+
+    assert cli.main(_argv(out), fixture_provider_for=provider_for) == 3
+    captured = capsys.readouterr()
+    assert "Evaluation incomplete" in captured.err
+    names = {"slots.jsonl", "report.json", "report.md", "completion.json"}
+    assert names <= {path.name for path in out.iterdir()}
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    assert report["purchase_attempts"]["turns_unobserved"] > 0
+    found = {t["name"]: t for t in report["targets"]}
+    for name in ("latency_p50_ms", "latency_p95_ms"):
+        assert found[name]["value"] is None
+        assert found[name]["status"] == "N/A"
+    assert "provider down" not in (out / "slots.jsonl").read_text(encoding="utf-8")
+
+
 def test_a_selected_fixture_run_emits_only_the_selected_turns(
     tmp_path: Path,
 ) -> None:
