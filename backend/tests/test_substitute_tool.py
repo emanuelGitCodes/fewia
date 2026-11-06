@@ -865,7 +865,7 @@ _PASTA_IDS = [item for item, _ in RECIPES["vegetable_pasta"].ingredients]
     "change",
     [
         {"scale_ingredient_id": "chicken_breast", "scale_factor_percent": 50},
-        {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "tofu"},
+        {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "chickpeas"},
     ],
 )
 def test_catalog_ingredient_not_in_the_meal_gets_a_specific_question(
@@ -882,7 +882,7 @@ def test_catalog_ingredient_not_in_the_meal_gets_a_specific_question(
     "arguments",
     [
         {"scale_ingredient_id": "salsa_not_here", "scale_factor_percent": 50},
-        {"replace_ingredient_id": "salsa_not_here", "with_ingredient_id": "tofu"},
+        {"replace_ingredient_id": "salsa_not_here", "with_ingredient_id": "chickpeas"},
         {"scale_ingredient_id": "pasta", "scale_factor_percent": 1},
         {"scale_ingredient_id": "pasta", "scale_factor_percent": 5000},
         {"scale_ingredient_id": ["x"], "scale_factor_percent": 50},
@@ -915,12 +915,12 @@ def test_rice_requests_on_chicken_tacos_get_the_not_in_meal_status() -> None:
         {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "unicorn"},
         {
             "replace_ingredient_id": "chicken_breast",
-            "with_ingredient_id": "tofu",
+            "with_ingredient_id": "chickpeas",
             "scale_factor_percent": 50,
         },
         {
             "replace_ingredient_id": "chicken_breast",
-            "with_ingredient_id": "tofu",
+            "with_ingredient_id": "chickpeas",
             "quantity_per_serving": 0,
         },
         {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "pasta"},
@@ -944,6 +944,31 @@ def test_with_food_naming_an_absent_ingredient_gets_the_status() -> None:
     )
     assert result["status"] == "ingredient_not_in_meal"
     assert [item for item, _ in candidates_of(result)] == _PASTA_IDS
+
+
+@pytest.mark.parametrize("food", [5, "", "   ", "x" * 161])
+def test_malformed_with_food_raises_even_when_the_ingredient_is_absent(
+    food: object,
+) -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute(
+            {
+                "recipe_id": "vegetable_pasta",
+                "with_food": food,
+                "replace_ingredient_id": "chicken_breast",
+            }
+        )
+
+
+def test_food_already_in_the_meal_with_an_absent_ingredient_raises() -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute(
+            {
+                "recipe_id": "vegetable_pasta",
+                "with_food": "pasta",
+                "replace_ingredient_id": "chicken_breast",
+            }
+        )
 
 
 @pytest.mark.parametrize(

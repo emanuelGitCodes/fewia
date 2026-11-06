@@ -256,9 +256,8 @@ def _fill_food(
         type(quantity) is not int or not MIN_QUANTITY <= quantity <= MAX_QUANTITY
     ):
         raise SubstituteToolError("arguments are invalid")
-    if "replace_ingredient_id" in arguments and old not in ids:
-        if type(old) is str and old in INGREDIENTS:
-            return _question("ingredient_not_in_meal", recipe_id, ids), arguments
+    absent = "replace_ingredient_id" in arguments and old not in ids
+    if absent and not (type(old) is str and old in INGREDIENTS):
         raise SubstituteToolError("arguments are invalid")
     try:
         food = resolve_food(arguments["with_food"])
@@ -267,6 +266,10 @@ def _fill_food(
     if food.status != "found":
         status = "needs_food_choice" if food.status == "ambiguous" else "unknown_food"
         return _question(status, recipe_id, food.ids), arguments
+    if absent:
+        if food.ids[0] in ids:
+            raise SubstituteToolError("arguments are invalid")
+        return _question("ingredient_not_in_meal", recipe_id, ids), arguments
     filled = {key: value for key, value in arguments.items() if key != "with_food"}
     filled["with_ingredient_id"] = food.ids[0]
     if "replace_ingredient_id" not in filled:
