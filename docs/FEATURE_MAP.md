@@ -58,7 +58,7 @@ environment to `api` and `worker`.
 
 ## Feature inventory
 
-Twenty-three built features. Thirteen serve the `/` application today,
+Twenty-three built features. Thirteen serve the `/app` application today,
 four are tooling that no route serves, one serves `/prototype`, one sits
 dormant by decision, two are retired, and two wait on the owner or on
 deployment.
@@ -336,8 +336,8 @@ One line per folder, grouped by layer. Tests sit next to their code:
 
 **Frontend, `frontend/src/`**
 
-- `main.tsx`, `rootView.tsx`: pick `App` for `/` or the lazy
-  `TonightPrototype` for `/prototype`.
+- `main.tsx`, `rootView.tsx`: send `/` to `/prototype`, and pick the lazy
+  `TonightPrototype` for `/prototype` or `App` for every other path.
 - `App.tsx`: composes `Conversation`, `BudgetForm`, `TemplatePicker`,
   `ChatWorkspace`, `Estimate`.
 - `ChatWorkspace.tsx`, `ChatPanel.tsx`, `useChatConversation.ts`,

@@ -144,8 +144,8 @@ lines left, so that pull request MUST be its own stack entry.
 
 ## Owner decisions
 
-- "This meal contains no dairyproducts." passes on `main`, and PR 470 rejects
-  it. Keep the word boundary, or reject glued compounds and accept false
+- "This meal contains no dairyproducts." passes on `main` since PR 471. PR 470
+  rejected it. Keep the word boundary, or reject glued compounds and accept false
   positives such as "dairyman".
 - Finding 1: PR 470 review round 1 asked that unknown properties such as
   "organic" clarify. Narrowing the clarify set reverses that choice.
