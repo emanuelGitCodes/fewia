@@ -8,6 +8,12 @@ const TonightPrototype = lazy(() =>
   })),
 );
 
+export const DEFAULT_PATH = "/prototype";
+
+export function canonicalPath(pathname: string): string {
+  return pathname === "" || pathname === "/" ? DEFAULT_PATH : pathname;
+}
+
 export function selectRoot(pathname: string): ReactElement {
   if (pathname.replace(/\/+$/, "") === "/prototype") {
     return (
