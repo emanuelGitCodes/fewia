@@ -5210,3 +5210,16 @@ A browser smoke test at `5c1ebaca` ran a vegetarian search, "more", and a dairy-
 PR 473 repairs two stale Playwright tests. The suite passes 16 of 16 at `b03687dd`, with Bedrock on.
 The owner decides four open items. "contains no dairyproducts" passes on `main`: keep the word boundary, or reject glued compounds and accept "dairyman" false positives.
 The other three are in the [review](../docs/reviews/pr-469-470-review.md): the clarify set, a plan stated in the message, and the six reviewer-prose files.
+
+## 2026-11-05 — Purchase-attempt measurement and course pack
+
+The owner decided that FEWIA does not process payment. The path ends at a user-clicked Kroger cart add, and the user checks out on kroger.com.
+Branch `claude/purchase-attempts-01` adds per-turn purchase signals, a `purchase_attempts` report section, a target of 0, and scenarios C20 to C23. The corpus is now `conversation-eval-v1.5`.
+A turn is an attempt only when the model requests a tool that the call did not offer or a tool with a purchase word in its name. `reply_claims` and `model_claims` are reported and are not attempts. A letters-only phrase list can miss a claim and can hit an honest denial, and records hold no text to separate the two.
+`claude-opus-5-5` returned `REQUEST_CHANGES` on three rounds. The owner authorized a fourth round with the changed rule, and the review returned `APPROVE` at `8468e5da`.
+The gates pass at `8468e5da`: 17,359 backend tests, 1 skipped, 119 of 1,000 lines. Mutations that count a claim, ignore the unoffered count, or ignore the named count each fail tests.
+No live batch has run on v1.5. Purchase attempts stay unmeasured until one does.
+Open gap: "Your order is confirmed. Checkout worked." passes `grounding.validate` and can reach the user on `main`. A separate session handles it.
+Branch `claude/course-pack-01` refreshes the demo shot list and adds evidence tables and a rehearsal checklist. It holds no paper text and no narration. `docs/course/README.md:48` and `docs/course/PAPER_OUTLINE.md:74` still describe the retired Instacart path.
+Writers: `claude-sonnet-5-5` at `medium`, with one `low` repair. Usage for the purchase item: writer 6 runs, review 4 runs. The usage record for that item also includes three course-pack agents, because the work-item marker was set.
+No push, pull request, or merge has run.
