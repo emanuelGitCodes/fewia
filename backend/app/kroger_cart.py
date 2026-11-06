@@ -12,6 +12,7 @@ from app.services.kroger_overlay import kroger_search_term
 
 MAX_LINES = 30
 MAX_QUANTITY = 10
+OUT_OF_STOCK = "TEMPORARILY_OUT_OF_STOCK"
 _UPC = re.compile(r"[0-9]{8,14}")
 
 
@@ -60,7 +61,14 @@ def build_preview(
         found: list[KrogerProduct] = []
         if term is not None:
             found = client.search_products(term, location_id, limit=5).products
-        product = next((p for p in found if p.upc and _UPC.fullmatch(p.upc)), None)
+        product = next(
+            (
+                p
+                for p in found
+                if p.upc and _UPC.fullmatch(p.upc) and p.stock_level != OUT_OF_STOCK
+            ),
+            None,
+        )
         if product is None or product.upc is None:
             unmatched.append(UnmatchedLine(ingredient_id=ingredient_id, name=name))
             continue
