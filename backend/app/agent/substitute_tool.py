@@ -1,11 +1,11 @@
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import cast
 
 from app.agent.estimate import priced_estimate
 from app.agent.ingredient_tool import IngredientToolError, resolve_food
 from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
-from app.domain.catalog import RECIPES
+from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.curated_foods import ALL_INGREDIENTS, ALL_NUTRITION
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
@@ -223,19 +223,24 @@ def _question(status: str, recipe_id: str, ids: tuple[str, ...]) -> dict[str, ob
     }
 
 
-def _names_absent_ingredient(change: RecipeChange, meal_ids: tuple[str, ...]) -> bool:
-    """True when a well-formed change targets a catalog ingredient the meal lacks."""
-    if change.scale_ingredient_id is not None:
-        if change.replace_ingredient_id is not None or (
-            change.with_ingredient_id is not None
-        ):
-            return False
-        target = change.scale_ingredient_id
+def _names_absent_ingredient(
+    recipe_id: str, change: RecipeChange, meal_ids: tuple[str, ...]
+) -> bool:
+    """True when the change would be valid if the meal held its target.
+
+    Raises RecipeVariantError when the change is invalid for any other reason.
+    """
+    scaling = change.scale_ingredient_id is not None
+    target = change.scale_ingredient_id if scaling else change.replace_ingredient_id
+    if type(target) is not str or target not in INGREDIENTS or target in meal_ids:
+        return False
+    if scaling:
+        probe = replace(change, scale_ingredient_id=meal_ids[0])
     else:
-        if change.with_ingredient_id is None:
-            return False
-        target = change.replace_ingredient_id
-    return type(target) is str and target in ALL_INGREDIENTS and target not in meal_ids
+        stand_in = next(item for item in meal_ids if item != change.with_ingredient_id)
+        probe = replace(change, replace_ingredient_id=stand_in)
+    variant_recipes({recipe_id: probe})
+    return True
 
 
 def _fill_food(
@@ -244,16 +249,16 @@ def _fill_food(
     """Return (question, arguments with the food and protein IDs filled in)."""
     if not _ID_FORM_FIELDS.isdisjoint(arguments):
         raise SubstituteToolError("arguments are invalid")
-    present = {item for item, _ in RECIPES[recipe_id].ingredients}
+    ids = tuple(item for item, _ in RECIPES[recipe_id].ingredients)
     old = arguments.get("replace_ingredient_id")
     quantity = arguments.get("quantity_per_serving")
-    if (
-        "replace_ingredient_id" in arguments
-        and (type(old) is not str or old not in present)
-    ) or (
-        "quantity_per_serving" in arguments
-        and (type(quantity) is not int or not MIN_QUANTITY <= quantity <= MAX_QUANTITY)
+    if "quantity_per_serving" in arguments and (
+        type(quantity) is not int or not MIN_QUANTITY <= quantity <= MAX_QUANTITY
     ):
+        raise SubstituteToolError("arguments are invalid")
+    if "replace_ingredient_id" in arguments and old not in ids:
+        if type(old) is str and old in INGREDIENTS:
+            return _question("ingredient_not_in_meal", recipe_id, ids), arguments
         raise SubstituteToolError("arguments are invalid")
     try:
         food = resolve_food(arguments["with_food"])
@@ -267,8 +272,8 @@ def _fill_food(
     if "replace_ingredient_id" not in filled:
         proteins = protein_ingredient_ids(recipe_id)
         if len(proteins) != 1:
-            ids = proteins or tuple(item for item, _ in RECIPES[recipe_id].ingredients)
-            return _question("needs_ingredient_choice", recipe_id, ids), filled
+            choices = proteins or ids
+            return _question("needs_ingredient_choice", recipe_id, choices), filled
         filled["replace_ingredient_id"] = proteins[0]
     return None, filled
 
@@ -301,7 +306,7 @@ def execute_substitute(
         if change is None:
             raise SubstituteToolError("arguments are invalid")
         meal_ids = tuple(item for item, _ in RECIPES[recipe_id].ingredients)
-        if _names_absent_ingredient(change, meal_ids):
+        if _names_absent_ingredient(recipe_id, change, meal_ids):
             return _question("ingredient_not_in_meal", recipe_id, meal_ids)
         after_list = variant_recipes({recipe_id: change})[recipe_id].ingredients
     except RecipeVariantError:
