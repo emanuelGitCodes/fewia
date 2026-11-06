@@ -61,8 +61,8 @@ docker compose ps
 | PostgreSQL | `POSTGRES_HOST_PORT` | 55435 | 5432 |
 | Floci | `FLOCI_HOST_PORT` | 4567 | 4566 |
 
-Open `http://127.0.0.1:5173`. The web container serves the app and
-forwards `/api/` to the API.
+Open `http://127.0.0.1:5173/prototype`. The web container redirects `/` to
+`/prototype`, serves the older page at `/app`, and forwards `/api/` to the API.
 
 A second Compose project MUST use a unique project name and unused host
 ports. Do not delete the volumes of another project. Example:
