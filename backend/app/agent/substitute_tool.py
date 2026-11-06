@@ -223,6 +223,21 @@ def _question(status: str, recipe_id: str, ids: tuple[str, ...]) -> dict[str, ob
     }
 
 
+def _names_absent_ingredient(change: RecipeChange, meal_ids: tuple[str, ...]) -> bool:
+    """True when a well-formed change targets a catalog ingredient the meal lacks."""
+    if change.scale_ingredient_id is not None:
+        if change.replace_ingredient_id is not None or (
+            change.with_ingredient_id is not None
+        ):
+            return False
+        target = change.scale_ingredient_id
+    else:
+        if change.with_ingredient_id is None:
+            return False
+        target = change.replace_ingredient_id
+    return type(target) is str and target in ALL_INGREDIENTS and target not in meal_ids
+
+
 def _fill_food(
     arguments: dict[str, object], recipe_id: str
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
@@ -285,6 +300,9 @@ def execute_substitute(
         change = parse_change(arguments)
         if change is None:
             raise SubstituteToolError("arguments are invalid")
+        meal_ids = tuple(item for item, _ in RECIPES[recipe_id].ingredients)
+        if _names_absent_ingredient(change, meal_ids):
+            return _question("ingredient_not_in_meal", recipe_id, meal_ids)
         after_list = variant_recipes({recipe_id: change})[recipe_id].ingredients
     except RecipeVariantError:
         raise SubstituteToolError("arguments are invalid") from None
