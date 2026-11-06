@@ -2533,7 +2533,9 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         ),
         (
             "purchase",
-            "I cannot buy items or place orders. I can help prepare a grocery plan.",
+            "I cannot buy items or place orders. I can help prepare a grocery plan. "
+            "With a Kroger store selected, use Preview Kroger cart to review the "
+            "items. You check out on kroger.com.",
         ),
         (
             "external_url",
@@ -2572,7 +2574,9 @@ def test_structured_refusal_after_plan_clears_public_fields() -> None:
     result, _provider = _run(replies)
     assert result["status"] == "clarification"
     assert result["answer"] == (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
     )
     assert result["plan"] is None
     assert result["budget"] is None
@@ -2737,7 +2741,9 @@ def test_a04_url_order_message_still_renders_purchase_refusal() -> None:
     assert len(provider.requests) == 1
     assert result["status"] == "clarification"
     assert result["answer"] == (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
     )
     assert '{"refusal"' not in json.dumps(result)
     assert result["plan"] is None
@@ -4058,7 +4064,9 @@ def test_cursorless_more_preserves_refusal_and_guardrail_handling(
         model_prose=True,
     )
     expected = (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
         if gate == "refusal"
         else GUARDRAIL_DECLINE
     )
@@ -4441,7 +4449,9 @@ def test_a_restart_decline_keeps_checked_state_without_unshown_choices(
         model_prose=True,
     )
     expected = (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
         if gate == "refusal"
         else GUARDRAIL_DECLINE
     )

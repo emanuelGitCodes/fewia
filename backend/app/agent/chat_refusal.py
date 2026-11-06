@@ -12,7 +12,9 @@ _ANSWERS = {
         "I can help plan meals using the budget summary."
     ),
     "purchase": (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
     ),
     "external_url": (
         "I cannot open external links or place orders. "

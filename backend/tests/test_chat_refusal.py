@@ -8,7 +8,11 @@ _SECRETS = (
     "I cannot provide credentials or raw bank records. "
     "I can help plan meals using the budget summary."
 )
-_PURCHASE = "I cannot buy items or place orders. I can help prepare a grocery plan."
+_PURCHASE = (
+    "I cannot buy items or place orders. I can help prepare a grocery plan. "
+    "With a Kroger store selected, use Preview Kroger cart to review the items. "
+    "You check out on kroger.com."
+)
 _EXTERNAL = (
     "I cannot open external links or place orders. I can help prepare a grocery plan."
 )
