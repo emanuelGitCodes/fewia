@@ -5210,3 +5210,11 @@ A browser smoke test at `5c1ebaca` ran a vegetarian search, "more", and a dairy-
 PR 473 repairs two stale Playwright tests. The suite passes 16 of 16 at `b03687dd`, with Bedrock on.
 The owner decides four open items. "contains no dairyproducts" passes on `main`: keep the word boundary, or reject glued compounds and accept "dairyman" false positives.
 The other three are in the [review](../docs/reviews/pr-469-470-review.md): the clarify set, a plan stated in the message, and the six reviewer-prose files.
+
+## 2026-11-07 — Weak-area items on `claude/weak-areas-stack`
+
+The combined branch holds seven items, based on `claude/purchase-attempts-01`. No item is on `main`. No push, pull request, or live run has used this branch.
+Each item has `APPROVE` from `claude-opus-5-5`: the evaluation report (`claude/eval-report-01`), the Kroger out-of-stock filter (`claude/kroger-path-01`), the synthetic Kroger check (`claude/kroger-eval-01`), the missing-ingredient reply (`claude/ingredient-reply-01`), the purchase refusal text (`claude/refusal-cart-01`), BM25 meal order (`claude/bm25-01`), and the saved-plan route (`claude/saved-plan-route-01`).
+The gates pass at `ceef8686`: 17,502 backend tests, 1 skipped, 944 of 1,000 lines. Writers: `claude-sonnet-5-5`.
+The route lowers p50, p95, and cost per turn with no change in the model, because a routed turn makes no model call. BM25 improved only a biased proxy. The Kroger check is synthetic.
+`claude/c22-refusal-01` is rejected, and C22 is a known limit. The next live batch needs owner approval, about USD 0.50, and a new MFA renewal.
