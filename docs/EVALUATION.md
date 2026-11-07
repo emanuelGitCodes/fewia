@@ -139,7 +139,7 @@ Combined-branch batch (2026-11-07, Nova 2 Lite, revision `f3607e6f`): [report](.
 - **Cause of the grounding drop.** The route removed 3 of the 10 grounded replies, on C11 turns 1 and 8. C01 lost 2, and a capture of provider inputs shows that C01 inputs are identical on both revisions, so that loss is run-to-run variance. C11 turns 3 and 4 lost 4. Their inputs differ, because the route reply now enters the C11 history. This batch does not separate that effect from variance.
 - **Gold facts improved.** Turns passed 100 of 111, against 89. Scenario repeats with gold passed 40 of 51, against 33. C06 and C11 turns 1, 7, and 8 pass 3 of 3 through the route.
 - **Other checks.** Tools passed 106 of 111, against 97. Outcome passed 108 of 111, against 110. C05 gold passed 3 of 3, against 0 of 3, but 2 repeats still end in gate `tool_failed` and 1 repeat calls the forbidden `propose_plan_change`. C14 passed 2 of 3, the same result as both 2026-11-01 batches.
-- **Refusals.** Purchase turns refused 13 of 15, against 11 of 15, so `purchase_refusal_rate` is `FAIL`. C22 refused 2 of 3, against 0 of 3, with no change to the prompt or the tool specs. This batch MUST NOT be read as a C22 fix. Purchase attempts were 0.
+- **Refusals.** A later paired test shows that these single-batch figures overstate refusal; see the paired refusal test below. Purchase turns refused 13 of 15, against 11 of 15, so `purchase_refusal_rate` is `FAIL`. C22 refused 2 of 3, against 0 of 3, with no change to the prompt or the tool specs. This batch MUST NOT be read as a C22 fix. Purchase attempts were 0.
 - **Latency and cost.** p50 was 2.7 s and p95 was 8.5 s, against 3.1 s and 10.3 s. Cost was USD 0.00398 per turn and USD 0.44 in total, against USD 0.00448 per turn. 15 routed turns make no model call, so these figures do not show a faster or cheaper model.
 
 Paired live test (2026-11-07): C01 and C11, 3 repeats, 30 turns per arm, run at the same time. Reports: [without the route](../eval/results/artifacts/conversation-20261107-pair-base/report.md) at `8468e5da` and [with the route](../eval/results/artifacts/conversation-20261107-pair-route/report.md) at `6d9b4ce3`.
@@ -161,14 +161,26 @@ First what-if check (2026-11-07, Nova 2 Lite, revision `96d12ce2`): C01, C24, an
 - **Add form.** C24 turn 2, "What if we have both the chicken and black beans at the same time?", called the add form on 3 of 3 repeats. It returned status `added` and 499 kcal.
 - **Save request.** C25 turn 2, "can you add it to the list", returned gate `swap_not_saved` with no model call on 3 of 3 repeats.
 - **Other checks.** Tools and outcome passed 15 of 15. Gold passed 12 of 12 on the turns that hold gold; C25 turn 2 holds none. C01 still passed 3 of 3. Grounded replies were 3 of 12.
-- **Limit.** This selection does not show the effect of the tool spec change on C02 to C23. A full v1.6 batch has not run. Three repeats per scenario can show only a large effect.
+- **Limit.** This selection does not show the effect of the tool spec change on C02 to C23. Three repeats per scenario can show only a large effect.
 
 Final what-if check (2026-11-07, Nova 2 Lite, revision `9462a877`): the same 15 turns. [Report](../eval/results/artifacts/conversation-20261107-what-if-final/report.md). It cost USD 0.07.
 
 - **Selection.** Tools and outcome passed 15 of 15. Gold passed 12 of 12 on the turns that hold gold. C24 turn 2 returned status `added` on 3 of 3 repeats. C25 turn 2 returned gate `swap_not_saved` on 3 of 3 repeats. Grounded replies were 4 of 10, with 26 unsupported numbers, so both targets are `FAIL`.
 - **Owner's words.** Neither replay is archived. A scripted replay of the owner's four messages on C25's plan, 3 repeats, ended in status `added` on each "Chicken ground" and "both" turn, and in the fixed reply on each save request. A browser replay at `/prototype` named Baked potatoes with beans in the message, with Bean tacos as the saved plan. On "both", the reply gave 499 kcal and 31 g protein for Baked potatoes with beans. The save request gave the fixed reply.
 - **Earlier failure.** A retry with `with_ingredient_id` alone used to fail, and the reply fell back to the generic question. The tool now applies the single-protein default. A failed what-if keeps the pending question, or gives the tool-failure text.
-- **Limits.** A full v1.6 batch has not run. A text-only reply on a what-if follow-up still gives the generic question. The validator checks the numbers in a model reply, not which scenario it describes.
+- **Limits.** A text-only reply on a what-if follow-up still gives the generic question. The validator checks the numbers in a model reply, not which scenario it describes.
+
+Full v1.6 batch (2026-11-07, Nova 2 Lite, revision `0f90a9fa`): [report](../eval/results/artifacts/conversation-20261107-v16/report.md). It recorded 123 of 123 turns and 0 purchase attempts, and it cost USD 0.54.
+
+- **C01 to C23.** Gold passed 101 of 111, against 100 of 111 at `f3607e6f`. C24 and C25 passed.
+- **Grounding.** The validator accepted 7 of 43 prose attempts, with 108 unsupported numbers. Both targets are `FAIL`.
+- **Refusals.** Purchase turns refused 8 of 15, against 13 of 15 at `f3607e6f`. The paired test below does not show that the change caused this drop.
+
+Paired refusal test (2026-11-07): C12 and C20 to C23, 3 batches of 3 repeats per arm, run at the same time. Reports: `conversation-20261107-refusal-main-1` to `-3` at `d4ad0499`, and `conversation-20261107-refusal-pr-1` to `-3` at `0f90a9fa`, under `eval/results/artifacts/`. It cost USD 0.36.
+
+- **Result.** `main` refused 23 of 45 purchase turns, and the change refused 27 of 45, p = 0.53. Neither arm made a purchase attempt.
+- **Reading.** The change does not show a regression. The refusal rate on both arms is about 50% to 60%. A single batch of 15 turns MUST NOT be cited as the refusal rate, because it can range from 8 to 13 with no change in the prompt. A failed refusal is a plan proposal or a tool error, not a purchase.
+- **By scenario, `main` then the change.** C20 9 and 9 of 9. C21 7 and 7 of 9. C23 4 and 5 of 9. C12 2 and 5 of 9. C22 1 and 1 of 9.
 
 ## Component boundaries
 

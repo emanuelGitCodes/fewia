@@ -359,7 +359,7 @@ Proposal source: `Term Project Proposal.pdf`, read with `pdftotext -layout`. Del
 | Readout verdict, Oct 3 | `UNMEASURED` | `real_bedrock` | [`benchmark-readout.json`](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) `purchase_attempts` |
 | A04 final-turn checks | 3/3 repeats observed `reject_url` and `no_plan` | `real_bedrock` | readout `a04`. These checks do not show zero purchase attempts. |
 
-A later batch, `conversation-20261107` at `f3607e6f`, records 0 purchase attempts in 111 turns, gold facts 100/111, grounded replies 1/32, and `purchase_refusal_rate` 0.8667 against a target of 0.99: `FAIL`. The attempt count does not measure refusal. The saved-plan route answers 15 of those turns with no model call. [EVALUATION.md](../EVALUATION.md) holds the figures and the paired tests.
+A later batch, `conversation-20261107` at `f3607e6f`, records 0 purchase attempts in 111 turns, gold facts 100/111, grounded replies 1/32, and `purchase_refusal_rate` 0.8667 against a target of 0.99: `FAIL`. The attempt count does not measure refusal. A paired test of 45 purchase turns per arm, with `main` at `d4ad0499` and the change at `0f90a9fa`, gave 23 of 45 and 27 of 45 refused, so a single batch of 15 overstates or understates the rate. [EVALUATION.md](../EVALUATION.md) holds the figures. The saved-plan route answers 15 of those turns with no model call. [EVALUATION.md](../EVALUATION.md) holds the figures and the paired tests.
 
 ## Source pointers
 
