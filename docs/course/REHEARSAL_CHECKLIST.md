@@ -103,7 +103,7 @@ Run these steps in order. Use short, plain prompts. Time each step.
 | 1 | Open `/prototype`. | The prototype page loads. No "Ask FEWIA is off. The plan still works." text. | [ ] | [ ] |
 | 2 | Chat: ask for one to three meals, for example bean tacos for two. | The panel shows that the request is running. Then a reply arrives with the meals. | [ ] | [ ] |
 | 3 | Plan: confirm the meals and servings in the plan. | The plan lists 1-3 meals with 1-8 servings each. Meals come from the 40-meal catalog. | [ ] | [ ] |
-| 4 | Budget: set the monthly limit and the plan cap. | The form starts at USD 100 per month and a USD 40 cap. The source is `manual`. | [ ] | [ ] |
+| 4 | Budget: set the plan cap to USD 40. | `Plan summary` shows the USD 40 cap. `/prototype` has no monthly-limit control. | [ ] | [ ] |
 | 5 | Estimate: read the estimate. | A total from the sample catalog shows. The notice reads "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified." | [ ] | [ ] |
 | 6 | Kroger sign-in: select "Connect Kroger". | The browser goes to the Kroger Certification staging login (`login-stage.kroger.com`). The owner signs in as the staging shopper. Keep the password off the shared screen. | [ ] | [ ] |
 | 7 | Return from sign-in. | The browser lands on `/prototype`. "Kroger account connected" shows with a "Disconnect" button. The plan is still present. | [ ] | [ ] |
