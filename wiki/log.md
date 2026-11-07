@@ -5218,3 +5218,4 @@ Each item has `APPROVE` from `claude-opus-5-5`: the evaluation report (`claude/e
 The gates pass at `ceef8686`: 17,502 backend tests, 1 skipped, 944 of 1,000 lines. Writers: `claude-sonnet-5-5`.
 The route lowers p50, p95, and cost per turn with no change in the model, because a routed turn makes no model call. BM25 improved only a biased proxy. The Kroger check is synthetic.
 `claude/c22-refusal-01` is rejected, and C22 is a known limit. The next live batch needs owner approval, about USD 0.50, and a new MFA renewal.
+Loop usage for the eight work items: 11,248,887 input and 509,196 output tokens across the writer and review runs. Coverage is complete.
