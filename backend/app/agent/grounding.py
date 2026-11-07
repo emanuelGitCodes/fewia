@@ -103,12 +103,14 @@ from app.agent.nutrient_grounding import (
     LABEL_BY,
     NUTRIENT_KEYS,
     SIDE_KEYS,
+    SUBJECT_COLON,
     UNMATCHED,
     UP_VERBS,
     UP_WORDS,
     NutrientFact,
     TaggedFact,
     basis_count,
+    basis_paren,
     before_marker,
     claim_basis,
     energy_basis,
@@ -119,6 +121,7 @@ from app.agent.nutrient_grounding import (
 )
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import RECIPES
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
@@ -332,6 +335,14 @@ _SCALED = re.compile(
     r"|billion|trillion|x|times)|\s*-\s*fold)\b",
     re.IGNORECASE,
 )
+# One whole ISO day: no time, sign, or other digits may touch it.
+_ISO_DAY = re.compile(r"(?<![\w.,:+\-/$])\d{4}-\d{2}-\d{2}(?![\w:+\-/%]|\.\d)")
+# "half the rice", ending at punctuation or a function word: not "half the rice price".
+_HALF_THE = re.compile(
+    r"\bhalf the ([a-z]+(?: [a-z]+)*?)"
+    r"(?=\s*(?:[.,;:!?)]|\Z)|\s+(?:is|and|for|with|in)\b)",
+    re.IGNORECASE,
+)
 
 
 def _diet_sentences() -> set[str]:
@@ -395,6 +406,10 @@ class FactSet:
     # Every count that a payload states under a `servings` key; only these name the
     # total basis in "for N servings".
     servings: set[Decimal] = field(default_factory=set)
+    # The exact `period` strings; only these may appear as a date in a reply.
+    dates: set[str] = field(default_factory=set)
+    # Ingredient ids that a payload scales to exactly 50 percent.
+    halved: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -526,7 +541,11 @@ def _changes(
                 for (k, a), (_, b) in zip(now, was, strict=False)
                 if subject or k == "energy"
             )
-            changed = [(k, a - b) for (k, a), (_, b) in zip(now, was, strict=False)]
+            changed = [
+                (k, a - b)
+                for index, ((k, a), (_, b)) in enumerate(zip(now, was, strict=False))
+                if not (str(name).lower().endswith("_mg") and index == 1)
+            ]
             changed.extend(_kinds(str(name), new - old))
             if subject:
                 facts.nutrition.update((subject, k, True, n) for k, n in changed)
@@ -576,8 +595,13 @@ def _walk(
     elif isinstance(value, float):
         facts.generic.add(Decimal(str(value)))
     elif isinstance(value, str):
+        if low == "period":
+            facts.dates.add(value)
         _add_text(value, facts)
     elif isinstance(value, Mapping):
+        scaled = value.get("scale_ingredient_id")
+        if isinstance(scaled, str) and value.get("scale_factor_percent") == 50:
+            facts.halved.add(scaled)
         if isinstance(value.get("before"), Mapping) and isinstance(
             value.get("after"), Mapping
         ):
@@ -661,7 +685,12 @@ def _verb_signs(text: str) -> dict[int, str]:
     """Map the start of each unit token that a direction verb binds to its sign."""
     signs: dict[int, str] = {}
     for verb in _VERB.finditer(text):
-        if verb.group().lower() in _BASE and _IMPERATIVE.search(text[: verb.start()]):
+        head = text[: verb.start()]
+        if (
+            verb.group().lower() in _BASE
+            and _IMPERATIVE.search(head)
+            and not SUBJECT_COLON.search(head)
+        ):
             continue
         sign = _MINUS if verb["down"] else "+"
         start = _LEAD.match(text, verb.end())
@@ -857,6 +886,8 @@ def _from_to(
         )
         change = after - before
         basis = _pair_basis(claims, kind, ends, starts, facts.servings)
+        if basis is None and index and basis_paren(claims, tokens[index - 1], token):
+            basis = claim_basis(claims, tokens[index - 1].end(), facts.servings)
         ok = bool(
             kind
             and subject
@@ -876,14 +907,34 @@ def _from_to(
     return verdicts
 
 
+def _mask_known(reply: str, facts: FactSet) -> str:
+    """Blank a budget period and the "half" of a halved ingredient; keep the offsets."""
+
+    def date(match: re.Match[str]) -> str:
+        return " " * len(match[0]) if match[0] in facts.dates else match[0]
+
+    names = {
+        ALL_INGREDIENTS[item].name.lower()
+        for item in facts.halved
+        if item in ALL_INGREDIENTS
+    }
+
+    def half(match: re.Match[str]) -> str:
+        return "    " + match[0][4:] if match[1].lower() in names else match[0]
+
+    return _HALF_THE.sub(half, _ISO_DAY.sub(date, reply))
+
+
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     unmatched: list[str] = []
     word = money = False
-    plain = re.sub(r"[*_#]", " ", reply)
+    plain = re.sub(r"[*_#]", " ", _mask_known(reply, facts))
     lead = _verb_signs(plain)
     tokens = list(_TOKEN.finditer(plain))
     safe = _without_server_sentences(reply, mask=True)
-    nutrients = nutrient_bindings(safe, tokens)
+    # The nutrients with a zero change this turn: "while keeping protein the same".
+    flat = {f[0] for f in facts.nutrition if f[1] == "milli" and f[2] and not f[3]}
+    nutrients = nutrient_bindings(safe, tokens, flat)
     claims = re.sub(r"[*_#]", " ", safe)  # same offsets as plain, no server sentence
     clauses = _clauses(plain)
     moves = _from_to(plain, tokens, nutrients, facts, clauses, claims)

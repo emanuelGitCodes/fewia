@@ -69,6 +69,10 @@ _LEFT_OK = frozenset(
 _LEFT_CHARS = frozenset(string.ascii_letters + string.digits + "'-")
 # A label then "by", for "protein by 5 g" (no verb) and "reduces calories by 20 kcal".
 LABEL_BY = rf"(?:{_LABEL.pattern}|\b(?:calories?|energy)\b){_H}+(?=by\b)"
+# A label and a colon before a verb: "Calories: Rise by" states a change.
+SUBJECT_COLON = re.compile(
+    rf"(?:{_LABEL.pattern}|\b(?:calories?|energy)\b)[ )]*:[ ]*\Z", re.IGNORECASE
+)
 _PAIR = re.compile(r"\s*(?:and|or|/|,|&)\s*\Z", re.IGNORECASE)
 _CONTINUE = re.compile(
     rf"{_H}*(?:,{_H}*(?:(?:and|or){_H}+)?|(?:and|or|plus|to){_H}+"
@@ -84,6 +88,11 @@ _COUNT_UNIT = re.compile(
 )
 _TAIL_BOUNDARY = re.compile(r"[!?;\n]|\.(?!\d)")
 _TAIL_END = re.compile(r"\s*(?:\)\s*)*\Z")
+_KEPT = re.compile(
+    rf",{_H}*while{_H}+keeping{_H}+(?:the{_H}+)?"
+    rf"(?P<kept>{'|'.join(_ALIASES)}){_H}+the{_H}+same{_H}*\Z",
+    re.IGNORECASE,
+)
 _FDC_CITATION = re.compile(r"\s*\(USDA FDC [0-9]+\)")
 _ENERGY_CLAUSE = re.compile(
     r"\s+(?:but|while(?:\s+protein\s+and)?)\s+\Z", re.IGNORECASE
@@ -114,6 +123,12 @@ _AMOUNT_END = re.compile(
 )
 # The change that follows an "X to Y" pair, "(+5 g)", after an optional basis phrase.
 _PAIR_DELTA = re.compile(rf"(?:{_BASIS.pattern})?\s*\(\s*\Z", re.IGNORECASE)
+# A basis phrase, then "(from " or the "(about " of a signed percent.
+_PAREN_FROM = re.compile(rf"{_BASIS.pattern}{_H}*\({_H}*from{_H}+\Z", re.IGNORECASE)
+_PAREN_PERCENT = re.compile(
+    rf"{_BASIS.pattern}{_H}*\({_H}*(?:(?:about|around|roughly|approximately){_H}+)?\Z",
+    re.IGNORECASE,
+)
 # What may stand between a claim and its basis phrase: a direction word, "of", a label.
 _CLAIM_LEAD = re.compile(
     rf"{_H}*(?:(?:{UP_WORDS}|{DOWN_WORDS}){_H}+)?(?:of{_H}+)?(?:{_LABEL.pattern})?",
@@ -149,6 +164,15 @@ def pair_delta(plain: str, pair: re.Match[str], change: re.Match[str]) -> bool:
     return bool(pair["n2"] and change["sign"] and _PAIR_DELTA.fullmatch(between))
 
 
+def basis_paren(plain: str, claim: re.Match[str], token: re.Match[str]) -> bool:
+    """Whether `token` opens the "(from X" or "(+69%" after `claim` and its basis."""
+    between = plain[claim.end() : token.start()]
+    if token["sign"]:
+        return bool(token["pc"] and _PAREN_PERCENT.fullmatch(between))
+    units = token["en"] or token["ms"] or token["mm"]
+    return bool(units and _PAREN_FROM.fullmatch(between))
+
+
 def _left_ok(plain: str, label: re.Match[str]) -> bool:
     """False when an unlisted word sits right before the label ("animal protein")."""
     # No fixed window: walk back over whitespace (plain has turned "*_#" into spaces),
@@ -177,6 +201,7 @@ def _claim_tail_allowed(
     starts: Sequence[int],
     index: int,
     nutrient: str,
+    flat: Collection[str] = (),
 ) -> bool:
     """Accept only structural continuations after a nutrient amount."""
     tail_start = tokens[index].end()
@@ -207,6 +232,9 @@ def _claim_tail_allowed(
     gap = plain[tail_start:local_end]
     if local_end == clause_end and _TAIL_END.fullmatch(gap):
         return True
+    kept = _KEPT.fullmatch(gap) if local_end == clause_end else None
+    if kept and _ALIASES[kept["kept"].lower()] in flat:
+        return True
     if (
         next_token is not None
         and not next_token["en"]
@@ -219,6 +247,13 @@ def _claim_tail_allowed(
         return True
     if not basis and _CONTINUE.fullmatch(gap):
         return True
+    if (
+        basis
+        and next_token is not None
+        and not next_token["en"]
+        and basis_paren(plain, tokens[index], next_token)
+    ):
+        return True
     for label in _between(labels, starts, tail_start, next_start):
         if _PREFIX.fullmatch(plain[label.end() : next_start]) and _MACRO_JOIN.fullmatch(
             plain[tail_start : label.start()]
@@ -228,7 +263,7 @@ def _claim_tail_allowed(
 
 
 def nutrient_bindings(
-    text: str, tokens: Sequence[re.Match[str]]
+    text: str, tokens: Sequence[re.Match[str]], flat: Collection[str] = ()
 ) -> dict[int, str | None]:
     """Return a nutrient, or None for uncertain nutrition grammar, per token."""
     plain = re.sub(r"[*_#]", " ", text)
@@ -345,12 +380,12 @@ def nutrient_bindings(
                     + " " * (label.end() - label.start())
                     + gap[label.end() - gap_start :]
                 )
-        if _CONTINUE.fullmatch(gap):
+        if _CONTINUE.fullmatch(gap) or basis_paren(plain, previous, token):
             bindings[token.start()] = bindings[previous.start()]
     for index, token in enumerate(tokens):
         nutrient = bindings.get(token.start())
         if nutrient is not None and not _claim_tail_allowed(
-            plain, tokens, labels, starts, index, nutrient
+            plain, tokens, labels, starts, index, nutrient, flat
         ):
             bindings[token.start()] = None
     return bindings
