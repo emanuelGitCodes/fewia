@@ -188,7 +188,7 @@ Validator check (2026-11-07, Nova 2 Lite, branch `claude/validator-forms-01` at 
 - **Result.** The new validator accepted 6 of 26, and the old one accepted 3 of 26. All 3 newly accepted replies hold true numbers: a C04 swap, and a C16 budget date twice. No reply that the old validator accepted was rejected.
 - **Real errors still rejected.** C11 repeats numbers from earlier turns, writes a wrong sign, and calls a total per serving. Three replies hold a forbidden claim, for example that a swap is ready to apply to the plan.
 - **True numbers still rejected.** Replies also copy raw milligram values, write "(a decrease of 2,800 mg)" or "(was 14,026 mg)", and state the added 100 g as a number. Each is a further form, so form fixes alone give a small gain. Server-filled number slots are the likely next step.
-- **Offline.** Of 14 replies captured earlier, 8 now pass and 5 real errors stay rejected. 111 of 111 adversarial replies stay rejected.
+- **Offline.** Of 14 replies captured earlier, 8 now pass and 5 real errors stay rejected. The last one, a true "half the rice", stays rejected, because the number-word rule does not change. 111 of 111 adversarial replies stay rejected.
 
 ## Component boundaries
 
