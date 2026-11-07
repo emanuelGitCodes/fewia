@@ -5299,3 +5299,15 @@ A single batch can also understate the rate: the archived batches range from 5 t
 
 `claude/validator-forms-01` accepts more forms of a true number and closes a tenth-gram rounding gap. Review rounds 1 and 2 found a from-to regression, a false "half" accept, and a bracket that crossed "for 2 servings". The "half" form is withdrawn. `claude-opus-5-5` returned `APPROVE` at `50b87dc6`, with 17,647 backend tests and 80 of 1,000 lines.
 A live capture of 26 validated replies, not archived, gave 6 accepted against 3 with the old validator on the same replies. Grounded rates before and after this change are not comparable. Form fixes give a small gain; server-filled number slots are the likely next step.
+
+## 2026-11-07 — OpenAI GPT-6 Luna live comparison
+
+Issue #482 tracks this work. The checkout of `main` was at `4f3946e1`. The local direct OpenAI GPT-6 Luna path uses US Responses mode beside Bedrock Nova 2 Lite. It uses a private key file and a guarded Compose launcher. Adapter revision `2e03d32c` passed gates with 18,335 passed and 1 skipped. Independent Luna review returned `APPROVE`. An isolated live API run through the worker persisted an Apply with two servings.
+
+Matched conversation v1.6 live revision `2295a0ed` used one authorized run per model, 25 scenarios x 3 repeats, and 123 turns per arm. Both arms used the same corpus, prompts, tools, and scorer. Integrated gates on the measured revision passed with 18,420 passed and 1 skipped. Nova passed all checks in 62 of 75 scenario repeats. Luna passed all checks in 63 of 75. In the paired results, only Nova passed 8 repeats, only Luna passed 9, both passed 54, and both failed 4. The p95 was 8.317 seconds for Nova and 3.794 seconds for Luna.
+
+Estimated cost was USD 0.502393 for Nova and USD 0.018856 for Luna, or USD 0.008103 and USD 0.000299 per passing repeat. Luna read 794,168 of 848,890 input tokens from cache. Each arm had 12 of 15 refusals and zero detected purchase attempts in 123 observed turns. Nova used an explicit reasoning effort of `low`. Luna used an explicit reasoning effort of `none`. This is one matched batch and does not establish decisive quality superiority.
+
+Current code writes journal checksums in new conversation archives. The original live archives remain unchanged. Review uses an attestation on copies. The checksum fix at `229be439` passed full gates with 18,426 passed and one skipped. Independent Luna review returned `APPROVE`.
+
+The supervisor recorded 8,284,773 input tokens and 130,728 output tokens for the writers and reviewers. The agent thread limit prevented native subagent dispatch.
