@@ -18,6 +18,8 @@ The outline includes references within eight pages as a conservative planning as
 | [Demo script](DEMO_SCRIPT.md) | Prepare an authorized local runtime. Record observable states and explain the evidence limits. |
 | [Failure log](FAILURE_LOG.md) | Inspect each selected case and distinguish triage from proven causes. |
 | [Limitations](LIMITATIONS.md) | Select the limits that bind your claims. |
+| [Evidence tables](EVIDENCE_TABLES.md) | Select the numbers you cite. Each row keeps its revision, date, evidence class, and denominator. |
+| [Rehearsal checklist](REHEARSAL_CHECKLIST.md) | Rehearse the live demo and record each result. Every box starts unchecked. |
 
 Use the [backlog](../FEATURE_BACKLOG.md) for remaining owner work.
 Supporting documents do not establish completion of the final paper or video.
@@ -34,7 +36,7 @@ The authoritative meal list is `backend/app/domain/catalog_recipes.json`, as nam
 
 Every grocery estimate MUST show this exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 | Path | Source and boundary |
 |---|---|
@@ -43,7 +45,7 @@ Every grocery estimate MUST show this exact notice:
 | Queue and evidence | [Outbox publisher](../../backend/app/services/outbox_publisher.py) sends committed jobs with at-least-once delivery. Compose supplies PostgreSQL, workers, and Floci SQS/S3. The scope assigns S3 evaluation exports. |
 | Language model | [Chat loop](../../backend/app/agent/chat_loop.py) uses `LLMProvider`, typed tools, eight model turns, and three planner revisions. Real Bedrock evidence comes from the archived benchmark. |
 | Plaid Sandbox | The scope permits Sandbox only, with no real accounts. D4 remains paused; this archive supplies no Sandbox run. |
-| Instacart development shopping links | The scope defines development link handoff. The [browser record](../GROCERY_VERIFICATION_PLAN.md) uses fixture responses. A link does not verify prices, stock, checkout, or purchases. Live development evidence remains pending. |
+| Kroger cart | [Decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md) replaces the Instacart handoff with store search, read-time prices, cart preview, and a cart add that the user clicks. No live cart add is on record. FEWIA does not check out or pay. |
 
 Source inspection describes behavior and design. It does not prove that a provider or deployed service works.
 The local runtime uses one server-selected demo user with shared context.
@@ -80,7 +82,7 @@ The original artifacts and results remain intact.
 
 Read the [original benchmark record](../../wiki/phases/benchmark-20261003.md) and
 [separate correction record](../../wiki/phases/posthoc-gold-20261003.md) before citing results.
-Release remains unverified. Purchase attempts are unmeasured.
+Release remains unverified. Batch `conversation-20261106b` at `8468e5da` records 0 purchase attempts in 111 observed turns. This does not prove that an attempt cannot occur.
 
 ## Figures, failures, and provenance
 

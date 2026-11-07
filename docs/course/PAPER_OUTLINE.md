@@ -55,7 +55,7 @@ Keep immutable course sources in their original context.
 
 Every grocery estimate MUST carry the exact notice:
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
 
 ### Architecture
 
@@ -71,8 +71,8 @@ Evidence: [App](../../frontend/src/App.tsx), [Compose](../../compose.yaml),
 [agent handler](../../backend/app/services/agent_jobs.py),
 [plan job](../../backend/app/services/plan_job.py), and
 [outbox publisher](../../backend/app/services/outbox_publisher.py).
-The [scope](../../.codex/project-context.md) identifies S3 exports, Plaid Sandbox, and Instacart development shopping links.
-The [browser record](../GROCERY_VERIFICATION_PLAN.md) bounds fixture handoff evidence.
+The [scope](../../.codex/project-context.md) identifies S3 exports and Plaid Sandbox.
+[Decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md) replaces the Instacart handoff with the Kroger cart. [API_CHANGE.md](API_CHANGE.md) records the provider change.
 
 ### Evaluation method
 
@@ -144,7 +144,7 @@ These categories are root triage, not proven root causes.
 - Which findings apply only to this fixed corpus and the tested constraints?
 - Which comparison claims fail because the correction is post-hoc or the baseline format differs?
 - Why do 48 synthetic-sentinel turns fail to prove unrestricted secret safety?
-- Why are purchase attempts unmeasured despite A04 refusal checks?
+- What do 0 purchase attempts in 111 observed turns (batch `conversation-20261106b`, revision `8468e5da`) show, and what do they not show? Why does scenario C22 fail in that batch with no purchase attempt?
 - Which sample price, nutrition, provider, shared-user, and hosting limits bind the conclusions?
 - Which remaining tasks belong to the author, D4, and D5?
 

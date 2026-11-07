@@ -1,69 +1,240 @@
-# Operator shot list
+# Demo shot list
 
-The author records and submits the video. This script claims no recorded or hosted demonstration.
-The [course transcript](../CAP6938%20August%2025.txt), lines 80-110, asks for code and a video of the agent.
-Use the GUI and explain the states that actually appear.
+This file is a shot list of actions and observable states. It holds no narration.
+The author writes and speaks every word. The author presents live on Zoom on
+2026-11-09 and submits a narrated video of the same run.
+This file claims no recorded run and no deployed demo.
 
-## Before recording
+## Time budget
 
-Use an owner-prepared, isolated local runtime from [Compose](../../compose.yaml).
-The runtime contains React and TypeScript, FastAPI, PostgreSQL, workers, and Floci SQS/S3.
-The default web address is `http://127.0.0.1:5173/app`; the owner identifies any local port override.
-The operator MUST NOT modify or run shared services for this shot list.
-This document supplies no startup command or API payload.
+The live limit is 15:00. The planned total is 11:30. The spare time is 3:30.
+The presenter MUST cut a shot before the limit, not speed up.
+Cut order: shot 8, then shot 7. The presenter MUST NOT cut shot 9, because it states the failed target. The presenter MUST NOT cut shot 4 and keep shot 5, because shot 5 shows the cart state from shot 4.
 
-Live Bedrock chat requires a configured local runtime and owner-authorized provider use.
-The [provider backlog record](../FEATURE_BACKLOG.md) names `FEWIA_BEDROCK_MODEL_ID` as the Bedrock activation setting.
-The [agent handler](../../backend/app/services/agent_jobs.py) reports an unavailable model when no provider exists.
-The writer does not configure credentials, spend AWS funds, or make provider calls.
-The operator MUST keep credentials and raw bank data out of the recording.
-Do not create a public URL or describe private-hosting source design as a deployed demo.
+| Shot | Topic | Time | Running total |
+|---|---|---|---|
+| 1 | Scope and the agent's job | 1:30 | 1:30 |
+| 2 | Plan on `/prototype` | 1:30 | 3:00 |
+| 3 | Ask FEWIA (Bedrock) | 1:30 | 4:30 |
+| 4 | Kroger store, price, cart | 2:00 | 6:30 |
+| 5 | Stop before payment | 1:00 | 7:30 |
+| 6 | How it is tested | 1:30 | 9:00 |
+| 7 | Cost and latency | 0:45 | 9:45 |
+| 8 | One real failure | 0:45 | 10:30 |
+| 9 | Limits | 1:00 | 11:30 |
 
-Use manual spending, a $100 monthly limit, and a $40 plan cap as demonstration inputs.
-These values are user choices. They are not measured savings or verified retailer prices.
-The catalog supports 40 meals, 1-3 meals per request, and 1-8 servings per meal.
-Every displayed grocery estimate MUST retain this exact notice:
+## Before the session
 
-> Estimated from the demo price catalog. Instacart prices, availability, taxes, delivery fees, and tips are not verified.
+Expected states are observation targets. No one has run this list.
 
-## Main shots
+- The owner prepares an isolated local runtime from [Compose](../../compose.yaml).
+  [LOCAL_GROCERY_DEMO.md](../LOCAL_GROCERY_DEMO.md) holds the start steps.
+  This file adds none.
+- The demo starts at `http://127.0.0.1:5173/prototype`, per
+  [decision 0026](../../wiki/decisions/0026-prototype-default-route.md).
+  `/app` is the older page. The demo MUST NOT start there.
+- The operator MUST keep credentials, client IDs, key files, and file contents
+  off the screen and out of the recording.
+- The operator MUST NOT create a public URL.
+- Bedrock needs the overlay in
+  [LOCAL_GROCERY_DEMO.md](../LOCAL_GROCERY_DEMO.md) and owner-approved provider use.
+  Kroger needs its overlay and the owner's sign-in.
+- Run both overlays once before the session. Close the tabs. Reopen `/prototype`.
+- Demo input: a $40 plan cap. `/prototype` has no monthly-limit control and sends the cap as the limit. This is a user choice.
+  It is not a measured saving.
 
-Expected states below are observation targets, not a claim that this script has been executed.
-Record failures as failures. Do not replace a live failure with fixture output under a live label.
+## Evidence classes
 
-| Shot | GUI action | Observable state and explanation |
+Say the class of each result on screen. Use these labels only.
+
+| Label | Meaning |
+|---|---|
+| `live provider` | A real Bedrock or Kroger call made during this session. |
+| `local application` | The local stack with sample catalog prices. No provider call. |
+| `local emulator` | Floci SQS and S3 on the local stack. |
+| `archived` | A saved result from an earlier dated batch. Say `archived` first, then its date, revision, and evidence class. Never a call made in this session. |
+| `fixture` | Deterministic output from a scripted provider or a test. Never a live call. |
+
+The app has no fixture mode and no fallback label. The operator shows the label in a slide, a window title, or a banner.
+A Bedrock fallback MUST carry the label `ARCHIVED, NOT LIVE`.
+A Kroger fallback MUST carry the label `SAMPLE CATALOG, NOT KROGER`.
+A fallback MUST NOT appear under a `live provider` label.
+
+## Shots
+
+### Shot 1. Scope and the agent's job (1:30)
+
+- Open `/prototype`. The header shows `FEWIA` and `Demo data`.
+- Show [FEATURE_MAP.md](../FEATURE_MAP.md), the edge diagram.
+- Point at three parts: the deterministic planner, Bedrock behind the worker,
+  and Kroger behind a read and a user click.
+- Observe: the page shows the heading `Your plan`.
+
+### Shot 2. Plan on `/prototype` (1:30)
+
+Evidence class: `local application`, sample catalog prices.
+
+1. Type `bean` in `Find a meal`. Select a bean meal in `Meal choices`.
+2. Use the servings stepper (`Increase servings for <meal>`) to set two servings.
+3. Open `Plan summary`. Set `Plan cap` to `40`.
+4. Observe `Groceries to buy`, the total, and `Whole packages · Sample estimate`.
+5. Observe the line under the total that states whether the plan fits the cap.
+6. Observe the notice on the plan. The text MUST read exactly:
+
+> Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.
+
+7. Check the `Shopping list`. Mark one ingredient under `Already at home`.
+   Observe that the total changes.
+
+### Shot 3. Ask FEWIA, live Bedrock (1:30)
+
+Evidence class: `live provider` (Bedrock, `us.amazon.nova-2-lite-v1:0`).
+
+1. Open `Ask FEWIA`. On a narrow window, use `Ask FEWIA for a meal idea`.
+2. Observe the sub-line `Replies come from a real model call. Prices are sample estimates.`
+3. Select a starter, or type in `Ask for a meal`. Select send.
+4. Observe `Queued`, then `Running. FEWIA is finding meals.`, then meal ideas.
+5. Select the change on an idea. Observe a card titled by `Proposed plan change`
+   with the `Changes` list and the buttons `Apply` and `Discard`.
+6. Select `Apply`. Observe the plan update. The plan, not the model, sets every price.
+
+**Fallback 3F (Bedrock unavailable). Label: `ARCHIVED, NOT LIVE`.**
+
+- Trigger: the page shows `Ask FEWIA is off. The plan still works.`
+  or `FEWIA did not answer. Your plan did not change.`
+- Action: say on screen that the live call failed. Show that state.
+  Then open [the Oct 5 archive](../../eval/results/artifacts/benchmark-20261005/).
+- Show one case from [the archived failure examples](../../eval/results/artifacts/course-evidence-20261003/failure-examples.json), with its date, revision, and evidence class. Conversation suite records hold no reply text, so they cannot supply a reply.
+- The operator MUST NOT claim the archived result is a live reply.
+
+### Shot 4. Kroger store, price, cart (2:00)
+
+Evidence class: `live provider` (Kroger Products and Locations), then a
+user action in the Kroger cart API. The cart add is not live-checked in the
+[feature map](../FEATURE_MAP.md).
+
+1. In `Ask FEWIA`, select `Choose a Kroger store for live prices`.
+2. Enter `45202` in `ZIP code`. Select `Find stores`.
+3. Observe the `Kroger stores` list. Select one store.
+4. Observe `Kroger store: <store name>`, with `Change` and `Remove`.
+5. Send a chat message. Observe the live price line:
+   `Live price from <store> as of <time>: ...`
+   followed by `Availability and the final price are not verified.`
+6. If the product shows no price line, say so. Do not invent one.
+7. Select `Connect Kroger`. Sign in on the Kroger page. Return to `/prototype`.
+   Observe `Kroger account connected` and `Disconnect`.
+8. Select `Preview Kroger cart`. Observe the `Kroger cart preview` list:
+   name, description, size, and `Quantity`. Observe any `No Kroger match:` line.
+9. The user selects `Send <n> items to Kroger cart`. This is the only add step.
+   The agent does not click it. Observe `Added to your Kroger cart. Review and check out on kroger.com.`
+10. State on screen: the user checks out on kroger.com. FEWIA does not.
+
+**Fallback 4F (Kroger unavailable). Label: `SAMPLE CATALOG, NOT KROGER`.**
+
+- Trigger: `Kroger stores are not available right now.`,
+  `Kroger did not answer, so no live price is shown.`,
+  or `Kroger is unavailable. Try again.`
+- Action: show the line as the real failure state. The degraded state is part of the product.
+- Then show the frontend tests as `fixture`: `KrogerCart.test.tsx`,
+  `KrogerStorePicker.test.tsx`, and `KrogerQuoteLine.test.tsx` in
+  [`frontend/src/prototype/`](../../frontend/src/prototype/).
+- The operator MUST NOT show a test fixture price as a Kroger price.
+
+**Kroger Certification note.** The app runs in the Kroger certification
+environment. The sign-in uses a staging login. ZIP `45202` returns products.
+An Orlando ZIP does not. Use `45202` on stage. Show no credential, client ID,
+or key file.
+
+### Shot 5. Stop before payment (1:00)
+
+This is a deliberate safety and testing decision.
+
+- Show the state from shot 4: items in the Kroger cart, no order placed.
+- Show the line `Review and check out on kroger.com.`
+- Show [project-context.md](../../.codex/project-context.md), the line
+  `No real bank accounts, checkout, orders, or payment submission.`
+- Observe the sequence: the agent plans and previews. A person approves the
+  cart add. A person pays, outside FEWIA.
+- State the test consequence: the path up to the cart add runs and is tested
+  with no purchase. A test needs no grocery order. The cart add has no live
+  check on record.
+- Show the `Purchase attempts` section of [the 2026-11-06 report](../../eval/results/artifacts/conversation-20261106b/report.md).
+  Label it `archived`: 2026-11-06, revision `8468e5da`, `live provider`.
+- Observe `turns_observed` 111, `turns_with_attempt` 0, and the target `purchase_attempts` at `PASS`.
+- State: the count covers these 111 turns. It does not prove that an attempt cannot occur.
+- State: the count does not measure refusal. `conversation-20261107` at `f3607e6f` reports `purchase_refusal_rate` 0.8667 against a target of 0.99: FAIL.
+- A live checkout request can show a tool error. Scenario C22 did so in 3 of 3 repeats of `conversation-20261106b` at `8468e5da`. In `conversation-20261107` at `f3607e6f`, it refused 2 of 3 and showed a tool error in 1 of 3. Say this if the audience asks.
+
+### Shot 6. How it is tested (1:30)
+
+Show each class with its label. Do not blend them. Every row is `archived`. Do not present a row as a call made in this session.
+
+| Class | What to show | Source |
 |---|---|---|
-| 1. Scope | Show the local page and repository. | The header says `Local demo · Sample prices`. Explain the manual budget and bounded catalog. Source: [App](../../frontend/src/App.tsx). |
-| 2. Budget | Enter 100 in Monthly limit and 40 in Plan cap. Select bean tacos, two servings, with an empty pantry. | Show the `manual` source, both budget controls, and the selected meal. These inputs demonstrate a cap below the monthly limit. |
-| 3. Deterministic plan | Select `Build my estimate`. Wait for the request to finish. | Capture the pending state and final estimate panel. Show ingredient quantities, the sample total, and the full notice. Record the actual result; promise no fixed total. Source: [plan job](../../backend/app/services/plan_job.py). |
-| 4. Chat plan | In a configured chat workspace, send `Plan 2 servings of bean tacos.` | Capture the request and reply. Inspect the resulting estimate for the recipe, servings, preserved cap, and notice. If chat is unavailable, show that state and label this shot incomplete. |
-| 5. Follow-up | In the same conversation, send `I have black beans`. | Look for a new plan with black beans marked as pantry-owned. Show whether purchase costs change while the recipe and servings stay fixed. The message sequence comes from F01 in the [archived scenarios](../../eval/results/artifacts/benchmark-20261003/scenarios.json). The $40 cap belongs to this demo, not the archived F01 input. |
-| 6. Honest readout | Open the supplied [figure](../../eval/results/artifacts/course-evidence-20261003/benchmark-quality.png) and [readout](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json). | Explain 17/33 original, 23/33 post-hoc, and 0/33 no-tool task passes. Both tool-enabled scores fail the 90% target. Explain 98 supported plus two unknown public claims, with ten refusals excluded. |
-| 7. One observed failure | Open [failure examples](../../eval/results/artifacts/course-evidence-20261003/failure-examples.json), `$.examples[0]`: F02, repeat 1, `tool_enabled`. | Show two planning turns followed by clarification without a final plan. Show `assessments.plan.checks.final_plan_present=false` and `assessments.tools.expected_tool_selection=0/1`. Explain that dependent false checks are not independent defects. This is an archived failure, not a new live reproduction. |
-| 8. Limits and code | Show [limitations](LIMITATIONS.md) and the [chat loop](../../backend/app/agent/chat_loop.py). | Explain model interpretation versus tool arithmetic. Mention the shared demo user, unmeasured purchase attempts, and pending provider/deployment evidence. |
+| `archived`, `fixture` | Deterministic scenario run. 138 slots, corpus `grocery-eval-v1`. | [benchmark-20261005](../../wiki/phases/benchmark-20261005.md) |
+| `archived`, `local emulator` | Floci SQS and S3, Compose worker, dedicated `postgres:16`. | same record |
+| `archived`, `live provider` | Real Bedrock, Nova 2 Lite, `tool_enabled` and `no_tool`. | same record |
+| `archived`, `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
+| `archived`, `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
 
-The [browser verification record](../GROCERY_VERIFICATION_PLAN.md) supports the local form, jobs, and polling path.
-It explicitly reports unavailable chat in that browser stack. It does not prove the live chat shots above.
-The owner records the runtime identity and the actual outcome for each new shot.
+Also run the gates on screen only if time remains:
+`uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
 
-## Keep fixture handoff separate
+### Shot 7. Cost and latency (0:45)
 
-If useful, show the archived consent and retry screenshots linked by the
-[browser record](../GROCERY_VERIFICATION_PLAN.md).
-Label this segment `fixture handoff; local application; no live Instacart request`.
-Preserve the original missing-consent failure beside the repaired 14-check fixture pass.
-Explain that the UI validates links and exposes an explicit retry after an uncertain write.
-Do not replay an uncertain external action or open a shopping link for this evidence segment.
-Development shopping links prove handoff only. They do not verify prices, stock, taxes, fees, tips, or purchases.
-Plaid Sandbox evidence remains paused under D4; no real bank account belongs in the demo.
+Label each row with its date, revision, and class. These are archived results.
+`main` has changed since these runs. They do not describe the code on screen.
 
-## Evidence labels for the recording
+| Run | Revision | Class | p50 | p95 | Cost |
+|---|---|---|---|---|---|
+| 2026-10-05 benchmark, `tool_enabled` | `d50572a1` | `archived`, `live provider` | 8.01 s | 16.75 s | USD 0.1807 for 33 slots, estimate |
+| 2026-11-01 conversation, 96 turns | `f21f8980` | `archived`, `live provider` | 3151 ms | 11425 ms | USD 0.004760 per turn |
+| 2026-11-06 conversation, 111 turns | `8468e5da` | `archived`, `live provider` | 3119 ms | 10323 ms | USD 0.004478 per turn |
 
-The archived benchmark observations use source `4b877d470258561cedd3375e38efc02362ce5f22`.
-The post-hoc scorer and corrected gold use source `e63d68f62cf8ae70dfd60d919bcc04f1d135c8a6`.
-The [provenance](../../eval/results/artifacts/posthoc-gold-20261003/provenance.json)
-records six changed F04/F05 tools assessments with zero new inference calls.
-The correction followed access to the outputs. It is not a fresh batch or an independent benchmark.
-The operator MUST distinguish new local footage, archived live Bedrock evidence, and fixture handoff evidence.
-Neither this script nor the archive establishes deployed hosting or release certification.
-Recording, final editing, and course submission remain author work.
+- Cost is an estimate from published rates. It is not an AWS bill.
+- The targets: p50 under 5000 ms, p95 under 12000 ms, and cost per turn under
+  USD 0.006. Both conversation batches meet all three.
+
+### Shot 8. One real failure (0:45)
+
+Evidence class: archived `live provider` result. It is not a new reproduction.
+
+- Show the [`conversation-20261101b` report](../../eval/results/artifacts/conversation-20261101b/report.md) at `f21f8980`, `Grounding` and `Targets` sections.
+- Observe `grounded_rate` 0.3023 against a 0.99 target: FAIL.
+- Observe `unsupported_numbers` 77 against a target of 0: FAIL.
+- Alternate: the 2026-10-05 table of failed slots. Show F02, repeats 2 and 3:
+  the model clarified instead of planning again.
+- Observe: the plan arithmetic is deterministic. The failure is in model prose and tool choice.
+
+### Shot 9. Limits (1:00)
+
+Show [LIMITATIONS.md](LIMITATIONS.md) and the results below.
+
+| Result | Date | Revision | Class | Value |
+|---|---|---|---|---|
+| Task pass, original scorer | 2026-10-03 | `4b877d47` | `archived`, `live provider` | 17/33; no-tool 0/33 |
+| Task pass, post-hoc gold | 2026-10-03 | `e63d68f6` | `archived`, `live provider` | 23/33; scored after seeing outputs |
+| Task pass, fresh batch | 2026-10-05 | `d50572a1` | `archived`, `live provider` | 25/33 (75.8%); target 90%: FAIL |
+| Supported claims | 2026-10-05 | `d50572a1` | `archived`, `live provider` | 109 supported, 3 unknown (97.3%) |
+| Scenario pass, conversation | 2026-11-01 | `f21f8980` | `archived`, `live provider` | 40/57 (70.2%) |
+| Scenario pass, conversation, C01 to C19 | 2026-11-06 | `8468e5da` | `archived`, `live provider` | 33/51 (64.7%) with gold facts; 39/57 (68.4%) counts C08 and C12, which hold no gold facts |
+| Grounded replies, conversation | 2026-11-06 | `8468e5da` | `archived`, `live provider` | 10/39; target 0.99: FAIL |
+| Grounded replies, conversation | 2026-11-07 | `f3607e6f` | `archived`, `live provider` | 1/32; target 0.99: FAIL. The saved-plan route answers 15 of 111 turns with no model call. |
+| Gold facts, conversation turns | 2026-11-07 | `f3607e6f` | `archived`, `live provider` | 100/111, against 89/111 at `8468e5da`. The route adds most of the rise. |
+
+- State: `main` has changed since each of these runs.
+- State: release is not certified. The 90% task target fails.
+- State: 0 purchase attempts in 111 observed turns is a count for these prompts, not a proof. See shot 5.
+- State: the demo is local. There is no deployed demo and no public hosting.
+- State: Plaid is paused. No real bank data appears.
+- State: sample prices are the budget figure. A Kroger price is read-time and is never stored.
+
+## Evidence rules
+
+- The operator MUST say the class of every result on screen.
+- The operator MUST NOT pass fixture output off as live.
+- The operator MUST NOT claim a result that no archive holds.
+- The Instacart handoff is retired
+  ([decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md)).
+  The operator MUST NOT show or mention an Instacart notice or link as a feature.
+- The course forbids a model-generated report. The author writes all narration.
