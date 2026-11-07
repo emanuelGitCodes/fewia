@@ -5280,3 +5280,9 @@ Loop usage after the history test, for nine work items: 11,694,335 input and 529
 ## 2026-11-07 — Correct the C22 record
 
 The 2026-11-06 entry says that the model requested `propose_plan_change` with empty inputs. The archive does not show this, because the trace records proposal inputs only for a `proposed` status. The course pack now states the limit.
+
+## 2026-11-07 — What-if add form and the save reply
+
+The owner asked "what if we have both the chicken and black beans at the same time" and got the swap numbers again. The owner then asked "can you add it to the list" and got a generic reply. `claude/what-if-add-01` adds the add form to `what_if_substitute`, and a fixed reply with gate `swap_not_saved`. The corpus becomes `conversation-eval-v1.6`, with C24 and C25.
+The gates pass at `96d12ce2` with 17,574 backend tests, 207 of 1,000 lines. `claude-opus-5-5` returned `APPROVE` on review round 2. Writers: `claude-sonnet-5-5` at `medium`, then `low` for the repair.
+The live check of C01, C24, and C25 cost USD 0.07. C24 turn 2 called the add form on 3 of 3 repeats and returned 499 kcal. C25 turn 2 returned the fixed reply on 3 of 3 repeats. A full v1.6 batch has not run, so the effect of the tool spec change on C02 to C23 is not measured.

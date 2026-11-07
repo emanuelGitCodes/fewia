@@ -1,6 +1,6 @@
 # Conversation quality experiment
 
-This directory defines a partial experiment that ran on `conversation-eval-v1.4`. It does not replace the full suite, which had 96 slots at that version. The corpus is now `conversation-eval-v1.5` with 111 slots. A new run records that version, and it is not the same measurement.
+This directory defines a partial experiment that ran on `conversation-eval-v1.4`. It does not replace the full suite, which had 96 slots at that version. The corpus is now `conversation-eval-v1.6` with 123 slots. A new run records that version, and it is not the same measurement.
 
 `selection.json` selects scenarios and repeats from the full corpus. It covers 22 logical user turns per arm. From `backend/`, pass these options to `python -m app.evaluate_conversation`:
 
