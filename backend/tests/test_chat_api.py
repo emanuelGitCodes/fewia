@@ -746,6 +746,45 @@ def test_parent_next_search_is_server_loaded_and_checked(
     assert job.payload["previous_search"] == (None if forged else next_search)
 
 
+@pytest.mark.parametrize("has_parent", [True, False])
+def test_parent_what_if_recipe_is_server_loaded(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    has_parent: bool,
+) -> None:
+    seed_user()
+    enable_chat(monkeypatch)
+    body = chat_body()
+    if has_parent:
+        add_parent(
+            session,
+            result={
+                "answer": "Here is the what-if.",
+                "tool_trace": [
+                    {
+                        "tool": "what_if_substitute",
+                        "outcome": "success",
+                        "inputs": {
+                            "status": "swapped",
+                            "recipe_id": "baked_potatoes_with_beans",
+                        },
+                    }
+                ],
+            },
+        )
+        body = chat_body(previous_job_id=str(PARENT_ID))
+    response = post_chat(client, key="what-if", body=body)
+    job = session.get(Job, response.json()["job_id"])
+
+    assert response.status_code == 202
+    assert job is not None
+    assert job.payload["previous_what_if_recipe"] == (
+        "baked_potatoes_with_beans" if has_parent else None
+    )
+
+
 @pytest.mark.parametrize("forged", [False, True])
 @pytest.mark.parametrize("blocked", [False, True])
 def test_parent_exhaustion_is_server_loaded_and_checked(

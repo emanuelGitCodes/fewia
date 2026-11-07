@@ -27,6 +27,46 @@ def is_guardrail_decline(result: dict[str, object]) -> bool:
     return gated or result.get("answer") == GUARDRAIL_DECLINE
 
 
+def last_what_if_recipe(result: dict[str, object]) -> str | None:
+    trace = result.get("tool_trace")
+    if not isinstance(trace, list):
+        return None
+    for entry in reversed(trace):
+        if isinstance(entry, dict) and entry.get("tool") == "what_if_substitute":
+            inputs = entry.get("inputs")
+            if not isinstance(inputs, dict):
+                return None
+            recipe = inputs.get("recipe_id")
+            if inputs.get("status") in ("swapped", "added") and isinstance(recipe, str):
+                return recipe
+            return None
+    return None
+
+
+def next_what_if_recipe(result: dict[str, object], previous: str | None) -> str | None:
+    """Keep the shown what-if when this turn asked a question or failed a retry."""
+    if is_guardrail_decline(result):
+        return None
+    recipe = last_what_if_recipe(result)
+    if recipe is not None:
+        return recipe
+    trace = result.get("tool_trace")
+    entries = (
+        [
+            entry
+            for entry in trace
+            if isinstance(entry, dict) and entry.get("tool") == "what_if_substitute"
+        ]
+        if isinstance(trace, list)
+        else []
+    )
+    if not entries:
+        return None
+    inputs = entries[-1].get("inputs")
+    latest = inputs.get("recipe_id") if isinstance(inputs, dict) else None
+    return previous if latest in (None, previous) else None
+
+
 def _invalid() -> ChatProtocolError:
     return ChatProtocolError("assistant message is invalid")
 

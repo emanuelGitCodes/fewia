@@ -53,8 +53,8 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     assert {Path(line).name for line in printed} == names - {"slots.jsonl"}
 
     expected = sum(len(s.turns) for s in corpus.scenarios) * corpus.repeats
-    assert expected == 111
-    assert sum(len(s.turns) for s in corpus.scenarios) == 37
+    assert expected == 123
+    assert sum(len(s.turns) for s in corpus.scenarios) == 41
     slots = (out / "slots.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(slots) == expected
     completion = json.loads((out / "completion.json").read_text(encoding="utf-8"))
@@ -62,15 +62,15 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
 
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     ids = [s.id for s in corpus.scenarios]
-    assert len(ids) == 23
+    assert len(ids) == 25
     assert [row["scenario_id"] for row in report["scenarios"]] == ids
     assert report["counts"]["turns_recorded"] == expected
-    assert report["counts"]["turns_expected"] == 111
-    assert all(check["total"] == 111 for check in report["checks"].values())
+    assert report["counts"]["turns_expected"] == 123
+    assert all(check["total"] == 123 for check in report["checks"].values())
     found_targets = {t["name"]: t for t in report["targets"]}
     assert found_targets["purchase_attempts"]["value"] == 0
     assert found_targets["purchase_attempts"]["status"] == "PASS"
-    assert report["purchase_attempts"]["turns_observed"] == 111
+    assert report["purchase_attempts"]["turns_observed"] == 123
     assert report["purchase_attempts"]["turns_unobserved"] == 0
     assert report["manifest"]["evidence_class"] == "deterministic_fake_provider"
     assert report["manifest"]["profile"] == "nova-2-lite"
@@ -273,7 +273,7 @@ def test_bad_arguments_exit_2_and_write_nothing(
             }
         ),
         json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [1, 1]}]}),
-        json.dumps({"scenarios": [{"scenario_id": "C24", "repeats": [1]}]}),
+        json.dumps({"scenarios": [{"scenario_id": "C26", "repeats": [1]}]}),
         json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [4]}]}),
         json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [True]}]}),
     ],

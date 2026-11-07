@@ -83,7 +83,7 @@ deployment.
 | 16 | Tonight Plan page | Frontend | `/prototype`, `prototype/TonightPrototype.tsx` | Prototype on /prototype | Lazy chunk. Demo data in `prototypeData.ts`. Makes no API call. Audience 18 to 25. |
 | 17 | Evaluation harness and CLI | Backend | `python -m app.evaluate`, `evaluation_*.py` | Tooling | 60 modules. 138-slot matrix. Fixture runs work today. |
 | 18 | Live benchmark on Nova 2 Lite | Evaluation | `eval/results/artifacts/` | Owner-gated | Last batch 2026-10-05: task 25 of 33, claims 109 of 112. Next batch waits on the A02 decision. |
-| 18b | Conversation suite (`conversation-eval-v1.5`) | Evaluation | `app/evaluate_conversation.py` | Fixture runs; live owner-gated | 23 scenarios, 37 turns, 3 repeats. Checks pages across a budget turn, the gluten constraint, and purchase attempts. Records hold hashes, not reply text. Separate from the 138-slot batch. |
+| 18b | Conversation suite (`conversation-eval-v1.6`) | Evaluation | `app/evaluate_conversation.py` | Fixture runs; live owner-gated | 25 scenarios, 41 turns, 3 repeats. Checks pages across a budget turn, the gluten constraint, and purchase attempts. Records hold hashes, not reply text. Separate from the 138-slot batch. |
 | 19 | Hosted demo stacks | Infra | `infra/hosting/`, `preflight_cli.py` | Source only | CDK for ECS Fargate, RDS, Secrets Manager, CloudWatch, Cognito edge. Nothing deployed. |
 | 20 | Bedrock credentials stack and session renewal | Infra | `infra/bedrock/`, `infra/bedrock_session.py` | Tooling | The owner renews the session before a live run. |
 | 21 | Health-era tables and legacy runner | Database, Backend | `models.py`, `evaluation_runner.py` | Retired | Decision 0018 retains the data. No route serves it. |
@@ -243,6 +243,10 @@ over a mock transport with invented data. Neither makes a live call. The
 conversation suite routes whole-message saved-plan questions through
 `agent/saved_plan_route.py` with no model call, so those turns measure the
 deterministic path. See [EVALUATION.md](EVALUATION.md).
+
+`what_if_substitute` can also add a food and keep every listed ingredient.
+A save request directly after a what-if gets a fixed reply from
+`agent/swap_not_saved.py`, because a saved plan holds no ingredient swaps.
 
 Artifacts live under `eval/results/artifacts/` with SHA-256 manifests.
 `eval/probes/` holds two pantry probe scripts. The course pack under

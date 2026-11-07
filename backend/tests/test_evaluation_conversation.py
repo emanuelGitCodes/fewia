@@ -766,7 +766,7 @@ def test_a_fixture_run_writes_manifest_identity_covered_by_the_hash(
     assert main(_argv(out)) == 0
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     manifest = report["manifest"]
-    assert manifest["suite_version"] == "conversation-eval-v1.5"
+    assert manifest["suite_version"] == "conversation-eval-v1.6"
     assert manifest["catalog_hash"] == _hash(catalog_snapshot())
     assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
     covered = {k: v for k, v in manifest.items() if k != "manifest_hash"}

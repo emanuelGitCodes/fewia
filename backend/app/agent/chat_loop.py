@@ -51,8 +51,10 @@ from app.agent.provider import LLMProvider
 from app.agent.read_answers import read_tool_answer
 from app.agent.saved_plan_route import saved_plan_read, saved_plan_reply
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
+from app.agent.swap_not_saved import asks_to_save_what_if, swap_not_saved_reply
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import names_meal_type
 from app.domain.plan_revision import PlanRevisionInput
 
@@ -160,7 +162,16 @@ _PLAN_READ_TOOLS = (
     PROPOSAL_TOOL,
 )
 # Tool statuses that answer the question; any other status asks the user something.
-_FINAL_STATUS = frozenset({"swapped", "found", "live", "ok", "proposed"})
+_FINAL_STATUS = frozenset({"swapped", "added", "found", "live", "ok", "proposed"})
+_WHAT_IF_QUESTIONS = frozenset(
+    {
+        "needs_food_choice",
+        "unknown_food",
+        "needs_ingredient_choice",
+        "ingredient_not_in_meal",
+        "ingredient_already_in_meal",
+    }
+)
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -261,6 +272,7 @@ def run_chat(
     propose: Propose | None = None,
     previous_search: dict[str, object] | None = None,
     previous_exhausted_search: dict[str, object] | None = None,
+    previous_what_if_recipe: str | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -375,6 +387,8 @@ def run_chat(
     proposal_failed = False
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
+    earlier_reads: list[tuple[str, dict[str, object]]] = []
+    what_if_failed = False
     proposal_read: list[tuple[str, dict[str, object]]] = []
     run_payloads: list[tuple[str, dict[str, object]]] = []
 
@@ -399,7 +413,10 @@ def run_chat(
         if not catalog_batch:
             if candidate is None and last_error is None:
                 read = read_tool_answer(
-                    [*read_results, *proposal_read],
+                    [
+                        *(read_results or (earlier_reads if other_failed else [])),
+                        *proposal_read,
+                    ],
                     stale=budget.stale,
                     failed=other_failed,
                 )
@@ -409,6 +426,8 @@ def run_chat(
                 return budget_summary_answer(
                     budget, period, spending_source=spending_source
                 )
+            if candidate is None and last_error is None and what_if_failed:
+                return _TOOL_FAILURE
             return render_public_answer(candidate, last_error, meal_type=meal_type)
         parts: list[str] = []
         if candidate is not None or last_error is not None:
@@ -491,6 +510,11 @@ def run_chat(
         return {"gate": reason} if model_prose else None
 
     plan_answer = current_plan_answer(message, plan_revision)
+    if previous_what_if_recipe in SUPPORTED_RECIPE_IDS and asks_to_save_what_if(
+        message
+    ):
+        reply = swap_not_saved_reply(previous_what_if_recipe, plan_revision)
+        return out("clarification", reply, None, "template", why("swap_not_saved"))
     saved_read = saved_plan_read(message)
     if saved_read is not None and plan_revision is not None and not continuation:
         start = len(trace)
@@ -672,6 +696,13 @@ def run_chat(
         batch_ok = True
         planner_limit = False
         other_failed = False
+        questions = [
+            (name, payload)
+            for name, payload in read_results
+            if name == SUBSTITUTE_TOOL and payload.get("status") in _WHAT_IF_QUESTIONS
+        ]
+        if read_results:
+            earlier_reads = questions
         read_results = []
         catalog_batch = any(call.name == CATALOG_TOOL_NAME for call in calls)
         if not catalog_batch:
@@ -724,6 +755,9 @@ def run_chat(
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:
                 other_failed = other_failed or not success
+                what_if_failed = what_if_failed or (
+                    call.name == SUBSTITUTE_TOOL and not success
+                )
                 if success and payload is not None:
                     read_results.append((call.name, payload))
                 blocks.append(block)

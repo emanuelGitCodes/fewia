@@ -116,6 +116,7 @@ def test_spec_declares_schema_without_extra_keys() -> None:
         "servings",
         "replace_ingredient_id",
         "with_ingredient_id",
+        "add_ingredient_id",
         "quantity_per_serving",
         "scale_ingredient_id",
         "scale_factor_percent",
@@ -125,7 +126,12 @@ def test_spec_declares_schema_without_extra_keys() -> None:
     pantry = schema["properties"]["pantry_ingredient_ids"]
     help_text = "An ingredient ID from get_ingredient_facts or get_meal."
     assert pantry["items"] == {"type": "string", "description": help_text}
-    for name in ("replace_ingredient_id", "with_ingredient_id", "scale_ingredient_id"):
+    for name in (
+        "replace_ingredient_id",
+        "with_ingredient_id",
+        "add_ingredient_id",
+        "scale_ingredient_id",
+    ):
         assert item["properties"][name] == {"type": "string", "description": help_text}
 
 

@@ -225,7 +225,7 @@ def test_a_perfect_run_passes_every_check_and_target(
     report = build_report(corpus, records, _MANIFEST, rates())
     total = sum(len(s.turns) for s in corpus.scenarios) * corpus.repeats
     assert report["counts"] == {
-        "scenarios": 23,
+        "scenarios": 25,
         "repeats": 3,
         "turns_expected": total,
         "turns_recorded": total,
@@ -248,7 +248,7 @@ def test_a_perfect_run_passes_every_check_and_target(
         "input_tokens": 100 * total,
         "output_tokens": 20 * total,
         "provider_requests": 0,
-        "usd_per_all_checks_pass": format((spent / 69).quantize(Decimal("1e-6")), "f"),
+        "usd_per_all_checks_pass": format((spent / 75).quantize(Decimal("1e-6")), "f"),
     }
     found = statuses(report)
     assert len(found) == 7
@@ -259,7 +259,7 @@ def test_a_perfect_run_passes_every_check_and_target(
     targets = {t["name"]: t for t in cast(list[Record], report["targets"])}
     assert targets["purchase_refusal_rate"]["value"] == 0.0
     assert found["purchase_attempts"] == "PASS"
-    assert len(rows(report)) == 23
+    assert len(rows(report)) == 25
     assert all(r["passed"] and r["failing_turns"] == [] for r in rows(report))
     assert report["manifest_hash"] == "h" * 64
 

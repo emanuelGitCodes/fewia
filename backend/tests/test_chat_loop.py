@@ -1401,7 +1401,7 @@ def test_what_if_substitute_error_keeps_static_shape_and_reply_state() -> None:
         ]
     )
     assert result["status"] == "clarification"
-    assert result["answer"] == CLARIFICATION
+    assert result["answer"] == "A tool call failed. Check the request."
     trace = cast(list[dict[str, object]], result["tool_trace"])
     assert trace[0]["tool"] == SUBSTITUTE_TOOL
     assert trace[0]["outcome"] == "error"

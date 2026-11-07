@@ -1,4 +1,4 @@
-"""Score conversation-eval-v1.5 observation records and render the report.
+"""Score conversation-eval-v1.6 observation records and render the report.
 
 Scoring reads hashes, counts, tool names, and fact flags only; no reply text.
 """

@@ -1,4 +1,4 @@
-"""Run conversation-eval-v1.5 and emit hash-only observation records.
+"""Run conversation-eval-v1.6 and emit hash-only observation records.
 
 A record holds the tool trace, the validator verdict, usage, latency, and the
 reply's SHA-256. It never holds the reply text, the model's raw text, or the
@@ -22,7 +22,7 @@ from app.agent.catalog_tool import (
     page_arguments,
 )
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
-from app.agent.chat_messages import is_guardrail_decline
+from app.agent.chat_messages import is_guardrail_decline, next_what_if_recipe
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
@@ -41,6 +41,7 @@ GATES = frozenset(
     ("clean", "proposal", "tool_failed", "not_final", "planner", "no_tools")
     + ("clarification", "refusal", "incomplete", "limit", "planned_terminal")
     + ("discovery_terminal", "guardrail", "saved_plan_read")
+    + ("swap_not_saved",)
 )
 REASONS = REASON_CODES
 _USAGE_KEYS = (
@@ -264,6 +265,7 @@ def _run_scenario(
     previous_ids: list[str] | None = None
     previous_search: dict[str, object] | None = None
     previous_exhausted_search: dict[str, object] | None = None
+    previous_what_if: str | None = None
     for index, turn in enumerate(scenario.turns, start=1):
         apply_error: str | None = None
         if turn.apply_proposal_before:
@@ -295,6 +297,7 @@ def _run_scenario(
                 previous_ingredient_ids=previous_ids,
                 previous_search=previous_search,
                 previous_exhausted_search=previous_exhausted_search,
+                previous_what_if_recipe=previous_what_if,
                 history=history or None,
                 plan_cap_cents=inputs.plan_cap_cents,
                 plan_revision=plan,
@@ -314,6 +317,7 @@ def _run_scenario(
         previous_exhausted_search = exhausted_page_arguments(
             result.get("exhausted_search")
         )
+        previous_what_if = next_what_if_recipe(result, previous_what_if)
         if is_guardrail_decline(result):
             pending.clear()
             continue

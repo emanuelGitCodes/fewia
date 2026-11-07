@@ -2,6 +2,8 @@ import pytest
 
 from app.domain.catalog import RECIPES
 from app.domain.recipe_variant import (
+    DEFAULT_ADD_EACH,
+    DEFAULT_ADD_GRAMS,
     RecipeChange,
     RecipeVariantError,
     apply_change,
@@ -292,6 +294,56 @@ def test_curated_grams_need_no_grams_per_each_entry() -> None:
 def test_curated_food_cannot_be_a_recipe_ingredient(change: RecipeChange) -> None:
     with pytest.raises(RecipeVariantError):
         apply_change("bean_tacos", change)
+
+
+def test_add_appends_the_food_at_the_default_amount() -> None:
+    assert apply_change("chicken_tacos", RecipeChange(add_ingredient_id="rice")) == (
+        *TACOS,
+        ("rice", DEFAULT_ADD_GRAMS),
+    )
+    assert apply_change("chicken_tacos", RecipeChange(add_ingredient_id="eggs")) == (
+        *TACOS,
+        ("eggs", DEFAULT_ADD_EACH),
+    )
+    assert (DEFAULT_ADD_GRAMS, DEFAULT_ADD_EACH) == (100, 1)
+    assert RECIPES["chicken_tacos"].ingredients == TACOS
+
+
+@pytest.mark.parametrize("quantity", [1, 150, 1000])
+def test_add_uses_an_explicit_quantity(quantity: int) -> None:
+    change = RecipeChange(add_ingredient_id="eggs", quantity_per_serving=quantity)
+    assert apply_change("chicken_tacos", change)[-1] == ("eggs", quantity)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        RecipeChange(add_ingredient_id="unicorn"),
+        RecipeChange(add_ingredient_id="salsa"),
+        RecipeChange(add_ingredient_id="rice", quantity_per_serving=0),
+        RecipeChange(add_ingredient_id="rice", quantity_per_serving=1001),
+        RecipeChange(add_ingredient_id="rice", replace_ingredient_id="salsa"),
+        RecipeChange(add_ingredient_id="rice", with_ingredient_id="eggs"),
+        RecipeChange(add_ingredient_id="rice", scale_ingredient_id="salsa"),
+        RecipeChange(add_ingredient_id="rice", scale_factor_percent=50),
+        RecipeChange(add_ingredient_id=["x"]),  # type: ignore[arg-type]
+    ],
+)
+def test_invalid_add_changes_raise(change: RecipeChange) -> None:
+    with pytest.raises(RecipeVariantError):
+        apply_change("chicken_tacos", change)
+
+
+def test_parse_change_builds_the_add_form() -> None:
+    assert parse_change({"add_ingredient_id": "rice"}) == RecipeChange(
+        add_ingredient_id="rice"
+    )
+    assert parse_change(
+        {"add_ingredient_id": "rice", "quantity_per_serving": 20}
+    ) == RecipeChange(add_ingredient_id="rice", quantity_per_serving=20)
+    for bad in (None, 5, ["rice"]):
+        with pytest.raises(RecipeVariantError):
+            parse_change({"add_ingredient_id": bad})
 
 
 def test_curated_replacement_cannot_repeat_a_present_ingredient() -> None:

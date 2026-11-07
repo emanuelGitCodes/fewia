@@ -19,6 +19,7 @@ from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,
     load_previous_search_state,
+    load_previous_what_if,
 )
 from tests.test_chat_loop import (
     _SWAP_ANSWER,
@@ -173,6 +174,45 @@ def test_previous_search_is_none_without_a_next_search(
     result: dict[str, object] = {"answer": "Done."}
     job = add_job(session, user_id=1, payload=chat_payload(), result=result)
     assert load_previous_search(session, 1, job.id) is None
+
+
+def _what_if_result(status: str) -> dict[str, object]:
+    entry = {
+        "tool": "what_if_substitute",
+        "outcome": "success",
+        "inputs": {"recipe_id": "baked_potatoes_with_beans", "status": status},
+    }
+    return {"answer": "What-if.", "tool_trace": [entry]}
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("swapped", "baked_potatoes_with_beans"),
+        ("added", "baked_potatoes_with_beans"),
+        ("needs_food_choice", None),
+        ("ingredient_already_in_meal", None),
+    ],
+)
+def test_previous_what_if_is_the_last_stored_what_if_recipe(
+    session: Session, seed_user: UserSeeder, status: str, expected: str | None
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session, user_id=1, payload=chat_payload(), result=_what_if_result(status)
+    )
+    assert load_previous_what_if(session, 1, job.id) == expected
+
+
+def test_previous_what_if_is_none_without_a_job_or_a_trace(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session, user_id=1, payload=chat_payload(), result={"answer": "Done."}
+    )
+    assert load_previous_what_if(session, 1, None) is None
+    assert load_previous_what_if(session, 1, job.id) is None
 
 
 @pytest.mark.parametrize("tool", [None, "get_budget_summary", "get_meal"])
