@@ -1,0 +1,12 @@
+{
+  "model_id": "gpt-6-luna",
+  "region": "us",
+  "currency": "USD",
+  "input_usd_per_1000": "0.00011",
+  "cached_input_usd_per_1000": "0.000011",
+  "output_usd_per_1000": "0.00055",
+  "source_url": "https://developers.openai.com/api/docs/pricing",
+  "source_version": "gpt-6-luna US short-context rates; documentary observation as of 2026-11-07",
+  "date_as_of": "2026-11-07",
+  "retrieved_at": "2026-11-07"
+}

@@ -663,3 +663,174 @@ def test_markdown_lists_ids_counts_and_targets_without_reply_text(
     assert "| C11 | 9 | PASS | - |" in text
     assert "LEAKED REPLY" not in text
     assert "LEAKED REPLY" not in str(report)
+
+
+def luna_rates(*, cached: bool = True) -> EvaluationRates:
+    body: dict[str, object] = {
+        "model_id": "gpt-6-luna",
+        "region": "us",
+        "currency": "USD",
+        "input_usd_per_1000": "0.00011",
+        "output_usd_per_1000": "0.00055",
+        "source_url": "https://developers.openai.com/api/docs/pricing",
+        "source_version": "documentary observation",
+        "date_as_of": "2026-11-07",
+        "retrieved_at": "2026-11-07",
+    }
+    if cached:
+        body["cached_input_usd_per_1000"] = "0.000011"
+    return parse_rates(body, model_id="gpt-6-luna", region="us")
+
+
+def test_luna_prices_cache_as_subset_and_keeps_gross_token_totals(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    base = perfect_run(sub)[0]
+    records = [
+        base
+        | {
+            "repeat": repeat,
+            "usage": {"input": 1000, "output": 100, "cache_read": 400},
+        }
+        for repeat in (1, 2, 3)
+    ]
+    manifest = _MANIFEST | {"model_id": "gpt-6-luna", "evidence_class": "real_openai"}
+    found = section(build_report(sub, records, manifest, luna_rates()), "cost")
+    assert found["total_usd"] == "0.000376"
+    assert found["per_turn_usd"] == "0.000125"
+    assert found["input_tokens"] == 3000
+    assert found["output_tokens"] == 300
+    assert found["cache_read_tokens"] == 1200
+    assert found["turns_priced"] == 3
+    assert found["turns_unpriced"] == 0
+    assert found["coverage_complete"] is True
+    assert found["usd_per_all_checks_pass"] == "0.000125"
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {"input": 10, "output": 1, "cache_read": 11},
+        {"input": -1, "output": 1, "cache_read": 0},
+        {"input": 10, "output": -1, "cache_read": 0},
+        {"input": 10, "output": 1, "cache_read": -1},
+        {"input": 10, "output": 1, "cache_read": True},
+    ],
+)
+def test_luna_rejects_impossible_usage(
+    corpus: ConversationCorpus,
+    usage: dict[str, object],
+) -> None:
+    sub = only_c01(corpus)
+    item = perfect_run(sub)[0] | {"usage": usage}
+    with pytest.raises(ValueError):
+        build_report(sub, [item], _MANIFEST | {"model_id": "gpt-6-luna"}, luna_rates())
+
+
+@pytest.mark.parametrize("cached_rate,cache_read", [(False, 400), (True, None)])
+def test_luna_reports_missing_cache_pricing_coverage(
+    corpus: ConversationCorpus,
+    cached_rate: bool,
+    cache_read: int | None,
+) -> None:
+    sub = only_c01(corpus)
+    item = perfect_run(sub)[0] | {
+        "usage": {"input": 1000, "output": 100, "cache_read": cache_read},
+    }
+    report = build_report(
+        sub,
+        [item],
+        _MANIFEST | {"model_id": "gpt-6-luna"},
+        luna_rates(cached=cached_rate),
+    )
+    found = section(report, "cost")
+    assert found["turns_priced"] == 0
+    assert found["turns_unpriced"] == 3
+    assert found["input_tokens"] == 1000
+    assert found["total_usd"] is None
+    assert found["usd_per_all_checks_pass"] is None
+    assert found["coverage_complete"] is False
+
+
+def test_luna_without_cached_rate_can_price_explicit_zero_cache(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    found = section(
+        build_report(
+            sub,
+            perfect_run(sub),
+            _MANIFEST | {"model_id": "gpt-6-luna"},
+            luna_rates(cached=False),
+        ),
+        "cost",
+    )
+    assert found["total_usd"] == "0.000066"
+    assert found["coverage_complete"] is True
+
+
+def test_nova_default_rates_ignore_separate_cache_tokens(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    records = [
+        item
+        | {
+            "usage": {
+                "input": 100,
+                "output": 20,
+                "cache_read": 400,
+                "cache_write": 500,
+            }
+        }
+        for item in perfect_run(sub)
+    ]
+    found = section(build_report(sub, records, _MANIFEST, rates()), "cost")
+    assert found["total_usd"] == "0.000264"
+    assert "cache_read_tokens" not in found
+
+
+def test_rate_observation_does_not_invent_a_publication_time() -> None:
+    found = luna_rates()
+    assert found.published_at is None
+    assert found.effective_date is None
+    assert str(found.date_as_of) == "2026-11-07"
+    assert rates().published_at is not None
+
+
+def test_optional_rate_fields_round_trip_without_changing_legacy_prices() -> None:
+    for item in (rates(), luna_rates(), luna_rates(cached=False)):
+        restored = parse_rates(
+            item.model_dump(mode="json"), model_id=item.model_id, region=item.region
+        )
+        assert restored == item
+
+
+@pytest.mark.parametrize("value", ["-1", "NaN", "Infinity", 0.001, True])
+def test_cached_rate_rejects_invalid_decimals(value: object) -> None:
+    body = luna_rates().model_dump(mode="json", exclude_none=True)
+    body["cached_input_usd_per_1000"] = value
+    with pytest.raises(ValueError):
+        parse_rates(body, model_id="gpt-6-luna", region="us")
+
+
+def test_partial_luna_pricing_keeps_known_totals_without_a_cost_target_pass(
+    corpus: ConversationCorpus,
+) -> None:
+    sub = only_c01(corpus)
+    records = perfect_run(sub)
+    records[0] = records[0] | {"usage": {"input": None, "output": None}}
+    report = build_report(
+        sub,
+        records,
+        _MANIFEST | {"model_id": "gpt-6-luna"},
+        luna_rates(),
+    )
+    found = section(report, "cost")
+    assert found["turns_priced"] == 2
+    assert found["input_tokens"] == 200
+    assert found["total_usd"] == "0.000044"
+    assert found["usd_per_all_checks_pass"] is None
+    assert found["coverage_complete"] is False
+    assert statuses(report)["cost_per_turn_usd"] == "N/A"

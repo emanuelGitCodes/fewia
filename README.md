@@ -59,6 +59,26 @@ and `FEWIA_BEDROCK_CREDENTIALS_FILE`. Read
 docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
 ```
 
+For the OpenAI grader path, set `FEWIA_OPENAI_API_KEY_FILE` in `.env` to an
+absolute host path outside the repository. The file contains the API key.
+Keep it at mode `600`. Set `FEWIA_OPENAI_REGION=us` (default) or `global`.
+Docker Desktop with Docker Compose and Python 3 are prerequisites for this
+path. The launcher uses Python 3 to validate that
+`FEWIA_OPENAI_API_KEY_FILE` is an absolute path outside the repository before
+it runs Docker Compose up. Start the OpenAI overlay:
+
+```bash
+bash infra/openai/compose-up.sh
+```
+
+This path uses Responses `gpt-6-luna` with reasoning `none`, output limit
+4096, `store=false`, and parallel tool calls disabled. Bedrock Nova keeps
+reasoning `low`. The two providers support different reasoning settings.
+See [the matched conversation benchmark](docs/EVALUATION.md#matched-nova-and-luna-runs)
+for smoke, full-run, and offline comparison commands. Real OpenAI evidence
+does not establish Bedrock, Plaid Sandbox, Kroger Certification, or
+deployed AWS evidence.
+
 To show live Kroger prices, add the Kroger override. It reads the client
 ID from `FEWIA_KROGER_CLIENT_ID_FILE` and the secret from
 `FEWIA_KROGER_SECRET_FILE`. Keep both files outside the repository with

@@ -6,7 +6,15 @@ from decimal import Decimal, DecimalException
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 
 class EvaluationRates(BaseModel):
@@ -19,11 +27,25 @@ class EvaluationRates(BaseModel):
     currency: Literal["USD"]
     input_usd_per_1000: Decimal
     output_usd_per_1000: Decimal
+    cached_input_usd_per_1000: Decimal | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     source_url: str
     source_version: str
-    published_at: datetime
-    effective_date: date
+    published_at: datetime | None = None
+    effective_date: date | None = None
+    date_as_of: date | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     retrieved_at: date
+
+    @model_validator(mode="after")
+    def validate_provenance(self) -> EvaluationRates:
+        if self.date_as_of is None and (
+            self.published_at is None or self.effective_date is None
+        ):
+            raise ValueError("Rate provenance needs publication dates or date_as_of.")
+        return self
 
     @field_validator("model_id", "region", "source_version", mode="before")
     @classmethod
@@ -46,9 +68,16 @@ class EvaluationRates(BaseModel):
             raise ValueError("Invalid decimal rate.")
         return result
 
-    @field_validator("effective_date", "retrieved_at", mode="before")
+    @field_validator("cached_input_usd_per_1000", mode="before")
     @classmethod
-    def validate_date(cls, value: object) -> date:
+    def validate_cached_rate(cls, value: object) -> Decimal | None:
+        return None if value is None else cls.validate_rate(value)
+
+    @field_validator("effective_date", "retrieved_at", "date_as_of", mode="before")
+    @classmethod
+    def validate_date(cls, value: object) -> date | None:
+        if value is None:
+            return None
         if (
             not isinstance(value, str)
             or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value) is None
@@ -61,7 +90,9 @@ class EvaluationRates(BaseModel):
 
     @field_validator("published_at", mode="before")
     @classmethod
-    def validate_timestamp(cls, value: object) -> datetime:
+    def validate_timestamp(cls, value: object) -> datetime | None:
+        if value is None:
+            return None
         pattern = (
             r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
             r"(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})"

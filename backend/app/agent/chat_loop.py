@@ -187,6 +187,22 @@ def _noop() -> None:
     return None
 
 
+def chat_tool_specs(*, include_proposal: bool) -> list[dict[str, object]]:
+    tools = [
+        planner_tool_spec(),
+        budget_tool_spec(),
+        catalog_tool_spec(),
+        get_plan_tool_spec(),
+        get_meal_tool_spec(),
+        substitute_tool_spec(),
+        price_tool_spec(),
+        ingredient_tool_spec(),
+    ]
+    if include_proposal:
+        tools.append(proposal_tool_spec())
+    return tools
+
+
 def _tool_use_history(calls: list[msgs.ToolCall]) -> dict[str, object]:
     content: list[dict[str, object]] = [
         {
@@ -369,19 +385,11 @@ def run_chat(
     revisions = 0
     turns = 0
     usage: dict[str, int] | None = {"inputTokens": 0, "outputTokens": 0}
-    tools = [
-        planner_tool_spec(),
-        budget_tool_spec(),
-        catalog_tool_spec(),
-        get_plan_tool_spec(),
-        get_meal_tool_spec(),
-        substitute_tool_spec(),
-        price_tool_spec(),
-        ingredient_tool_spec(),
-    ]
+    tools = chat_tool_specs(
+        include_proposal=plan_revision is not None and propose is not None
+    )
     system_prompt = SYSTEM_PROMPT
     if plan_revision is not None and propose is not None:
-        tools.append(proposal_tool_spec())
         system_prompt += PROPOSAL_PROMPT_SUFFIX
     proposal_id: str | None = None
     proposal_failed = False

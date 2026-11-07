@@ -93,6 +93,7 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-chat-turns")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--live-bedrock", action="store_true")
+    mode.add_argument("--live-openai", action="store_true")
     mode.add_argument("--fixture", action="store_true")
     return parser.parse_args(argv)
 
@@ -130,6 +131,30 @@ def _live_provider_for(profile: ModelProfile, region: str) -> ProviderFor:
     return provider_for
 
 
+def _openai_provider_for(region: str) -> ProviderFor:
+    from app.providers.openai_responses import OpenAIResponsesProvider
+
+    key_file = os.environ.get("FEWIA_OPENAI_API_KEY_FILE", "")
+    if (
+        region not in ("us", "global")
+        or not key_file
+        or not Path(key_file).is_absolute()
+    ):
+        raise ValueError(_INVALID)
+    live = OpenAIResponsesProvider(
+        Path(key_file), region="us" if region == "us" else "global"
+    )
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        return live
+
+    return provider_for
+
+
+def tool_specs_hash() -> str:
+    return _hash(chat_loop.chat_tool_specs(include_proposal=True))
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -142,6 +167,12 @@ def main(
         if not args.output_dir or Path(args.output_dir).exists():
             raise ValueError(_INVALID)
         profile = resolve_profile(args.profile, args.region)
+        if (args.live_openai and profile.family != "openai") or (
+            args.live_bedrock and profile.family == "openai"
+        ):
+            raise ValueError(_INVALID)
+        if args.live_openai and (not args.rates or args.max_chat_turns is None):
+            raise ValueError(_INVALID)
         # One read: the bytes that are hashed are the bytes that are parsed.
         corpus_bytes = Path(args.corpus).read_bytes()
         corpus = ConversationCorpus.model_validate_json(corpus_bytes)
@@ -161,9 +192,11 @@ def main(
         rates = (
             rates_for(profile, Path(args.rates), args.region) if args.rates else None
         )
-        evidence = (
-            "real_bedrock" if args.live_bedrock else "deterministic_fake_provider"
-        )
+        evidence = "deterministic_fake_provider"
+        if args.live_bedrock:
+            evidence = "real_bedrock"
+        elif args.live_openai:
+            evidence = "real_openai"
         manifest: dict[str, object] = {
             "version": "conversation-manifest-v1",
             "corpus_sha256": hashlib.sha256(corpus_bytes).hexdigest(),
@@ -176,7 +209,11 @@ def main(
             "suite_version": corpus.version,
             "catalog_hash": _hash(catalog_snapshot()),
             "system_prompt_hash": _hash(chat_loop.SYSTEM_PROMPT),
+            "proposal_prompt_hash": _hash(chat_loop.PROPOSAL_PROMPT_SUFFIX),
+            "tool_specs_hash": tool_specs_hash(),
         }
+        if rates is not None:
+            manifest["rates"] = rates.model_dump(mode="json", exclude_none=True)
         if selection is not None:
             selection_value = _selection_value(selection)
             manifest.update(
@@ -192,6 +229,8 @@ def main(
         provider_for = fixture_provider_for or _gold_provider_for
         if args.live_bedrock:
             provider_for = _live_provider_for(profile, args.region)
+        elif args.live_openai:
+            provider_for = _openai_provider_for(args.region)
         with EvaluationOutput(Path(args.output_dir)) as output:
             records: list[dict[str, object]] = []
             for record in run_conversation_suite(
