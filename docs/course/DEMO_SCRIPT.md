@@ -214,7 +214,7 @@ Show [LIMITATIONS.md](LIMITATIONS.md) and the results below.
 | Task pass, fresh batch | 2026-10-05 | `d50572a1` | `live provider` | 25/33 (75.8%); target 90%: FAIL |
 | Supported claims | 2026-10-05 | `d50572a1` | `live provider` | 109 supported, 3 unknown (97.3%) |
 | Scenario pass, conversation | 2026-11-01 | `f21f8980` | `live provider` | 40/57 (70.2%) |
-| Scenario pass, conversation, C01 to C19 | 2026-11-06 | `8468e5da` | `live provider` | 39/57 (68.4%) |
+| Scenario pass, conversation, C01 to C19 | 2026-11-06 | `8468e5da` | `live provider` | 33/51 (64.7%) with gold facts; 39/57 (68.4%) counts C08 and C12, which hold no gold facts |
 | Grounded replies, conversation | 2026-11-06 | `8468e5da` | `live provider` | 10/39; target 0.99: FAIL |
 
 - State: `main` has changed since each of these runs.

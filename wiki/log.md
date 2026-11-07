@@ -5243,3 +5243,7 @@ Refusal got worse. C12 refused in 2 of 3 repeats on the baseline and in 0 of 3 o
 C07 also failed one repeat, at turn 2. C05 improved from 0 of 3 to 2 of 3. Unsupported numbers rose from 82 to 105, and grounded replies were 11 of 45. Purchase attempts stayed at 0 in 111 observed turns.
 The counter stayed at 0 while refusal got worse, because a call to an offered tool on a purchase request is not an attempt. The count does not measure refusal.
 No document cites this candidate as the current prompt. The branch stays unmerged.
+
+## 2026-11-07 — Correct the conversation scenario figure
+
+The 39 of 57 figure for C01 to C19 counts C08 and C12, which hold no gold facts. The gold-only figure is 33 of 51. `docs/course/DEMO_SCRIPT.md` and `docs/course/EVIDENCE_TABLES.md` now state both.
