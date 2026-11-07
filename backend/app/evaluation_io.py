@@ -103,7 +103,13 @@ class EvaluationOutput:
             handle.seek(0)
             return hashlib.sha256(handle.read()).hexdigest()
 
-    def finish(self, report: dict[str, object], markdown: str) -> EvaluationPaths:
+    def finish(
+        self,
+        report: dict[str, object],
+        markdown: str,
+        *,
+        include_slots_hash: bool = False,
+    ) -> EvaluationPaths:
         handle = self._journal
         if handle is None:
             raise OSError(FILE_UNAVAILABLE) from None
@@ -119,15 +125,20 @@ class EvaluationOutput:
             os.fsync(handle.fileno())
             handle.seek(0)
             slots = 0
+            slots_hash = hashlib.sha256() if include_slots_hash else None
             for line in handle:
                 if not line.endswith(b"\n"):
                     raise OSError(FILE_UNAVAILABLE)
+                if slots_hash is not None:
+                    slots_hash.update(line)
                 slots += 1
             self._close()
             hashes = {
                 "report.json": self._write(paths.report, report_data),
                 "report.md": self._write(paths.markdown, markdown_data),
             }
+            if slots_hash is not None:
+                hashes["slots.jsonl"] = slots_hash.hexdigest()
             marker = canonical_json_bytes({"sha256": hashes, "slot_count": slots})
             pending = self.directory / "completion.pending"
             self._write(pending, marker)

@@ -109,9 +109,11 @@ def _load(directory: Path, *, luna: bool, allow_fixture: bool) -> _Arm:
     marker = load_json(directory / "completion.json")
     hashes = _object(marker.get("sha256"))
     report_bytes = (directory / "report.json").read_bytes()
+    journal_bytes = (directory / "slots.jsonl").read_bytes()
     for filename, data in (
         ("report.json", report_bytes),
         ("report.md", (directory / "report.md").read_bytes()),
+        ("slots.jsonl", journal_bytes),
     ):
         expected = _digest(hashes.get(filename))
         if hashlib.sha256(data).hexdigest() != expected:
@@ -251,7 +253,7 @@ def _load(directory: Path, *, luna: bool, allow_fixture: bool) -> _Arm:
     ):
         raise ValueError(_INVALID)
     journal: set[tuple[str, int, int]] = set()
-    journal_text = (directory / "slots.jsonl").read_text(encoding="utf-8")
+    journal_text = journal_bytes.decode("utf-8")
     if not journal_text.endswith("\n"):
         raise ValueError(_INVALID)
     for line in journal_text.splitlines():

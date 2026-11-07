@@ -141,6 +141,71 @@ def test_paired_outcomes_use_matching_repeat_and_keep_variability(
     }
 
 
+@pytest.mark.parametrize("arm", [0, 1])
+def test_status_tampering_with_unchanged_slot_ids_fails_closed(
+    pair: tuple[Path, Path],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    arm: int,
+) -> None:
+    path = pair[arm] / "slots.jsonl"
+    lines = path.read_bytes().splitlines(keepends=True)
+    original = json.loads(lines[0])
+    record = dict(original)
+    record["status"] = "failed" if original["status"] != "failed" else "completed"
+    assert record["status"] != original["status"]
+    lines[0] = json.dumps(record).encode("utf-8") + b"\n"
+    path.write_bytes(b"".join(lines))
+    records = [json.loads(line) for line in lines]
+    assert len(records) == 4
+    assert [(row["scenario_id"], row["repeat"], row["turn"]) for row in records] == [
+        ("C01", 1, 1),
+        ("C01", 2, 1),
+        ("C01", 3, 1),
+        ("C08", 1, 1),
+    ]
+    output = tmp_path / "comparison.json"
+    assert comparison.main([*argv(pair, output), "--allow-fixture"]) == 2
+    assert not output.exists()
+    assert capsys.readouterr().err.strip() == comparison._INVALID
+
+
+@pytest.mark.parametrize("arm", [0, 1])
+def test_missing_journal_hash_fails_closed(
+    pair: tuple[Path, Path],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    arm: int,
+) -> None:
+    path = pair[arm] / "completion.json"
+    marker = json.loads(path.read_bytes())
+    del marker["sha256"]["slots.jsonl"]
+    path.write_text(json.dumps(marker), encoding="utf-8")
+    output = tmp_path / "comparison.json"
+    assert comparison.main([*argv(pair, output), "--allow-fixture"]) == 2
+    assert not output.exists()
+    assert capsys.readouterr().err.strip() == comparison._INVALID
+
+
+def test_comparison_parses_the_journal_bytes_it_hashes(
+    pair: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads: list[Path] = []
+    read_bytes = Path.read_bytes
+
+    def checked_bytes(path: Path) -> bytes:
+        data = read_bytes(path)
+        if path.name == "slots.jsonl":
+            reads.append(path)
+            assert reads.count(path) == 1
+            path.write_bytes(b"{}\n")
+        return data
+
+    monkeypatch.setattr(Path, "read_bytes", checked_bytes)
+    comparison.compare(*pair, allow_fixture=True)
+    assert reads == [path / "slots.jsonl" for path in pair]
+
+
 @pytest.mark.parametrize(
     "key,value",
     [
@@ -228,6 +293,11 @@ def test_partial_and_malformed_archives_fail_closed(
             journal += journal[:1]
         ending = "" if defect == "unterminated_journal" else "\n"
         (path / "slots.jsonl").write_text("\n".join(journal) + ending, encoding="utf-8")
+        marker = json.loads((path / "completion.json").read_bytes())
+        marker["sha256"]["slots.jsonl"] = hashlib.sha256(
+            (path / "slots.jsonl").read_bytes()
+        ).hexdigest()
+        (path / "completion.json").write_text(json.dumps(marker), encoding="utf-8")
     else:
         if defect == "partial":
             report["counts"]["turns_recorded"] = 3

@@ -283,6 +283,10 @@ archives and rejects a mixture of fixture and real evidence.
 The comparison validates completion hashes, journal counts, manifest
 hashes, model IDs, evidence, revision, corpus, catalog, prompts, tool
 specs, and selection. It refuses partial runs and existing output files.
+The completion marker MUST include `sha256["slots.jsonl"]` for comparison.
+The comparator checks the exact journal bytes before it parses them. It
+rejects missing or mismatched journal hashes. Historical archives stay
+untouched; archives without this hash cannot serve as comparison arms.
 It preserves source reports. The historical
 [`conversation-20261107-v16`](../eval/results/artifacts/conversation-20261107-v16/report.json)
 Nova archive stays unchanged. It lacks the new tool-spec hash and is not
@@ -322,7 +326,7 @@ fields do not reduce its input count.
 - [`summarize_telemetry`](../backend/app/evaluation_telemetry.py) groups captured observations by condition and evidence class. It reports known totals and unknown counts separately.
 - [`summarize_evaluation`](../backend/app/evaluation_summary.py) validates identities, groups observations by condition and evidence class, and preserves metric and task scopes and unknown counts. Partial matrices remain partial.
 - [`estimate_cost`](../backend/app/evaluation_cost.py) uses dated rate inputs and captured token counts. It reports known values as lower bounds when usage is incomplete. It is not an invoice or billing reconciliation.
-- [`evaluation_io`](../backend/app/evaluation_io.py) writes exclusive journal and report files. Its completion marker records hashes for the JSON and Markdown reports.
+- [`evaluation_io`](../backend/app/evaluation_io.py) writes exclusive journal and report files. Its completion marker records hashes for the JSON and Markdown reports. The conversation CLI also records the journal hash through `include_slots_hash=True`. Other callers keep the default marker shape.
 
 The component set keeps deterministic fixtures, structured references, controlled provider conditions, and model observations separate. Components do not certify targets. The completed batch's bounded target verdicts appear above. They do not provide a general guarantee against hallucinations.
 

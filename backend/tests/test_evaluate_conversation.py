@@ -10,6 +10,7 @@ from app import evaluate_conversation as cli
 from app.agent import chat_loop
 from app.agent.provider import LLMProvider
 from app.evaluation_conversation_corpus import Scenario, load_conversation_corpus
+from app.evaluation_io import EvaluationOutput
 from app.evaluation_manifest import _hash
 from app.evaluation_profiles import resolve_profile
 from app.providers import bedrock
@@ -61,6 +62,9 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     assert len(slots) == expected
     completion = json.loads((out / "completion.json").read_text(encoding="utf-8"))
     assert completion["slot_count"] == expected
+    assert set(completion["sha256"]) == {"report.json", "report.md", "slots.jsonl"}
+    for filename, digest in completion["sha256"].items():
+        assert digest == hashlib.sha256((out / filename).read_bytes()).hexdigest()
 
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     ids = [s.id for s in corpus.scenarios]
@@ -106,6 +110,17 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     found = {t["name"]: t["status"] for t in report["targets"]}
     for name in ("latency_p50_ms", "latency_p95_ms", "cost_per_turn_usd"):
         assert found[name] == "not_applicable"
+
+
+def test_output_finish_keeps_the_default_marker_shape(tmp_path: Path) -> None:
+    out = tmp_path / "default-output"
+    with EvaluationOutput(out) as output:
+        output.append_slot({"status": "completed"})
+        output.finish({}, "report")
+    marker = json.loads((out / "completion.json").read_bytes())
+    assert set(marker) == {"sha256", "slot_count"}
+    assert set(marker["sha256"]) == {"report.json", "report.md"}
+    assert marker["slot_count"] == 1
 
 
 def test_a_fixture_run_reports_the_purchase_refusal_rate(tmp_path: Path) -> None:

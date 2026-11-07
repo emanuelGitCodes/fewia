@@ -239,7 +239,9 @@ def main(
                 output.append_slot(record)
                 records.append(record)
             report = build_report(corpus, records, manifest, rates, selection=selection)
-            paths = output.finish(report, render_markdown(report))
+            paths = output.finish(
+                report, render_markdown(report), include_slots_hash=True
+            )
         for path in paths:
             print(path)
         attempts = report["purchase_attempts"]
