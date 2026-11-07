@@ -352,7 +352,13 @@ def execute_substitute(
         question, arguments = _fill_food(arguments, recipe_id)
         if question is not None:
             return question
-    if "with_ingredient_id" in arguments and "replace_ingredient_id" not in arguments:
+    if (
+        type(arguments.get("with_ingredient_id")) is str
+        and "replace_ingredient_id" not in arguments
+        and "add_ingredient_id" not in arguments
+        and "scale_ingredient_id" not in arguments
+        and "scale_factor_percent" not in arguments
+    ):
         proteins = protein_ingredient_ids(recipe_id)
         if len(proteins) != 1:
             meal_items = tuple(item for item, _ in RECIPES[recipe_id].ingredients)

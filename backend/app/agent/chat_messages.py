@@ -34,9 +34,12 @@ def last_what_if_recipe(result: dict[str, object]) -> str | None:
     for entry in reversed(trace):
         if isinstance(entry, dict) and entry.get("tool") == "what_if_substitute":
             inputs = entry.get("inputs")
-            recipe = inputs.get("recipe_id") if isinstance(inputs, dict) else None
-            if isinstance(recipe, str):
+            if not isinstance(inputs, dict):
+                return None
+            recipe = inputs.get("recipe_id")
+            if inputs.get("status") in ("swapped", "added") and isinstance(recipe, str):
                 return recipe
+            return None
     return None
 
 

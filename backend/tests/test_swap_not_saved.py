@@ -4,6 +4,7 @@ from typing import Any, cast
 import pytest
 
 from app.agent.chat_loop import run_chat
+from app.agent.chat_answer import CLARIFICATION
 from app.agent.chat_messages import last_what_if_recipe
 from app.agent.ingredient_tool import resolve_food
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
@@ -316,9 +317,9 @@ def _entry(status: str | None, recipe: str = BEANS) -> dict[str, object]:
         ([_entry("swapped")], BEANS),
         ([_entry("added")], BEANS),
         ([_entry("swapped", "bean_tacos"), _entry("added")], BEANS),
-        ([_entry("swapped"), _entry("needs_food_choice")], BEANS),
+        ([_entry("swapped"), _entry("needs_food_choice")], None),
         ([_entry("added"), {"tool": "get_meal", "inputs": {}}], BEANS),
-        ([_entry(None)], BEANS),
+        ([_entry(None)], None),
         ([{"tool": "get_meal", "inputs": {"recipe_id": BEANS}}], None),
         ([], None),
     ],
@@ -401,7 +402,48 @@ def test_an_earlier_question_survives_a_later_failed_call() -> None:
     assert answer.startswith("Which one do you mean:")
     assert answer.endswith("A tool call failed. Check the request.")
     assert "Examples:" not in answer
-    assert last_what_if_recipe(result) == BEANS
+    assert last_what_if_recipe(result) is None
+
+
+def test_an_earlier_swap_is_not_the_reply_to_a_later_failed_call() -> None:
+    swap = {"recipe_id": BEANS, "with_food": "chicken"}
+    swapped, _ = _run(
+        [
+            _reply([_tool_block("call-1", SUBSTITUTE_TOOL, swap)], "tool_use"),
+            _reply([_text_block("Done.")], "end_turn"),
+        ],
+        "What if we use chicken instead?",
+    )
+    swap_clause = cast(str, swapped["answer"])
+    result, _ = _run(
+        [
+            _reply([_tool_block("call-1", SUBSTITUTE_TOOL, swap)], "tool_use"),
+            _reply(
+                [_tool_block("call-2", SUBSTITUTE_TOOL, {"recipe_id": "nope"})],
+                "tool_use",
+            ),
+            _reply([_text_block("Done.")], "end_turn"),
+        ],
+        "What if we use chicken instead?",
+    )
+    answer = cast(str, result["answer"])
+    assert swap_clause not in answer
+    assert answer == CLARIFICATION
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"add_ingredient_id": "eggs", "with_ingredient_id": "rice"},
+        {"with_ingredient_id": 5},
+    ],
+)
+@pytest.mark.parametrize("recipe_id", ["vegetable_pasta", "chicken_lentil_stew"])
+def test_the_protein_default_applies_only_to_the_plain_substitute_form(
+    recipe_id: str, arguments: dict[str, object]
+) -> None:
+    with pytest.raises(SubstituteToolError):
+        execute_substitute({"recipe_id": recipe_id, **arguments}, _budget())
 
 
 def test_the_route_answers_without_a_provider_call_or_a_proposal() -> None:

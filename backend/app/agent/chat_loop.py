@@ -163,6 +163,15 @@ _PLAN_READ_TOOLS = (
 )
 # Tool statuses that answer the question; any other status asks the user something.
 _FINAL_STATUS = frozenset({"swapped", "added", "found", "live", "ok", "proposed"})
+_WHAT_IF_QUESTIONS = frozenset(
+    {
+        "needs_food_choice",
+        "unknown_food",
+        "needs_ingredient_choice",
+        "ingredient_not_in_meal",
+        "ingredient_already_in_meal",
+    }
+)
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -684,8 +693,13 @@ def run_chat(
         batch_ok = True
         planner_limit = False
         other_failed = False
-        if read_results:
-            earlier_reads = read_results
+        questions = [
+            (name, payload)
+            for name, payload in read_results
+            if name == SUBSTITUTE_TOOL and payload.get("status") in _WHAT_IF_QUESTIONS
+        ]
+        if questions:
+            earlier_reads = questions
         read_results = []
         catalog_batch = any(call.name == CATALOG_TOOL_NAME for call in calls)
         if not catalog_batch:
