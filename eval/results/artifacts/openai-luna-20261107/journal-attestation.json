@@ -1,0 +1,25 @@
+{
+  "arms": {
+    "live-luna": {
+      "copy": "live-luna-attested",
+      "sha256": {
+        "report.json": "72c17f60c8c5b94f2e67edff17daea2b677e078ef7639c39324926ce7d8c7550",
+        "report.md": "48901d94e806784f5c11850c2aa5d97e0a92e1e55b990035042b23fe05a787e0",
+        "slots.jsonl": "448f6f1e470b538918562933ebbfb5957fc604944095b0b9dbcca09a4279cbf4"
+      },
+      "slots": 123
+    },
+    "live-nova": {
+      "copy": "live-nova-attested",
+      "sha256": {
+        "report.json": "a56bcf38c2eafc932a7f2197da3130f5d4a7193b1aa92b9bb9b7601e3abc951f",
+        "report.md": "9b9634eb720b8cc722db0c7449f77da75cd6202bdfff9196ecc26657f0cbb3f8",
+        "slots.jsonl": "cff145e1f2d3f0efdcbb1743cd9a20759a7d6256203a936d3afa0a5f3ab9e7f9"
+      },
+      "slots": 123
+    }
+  },
+  "method": "Verified original report hashes and journal counts. Added journal hashes to separate comparison copies after execution. Original model outputs, reports, and completion markers are unchanged.",
+  "recorded_at": "2026-11-07T22:48:05.263150+00:00",
+  "source_revision": "2295a0edb06ba290188f9f9573243bdca4eed573"
+}

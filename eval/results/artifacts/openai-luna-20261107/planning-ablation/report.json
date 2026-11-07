@@ -1,0 +1,127 @@
+{
+  "source_revision": "3f0fcf1ff24a6515064fab8a5ade2ba70a1e3247",
+  "manifest_sha256": "d3d6e13cbe2139d31cffb03b761bf03b90281a3c249efc89308bc7a30fe95be9",
+  "journal_sha256": "f3ecd27d3ca42bd1f13b555a091dd621a96c69c16ac046d94dcca382bb187e9e",
+  "paired": {
+    "tools_only": 27,
+    "no_tools_only": 0,
+    "both_pass": 9,
+    "both_fail": 0
+  },
+  "arms": {
+    "tools": {
+      "decision_correct": 36,
+      "estimated_usd": "0.008341278",
+      "format_valid": 36,
+      "meals_correct": 36,
+      "passed": 36,
+      "price_correct": 36,
+      "priced_trials": 36,
+      "provider_requests": 72,
+      "statuses": {
+        "valid": 36
+      },
+      "tool_calls": 36,
+      "total": 36,
+      "p50_ms": 2391,
+      "p95_ms": 3020,
+      "estimated_usd_per_pass": "0.000231702"
+    },
+    "no_tools": {
+      "decision_correct": 33,
+      "estimated_usd": "0.004983154",
+      "format_valid": 36,
+      "meals_correct": 36,
+      "passed": 9,
+      "price_correct": 9,
+      "priced_trials": 36,
+      "provider_requests": 36,
+      "statuses": {
+        "valid": 36
+      },
+      "tool_calls": 0,
+      "total": 36,
+      "p50_ms": 1044,
+      "p95_ms": 1390,
+      "estimated_usd_per_pass": "0.000553684"
+    }
+  },
+  "scenario_bootstrap_95pp": [
+    50.0,
+    100.0
+  ],
+  "by_case": [
+    {
+      "case": "P01",
+      "category": "basic estimate",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P02",
+      "category": "package rounding",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P03",
+      "category": "shared ingredients",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P04",
+      "category": "pantry credit",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P05",
+      "category": "pantry and multiple meals",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P06",
+      "category": "over budget",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P07",
+      "category": "exact budget boundary",
+      "tools": 3,
+      "no_tools": 3
+    },
+    {
+      "case": "P08",
+      "category": "one cent over budget",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P09",
+      "category": "diet conflict",
+      "tools": 3,
+      "no_tools": 3
+    },
+    {
+      "case": "P10",
+      "category": "diet and pantry",
+      "tools": 3,
+      "no_tools": 0
+    },
+    {
+      "case": "P11",
+      "category": "ingredient conflict",
+      "tools": 3,
+      "no_tools": 3
+    },
+    {
+      "case": "P12",
+      "category": "allowed exclusion",
+      "tools": 3,
+      "no_tools": 0
+    }
+  ]
+}

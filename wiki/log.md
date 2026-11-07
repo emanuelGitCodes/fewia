@@ -5311,3 +5311,7 @@ Estimated cost was USD 0.502393 for Nova and USD 0.018856 for Luna, or USD 0.008
 Current code writes journal checksums in new conversation archives. The original live archives remain unchanged. Review uses an attestation on copies. The checksum fix at `229be439` passed full gates with 18,426 passed and one skipped. Independent Luna review returned `APPROVE`.
 
 The supervisor recorded 8,284,773 input tokens and 130,728 output tokens for the writers and reviewers. The agent thread limit prevented native subagent dispatch.
+
+## 2026-11-07 — Archive the OpenAI evaluation evidence
+
+Issue #482 adds the direct OpenAI provider beside Bedrock. The [evaluation archive](../eval/results/artifacts/openai-luna-20261107/README.md) records both live studies and local checks. The [phase page](phases/openai-luna-20261107.md) links their results and limits. The checksum revision passed 18,426 tests with one skip.

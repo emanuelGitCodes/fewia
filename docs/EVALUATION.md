@@ -192,6 +192,8 @@ Validator check (2026-11-07, Nova 2 Lite, branch `claude/validator-forms-01` at 
 
 ## Matched Nova and Luna runs
 
+The [Nov. 7 evidence archive](../eval/results/artifacts/openai-luna-20261107/README.md) holds the original live runs, matched comparison, planning tool study, and verification records.
+
 The grader starts the local React/TypeScript, FastAPI, PostgreSQL, worker,
 and Floci SQS/S3 path from the repository root. Docker Desktop with Docker
 Compose and Python 3 are prerequisites for this path. The launcher uses
