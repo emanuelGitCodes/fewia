@@ -22,7 +22,7 @@ from app.agent.catalog_tool import (
     page_arguments,
 )
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
-from app.agent.chat_messages import is_guardrail_decline, is_saved_plan_read
+from app.agent.chat_messages import is_guardrail_decline
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
@@ -321,7 +321,7 @@ def _run_scenario(
         previous_ids = ids if ids is not None else previous_ids
         request, answer = result.get("request"), result.get("answer")
         previous = request if isinstance(request, dict) else previous
-        if _public_text(answer) and not is_saved_plan_read(result):
+        if _public_text(answer):
             history += [
                 {"role": "user", "text": turn.user},
                 {"role": "assistant", "text": answer},
