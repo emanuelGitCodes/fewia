@@ -194,20 +194,29 @@ Validator check (2026-11-07, Nova 2 Lite, branch `claude/validator-forms-01` at 
 
 The [Nov. 7 evidence archive](../eval/results/artifacts/openai-luna-20261107/README.md) holds the original live runs, matched comparison, planning tool study, and verification records.
 
-The grader starts the local React/TypeScript, FastAPI, PostgreSQL, worker,
-and Floci SQS/S3 path from the repository root. Docker Desktop with Docker
-Compose and Python 3 are prerequisites for this path. The launcher uses
-Python 3 to validate that `FEWIA_OPENAI_API_KEY_FILE` is an absolute path
-outside the repository before it runs Docker Compose up:
+The default browser path starts the local React and TypeScript chat,
+FastAPI, PostgreSQL, worker, and Floci SQS and S3 from the repository root
+with GPT-6 Luna through OpenAI. Make, Docker Desktop with Docker Compose,
+and Python 3 are prerequisites. For first-time setup, set
+`FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env` file to an absolute host
+path outside the repository. The file at that path contains only the API
+key and uses mode `600`. Do not put the key in `.env`.
+`FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the global
+endpoint. The launcher uses Python 3 to validate the path before it runs
+Docker Compose up. Start the default browser path with:
 
 ```bash
-bash infra/openai/compose-up.sh
+make up
 ```
 
-Set `FEWIA_OPENAI_API_KEY_FILE` in `.env` to an absolute host path outside
-the repository. The file contains only the key and uses mode `600`.
+The browser listens at
+[`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
+To choose Bedrock explicitly, configure its values in `.env` as described
+in [`infra/bedrock/README.md`](../infra/bedrock/README.md) and run
+`make up-bedrock`. To start without a provider or provider credentials, run
+`make up-offline`. Provider startup does not fall back automatically.
+
 Keys MUST NOT enter the repository, benchmark inputs, or reports.
-`FEWIA_OPENAI_REGION` defaults to `us`; `global` is also supported.
 The benchmark CLI takes its region from `--region`, not that environment
 variable. A global run needs a separate rate file whose region is `global`.
 The supplied US file MUST NOT price a global run.

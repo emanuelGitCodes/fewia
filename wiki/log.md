@@ -5315,3 +5315,7 @@ The supervisor recorded 8,284,773 input tokens and 130,728 output tokens for the
 ## 2026-11-07 — Archive the OpenAI evaluation evidence
 
 Issue #482 adds the direct OpenAI provider beside Bedrock. The [evaluation archive](../eval/results/artifacts/openai-luna-20261107/README.md) records both live studies and local checks. The [phase page](phases/openai-luna-20261107.md) links their results and limits. The checksum revision passed 18,426 tests with one skip.
+
+## 2026-11-07 — Default local browser startup
+
+Pull request #484 adds `make up` for GPT-6 Luna. Bedrock and credential-free planning have separate startup targets. An isolated Compose run served the browser and verified the worker model with a synthetic key.
