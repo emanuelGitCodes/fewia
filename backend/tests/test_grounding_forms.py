@@ -3,7 +3,6 @@
 import pytest
 
 from app.agent.grounding import FactSet, facts_from_payloads, validate
-from app.domain.curated_foods import ALL_INGREDIENTS
 
 _SERVINGS = 2
 
@@ -87,9 +86,36 @@ def _scaled(ingredient_id: str, percent: int) -> FactSet:
     )
 
 
-# The catalog names the rice "white rice"; only that name stands after "half the".
-_RICE = ALL_INGREDIENTS["rice"].name.lower()
-_HALF_RICE = f"with half the {_RICE} is USD $21.13."
+# Protein falls 2,880 mg, from 31.2 g to 28.4 g; carbohydrate rises 4,452 mg, from
+# 55.8 g to 60.2 g.
+_PAIR = _facts(
+    _what_if(
+        {"protein_mg": 31240, "carbohydrate_mg": 55780},
+        {"protein_mg": 28360, "carbohydrate_mg": 60232},
+        {},
+    )
+)
+# One what-if with a zero protein change and one with a nonzero protein change.
+_BOTH = facts_from_payloads(
+    [
+        (
+            "what_if_substitute",
+            _what_if(
+                {"protein_mg": 20000, "carbohydrate_mg": 55780},
+                {"protein_mg": 20000, "carbohydrate_mg": 60232},
+                {},
+            ),
+        ),
+        (
+            "what_if_substitute",
+            _what_if(
+                {"protein_mg": 20000, "carbohydrate_mg": 55780},
+                {"protein_mg": 22000, "carbohydrate_mg": 60232},
+                {},
+            ),
+        ),
+    ]
+)
 
 ACCEPT = [
     (_MAIN, "Protein: Increases from 14,484 mg to 24,456 mg per serving (about +69%)."),
@@ -105,7 +131,11 @@ ACCEPT = [
         "adds 4.5 g of carbohydrates per serving, while keeping the protein the same.",
     ),
     (_BUDGET, "Your budget for 2026-09-01 is USD $100.00."),
-    (_scaled("rice", 50), _HALF_RICE),
+    (_PAIR, "Carbohydrate: Increases from 55.8 g to 60.2 g per serving."),
+    (
+        _PAIR,
+        "Protein: Drops by about 2.9 g per serving (from 31.2 g to 28.4 g).",
+    ),
 ]
 
 REJECT = [
@@ -180,14 +210,42 @@ REJECT = [
     pytest.param(
         _BUDGET, "Your budget for 2026-09-01T10:00 is USD $100.00.", id="date-time"
     ),
-    pytest.param(_facts({"total_cents": 2113}), _HALF_RICE, id="half-without-a-scale"),
-    pytest.param(_scaled("rice", 40), _HALF_RICE, id="half-but-scaled-to-40"),
-    pytest.param(_scaled("onion", 50), _HALF_RICE, id="half-of-another-ingredient"),
     pytest.param(
-        _scaled("rice", 50), f"with half the {_RICE} price.", id="half-the-price"
+        _scaled("rice", 50), "with half the white rice price.", id="half-the-price"
     ),
     pytest.param(_scaled("rice", 50), "with half the calories.", id="half-calories"),
     pytest.param(_scaled("rice", 50), "half the protein.", id="half-protein"),
+    pytest.param(
+        _PAIR,
+        "Protein: Drops by about 2.8 g per serving (from 31.2 g to 28.4 g).",
+        id="pair-gram-off-by-a-tenth",
+    ),
+    pytest.param(
+        _PAIR,
+        "Protein: Rises from 31.2 g to 28.4 g per serving.",
+        id="pair-wrong-direction",
+    ),
+    pytest.param(
+        _PAIR,
+        "Carbohydrate: Increases from 55.8 g to 60.3 g per serving.",
+        id="pair-after-value-changed",
+    ),
+    pytest.param(
+        _PAIR, "adds 4.4 g of carbohydrates per serving.", id="pair-tenth-difference"
+    ),
+    pytest.param(
+        _BOTH,
+        "adds 4.5 g of carbohydrates per serving, while keeping the protein the same.",
+        id="kept-nutrient-flat-in-one-payload-only",
+    ),
+]
+
+# "half" is a number word and is never grounded, even for a payload that halves.
+NUMBER_WORD = [
+    pytest.param(
+        _scaled("rice", 50), "with half the rice is USD $21.13.", id="half-the-rice"
+    ),
+    pytest.param(_scaled("rice", 50), "with half the salt.", id="half-the-salt"),
 ]
 
 
@@ -200,3 +258,8 @@ def test_true_forms_are_accepted(facts: FactSet, text: str) -> None:
 @pytest.mark.parametrize(("facts", "text"), REJECT)
 def test_false_forms_are_rejected(facts: FactSet, text: str) -> None:
     assert not validate(text, facts).ok
+
+
+@pytest.mark.parametrize(("facts", "text"), NUMBER_WORD)
+def test_half_is_a_number_word(facts: FactSet, text: str) -> None:
+    assert "number_word" in validate(text, facts).reasons

@@ -121,7 +121,6 @@ from app.agent.nutrient_grounding import (
 )
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import RECIPES
-from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.domain.meal_tags import CARNIVORE_NOTE, KETO_NOTE
 
@@ -337,12 +336,6 @@ _SCALED = re.compile(
 )
 # One whole ISO day: no time, sign, or other digits may touch it.
 _ISO_DAY = re.compile(r"(?<![\w.,:+\-/$])\d{4}-\d{2}-\d{2}(?![\w:+\-/%]|\.\d)")
-# "half the rice", ending at punctuation or a function word: not "half the rice price".
-_HALF_THE = re.compile(
-    r"\bhalf the ([a-z]+(?: [a-z]+)*?)"
-    r"(?=\s*(?:[.,;:!?)]|\Z)|\s+(?:is|and|for|with|in)\b)",
-    re.IGNORECASE,
-)
 
 
 def _diet_sentences() -> set[str]:
@@ -408,8 +401,6 @@ class FactSet:
     servings: set[Decimal] = field(default_factory=set)
     # The exact `period` strings; only these may appear as a date in a reply.
     dates: set[str] = field(default_factory=set)
-    # Ingredient ids that a payload scales to exactly 50 percent.
-    halved: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -599,9 +590,6 @@ def _walk(
             facts.dates.add(value)
         _add_text(value, facts)
     elif isinstance(value, Mapping):
-        scaled = value.get("scale_ingredient_id")
-        if isinstance(scaled, str) and value.get("scale_factor_percent") == 50:
-            facts.halved.add(scaled)
         if isinstance(value.get("before"), Mapping) and isinstance(
             value.get("after"), Mapping
         ):
@@ -893,11 +881,6 @@ def _from_to(
             and subject
             and not any(end["sign"] for end in ends)
             and _paired(facts.moves, (subject, kind, before, after), basis)
-            and (
-                (kind, change) in facts.deltas
-                if subject == "energy"
-                else (subject, kind, True, change) in facts.nutrition
-            )
             and not (up and down)
             and not (up and change <= 0)
             and not (down and change >= 0)
@@ -908,21 +891,12 @@ def _from_to(
 
 
 def _mask_known(reply: str, facts: FactSet) -> str:
-    """Blank a budget period and the "half" of a halved ingredient; keep the offsets."""
+    """Blank a budget period; keep the offsets."""
 
     def date(match: re.Match[str]) -> str:
         return " " * len(match[0]) if match[0] in facts.dates else match[0]
 
-    names = {
-        ALL_INGREDIENTS[item].name.lower()
-        for item in facts.halved
-        if item in ALL_INGREDIENTS
-    }
-
-    def half(match: re.Match[str]) -> str:
-        return "    " + match[0][4:] if match[1].lower() in names else match[0]
-
-    return _HALF_THE.sub(half, _ISO_DAY.sub(date, reply))
+    return _ISO_DAY.sub(date, reply)
 
 
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
@@ -933,7 +907,8 @@ def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     tokens = list(_TOKEN.finditer(plain))
     safe = _without_server_sentences(reply, mask=True)
     # The nutrients with a zero change this turn: "while keeping protein the same".
-    flat = {f[0] for f in facts.nutrition if f[1] == "milli" and f[2] and not f[3]}
+    milli = [f for f in facts.nutrition if f[1] == "milli" and f[2]]
+    flat = {f[0] for f in milli if not f[3]} - {f[0] for f in milli if f[3]}
     nutrients = nutrient_bindings(safe, tokens, flat)
     claims = re.sub(r"[*_#]", " ", safe)  # same offsets as plain, no server sentence
     clauses = _clauses(plain)
