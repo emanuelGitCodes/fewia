@@ -72,6 +72,14 @@ _MOVE = _facts(
         {},
     )
 )
+# Protein falls 2,900 mg per serving and 5,800 mg in total, from 31.16 g to 28.26 g.
+_BASIS = _facts(
+    _what_if(
+        {"energy_kcal": 559, "protein_mg": 31160},
+        {"energy_kcal": 587, "protein_mg": 28260},
+        {"energy_kcal": 5, "protein_mg": -9},
+    )
+)
 _BUDGET = _facts({"period": "2026-09-01", "available_cents": 10000}, "get_budget")
 _NO_PERIOD = _facts({"available_cents": 10000}, "get_budget")
 
@@ -131,6 +139,11 @@ ACCEPT = [
         "adds 4.5 g of carbohydrates per serving, while keeping the protein the same.",
     ),
     (_BUDGET, "Your budget for 2026-09-01 is USD $100.00."),
+    (_BASIS, "Protein: Drops by about 2.9 g per serving (about -9%)."),
+    (
+        _BASIS,
+        "Protein: Drops by about 2.9 g per serving (from 31.2 g to 28.3 g).",
+    ),
     (_PAIR, "Carbohydrate: Increases from 55.8 g to 60.2 g per serving."),
     (
         _PAIR,
@@ -238,6 +251,21 @@ REJECT = [
         "adds 4.5 g of carbohydrates per serving, while keeping the protein the same.",
         id="kept-nutrient-flat-in-one-payload-only",
     ),
+    pytest.param(
+        _BASIS,
+        "Protein: Drops by 5.8 g for 2 servings (about +5%).",
+        id="basis-number-percent-of-energy",
+    ),
+    pytest.param(
+        _BASIS,
+        "Protein: Drops by 5.8 g for 2 servings (from 1118 g to 1174 g).",
+        id="basis-number-energy-totals-as-grams",
+    ),
+    pytest.param(
+        _BASIS,
+        "Protein: Drops by 5.8 g for 2 servings (from 31.2 g to 28.3 g).",
+        id="basis-number-per-serving-pair-as-total",
+    ),
 ]
 
 # "half" is a number word and is never grounded, even for a payload that halves.
@@ -246,6 +274,16 @@ NUMBER_WORD = [
         _scaled("rice", 50), "with half the rice is USD $21.13.", id="half-the-rice"
     ),
     pytest.param(_scaled("rice", 50), "with half the salt.", id="half-the-salt"),
+    pytest.param(
+        _facts({"total_cents": 2113}),
+        "with half the rice is USD $21.13.",
+        id="half-the-rice-no-scale",
+    ),
+    pytest.param(
+        _scaled("rice", 40),
+        "with half the rice is USD $21.13.",
+        id="half-the-rice-scaled-to-40",
+    ),
 ]
 
 

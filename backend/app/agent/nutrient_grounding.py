@@ -167,6 +167,8 @@ def pair_delta(plain: str, pair: re.Match[str], change: re.Match[str]) -> bool:
 def basis_paren(plain: str, claim: re.Match[str], token: re.Match[str]) -> bool:
     """Whether `token` opens the "(from X" or "(+69%" after `claim` and its basis."""
     between = plain[claim.end() : token.start()]
+    if any(char.isdigit() for char in between):
+        return False
     if token["sign"]:
         return bool(token["pc"] and _PAREN_PERCENT.fullmatch(between))
     units = token["en"] or token["ms"] or token["mm"]

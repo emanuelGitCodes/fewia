@@ -59,6 +59,9 @@ the pair's own basis phrase, has the basis of that pair.
 A claim with no basis phrase matches any basis.
 A from-to claim also matches the basis of its recorded pair: the phrase after Y, else
 the one after X, must name the basis of a pair (FactSet.moves) or the pair has none.
+A from-to basis can also come from the basis phrase before "(from".
+A whole ISO day equal to a payload `period` is not a number claim.
+"Calories: Rise by" states a change.
 Side rule: every absolute energy and nutrient fact records its side: "before" under a
 `before` key, "after" under an `after` key, else None. A value that exists only as a
 before-side fact matches only when its clause (split at . ! ? ; a line break, and a
@@ -835,8 +838,8 @@ def _from_to(
     or "goes", sits in the clause before the "from", or this turn recorded a pair for
     that subject. Any other "from X to Y" is a range, and both values are checked as
     plain facts.
-    X and Y must be the before and after sides of one recorded pair, Y - X must be a
-    signed delta of that subject, and a direction verb must agree with Y - X.
+    X and Y must be the before and after sides of one recorded pair. The exact recorded
+    pair, its basis, and its direction are checked.
     The basis phrase after Y, else after X, must name the basis of that pair (see
     _paired); with no phrase, a pair of any basis matches.
     When a change leaves X right after "from" with no Y to read, X fails.
