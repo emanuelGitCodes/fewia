@@ -152,6 +152,7 @@ History test (2026-11-07): the same 30 turns at `ff69540c`, which drops a routed
 - **Grounding.** On C11 turns that the route does not answer, the validator accepted 4 of 18, against 1 of 17 with the route reply in history (p = 0.34). Unmatched numbers on those turns were 7, against 19.
 - **Correct answers got worse.** Gold passed 26 of 30, against 30 of 30. C11 turn 9 passed 0 of 3, against 3 of 3. All 3 repeats called `price_lines` in place of `what_if_substitute`. The history then ends at the turn 6 price question. C11 turn 6 passed 2 of 3, against 3 of 3.
 - **Reading.** Dropping the turn removes context that later turns need. It does not meet the condition for this change: gold facts MUST stay at 30 of 30.
+- **Decision.** The owner rejected the change on 2026-11-07, and `ff69540c` is reverted. The route reply stays in model history. The route keeps its correct answers and its lower grounding. A report that uses these figures MUST state the lower grounding.
 
 ## Component boundaries
 

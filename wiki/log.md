@@ -5237,3 +5237,4 @@ The direction matches the full batch. The test does not prove the cause. C01 sho
 `claude/route-history-01` drops a routed turn from later model history. It has `APPROVE` at `ff69540c`, and the gates pass with 17,504 tests. The live test of C01 and C11 cost USD 0.15.
 On C11 turns that the route does not answer, grounded replies rose from 1 of 17 to 4 of 18, p = 0.34, and unmatched numbers fell from 19 to 7. Gold facts fell from 30 of 30 to 26 of 30. C11 turn 9 called `price_lines` in place of `what_if_substitute` on all 3 repeats.
 The change fails its condition that gold facts stay at 30 of 30.
+The owner rejected the change, and the combined branch reverts `ff69540c`. The route reply stays in model history. Correct answers rank above accepted model prose, because a rejected reply reaches the user as a correct template.
