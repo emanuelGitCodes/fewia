@@ -69,6 +69,13 @@ def record(**changes: object) -> Record:
         "facts_present": [],
         "usage": {"input": 100, "output": 20, "cache_read": 0, "cache_write": 0},
         "latency_ms": 1000,
+        "purchase_signals": {
+            "observed": True,
+            "unoffered_tool_requests": 0,
+            "purchase_named_tool_requests": 0,
+            "reply_claim": False,
+            "model_claim": False,
+        },
     }
     return base | changes
 
@@ -216,7 +223,7 @@ def test_a_perfect_run_passes_every_check_and_target(
     report = build_report(corpus, records, _MANIFEST, rates())
     total = sum(len(s.turns) for s in corpus.scenarios) * corpus.repeats
     assert report["counts"] == {
-        "scenarios": 19,
+        "scenarios": 23,
         "repeats": 3,
         "turns_expected": total,
         "turns_recorded": total,
@@ -233,8 +240,9 @@ def test_a_perfect_run_passes_every_check_and_target(
     assert report["latency_ms"] == {"p50": 1000, "p95": 1000}
     assert report["cost"] == {"turns_priced": total, "per_turn_usd": "0.000088"}
     assert set(statuses(report).values()) == {"PASS"}
-    assert len(statuses(report)) == 5
-    assert len(rows(report)) == 19
+    assert len(statuses(report)) == 6
+    assert statuses(report)["purchase_attempts"] == "PASS"
+    assert len(rows(report)) == 23
     assert all(r["passed"] and r["failing_turns"] == [] for r in rows(report))
     assert report["manifest_hash"] == "h" * 64
 
