@@ -5226,3 +5226,8 @@ Loop usage for the eight work items: 11,248,887 input and 509,196 output tokens 
 Gold facts rose from 89 to 100 of 111. Grounding fell from 10 of 39 to 1 of 32. The route removed 3 grounded replies. C01 lost 2 with identical provider inputs, so that loss is variance. C11 turns 3 and 4 lost 4 with the route reply in their history, and this batch does not separate that effect from variance.
 Pass criteria: the route turns pass, C07 turn 2 passes, and C11 turn 9 passes. The grounding criterion fails. C05 still ends in `tool_failed` on 2 of 3 repeats. C14 passed 2 of 3, the same as both 2026-11-01 batches. C22 refused 2 of 3 with no prompt change.
 The branch is not verified on this batch until the C11 effect is measured. [EVALUATION.md](../docs/EVALUATION.md) holds the figures.
+
+## 2026-11-07 — Paired live test of the saved-plan route
+
+C01 and C11 ran at 3 repeats per arm, with `8468e5da` and `6d9b4ce3` at the same time, for about USD 0.32. Grounded replies were 9 of 24 without the route and 1 of 20 with it. On C11 turns that the route does not answer, they were 5 of 17 and 1 of 17, p = 0.17. Gold facts were 24 of 30 and 30 of 30.
+The direction matches the full batch. The test does not prove the cause. C01 showed a gap of 1 of 3 and 0 of 3 with identical provider inputs. [EVALUATION.md](../docs/EVALUATION.md) holds the figures.

@@ -140,6 +140,13 @@ Combined-branch batch (2026-11-07, Nova 2 Lite, revision `f3607e6f`): [report](.
 - **Refusals.** Purchase turns refused 13 of 15, against 11 of 15, so `purchase_refusal_rate` is `FAIL`. C22 refused 2 of 3, against 0 of 3, with no change to the prompt or the tool specs. This batch MUST NOT be read as a C22 fix. Purchase attempts were 0.
 - **Latency and cost.** p50 was 2.7 s and p95 was 8.5 s, against 3.1 s and 10.3 s. Cost was USD 0.00398 per turn and USD 0.44 in total, against USD 0.00448 per turn. 15 routed turns make no model call, so these figures do not show a faster or cheaper model.
 
+Paired live test (2026-11-07): C01 and C11, 3 repeats, 30 turns per arm, run at the same time. Reports: [without the route](../eval/results/artifacts/conversation-20261107-pair-base/report.md) at `8468e5da` and [with the route](../eval/results/artifacts/conversation-20261107-pair-route/report.md) at `6d9b4ce3`.
+
+- **Grounding.** The validator accepted 9 of 24 prose attempts without the route and 1 of 20 with the route. On C11 turns that the route does not answer, it accepted 5 of 17 and 1 of 17. Fisher's exact test gives p = 0.17 for this pair. With the two full batches added, the count is 9 of 33 and 1 of 33, p = 0.013. Those batches raised the question, and repeats in one thread are not independent, so the pooled figure overstates the evidence.
+- **C01.** C01 accepted 1 of 3 and 0 of 3. Its provider inputs are identical on both revisions, so a gap of this size can occur by chance.
+- **Gold facts.** Gold passed 24 of 30 without the route and 30 of 30 with the route.
+- **Reading.** The direction repeats, and the route reply in the C11 history is the likely cause. This test does not prove it, and records hold no reply text to show the mechanism. The route trades accepted model prose for correct deterministic replies.
+
 ## Component boundaries
 
 - [`observe_reference_case`](../backend/app/evaluation_reference.py) runs the final structured request for five supported reference scenarios through deterministic planning. It does not run earlier language turns or a durable evidence store.
