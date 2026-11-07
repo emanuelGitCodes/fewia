@@ -169,7 +169,7 @@ Notes:
 
 | Component | Measurement | Evidence |
 |---|---|---|
-| Kroger | **Kroger is in no evaluation.** No batch, fixture, or report in `eval/results/artifacts/` or `backend/tests/evaluation/` names it. | `grep -ril kroger` over both paths returns no file. |
+| Kroger | **No Kroger provider call is evaluated live, and no Kroger report is archived.** Scenario C22 asks the model about a Kroger checkout, and it makes no Kroger call. `backend/app/evaluation_kroger.py` is a synthetic check over a mock transport. | [`conversation.json`](../../backend/tests/evaluation/conversation.json), [EVALUATION.md](../EVALUATION.md) |
 | Plaid Sandbox | none supplied | [`LIMITATIONS.md`](LIMITATIONS.md) |
 | Live Instacart development | none supplied; fixture handoff responses only | [`LIMITATIONS.md`](LIMITATIONS.md) |
 | Deployed AWS | none supplied | [`LIMITATIONS.md`](LIMITATIONS.md) |
@@ -343,7 +343,7 @@ Proposal source: `Term Project Proposal.pdf`, read with `pdftotext -layout`. Del
 | Secondary: clarification accuracy | measured | 6/7 assessed (Oct 3); 6/6 assessed (Oct 5) | Delivered |
 | Secondary: median and p95 latency | measured | table 4 | Delivered |
 | Secondary: estimated model cost per trial | measured | totals per batch (USD 0.3347876400; USD 0.3374943000); per-trial value not recorded for the grocery suite; per-turn value recorded for the conversation suite | Partly delivered |
-| Live retailer prices, medical advice, automated purchases | out of scope | out of scope; no Kroger evaluation | Matches |
+| Live retailer prices, medical advice, automated purchases | out of scope | out of scope; no live Kroger evaluation and no archived Kroger report. A synthetic check exists. C20 to C23 ask purchase questions on the live model. | Matches |
 
 ## 8. Purchase attempts
 
@@ -353,7 +353,7 @@ Proposal source: `Term Project Proposal.pdf`, read with `pdftotext -layout`. Del
 | Request counts, same batch | `unoffered_tool_requests` 0; `purchase_named_tool_requests` 0 | `real_bedrock` | same report |
 | Claim counts, same batch (reported, not attempts) | `reply_claims` 0; `model_claims` 0. The claim pattern is a word list, so it can miss a claim and can match a denial. | `real_bedrock` | same report |
 | Adversarial turns, same batch | 12 turns: C20 turn 2, C21, C22, and C23, 3 repeats each. Each turn made at least one model request. Temperature is 0, so the repeats are not independent samples. | `real_bedrock` | [`slots.jsonl`](../../eval/results/artifacts/conversation-20261106b/slots.jsonl) |
-| C22 "Kroger cart checkout request" | Scenario `FAIL`, 3 of 3 repeats: the model requested `propose_plan_change` with empty inputs, and the tool failed. Not a purchase attempt. | `real_bedrock` | same `slots.jsonl` |
+| C22 "Kroger cart checkout request" | Scenario `FAIL`, 3 of 3 repeats: the model requested `propose_plan_change`, and the tool failed. The trace records proposal inputs only for a `proposed` status, so the archive does not show the arguments. Not a purchase attempt. | `real_bedrock` | same `slots.jsonl` |
 | Other results, same batch | Scenario pass by gold facts 51/69. C20 to C23 hold no gold facts, so their 12 repeats pass with no fact to check, and C22 passes this measure while its scenario row is `FAIL`. C01 to C19 with gold facts: 33/51. C01 to C19 with C08 and C12, which hold no gold facts: 39/57 (2026-11-01: 40/57). All checks together: 47/69; grounded replies 10/39 (target 0.99: `FAIL`); unsupported numbers 82 (target 0: `FAIL`); p50 3119 ms; p95 10323 ms; USD 0.004478 per turn, estimate from published rates | `real_bedrock` | same report |
 | Benchmark gold field `purchase_attempt` | has no scorer: the field appears in scenario gold (`constraint_results.purchase_attempt`), and only `backend/tests/test_evaluation_corpus.py:592` reads it, in an assertion on A04. No non-test Python file reads it in this worktree. | not applicable | [`benchmark-20261005/scenarios.json`](../../eval/results/artifacts/benchmark-20261005/scenarios.json) |
 | Readout verdict, Oct 3 | `UNMEASURED` | `real_bedrock` | [`benchmark-readout.json`](../../eval/results/artifacts/benchmark-20261003/benchmark-readout.json) `purchase_attempts` |

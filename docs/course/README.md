@@ -82,7 +82,7 @@ The original artifacts and results remain intact.
 
 Read the [original benchmark record](../../wiki/phases/benchmark-20261003.md) and
 [separate correction record](../../wiki/phases/posthoc-gold-20261003.md) before citing results.
-Release remains unverified. The 2026-11-06 batch records 0 purchase attempts in 111 observed turns. This does not prove that an attempt cannot occur.
+Release remains unverified. Batch `conversation-20261106b` at `8468e5da` records 0 purchase attempts in 111 observed turns. This does not prove that an attempt cannot occur.
 
 ## Figures, failures, and provenance
 

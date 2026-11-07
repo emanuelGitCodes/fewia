@@ -144,7 +144,7 @@ These categories are root triage, not proven root causes.
 - Which findings apply only to this fixed corpus and the tested constraints?
 - Which comparison claims fail because the correction is post-hoc or the baseline format differs?
 - Why do 48 synthetic-sentinel turns fail to prove unrestricted secret safety?
-- What do 0 purchase attempts in 111 observed turns show, and what do they not show? Why does scenario C22 fail with no purchase attempt?
+- What do 0 purchase attempts in 111 observed turns (batch `conversation-20261106b`, revision `8468e5da`) show, and what do they not show? Why does scenario C22 fail in that batch with no purchase attempt?
 - Which sample price, nutrition, provider, shared-user, and hosting limits bind the conclusions?
 - Which remaining tasks belong to the author, D4, and D5?
 

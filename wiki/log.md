@@ -5275,3 +5275,7 @@ On C11 turns that the route does not answer, grounded replies rose from 1 of 17 
 The change fails its condition that gold facts stay at 30 of 30.
 The owner rejected the change, and the combined branch reverts `ff69540c`. The route reply stays in model history. Correct answers rank above accepted model prose, because a rejected reply reaches the user as a correct template.
 Loop usage after the history test, for nine work items: 11,694,335 input and 529,992 output tokens across the writer and review runs. Live spend on 2026-11-07 is about USD 0.91 across three batches.
+
+## 2026-11-07 — Correct the C22 record
+
+The 2026-11-06 entry says that the model requested `propose_plan_change` with empty inputs. The archive does not show this, because the trace records proposal inputs only for a `proposed` status. The course pack now states the limit.

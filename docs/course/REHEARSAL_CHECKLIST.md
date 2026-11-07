@@ -101,7 +101,7 @@ Run these steps in order. Use short, plain prompts. Time each step.
 | # | Step | Expected observable state | Pass | Fail |
 | --- | --- | --- | --- | --- |
 | 1 | Open `/prototype`. | The prototype page loads. No "Ask FEWIA is off. The plan still works." text. | [ ] | [ ] |
-| 2 | Chat: ask for one to three meals, for example bean tacos for two. | The panel shows "Your request is in progress." Then a reply arrives with the meals. | [ ] | [ ] |
+| 2 | Chat: ask for one to three meals, for example bean tacos for two. | The panel shows that the request is running. Then a reply arrives with the meals. | [ ] | [ ] |
 | 3 | Plan: confirm the meals and servings in the plan. | The plan lists 1-3 meals with 1-8 servings each. Meals come from the 40-meal catalog. | [ ] | [ ] |
 | 4 | Budget: set the monthly limit and the plan cap. | The form starts at USD 100 per month and a USD 40 cap. The source is `manual`. | [ ] | [ ] |
 | 5 | Estimate: read the estimate. | A total from the sample catalog shows. The notice reads "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified." | [ ] | [ ] |
@@ -133,10 +133,10 @@ as `ARCHIVED, NOT LIVE` or `SAMPLE CATALOG, NOT KROGER`.
 
 | Drill | Visible state | Owner action and fallback |
 | --- | --- | --- |
-| Bedrock down | Chat shows "The chat request failed. Retry checks the same request." or no reply after the timeout. | Select Retry once. If it fails again, say that Bedrock fails. Continue with the sample-catalog estimate, which needs no model. Show the archived chat evidence from [DEMO_SCRIPT.md](DEMO_SCRIPT.md) with the label `ARCHIVED, NOT LIVE`. |
+| Bedrock down | Chat shows "FEWIA did not answer. Your plan did not change." or no reply after the timeout. | Select Retry once. If it fails again, say that Bedrock fails. Continue with the sample-catalog estimate, which needs no model. Show the archived chat evidence from [DEMO_SCRIPT.md](DEMO_SCRIPT.md) with the label `ARCHIVED, NOT LIVE`. |
 | Session expired | Chat fails as above, or the panel shows "Ask FEWIA is off. The plan still works." after a restart. | Leave the Zoom window. Run the host MFA helper, then recreate `api` and `worker` (section 2). Return and retry. If this takes more than 2 minutes, switch to the archived fallback above. |
 | Kroger Certification fails | The store list is empty, the preview shows "Kroger is unavailable. Try again." or the sign-in shows "Kroger sign-in did not finish. Try again." | Retry once. Check ZIP `45202`. If the status reads "Your Kroger sign-in expired. Disconnect, then connect Kroger again.", select Disconnect, then connect again. If Kroger still fails, say so. Do not show Kroger data from memory or a screenshot as live. Keep the estimate on screen with the label `SAMPLE CATALOG, NOT KROGER`. |
-| Stack slow | A spinner or "Your request is in progress." lasts more than 20 seconds. | Do not click again. Bedrock p50 was 3.4 s and p95 was 12.2 s per turn in the 2026-10-30 batch (docs/EVALUATION.md). Wait up to 30 seconds. Fill the time by explaining the budget logic. If no reply, run the Bedrock drill. |
+| Stack slow | A running request lasts more than 20 seconds. | Do not click again. Bedrock p50 was 3.1 s and p95 was 10.3 s per turn in batch `conversation-20261106b` at `8468e5da`. Wait up to 30 seconds. Fill the time by explaining the budget logic. If no reply, run the Bedrock drill. |
 | Cart add unconfirmed | "Kroger did not confirm. Check your Kroger cart before you retry." | Do not click Retry at once. Open the staging cart and check it. Then decide. |
 
 - [ ] Each drill ran once in rehearsal.
