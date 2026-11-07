@@ -5231,3 +5231,9 @@ The branch is not verified on this batch until the C11 effect is measured. [EVAL
 
 C01 and C11 ran at 3 repeats per arm, with `8468e5da` and `6d9b4ce3` at the same time, for about USD 0.32. Grounded replies were 9 of 24 without the route and 1 of 20 with it. On C11 turns that the route does not answer, they were 5 of 17 and 1 of 17, p = 0.17. Gold facts were 24 of 30 and 30 of 30.
 The direction matches the full batch. The test does not prove the cause. C01 showed a gap of 1 of 3 and 0 of 3 with identical provider inputs. [EVALUATION.md](../docs/EVALUATION.md) holds the figures.
+
+## 2026-11-07 — History test of the saved-plan route
+
+`claude/route-history-01` drops a routed turn from later model history. It has `APPROVE` at `ff69540c`, and the gates pass with 17,504 tests. The live test of C01 and C11 cost USD 0.15.
+On C11 turns that the route does not answer, grounded replies rose from 1 of 17 to 4 of 18, p = 0.34, and unmatched numbers fell from 19 to 7. Gold facts fell from 30 of 30 to 26 of 30. C11 turn 9 called `price_lines` in place of `what_if_substitute` on all 3 repeats.
+The change fails its condition that gold facts stay at 30 of 30.

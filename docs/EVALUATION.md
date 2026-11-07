@@ -147,6 +147,12 @@ Paired live test (2026-11-07): C01 and C11, 3 repeats, 30 turns per arm, run at 
 - **Gold facts.** Gold passed 24 of 30 without the route and 30 of 30 with the route.
 - **Reading.** The direction repeats, and the route reply in the C11 history is the likely cause. This test does not prove it, and records hold no reply text to show the mechanism. The route trades accepted model prose for correct deterministic replies.
 
+History test (2026-11-07): the same 30 turns at `ff69540c`, which drops a routed turn from later model history. [Report](../eval/results/artifacts/conversation-20261107-pair-fix/report.md).
+
+- **Grounding.** On C11 turns that the route does not answer, the validator accepted 4 of 18, against 1 of 17 with the route reply in history (p = 0.34). Unmatched numbers on those turns were 7, against 19.
+- **Correct answers got worse.** Gold passed 26 of 30, against 30 of 30. C11 turn 9 passed 0 of 3, against 3 of 3. All 3 repeats called `price_lines` in place of `what_if_substitute`. The history then ends at the turn 6 price question. C11 turn 6 passed 2 of 3, against 3 of 3.
+- **Reading.** Dropping the turn removes context that later turns need. It does not meet the condition for this change: gold facts MUST stay at 30 of 30.
+
 ## Component boundaries
 
 - [`observe_reference_case`](../backend/app/evaluation_reference.py) runs the final structured request for five supported reference scenarios through deterministic planning. It does not run earlier language turns or a durable evidence store.
