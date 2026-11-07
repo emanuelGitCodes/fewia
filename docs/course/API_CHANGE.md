@@ -26,4 +26,4 @@ Each row names code that a provider API does not supply.
 | A validator checks model prose against tool results, and a template replaces rejected prose. | `backend/app/agent/grounding.py` |
 | A plan change is a proposal. The user applies it. | `backend/app/agent/proposal_tool.py` |
 | The agent stops before payment. The user clicks the cart add and checks out on kroger.com. | `backend/app/api/kroger.py`, `frontend/src/prototype/KrogerCart.tsx` |
-| The evaluation counts purchase attempts with no purchase. | `backend/app/evaluation_purchase.py` on `claude/purchase-attempts-01` |
+| The evaluation counts purchase attempts with no purchase. | `backend/app/evaluation_purchase.py` |

@@ -5247,6 +5247,7 @@ No document cites this candidate as the current prompt. The branch stays unmerge
 ## 2026-11-07 — Correct the conversation scenario figure
 
 The 39 of 57 figure for C01 to C19 counts C08 and C12, which hold no gold facts. The gold-only figure is 33 of 51. `docs/course/DEMO_SCRIPT.md` and `docs/course/EVIDENCE_TABLES.md` now state both.
+
 ## 2026-11-07 — Weak-area items on `claude/weak-areas-stack`
 
 The combined branch holds seven items, based on `claude/purchase-attempts-01`. No item is on `main`. No push, pull request, or live run has used this branch.

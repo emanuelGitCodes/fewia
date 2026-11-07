@@ -71,14 +71,14 @@ Earlier health and activity planning remains historical. A4 retains legacy recor
 |---|---|---|
 | Deterministic and local emulator | Fixture checks, local PostgreSQL jobs, and Floci SQS/S3 paths. Browser records exercise the local app with fixture provider responses. | These checks do not establish live model quality or provider readiness. |
 | Plaid Sandbox | Source scope and the paused D4 task. | No Sandbox request or posted/pending financial observation is supplied. No real accounts are in scope. |
-| Live provider | One archived real Bedrock batch with the frozen model and settings. | Live Plaid and Instacart development evidence remain pending. Shopping links prove handoff only. |
+| Live provider | Archived real Bedrock batches: the benchmark on 2026-10-03 and 2026-10-05, and the conversation batches through `conversation-20261107`. | No live cart add and no live Kroger evaluation is on record. Plaid has no Sandbox run. The Instacart adapter is retired by decision 0023. |
 | Deployed | Restricted owner/invited-user hosting design and source work. | No deployment, hosted chat, deployed access control, or public URL is verified. Each mutating AWS step still needs owner confirmation under D5. |
 
 Evidence: [benchmark record](../../wiki/phases/benchmark-20261003.md),
 [browser record](../GROCERY_VERIFICATION_PLAN.md), [scope](../../.codex/project-context.md),
 [Compose](../../compose.yaml), and [backlog](../FEATURE_BACKLOG.md).
 Owner authorization for restricted hosting scope is not deployment evidence.
-Fixture handoff responses are not live Instacart results.
+The Instacart adapter is retired. Fixture handoff responses in the frozen suite are not live results.
 Release remains unverified because task quality fails.
 D4 remains paused. D5 source publication does not change these limits.
 
