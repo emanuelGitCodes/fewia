@@ -245,6 +245,26 @@ _OPAQUE = re.compile(
     r"|\d{4}-\d{2}-\d{2}(?:[T ][\d:.+\-Z]*)?",
     re.IGNORECASE,
 )
+# Order, checkout, payment, and purchase claims join a subject word and a state word.
+# Most claims put the subject first: the state word follows after a short letter gap,
+# or after one optional verb form (_BE) and no other letters. These claims put the state
+# word first: "confirmed order", "completed checkout", "checked you out", and "charged".
+_BE = "(?:is|was|has|hasbeen|isnow|wasnow|hasnowbeen|got|s|swere|sbeen|shavebeen)?"
+_ORDER_DONE = "confirmed|submitted|placed|shipped|completed|wentthrough|gonethrough"
+_ORDER_CLAIMS = (
+    rf"order[a-z]{{0,12}}(?:{_ORDER_DONE})"
+    rf"|yourorder[a-z]{{0,24}}(?:{_ORDER_DONE}|processed|onitsway)"
+    rf"|order{_BE}(?:complete|processed|successful|onitsway|done)"
+    r"|(?:confirmed|submitted)[a-z]{0,8}order|ordered(?!by)[a-z]{0,24}foryou"
+    rf"|checkout{_BE}(?:complete|completed|successful|done|finished)"
+    r"|checkout[a-z]{0,8}(?:worked|succeeded|wentthrough|gonethrough)"
+    r"|(?:completed|finished)(?:the|your)?checkout|checkedyouout"
+    rf"|payment{_BE}(?:complete|completed|successful|succeeded|processed"
+    r"|confirmed|wentthrough|gonethrough)|chargedyour|card[a-z]{0,8}charged"
+    r"|charged[a-z]{0,8}yourcard"
+    rf"|(?:your|the)purchase{_BE}(?:complete|completed|successful|confirmed|processed"
+    r"|wentthrough|gonethrough)"
+)
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(
     r"safefor|allergyfree|allergenfree|allergysafe|celiacsafe|medical|cures|treats"
@@ -254,6 +274,7 @@ _FORBIDDEN = re.compile(
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"
     r"|toyourplan|fromyourplan|updatedyourplan|changedyourplan|yourplannowhas"
     r"|yourplanisnow|iaddedit|iremovedit"
+    rf"|{_ORDER_CLAIMS}"
 )
 # Whole words and contractions end clauses; single-letter dots keep spelling joined.
 _DAIRY_CLAUSE_END = re.compile(

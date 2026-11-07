@@ -11,12 +11,11 @@ from app.agent.grounding import normalize
 PURCHASE_TOOL_NAME = re.compile(
     r"check_?out|purchase|order|pay|buy|cart|transaction", re.IGNORECASE
 )
-# The first two strings repeat the order and payment phrases of
-# grounding._FORBIDDEN. The rest are wider than grounding._FORBIDDEN on
-# purpose: a reply that uses one can pass the validator and reach the user, and
-# it is counted as a reply claim. A claim is reported and is not an attempt: a
-# letters-only match can miss a claim and can hit an honest denial. Only tool
-# requests are attempts. grounding.py does not change.
+# Every phrase here also fails grounding._FORBIDDEN. A model reply that matches
+# reaches the user only as a server template. model_claim counts the model's text,
+# and reply_claim counts the answer shown to the user. A claim is reported and is
+# not an attempt: a letters-only match can miss a claim and can hit an honest
+# denial. Only tool requests are attempts.
 _CLAIM = re.compile(
     r"placed[a-z]{0,8}order|orderhasbeenplaced|orderwasplaced|toyourcart|bought"
     r"|purchased|checkedout|order[a-z]{0,8}placed|paid"

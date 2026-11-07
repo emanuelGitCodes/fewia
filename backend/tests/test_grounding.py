@@ -2417,6 +2417,318 @@ def test_more_purchase_claims_are_forbidden(reply: str) -> None:
 @pytest.mark.parametrize(
     "reply",
     [
+        "Your order is confirmed. Checkout worked.",
+        "Your order has been confirmed.",
+        "Your order is confirmed.",
+        "Your order was confirmed.",
+        "Order confirmed.",
+        "I confirmed your order.",
+        "Your order was submitted.",
+        "Your order has been submitted.",
+        "I submitted your order.",
+        "Order submitted.",
+        "Checkout worked.",
+        "Checkout succeeded.",
+        "Checkout is complete.",
+        "Checkout complete.",
+        "Checkout was successful.",
+        "Checkout went through.",
+        "I completed checkout.",
+        "I completed the checkout for you.",
+        "I finished checkout.",
+        "Your order went through.",
+        "Your order is complete.",
+        "Your order is completed.",
+        "Your order was processed.",
+        "Your order is on its way.",
+        "Your order has shipped.",
+        "Your order has now been placed.",
+        "Your order has now been confirmed.",
+        "Your order for the chicken was placed.",
+        "Your order for the chicken was confirmed.",
+        "I ordered the chicken for you.",
+        "I checked you out.",
+        "Payment went through.",
+        "Your payment was successful.",
+        "Your payment was processed.",
+        "I charged your card.",
+        "Your card was charged.",
+        "Your purchase is complete.",
+        "Your purchase was successful.",
+        "O.r.d.e.r c.o.n.f.i.r.m.e.d.",
+        "C h e c k o u t worked.",
+    ],
+)
+def test_order_checkout_and_payment_claims_are_forbidden(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+def test_order_claims_are_forbidden_after_a_successful_tool_call() -> None:
+    facts = _facts(total_cents=1_200, servings=2)
+    verdict = validate("Your order is confirmed. Checkout worked.", facts)
+    assert verdict.reasons == ("forbidden_claim",)
+
+
+# These word lists are literals and import nothing from the source patterns. Each
+# generated reply targets one claim family.
+_FORMS = (
+    "",
+    " is",
+    " was",
+    " has",
+    " has been",
+    " is now",
+    " was now",
+    " has now been",
+    " got",
+    "'s",
+    "s were",
+    "'s been",
+    "s have been",
+)
+
+
+def _forbidden(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    "state", ["complete", "processed", "successful", "on its way", "done"]
+)
+def test_order_state_words_fail_after_every_verb_form(form: str, state: str) -> None:
+    _forbidden(f"The order{form} {state}.")
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    "state", ["complete", "completed", "successful", "done", "finished"]
+)
+def test_checkout_state_words_fail_after_every_verb_form(form: str, state: str) -> None:
+    _forbidden(f"Checkout{form} {state}.")
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    "state",
+    [
+        "complete",
+        "completed",
+        "successful",
+        "succeeded",
+        "processed",
+        "confirmed",
+        "went through",
+        "gone through",
+    ],
+)
+def test_payment_state_words_fail_after_every_verb_form(form: str, state: str) -> None:
+    _forbidden(f"Your payment{form} {state}.")
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize("subject", ["Your purchase", "The purchase"])
+@pytest.mark.parametrize(
+    "state",
+    [
+        "complete",
+        "completed",
+        "successful",
+        "confirmed",
+        "processed",
+        "went through",
+        "gone through",
+    ],
+)
+def test_purchase_state_words_fail_after_every_verb_form(
+    form: str, subject: str, state: str
+) -> None:
+    _forbidden(f"{subject}{form} {state}.")
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "confirmed",
+        "submitted",
+        "placed",
+        "shipped",
+        "completed",
+        "went through",
+        "gone through",
+    ],
+)
+def test_order_state_words_fail_after_a_gap_of_letters(state: str) -> None:
+    _forbidden(f"The order for the rice {state}.")
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "confirmed",
+        "submitted",
+        "placed",
+        "shipped",
+        "completed",
+        "went through",
+        "processed",
+        "on its way",
+        "gone through",
+    ],
+)
+def test_your_order_state_words_fail_after_a_long_gap_of_letters(state: str) -> None:
+    _forbidden(f"Your order for the chicken and rice {state}.")
+
+
+@pytest.mark.parametrize("state", ["confirmed", "submitted"])
+def test_confirmed_or_submitted_before_order_fails(state: str) -> None:
+    _forbidden(f"I {state} the order.")
+
+
+@pytest.mark.parametrize(
+    "state", ["worked", "succeeded", "went through", "gone through"]
+)
+def test_checkout_success_words_fail(state: str) -> None:
+    _forbidden(f"Checkout {state}.")
+
+
+@pytest.mark.parametrize("determiner", ["", "the ", "your "])
+@pytest.mark.parametrize("verb", ["completed", "finished"])
+def test_completed_or_finished_checkout_fails(verb: str, determiner: str) -> None:
+    _forbidden(f"I {verb} {determiner}checkout.")
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I checked you out.",
+        "I charged your account.",
+        "Your card was charged.",
+        "I charged it to your card.",
+    ],
+)
+def test_checked_out_and_charged_claims_fail(reply: str) -> None:
+    _forbidden(reply)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "The order " + "z" * 12 + " confirmed.",
+        "Your order " + "z" * 24 + " confirmed.",
+        "I confirmed " + "z" * 8 + " order.",
+        "I ordered " + "z" * 24 + " for you.",
+        "Checkout " + "z" * 8 + " worked.",
+        "Your card " + "z" * 8 + " charged.",
+        "I charged " + "z" * 8 + " your card.",
+    ],
+)
+def test_order_claims_fail_at_the_exact_letter_gap_limit(reply: str) -> None:
+    _forbidden(reply)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Your order's complete.",
+        "Checkout's complete.",
+        "Your payment's complete.",
+        "Your payments were processed.",
+        "Your order is done.",
+        "I charged it to your card.",
+        "The purchase is complete.",
+        "Your payment's been processed.",
+        "Your payments have been processed.",
+        "Checkout's been completed.",
+        "The purchase's been confirmed.",
+        "The order's been processed.",
+        "Your order has gone through.",
+        "Your payment has gone through.",
+    ],
+)
+def test_contracted_and_plural_order_claims_fail(reply: str) -> None:
+    _forbidden(reply)
+
+
+# A completed verb form next to "order" fails closed, negated or not.
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "No order was submitted.",
+        "No order was confirmed.",
+        "No order was placed.",
+        "Your order has not been placed.",
+        "Your order has not been confirmed.",
+        "Your order was not submitted.",
+        "Your order is not confirmed.",
+    ],
+)
+def test_negated_completed_order_verbs_fail_closed(reply: str) -> None:
+    assert validate(reply, FactSet()).reasons == ("forbidden_claim",)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I cannot place orders.",
+        "I can't place orders.",
+        "I cannot place an order.",
+        "I can't check out for you.",
+        "I cannot complete checkout.",
+        "I can't complete a purchase.",
+        "I cannot submit an order.",
+        "I cannot confirm your order.",
+        "I cannot pay for you.",
+        "I cannot process payments.",
+        "FEWIA does not place orders or take payment.",
+        "I did not place an order.",
+        "I did not submit an order.",
+        "Checkout did not work.",
+        "Checkout is not complete.",
+        "Checkout is not available.",
+    ],
+)
+def test_order_and_payment_refusals_pass(reply: str) -> None:
+    assert validate(reply, FactSet()).ok
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Check out the bean tacos.",
+        "Order the beans first.",
+        "Go to checkout.",
+        "You can confirm the order at the store.",
+        "Please confirm your order yourself.",
+        "In order to stay on budget, I confirmed the price.",
+        "I confirmed the price in order to stay on budget.",
+        "In order to confirm the price, open the plan.",
+        "In order to complete the plan, add rice.",
+        "In order to avoid processed foods, pick beans.",
+        "The meals are ordered by price.",
+        "The list was ordered by price.",
+        "I've ordered the meals by price.",
+        "I ordered them by cost.",
+        "The meals have been ordered by price.",
+        "Here are meals ordered by price for you.",
+        "Reorder the list.",
+        "Your plan is confirmed.",
+        "Your budget is confirmed.",
+        "Your search is complete.",
+        "Your plan is complete.",
+        "Your shopping list is complete.",
+        "The steps are complete, in order.",
+        "You submit the order yourself.",
+        "You complete checkout yourself.",
+    ],
+)
+def test_harmless_order_confirm_and_complete_prose_passes(reply: str) -> None:
+    assert validate(reply, FactSet()).ok
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
         "It has 3 times the protein.",
         "It has 3 Times the protein.",
         "It has 3-fold the protein.",
