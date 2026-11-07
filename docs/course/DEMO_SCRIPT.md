@@ -9,7 +9,7 @@ This file claims no recorded run and no deployed demo.
 
 The live limit is 15:00. The planned total is 11:30. The spare time is 3:30.
 The presenter MUST cut a shot before the limit, not speed up.
-Cut order: shot 9, then shot 4, then shot 8.
+Cut order: shot 8, then shot 7. The presenter MUST NOT cut shot 9, because it states the failed target. The presenter MUST NOT cut shot 4 and keep shot 5, because shot 5 shows the cart state from shot 4.
 
 | Shot | Topic | Time | Running total |
 |---|---|---|---|
@@ -50,8 +50,9 @@ Say the class of each result on screen. Use these labels only.
 | Label | Meaning |
 |---|---|
 | `live provider` | A real Bedrock or Kroger call made during this session. |
+| `local application` | The local stack with sample catalog prices. No provider call. |
 | `local emulator` | Floci SQS and S3 on the local stack. |
-| `archived` | A saved result from an earlier dated batch. Give its date, revision, and evidence class. Never a call made in this session. |
+| `archived` | A saved result from an earlier dated batch. Say `archived` first, then its date, revision, and evidence class. Never a call made in this session. |
 | `fixture` | Deterministic output from a scripted provider or a test. Never a live call. |
 
 The app has no fixture mode and no fallback label. The operator shows the label in a slide, a window title, or a banner.
@@ -71,7 +72,7 @@ A fallback MUST NOT appear under a `live provider` label.
 
 ### Shot 2. Plan on `/prototype` (1:30)
 
-Evidence class: local application, sample catalog prices.
+Evidence class: `local application`, sample catalog prices.
 
 1. Type `bean` in `Find a meal`. Select a bean meal in `Meal choices`.
 2. Use the servings stepper (`Increase servings for <meal>`) to set two servings.
@@ -154,8 +155,9 @@ This is a deliberate safety and testing decision.
   `No real bank accounts, checkout, orders, or payment submission.`
 - Observe the sequence: the agent plans and previews. A person approves the
   cart add. A person pays, outside FEWIA.
-- State the test consequence: the whole path runs and is tested with no
-  purchase. A test needs no grocery order.
+- State the test consequence: the path up to the cart add runs and is tested
+  with no purchase. A test needs no grocery order. The cart add has no live
+  check on record.
 - Show the `Purchase attempts` section of [the 2026-11-06 report](../../eval/results/artifacts/conversation-20261106b/report.md).
   Label it `archived`: 2026-11-06, revision `8468e5da`, `live provider`.
 - Observe `turns_observed` 111, `turns_with_attempt` 0, and the target `purchase_attempts` at `PASS`.
@@ -164,15 +166,15 @@ This is a deliberate safety and testing decision.
 
 ### Shot 6. How it is tested (1:30)
 
-Show each class with its label. Do not blend them.
+Show each class with its label. Do not blend them. Every row is `archived`. Do not present a row as a call made in this session.
 
 | Class | What to show | Source |
 |---|---|---|
-| `fixture` | Deterministic scenario run. 138 slots, corpus `grocery-eval-v1.1`. | [benchmark-20261005](../../wiki/phases/benchmark-20261005.md) |
-| `local emulator` | Floci SQS and S3, Compose worker, dedicated `postgres:16`. | same record |
-| `live provider` | Real Bedrock, Nova 2 Lite, `tool_enabled` and `no_tool`. | same record |
-| `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
-| `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
+| `archived`, `fixture` | Deterministic scenario run. 138 slots, corpus `grocery-eval-v1.1`. | [benchmark-20261005](../../wiki/phases/benchmark-20261005.md) |
+| `archived`, `local emulator` | Floci SQS and S3, Compose worker, dedicated `postgres:16`. | same record |
+| `archived`, `live provider` | Real Bedrock, Nova 2 Lite, `tool_enabled` and `no_tool`. | same record |
+| `archived`, `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
+| `archived`, `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
 
 Also run the gates on screen only if time remains:
 `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
@@ -184,9 +186,9 @@ Label each row with its date, revision, and class. These are archived results.
 
 | Run | Revision | Class | p50 | p95 | Cost |
 |---|---|---|---|---|---|
-| 2026-10-05 benchmark, `tool_enabled` | `d50572a1` | `live provider` | 8.01 s | 16.75 s | USD 0.1807 for 33 slots, estimate |
-| 2026-11-01 conversation, 96 turns | `f21f8980` | `live provider` | 3151 ms | 11425 ms | USD 0.004760 per turn |
-| 2026-11-06 conversation, 111 turns | `8468e5da` | `live provider` | 3119 ms | 10323 ms | USD 0.004478 per turn |
+| 2026-10-05 benchmark, `tool_enabled` | `d50572a1` | `archived`, `live provider` | 8.01 s | 16.75 s | USD 0.1807 for 33 slots, estimate |
+| 2026-11-01 conversation, 96 turns | `f21f8980` | `archived`, `live provider` | 3151 ms | 11425 ms | USD 0.004760 per turn |
+| 2026-11-06 conversation, 111 turns | `8468e5da` | `archived`, `live provider` | 3119 ms | 10323 ms | USD 0.004478 per turn |
 
 - Cost is an estimate from published rates. It is not an AWS bill.
 - The targets: p50 under 5000 ms, p95 under 12000 ms, and cost per turn under
@@ -209,13 +211,15 @@ Show [LIMITATIONS.md](LIMITATIONS.md) and the results below.
 
 | Result | Date | Revision | Class | Value |
 |---|---|---|---|---|
-| Task pass, original scorer | 2026-10-03 | `4b877d47` | `live provider` | 17/33; no-tool 0/33 |
-| Task pass, post-hoc gold | 2026-10-03 | `e63d68f6` | `live provider` | 23/33; scored after seeing outputs |
-| Task pass, fresh batch | 2026-10-05 | `d50572a1` | `live provider` | 25/33 (75.8%); target 90%: FAIL |
-| Supported claims | 2026-10-05 | `d50572a1` | `live provider` | 109 supported, 3 unknown (97.3%) |
-| Scenario pass, conversation | 2026-11-01 | `f21f8980` | `live provider` | 40/57 (70.2%) |
-| Scenario pass, conversation, C01 to C19 | 2026-11-06 | `8468e5da` | `live provider` | 33/51 (64.7%) with gold facts; 39/57 (68.4%) counts C08 and C12, which hold no gold facts |
-| Grounded replies, conversation | 2026-11-06 | `8468e5da` | `live provider` | 10/39; target 0.99: FAIL |
+| Task pass, original scorer | 2026-10-03 | `4b877d47` | `archived`, `live provider` | 17/33; no-tool 0/33 |
+| Task pass, post-hoc gold | 2026-10-03 | `e63d68f6` | `archived`, `live provider` | 23/33; scored after seeing outputs |
+| Task pass, fresh batch | 2026-10-05 | `d50572a1` | `archived`, `live provider` | 25/33 (75.8%); target 90%: FAIL |
+| Supported claims | 2026-10-05 | `d50572a1` | `archived`, `live provider` | 109 supported, 3 unknown (97.3%) |
+| Scenario pass, conversation | 2026-11-01 | `f21f8980` | `archived`, `live provider` | 40/57 (70.2%) |
+| Scenario pass, conversation, C01 to C19 | 2026-11-06 | `8468e5da` | `archived`, `live provider` | 33/51 (64.7%) with gold facts; 39/57 (68.4%) counts C08 and C12, which hold no gold facts |
+| Grounded replies, conversation | 2026-11-06 | `8468e5da` | `archived`, `live provider` | 10/39; target 0.99: FAIL |
+| Grounded replies, conversation | 2026-11-07 | `f3607e6f` | `archived`, `live provider` | 1/32; target 0.99: FAIL. The saved-plan route answers 15 of 111 turns with no model call. |
+| Gold facts, conversation turns | 2026-11-07 | `f3607e6f` | `archived`, `live provider` | 100/111, against 89/111 at `8468e5da`. The route adds most of the rise. |
 
 - State: `main` has changed since each of these runs.
 - State: release is not certified. The 90% task target fails.

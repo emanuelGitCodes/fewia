@@ -7,7 +7,7 @@ This file holds facts and source pointers only. It contains no paper text.
 | Provider | Course sign-up sheet | Today | Source |
 |---|---|---|---|
 | Instacart | Listed | Retired. The frozen suite keeps a fixture handoff scenario, P02. | [decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md) |
-| Withings | Listed | Not in the code path. | [scope](../../.codex/project-context.md) |
+| Withings | Listed | Not in the code path. No file in `backend/app` or `frontend/src` names it. | code search on 2026-11-07 |
 | Plaid | Listed | Paused. The budget starts from a user-entered amount. No Sandbox run is archived. | [limitations](LIMITATIONS.md) |
 | Kroger | Not listed | Store search, read-time price, cart preview, and a cart add that the user clicks. | [decision 0023](../../wiki/decisions/0023-retire-instacart-adapter.md), [feature map](../FEATURE_MAP.md) |
 | Amazon Bedrock | Not a sheet column | Nova 2 Lite behind `LLMProvider`. | [evaluation](../EVALUATION.md) |
