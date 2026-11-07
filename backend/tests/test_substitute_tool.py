@@ -23,6 +23,7 @@ from app.domain.grocery import (
     GroceryRequest,
 )
 from app.domain.plan_revision import PlanRevisionInput
+from app.domain.recipe_variant import protein_ingredient_ids
 from app.domain.usda_foods import USDA_FOODS
 from app.services.meal_nutrition import (
     GRAMS_PER_EACH,
@@ -502,7 +503,6 @@ def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
         swap(extra=_SECRET),
         swap(replace_ingredient_id=[_SECRET]),
         {"recipe_id": "bean_tacos", "replace_ingredient_id": "black_beans"},
-        {"recipe_id": "bean_tacos", "with_ingredient_id": "ground_beef_80"},
     ],
 )
 def test_invalid_arguments_raise_static_error(arguments: object) -> None:
@@ -778,6 +778,28 @@ def test_no_protein_in_the_recipe_asks_for_the_ingredient_to_replace() -> None:
         (item, ALL_INGREDIENTS[item].name)
         for item, _ in RECIPES["vegetable_pasta"].ingredients
     ]
+
+
+def test_with_ingredient_id_alone_replaces_the_only_protein() -> None:
+    result = execute_substitute(
+        {"recipe_id": "baked_potatoes_with_beans", "with_ingredient_id": "usda_171116"}
+    )
+    assert result["status"] == "swapped"
+    change = cast(dict[str, object], result["change"])
+    assert change["replace_ingredient_id"] == "black_beans"
+    assert change["with_ingredient_id"] == "usda_171116"
+
+
+@pytest.mark.parametrize("recipe_id", ["vegetable_pasta", "chicken_lentil_stew"])
+def test_with_ingredient_id_alone_asks_without_exactly_one_protein(
+    recipe_id: str,
+) -> None:
+    assert len(protein_ingredient_ids(recipe_id)) != 1
+    result = execute_substitute(
+        {"recipe_id": recipe_id, "with_ingredient_id": "ground_beef_80"}
+    )
+    assert result["status"] == "needs_ingredient_choice"
+    assert result["recipe_id"] == recipe_id
 
 
 def test_two_proteins_ask_instead_of_picking_the_first() -> None:

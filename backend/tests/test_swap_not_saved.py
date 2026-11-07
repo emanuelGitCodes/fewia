@@ -316,9 +316,10 @@ def _entry(status: str | None, recipe: str = BEANS) -> dict[str, object]:
         ([_entry("swapped")], BEANS),
         ([_entry("added")], BEANS),
         ([_entry("swapped", "bean_tacos"), _entry("added")], BEANS),
-        ([_entry("swapped"), _entry("needs_food_choice")], None),
+        ([_entry("swapped"), _entry("needs_food_choice")], BEANS),
         ([_entry("added"), {"tool": "get_meal", "inputs": {}}], BEANS),
-        ([_entry(None)], None),
+        ([_entry(None)], BEANS),
+        ([{"tool": "get_meal", "inputs": {"recipe_id": BEANS}}], None),
         ([], None),
     ],
 )
@@ -377,6 +378,30 @@ def test_the_two_replies_by_exact_string() -> None:
         }
     )
     assert swap_not_saved_reply(BEANS, other) == swap_not_saved_reply(BEANS, None)
+
+
+def test_an_earlier_question_survives_a_later_failed_call() -> None:
+    swap = {"recipe_id": BEANS, "with_food": "chicken"}
+    result, _ = _run(
+        [
+            _reply([_tool_block("call-1", SUBSTITUTE_TOOL, swap)], "tool_use"),
+            _reply(
+                [
+                    _tool_block(
+                        "call-2", SUBSTITUTE_TOOL, {**swap, "add_food": "chicken"}
+                    )
+                ],
+                "tool_use",
+            ),
+            _reply([_text_block("Done.")], "end_turn"),
+        ],
+        "What if we use chicken instead?",
+    )
+    answer = cast(str, result["answer"])
+    assert answer.startswith("Which one do you mean:")
+    assert answer.endswith("A tool call failed. Check the request.")
+    assert "Examples:" not in answer
+    assert last_what_if_recipe(result) == BEANS
 
 
 def test_the_route_answers_without_a_provider_call_or_a_proposal() -> None:

@@ -352,6 +352,14 @@ def execute_substitute(
         question, arguments = _fill_food(arguments, recipe_id)
         if question is not None:
             return question
+    if "with_ingredient_id" in arguments and "replace_ingredient_id" not in arguments:
+        proteins = protein_ingredient_ids(recipe_id)
+        if len(proteins) != 1:
+            meal_items = tuple(item for item, _ in RECIPES[recipe_id].ingredients)
+            return _question(
+                "needs_ingredient_choice", recipe_id, proteins or meal_items
+            )
+        arguments = {**arguments, "replace_ingredient_id": proteins[0]}
     try:
         change = parse_change(arguments)
         if change is None:

@@ -378,6 +378,7 @@ def run_chat(
     proposal_failed = False
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
+    earlier_reads: list[tuple[str, dict[str, object]]] = []
     proposal_read: list[tuple[str, dict[str, object]]] = []
     run_payloads: list[tuple[str, dict[str, object]]] = []
 
@@ -402,7 +403,10 @@ def run_chat(
         if not catalog_batch:
             if candidate is None and last_error is None:
                 read = read_tool_answer(
-                    [*read_results, *proposal_read],
+                    [
+                        *(read_results or (earlier_reads if other_failed else [])),
+                        *proposal_read,
+                    ],
                     stale=budget.stale,
                     failed=other_failed,
                 )
@@ -680,6 +684,8 @@ def run_chat(
         batch_ok = True
         planner_limit = False
         other_failed = False
+        if read_results:
+            earlier_reads = read_results
         read_results = []
         catalog_batch = any(call.name == CATALOG_TOOL_NAME for call in calls)
         if not catalog_batch:
