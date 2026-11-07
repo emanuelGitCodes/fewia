@@ -10,6 +10,7 @@ from app.agent.chat_loop import run_chat
 from app.agent.chat_messages import last_what_if_recipe, next_what_if_recipe
 from app.agent.ingredient_tool import resolve_food
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
+from app.agent.provider import LLMProvider
 from app.agent.read_answers import meal_name, read_tool_answer
 from app.agent.substitute_tool import (
     SUBSTITUTE_TOOL,
@@ -25,7 +26,7 @@ from app.domain.plan_revision import PlanRevisionInput
 from app.domain.recipe_variant import ingredient_grams
 from app.evaluate_conversation import GoldFollowingProvider
 from app.evaluation_conversation import ConversationSelection, run_conversation_suite
-from app.evaluation_conversation_corpus import load_conversation_corpus
+from app.evaluation_conversation_corpus import Scenario, load_conversation_corpus
 from app.services.chat_history import load_previous_what_if
 from tests.test_chat_history import add_job, chat_payload
 from tests.test_chat_loop import FakeLLM, _reply, _text_block, _tool_block
@@ -651,7 +652,7 @@ def test_a_failed_retry_keeps_the_what_if_for_a_later_save_request() -> None:
     one = sub.model_copy(update={"scenarios": [scenario]})
     bad = {"recipe_id": BEANS, "with_food": CHICKEN, "add_food": CHICKEN}
 
-    def provider_for(scenario: Any, repeat: int, index: int) -> Any:
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
         if index == 1:
             return GoldFollowingProvider(scenario.turns[0])
         if index == 2:
