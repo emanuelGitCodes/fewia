@@ -150,9 +150,12 @@ def test_schema_is_bounded() -> None:
 
 
 def test_ingredient_word_finds_meals() -> None:
-    expected = [rid for rid in SUPPORTED_RECIPE_IDS if has(rid, "chickpeas")][:3]
+    expected = ["chickpea_pasta", "chickpea_tacos", "chickpea_egg_scramble"]
+    members = [rid for rid in SUPPORTED_RECIPE_IDS if has(rid, "chickpeas")]
+    assert set(expected) <= set(members)
     payload = search("chickpea")
-    assert ids(payload) == expected and expected
+    assert ids(payload) == expected
+    assert payload["total_matches"] == len(members)
     assert payload["status"] == "ok"
     assert payload["unmatched"] == []
     assert ids(search("Chickpeas please")) == expected
@@ -1144,9 +1147,18 @@ def test_diet_argument_is_a_facet_and_omnivore_is_not() -> None:
     assert search("rice omnivore")["applied"] == []
 
 
-def test_matches_keep_catalog_order() -> None:
-    expected = [r for r in SUPPORTED_RECIPE_IDS if catalog_tool._has_word("rice", r)]
-    assert ids(search("rice")) == expected[:3]
+def test_word_matches_are_ranked_by_bm25_not_catalog_order() -> None:
+    members = [r for r in SUPPORTED_RECIPE_IDS if catalog_tool._has_word("rice", r)]
+    assert ids(search("rice")) == ["tomato_rice", "egg_rice_bowls", "rice_and_beans"]
+    assert ids(search("rice")) != members[:3]
+    assert search("rice")["total_matches"] == len(members)
+
+
+def test_diet_only_query_keeps_catalog_order() -> None:
+    vegan = [r for r in SUPPORTED_RECIPE_IDS if "vegan" in MEAL_DIETS[r]]
+    assert vegan
+    assert ids(search("vegan")) == vegan[:3]
+    assert ids(search("omnivore", diet="vegan")) == vegan[:3]
 
 
 def test_text_words_alone_never_drop_to_every_meal() -> None:

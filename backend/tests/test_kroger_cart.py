@@ -27,11 +27,19 @@ def _snapshot(
     )
 
 
-def _product(upc: str | None, description: str, size: str = "1 lb") -> object:
+def _product(
+    upc: str | None,
+    description: str,
+    size: str = "1 lb",
+    stock_level: str | None = None,
+) -> object:
+    item: dict[str, object] = {"size": size}
+    if stock_level is not None:
+        item["inventory"] = {"stockLevel": stock_level}
     entry: dict[str, object] = {
         "productId": f"id-{description}",
         "description": description,
-        "items": [{"size": size}],
+        "items": [item],
     }
     if upc is not None:
         entry["upc"] = upc
@@ -124,6 +132,44 @@ def test_preview_matches_the_first_product_with_a_valid_upc() -> None:
             {"ingredient_id": "tortillas", "name": "corn tortillas"},
         ],
     }
+
+
+def test_preview_skips_an_out_of_stock_product() -> None:
+    catalog = Catalog(
+        {
+            "chicken_breast": [
+                _product(
+                    "12345678", "Sold Out", stock_level="TEMPORARILY_OUT_OF_STOCK"
+                ),
+                _product("0001112223334", "In Stock", stock_level="HIGH"),
+            ]
+        }
+    )
+    preview = build_preview(_snapshot(), _client(catalog), LOCATION)
+    assert [(i.ingredient_id, i.upc) for i in preview.items] == [
+        ("chicken_breast", "0001112223334")
+    ]
+
+
+def test_preview_allows_an_unknown_stock_level() -> None:
+    catalog = Catalog({"chicken_breast": [_product("12345678", "Unknown Stock")]})
+    preview = build_preview(_snapshot(), _client(catalog), LOCATION)
+    assert [i.upc for i in preview.items] == ["12345678"]
+
+
+def test_preview_leaves_a_line_unmatched_when_every_product_is_out_of_stock() -> None:
+    sold_out = "TEMPORARILY_OUT_OF_STOCK"
+    catalog = Catalog(
+        {
+            "chicken_breast": [
+                _product("12345678", "Sold Out A", stock_level=sold_out),
+                _product("0001112223334", "Sold Out B", stock_level=sold_out),
+            ]
+        }
+    )
+    preview = build_preview(_snapshot(), _client(catalog), LOCATION)
+    assert preview.items == []
+    assert "chicken_breast" in [line.ingredient_id for line in preview.unmatched]
 
 
 def test_preview_merges_lines_that_match_the_same_upc() -> None:

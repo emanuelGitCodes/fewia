@@ -49,6 +49,7 @@ from app.agent.price_tool import PRICE_TOOL, price_tool_spec
 from app.agent.proposal_tool import PROPOSAL_TOOL, Propose, proposal_tool_spec
 from app.agent.provider import LLMProvider
 from app.agent.read_answers import read_tool_answer
+from app.agent.saved_plan_route import saved_plan_read, saved_plan_reply
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
@@ -490,6 +491,45 @@ def run_chat(
         return {"gate": reason} if model_prose else None
 
     plan_answer = current_plan_answer(message, plan_revision)
+    saved_read = saved_plan_read(message)
+    if saved_read is not None and plan_revision is not None and not continuation:
+        start = len(trace)
+        route_calls = [msgs.ToolCall("saved-plan-get-plan", GET_PLAN_TOOL, {})]
+        if saved_read == "fit":
+            route_calls.append(msgs.ToolCall("saved-plan-budget", BUDGET_TOOL_NAME, {}))
+        route_blocks: list[dict[str, object]] = []
+        route_payloads: dict[str, dict[str, object]] = {}
+        for route_call in route_calls:
+            heartbeat()
+            route_payload, route_block = dispatch(
+                route_call,
+                budget,
+                period,
+                user_id,
+                spending_source,
+                trace,
+                record_evidence=record_evidence,
+                plan=plan_revision,
+            )
+            route_blocks.append(route_block)
+            if route_payload is None:
+                break
+            route_payloads[route_call.name] = route_payload
+        route_plan = route_payloads.get(GET_PLAN_TOOL)
+        route_reply = (
+            None
+            if route_plan is None or len(route_payloads) != len(route_calls)
+            else saved_plan_reply(
+                route_plan,
+                route_payloads.get(BUDGET_TOOL_NAME),
+                stale=budget.stale,
+            )
+        )
+        if route_reply is not None:
+            pending_results = route_blocks
+            reason = why("saved_plan_read")
+            return out("clarification", route_reply, None, "template", reason)
+        del trace[start:]
     while turns < MAX_MODEL_TURNS:
         heartbeat()
         pending_results = None

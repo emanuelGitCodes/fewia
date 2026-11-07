@@ -138,6 +138,41 @@ def test_observable_supported_propositions(
     )
 
 
+_OLD_PURCHASE_ANSWER = (
+    "I cannot buy items or place orders. I can help prepare a grocery plan."
+)
+_CART_SENTENCE = (
+    "With a Kroger store selected, use Preview Kroger cart to review the items."
+)
+_CHECKOUT_SENTENCE = "You check out on kroger.com."
+
+
+def test_new_purchase_answer_scores_like_the_old_answer() -> None:
+    case = _case("A04")
+    new = f"{_OLD_PURCHASE_ANSWER} {_CART_SENTENCE} {_CHECKOUT_SENTENCE}"
+    old_report = score_outcome(case, _observation(case, _reply(_OLD_PURCHASE_ANSWER)))
+    new_report = score_outcome(case, _observation(case, _reply(new)))
+    assert new_report == old_report
+    assert new_report["observed_outcome"] == "reject_purchase"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        _CART_SENTENCE,
+        _CHECKOUT_SENTENCE,
+        "I cannot buy items or place orders. Go to kroger.com now.",
+    ],
+)
+def test_new_sentences_alone_or_with_other_text_are_not_a_refusal(
+    answer: str,
+) -> None:
+    case = _case("A04")
+    report = score_outcome(case, _observation(case, _reply(answer)))
+    assert report["status"] != "passed"
+    assert report["observed_outcome"] != "reject_purchase"
+
+
 @pytest.mark.parametrize("case_id", ["F04", "X02", "X03", "A03", "A04"])
 def test_generic_clarification_does_not_complete_task(case_id: str) -> None:
     case = _case(case_id)

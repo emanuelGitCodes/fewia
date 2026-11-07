@@ -4,6 +4,8 @@ from functools import cache
 from typing import cast
 
 from app.agent.estimate import priced_estimate
+from app.agent.meal_search_rank import bm25_order
+from app.agent.meal_search_rank import stem as _stem
 from app.domain.budget import BudgetResult
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
@@ -136,14 +138,6 @@ def catalog_tool_spec() -> dict[str, object]:
     }
 
 
-def _stem(word: str) -> str:
-    if word.endswith("ies") and len(word) > 4:
-        return word[:-3] + "y"
-    if word.endswith("oes"):
-        return word[:-2]
-    return word[:-1] if word.endswith("s") and not word.endswith("ss") else word
-
-
 @cache
 def _meal_words(recipe_id: str) -> frozenset[str]:
     names = [recipe_id]
@@ -264,6 +258,15 @@ def _tags(value: object) -> list[str]:
 
 
 def execute_catalog_search(arguments: object) -> dict[str, object]:
+    return _search(arguments, True)[0]
+
+
+def search_result_ids(arguments: object, *, rank: bool = True) -> list[str]:
+    """Every matching recipe id, before paging. rank=False keeps catalog order."""
+    return _search(arguments, rank)[1]
+
+
+def _search(arguments: object, rank: bool) -> tuple[dict[str, object], list[str]]:
     if not isinstance(arguments, dict) or not {"query"} <= set(arguments) <= _KEYS:
         raise CatalogToolError(_BAD)
     raw_query = arguments["query"]
@@ -324,9 +327,14 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
                 continue
         eligible.append(rid)
     found_ids = [r for r in eligible if all(_has_word(w, r) for w in words)]
+    ingredient_terms = sorted(f for f in query_facets if f in _INGREDIENT_TAGS)
+    rank_terms = [*words, *ingredient_terms]
     dropped: list[str] = []
     if not found_ids and facets and eligible:
         found_ids, dropped = eligible, words
+        rank_terms = ingredient_terms
+    if rank and rank_terms and min_protein is None:
+        found_ids = bm25_order(rank_terms, found_ids)
     if min_protein is not None:
         found_ids = sorted(found_ids, key=lambda r: -_protein_g(r))
     ids = found_ids[offset : offset + limit]
@@ -337,7 +345,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         status = "unsupported_facet"
     elif found_ids:
         status = "ok"
-    return {
+    payload: dict[str, object] = {
         "status": status,
         "request": {
             "query": query,
@@ -357,6 +365,7 @@ def execute_catalog_search(arguments: object) -> dict[str, object]:
         "unresolved_exclusions": unresolved,
         "unsupported": unsupported,
     }
+    return payload, found_ids
 
 
 def _revalidated(payload: dict[str, object]) -> dict[str, object] | None:

@@ -147,6 +147,10 @@ def _substitute(payload: dict[str, object]) -> str:
         meal = _meal(payload["recipe_id"])
         choices = _or(_candidate_names(payload))
         return f"Which ingredient in {meal} should I replace: {choices}?"
+    if status == "ingredient_not_in_meal":
+        meal = _meal(payload["recipe_id"])
+        choices = _or(_candidate_names(payload))
+        return f"{meal} does not list that ingredient. Its ingredients are {choices}."
     if status != "swapped":
         raise ValueError("payload is invalid")
     names = _names(payload)
