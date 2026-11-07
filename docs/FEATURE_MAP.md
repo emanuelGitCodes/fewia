@@ -237,6 +237,13 @@ a private queue.
 | 2026-10-03 post-hoc gold | 23 of 33, 69.7%, FAIL | unchanged | [posthoc-gold-20261003](../wiki/phases/posthoc-gold-20261003.md) |
 | 2026-10-03 original live | 17 of 33, 51.5%, FAIL | 98 of 100, 98%, PASS | [benchmark-20261003](../wiki/phases/benchmark-20261003.md) |
 
+`evaluation_retrieval.py` compares the BM25 meal order with catalog order
+on a biased proxy. `python -m app.evaluation_kroger` checks the Kroger path
+over a mock transport with invented data. Neither makes a live call. The
+conversation suite routes whole-message saved-plan questions through
+`agent/saved_plan_route.py` with no model call, so those turns measure the
+deterministic path. See [EVALUATION.md](EVALUATION.md).
+
 Artifacts live under `eval/results/artifacts/` with SHA-256 manifests.
 `eval/probes/` holds two pantry probe scripts. The course pack under
 `docs/course/` links prompts, figures, and failure examples; the owner
