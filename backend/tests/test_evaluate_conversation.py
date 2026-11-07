@@ -126,15 +126,21 @@ class _RaisingProvider:
         raise RuntimeError("provider down")
 
 
-def test_a_provider_that_always_raises_exits_3_with_every_artifact(
+def test_a_raising_provider_on_unrouted_turns_exits_3_with_every_artifact(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     out = tmp_path / "down"
+    selection = tmp_path / "selection.json"
+    selection.write_text(
+        json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [1, 2, 3]}]}),
+        encoding="utf-8",
+    )
 
     def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
         return _RaisingProvider()
 
-    assert cli.main(_argv(out), fixture_provider_for=provider_for) == 3
+    argv = _argv(out, **{"--selection-file": str(selection), "--max-chat-turns": "3"})
+    assert cli.main(argv, fixture_provider_for=provider_for) == 3
     captured = capsys.readouterr()
     assert "Evaluation incomplete" in captured.err
     names = {"slots.jsonl", "report.json", "report.md", "completion.json"}
