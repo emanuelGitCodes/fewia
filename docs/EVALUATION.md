@@ -156,12 +156,19 @@ History test (2026-11-07): the same 30 turns at `ff69540c`, which drops a routed
 - **Reading.** Dropping the turn removes context that later turns need. It does not meet the condition for this change: gold facts MUST stay at 30 of 30.
 - **Decision.** The owner rejected the change on 2026-11-07, and `ff69540c` is reverted. The route reply stays in model history. The route keeps its correct answers and its lower grounding. A report that uses these figures MUST state the lower grounding.
 
-What-if check (2026-11-07, Nova 2 Lite, revision `96d12ce2`): C01, C24, and C25, 3 repeats, 15 turns. [Report](../eval/results/artifacts/conversation-20261107-what-if-add/report.md). It cost USD 0.07.
+First what-if check (2026-11-07, Nova 2 Lite, revision `96d12ce2`): C01, C24, and C25, 3 repeats, 15 turns. [Report](../eval/results/artifacts/conversation-20261107-what-if-add/report.md). It cost USD 0.07. It predates the retry repairs below.
 
 - **Add form.** C24 turn 2, "What if we have both the chicken and black beans at the same time?", called the add form on 3 of 3 repeats. It returned status `added` and 499 kcal.
 - **Save request.** C25 turn 2, "can you add it to the list", returned gate `swap_not_saved` with no model call on 3 of 3 repeats.
 - **Other checks.** Tools and outcome passed 15 of 15. Gold passed 12 of 12 on the turns that hold gold; C25 turn 2 holds none. C01 still passed 3 of 3. Grounded replies were 3 of 12.
 - **Limit.** This selection does not show the effect of the tool spec change on C02 to C23. A full v1.6 batch has not run. Three repeats per scenario can show only a large effect.
+
+Final what-if check (2026-11-07, Nova 2 Lite, revision `9462a877`): the same 15 turns. [Report](../eval/results/artifacts/conversation-20261107-what-if-final/report.md). It cost USD 0.07.
+
+- **Selection.** Tools and outcome passed 15 of 15. Gold passed 12 of 12 on the turns that hold gold. C24 turn 2 returned status `added` on 3 of 3 repeats. C25 turn 2 returned gate `swap_not_saved` on 3 of 3 repeats. Grounded replies were 4 of 10.
+- **Owner's words.** A scripted replay of the owner's four messages on C25's plan, 3 repeats and not archived, ended in status `added` on each "Chicken ground" and "both" turn, and in the fixed reply on each save request. A browser replay at `/prototype`, on a plan with Bean tacos, gave 499 kcal and 31 g protein on "both", and the fixed reply on the save request.
+- **Earlier failure.** A retry with `with_ingredient_id` alone used to fail, and the reply fell back to the generic question. The tool now applies the single-protein default. A failed what-if keeps the pending question, or gives the tool-failure text.
+- **Limits.** A full v1.6 batch has not run. A text-only reply on a what-if follow-up still gives the generic question. The validator checks the numbers in a model reply, not which scenario it describes.
 
 ## Component boundaries
 
