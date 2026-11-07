@@ -59,6 +59,9 @@ the pair's own basis phrase, has the basis of that pair.
 A claim with no basis phrase matches any basis.
 A from-to claim also matches the basis of its recorded pair: the phrase after Y, else
 the one after X, must name the basis of a pair (FactSet.moves) or the pair has none.
+A from-to basis can also come from the basis phrase before "(from".
+A whole ISO day equal to a payload `period` is not a number claim.
+"Calories: Rise by" states a change.
 Side rule: every absolute energy and nutrient fact records its side: "before" under a
 `before` key, "after" under an `after` key, else None. A value that exists only as a
 before-side fact matches only when its clause (split at . ! ? ; a line break, and a
@@ -103,12 +106,14 @@ from app.agent.nutrient_grounding import (
     LABEL_BY,
     NUTRIENT_KEYS,
     SIDE_KEYS,
+    SUBJECT_COLON,
     UNMATCHED,
     UP_VERBS,
     UP_WORDS,
     NutrientFact,
     TaggedFact,
     basis_count,
+    basis_paren,
     before_marker,
     claim_basis,
     energy_basis,
@@ -353,6 +358,8 @@ _SCALED = re.compile(
     r"|billion|trillion|x|times)|\s*-\s*fold)\b",
     re.IGNORECASE,
 )
+# One whole ISO day: no time, sign, or other digits may touch it.
+_ISO_DAY = re.compile(r"(?<![\w.,:+\-/$])\d{4}-\d{2}-\d{2}(?![\w:+\-/%]|\.\d)")
 
 
 def _diet_sentences() -> set[str]:
@@ -416,6 +423,8 @@ class FactSet:
     # Every count that a payload states under a `servings` key; only these name the
     # total basis in "for N servings".
     servings: set[Decimal] = field(default_factory=set)
+    # The exact `period` strings; only these may appear as a date in a reply.
+    dates: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -547,7 +556,11 @@ def _changes(
                 for (k, a), (_, b) in zip(now, was, strict=False)
                 if subject or k == "energy"
             )
-            changed = [(k, a - b) for (k, a), (_, b) in zip(now, was, strict=False)]
+            changed = [
+                (k, a - b)
+                for index, ((k, a), (_, b)) in enumerate(zip(now, was, strict=False))
+                if not (str(name).lower().endswith("_mg") and index == 1)
+            ]
             changed.extend(_kinds(str(name), new - old))
             if subject:
                 facts.nutrition.update((subject, k, True, n) for k, n in changed)
@@ -597,6 +610,8 @@ def _walk(
     elif isinstance(value, float):
         facts.generic.add(Decimal(str(value)))
     elif isinstance(value, str):
+        if low == "period":
+            facts.dates.add(value)
         _add_text(value, facts)
     elif isinstance(value, Mapping):
         if isinstance(value.get("before"), Mapping) and isinstance(
@@ -682,7 +697,12 @@ def _verb_signs(text: str) -> dict[int, str]:
     """Map the start of each unit token that a direction verb binds to its sign."""
     signs: dict[int, str] = {}
     for verb in _VERB.finditer(text):
-        if verb.group().lower() in _BASE and _IMPERATIVE.search(text[: verb.start()]):
+        head = text[: verb.start()]
+        if (
+            verb.group().lower() in _BASE
+            and _IMPERATIVE.search(head)
+            and not SUBJECT_COLON.search(head)
+        ):
             continue
         sign = _MINUS if verb["down"] else "+"
         start = _LEAD.match(text, verb.end())
@@ -839,8 +859,8 @@ def _from_to(
     or "goes", sits in the clause before the "from", or this turn recorded a pair for
     that subject. Any other "from X to Y" is a range, and both values are checked as
     plain facts.
-    X and Y must be the before and after sides of one recorded pair, Y - X must be a
-    signed delta of that subject, and a direction verb must agree with Y - X.
+    X and Y must be the before and after sides of one recorded pair. The exact recorded
+    pair, its basis, and its direction are checked.
     The basis phrase after Y, else after X, must name the basis of that pair (see
     _paired); with no phrase, a pair of any basis matches.
     When a change leaves X right after "from" with no Y to read, X fails.
@@ -878,16 +898,13 @@ def _from_to(
         )
         change = after - before
         basis = _pair_basis(claims, kind, ends, starts, facts.servings)
+        if basis is None and index and basis_paren(claims, tokens[index - 1], token):
+            basis = claim_basis(claims, tokens[index - 1].end(), facts.servings)
         ok = bool(
             kind
             and subject
             and not any(end["sign"] for end in ends)
             and _paired(facts.moves, (subject, kind, before, after), basis)
-            and (
-                (kind, change) in facts.deltas
-                if subject == "energy"
-                else (subject, kind, True, change) in facts.nutrition
-            )
             and not (up and down)
             and not (up and change <= 0)
             and not (down and change >= 0)
@@ -897,14 +914,26 @@ def _from_to(
     return verdicts
 
 
+def _mask_known(reply: str, facts: FactSet) -> str:
+    """Blank a budget period; keep the offsets."""
+
+    def date(match: re.Match[str]) -> str:
+        return " " * len(match[0]) if match[0] in facts.dates else match[0]
+
+    return _ISO_DAY.sub(date, reply)
+
+
 def _scan(reply: str, facts: FactSet) -> tuple[list[str], bool, bool]:
     unmatched: list[str] = []
     word = money = False
-    plain = re.sub(r"[*_#]", " ", reply)
+    plain = re.sub(r"[*_#]", " ", _mask_known(reply, facts))
     lead = _verb_signs(plain)
     tokens = list(_TOKEN.finditer(plain))
     safe = _without_server_sentences(reply, mask=True)
-    nutrients = nutrient_bindings(safe, tokens)
+    # The nutrients with a zero change this turn: "while keeping protein the same".
+    milli = [f for f in facts.nutrition if f[1] == "milli" and f[2]]
+    flat = {f[0] for f in milli if not f[3]} - {f[0] for f in milli if f[3]}
+    nutrients = nutrient_bindings(safe, tokens, flat)
     claims = re.sub(r"[*_#]", " ", safe)  # same offsets as plain, no server sentence
     clauses = _clauses(plain)
     moves = _from_to(plain, tokens, nutrients, facts, clauses, claims)

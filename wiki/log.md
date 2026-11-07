@@ -5294,3 +5294,8 @@ Loop usage for this item: 7,466,831 input and 203,668 output tokens across the w
 The full `conversation-eval-v1.6` batch ran at `0f90a9fa` for USD 0.54. Gold on C01 to C23 held at 101 of 111. Refusals fell to 8 of 15 in that batch. A paired test with `main` then gave 23 of 45 on `main` and 27 of 45 on the branch, p = 0.53, for USD 0.36, so the branch does not show a regression. Single-batch refusal figures overstate the rate, which is about 50% to 60%.
 A local diagnostic, not archived, read 14 rejected replies. Nine held correct numbers in forms the validator does not accept. Five held real errors, all in C11. The next items are the validator forms and a fixed reply for clear purchase requests.
 A single batch can also understate the rate: the archived batches range from 5 to 13 of 15.
+
+## 2026-11-07 — Validator forms
+
+`claude/validator-forms-01` accepts more forms of a true number and closes a tenth-gram rounding gap. Review rounds 1 and 2 found a from-to regression, a false "half" accept, and a bracket that crossed "for 2 servings". The "half" form is withdrawn. `claude-opus-5-5` returned `APPROVE` at `50b87dc6`, with 17,647 backend tests and 80 of 1,000 lines.
+A live capture of 26 validated replies, not archived, gave 6 accepted against 3 with the old validator on the same replies. Grounded rates before and after this change are not comparable. Form fixes give a small gain; server-filled number slots are the likely next step.
