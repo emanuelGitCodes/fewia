@@ -240,27 +240,35 @@ def test_c07_turn_two_routes_to_get_plan_when_the_provider_raises(
     ("scenario_id", "turn", "expected"),
     [
         ("C06", 1, {"get_plan", "get_budget_summary"}),
+        ("C11", 1, {"get_plan"}),
         ("C11", 7, {"get_plan"}),
         ("C11", 8, {"get_plan", "get_budget_summary"}),
     ],
 )
-def test_saved_plan_turns_record_their_tools_when_the_provider_raises(
+def test_saved_plan_route_answers_without_the_provider_and_holds_the_gold_facts(
     corpus: ConversationCorpus,
     scenario_id: str,
     turn: int,
     expected: set[str],
 ) -> None:
-    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
-        return _Raises()
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        if scenario.id == "C06":
+            return _Raises()
+        return GoldFollowingProvider(scenario.turns[index - 1])
 
     records = list(
         run_conversation_suite(_only(corpus, scenario_id), "p", provider_for)
     )
     held = [r for r in records if r["turn"] == turn]
-    assert held
+    assert len(held) == 3
     for record in held:
         tools = cast(list[dict[str, Any]], record["tools"])
         assert expected <= {t["name"] for t in tools}
+        assert record["gate"] == "saved_plan_read"
+        assert record["provider_requests"] == 0
+        facts = cast(list[bool], record["facts_present"])
+        assert facts
+        assert all(facts)
 
 
 def test_selection_normalizes_order_and_limits_runner_pairs(
