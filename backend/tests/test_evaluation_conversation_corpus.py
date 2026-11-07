@@ -97,7 +97,7 @@ def _offered(corpus: ConversationCorpus, *, propose: bool) -> set[str]:
     with pytest.raises(ChatUnavailable):
         run_chat(
             recorder,
-            "What does my plan cost?",
+            "What does a plan cost?",
             fixture_budget(scenario.inputs.model_dump()),
             date.fromisoformat(scenario.inputs.budget_period),
             plan_revision=PlanRevisionInput(id=_REVISION_ID, snapshot=scenario.plan),
