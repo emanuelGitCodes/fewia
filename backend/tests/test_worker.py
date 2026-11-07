@@ -159,7 +159,7 @@ def forbid_provider_builds(monkeypatch: pytest.MonkeyPatch) -> None:
 
         return fail
 
-    monkeypatch.setattr(worker, "build_bedrock", boom("bedrock"))
+    monkeypatch.setattr(worker, "build_llm", boom("llm"))
     monkeypatch.setattr(worker, "build_plaid", boom("plaid"))
 
 
@@ -972,7 +972,7 @@ def test_bedrock_constructor_failure_degrades_without_fake(
         raise AssertionError("plaid")
 
     monkeypatch.setattr(worker, "load_provider_settings", loaded)
-    monkeypatch.setattr(worker, "build_bedrock", fail_build)
+    monkeypatch.setattr(worker, "build_llm", fail_build)
     monkeypatch.setattr(worker, "build_plaid", forbid_plaid)
     captured: list[object] = []
 
@@ -1086,3 +1086,42 @@ def test_default_agent_gets_no_extra_options_without_provider_files(
     assert SECRET not in output.out
     assert SECRET not in output.err
     assert "Traceback" not in output.out
+
+
+def test_openai_worker_uses_common_provider_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "key")
+    selected = object()
+    seen: list[object] = []
+
+    def load() -> GroceryProviderSettings:
+        return settings
+
+    def build(loaded: GroceryProviderSettings) -> object:
+        assert loaded is settings
+        return selected
+
+    def make_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
+        seen.append(provider)
+        return dummy_handler
+
+    monkeypatch.setattr(worker, "load_provider_settings", load)
+    monkeypatch.setattr(worker, "build_llm", build)
+    monkeypatch.setattr(worker, "make_agent_handler", make_agent)
+    assert worker._default_handler(dummy_factory(), "agent") is dummy_handler
+    assert seen == [selected]
+
+
+def test_openai_worker_failure_has_static_notice(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fail(settings: GroceryProviderSettings) -> None:
+        raise ProviderConfigurationError()
+
+    monkeypatch.setattr(worker, "build_llm", fail)
+    settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "key")
+    assert worker._llm_provider(settings) is None
+    assert capsys.readouterr() == ("", '{"status": "openai_unavailable"}\n')

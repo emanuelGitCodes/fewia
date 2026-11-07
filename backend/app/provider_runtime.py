@@ -15,6 +15,7 @@ from app.provider_settings import (
 )
 from app.providers.bedrock import BedrockConverseProvider
 from app.providers.kroger import KrogerClient, kroger_base_url
+from app.providers.openai_responses import OpenAIResponsesProvider
 from app.providers.plaid import PlaidSandboxProvider
 
 
@@ -22,6 +23,22 @@ class ProviderCapabilities(TypedDict):
     chat_configured: bool
     plaid_configured: bool
     spending_source: SpendingSource
+
+
+def build_llm(settings: GroceryProviderSettings) -> LLMProvider | None:
+    key_file = settings.openai_api_key_file
+    if key_file is None:
+        return build_bedrock(settings)
+    if settings.bedrock_model_id is not None:
+        raise ProviderConfigurationError()
+    provider: LLMProvider | None = None
+    try:
+        provider = OpenAIResponsesProvider(key_file, region=settings.openai_region)
+    except Exception:  # noqa: BLE001
+        pass
+    if provider is None:
+        raise ProviderConfigurationError()
+    return provider
 
 
 def build_bedrock(settings: GroceryProviderSettings) -> LLMProvider | None:
@@ -114,7 +131,10 @@ def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
         and settings.plaid_tokens_file is not None
     )
     return {
-        "chat_configured": settings.bedrock_model_id is not None,
+        "chat_configured": (
+            settings.bedrock_model_id is not None
+            or settings.openai_api_key_file is not None
+        ),
         "plaid_configured": plaid_configured,
         "spending_source": settings.spending_source,
     }

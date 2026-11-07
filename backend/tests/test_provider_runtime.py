@@ -8,6 +8,7 @@ import pytest
 
 from app.provider_runtime import (
     build_bedrock,
+    build_llm,
     build_plaid,
     capabilities,
 )
@@ -84,6 +85,7 @@ def test_unconfigured_defaults_have_zero_effects(
     _forbid_reads(monkeypatch)
     settings = GroceryProviderSettings()
     assert build_bedrock(settings) is None
+    assert build_llm(settings) is None
     assert build_plaid(settings) is None
     assert capabilities(settings) == {
         "chat_configured": False,
@@ -291,3 +293,78 @@ def test_capabilities_does_not_construct_or_claim_live(
     assert "secret" not in blob
     assert "tokens" not in blob
     assert "key" not in blob
+
+
+@pytest.mark.parametrize("region", ["us", "global"])
+def test_build_llm_selects_openai_without_bedrock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, region: str
+) -> None:
+    captured: list[tuple[Path, str]] = []
+    sentinel = object()
+
+    def openai(path: Path, *, region: str) -> object:
+        captured.append((path, region))
+        return sentinel
+
+    def forbid(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Bedrock MUST NOT run")
+
+    monkeypatch.setattr("app.provider_runtime.OpenAIResponsesProvider", openai)
+    monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", forbid)
+    _forbid_reads(monkeypatch)
+    path = tmp_path / "openai-key"
+    settings = GroceryProviderSettings.model_validate(
+        {"openai_api_key_file": path, "openai_region": region}
+    )
+    assert build_llm(settings) is sentinel
+    assert captured == [(path, region)]
+    assert capabilities(settings)["chat_configured"] is True
+    assert str(path) not in repr(capabilities(settings))
+
+
+def test_build_llm_preserves_bedrock_routing(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_fakes(monkeypatch)
+
+    def forbid(*args: object, **kwargs: object) -> None:
+        raise AssertionError("OpenAI MUST NOT run")
+
+    monkeypatch.setattr("app.provider_runtime.OpenAIResponsesProvider", forbid)
+    configured = GroceryProviderSettings(
+        bedrock_model_id=MODEL_MARKER, bedrock_prompt_cache=True
+    )
+    provider = build_llm(configured)
+    assert isinstance(provider, FakeBedrock)
+    assert provider.model_id == MODEL_MARKER
+    assert provider.prompt_cache is True
+
+
+def test_openai_constructor_failure_is_generic_without_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise RuntimeError(SECRET_MARKER)
+
+    def forbid(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Bedrock MUST NOT run")
+
+    monkeypatch.setattr("app.provider_runtime.OpenAIResponsesProvider", fail)
+    monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", forbid)
+    path = tmp_path / "key"
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_llm(GroceryProviderSettings(openai_api_key_file=path))
+    _static(raised.value, SECRET_MARKER, str(path))
+
+
+def test_conflicting_constructed_settings_fail_before_provider_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbid(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Provider MUST NOT run")
+
+    monkeypatch.setattr("app.provider_runtime.OpenAIResponsesProvider", forbid)
+    monkeypatch.setattr("app.provider_runtime.BedrockConverseProvider", forbid)
+    settings = GroceryProviderSettings.model_construct(
+        bedrock_model_id=MODEL_MARKER, openai_api_key_file=Path("key")
+    )
+    with pytest.raises(ProviderConfigurationError):
+        build_llm(settings)
