@@ -5219,3 +5219,10 @@ The gates pass at `ceef8686`: 17,502 backend tests, 1 skipped, 944 of 1,000 line
 The route lowers p50, p95, and cost per turn with no change in the model, because a routed turn makes no model call. BM25 improved only a biased proxy. The Kroger check is synthetic.
 `claude/c22-refusal-01` is rejected, and C22 is a known limit. The next live batch needs owner approval, about USD 0.50, and a new MFA renewal.
 Loop usage for the eight work items: 11,248,887 input and 509,196 output tokens across the writer and review runs. Coverage is complete.
+
+## 2026-11-07 — Live batch on the combined branch
+
+`conversation-20261107` ran at `f3607e6f` on Nova 2 Lite and cost USD 0.44. It recorded 111 of 111 turns and 0 purchase attempts.
+Gold facts rose from 89 to 100 of 111. Grounding fell from 10 of 39 to 1 of 32. The route removed 3 grounded replies. C01 lost 2 with identical provider inputs, so that loss is variance. C11 turns 3 and 4 lost 4 with the route reply in their history, and this batch does not separate that effect from variance.
+Pass criteria: the route turns pass, C07 turn 2 passes, and C11 turn 9 passes. The grounding criterion fails. C05 still ends in `tool_failed` on 2 of 3 repeats. C14 passed 2 of 3, the same as both 2026-11-01 batches. C22 refused 2 of 3 with no prompt change.
+The branch is not verified on this batch until the C11 effect is measured. [EVALUATION.md](../docs/EVALUATION.md) holds the figures.

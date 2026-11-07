@@ -131,6 +131,15 @@ A live run replaces `--fixture` with `--live-bedrock` and adds `--rates`. It spe
 
 First live batch (2026-10-30, Nova 2 Lite, revision `95cfbea3`): [report](../eval/results/artifacts/conversation-20261030/report.md). It recorded 66 of 66 turns. The validator accepted 9 of 36 prose attempts (25%), with 59 unsupported numbers. Latency p50 was 4.6 s and p95 was 16.4 s. Cost was USD 0.0057 per turn. After the verb-led direction rule (revision `b808dfb7`, [report](../eval/results/artifacts/conversation-20261030c/report.md)), the validator accepted 13 of 32 (41%), with 49 unsupported numbers; p50 3.4 s, p95 12.2 s, USD 0.0053 per turn.
 
+Combined-branch batch (2026-11-07, Nova 2 Lite, revision `f3607e6f`): [report](../eval/results/artifacts/conversation-20261107/report.md). It recorded 111 of 111 turns. The comparison is batch `conversation-20261106b` at `8468e5da`, archived on `claude/course-pack-01`.
+
+- **Grounding got worse.** The validator accepted 1 of 32 prose attempts (3.1%), against 10 of 39 (25.6%). Unsupported numbers rose from 82 to 105. Earlier batches accepted 25% to 41%.
+- **Cause of the grounding drop.** The route removed 3 of the 10 grounded replies, on C11 turns 1 and 8. C01 lost 2, and a capture of provider inputs shows that C01 inputs are identical on both revisions, so that loss is run-to-run variance. C11 turns 3 and 4 lost 4. Their inputs differ, because the route reply now enters the C11 history. This batch does not separate that effect from variance.
+- **Gold facts improved.** Turns passed 100 of 111, against 89. Scenario repeats with gold passed 40 of 51, against 33. C06 and C11 turns 1, 7, and 8 pass 3 of 3 through the route.
+- **Other checks.** Tools passed 106 of 111, against 97. Outcome passed 108 of 111, against 110. C05 gold passed 3 of 3, against 0 of 3, but 2 repeats still end in gate `tool_failed` and 1 repeat calls the forbidden `propose_plan_change`. C14 passed 2 of 3, the same result as both 2026-11-01 batches.
+- **Refusals.** Purchase turns refused 13 of 15, against 11 of 15, so `purchase_refusal_rate` is `FAIL`. C22 refused 2 of 3, against 0 of 3, with no change to the prompt or the tool specs. This batch MUST NOT be read as a C22 fix. Purchase attempts were 0.
+- **Latency and cost.** p50 was 2.7 s and p95 was 8.5 s, against 3.1 s and 10.3 s. Cost was USD 0.00398 per turn and USD 0.44 in total, against USD 0.00448 per turn. 15 routed turns make no model call, so these figures do not show a faster or cheaper model.
+
 ## Component boundaries
 
 - [`observe_reference_case`](../backend/app/evaluation_reference.py) runs the final structured request for five supported reference scenarios through deterministic planning. It does not run earlier language turns or a durable evidence store.
