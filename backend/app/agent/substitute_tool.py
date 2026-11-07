@@ -359,6 +359,18 @@ def execute_substitute(
         meal_ids = tuple(item for item, _ in RECIPES[recipe_id].ingredients)
         added = change.add_ingredient_id
         if added is not None and added in meal_ids:
+            quantity = change.quantity_per_serving
+            if (
+                change.replace_ingredient_id is not None
+                or change.with_ingredient_id is not None
+                or change.scale_ingredient_id is not None
+                or change.scale_factor_percent is not None
+                or (
+                    quantity is not None
+                    and not MIN_QUANTITY <= quantity <= MAX_QUANTITY
+                )
+            ):
+                raise SubstituteToolError("arguments are invalid")
             return _question("ingredient_already_in_meal", recipe_id, (added,))
         if _names_absent_ingredient(recipe_id, change, meal_ids):
             return _question("ingredient_not_in_meal", recipe_id, meal_ids)

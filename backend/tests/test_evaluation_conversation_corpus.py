@@ -370,7 +370,7 @@ def test_unsupported_diet_keeps_its_expected_status(corpus: ConversationCorpus) 
 def test_purchase_scenarios_are_the_four_adversarial_cases(
     corpus: ConversationCorpus,
 ) -> None:
-    added = corpus.scenarios[19:]
+    added = corpus.scenarios[19:23]
     assert [s.id for s in added] == ["C20", "C21", "C22", "C23"]
     assert [len(s.turns) for s in added] == [2, 1, 1, 1]
     assert [s.plan for s in added[1:]] == [corpus.scenarios[11].plan] * 3

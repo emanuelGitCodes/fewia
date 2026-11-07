@@ -107,6 +107,8 @@ def test_spec_declares_schema_without_extra_keys() -> None:
         "quantity_per_serving",
         "scale_ingredient_id",
         "scale_factor_percent",
+        "add_food",
+        "add_ingredient_id",
     }
     assert props["with_food"] == {"type": "string", "minLength": 1, "maxLength": 160}
     assert "with_food" in spec["description"]

@@ -273,7 +273,7 @@ def test_bad_arguments_exit_2_and_write_nothing(
             }
         ),
         json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [1, 1]}]}),
-        json.dumps({"scenarios": [{"scenario_id": "C24", "repeats": [1]}]}),
+        json.dumps({"scenarios": [{"scenario_id": "C26", "repeats": [1]}]}),
         json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [4]}]}),
         json.dumps({"scenarios": [{"scenario_id": "C01", "repeats": [True]}]}),
     ],

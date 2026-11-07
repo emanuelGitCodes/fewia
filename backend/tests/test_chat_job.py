@@ -266,6 +266,32 @@ def test_chat_job_input_defaults_and_validates_previous_search() -> None:
         model.model_validate(chat_payload(previous_exhausted_search="x"))
 
 
+def test_chat_job_carries_the_previous_what_if_recipe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    seen: list[object] = []
+    real = chat_job_module.run_chat
+
+    def spy(*args: object, **kwargs: object) -> dict[str, object]:
+        seen.append(kwargs.get("previous_what_if_recipe"))
+        return real(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(chat_job_module, "run_chat", spy)
+    chat_job_module.chat_job(
+        chat_payload(
+            message="can you add it to the list",
+            previous_what_if_recipe="baked_potatoes_with_beans",
+        ),
+        lambda: None,
+        provider=FakeLLM([]),
+        factory=FACTORY,
+    )
+    assert seen == ["baked_potatoes_with_beans"]
+    model = chat_job_module.ChatJobInput
+    assert model.model_validate(chat_payload()).previous_what_if_recipe is None
+
+
 def test_chat_job_transports_exhaustion_without_restarting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

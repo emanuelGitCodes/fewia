@@ -97,6 +97,9 @@ def test_add_food_adds_chicken_on_top_of_every_listed_ingredient() -> None:
     listed = RECIPES[BEANS].ingredients
     assert after["per_serving"] == _unrounded((*listed, (CHICKEN_ID, 100)))
     assert after["per_serving"]["energy_kcal"] == 499
+    assert after["per_serving"]["protein_mg"] == 31466
+    assert after["per_serving"]["carbohydrate_mg"] == 64895
+    assert after["per_serving"]["fat_mg"] == 13878
     assert before["per_serving"] == _unrounded(listed)
     lines = cast(list[dict[str, object]], after["ingredients"])
     assert [line["ingredient_id"] for line in lines] == [
@@ -226,7 +229,11 @@ def test_price_lines_prices_an_added_food() -> None:
     payload = execute_price_lines(
         {
             "meals": [
-                {"recipe_id": BEANS, "servings": 1, "add_ingredient_id": CHICKEN_ID}
+                {
+                    "recipe_id": BEANS,
+                    "servings": 1,
+                    "add_ingredient_id": "chicken_breast",
+                }
             ]
         },
         _budget(),
@@ -234,10 +241,36 @@ def test_price_lines_prices_an_added_food() -> None:
     )
     text = read_tool_answer([(PRICE_TOOL, payload)])
     assert text is not None
-    assert (
-        "Baked potatoes with beans (1 serving) with chicken (ground, raw) added" in text
+    assert "Baked potatoes with beans (1 serving) with" in text
+    assert "added" in text
+    assert "Sample total for" in text
+
+
+def test_price_lines_reports_an_added_food_with_no_price() -> None:
+    payload = execute_price_lines(
+        {
+            "meals": [
+                {"recipe_id": BEANS, "servings": 1, "add_ingredient_id": CHICKEN_ID}
+            ]
+        },
+        _budget(),
+        None,
     )
-    assert "Sample total for" in text or "price is missing" in text
+    text = read_tool_answer([(PRICE_TOOL, payload)])
+    assert text == "The sample total is incomplete because a price is missing."
+
+
+@pytest.mark.parametrize(
+    "extra", [{"scale_factor_percent": 50}, {"quantity_per_serving": 0}]
+)
+def test_an_added_food_already_in_the_meal_still_rejects_bad_arguments(
+    extra: dict[str, object],
+) -> None:
+    with pytest.raises(SubstituteToolError):
+        execute_substitute(
+            {"recipe_id": BEANS, "add_ingredient_id": "black_beans", **extra},
+            _budget(),
+        )
 
 
 def test_the_tool_spec_offers_the_add_form() -> None:
