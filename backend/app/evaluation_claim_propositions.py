@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 
+from app.agent.chat_refusal import scored_answer
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.evaluation_outcome_propositions import public_tags
@@ -42,6 +43,7 @@ class ClaimParse:
 
 
 def _clauses(answer: str) -> list[str]:
+    answer = scored_answer(answer)
     clauses: list[str] = []
     cursor = 0
     while cursor < len(answer):

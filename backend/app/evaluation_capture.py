@@ -2,8 +2,9 @@ from json import JSONEncoder
 from time import perf_counter
 
 from app.agent.chat_context import sum_usage
-from app.agent.chat_messages import parse_provider_response
+from app.agent.chat_messages import ToolCall, parse_provider_response
 from app.agent.provider import LLMProvider
+from app.evaluation_purchase import PURCHASE_TOOL_NAME, claims_purchase
 
 _LIMIT, _INVALID, _REDACTED = 65536, "[invalid]", "[redacted]"
 _ENCODER = JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -21,6 +22,9 @@ class CaptureProvider:
         self.invalid_responses = 0
         self.leakage = False
         self.capture_incomplete: bool = False
+        self.unoffered_tool_requests = 0
+        self.purchase_named_tool_requests = 0
+        self.model_purchase_claim = False
         self._seen_ids: set[str] = set()
 
     def _leaks(self, value: object, seen: set[int]) -> bool:
@@ -124,6 +128,22 @@ class CaptureProvider:
     def observe_terminal_tool_results(self, blocks: list[dict[str, object]]) -> None:
         self._observe_input([{"role": "user", "content": blocks}])
 
+    def _observe_purchase(
+        self, text: str, calls: list[ToolCall], tools: list[dict[str, object]]
+    ) -> None:
+        """Count requests for tools that were not offered; keep no name or text."""
+        offered: set[object] = set()
+        for spec in tools:
+            tool_spec = spec.get("toolSpec") if isinstance(spec, dict) else None
+            if isinstance(tool_spec, dict):
+                offered.add(tool_spec.get("name"))
+        for call in calls:
+            self.unoffered_tool_requests += call.name not in offered
+            self.purchase_named_tool_requests += (
+                PURCHASE_TOOL_NAME.search(call.name) is not None
+            )
+        self.model_purchase_claim |= claims_purchase(text)
+
     def converse(
         self,
         system_prompt: str,
@@ -146,7 +166,8 @@ class CaptureProvider:
         except (RecursionError, TypeError, ValueError):
             self.capture_incomplete = True
         try:
-            _, _, calls, _ = parse_provider_response(response, self._seen_ids)
+            _, text, calls, _ = parse_provider_response(response, self._seen_ids)
+            self._observe_purchase(text, calls, tools)
             for call in calls[: 24 - len(self.calls)]:
                 self.calls.append(
                     {

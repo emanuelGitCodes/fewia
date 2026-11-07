@@ -49,6 +49,7 @@ _RECORD_KEYS = {
     "provider_requests",
     "latency_ms",
     "apply_error",
+    "purchase_signals",
 }
 _USAGE = {"inputTokens": 10, "outputTokens": 3}
 Seen = dict[tuple[int, int], list[list[dict[str, object]]]]
@@ -95,6 +96,17 @@ def _text(value: str) -> dict[str, object]:
 def _only(corpus: ConversationCorpus, scenario_id: str) -> ConversationCorpus:
     chosen = [s for s in corpus.scenarios if s.id == scenario_id]
     return corpus.model_copy(update={"scenarios": chosen})
+
+
+def _c07_unrouted(corpus: ConversationCorpus) -> ConversationCorpus:
+    """C07 with turn 2 reworded so the saved-plan route leaves it to the model."""
+    sub = _only(corpus, "C07")
+    scenario = sub.scenarios[0]
+    turns = list(scenario.turns)
+    turns[1] = turns[1].model_copy(update={"user": "What do my plan meals cost now?"})
+    return sub.model_copy(
+        update={"scenarios": [scenario.model_copy(update={"turns": turns})]}
+    )
 
 
 def _plan_ids(messages: list[dict[str, object]]) -> list[str]:
@@ -163,7 +175,7 @@ def test_a_provider_failure_records_a_failed_turn_and_stops(
     def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
         return Scripted([])
 
-    records = list(run_conversation_suite(_only(corpus, "C11"), "p", provider_for))
+    records = list(run_conversation_suite(_only(corpus, "C01"), "p", provider_for))
     assert [(r["repeat"], r["turn"]) for r in records] == [(1, 1), (2, 1), (3, 1)]
     for record in records:
         assert record["status"] == "failed"
@@ -175,6 +187,88 @@ def test_a_provider_failure_records_a_failed_turn_and_stops(
         assert record["provider_requests"] == 1
         assert not any(cast(list[bool], record["facts_present"]))
         assert set(cast(dict[str, object], record["usage"]).values()) == {None}
+
+
+def test_a_saved_plan_read_turn_keeps_its_gate_and_scores_as_template(
+    corpus: ConversationCorpus,
+) -> None:
+    calls: list[int] = []
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        calls.append(turn)
+        return Scripted([])
+
+    sub = _only(corpus, "C11")
+    scenario = sub.scenarios[0]
+    first = scenario.model_copy(update={"turns": scenario.turns[:1]})
+    sub = sub.model_copy(update={"scenarios": [first]})
+    records = list(run_conversation_suite(sub, "p", provider_for))
+    for record in records:
+        assert record["gate"] == "saved_plan_read"
+        assert record["reply_source"] == "template"
+        assert record["facts_present"] == [True, True]
+        assert record["provider_requests"] == 0
+        assert record["verdict"]["ok"] is None  # type: ignore[index]
+
+
+class _Raises:
+    def converse(self, *args: object, **kwargs: object) -> dict[str, object]:
+        raise RuntimeError("provider down")
+
+
+def test_c07_turn_two_routes_to_get_plan_when_the_provider_raises(
+    corpus: ConversationCorpus,
+) -> None:
+    operations = [{"op": "add", "recipe_id": "overnight_oats", "servings": 2}]
+
+    def provider_for(scenario: Scenario, repeat: int, turn: int) -> LLMProvider:
+        if turn == 1:
+            return Scripted(
+                [_use("propose_plan_change", {"operations": operations}), _text("Ok.")]
+            )
+        return _Raises()
+
+    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    second = [r for r in records if r["turn"] == 2]
+    assert second
+    for record in second:
+        tools = cast(list[dict[str, Any]], record["tools"])
+        assert "get_plan" in [t["name"] for t in tools]
+
+
+@pytest.mark.parametrize(
+    ("scenario_id", "turn", "expected"),
+    [
+        ("C06", 1, {"get_plan", "get_budget_summary"}),
+        ("C11", 1, {"get_plan"}),
+        ("C11", 7, {"get_plan"}),
+        ("C11", 8, {"get_plan", "get_budget_summary"}),
+    ],
+)
+def test_saved_plan_route_answers_without_the_provider_and_holds_the_gold_facts(
+    corpus: ConversationCorpus,
+    scenario_id: str,
+    turn: int,
+    expected: set[str],
+) -> None:
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        if scenario.id == "C06":
+            return _Raises()
+        return GoldFollowingProvider(scenario.turns[index - 1])
+
+    records = list(
+        run_conversation_suite(_only(corpus, scenario_id), "p", provider_for)
+    )
+    held = [r for r in records if r["turn"] == turn]
+    assert len(held) == 3
+    for record in held:
+        tools = cast(list[dict[str, Any]], record["tools"])
+        assert expected <= {t["name"] for t in tools}
+        assert record["gate"] == "saved_plan_read"
+        assert record["provider_requests"] == 0
+        facts = cast(list[bool], record["facts_present"])
+        assert facts
+        assert all(facts)
 
 
 def test_selection_normalizes_order_and_limits_runner_pairs(
@@ -239,7 +333,7 @@ def test_apply_proposal_before_changes_the_plan_in_memory_only(
         )
         return Scripted([first, _text("Done.")], seen.setdefault((repeat, turn), []))
 
-    sub = _only(corpus, "C07")
+    sub = _c07_unrouted(corpus)
     records = list(run_conversation_suite(sub, "p", provider_for))
     assert len(records) == 6
     for repeat in (1, 2, 3):
@@ -265,7 +359,7 @@ def test_no_proposal_is_applied_when_none_was_recorded(
         )
         return Scripted(script, seen.setdefault((repeat, turn), []))
 
-    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    records = list(run_conversation_suite(_c07_unrouted(corpus), "p", provider_for))
     assert _plan_ids(seen[(1, 2)][0]) == ["bean_tacos"]
     assert [r["apply_error"] for r in records] == [None, "missing"] * 3
 
@@ -289,7 +383,7 @@ def test_a_proposal_that_fails_to_apply_is_recorded_and_fails_the_turn(
         )
         return Scripted([first, _text("Done.")], seen.setdefault((repeat, turn), []))
 
-    sub = _only(corpus, "C07")
+    sub = _c07_unrouted(corpus)
     records = list(run_conversation_suite(sub, "p", provider_for))
     assert [r["apply_error"] for r in records] == [None, "invalid"] * 3
     assert _plan_ids(seen[(1, 2)][0]) == ["bean_tacos"]
@@ -563,7 +657,7 @@ def test_evaluation_cannot_apply_a_proposal_from_a_blocked_turn(
             ]
         return Scripted(script, seen.setdefault((repeat, turn), []))
 
-    records = list(run_conversation_suite(_only(corpus, "C07"), "p", provider_for))
+    records = list(run_conversation_suite(_c07_unrouted(corpus), "p", provider_for))
     assert len(records) == 6
     for repeat in (1, 2, 3):
         own = [record for record in records if record["repeat"] == repeat]
@@ -672,7 +766,7 @@ def test_a_fixture_run_writes_manifest_identity_covered_by_the_hash(
     assert main(_argv(out)) == 0
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     manifest = report["manifest"]
-    assert manifest["suite_version"] == "conversation-eval-v1.4"
+    assert manifest["suite_version"] == "conversation-eval-v1.5"
     assert manifest["catalog_hash"] == _hash(catalog_snapshot())
     assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
     covered = {k: v for k, v in manifest.items() if k != "manifest_hash"}
@@ -702,7 +796,13 @@ def test_scenario_pass_counts_a_repeat_only_when_every_turn_has_every_gold_fact(
                 }
             )
     report = build_report(sub, records, {"manifest_hash": "x"})
-    assert report["scenario_pass"] == {"passed": 2, "total": 3, "rate": 0.6667}
+    assert report["scenario_pass"] == {
+        "passed": 2,
+        "total": 3,
+        "rate": 0.6667,
+        "all_checks": {"passed": 0, "total": 3, "rate": 0.0},
+        "with_gold": {"passed": 2, "total": 3, "rate": 0.6667},
+    }
     gold = cast(dict[str, Any], report["checks"])["gold"]
     assert (gold["passed"], gold["total"]) == (11, 12)
     assert "- rate: 0.6667" in render_markdown(report)

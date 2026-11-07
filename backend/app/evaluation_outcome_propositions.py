@@ -2,6 +2,7 @@ import re
 from collections.abc import Mapping
 from typing import cast
 
+from app.agent.chat_refusal import scored_answer
 from app.domain.catalog import INGREDIENTS, RECIPES
 
 _PROPOSITIONS: dict[str, str] = {
@@ -35,6 +36,7 @@ def mapping(value: object) -> dict[str, object]:
 def public_tags(answer: object, *, vegan: bool) -> set[str] | None:
     if not isinstance(answer, str) or not answer.strip():
         return None
+    answer = scored_answer(answer)
     names = [
         re.escape(recipe.id.replace("_", " ").casefold())
         for recipe in RECIPES.values()

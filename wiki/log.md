@@ -5247,3 +5247,31 @@ No document cites this candidate as the current prompt. The branch stays unmerge
 ## 2026-11-07 — Correct the conversation scenario figure
 
 The 39 of 57 figure for C01 to C19 counts C08 and C12, which hold no gold facts. The gold-only figure is 33 of 51. `docs/course/DEMO_SCRIPT.md` and `docs/course/EVIDENCE_TABLES.md` now state both.
+## 2026-11-07 — Weak-area items on `claude/weak-areas-stack`
+
+The combined branch holds seven items, based on `claude/purchase-attempts-01`. No item is on `main`. No push, pull request, or live run has used this branch.
+Each item has `APPROVE` from `claude-opus-5-5`: the evaluation report (`claude/eval-report-01`), the Kroger out-of-stock filter (`claude/kroger-path-01`), the synthetic Kroger check (`claude/kroger-eval-01`), the missing-ingredient reply (`claude/ingredient-reply-01`), the purchase refusal text (`claude/refusal-cart-01`), BM25 meal order (`claude/bm25-01`), and the saved-plan route (`claude/saved-plan-route-01`).
+The gates pass at `ceef8686`: 17,502 backend tests, 1 skipped, 944 of 1,000 lines. Writers: `claude-sonnet-5-5`.
+The route lowers p50, p95, and cost per turn with no change in the model, because a routed turn makes no model call. BM25 improved only a biased proxy. The Kroger check is synthetic.
+`claude/c22-refusal-01` is rejected, and C22 is a known limit. The next live batch needs owner approval, about USD 0.50, and a new MFA renewal.
+Loop usage for the eight work items: 11,248,887 input and 509,196 output tokens across the writer and review runs. Coverage is complete.
+
+## 2026-11-07 — Live batch on the combined branch
+
+`conversation-20261107` ran at `f3607e6f` on Nova 2 Lite and cost USD 0.44. It recorded 111 of 111 turns and 0 purchase attempts.
+Gold facts rose from 89 to 100 of 111. Grounding fell from 10 of 39 to 1 of 32. The route removed 3 grounded replies. C01 lost 2 with identical provider inputs, so that loss is variance. C11 turns 3 and 4 lost 4 with the route reply in their history, and this batch does not separate that effect from variance.
+Pass criteria: the route turns pass, C07 turn 2 passes, and C11 turn 9 passes. The grounding criterion fails. C05 still ends in `tool_failed` on 2 of 3 repeats. C14 passed 2 of 3, the same as both 2026-11-01 batches. C22 refused 2 of 3 with no prompt change.
+The branch is not verified on this batch until the C11 effect is measured. [EVALUATION.md](../docs/EVALUATION.md) holds the figures.
+
+## 2026-11-07 — Paired live test of the saved-plan route
+
+C01 and C11 ran at 3 repeats per arm, with `8468e5da` and `6d9b4ce3` at the same time, for about USD 0.32. Grounded replies were 9 of 24 without the route and 1 of 20 with it. On C11 turns that the route does not answer, they were 5 of 17 and 1 of 17, p = 0.17. Gold facts were 24 of 30 and 30 of 30.
+The direction matches the full batch. The test does not prove the cause. C01 showed a gap of 1 of 3 and 0 of 3 with identical provider inputs. [EVALUATION.md](../docs/EVALUATION.md) holds the figures.
+
+## 2026-11-07 — History test of the saved-plan route
+
+`claude/route-history-01` drops a routed turn from later model history. It has `APPROVE` at `ff69540c`, and the gates pass with 17,504 tests. The live test of C01 and C11 cost USD 0.15.
+On C11 turns that the route does not answer, grounded replies rose from 1 of 17 to 4 of 18, p = 0.34, and unmatched numbers fell from 19 to 7. Gold facts fell from 30 of 30 to 26 of 30. C11 turn 9 called `price_lines` in place of `what_if_substitute` on all 3 repeats.
+The change fails its condition that gold facts stay at 30 of 30.
+The owner rejected the change, and the combined branch reverts `ff69540c`. The route reply stays in model history. Correct answers rank above accepted model prose, because a rejected reply reaches the user as a correct template.
+Loop usage after the history test, for nine work items: 11,694,335 input and 529,992 output tokens across the writer and review runs. Live spend on 2026-11-07 is about USD 0.91 across three batches.

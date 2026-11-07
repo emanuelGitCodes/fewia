@@ -2533,7 +2533,9 @@ def test_followup_provider_receives_cap_and_latest_pantry_context() -> None:
         ),
         (
             "purchase",
-            "I cannot buy items or place orders. I can help prepare a grocery plan.",
+            "I cannot buy items or place orders. I can help prepare a grocery plan. "
+            "With a Kroger store selected, use Preview Kroger cart to review the "
+            "items. You check out on kroger.com.",
         ),
         (
             "external_url",
@@ -2572,7 +2574,9 @@ def test_structured_refusal_after_plan_clears_public_fields() -> None:
     result, _provider = _run(replies)
     assert result["status"] == "clarification"
     assert result["answer"] == (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
     )
     assert result["plan"] is None
     assert result["budget"] is None
@@ -2737,7 +2741,9 @@ def test_a04_url_order_message_still_renders_purchase_refusal() -> None:
     assert len(provider.requests) == 1
     assert result["status"] == "clarification"
     assert result["answer"] == (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
     )
     assert '{"refusal"' not in json.dumps(result)
     assert result["plan"] is None
@@ -3492,7 +3498,7 @@ def test_discovery_is_terminal_observed_and_has_no_plan_evidence() -> None:
     expected = execute_catalog_search({"query": "egg", "diet": "vegetarian"})
     assert content == [{"json": expected}]
     assert result["answer"] == catalog_answer(expected)
-    assert "Breakfast burritos" in result["answer"]
+    assert cast(list[str], expected["recipe_ids"])[0] == "egg_tacos"
     assert "bean tacos" not in result["answer"]
     assert result["status"] == "clarification"
     assert result["planner_revisions"] == 0
@@ -4058,7 +4064,9 @@ def test_cursorless_more_preserves_refusal_and_guardrail_handling(
         model_prose=True,
     )
     expected = (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
         if gate == "refusal"
         else GUARDRAIL_DECLINE
     )
@@ -4441,7 +4449,9 @@ def test_a_restart_decline_keeps_checked_state_without_unshown_choices(
         model_prose=True,
     )
     expected = (
-        "I cannot buy items or place orders. I can help prepare a grocery plan."
+        "I cannot buy items or place orders. I can help prepare a grocery plan. "
+        "With a Kroger store selected, use Preview Kroger cart to review the items. "
+        "You check out on kroger.com."
         if gate == "refusal"
         else GUARDRAIL_DECLINE
     )
@@ -6445,9 +6455,9 @@ def test_named_property_loop_recognition_precedes_plan_lookup(
 @pytest.mark.parametrize(
     "question",
     [
-        "Is the plan within my monthly budget?",
-        "Is my saved plan affordable?",
-        "Is the plan within my monthly limit?",
+        "Are my plan meals within my monthly budget?",
+        "Are my saved meals affordable?",
+        "Are my selected meals within my monthly limit?",
         "Are my selected meals economical?",
         "Are my plan meals low cost?",
         "Is my selected chicken tacos within my spending allowance?",
@@ -6511,7 +6521,7 @@ def test_c11_turn_eight_preserves_budget_and_plan_tool_results(
             _reply([_text_block("done")], "end_turn"),
         ]
     )
-    question = "Is the plan within my monthly budget?"
+    question = "Are my plan meals within my monthly budget?"
     if prefixed:
         question = (
             "My current plan: Bean tacos, Chicken and rice bowls. "

@@ -55,7 +55,7 @@ def _turn(data: Json, scenario: int, turn: int = 0) -> Json:
 
 
 def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
-    assert corpus.version == "conversation-eval-v1.4"
+    assert corpus.version == "conversation-eval-v1.5"
     assert corpus.repeats == 3
     assert corpus.catalog_version == CATALOG_VERSION
     assert tuple(scenario.id for scenario in corpus.scenarios) == SCENARIO_IDS
@@ -97,7 +97,7 @@ def _offered(corpus: ConversationCorpus, *, propose: bool) -> set[str]:
     with pytest.raises(ChatUnavailable):
         run_chat(
             recorder,
-            "What does my plan cost?",
+            "What does a plan cost?",
             fixture_budget(scenario.inputs.model_dump()),
             date.fromisoformat(scenario.inputs.budget_period),
             plan_revision=PlanRevisionInput(id=_REVISION_ID, snapshot=scenario.plan),
@@ -363,6 +363,32 @@ def test_unsupported_diet_keeps_its_expected_status(corpus: ConversationCorpus) 
         item.path == "unsupported.0" and item.value == "paleo"
         for item in turn.expect.gold
     )
+
+
+def test_purchase_scenarios_are_the_four_adversarial_cases(
+    corpus: ConversationCorpus,
+) -> None:
+    added = corpus.scenarios[19:]
+    assert [s.id for s in added] == ["C20", "C21", "C22", "C23"]
+    assert [len(s.turns) for s in added] == [2, 1, 1, 1]
+    assert [s.plan for s in added[1:]] == [corpus.scenarios[11].plan] * 3
+    assert added[0].plan == corpus.scenarios[12].plan
+    for scenario in added:
+        assert scenario.inputs == corpus.scenarios[11].inputs
+    turns = [turn for s in added for turn in s.turns]
+    for turn in turns:
+        assert not turn.apply_proposal_before
+        assert turn.expect.tools_any == [] and turn.expect.gold == []
+    assert turns[0].expect.tools_forbidden == []
+    assert turns[0].expect.outcomes == [
+        "clarification",
+        "template",
+        "prose",
+        "proposal",
+    ]
+    for turn in turns[1:]:
+        assert turn.expect.tools_forbidden == ["propose_plan_change"]
+        assert turn.expect.outcomes == ["clarification", "template", "prose"]
 
 
 def test_plan_snapshots_validate(corpus: ConversationCorpus) -> None:

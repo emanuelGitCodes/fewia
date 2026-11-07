@@ -468,7 +468,6 @@ def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
         {},
         {"recipe_id": "chicken_tacos"},
         {"servings": 1},
-        swap(replace_ingredient_id="rice"),
         swap(with_ingredient_id="salsa"),
         swap(with_ingredient_id="chicken_breast"),
         swap(with_ingredient_id="unicorn"),
@@ -488,7 +487,6 @@ def test_swap_to_an_unpriced_ingredient_leaves_delta_unknown(
         swap(quantity_per_serving=True),
         scaled(9),
         scaled(401),
-        scaled(50, "rice"),
         scaled(True),
         {**scaled(50), "quantity_per_serving": 5},
         {**scaled(50), "with_ingredient_id": "rice"},
@@ -858,6 +856,196 @@ def test_other_invalid_arguments_error_before_a_food_question(
     with pytest.raises(SubstituteToolError) as caught:
         execute_substitute(food_swap(with_food=food, **bad))
     assert str(caught.value) == "arguments are invalid"
+
+
+_PASTA_IDS = [item for item, _ in RECIPES["vegetable_pasta"].ingredients]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"scale_ingredient_id": "chicken_breast", "scale_factor_percent": 50},
+        {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "chickpeas"},
+    ],
+)
+def test_catalog_ingredient_not_in_the_meal_gets_a_specific_question(
+    change: dict[str, object],
+) -> None:
+    result = execute_substitute({"recipe_id": "vegetable_pasta", **change})
+    assert set(result) == {"status", "recipe_id", "candidates"}
+    assert result["status"] == "ingredient_not_in_meal"
+    assert result["recipe_id"] == "vegetable_pasta"
+    assert [item for item, _ in candidates_of(result)] == _PASTA_IDS
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"scale_ingredient_id": "salsa_not_here", "scale_factor_percent": 50},
+        {"replace_ingredient_id": "salsa_not_here", "with_ingredient_id": "chickpeas"},
+        {"scale_ingredient_id": "pasta", "scale_factor_percent": 1},
+        {"scale_ingredient_id": "pasta", "scale_factor_percent": 5000},
+        {"scale_ingredient_id": ["x"], "scale_factor_percent": 50},
+    ],
+)
+def test_other_invalid_changes_still_raise(arguments: dict[str, object]) -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute({"recipe_id": "vegetable_pasta", **arguments})
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute({"recipe_id": "no_such_meal", **arguments})
+
+
+def test_rice_requests_on_chicken_tacos_get_the_not_in_meal_status() -> None:
+    for arguments in (swap(replace_ingredient_id="rice"), scaled(50, "rice")):
+        result = execute_substitute(arguments)
+        assert result["status"] == "ingredient_not_in_meal"
+        assert result["recipe_id"] == "chicken_tacos"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"scale_ingredient_id": "chicken_breast", "scale_factor_percent": 5000},
+        {"scale_ingredient_id": "chicken_breast"},
+        {
+            "scale_ingredient_id": "chicken_breast",
+            "scale_factor_percent": 50,
+            "quantity_per_serving": 5,
+        },
+        {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "unicorn"},
+        {
+            "replace_ingredient_id": "chicken_breast",
+            "with_ingredient_id": "chickpeas",
+            "scale_factor_percent": 50,
+        },
+        {
+            "replace_ingredient_id": "chicken_breast",
+            "with_ingredient_id": "chickpeas",
+            "quantity_per_serving": 0,
+        },
+        {"replace_ingredient_id": "chicken_breast", "with_ingredient_id": "pasta"},
+    ],
+)
+def test_absent_ingredient_with_an_invalid_change_still_raises(
+    arguments: dict[str, object],
+) -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute({"recipe_id": "vegetable_pasta", **arguments})
+
+
+def test_with_food_naming_an_absent_ingredient_gets_the_status() -> None:
+    result = execute_substitute(
+        {
+            "recipe_id": "vegetable_pasta",
+            "with_food": "tofu",
+            "replace_ingredient_id": "chicken_breast",
+            "quantity_per_serving": 5,
+        }
+    )
+    assert result["status"] == "ingredient_not_in_meal"
+    assert [item for item, _ in candidates_of(result)] == _PASTA_IDS
+
+
+@pytest.mark.parametrize("food", [5, "", "   ", "x" * 161])
+def test_malformed_with_food_raises_even_when_the_ingredient_is_absent(
+    food: object,
+) -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute(
+            {
+                "recipe_id": "vegetable_pasta",
+                "with_food": food,
+                "replace_ingredient_id": "chicken_breast",
+            }
+        )
+
+
+def test_food_already_in_the_meal_with_an_absent_ingredient_raises() -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute(
+            {
+                "recipe_id": "vegetable_pasta",
+                "with_food": "pasta",
+                "replace_ingredient_id": "chicken_breast",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"replace_ingredient_id": "unicorn"},
+        {"replace_ingredient_id": "ground_beef_80"},
+        {"replace_ingredient_id": "chicken_breast", "quantity_per_serving": 0},
+        {"replace_ingredient_id": "chicken_breast", "quantity_per_serving": "5"},
+    ],
+)
+def test_with_food_and_an_unusable_replacement_still_raises(
+    bad: dict[str, object],
+) -> None:
+    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
+        execute_substitute({"recipe_id": "vegetable_pasta", "with_food": "tofu", **bad})
+
+
+def test_ingredient_not_in_the_meal_reaches_the_reply_not_a_tool_failure() -> None:
+    from app.agent.chat_loop import run_chat
+
+    class Scripted:
+        def __init__(self) -> None:
+            self.replies: list[dict[str, object]] = [
+                {
+                    "output": {
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "toolUse": {
+                                        "toolUseId": "call-1",
+                                        "name": "what_if_substitute",
+                                        "input": {
+                                            "recipe_id": "vegetable_pasta",
+                                            "scale_ingredient_id": "chicken_breast",
+                                            "scale_factor_percent": 50,
+                                        },
+                                    }
+                                }
+                            ],
+                        }
+                    },
+                    "stopReason": "tool_use",
+                    "usage": {"inputTokens": 1, "outputTokens": 1},
+                },
+                {
+                    "output": {
+                        "message": {
+                            "role": "assistant",
+                            "content": [{"text": "Please pick an ingredient."}],
+                        }
+                    },
+                    "stopReason": "end_turn",
+                    "usage": {"inputTokens": 1, "outputTokens": 1},
+                },
+            ]
+
+        def converse(
+            self, system_prompt: str, messages: list[Any], tools: list[Any]
+        ) -> dict[str, object]:
+            return self.replies.pop(0)
+
+    result = run_chat(
+        Scripted(),
+        "Halve the chicken in my vegetable pasta.",
+        budget(),
+        date(2026, 9, 1),
+        heartbeat=lambda: None,
+        user_id=1,
+        spending_source="fixture",
+    )
+    answer = cast(str, result["answer"])
+    assert "A tool call failed." not in answer
+    assert "does not list that ingredient" in answer
+    trace = cast(list[dict[str, object]], result["tool_trace"])
+    assert [item["outcome"] for item in trace] == ["success"]
 
 
 def test_with_food_length_edges_are_accepted() -> None:

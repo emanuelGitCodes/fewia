@@ -292,6 +292,19 @@ def test_supported_refusals_do_not_count_as_factual_claims(answer: str) -> None:
     assert score["supported_count"] == score["assessed_count"] == 0
 
 
+def test_new_purchase_answer_scores_like_the_old_answer() -> None:
+    old = "I cannot buy items or place orders. I can help prepare a grocery plan."
+    new = (
+        f"{old} With a Kroger store selected, use Preview Kroger cart to review "
+        "the items. You check out on kroger.com."
+    )
+    expected = score_claims(_case(), _observation(_reply(old)))
+    score = score_claims(_case(), _observation(_reply(new)))
+    assert score == expected
+    assert score["status"] == "not_applicable"
+    assert score["supported_refusal_count"] == 1
+
+
 @pytest.mark.parametrize(
     "answer,inputs,status",
     [

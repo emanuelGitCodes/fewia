@@ -83,7 +83,7 @@ deployment.
 | 16 | Tonight Plan page | Frontend | `/prototype`, `prototype/TonightPrototype.tsx` | Prototype on /prototype | Lazy chunk. Demo data in `prototypeData.ts`. Makes no API call. Audience 18 to 25. |
 | 17 | Evaluation harness and CLI | Backend | `python -m app.evaluate`, `evaluation_*.py` | Tooling | 60 modules. 138-slot matrix. Fixture runs work today. |
 | 18 | Live benchmark on Nova 2 Lite | Evaluation | `eval/results/artifacts/` | Owner-gated | Last batch 2026-10-05: task 25 of 33, claims 109 of 112. Next batch waits on the A02 decision. |
-| 18b | Conversation suite (`conversation-eval-v1.4`) | Evaluation | `app/evaluate_conversation.py` | Fixture runs; live owner-gated | 19 scenarios, 32 turns, 3 repeats. Checks pages across a budget turn and the gluten constraint. Records hold hashes, not reply text. Separate from the 138-slot batch. |
+| 18b | Conversation suite (`conversation-eval-v1.5`) | Evaluation | `app/evaluate_conversation.py` | Fixture runs; live owner-gated | 23 scenarios, 37 turns, 3 repeats. Checks pages across a budget turn, the gluten constraint, and purchase attempts. Records hold hashes, not reply text. Separate from the 138-slot batch. |
 | 19 | Hosted demo stacks | Infra | `infra/hosting/`, `preflight_cli.py` | Source only | CDK for ECS Fargate, RDS, Secrets Manager, CloudWatch, Cognito edge. Nothing deployed. |
 | 20 | Bedrock credentials stack and session renewal | Infra | `infra/bedrock/`, `infra/bedrock_session.py` | Tooling | The owner renews the session before a live run. |
 | 21 | Health-era tables and legacy runner | Database, Backend | `models.py`, `evaluation_runner.py` | Retired | Decision 0018 retains the data. No route serves it. |
@@ -236,6 +236,13 @@ a private queue.
 | 2026-10-05 fresh live | 25 of 33, 75.8%, target 90% FAIL | 109 of 112, 97.3%, target 95% PASS | [benchmark-20261005](../wiki/phases/benchmark-20261005.md) |
 | 2026-10-03 post-hoc gold | 23 of 33, 69.7%, FAIL | unchanged | [posthoc-gold-20261003](../wiki/phases/posthoc-gold-20261003.md) |
 | 2026-10-03 original live | 17 of 33, 51.5%, FAIL | 98 of 100, 98%, PASS | [benchmark-20261003](../wiki/phases/benchmark-20261003.md) |
+
+`evaluation_retrieval.py` compares the BM25 meal order with catalog order
+on a biased proxy. `python -m app.evaluation_kroger` checks the Kroger path
+over a mock transport with invented data. Neither makes a live call. The
+conversation suite routes whole-message saved-plan questions through
+`agent/saved_plan_route.py` with no model call, so those turns measure the
+deterministic path. See [EVALUATION.md](EVALUATION.md).
 
 Artifacts live under `eval/results/artifacts/` with SHA-256 manifests.
 `eval/probes/` holds two pantry probe scripts. The course pack under
