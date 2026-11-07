@@ -45,16 +45,26 @@ def last_what_if_recipe(result: dict[str, object]) -> str | None:
 
 def next_what_if_recipe(result: dict[str, object], previous: str | None) -> str | None:
     """Keep the shown what-if when this turn asked a question or failed a retry."""
+    if is_guardrail_decline(result):
+        return None
     recipe = last_what_if_recipe(result)
     if recipe is not None:
         return recipe
     trace = result.get("tool_trace")
-    if isinstance(trace, list) and any(
-        isinstance(entry, dict) and entry.get("tool") == "what_if_substitute"
-        for entry in trace
-    ):
-        return previous
-    return None
+    entries = (
+        [
+            entry
+            for entry in trace
+            if isinstance(entry, dict) and entry.get("tool") == "what_if_substitute"
+        ]
+        if isinstance(trace, list)
+        else []
+    )
+    if not entries:
+        return None
+    inputs = entries[-1].get("inputs")
+    latest = inputs.get("recipe_id") if isinstance(inputs, dict) else None
+    return previous if latest in (None, previous) else None
 
 
 def _invalid() -> ChatProtocolError:

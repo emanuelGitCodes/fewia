@@ -6,7 +6,7 @@ from conftest import UserSeeder
 from sqlalchemy.orm import Session
 
 from app.agent.chat_answer import CLARIFICATION
-from app.agent.chat_loop import _WHAT_IF_NOT_RUN, run_chat
+from app.agent.chat_loop import run_chat
 from app.agent.chat_messages import last_what_if_recipe, next_what_if_recipe
 from app.agent.ingredient_tool import resolve_food
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
@@ -461,48 +461,14 @@ def test_a_question_then_a_swap_then_an_invalid_call_drops_the_question() -> Non
     assert "Which one do you mean" not in cast(str, result["answer"])
 
 
-def test_a_text_only_reply_after_a_question_returns_that_question() -> None:
-    ask = "Which one do you mean: a or b? Say the full name."
-    provider = FakeLLM([_reply([_text_block("Done.")], "end_turn")])
-    result = run_chat(
-        provider,
-        "chicken",
-        _budget(),
-        PERIOD,
-        model_prose=True,
-        history=[
-            {"role": "user", "text": "What if we use chicken instead?"},
-            {"role": "assistant", "text": ask},
-        ],
-    )
-    assert result["answer"] == ask
-
-
-def test_a_text_only_reply_after_a_what_if_says_none_ran() -> None:
-    result, _ = _run(
-        [_reply([_text_block("Done.")], "end_turn")],
-        "and with rice?",
-        previous=BEANS,
-    )
-    assert result["answer"] == _WHAT_IF_NOT_RUN
-    provider = FakeLLM([_reply([_text_block("Done.")], "end_turn")])
-    other = run_chat(
-        provider,
-        "and with rice?",
-        _budget(),
-        PERIOD,
-        model_prose=True,
-        history=[
-            {"role": "user", "text": "hi"},
-            {"role": "assistant", "text": "Hello."},
-        ],
-    )
-    assert other["answer"] != _WHAT_IF_NOT_RUN
-
-
-def test_a_text_only_reply_with_no_context_keeps_the_generic_question() -> None:
-    result, _ = _run([_reply([_text_block("Done.")], "end_turn")], "and with rice?")
-    assert result["answer"] == CLARIFICATION
+def test_a_text_only_reply_keeps_the_generic_question() -> None:
+    for previous in (None, BEANS):
+        result, _ = _run(
+            [_reply([_text_block("Done.")], "end_turn")],
+            "and with rice?",
+            previous=previous,
+        )
+        assert result["answer"] == CLARIFICATION
 
 
 def _trace(*statuses: str) -> dict[str, object]:
@@ -517,6 +483,18 @@ def test_next_what_if_recipe_keeps_the_shown_what_if() -> None:
     other = {"tool_trace": [{"tool": "get_meal", "inputs": {}}]}
     assert next_what_if_recipe(other, BEANS) is None
     assert next_what_if_recipe(_trace("needs_food_choice"), None) is None
+
+
+def test_next_what_if_recipe_drops_other_recipes_and_declines() -> None:
+    question = {"tool_trace": [_entry("needs_food_choice", "bean_tacos")]}
+    assert next_what_if_recipe(question, BEANS) is None
+    declined = {
+        "reply_check": {"gate": "guardrail"},
+        "tool_trace": [_entry("swapped")],
+    }
+    assert next_what_if_recipe(declined, BEANS) is None
+    failed = {"tool_trace": [_entry(None)]}
+    assert next_what_if_recipe(failed, BEANS) == BEANS
 
 
 def test_a_stored_question_job_keeps_the_previous_what_if(
@@ -566,7 +544,7 @@ def test_a_food_already_in_the_meal_is_a_question_for_a_swap() -> None:
     assert result["status"] == "ingredient_already_in_meal"
 
 
-def test_a_replace_target_outside_the_meal_is_a_question() -> None:
+def test_a_replace_target_outside_the_meal_is_a_static_error() -> None:
     with pytest.raises(SubstituteToolError):
         execute_substitute(
             {
@@ -648,3 +626,50 @@ def test_c25_records_the_swap_not_saved_gate_on_turn_two() -> None:
     assert records[1]["provider_requests"] == 0
     assert records[1]["proposal"] is False
     assert records[1]["tools"] == []
+
+
+def test_a_failed_retry_keeps_the_what_if_for_a_later_save_request() -> None:
+    corpus = load_conversation_corpus(_CORPUS)
+    sub = corpus.model_copy(
+        update={"scenarios": [s for s in corpus.scenarios if s.id == "C25"]}
+    )
+    base = sub.scenarios[0].turns[0]
+    users = [
+        "What if I use chicken (ground, raw) instead of the black beans "
+        "in my baked potatoes with beans?",
+        "What if I use chicken (ground, raw) and add chicken (ground, raw)?",
+        "can you add it to the list",
+    ]
+    scenario = sub.scenarios[0].model_copy(
+        update={
+            "turns": [
+                base.model_copy(update={"user": user, "apply_proposal_before": False})
+                for user in users
+            ]
+        }
+    )
+    one = sub.model_copy(update={"scenarios": [scenario]})
+    bad = {"recipe_id": BEANS, "with_food": CHICKEN, "add_food": CHICKEN}
+
+    def provider_for(scenario: Any, repeat: int, index: int) -> Any:
+        if index == 1:
+            return GoldFollowingProvider(scenario.turns[0])
+        if index == 2:
+            return FakeLLM(
+                [
+                    _reply([_tool_block("c1", SUBSTITUTE_TOOL, bad)], "tool_use"),
+                    _reply([_text_block("Done.")], "end_turn"),
+                ]
+            )
+        return FakeLLM([])
+
+    selection = ConversationSelection.model_validate(
+        {"scenarios": [{"scenario_id": "C25", "repeats": [1]}]}
+    )
+    records = list(
+        run_conversation_suite(one, "fixture", provider_for, selection=selection)
+    )
+    assert [r["turn"] for r in records] == [1, 2, 3]
+    assert records[1]["gate"] == "tool_failed"
+    assert records[2]["gate"] == "swap_not_saved"
+    assert records[2]["provider_requests"] == 0

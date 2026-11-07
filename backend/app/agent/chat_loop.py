@@ -177,8 +177,6 @@ _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
 _NO_MORE = "There are no more matching meals."
 _TOOL_FAILURE = "A tool call failed. Check the request."
-_WHAT_IF_NOT_RUN = "I did not run a new what-if. Name the meal and the food to change."
-_WHAT_IF_ASKS = ("Which one do you mean", "Which ingredient in")
 
 
 class ChatUnavailable(Exception):
@@ -428,15 +426,8 @@ def run_chat(
                 return budget_summary_answer(
                     budget, period, spending_source=spending_source
                 )
-            if candidate is None and last_error is None:
-                if what_if_failed:
-                    return _TOOL_FAILURE
-                if not run_payloads:
-                    last = history[-1]["text"] if history else ""
-                    if last.startswith(_WHAT_IF_ASKS):
-                        return last
-                    if previous_what_if_recipe is not None:
-                        return _WHAT_IF_NOT_RUN
+            if candidate is None and last_error is None and what_if_failed:
+                return _TOOL_FAILURE
             return render_public_answer(candidate, last_error, meal_type=meal_type)
         parts: list[str] = []
         if candidate is not None or last_error is not None:
