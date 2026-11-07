@@ -849,7 +849,6 @@ def test_with_food_and_a_replacement_in_a_meal_without_protein_swaps() -> None:
         food_swap(servings=0),
         food_swap(replace_ingredient_id="salsa_not_here"),
         food_swap(replace_ingredient_id=_SECRET),
-        food_swap(with_food="black beans"),
         food_swap(extra=_SECRET),
     ],
 )
@@ -984,15 +983,15 @@ def test_malformed_with_food_raises_even_when_the_ingredient_is_absent(
         )
 
 
-def test_food_already_in_the_meal_with_an_absent_ingredient_raises() -> None:
-    with pytest.raises(SubstituteToolError, match="^arguments are invalid$"):
-        execute_substitute(
-            {
-                "recipe_id": "vegetable_pasta",
-                "with_food": "pasta",
-                "replace_ingredient_id": "chicken_breast",
-            }
-        )
+def test_food_already_in_the_meal_with_an_absent_ingredient_reports_it() -> None:
+    result = execute_substitute(
+        {
+            "recipe_id": "vegetable_pasta",
+            "with_food": "pasta",
+            "replace_ingredient_id": "chicken_breast",
+        }
+    )
+    assert result["status"] == "ingredient_already_in_meal"
 
 
 @pytest.mark.parametrize(

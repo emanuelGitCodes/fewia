@@ -5,7 +5,7 @@ from app.agent.estimate import priced_estimate
 from app.agent.ingredient_tool import IngredientToolError, resolve_food
 from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
-from app.domain.catalog import RECIPES
+from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.curated_foods import ALL_INGREDIENTS, ALL_NUTRITION
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
@@ -245,7 +245,7 @@ def _names_absent_ingredient(
     """
     scaling = change.scale_ingredient_id is not None
     target = change.scale_ingredient_id if scaling else change.replace_ingredient_id
-    if type(target) is not str or target not in ALL_INGREDIENTS or target in meal_ids:
+    if type(target) is not str or target not in INGREDIENTS or target in meal_ids:
         return False
     if scaling:
         probe = replace(change, scale_ingredient_id=meal_ids[0])
@@ -270,7 +270,7 @@ def _fill_food(
     ):
         raise SubstituteToolError("arguments are invalid")
     absent = "replace_ingredient_id" in arguments and old not in ids
-    if absent and not (type(old) is str and old in ALL_INGREDIENTS):
+    if absent and not (type(old) is str and old in INGREDIENTS):
         raise SubstituteToolError("arguments are invalid")
     try:
         food = resolve_food(arguments["with_food"])

@@ -567,15 +567,15 @@ def test_a_food_already_in_the_meal_is_a_question_for_a_swap() -> None:
 
 
 def test_a_replace_target_outside_the_meal_is_a_question() -> None:
-    result = execute_substitute(
-        {
-            "recipe_id": BEANS,
-            "with_food": "tofu",
-            "replace_ingredient_id": CHICKEN_ID,
-        },
-        _budget(),
-    )
-    assert result["status"] == "ingredient_not_in_meal"
+    with pytest.raises(SubstituteToolError):
+        execute_substitute(
+            {
+                "recipe_id": BEANS,
+                "with_food": "tofu",
+                "replace_ingredient_id": CHICKEN_ID,
+            },
+            _budget(),
+        )
 
 
 @pytest.mark.parametrize(
