@@ -165,8 +165,8 @@ First what-if check (2026-11-07, Nova 2 Lite, revision `96d12ce2`): C01, C24, an
 
 Final what-if check (2026-11-07, Nova 2 Lite, revision `9462a877`): the same 15 turns. [Report](../eval/results/artifacts/conversation-20261107-what-if-final/report.md). It cost USD 0.07.
 
-- **Selection.** Tools and outcome passed 15 of 15. Gold passed 12 of 12 on the turns that hold gold. C24 turn 2 returned status `added` on 3 of 3 repeats. C25 turn 2 returned gate `swap_not_saved` on 3 of 3 repeats. Grounded replies were 4 of 10.
-- **Owner's words.** A scripted replay of the owner's four messages on C25's plan, 3 repeats and not archived, ended in status `added` on each "Chicken ground" and "both" turn, and in the fixed reply on each save request. A browser replay at `/prototype`, on a plan with Bean tacos, gave 499 kcal and 31 g protein on "both", and the fixed reply on the save request.
+- **Selection.** Tools and outcome passed 15 of 15. Gold passed 12 of 12 on the turns that hold gold. C24 turn 2 returned status `added` on 3 of 3 repeats. C25 turn 2 returned gate `swap_not_saved` on 3 of 3 repeats. Grounded replies were 4 of 10, with 26 unsupported numbers, so both targets are `FAIL`.
+- **Owner's words.** Neither replay is archived. A scripted replay of the owner's four messages on C25's plan, 3 repeats, ended in status `added` on each "Chicken ground" and "both" turn, and in the fixed reply on each save request. A browser replay at `/prototype` named Baked potatoes with beans in the message, with Bean tacos as the saved plan. On "both", the reply gave 499 kcal and 31 g protein for Baked potatoes with beans. The save request gave the fixed reply.
 - **Earlier failure.** A retry with `with_ingredient_id` alone used to fail, and the reply fell back to the generic question. The tool now applies the single-protein default. A failed what-if keeps the pending question, or gives the tool-failure text.
 - **Limits.** A full v1.6 batch has not run. A text-only reply on a what-if follow-up still gives the generic question. The validator checks the numbers in a model reply, not which scenario it describes.
 
