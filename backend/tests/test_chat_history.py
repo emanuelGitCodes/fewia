@@ -367,6 +367,25 @@ def test_accepted_model_text_is_what_the_loaded_next_turn_replays(
     assert history[-1] == {"role": "assistant", "text": GROUNDED_PLAIN}
 
 
+def test_saved_plan_read_turn_is_dropped_from_history(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(message="What does my plan cost?", history=pair(0)),
+        result={
+            "answer": "Your plan: Bean tacos (2 servings).",
+            "reply_check": {"gate": "saved_plan_read"},
+            "request": request_body(),
+        },
+    )
+    history, previous, _ids = load_chat_context(session, 1, job.id)
+    assert history == pair(0)
+    assert previous == expected_request(request_body())
+
+
 @pytest.mark.parametrize("model_prose", [False, True])
 def test_guardrail_blocked_turn_is_dropped_from_history(
     session: Session, seed_user: UserSeeder, model_prose: bool

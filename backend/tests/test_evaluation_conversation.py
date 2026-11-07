@@ -271,6 +271,31 @@ def test_saved_plan_route_answers_without_the_provider_and_holds_the_gold_facts(
         assert all(facts)
 
 
+def test_a_saved_plan_read_turn_is_left_out_of_later_model_history(
+    corpus: ConversationCorpus,
+) -> None:
+    seen: list[str] = []
+
+    class Recording(GoldFollowingProvider):
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            seen.append(json.dumps(messages))
+            return super().converse(system_prompt, messages, tools)
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        return Recording(scenario.turns[index - 1])
+
+    records = list(run_conversation_suite(_only(corpus, "C11"), "p", provider_for))
+    assert len(records) == 27
+    assert seen
+    assert not any("Your plan:" in text for text in seen)
+    assert not any("What does my plan cost right now?" in text for text in seen)
+
+
 def test_selection_normalizes_order_and_limits_runner_pairs(
     corpus: ConversationCorpus,
 ) -> None:

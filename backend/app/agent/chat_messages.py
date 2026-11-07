@@ -27,6 +27,11 @@ def is_guardrail_decline(result: dict[str, object]) -> bool:
     return gated or result.get("answer") == GUARDRAIL_DECLINE
 
 
+def is_saved_plan_read(result: dict[str, object]) -> bool:
+    check = result.get("reply_check")
+    return isinstance(check, dict) and check.get("gate") == "saved_plan_read"
+
+
 def _invalid() -> ChatProtocolError:
     return ChatProtocolError("assistant message is invalid")
 

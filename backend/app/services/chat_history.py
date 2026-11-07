@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.catalog_tool import exhausted_page_arguments, page_arguments
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN, plan_ingredient_ids
-from app.agent.chat_messages import is_guardrail_decline
+from app.agent.chat_messages import is_guardrail_decline, is_saved_plan_read
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_job import ChatHistoryTurn
@@ -114,7 +114,7 @@ def _chat_context(
 ) -> tuple[list[dict[str, str]], dict[str, object] | None]:
     raw_history: object = payload["history"] if "history" in payload else []
     turns = _history(raw_history)
-    if not is_guardrail_decline(result):
+    if not is_guardrail_decline(result) and not is_saved_plan_read(result):
         user_turn = _turn({"role": _USER, "text": payload.get("message")})
         turns = [*turns, user_turn, _assistant_turn(result.get("answer"))]
         turns = turns[-MAX_HISTORY:]
