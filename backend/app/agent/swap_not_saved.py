@@ -3,13 +3,19 @@ import re
 from app.agent.read_answers import meal_name
 from app.domain.plan_revision import PlanRevisionInput
 
-_ASK = r"(?:(?:please|can you|could you|would you|will you) )?"
-_OBJECT = r"(?:it|that|this|that one|this one|that meal|this meal)"
+_ASK = (
+    r"(?:(?:yes|ok|okay|sure|great)[, ]+)?"
+    r"(?:(?:please|can you|could you|would you|will you)(?: please)? )?"
+    r"(?:go ahead and )?"
+)
+_OBJECT = r"(?:it|that|this|that one|this one)"
 _TARGET = (
     r"(?: (?:to|on|in|into|onto) (?:my |the |our )?"
-    r"(?:plan|saved plan|list|meals|meal list|list of meals|shopping list))?"
+    r"(?:(?:grocery |shopping |meal )?list|(?:meal |saved )?plan|meals|list of meals))?"
 )
-_SAVE = re.compile(rf"{_ASK}(?:add|save|put) {_OBJECT}{_TARGET}(?: please)?")
+_SAVE = re.compile(
+    rf"{_ASK}(?:add|save|put) {_OBJECT}{_TARGET}(?: for me)?(?: please)?"
+)
 _LIMIT = (
     "I cannot save an ingredient change to your plan yet. That result was a what-if."
 )

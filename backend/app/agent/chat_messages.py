@@ -43,6 +43,20 @@ def last_what_if_recipe(result: dict[str, object]) -> str | None:
     return None
 
 
+def next_what_if_recipe(result: dict[str, object], previous: str | None) -> str | None:
+    """Keep the shown what-if when this turn asked a question or failed a retry."""
+    recipe = last_what_if_recipe(result)
+    if recipe is not None:
+        return recipe
+    trace = result.get("tool_trace")
+    if isinstance(trace, list) and any(
+        isinstance(entry, dict) and entry.get("tool") == "what_if_substitute"
+        for entry in trace
+    ):
+        return previous
+    return None
+
+
 def _invalid() -> ChatProtocolError:
     return ChatProtocolError("assistant message is invalid")
 

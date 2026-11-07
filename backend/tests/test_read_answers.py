@@ -605,11 +605,12 @@ def test_ingredient_facts_ambiguous_and_unknown() -> None:
     candidates = [_found(name, 1, None) for name in names]
     ambiguous = {"status": "ambiguous", "name": "pork", "candidates": candidates[:2]}
     assert read_tool_answer([(INGREDIENT_TOOL, ambiguous)]) == (
-        "Which one do you mean: ground pork or pork loin?"
+        "Which one do you mean: ground pork or pork loin? Say the full name."
     )
     three = {"status": "ambiguous", "name": "x", "candidates": candidates}
     assert read_tool_answer([(INGREDIENT_TOOL, three)]) == (
-        "Which one do you mean: ground pork, pork loin, or ground beef (80% lean)?"
+        "Which one do you mean: ground pork, pork loin, or ground beef (80% lean)? "
+        "Say the full name."
     )
     unknown = {"status": "unknown", "name": "paneer", "candidates": []}
     assert read_tool_answer([(INGREDIENT_TOOL, unknown)]) == (
@@ -720,7 +721,7 @@ def test_real_ingredient_facts_render() -> None:
     )
     pork = execute_ingredient_facts({"name": "pork"})
     assert read_tool_answer([(INGREDIENT_TOOL, pork)]) == (
-        "Which one do you mean: ground pork or pork loin?"
+        "Which one do you mean: ground pork or pork loin? Say the full name."
     )
 
 
@@ -779,11 +780,11 @@ def _question(status: str, recipe_id: str, names: list[str]) -> dict[str, object
 def test_substitute_food_questions_render_names_only() -> None:
     two = _question("needs_food_choice", "bean_tacos", ["ground pork", "pork loin"])
     assert read_tool_answer([(SUBSTITUTE_TOOL, two)]) == (
-        "Which one do you mean: ground pork or pork loin?"
+        "Which one do you mean: ground pork or pork loin? Say the full name."
     )
     three = _question("needs_food_choice", "bean_tacos", ["a", "b", "c"])
     assert read_tool_answer([(SUBSTITUTE_TOOL, three)]) == (
-        "Which one do you mean: a, b, or c?"
+        "Which one do you mean: a, b, or c? Say the full name."
     )
     none = _question("unknown_food", "bean_tacos", [])
     assert read_tool_answer([(SUBSTITUTE_TOOL, none)]) == (
@@ -848,7 +849,7 @@ def test_real_ambiguous_food_reply_lists_only_candidate_names() -> None:
     arguments = {"recipe_id": "bean_tacos", "with_food": "pork"}
     payload = execute_substitute(arguments, _BUDGET)
     assert read_tool_answer([(SUBSTITUTE_TOOL, payload)]) == (
-        "Which one do you mean: ground pork or pork loin?"
+        "Which one do you mean: ground pork or pork loin? Say the full name."
     )
 
 
@@ -867,7 +868,7 @@ def test_real_with_food_replies() -> None:
     assert "Servings from your plan: 2." in answer
     pork = execute_substitute({"recipe_id": "bean_tacos", "with_food": "pork"}, _BUDGET)
     assert read_tool_answer([(SUBSTITUTE_TOOL, pork)]) == (
-        "Which one do you mean: ground pork or pork loin?"
+        "Which one do you mean: ground pork or pork loin? Say the full name."
     )
     seitan = execute_substitute(
         {"recipe_id": "bean_tacos", "with_food": "seitan"}, _BUDGET

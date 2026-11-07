@@ -2,10 +2,12 @@ from datetime import date
 from typing import Any, cast
 
 import pytest
+from conftest import UserSeeder
+from sqlalchemy.orm import Session
 
-from app.agent.chat_loop import run_chat
 from app.agent.chat_answer import CLARIFICATION
-from app.agent.chat_messages import last_what_if_recipe
+from app.agent.chat_loop import _WHAT_IF_NOT_RUN, run_chat
+from app.agent.chat_messages import last_what_if_recipe, next_what_if_recipe
 from app.agent.ingredient_tool import resolve_food
 from app.agent.price_tool import PRICE_TOOL, execute_price_lines
 from app.agent.read_answers import meal_name, read_tool_answer
@@ -24,6 +26,8 @@ from app.domain.recipe_variant import ingredient_grams
 from app.evaluate_conversation import GoldFollowingProvider
 from app.evaluation_conversation import ConversationSelection, run_conversation_suite
 from app.evaluation_conversation_corpus import load_conversation_corpus
+from app.services.chat_history import load_previous_what_if
+from tests.test_chat_history import add_job, chat_payload
 from tests.test_chat_loop import FakeLLM, _reply, _text_block, _tool_block
 from tests.test_evaluation_conversation import _CORPUS
 
@@ -339,7 +343,14 @@ def test_last_what_if_recipe_reads_the_latest_what_if(
         "add it",
         "Save that to my plan.",
         "put this in my plan please",
-        "  Could you SAVE   this meal to the shopping list?  ",
+        "  Could you SAVE   this to the shopping list?  ",
+        "can you please add it to the list",
+        "yes add it",
+        "yes, add it",
+        "add it to my grocery list",
+        "ok save that",
+        "go ahead and add it",
+        "put it on my meal plan",
     ],
 )
 def test_asks_to_save_accepts_a_save_request(message: str) -> None:
@@ -352,6 +363,10 @@ def test_asks_to_save_accepts_a_save_request(message: str) -> None:
         "add chicken to it",
         "thanks",
         "add bean tacos to my plan",
+        "add this meal to my plan",
+        "add that meal to the list",
+        "put this meal on my plan",
+        "add both",
         "what if we add it",
         "add it to the salad",
         "",
@@ -406,7 +421,8 @@ def test_an_earlier_question_survives_a_later_failed_call() -> None:
 
 
 def test_an_earlier_swap_is_not_the_reply_to_a_later_failed_call() -> None:
-    swap = {"recipe_id": BEANS, "with_food": "chicken"}
+    swap = {"recipe_id": BEANS, "with_food": CHICKEN}
+    mixed = {**swap, "add_food": CHICKEN}
     swapped, _ = _run(
         [
             _reply([_tool_block("call-1", SUBSTITUTE_TOOL, swap)], "tool_use"),
@@ -414,21 +430,152 @@ def test_an_earlier_swap_is_not_the_reply_to_a_later_failed_call() -> None:
         ],
         "What if we use chicken instead?",
     )
+    assert swapped["answer"] != "A tool call failed. Check the request."
     swap_clause = cast(str, swapped["answer"])
     result, _ = _run(
         [
             _reply([_tool_block("call-1", SUBSTITUTE_TOOL, swap)], "tool_use"),
-            _reply(
-                [_tool_block("call-2", SUBSTITUTE_TOOL, {"recipe_id": "nope"})],
-                "tool_use",
-            ),
+            _reply([_tool_block("call-2", SUBSTITUTE_TOOL, mixed)], "tool_use"),
             _reply([_text_block("Done.")], "end_turn"),
         ],
         "What if we use chicken instead?",
     )
     answer = cast(str, result["answer"])
     assert swap_clause not in answer
-    assert answer == CLARIFICATION
+    assert answer == "A tool call failed. Check the request."
+
+
+def test_a_question_then_a_swap_then_an_invalid_call_drops_the_question() -> None:
+    question = {"recipe_id": BEANS, "with_food": "chicken"}
+    swap = {"recipe_id": BEANS, "with_food": CHICKEN}
+    mixed = {**swap, "add_food": CHICKEN}
+    result, _ = _run(
+        [
+            _reply([_tool_block("call-1", SUBSTITUTE_TOOL, question)], "tool_use"),
+            _reply([_tool_block("call-2", SUBSTITUTE_TOOL, swap)], "tool_use"),
+            _reply([_tool_block("call-3", SUBSTITUTE_TOOL, mixed)], "tool_use"),
+            _reply([_text_block("Done.")], "end_turn"),
+        ],
+        "What if we use chicken instead?",
+    )
+    assert "Which one do you mean" not in cast(str, result["answer"])
+
+
+def test_a_text_only_reply_after_a_question_returns_that_question() -> None:
+    ask = "Which one do you mean: a or b? Say the full name."
+    provider = FakeLLM([_reply([_text_block("Done.")], "end_turn")])
+    result = run_chat(
+        provider,
+        "chicken",
+        _budget(),
+        PERIOD,
+        model_prose=True,
+        history=[
+            {"role": "user", "text": "What if we use chicken instead?"},
+            {"role": "assistant", "text": ask},
+        ],
+    )
+    assert result["answer"] == ask
+
+
+def test_a_text_only_reply_after_a_what_if_says_none_ran() -> None:
+    result, _ = _run(
+        [_reply([_text_block("Done.")], "end_turn")],
+        "and with rice?",
+        previous=BEANS,
+    )
+    assert result["answer"] == _WHAT_IF_NOT_RUN
+    provider = FakeLLM([_reply([_text_block("Done.")], "end_turn")])
+    other = run_chat(
+        provider,
+        "and with rice?",
+        _budget(),
+        PERIOD,
+        model_prose=True,
+        history=[
+            {"role": "user", "text": "hi"},
+            {"role": "assistant", "text": "Hello."},
+        ],
+    )
+    assert other["answer"] != _WHAT_IF_NOT_RUN
+
+
+def test_a_text_only_reply_with_no_context_keeps_the_generic_question() -> None:
+    result, _ = _run([_reply([_text_block("Done.")], "end_turn")], "and with rice?")
+    assert result["answer"] == CLARIFICATION
+
+
+def _trace(*statuses: str) -> dict[str, object]:
+    return {"tool_trace": [_entry(status) for status in statuses]}
+
+
+def test_next_what_if_recipe_keeps_the_shown_what_if() -> None:
+    assert next_what_if_recipe(_trace("swapped"), None) == BEANS
+    assert next_what_if_recipe(_trace("needs_food_choice"), BEANS) == BEANS
+    failed = {"tool_trace": [_entry(None)]}
+    assert next_what_if_recipe(failed, BEANS) == BEANS
+    other = {"tool_trace": [{"tool": "get_meal", "inputs": {}}]}
+    assert next_what_if_recipe(other, BEANS) is None
+    assert next_what_if_recipe(_trace("needs_food_choice"), None) is None
+
+
+def test_a_stored_question_job_keeps_the_previous_what_if(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    job = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(previous_what_if_recipe=BEANS),
+        result={"answer": "Which one?", **_trace("needs_food_choice")},
+    )
+    assert load_previous_what_if(session, 1, job.id) == BEANS
+
+
+def test_an_unsupported_previous_recipe_does_not_take_the_save_route() -> None:
+    result, provider = _run(
+        [_reply([_text_block("Say which meal to add.")], "end_turn")],
+        "can you add it to the list",
+        previous="nope",
+    )
+    assert len(provider.requests) == 1
+    assert result["model_turns"] == 1
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"recipe_id": "vegetable_pasta", "with_ingredient_id": "unicorn"},
+        {
+            "recipe_id": "vegetable_pasta",
+            "with_ingredient_id": "eggs",
+            "quantity_per_serving": 0,
+        },
+    ],
+)
+def test_a_malformed_protein_default_call_is_a_static_error(
+    arguments: dict[str, object],
+) -> None:
+    with pytest.raises(SubstituteToolError):
+        execute_substitute(arguments, _budget())
+
+
+def test_a_food_already_in_the_meal_is_a_question_for_a_swap() -> None:
+    _, name = _food_in_meal()
+    result = execute_substitute({"recipe_id": BEANS, "with_food": name}, _budget())
+    assert result["status"] == "ingredient_already_in_meal"
+
+
+def test_a_replace_target_outside_the_meal_is_a_question() -> None:
+    result = execute_substitute(
+        {
+            "recipe_id": BEANS,
+            "with_food": "tofu",
+            "replace_ingredient_id": CHICKEN_ID,
+        },
+        _budget(),
+    )
+    assert result["status"] == "ingredient_not_in_meal"
 
 
 @pytest.mark.parametrize(

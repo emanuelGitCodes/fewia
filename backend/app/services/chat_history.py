@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.catalog_tool import exhausted_page_arguments, page_arguments
 from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN, plan_ingredient_ids
-from app.agent.chat_messages import is_guardrail_decline, last_what_if_recipe
+from app.agent.chat_messages import is_guardrail_decline, next_what_if_recipe
 from app.domain.grocery import GroceryRequest
 from app.job_models import Job
 from app.services.chat_job import ChatHistoryTurn
@@ -171,7 +171,10 @@ def load_previous_what_if(
     job = _previous_job(session, user_id, previous_job_id)
     if job is None:
         return None
-    return last_what_if_recipe(_mapping(job.result))
+    previous = _mapping(job.payload).get("previous_what_if_recipe")
+    return next_what_if_recipe(
+        _mapping(job.result), previous if isinstance(previous, str) else None
+    )
 
 
 def load_chat_context(

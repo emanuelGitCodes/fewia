@@ -22,7 +22,7 @@ from app.agent.catalog_tool import (
     page_arguments,
 )
 from app.agent.chat_context import MAX_HISTORY, _public_text, plan_ingredient_ids
-from app.agent.chat_messages import is_guardrail_decline, last_what_if_recipe
+from app.agent.chat_messages import is_guardrail_decline, next_what_if_recipe
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
@@ -317,7 +317,7 @@ def _run_scenario(
         previous_exhausted_search = exhausted_page_arguments(
             result.get("exhausted_search")
         )
-        previous_what_if = last_what_if_recipe(result)
+        previous_what_if = next_what_if_recipe(result, previous_what_if)
         if is_guardrail_decline(result):
             pending.clear()
             continue

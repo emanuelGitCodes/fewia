@@ -177,6 +177,8 @@ _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
 _NO_MORE = "There are no more matching meals."
 _TOOL_FAILURE = "A tool call failed. Check the request."
+_WHAT_IF_NOT_RUN = "I did not run a new what-if. Name the meal and the food to change."
+_WHAT_IF_ASKS = ("Which one do you mean", "Which ingredient in")
 
 
 class ChatUnavailable(Exception):
@@ -388,6 +390,7 @@ def run_chat(
     pending_results: list[dict[str, object]] | None = None
     read_results: list[tuple[str, dict[str, object]]] = []
     earlier_reads: list[tuple[str, dict[str, object]]] = []
+    what_if_failed = False
     proposal_read: list[tuple[str, dict[str, object]]] = []
     run_payloads: list[tuple[str, dict[str, object]]] = []
 
@@ -425,6 +428,15 @@ def run_chat(
                 return budget_summary_answer(
                     budget, period, spending_source=spending_source
                 )
+            if candidate is None and last_error is None:
+                if what_if_failed:
+                    return _TOOL_FAILURE
+                if not run_payloads:
+                    last = history[-1]["text"] if history else ""
+                    if last.startswith(_WHAT_IF_ASKS):
+                        return last
+                    if previous_what_if_recipe is not None:
+                        return _WHAT_IF_NOT_RUN
             return render_public_answer(candidate, last_error, meal_type=meal_type)
         parts: list[str] = []
         if candidate is not None or last_error is not None:
@@ -698,7 +710,7 @@ def run_chat(
             for name, payload in read_results
             if name == SUBSTITUTE_TOOL and payload.get("status") in _WHAT_IF_QUESTIONS
         ]
-        if questions:
+        if read_results:
             earlier_reads = questions
         read_results = []
         catalog_batch = any(call.name == CATALOG_TOOL_NAME for call in calls)
@@ -752,6 +764,9 @@ def run_chat(
                 batch_ok = False
             if call.name in _PLAN_READ_TOOLS:
                 other_failed = other_failed or not success
+                what_if_failed = what_if_failed or (
+                    call.name == SUBSTITUTE_TOOL and not success
+                )
                 if success and payload is not None:
                     read_results.append((call.name, payload))
                 blocks.append(block)

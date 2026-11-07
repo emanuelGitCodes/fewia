@@ -136,7 +136,7 @@ def _candidate_names(payload: dict[str, object]) -> list[str]:
 
 def _ask_food(ambiguous: bool, names: list[str]) -> str:
     if ambiguous:
-        return f"Which one do you mean: {_or(names)}?"
+        return f"Which one do you mean: {_or(names)}? Say the full name."
     text = "I cannot find that food in the food list."
     if names:
         text += f" Did you mean {_or(names[:2])}?"

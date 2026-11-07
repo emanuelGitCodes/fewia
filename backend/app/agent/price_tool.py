@@ -46,6 +46,7 @@ def price_tool_spec() -> dict[str, object]:
             "servings": {"type": "integer", "minimum": 1, "maximum": 8},
             "replace_ingredient_id": ingredient,
             "with_ingredient_id": ingredient,
+            "add_ingredient_id": ingredient,
             "quantity_per_serving": {
                 "type": "integer",
                 "minimum": MIN_QUANTITY,

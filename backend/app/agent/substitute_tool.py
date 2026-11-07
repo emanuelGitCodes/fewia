@@ -5,7 +5,7 @@ from app.agent.estimate import priced_estimate
 from app.agent.ingredient_tool import IngredientToolError, resolve_food
 from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
-from app.domain.catalog import INGREDIENTS, RECIPES
+from app.domain.catalog import RECIPES
 from app.domain.curated_foods import ALL_INGREDIENTS, ALL_NUTRITION
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.plan_revision import PlanRevisionInput
@@ -245,7 +245,7 @@ def _names_absent_ingredient(
     """
     scaling = change.scale_ingredient_id is not None
     target = change.scale_ingredient_id if scaling else change.replace_ingredient_id
-    if type(target) is not str or target not in INGREDIENTS or target in meal_ids:
+    if type(target) is not str or target not in ALL_INGREDIENTS or target in meal_ids:
         return False
     if scaling:
         probe = replace(change, scale_ingredient_id=meal_ids[0])
@@ -270,18 +270,20 @@ def _fill_food(
     ):
         raise SubstituteToolError("arguments are invalid")
     absent = "replace_ingredient_id" in arguments and old not in ids
-    if absent and not (type(old) is str and old in INGREDIENTS):
+    if absent and not (type(old) is str and old in ALL_INGREDIENTS):
         raise SubstituteToolError("arguments are invalid")
     try:
         food = resolve_food(arguments["with_food"])
     except IngredientToolError:
         raise SubstituteToolError("arguments are invalid") from None
     if food.status != "found":
-        status = "needs_food_choice" if food.status == "ambiguous" else "unknown_food"
-        return _question(status, recipe_id, food.ids), arguments
+        if food.status == "ambiguous":
+            return _question("needs_food_choice", recipe_id, food.ids), arguments
+        others = tuple(item for item in food.ids if item not in ids)
+        return _question("unknown_food", recipe_id, others), arguments
+    if food.ids[0] in ids:
+        return _question("ingredient_already_in_meal", recipe_id, food.ids), arguments
     if absent:
-        if food.ids[0] in ids:
-            raise SubstituteToolError("arguments are invalid")
         return _question("ingredient_not_in_meal", recipe_id, ids), arguments
     filled = {key: value for key, value in arguments.items() if key != "with_food"}
     filled["with_ingredient_id"] = food.ids[0]
@@ -313,10 +315,12 @@ def _fill_add_food(
         food = resolve_food(arguments["add_food"])
     except IngredientToolError:
         raise SubstituteToolError("arguments are invalid") from None
-    if food.status != "found":
-        status = "needs_food_choice" if food.status == "ambiguous" else "unknown_food"
-        return _question(status, recipe_id, food.ids), arguments
     ids = tuple(item for item, _ in RECIPES[recipe_id].ingredients)
+    if food.status != "found":
+        if food.status == "ambiguous":
+            return _question("needs_food_choice", recipe_id, food.ids), arguments
+        others = tuple(item for item in food.ids if item not in ids)
+        return _question("unknown_food", recipe_id, others), arguments
     if food.ids[0] in ids:
         return _question("ingredient_already_in_meal", recipe_id, food.ids), arguments
     filled = {key: value for key, value in arguments.items() if key != "add_food"}
@@ -352,8 +356,12 @@ def execute_substitute(
         question, arguments = _fill_food(arguments, recipe_id)
         if question is not None:
             return question
+    quantity = arguments.get("quantity_per_serving", MIN_QUANTITY)
     if (
         type(arguments.get("with_ingredient_id")) is str
+        and arguments["with_ingredient_id"] in ALL_INGREDIENTS
+        and type(quantity) is int
+        and MIN_QUANTITY <= quantity <= MAX_QUANTITY
         and "replace_ingredient_id" not in arguments
         and "add_ingredient_id" not in arguments
         and "scale_ingredient_id" not in arguments
