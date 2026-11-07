@@ -172,11 +172,12 @@ def _trace_inputs(
     if call.name == SUBSTITUTE_TOOL and isinstance(result.get("status"), str):
         inputs["status"] = result["status"]
         change = result.get("change")
-        if result["status"] == "swapped" and isinstance(change, dict):
+        if result["status"] in ("swapped", "added") and isinstance(change, dict):
             for key in (
                 "replace_ingredient_id",
                 "with_ingredient_id",
                 "scale_ingredient_id",
+                "add_ingredient_id",
             ):
                 if key in change:
                     inputs[key] = change[key]

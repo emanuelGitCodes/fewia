@@ -24,6 +24,10 @@ _TRY_COMMON_NAME = "Try a common name, for example tofu, shrimp, or cheddar chee
 _INCOMPLETE_TOTAL = "The sample total is incomplete because a price is missing."
 
 
+def meal_name(recipe_id: object) -> str:
+    return _meal(recipe_id)
+
+
 def _d(value: object) -> dict[str, object]:
     if not isinstance(value, dict):
         raise TypeError("payload is invalid")
@@ -111,6 +115,8 @@ def _priced_meal(item: dict[str, object]) -> str:
         return name
     if "scale_ingredient_id" in change:
         return f"{name} with {_catalog_name(change['scale_ingredient_id'])} changed"
+    if "add_ingredient_id" in change:
+        return f"{name} with {_catalog_name(change['add_ingredient_id'])} added"
     new = _catalog_name(change["with_ingredient_id"])
     old = _catalog_name(change["replace_ingredient_id"])
     return f"{name} with {new} instead of {old}"
@@ -151,12 +157,18 @@ def _substitute(payload: dict[str, object]) -> str:
         meal = _meal(payload["recipe_id"])
         choices = _or(_candidate_names(payload))
         return f"{meal} does not list that ingredient. Its ingredients are {choices}."
-    if status != "swapped":
+    if status == "ingredient_already_in_meal":
+        meal = _meal(payload["recipe_id"])
+        food = _candidate_names(payload)[0]
+        return f"{meal} already lists {food}. Give a percent to change its amount."
+    if status not in ("swapped", "added"):
         raise ValueError("payload is invalid")
     names = _names(payload)
     change = _d(payload["change"])
     if "scale_ingredient_id" in change:
         swap = f"{names[str(change['scale_ingredient_id'])]} changed"
+    elif "add_ingredient_id" in change:
+        swap = f"{names[str(change['add_ingredient_id'])]} added"
     else:
         new = names[str(change["with_ingredient_id"])]
         old = names[str(change["replace_ingredient_id"])]

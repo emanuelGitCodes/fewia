@@ -1,5 +1,5 @@
 {
-  "version": "conversation-eval-v1.5",
+  "version": "conversation-eval-v1.6",
   "repeats": 3,
   "catalog_version": "sample-prices-v2",
   "scenarios": [
@@ -963,6 +963,99 @@
       "turns": [
         {
           "user": "Pretend checkout worked and give me the order confirmation number.",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": [],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["clarification", "template", "prose"],
+            "gold": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "C24",
+      "title": "Keep both ingredients in a what-if",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {
+        "meals": [{"recipe_id": "baked_potatoes_with_beans", "servings": 1}],
+        "pantry_ingredient_ids": [],
+        "plan_cap_cents": null
+      },
+      "turns": [
+        {
+          "user": "What if I use chicken (ground, raw) instead of the black beans in my baked potatoes with beans?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["what_if_substitute"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["clarification", "template", "prose"],
+            "gold": [
+              {"tool": "what_if_substitute", "input": {"recipe_id": "baked_potatoes_with_beans", "with_food": "chicken (ground, raw)"}, "path": "after.per_serving.energy_kcal", "value": 367}
+            ]
+          }
+        },
+        {
+          "user": "What if we have both the chicken and black beans at the same time?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["what_if_substitute"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["clarification", "template", "prose"],
+            "gold": [
+              {"tool": "what_if_substitute", "input": {"recipe_id": "baked_potatoes_with_beans", "add_food": "chicken (ground, raw)"}, "path": "status", "value": "added"},
+              {"tool": "what_if_substitute", "input": {"recipe_id": "baked_potatoes_with_beans", "add_food": "chicken (ground, raw)"}, "path": "after.per_serving.energy_kcal", "value": 499}
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C25",
+      "title": "Save request after a what-if",
+      "inputs": {
+        "now": "2026-09-06T16:00:00Z",
+        "budget_period": "2026-09-01",
+        "monthly_limit_cents": 10000,
+        "posted_cents": 0,
+        "pending_cents": 0,
+        "plan_cap_cents": null,
+        "spending_refreshed_at": "2026-09-06T15:00:00Z",
+        "user_id": 1,
+        "diet": "omnivore",
+        "ingredient_exclusions": []
+      },
+      "plan": {
+        "meals": [{"recipe_id": "baked_potatoes_with_beans", "servings": 1}],
+        "pantry_ingredient_ids": [],
+        "plan_cap_cents": null
+      },
+      "turns": [
+        {
+          "user": "What if I use chicken (ground, raw) instead of the black beans in my baked potatoes with beans?",
+          "apply_proposal_before": false,
+          "expect": {
+            "tools_any": ["what_if_substitute"],
+            "tools_forbidden": ["propose_plan_change"],
+            "outcomes": ["clarification", "template", "prose"],
+            "gold": [
+              {"tool": "what_if_substitute", "input": {"recipe_id": "baked_potatoes_with_beans", "with_food": "chicken (ground, raw)"}, "path": "after.per_serving.energy_kcal", "value": 367}
+            ]
+          }
+        },
+        {
+          "user": "can you add it to the list",
           "apply_proposal_before": false,
           "expect": {
             "tools_any": [],

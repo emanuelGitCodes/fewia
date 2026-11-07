@@ -51,8 +51,10 @@ from app.agent.provider import LLMProvider
 from app.agent.read_answers import read_tool_answer
 from app.agent.saved_plan_route import saved_plan_read, saved_plan_reply
 from app.agent.substitute_tool import SUBSTITUTE_TOOL, substitute_tool_spec
+from app.agent.swap_not_saved import asks_to_save_what_if, swap_not_saved_reply
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.domain.meal_tags import names_meal_type
 from app.domain.plan_revision import PlanRevisionInput
 
@@ -160,7 +162,7 @@ _PLAN_READ_TOOLS = (
     PROPOSAL_TOOL,
 )
 # Tool statuses that answer the question; any other status asks the user something.
-_FINAL_STATUS = frozenset({"swapped", "found", "live", "ok", "proposed"})
+_FINAL_STATUS = frozenset({"swapped", "added", "found", "live", "ok", "proposed"})
 _LIMIT = "The job reached a processing limit."
 _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
@@ -261,6 +263,7 @@ def run_chat(
     propose: Propose | None = None,
     previous_search: dict[str, object] | None = None,
     previous_exhausted_search: dict[str, object] | None = None,
+    previous_what_if_recipe: str | None = None,
 ) -> dict[str, object]:
     messages = build_messages(
         message,
@@ -491,6 +494,11 @@ def run_chat(
         return {"gate": reason} if model_prose else None
 
     plan_answer = current_plan_answer(message, plan_revision)
+    if previous_what_if_recipe in SUPPORTED_RECIPE_IDS and asks_to_save_what_if(
+        message
+    ):
+        reply = swap_not_saved_reply(previous_what_if_recipe, plan_revision)
+        return out("clarification", reply, None, "template", why("swap_not_saved"))
     saved_read = saved_plan_read(message)
     if saved_read is not None and plan_revision is not None and not continuation:
         start = len(trace)

@@ -19,7 +19,10 @@ CHANGE_FIELDS = (
     "quantity_per_serving",
     "scale_ingredient_id",
     "scale_factor_percent",
+    "add_ingredient_id",
 )
+DEFAULT_ADD_GRAMS = 100
+DEFAULT_ADD_EACH = 1
 _INT_FIELDS = ("quantity_per_serving", "scale_factor_percent")
 
 
@@ -34,6 +37,7 @@ class RecipeChange:
     quantity_per_serving: int | None = None
     scale_ingredient_id: str | None = None
     scale_factor_percent: int | None = None
+    add_ingredient_id: str | None = None
 
 
 def parse_change(fields: Mapping[str, object]) -> RecipeChange | None:
@@ -50,6 +54,7 @@ def parse_change(fields: Mapping[str, object]) -> RecipeChange | None:
         quantity_per_serving=cast("int | None", fields.get("quantity_per_serving")),
         scale_ingredient_id=cast("str | None", fields.get("scale_ingredient_id")),
         scale_factor_percent=cast("int | None", fields.get("scale_factor_percent")),
+        add_ingredient_id=cast("str | None", fields.get("add_ingredient_id")),
     )
 
 
@@ -77,10 +82,11 @@ def _is_int(value: object) -> bool:
     return value is None or type(value) is int
 
 
-def _validate_form(change: RecipeChange) -> bool:
-    """Return True for the substitute form and False for the scale form."""
+def _validate_form(change: RecipeChange) -> str:
+    """Return "substitute", "scale", or "add" for the one form the change holds."""
     if not (
-        _is_str(change.replace_ingredient_id)
+        _is_str(change.add_ingredient_id)
+        and _is_str(change.replace_ingredient_id)
         and _is_str(change.with_ingredient_id)
         and _is_str(change.scale_ingredient_id)
         and _is_int(change.quantity_per_serving)
@@ -92,6 +98,7 @@ def _validate_form(change: RecipeChange) -> bool:
         and change.with_ingredient_id is not None
         and change.scale_ingredient_id is None
         and change.scale_factor_percent is None
+        and change.add_ingredient_id is None
     )
     scale = (
         change.scale_ingredient_id is not None
@@ -99,10 +106,20 @@ def _validate_form(change: RecipeChange) -> bool:
         and change.replace_ingredient_id is None
         and change.with_ingredient_id is None
         and change.quantity_per_serving is None
+        and change.add_ingredient_id is None
     )
-    if substitute == scale:
-        raise RecipeVariantError("change must be one substitute or one scale")
-    return substitute
+    add = (
+        change.add_ingredient_id is not None
+        and change.replace_ingredient_id is None
+        and change.with_ingredient_id is None
+        and change.scale_ingredient_id is None
+        and change.scale_factor_percent is None
+    )
+    if substitute + scale + add != 1:
+        raise RecipeVariantError("change must be one substitute, scale, or add")
+    if substitute:
+        return "substitute"
+    return "scale" if scale else "add"
 
 
 def apply_change(recipe_id: str, change: RecipeChange) -> tuple[tuple[str, int], ...]:
@@ -111,7 +128,23 @@ def apply_change(recipe_id: str, change: RecipeChange) -> tuple[tuple[str, int],
         raise RecipeVariantError("recipe is unknown")
     ingredients = recipe.ingredients
     present = {ingredient_id for ingredient_id, _ in ingredients}
-    if not _validate_form(change):
+    form = _validate_form(change)
+    if form == "add":
+        added = change.add_ingredient_id
+        if added not in ALL_INGREDIENTS or added in present:
+            raise RecipeVariantError("addition is not allowed")
+        assert added is not None
+        amount = change.quantity_per_serving
+        if amount is None:
+            amount = (
+                DEFAULT_ADD_GRAMS
+                if ALL_INGREDIENTS[added].unit == "g"
+                else DEFAULT_ADD_EACH
+            )
+        elif not MIN_QUANTITY <= amount <= MAX_QUANTITY:
+            raise RecipeVariantError("quantity is out of range")
+        return (*ingredients, (added, amount))
+    if form == "scale":
         target = change.scale_ingredient_id
         percent = change.scale_factor_percent
         if target not in present:

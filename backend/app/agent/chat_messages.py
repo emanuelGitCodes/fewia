@@ -27,6 +27,21 @@ def is_guardrail_decline(result: dict[str, object]) -> bool:
     return gated or result.get("answer") == GUARDRAIL_DECLINE
 
 
+def last_what_if_recipe(result: dict[str, object]) -> str | None:
+    trace = result.get("tool_trace")
+    if not isinstance(trace, list):
+        return None
+    for entry in reversed(trace):
+        if not isinstance(entry, dict) or entry.get("tool") != "what_if_substitute":
+            continue
+        inputs = entry.get("inputs")
+        if isinstance(inputs, dict) and inputs.get("status") in ("swapped", "added"):
+            recipe = inputs.get("recipe_id")
+            return recipe if isinstance(recipe, str) else None
+        return None
+    return None
+
+
 def _invalid() -> ChatProtocolError:
     return ChatProtocolError("assistant message is invalid")
 

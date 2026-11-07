@@ -55,7 +55,7 @@ def _turn(data: Json, scenario: int, turn: int = 0) -> Json:
 
 
 def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
-    assert corpus.version == "conversation-eval-v1.5"
+    assert corpus.version == "conversation-eval-v1.6"
     assert corpus.repeats == 3
     assert corpus.catalog_version == CATALOG_VERSION
     assert tuple(scenario.id for scenario in corpus.scenarios) == SCENARIO_IDS
@@ -64,6 +64,8 @@ def test_real_corpus_loads(corpus: ConversationCorpus) -> None:
     assert turns["C07"] == 2
     assert turns["C11"] == 9
     assert turns["C16"] == 4
+    assert turns["C24"] == 2
+    assert turns["C25"] == 2
     outcomes = {
         outcome
         for scenario in corpus.scenarios

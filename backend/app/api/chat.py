@@ -26,6 +26,7 @@ from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,
     load_previous_search_state,
+    load_previous_what_if,
 )
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
 from app.services.job_submission import (
@@ -90,9 +91,13 @@ def create_chat_job(
     ) = None
     previous_search: dict[str, object] | None = None
     previous_exhausted_search: dict[str, object] | None = None
+    previous_what_if_recipe: str | None = None
     try:
         context = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
         previous_search, previous_exhausted_search = load_previous_search_state(
+            session, DEMO_USER_ID, body.previous_job_id
+        )
+        previous_what_if_recipe = load_previous_what_if(
             session, DEMO_USER_ID, body.previous_job_id
         )
         loaded = context
@@ -129,6 +134,7 @@ def create_chat_job(
             previous_ingredient_ids=previous_ingredient_ids,
             previous_search=previous_search,
             previous_exhausted_search=previous_exhausted_search,
+            previous_what_if_recipe=previous_what_if_recipe,
             spending=spending,
             spending_source=settings.spending_source,
         ).model_dump(mode="json"),
