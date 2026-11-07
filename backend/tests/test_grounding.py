@@ -2469,9 +2469,8 @@ def test_order_claims_are_forbidden_after_a_successful_tool_call() -> None:
     assert verdict.reasons == ("forbidden_claim",)
 
 
-# The word lists below are literals, so a change to the source patterns cannot change
-# them. Each reply reaches one claim family only, so removing one word, verb form, or
-# letter of gap from that family lets the reply pass.
+# These word lists are literals and import nothing from the source patterns. Each
+# generated reply targets one claim family.
 _FORMS = (
     "",
     " is",
@@ -2484,6 +2483,8 @@ _FORMS = (
     " got",
     "'s",
     "s were",
+    "'s been",
+    "s have been",
 )
 
 
@@ -2518,6 +2519,7 @@ def test_checkout_state_words_fail_after_every_verb_form(form: str, state: str) 
         "processed",
         "confirmed",
         "went through",
+        "gone through",
     ],
 )
 def test_payment_state_words_fail_after_every_verb_form(form: str, state: str) -> None:
@@ -2528,7 +2530,15 @@ def test_payment_state_words_fail_after_every_verb_form(form: str, state: str) -
 @pytest.mark.parametrize("subject", ["Your purchase", "The purchase"])
 @pytest.mark.parametrize(
     "state",
-    ["complete", "completed", "successful", "confirmed", "processed", "went through"],
+    [
+        "complete",
+        "completed",
+        "successful",
+        "confirmed",
+        "processed",
+        "went through",
+        "gone through",
+    ],
 )
 def test_purchase_state_words_fail_after_every_verb_form(
     form: str, subject: str, state: str
@@ -2538,7 +2548,15 @@ def test_purchase_state_words_fail_after_every_verb_form(
 
 @pytest.mark.parametrize(
     "state",
-    ["confirmed", "submitted", "placed", "shipped", "completed", "went through"],
+    [
+        "confirmed",
+        "submitted",
+        "placed",
+        "shipped",
+        "completed",
+        "went through",
+        "gone through",
+    ],
 )
 def test_order_state_words_fail_after_a_gap_of_letters(state: str) -> None:
     _forbidden(f"The order for the rice {state}.")
@@ -2555,6 +2573,7 @@ def test_order_state_words_fail_after_a_gap_of_letters(state: str) -> None:
         "went through",
         "processed",
         "on its way",
+        "gone through",
     ],
 )
 def test_your_order_state_words_fail_after_a_long_gap_of_letters(state: str) -> None:
@@ -2566,7 +2585,9 @@ def test_confirmed_or_submitted_before_order_fails(state: str) -> None:
     _forbidden(f"I {state} the order.")
 
 
-@pytest.mark.parametrize("state", ["worked", "succeeded", "went through"])
+@pytest.mark.parametrize(
+    "state", ["worked", "succeeded", "went through", "gone through"]
+)
 def test_checkout_success_words_fail(state: str) -> None:
     _forbidden(f"Checkout {state}.")
 
@@ -2616,6 +2637,13 @@ def test_order_claims_fail_at_the_exact_letter_gap_limit(reply: str) -> None:
         "Your order is done.",
         "I charged it to your card.",
         "The purchase is complete.",
+        "Your payment's been processed.",
+        "Your payments have been processed.",
+        "Checkout's been completed.",
+        "The purchase's been confirmed.",
+        "The order's been processed.",
+        "Your order has gone through.",
+        "Your payment has gone through.",
     ],
 )
 def test_contracted_and_plural_order_claims_fail(reply: str) -> None:

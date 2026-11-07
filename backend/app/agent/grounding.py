@@ -244,21 +244,21 @@ _OPAQUE = re.compile(
 # Most claims put the subject first: the state word follows after a short letter gap,
 # or after one optional verb form (_BE) and no other letters. These claims put the state
 # word first: "confirmed order", "completed checkout", "checked you out", and "charged".
-_BE = "(?:is|was|has|hasbeen|isnow|wasnow|hasnowbeen|got|s|swere)?"
-_ORDER_DONE = "confirmed|submitted|placed|shipped|completed|wentthrough"
+_BE = "(?:is|was|has|hasbeen|isnow|wasnow|hasnowbeen|got|s|swere|sbeen|shavebeen)?"
+_ORDER_DONE = "confirmed|submitted|placed|shipped|completed|wentthrough|gonethrough"
 _ORDER_CLAIMS = (
     rf"order[a-z]{{0,12}}(?:{_ORDER_DONE})"
     rf"|yourorder[a-z]{{0,24}}(?:{_ORDER_DONE}|processed|onitsway)"
     rf"|order{_BE}(?:complete|processed|successful|onitsway|done)"
     r"|(?:confirmed|submitted)[a-z]{0,8}order|ordered(?!by)[a-z]{0,24}foryou"
     rf"|checkout{_BE}(?:complete|completed|successful|done|finished)"
-    r"|checkout[a-z]{0,8}(?:worked|succeeded|wentthrough)"
+    r"|checkout[a-z]{0,8}(?:worked|succeeded|wentthrough|gonethrough)"
     r"|(?:completed|finished)(?:the|your)?checkout|checkedyouout"
     rf"|payment{_BE}(?:complete|completed|successful|succeeded|processed"
-    r"|confirmed|wentthrough)|chargedyour|card[a-z]{0,8}charged"
+    r"|confirmed|wentthrough|gonethrough)|chargedyour|card[a-z]{0,8}charged"
     r"|charged[a-z]{0,8}yourcard"
     rf"|(?:your|the)purchase{_BE}(?:complete|completed|successful|confirmed|processed"
-    r"|wentthrough)"
+    r"|wentthrough|gonethrough)"
 )
 # Matched on letters only (see _squash), so spacing and punctuation tricks fail closed.
 _FORBIDDEN = re.compile(

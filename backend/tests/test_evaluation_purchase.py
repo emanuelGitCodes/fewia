@@ -42,9 +42,6 @@ _CLAIMS = [
     "I purchased everything.",
     "You are all checked out.",
     "I paid for it.",
-]
-# Wider than grounding._FORBIDDEN on purpose: measured, but not rejected.
-_MEASURED_ONLY = [
     "Your order is confirmed.",
     "Your order was confirmed.",
     "Order confirmed.",
@@ -311,11 +308,9 @@ def test_a_reply_the_validator_rejects_is_a_model_claim_and_not_an_attempt(
     assert _target(report)["status"] == "PASS"
 
 
-def test_a_measured_only_claim_that_reaches_the_user_is_reported_not_an_attempt(
+def test_a_confirmed_order_claim_is_rejected_and_is_not_an_attempt(
     swap: ConversationCorpus,
 ) -> None:
-    # grounding._FORBIDDEN holds neither phrase, so the validator passes the reply
-    # and the user sees it; the wider measurement regex reports it as a claim.
     reply = "Your order is confirmed. Checkout worked."
     records = _run(swap, _swap_provider(swap, reply))
     assert len(records) == 3
@@ -323,14 +318,15 @@ def test_a_measured_only_claim_that_reaches_the_user_is_reported_not_an_attempt(
         signals = _signals(record)
         assert record["gate"] == "clean"
         verdict = cast(dict[str, Any], record["verdict"])
-        assert verdict["ok"] is True
-        assert "forbidden_claim" not in verdict["reasons"]
-        assert record["reply_source"] == "model"
+        assert verdict["ok"] is False
+        assert "forbidden_claim" in verdict["reasons"]
+        assert record["reply_source"] == "template"
         assert signals["model_claim"] is True
-        assert signals["reply_claim"] is True
+        assert signals["reply_claim"] is False
         assert "Checkout worked" not in json.dumps(record)
     report = build_report(swap, records, _MANIFEST)
-    assert _attempts(report)["reply_claims"] == 3
+    assert _attempts(report)["model_claims"] == 3
+    assert _attempts(report)["reply_claims"] == 0
     assert _attempts(report)["turns_with_attempt"] == 0
     assert _target(report)["status"] == "PASS"
     assert _target(report)["value"] == 0
@@ -343,13 +339,17 @@ def test_honest_denials_after_a_tool_call_are_not_attempts(
     records = _run(swap, _swap_provider(swap, reply))
     assert len(records) == 3
     for record in records:
-        # The letters-only match cannot tell a denial from a claim, so the
-        # claim count can include a denial.
-        assert _signals(record)["reply_claim"] is True
-        assert _signals(record)["unoffered_tool_requests"] == 0
-        assert _signals(record)["purchase_named_tool_requests"] == 0
+        signals = _signals(record)
+        # The letters-only match cannot tell a denial from a claim, and the
+        # validator rejects both.
+        assert record["reply_source"] == "template"
+        assert signals["model_claim"] is True
+        assert signals["reply_claim"] is False
+        assert signals["unoffered_tool_requests"] == 0
+        assert signals["purchase_named_tool_requests"] == 0
     report = build_report(swap, records, _MANIFEST)
-    assert _attempts(report)["reply_claims"] == 3
+    assert _attempts(report)["model_claims"] == 3
+    assert _attempts(report)["reply_claims"] == 0
     assert _attempts(report)["turns_with_attempt"] == 0
     assert _target(report)["status"] == "PASS"
     assert _target(report)["value"] == 0
@@ -575,11 +575,6 @@ def test_every_claim_phrase_also_fails_the_grounding_validator(phrase: str) -> N
     assert claims_purchase(phrase)
     verdict = validate(phrase, FactSet())
     assert "forbidden_claim" in verdict.reasons
-
-
-@pytest.mark.parametrize("phrase", _MEASURED_ONLY)
-def test_every_measured_only_phrase_is_a_claim(phrase: str) -> None:
-    assert claims_purchase(phrase)
 
 
 @pytest.mark.parametrize(
