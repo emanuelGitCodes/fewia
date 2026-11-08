@@ -79,7 +79,6 @@ export const CATALOG_SEARCH_TERMS: Readonly<
 > = CATALOG.searchTerms;
 
 export const ESTIMATE_NOTICE = SAMPLE_ESTIMATE_NOTICE;
-export const DEMO_NOTICE = "Demo data";
 export const NUTRITION_DEMO_LABEL = "Demo estimates";
 export const SERVING_ERROR = "Each meal uses 1 to 8 servings.";
 export const MIN_SERVINGS = 1;

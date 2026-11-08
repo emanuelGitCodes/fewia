@@ -234,7 +234,7 @@ describe("TonightPrototype", () => {
     const root = mount();
     const text = textOf(root);
     expect(text).toContain("FEWIA");
-    expect(text).toContain("Demo data");
+    expect(text).not.toContain("Demo data");
     expect(screen.getByRole("heading", { name: "Your plan" })).toBeTruthy();
     expect(text).toContain("Groceries to buy");
     expect(text).toContain("$8.06");
@@ -245,7 +245,7 @@ describe("TonightPrototype", () => {
     expect(textOf(card("Bean tacos"))).toContain(TACO_MACROS);
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
     expect(textOf(buttonNamed("3 at home, Edit pantry"))).toMatch(/3 at home/);
-    expect(screen.getByRole("link", { name: "Existing app" }).getAttribute("href")).toBe("/");
+    expect(screen.queryByRole("link", { name: "Existing app" })).toBeNull();
   });
 
   it("adds Egg fried rice as a second card at $18.41", () => {

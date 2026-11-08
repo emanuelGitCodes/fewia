@@ -73,11 +73,6 @@
   font-weight: 600;
   letter-spacing: -0.03em;
 }
-.tonight-demo {
-  margin: 0;
-  color: var(--tonight-muted);
-  font-size: 0.95rem;
-}
 .tonight-carousel {
   position: relative;
 }
@@ -665,15 +660,6 @@
   margin-top: 0.2rem;
   accent-color: var(--tonight-green);
 }
-.tonight-footer {
-  margin-top: 1rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--tonight-line);
-}
-.tonight-footer a {
-  color: var(--tonight-muted);
-  text-underline-offset: 0.18em;
-}
 .tonight-nav {
   flex-shrink: 0;
   display: grid;
@@ -823,10 +809,6 @@
   }
   .tonight-nutrition-head {
     margin-bottom: 0.7rem;
-  }
-  .tonight-footer {
-    margin-top: 1.6rem;
-    padding-top: 0.8rem;
   }
   .tonight-plan-grid {
     display: grid;
@@ -1261,10 +1243,6 @@
     grid-column: 1;
     grid-row: 2;
   }
-  .tonight-canvas > .tonight-footer {
-    grid-column: 1;
-    grid-row: 3;
-  }
   .tonight-prototype .tonight-ask,
   .tonight-prototype.is-ask-open .tonight-ask {
     position: sticky;
@@ -1274,7 +1252,7 @@
     bottom: auto;
     left: auto;
     grid-column: 2;
-    grid-row: 2 / span 2;
+    grid-row: 2;
     align-self: start;
     width: auto;
     height: calc(100vh - 2rem - var(--tonight-nav-height));

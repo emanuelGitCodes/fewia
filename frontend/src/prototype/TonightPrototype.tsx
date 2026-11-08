@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type JSX } from "react";
-import { DEMO_NOTICE } from "./prototypeData";
 import {
   addMeal,
   planLines,
@@ -74,7 +73,6 @@ export function TonightPrototype(): JSX.Element {
   const canvasRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
-  const footerRef = useRef<HTMLElement>(null);
   const dockRef = useRef<HTMLButtonElement>(null);
   const askId = useId();
   const newReplyId = `${askId}-new`;
@@ -179,7 +177,6 @@ export function TonightPrototype(): JSX.Element {
       ? [
           headerRef.current,
           main,
-          footerRef.current,
           rootRef.current?.querySelector(".tonight-nav") ?? null,
         ]
       : [main?.querySelector(".tonight-plan-main") ?? main];
@@ -228,7 +225,6 @@ export function TonightPrototype(): JSX.Element {
         <div className="tonight-canvas" ref={canvasRef}>
           <header className="tonight-header" ref={headerRef}>
             <p className="tonight-wordmark">FEWIA</p>
-            <p className="tonight-demo">{DEMO_NOTICE}</p>
             {restoreError !== null ? <p role="alert">{restoreError}</p> : null}
           </header>
           <main ref={mainRef}>
@@ -292,9 +288,6 @@ export function TonightPrototype(): JSX.Element {
               );
             }}
           />
-          <footer className="tonight-footer" ref={footerRef}>
-            <a href="/">Existing app</a>
-          </footer>
         </div>
         <div className="tonight-dock" hidden={!sheetLayout || sheetOpen}>
           <button

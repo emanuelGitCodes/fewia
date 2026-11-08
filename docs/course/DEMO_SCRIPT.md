@@ -67,7 +67,7 @@ A fallback MUST NOT appear under a `live provider` label.
 
 ### Shot 1. Scope and the agent's job (1:30)
 
-- Open `/prototype`. The header shows `FEWIA` and `Demo data`.
+- Open `/prototype`. The header shows `FEWIA`.
 - Show [FEATURE_MAP.md](../FEATURE_MAP.md), the edge diagram.
 - Point at three parts: the deterministic planner, the model behind the worker,
   and Kroger behind a read and a user click.
