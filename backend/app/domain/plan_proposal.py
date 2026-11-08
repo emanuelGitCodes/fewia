@@ -16,6 +16,7 @@ from pydantic import (
 from sqlalchemy.orm import Session
 
 from app.domain.catalog import INGREDIENTS
+from app.domain.grocery import Diet
 from app.domain.plan_revision import PlanMeal, PlanSnapshot
 from app.plan_models import PlanProposal, PlanRevision
 
@@ -28,6 +29,22 @@ class ProposalInvalid(ValueError):
 
 
 CatalogId = Annotated[StrictStr, Field(min_length=1, max_length=64)]
+
+
+class ProposalDietaryConstraints(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    diet: Diet | None = None
+    ingredient_exclusions: list[StrictStr] = Field(default_factory=list)
+
+
+class ApplyConstraints(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    monthly_limit_cents: StrictInt = Field(ge=0)
+    plan_cap_cents: StrictInt | None = Field(ge=0)
+    diet: Diet
+    ingredient_exclusions: list[StrictStr]
 
 
 class AddMeal(BaseModel):
@@ -137,6 +154,8 @@ def create_proposal(
     user_id: int,
     base_plan_revision_id: UUID,
     operations: object,
+    *,
+    constraints: ApplyConstraints | None = None,
 ) -> UUID:
     base = session.get(PlanRevision, base_plan_revision_id)
     if base is None or base.user_id != user_id:
@@ -154,6 +173,9 @@ def create_proposal(
                 [op.model_dump(mode="json") for op in ops],
             ),
             status="pending",
+            apply_constraints=(
+                None if constraints is None else constraints.model_dump(mode="json")
+            ),
         )
     )
     session.flush()

@@ -10,7 +10,12 @@ from app.agent.chat_context import MAX_HISTORY, MAX_MESSAGE_LEN
 from app.agent.chat_loop import run_chat
 from app.agent.provider import LLMProvider
 from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
-from app.domain.plan_proposal import create_proposal
+from app.domain.grocery import Diet, GroceryRequest
+from app.domain.plan_proposal import (
+    ApplyConstraints,
+    ProposalDietaryConstraints,
+    create_proposal,
+)
 from app.domain.plan_revision import PlanRevisionInput
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_plan_evidence
@@ -71,6 +76,11 @@ def chat_job(
 ) -> dict[str, object]:
     heartbeat()
     parsed = ChatJobInput.model_validate(payload)
+    previous = (
+        None
+        if parsed.previous_request is None
+        else GroceryRequest.model_validate(parsed.previous_request)
+    )
     clock = _utc_now()
     budget = calculate_budget(
         parsed.monthly_limit_cents,
@@ -100,10 +110,27 @@ def chat_job(
 
     plan = parsed.plan_revision
 
-    def propose(operations: list[dict[str, object]]) -> str:
+    def propose(
+        operations: list[dict[str, object]], dietary: ProposalDietaryConstraints
+    ) -> str:
         assert plan is not None
+        diets: tuple[Diet, ...] = ("omnivore", "vegetarian", "vegan")
+        prior_diet: Diet = "omnivore" if previous is None else previous.diet
+        requested_diet: Diet = dietary.diet or "omnivore"
+        diet = max((prior_diet, requested_diet), key=diets.index)
+        prior_exclusions = [] if previous is None else previous.ingredient_exclusions
+        constraints = ApplyConstraints(
+            monthly_limit_cents=parsed.monthly_limit_cents,
+            plan_cap_cents=parsed.plan_cap_cents,
+            diet=diet,
+            ingredient_exclusions=list(
+                dict.fromkeys([*prior_exclusions, *dietary.ingredient_exclusions])
+            ),
+        )
         with factory() as session:
-            proposal_id = create_proposal(session, 1, plan.id, operations)
+            proposal_id = create_proposal(
+                session, 1, plan.id, operations, constraints=constraints
+            )
             session.commit()
         return str(proposal_id)
 

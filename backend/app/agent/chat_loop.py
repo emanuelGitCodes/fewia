@@ -65,7 +65,9 @@ PROPOSAL_PROMPT_SUFFIX = (
     " plan_meals is the user's saved plan. To add a meal to it, remove a meal "
     "from it, change a meal's servings, or mark a pantry item, call "
     "propose_plan_change once with every change; do not call plan_groceries "
-    "for that. The user applies the change in the plan panel."
+    "for that. Include diet and ingredient_exclusions in propose_plan_change "
+    "for newly stated restrictions. Keep unknown exclusion terms exactly as "
+    "the user states them. The user applies the change in the plan panel."
 )
 SYSTEM_PROMPT = (
     "You are FEWIA, a meal and grocery assistant. plan_meals in the context "

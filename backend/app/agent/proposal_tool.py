@@ -2,22 +2,25 @@ from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date
 
+from pydantic import ValidationError
+
 from app.agent.estimate import priced_estimate
 from app.agent.plan_tools import _spec
 from app.domain.budget import BudgetResult
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, GroceryRequest, MealRequest
 from app.domain.plan_proposal import (
     INVALID_PROPOSAL_MESSAGE,
+    Operations,
+    ProposalDietaryConstraints,
     ProposalInvalid,
     apply_operations,
-    parse_operations,
 )
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.services.meal_nutrition import meal_nutrition
 
 PROPOSAL_TOOL = "propose_plan_change"
 PROPOSAL_ONCE = "A plan change was already proposed in this reply."
-Propose = Callable[[list[dict[str, object]]], str]
+Propose = Callable[[list[dict[str, object]], ProposalDietaryConstraints], str]
 _OPERATION: dict[str, object] = {
     "type": "object",
     "properties": {
@@ -39,6 +42,10 @@ class ProposalToolError(ValueError):
     """A proposal failure with a static message and no raw input."""
 
 
+class ProposalArguments(ProposalDietaryConstraints):
+    operations: Operations
+
+
 def proposal_tool_spec() -> dict[str, object]:
     return _spec(
         PROPOSAL_TOOL,
@@ -47,6 +54,8 @@ def proposal_tool_spec() -> dict[str, object]:
         "Propose a change to the user's saved plan for the user to apply. "
         "Operations: add (recipe_id, servings), remove (recipe_id), "
         "set_servings (recipe_id, servings), set_pantry (ingredient_id, owned). "
+        "Include diet and ingredient_exclusions for newly stated restrictions. "
+        "Keep unknown exclusion terms exactly as the user states them. "
         "The tool never changes the plan and is not for swapping a food.",
         {
             "operations": {
@@ -54,7 +63,9 @@ def proposal_tool_spec() -> dict[str, object]:
                 "minItems": 1,
                 "maxItems": 6,
                 "items": _OPERATION,
-            }
+            },
+            "diet": {"type": "string", "enum": ["omnivore", "vegetarian", "vegan"]},
+            "ingredient_exclusions": {"type": "array", "items": {"type": "string"}},
         },
         ["operations"],
     )
@@ -87,24 +98,23 @@ def execute_propose(
     plan: PlanRevisionInput,
     propose: Propose,
 ) -> dict[str, object]:
-    """Validate and price the change, then store it once.
-
-    The payload is built before `propose` runs, so a failure while building
-    stores nothing. Only a successful proposal counts toward the one-per-run
-    limit (the dispatcher checks the trace), so a failed call may be retried.
-    """
-    if type(arguments) is not dict or set(arguments) != {"operations"}:
-        raise ProposalToolError(INVALID_PROPOSAL_MESSAGE)
+    """Validate and price the change before storing the proposal."""
     try:
-        ops = parse_operations(arguments["operations"])
+        parsed = ProposalArguments.model_validate(arguments, strict=True)
+        ops = parsed.operations
         after = apply_operations(plan.snapshot, ops)
-    except ProposalInvalid:
+    except (ProposalInvalid, ValidationError):
         raise ProposalToolError(INVALID_PROPOSAL_MESSAGE) from None
     operations: list[dict[str, object]] = [op.model_dump(mode="json") for op in ops]
     before_side = _side(plan.snapshot, budget)
     after_side = _side(after, budget)
     try:
-        proposal_id = propose(operations)
+        proposal_id = propose(
+            operations,
+            ProposalDietaryConstraints(
+                diet=parsed.diet, ingredient_exclusions=parsed.ingredient_exclusions
+            ),
+        )
     except ProposalInvalid:
         raise ProposalToolError(INVALID_PROPOSAL_MESSAGE) from None
     return {

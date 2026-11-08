@@ -16,7 +16,11 @@ from app.agent.chat_messages import ToolCall
 from app.agent.proposal_tool import PROPOSAL_TOOL
 from app.domain.catalog import CATALOG_VERSION, RECIPES
 from app.domain.curated_foods import ALL_INGREDIENTS
-from app.domain.plan_proposal import apply_operations, parse_operations
+from app.domain.plan_proposal import (
+    ProposalDietaryConstraints,
+    apply_operations,
+    parse_operations,
+)
 from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.evaluation_budget_inputs import fixture_budget
 from app.evaluation_conversation_corpus import (
@@ -89,7 +93,9 @@ class _Recorder:
         raise RuntimeError("recorded")
 
 
-def _propose(operations: list[dict[str, object]]) -> str:
+def _propose(
+    operations: list[dict[str, object]], dietary: ProposalDietaryConstraints
+) -> str:
     return "proposal-fixture"
 
 
@@ -291,7 +297,7 @@ def test_gold_regenerates_from_the_tools(
                     "fixture",
                     trace,
                     plan=plan,
-                    propose=lambda operations: "proposal-fixture",
+                    propose=lambda operations, dietary: "proposal-fixture",
                 )
                 assert payload is not None, f"{where}: {gold.tool} failed"
                 got = _at(payload, gold.path)
