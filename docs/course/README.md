@@ -20,6 +20,7 @@ The outline includes references within eight pages as a conservative planning as
 | [Limitations](LIMITATIONS.md) | Select the limits that bind your claims. |
 | [Evidence tables](EVIDENCE_TABLES.md) | Select the numbers you cite. Each row keeps its revision, date, evidence class, and denominator. |
 | [Rehearsal checklist](REHEARSAL_CHECKLIST.md) | Rehearse the live demo and record each result. Every box starts unchecked. |
+| [Course methods](COURSE_METHODS.md) | Choose the course methods to name in the paper and demo. Keep each row's label. |
 
 Use the [backlog](../FEATURE_BACKLOG.md) for remaining owner work.
 Supporting documents do not establish completion of the final paper or video.

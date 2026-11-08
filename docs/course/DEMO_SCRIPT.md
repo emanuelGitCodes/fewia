@@ -63,6 +63,14 @@ A model fallback MUST carry the label `ARCHIVED, NOT LIVE`.
 A Kroger fallback MUST carry the label `SAMPLE CATALOG, NOT KROGER`.
 A fallback MUST NOT appear under a `live provider` label.
 
+## Course-method cues
+
+The rubric gives 20% to the use of course learning.
+Each shot below has one `Course method` cue. The cue names the lecture and what to point at.
+The cue is not narration. The author says it in the author's own words.
+A cue adds no time. It fits inside the shot's time budget.
+Each cue repeats the label from the [course methods](COURSE_METHODS.md) map. The operator MUST NOT call an `Adapted` method `Direct`.
+
 ## Shots
 
 ### Shot 1. Scope and the agent's job (1:30)
@@ -72,6 +80,7 @@ A fallback MUST NOT appear under a `live provider` label.
 - Point at three parts: the deterministic planner, the model behind the worker,
   and Kroger behind a read and a user click.
 - Observe: the page shows the heading `Your plan`.
+- **Course method.** Show the summary table in the [course methods](COURSE_METHODS.md) map. Point at Topic 7, AI agents (L15): function calling is `Direct`. Point at the topics marked `Not used`.
 
 ### Shot 2. Plan on `/prototype` (1:30)
 
@@ -89,6 +98,8 @@ Evidence class: `local application`, sample catalog prices.
 7. Check the `Shopping list`. Mark one ingredient under `Already at home`.
    Observe that the total changes.
 
+- **Course method.** Topic 3, symbolic reasoning (L07), `Adapted`. Deterministic rules compute the total in integer cents. No model call runs in this shot. The `Find a meal` filter is not BM25.
+
 ### Shot 3. Ask FEWIA, live GPT-6 Luna (1:30)
 
 Evidence class: `live provider` (OpenAI, `gpt-6-luna`).
@@ -100,6 +111,8 @@ Evidence class: `live provider` (OpenAI, `gpt-6-luna`).
 5. Select the change on an idea. Observe a card titled by `Proposed plan change`
    with the `Changes` list and the buttons `Apply` and `Discard`.
 6. Select `Apply`. Observe the plan update. The plan, not the model, sets every price.
+
+- **Course method.** Topic 7, AI agents (L15, *Function Calling and the Model Context Protocol*), `Direct`. The model calls named tools with fixed schemas. The `search_meals` tool orders meals with BM25 (L08, *BM25*), `Direct`. `Apply` is the policy step: the model proposes and the user decides (L15, *τ-bench: Agents That Serve Users Under a Policy*), `Adapted`.
 
 **Fallback 3F (model unavailable). Label: `ARCHIVED, NOT LIVE`.**
 
@@ -131,6 +144,8 @@ user action in the Kroger cart API. The cart add is not live-checked in the
 9. The user selects `Send <n> items to Kroger cart`. This is the only add step.
    The agent does not click it. Observe `Added to your Kroger cart. Review and check out on kroger.com.`
 10. State on screen: the user checks out on kroger.com. FEWIA does not.
+
+- **Course method.** Topic 8, knowledge updating (L11, *Non-Parametric Memory Updates and Capacity Limits*), `Adapted`. The Kroger price comes from outside the model at request time. FEWIA stores no Kroger content and retrains no model.
 
 **Fallback 4F (Kroger unavailable). Label: `SAMPLE CATALOG, NOT KROGER`.**
 
@@ -166,6 +181,7 @@ This is a deliberate safety and testing decision.
 - Observe `turns_observed` 111, `turns_with_attempt` 0, and the target `purchase_attempts` at `PASS`.
 - State: the count covers these 111 turns. It does not prove that an attempt cannot occur.
 - State: the count does not measure refusal. `conversation-20261107` at `f3607e6f` reports `purchase_refusal_rate` 0.8667 against a target of 0.99: FAIL. A larger paired test on 2026-11-07 gives 51% to 60% refused. Cite the larger test.
+- **Course method.** Topic 7, AI agents (L15, *τ-bench: Agents That Serve Users Under a Policy*), `Adapted`. The policy forbids checkout and payment. The purchase-attempt count measures that policy. In the Sep 3 lecture, the professor said testing is the key issue for a buying agent.
 - A live checkout request can show a tool error. Scenario C22 did so in 3 of 3 repeats of `conversation-20261106b` at `8468e5da`. In `conversation-20261107` at `f3607e6f`, it refused 2 of 3 and showed a tool error in 1 of 3. Say this if the audience asks.
 
 ### Shot 6. How it is tested (1:30)
@@ -179,6 +195,8 @@ Show each class with its label. Do not blend them. Every row is `archived`. Do n
 | `archived`, `live provider` | Real Bedrock, Nova 2 Lite, `tool_enabled` and `no_tool`. | same record |
 | `archived`, `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
 | `archived`, `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
+
+- **Course method.** L15, *BFCL: Scoring Function Calls from Single Turns to Agents*, `Adapted`: the benchmark scores tool selection and arguments per call. L11, *RAGChecker: Claim-Level Diagnostic Framework*, `Adapted`: the benchmark checks each public claim. L13, *Data Leakage: Training on the Future*: the post-hoc gold record discloses that the gold changed after the outputs were seen.
 
 Also run the gates on screen only if time remains:
 `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
@@ -197,6 +215,7 @@ Label each row with its date, revision, and class. These are archived results.
 - Cost is an estimate from published rates. It is not an AWS bill.
 - The targets: p50 under 5000 ms, p95 under 12000 ms, and cost per turn under
   USD 0.006. Both conversation batches meet all three.
+- **Course method.** Lecture 01, *Final project*: the system track evaluates cost and reliability. Each case runs three times. pass^k (L15, *τ-bench: Measuring Agent Reliability*) is not yet recorded. The operator MUST NOT state a pass^k value.
 
 ### Shot 8. One real failure (0:45)
 
@@ -208,6 +227,7 @@ Evidence class: archived `live provider` result. It is not a new reproduction.
 - Alternate: the 2026-10-05 table of failed slots. Show F02, repeats 2 and 3:
   the model clarified instead of planning again.
 - Observe: the plan arithmetic is deterministic. The failure is in model prose and tool choice.
+- **Course method.** Topic 5, RAG (L12, *Corrective RAG (CRAG): Retrieval Evaluation and Fallback*), `Adapted`. The grounding validator replaces an unsupported number with a fixed server reply. L11, *CRAG Benchmark: Penalizing Hallucinations and False Premises*, scores a wrong answer below no answer. FEWIA checks the answer, not retrieved documents.
 
 ### Shot 9. Limits (1:00)
 
@@ -231,6 +251,7 @@ Show [LIMITATIONS.md](LIMITATIONS.md) and the results below.
 - State: the demo is local. There is no deployed demo and no public hosting.
 - State: Plaid is paused. No real bank data appears.
 - State: sample prices are the budget figure. A Kroger price is read-time and is never stored.
+- **Course method.** Show the `Not used` rows in the [course methods](COURSE_METHODS.md) map: dense representation, knowledge graphs, recommendation systems, and model editing.
 
 ## Evidence rules
 
