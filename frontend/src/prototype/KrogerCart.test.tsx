@@ -84,6 +84,30 @@ describe("KrogerCart", () => {
     expect(screen.getByText("15 oz")).toBeTruthy();
     expect(screen.getByText("Quantity 2")).toBeTruthy();
     expect(screen.getByText("No Kroger match: Saffron.")).toBeTruthy();
+    expect(screen.getByRole("status").textContent)
+      .toBe("Kroger cart preview ready: 1 item. 1 ingredient has no Kroger match.");
+  });
+
+  it.each([false, true])("announces preview progress and preserves focus when moved=%s", async (moveFocus) => {
+    let finish: (value: unknown) => void = () => undefined;
+    const pending = new Promise<unknown>((resolve) => { finish = resolve; });
+    const calls = stub(() => 204, pending);
+    render(<><KrogerCart state={initialPlanState()} locationId="01400943" /><button>Elsewhere</button></>);
+    const preview = screen.getByRole("button", { name: "Preview Kroger cart" });
+    const status = screen.getByRole("status");
+    preview.focus();
+    await act(async () => { fireEvent.click(preview); });
+    expect(status.textContent).toBe("Preparing Kroger cart preview.");
+    expect(preview.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(preview);
+    fireEvent.click(preview);
+    expect(calls.filter((call) => call.url.endsWith("/preview"))).toHaveLength(1);
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    if (moveFocus) elsewhere.focus();
+    await act(async () => { finish({ items: [ITEM], unmatched: [] }); });
+    expect(status.textContent).toBe("Kroger cart preview ready: 1 item.");
+    expect(document.activeElement).toBe(moveFocus ? elsewhere : preview);
+    expect(preview.getAttribute("aria-disabled")).toBe("false");
   });
 
   it("shows the unavailable line for a malformed preview", async () => {
@@ -156,9 +180,9 @@ describe("KrogerCart", () => {
     },
   );
 
-  it("disables Send while the request runs", async () => {
+  it("guards Send and retains focus while the request runs", async () => {
     let finish: () => void = () => undefined;
-    stub(
+    const calls = stub(
       () =>
         new Promise<number>((resolve) => {
           finish = () => {
@@ -168,12 +192,121 @@ describe("KrogerCart", () => {
     );
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     await showPreview();
-    fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
-    expect((screen.getByRole("button", { name: /^Send/ }) as HTMLButtonElement).disabled).toBe(true);
+    const send = screen.getByRole("button", { name: /^Send/ });
+    const status = screen.getByRole("status");
+    send.focus();
+    fireEvent.click(send);
+    fireEvent.click(send);
+    expect(send.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(send);
+    expect(status.textContent).toBe("Sending items to Kroger cart.");
+    expect(calls.filter((call) => call.url.endsWith("/cart/add"))).toHaveLength(1);
     await act(async () => {
       finish();
     });
     await screen.findByText(/^Added to your Kroger cart/);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Preview Kroger cart" }));
+  });
+
+  describe.each(["Send", "Retry"] as const)("focus after %s", (action) => {
+    it.each([204, 422, 504])("follows the remaining action after HTTP %s", async (result) => {
+      let finish: (value: number) => void = () => undefined;
+      let pending = action === "Send";
+      stub(() => pending ? new Promise<number>((resolve) => { finish = resolve; }) : 504);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      await showPreview();
+      if (action === "Retry") {
+        fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+        await screen.findByRole("button", { name: "Retry" });
+        pending = true;
+      }
+      const button = screen.getByRole("button", { name: action === "Send" ? /^Send/ : "Retry" });
+      button.focus();
+      fireEvent.click(button);
+      expect(document.activeElement).toBe(button);
+      expect(button.getAttribute("aria-disabled")).toBe("true");
+      expect(screen.getByRole("status").textContent).toBe("Sending items to Kroger cart.");
+      await act(async () => { finish(result); });
+      const target = screen.getByRole("button", { name: result === 504 ? "Retry" : "Preview Kroger cart" });
+      expect(document.activeElement).toBe(target);
+      expect(target.getAttribute("aria-disabled")).toBe("false");
+    });
+
+    it.each([204, 422, 504])("keeps user-moved focus after HTTP %s", async (result) => {
+      let finish: (value: number) => void = () => undefined;
+      let pending = action === "Send";
+      stub(() => pending ? new Promise<number>((resolve) => { finish = resolve; }) : 504);
+      render(<><KrogerCart state={initialPlanState()} locationId="01400943" /><button>Elsewhere</button></>);
+      await showPreview();
+      if (action === "Retry") {
+        fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+        await screen.findByRole("button", { name: "Retry" });
+        pending = true;
+      }
+      const button = screen.getByRole("button", { name: action === "Send" ? /^Send/ : "Retry" });
+      button.focus();
+      fireEvent.click(button);
+      const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+      elsewhere.focus();
+      await act(async () => { finish(result); });
+      expect(document.activeElement).toBe(elsewhere);
+    });
+  });
+
+  it.each(["store", "no-store", "plan"] as const)("resets actions and keeps local focus during a pending send across a %s change", async (change) => {
+    let finish: () => void = () => undefined;
+    const calls = stub(() => new Promise<number>((resolve) => { finish = () => { resolve(204); }; }));
+    const state = initialPlanState();
+    const view = render(<KrogerCart state={state} locationId="01400943" />);
+    await showPreview();
+    const send = screen.getByRole("button", { name: /^Send/ });
+    send.focus();
+    fireEvent.click(send);
+    view.rerender(<KrogerCart
+      state={change === "plan" ? { ...state, meals: [] } : state}
+      locationId={change === "no-store" ? null : "01400944"}
+    />);
+    const preview = screen.queryByRole("button", { name: "Preview Kroger cart" });
+    const target = change === "store" ? preview : screen.getByRole("group", { name: "Kroger cart" });
+    expect(document.activeElement).toBe(target);
+    expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
+    if (change === "store") {
+      expect(preview?.getAttribute("aria-disabled")).toBe("true");
+      fireEvent.click(preview as HTMLButtonElement);
+    } else {
+      expect(preview).toBeNull();
+    }
+    expect(calls.filter((call) => call.url.endsWith("/preview"))).toHaveLength(1);
+    await act(async () => { finish(); });
+    expect(document.activeElement).toBe(target);
+    if (change === "store") {
+      expect(preview?.getAttribute("aria-disabled")).toBe("false");
+    } else {
+      expect(screen.queryByRole("button", { name: "Preview Kroger cart" })).toBeNull();
+    }
+  });
+
+  describe.each(["no-store", "empty-plan"] as const)("after a %s change", (change) => {
+    it.each([false, true])("hides a used Preview and preserves focus when moved=%s", async (moveFocus) => {
+      stub(() => 204);
+      const state = initialPlanState();
+      const view = render(<><KrogerCart state={state} locationId="01400943" /><button>Elsewhere</button></>);
+      await showPreview();
+      const preview = screen.getByRole("button", { name: "Preview Kroger cart" });
+      const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+      preview.focus();
+      if (moveFocus) elsewhere.focus();
+      view.rerender(<><KrogerCart
+        state={change === "empty-plan" ? { ...state, meals: [] } : state}
+        locationId={change === "no-store" ? null : "01400943"}
+      /><button>Elsewhere</button></>);
+      expect(screen.queryByRole("button", { name: "Preview Kroger cart" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
+      expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
+      expect(screen.getByRole("status").textContent).toBe("");
+      expect(document.activeElement).toBe(moveFocus ? elsewhere : screen.getByRole("group", { name: "Kroger cart" }));
+    });
   });
 
   it("drops the preview when the store changes", async () => {
@@ -256,11 +389,11 @@ describe("KrogerCart", () => {
       await showPreview();
       fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
       view.rerender(other);
-      expect(previewButton().disabled).toBe(true);
+      expect(previewButton().getAttribute("aria-disabled")).toBe("true");
       fireEvent.click(previewButton());
       expect(calls.filter((call) => call.url.endsWith("/preview")).length).toBe(1);
       await release(204);
-      expect(previewButton().disabled).toBe(false);
+      expect(previewButton().getAttribute("aria-disabled")).toBe("false");
       expect(adds(calls)).toBe(1);
     });
 
@@ -294,7 +427,7 @@ describe("KrogerCart", () => {
       view.rerender(other);
       await release(409);
       expect(screen.getByRole("status").textContent).toBe("");
-      expect(previewButton().disabled).toBe(false);
+      expect(previewButton().getAttribute("aria-disabled")).toBe("false");
     });
 
     it("does not overwrite a newer send's line", async () => {
@@ -330,6 +463,7 @@ describe("KrogerCart", () => {
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
     expect(await screen.findByText("No Kroger items found for this plan.")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("No Kroger items found for this plan.");
     expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
   });
 

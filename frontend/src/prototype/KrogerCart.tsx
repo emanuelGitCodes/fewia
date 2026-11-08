@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useRef, useState, type JSX } from "react";
 import { addToKrogerCart, previewKrogerCart, type KrogerCartPreview } from "../krogerApi";
 import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
@@ -23,10 +23,23 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   const [sending, setSending] = useState(false);
   const [added, setAdded] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
+  const cart = useRef<HTMLDivElement | null>(null);
+  const previewButton = useRef<HTMLButtonElement | null>(null);
+  const setPreviewButton = useCallback((node: HTMLButtonElement | null): void => {
+    if (
+      node === null &&
+      previewButton.current !== null &&
+      document.activeElement === previewButton.current
+    ) {
+      cart.current?.focus();
+    }
+    previewButton.current = node;
+  }, []);
+  const sendButton = useRef<HTMLButtonElement | null>(null);
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const mounted = useRef(false);
-  const inFlight = useRef(false); // one send at a time, even across plan and store changes
+  const inFlight = useRef(false);
   const latestSend = useRef(0);
   const key = `${locationId ?? ""}:${JSON.stringify(planRevisionBody(state))}`;
 
@@ -38,6 +51,9 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   }, []);
 
   useEffect(() => {
+    if (sendButton.current !== null && document.activeElement === sendButton.current) {
+      (previewButton.current ?? cart.current)?.focus();
+    }
     setPreview(null);
     setMessage("");
     setPreviewing(false);
@@ -55,7 +71,7 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   const ready = locationId !== null && state.meals.length > 0;
 
   const showPreview = (): void => {
-    if (locationId === null || inFlight.current) {
+    if (!ready || locationId === null || inFlight.current || previewing) {
       return;
     }
     controller.current?.abort();
@@ -96,7 +112,14 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   };
 
   const send = (): void => {
-    if (preview === null || inFlight.current) {
+    if (
+      !ready ||
+      preview === null ||
+      preview.items.length === 0 ||
+      added ||
+      inFlight.current ||
+      previewing
+    ) {
       return;
     }
     inFlight.current = true;
@@ -105,7 +128,6 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
     const mine = generation.current;
     setSending(true);
     setMessage("");
-    setUnconfirmed(false);
     addToKrogerCart(preview.items.map(({ upc, quantity }) => ({ upc, quantity }))).then((result) => {
       inFlight.current = false;
       if (!mounted.current) {
@@ -113,7 +135,6 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
       }
       setSending(false);
       if (generation.current !== mine) {
-        // The plan or store changed mid-send: only say what may be true of the old send.
         if (latestSend.current === mineSend) {
           if (result === "added") {
             setMessage(KROGER_CART_ADDED_LINE);
@@ -122,6 +143,14 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
           }
         }
         return;
+      }
+      setUnconfirmed(false);
+      if (
+        (result === "added" || result === "rejected") &&
+        sendButton.current !== null &&
+        document.activeElement === sendButton.current
+      ) {
+        previewButton.current?.focus();
       }
       if (result === "added") {
         setAdded(true);
@@ -141,19 +170,34 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
   };
 
   const count = preview?.items.length ?? 0;
+  let status = message;
+  if (previewing) {
+    status = "Preparing Kroger cart preview.";
+  } else if (sending) {
+    status = "Sending items to Kroger cart.";
+  } else if (status === "" && preview !== null) {
+    status =
+      count === 0
+        ? KROGER_CART_EMPTY_LINE
+        : `Kroger cart preview ready: ${String(count)} ${count === 1 ? "item" : "items"}.`;
+    if (preview.unmatched.length > 0) {
+      status += ` ${String(preview.unmatched.length)} ${preview.unmatched.length === 1 ? "ingredient has" : "ingredients have"} no Kroger match.`;
+    }
+  }
   return (
-    <div className="tonight-kroger-cart">
+    <div ref={cart} className="tonight-kroger-cart" role="group" aria-label="Kroger cart" tabIndex={-1}>
       {ready ? (
         <button
+          ref={setPreviewButton}
           type="button"
           className="tonight-ask-btn"
-          disabled={previewing || sending}
+          aria-disabled={!ready || previewing || sending}
           onClick={showPreview}
         >
           Preview Kroger cart
         </button>
       ) : null}
-      {ready && preview !== null ? (
+      {preview !== null ? (
         <>
           {count > 0 ? (
             <ul className="tonight-kroger-cart-items" aria-label="Kroger cart preview">
@@ -167,28 +211,28 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
               ))}
             </ul>
           ) : null}
-          {count === 0 && preview.unmatched.length === 0 ? (
-            <p className="tonight-ask-hint">{KROGER_CART_EMPTY_LINE}</p>
-          ) : null}
           {preview.unmatched.length > 0 ? (
             <p className="tonight-ask-hint">
               {`No Kroger match: ${preview.unmatched.map((line) => line.name).join(", ")}.`}
             </p>
           ) : null}
-          {count > 0 && !added && !unconfirmed ? (
-            <button type="button" className="tonight-ask-btn" disabled={sending} onClick={send}>
-              {`Send ${String(count)} ${count === 1 ? "item" : "items"} to Kroger cart`}
-            </button>
-          ) : null}
-          {unconfirmed ? (
-            <button type="button" className="tonight-ask-btn" disabled={sending} onClick={send}>
-              Retry
+          {count > 0 && !added ? (
+            <button
+              ref={sendButton}
+              type="button"
+              className="tonight-ask-btn"
+              aria-disabled={!ready || sending || previewing}
+              onClick={send}
+            >
+              {unconfirmed
+                ? "Retry"
+                : `Send ${String(count)} ${count === 1 ? "item" : "items"} to Kroger cart`}
             </button>
           ) : null}
         </>
       ) : null}
       <p className="tonight-ask-hint" role="status" aria-live="polite">
-        {message}
+        {status}
       </p>
     </div>
   );

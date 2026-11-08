@@ -28,6 +28,11 @@ function zipInput(): HTMLInputElement {
   return screen.getByLabelText("ZIP code") as HTMLInputElement;
 }
 
+function PickerHarness() {
+  const kroger = useKrogerStore();
+  return <KrogerStorePicker store={kroger.store} onChoose={kroger.choose} onClear={kroger.clear} />;
+}
+
 async function search(zip = "45202"): Promise<void> {
   fireEvent.click(screen.getByRole("button", { name: CHOOSE }));
   fireEvent.change(zipInput(), { target: { value: zip } });
@@ -88,13 +93,21 @@ describe("KrogerStorePicker", () => {
     expect(input.getAttribute("inputmode")).toBe("numeric");
     expect(input.maxLength).toBe(5);
     expect(input.getAttribute("autocomplete")).toBe("off");
+    expect(document.activeElement).toBe(input);
+    expect(document.getElementById(input.getAttribute("aria-describedby") ?? "")?.textContent)
+      .toBe("Enter a five-digit ZIP code.");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const find = screen.getByRole("button", { name: "Find stores" }) as HTMLButtonElement;
     for (const value of ["", "4520", "4520a", "45 02"]) {
       fireEvent.change(input, { target: { value } });
-      expect(find.disabled).toBe(true);
+      expect(find.getAttribute("aria-disabled")).toBe("true");
+      fireEvent.click(find);
+      fireEvent.submit(input.closest("form") as HTMLFormElement);
     }
+    expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.change(input, { target: { value: "45202" } });
-    expect(find.disabled).toBe(false);
+    expect(find.getAttribute("aria-disabled")).toBe("false");
   });
 
   it("lists stores, clears the ZIP, and calls onChoose when one is picked", async () => {
@@ -103,6 +116,7 @@ describe("KrogerStorePicker", () => {
     render(<KrogerStorePicker store={null} onChoose={onChoose} onClear={vi.fn()} />);
     await search();
     expect(zipInput().value).toBe("");
+    expect(screen.getByRole("status").textContent).toBe("Found 1 Kroger store.");
     const pick = screen.getByRole("button", { name: "Main Street, 1 Test Way, Springfield, OH" });
     expect(pick.closest("ul")).not.toBeNull();
     fireEvent.click(pick);
@@ -153,6 +167,85 @@ describe("KrogerStorePicker", () => {
     expect(zipInput()).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns focus after cancel, choosing, and removing a store", async () => {
+    reply({ stores: [raw] });
+    render(<PickerHarness />);
+    const choose = screen.getByRole("button", { name: CHOOSE });
+    choose.focus();
+    fireEvent.click(choose);
+    expect(document.activeElement).toBe(zipInput());
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: CHOOSE }));
+    await search();
+    fireEvent.click(screen.getByRole("button", { name: /^Main Street, / }));
+    const change = screen.getByRole("button", { name: "Change" });
+    expect(document.activeElement).toBe(change);
+    const remove = screen.getByRole("button", { name: "Remove" });
+    for (const button of [change, remove]) {
+      expect(document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent)
+        .toBe("Kroger store: Main Street");
+    }
+    fireEvent.click(change);
+    expect(document.activeElement).toBe(zipInput());
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.activeElement).toBe(change);
+    remove.focus();
+    fireEvent.click(remove);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: CHOOSE }));
+    await search();
+    fireEvent.click(screen.getByRole("button", { name: /^Main Street, / }));
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(document.activeElement).toBe(zipInput());
+  });
+
+  it("retains Find focus through pending and ZIP clearing without duplicate searches", async () => {
+    let finish: () => void = () => undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+      finish = () => { resolve({ ok: true, json: async () => ({ stores: [raw, { ...raw, location_id: "01400944" }] }) } as Response); };
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: CHOOSE }));
+    fireEvent.change(zipInput(), { target: { value: "45202" } });
+    const find = screen.getByRole("button", { name: "Find stores" });
+    const status = screen.getByRole("status");
+    find.focus();
+    fireEvent.click(find);
+    fireEvent.click(find);
+    expect(status.textContent).toBe("Finding Kroger stores.");
+    expect(find.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(find);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); });
+    expect(status.textContent).toBe("Found 2 Kroger stores.");
+    expect(status.textContent).not.toContain("45202");
+    expect(zipInput().value).toBe("");
+    expect(document.activeElement).toBe(find);
+    expect(find.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it.each([false, true])("keeps moved focus and suppresses canceled results when cancel=%s", async (cancel) => {
+    let finish: () => void = () => undefined;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      finish = () => { resolve({ ok: true, json: async () => ({ stores: [raw] }) } as Response); };
+    })));
+    render(<><KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} /><button>Elsewhere</button></>);
+    await search();
+    const cancelButton = screen.getByRole("button", { name: "Cancel" });
+    cancelButton.focus();
+    if (cancel) {
+      fireEvent.click(cancelButton);
+    } else {
+      screen.getByRole("button", { name: "Elsewhere" }).focus();
+    }
+    const focused = document.activeElement;
+    await act(async () => { finish(); });
+    expect(document.activeElement).toBe(focused);
+    expect(screen.getByRole("status").textContent).toBe(cancel ? "" : "Found 1 Kroger store.");
+    if (cancel) expect(screen.queryByRole("list", { name: "Kroger stores" })).toBeNull();
   });
 
   it("aborts a pending search on unmount", () => {

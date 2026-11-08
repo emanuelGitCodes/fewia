@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
 import { disconnectKroger, readKrogerConnection } from "../krogerApi";
 import { KrogerCart } from "./KrogerCart";
@@ -9,6 +9,8 @@ export const KROGER_CONNECT_PATH = "/api/grocery/kroger/connect";
 export const KROGER_CONNECTED_LINE = "Kroger account connected.";
 export const KROGER_SIGN_IN_FAILED_LINE = "Kroger sign-in did not finish. Try again.";
 export const KROGER_DISCONNECT_FAILED_LINE = "Could not disconnect Kroger. Try again.";
+export const KROGER_CONNECTION_UNVERIFIED_LINE =
+  "Could not verify the current Kroger connection. Reload to check.";
 
 function returnMessage(status: KrogerReturn | null | undefined): string {
   if (status === "connected") {
@@ -35,22 +37,58 @@ export function KrogerConnect(props: {
   const [warned, setWarned] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(false);
+  const disconnecting = useRef(false);
+  const account = useRef<HTMLDivElement | null>(null);
+  const disconnectButton = useRef<HTMLButtonElement | null>(null);
+  const connectLink = useRef<HTMLAnchorElement | null>(null);
+  const focusConnect = useRef(false);
   const onReturnShown = useRef(props.onReturnShown);
   onReturnShown.current = props.onReturnShown;
 
-  const refresh = (): void => {
+  useLayoutEffect(() => {
+    if (focusConnect.current && connected === false && document.activeElement === document.body) {
+      connectLink.current?.focus();
+    }
+    focusConnect.current = false;
+  }, [connected]);
+
+  const refresh = (confirmDisconnect = false): void => {
     controller.current?.abort();
     const current = new AbortController();
     controller.current = current;
     readKrogerConnection(current.signal).then(
       (value) => {
         if (controller.current === current) {
+          if (confirmDisconnect) {
+            disconnecting.current = false;
+            setBusy(false);
+            if (value === false) {
+              focusConnect.current =
+                disconnectButton.current !== null &&
+                document.activeElement === disconnectButton.current;
+              setMessage("Kroger account disconnected.");
+            } else {
+              setFailed(true);
+              setMessage("");
+              return;
+            }
+          }
           setConnected(value);
         }
       },
       (error: unknown) => {
         if (controller.current === current && !isAbortError(error)) {
-          setConnected(null);
+          if (confirmDisconnect) {
+            disconnecting.current = false;
+            setBusy(false);
+            if (account.current?.contains(document.activeElement)) {
+              account.current.focus();
+            }
+            setConnected(null);
+            setMessage(KROGER_CONNECTION_UNVERIFIED_LINE);
+          } else {
+            setConnected(null);
+          }
         }
       },
     );
@@ -70,32 +108,38 @@ export function KrogerConnect(props: {
   }, [returned]);
 
   const disconnect = (): void => {
-    setMessage("");
+    if (disconnecting.current) {
+      return;
+    }
+    disconnecting.current = true;
+    setMessage("Disconnecting Kroger account.");
     setFailed(false);
     setBusy(true);
     disconnectKroger().then(
       () => {
         if (mounted.current) {
-          setBusy(false);
-          refresh();
+          refresh(true);
         }
       },
       () => {
         if (mounted.current) {
+          disconnecting.current = false;
           setBusy(false);
           setFailed(true);
+          setMessage("");
         }
       },
     );
   };
 
-  if (connected === null && returned === "") {
+  if (connected === null && returned === "" && message === "") {
     return null;
   }
   return (
-    <div className="tonight-kroger-connect">
+    <div ref={account} className="tonight-kroger-connect" role="group" aria-label="Kroger account" tabIndex={-1}>
       {connected === false ? (
         <a
+          ref={connectLink}
           className="tonight-ask-btn"
           href={KROGER_CONNECT_PATH}
           onClick={(event) => {
@@ -115,7 +159,13 @@ export function KrogerConnect(props: {
       {connected === true ? (
         <>
           <p className="tonight-kroger-status">Kroger account connected</p>
-          <button type="button" className="tonight-ask-btn" disabled={busy} onClick={disconnect}>
+          <button
+            ref={disconnectButton}
+            type="button"
+            className="tonight-ask-btn"
+            aria-disabled={busy}
+            onClick={disconnect}
+          >
             Disconnect
           </button>
         </>
@@ -123,7 +173,7 @@ export function KrogerConnect(props: {
       {connected === true ? (
         <KrogerCart state={props.plan} locationId={props.locationId ?? null} />
       ) : null}
-      <p className="tonight-ask-hint" aria-live="polite">
+      <p className="tonight-ask-hint" role="status" aria-label="Kroger account status" aria-live="polite">
         {warned ? PLAN_SAVE_WARNING : failed ? KROGER_DISCONNECT_FAILED_LINE : message}
       </p>
     </div>

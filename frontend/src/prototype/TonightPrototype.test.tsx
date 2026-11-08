@@ -301,11 +301,14 @@ describe("TonightPrototype", () => {
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
   });
 
-  it("moves focus to the plan heading after the picker removes a meal", () => {
+  it("keeps focus on the unpressed picker button after it removes a meal", () => {
     mount();
     click("Egg fried rice");
+    const button = buttonNamed("Bean tacos");
+    button.focus();
     click("Bean tacos");
-    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Your plan" }));
+    expect(document.activeElement).toBe(button);
+    expect(button.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("keeps focus on the picker button after the picker adds a meal", () => {
@@ -576,10 +579,11 @@ describe("TonightPrototype", () => {
     ).toBeTruthy();
   });
 
-  it("has one plan status, one chat status, and a mounted dock status", () => {
-    mount();
+  it("has exactly one plan status element and one chat status element", () => {
+    const root = mount();
     expect(planStatuses()).toHaveLength(1);
-    expect(screen.getAllByRole("status")).toHaveLength(3);
+    const chatStatuses = root.querySelectorAll('.tonight-ask-status[role="status"]');
+    expect(chatStatuses).toHaveLength(1);
     expect(screen.getByText(FIT_INITIAL).getAttribute("role")).toBeNull();
   });
 
@@ -818,8 +822,26 @@ describe("TonightPrototype", () => {
       expect(riceMeals).toContain("Egg fried rice");
       expect(riceMeals.length).toBeLessThan(40);
       expect(tileNames()).toEqual(riceMeals);
+      expect(statusText().startsWith(`Found ${String(riceMeals.length)} meals. `)).toBe(true);
       typeFilter("RICE");
       expect(tileNames()).toEqual(riceMeals);
+      expect(statusText().startsWith(`Found ${String(riceMeals.length)} meals. `)).toBe(true);
+    });
+
+    it("announces one matching meal and clears search status for empty queries", () => {
+      mount();
+      const initialStatus = statusText();
+      typeFilter("Bean tacos");
+      expect(tileNames()).toEqual(["Bean tacos"]);
+      expect(statusText()).toBe(`Found 1 meal. ${initialStatus}`);
+      expect(planStatuses()).toHaveLength(1);
+      typeFilter("");
+      expect(tileNames()).toHaveLength(40);
+      expect(statusText()).toBe(initialStatus);
+      typeFilter("Bean tacos");
+      typeFilter("   ");
+      expect(tileNames()).toHaveLength(40);
+      expect(statusText()).toBe(initialStatus);
     });
 
     it("matches diet labels", () => {
