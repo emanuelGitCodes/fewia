@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from typing import Literal, cast
@@ -258,7 +259,11 @@ def test_failures_are_generic_and_never_retried(
     assert raised.value.__cause__ is None
     assert raised.value.__context__ is None
     assert _KEY not in repr(raised.value)
-    assert capsys.readouterr() == ("", "")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert _KEY not in captured.err
+    assert len(captured.err.splitlines()) == 1
+    assert json.loads(captured.err)["event"] == "openai_responses_failed"
 
 
 @pytest.mark.parametrize(
@@ -299,7 +304,6 @@ def test_malformed_arguments_never_reach_dispatch(
         [{**_call(), "arguments": {"item": "beans"}}],
         [{**_call(), "status": "in_progress"}],
         [_call(str(index)) for index in range(4)],
-        [{"type": "reasoning", "summary": [], "encrypted_content": "opaque"}, _call()],
         [{"type": "unknown"}],
         [{**_text(), "role": "user"}],
         [{**_text(), "content": [{"type": "output_text", "text": 3}]}],
@@ -318,6 +322,164 @@ def test_invalid_output_is_unavailable(
         provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
         with pytest.raises(LLMUnavailable):
             provider.converse("System", _messages(), _tools())
+
+
+_REASONING: dict[str, object] = {
+    "type": "reasoning",
+    "summary": [],
+    "encrypted_content": "opaque",
+}
+
+
+def _run(
+    tmp_path: Path, handle: Callable[[httpx.Request], httpx.Response]
+) -> dict[str, object]:
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
+        return provider.converse("System", _messages(), _tools())
+
+
+def _failure_line(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    lines = captured.err.splitlines()
+    assert len(lines) == 1
+    for secret in (_KEY, "Bearer", "PRIVATE_MESSAGE", "Find sample prices."):
+        assert secret not in captured.err
+    line = json.loads(lines[0])
+    assert line["event"] == "openai_responses_failed"
+    return cast(dict[str, object], line)
+
+
+def test_reasoning_items_are_skipped_before_text(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        lambda request: httpx.Response(200, json=_response([_REASONING, _text()])),
+    )
+    stop, text, calls, _ = parse_provider_response(result, set())
+    assert (stop, text, calls) == ("end_turn", "Sample prices are estimates.", [])
+
+
+def test_reasoning_items_are_skipped_before_tool_call(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        lambda request: httpx.Response(200, json=_response([_REASONING, _call()])),
+    )
+    stop, _, calls, _ = parse_provider_response(result, {"lookup"})
+    assert stop == "tool_use"
+    assert len(calls) == 1
+
+
+def test_reasoning_only_output_is_unavailable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(LLMUnavailable):
+        _run(
+            tmp_path, lambda request: httpx.Response(200, json=_response([_REASONING]))
+        )
+    line = _failure_line(capsys)
+    assert line["reason"] == "invalid_response"
+    assert line["item_type"] is None
+
+
+def test_unknown_item_type_is_logged_and_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output: list[dict[str, object]] = [{"type": "web_search_call"}]
+    with pytest.raises(LLMUnavailable):
+        _run(tmp_path, lambda request: httpx.Response(200, json=_response(output)))
+    line = _failure_line(capsys)
+    assert line["reason"] == "invalid_response"
+    assert line["http_status"] == 200
+    assert line["exception"] == "_Invalid"
+    assert line["item_type"] == "web_search_call"
+
+
+def test_request_disables_reasoning_and_storage(tmp_path: Path) -> None:
+    bodies: list[dict[str, object]] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json=_response())
+
+    _run(tmp_path, handle)
+    assert bodies[0]["reasoning"] == {"effort": "none"}
+    assert bodies[0]["store"] is False
+
+
+@pytest.mark.parametrize("status", [401, 429, 500])
+def test_http_errors_log_bounded_error_fields(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], status: int
+) -> None:
+    body = {
+        "error": {
+            "message": f"PRIVATE_MESSAGE {_KEY}",
+            "type": "invalid_request_error",
+            "code": "bad.code-1",
+        }
+    }
+    with pytest.raises(LLMUnavailable):
+        _run(tmp_path, lambda request: httpx.Response(status, json=body))
+    line = _failure_line(capsys)
+    assert line["reason"] == "http_error"
+    assert line["http_status"] == status
+    assert line["error_type"] == "invalid_request_error"
+    assert line["error_code"] == "bad.code-1"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        httpx.Response(500, text="not json"),
+        httpx.Response(500, json=["error"]),
+        httpx.Response(500, json={"error": "PRIVATE_MESSAGE"}),
+        httpx.Response(500, json={"error": {"type": "x" * 65, "code": "has space\n"}}),
+        httpx.Response(500, json={"error": {"type": 5, "code": None}}),
+    ],
+)
+def test_unbounded_error_fields_are_not_logged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], body: httpx.Response
+) -> None:
+    with pytest.raises(LLMUnavailable):
+        _run(tmp_path, lambda request: body)
+    line = _failure_line(capsys)
+    assert line["http_status"] == 500
+    assert line["error_type"] is None
+    assert line["error_code"] is None
+
+
+def test_transport_timeout_is_logged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout(_KEY, request=request)
+
+    with pytest.raises(LLMUnavailable):
+        _run(tmp_path, handle)
+    line = _failure_line(capsys)
+    assert line["reason"] == "transport_error"
+    assert line["exception"] == "ReadTimeout"
+    assert line["http_status"] is None
+
+
+def test_invalid_input_is_logged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(500))
+    ) as client:
+        provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
+        with pytest.raises(ValueError, match="Provider input is invalid"):
+            provider.converse(" ", _messages(), _tools())
+    line = _failure_line(capsys)
+    assert line["reason"] == "invalid_input"
+    assert line["exception"] == "_Invalid"
+
+
+def test_default_client_timeout(tmp_path: Path) -> None:
+    provider = OpenAIResponsesProvider(_key_file(tmp_path))
+    timeout = provider._client.timeout  # noqa: SLF001
+    assert (timeout.connect, timeout.read) == (3, 40)
 
 
 @pytest.mark.parametrize("reason", ["max_output_tokens", "content_filter"])
