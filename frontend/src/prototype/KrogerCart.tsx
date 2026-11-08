@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from "react";
+import { KROGER_FIXTURE_LABEL, type KrogerMode } from "../apiTypes";
 import { addToKrogerCart, previewKrogerCart, type KrogerCartPreview } from "../krogerApi";
 import type { PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
@@ -14,7 +15,15 @@ export const KROGER_CART_SAVE_FAILED_LINE = "Could not save the plan. Try again.
 export const KROGER_CART_UNKNOWN_LINE =
   "Kroger did not confirm. Check your Kroger cart before you retry.";
 
-export function KrogerCart(props: { state: PlanState; locationId: string | null }): JSX.Element {
+export const KROGER_CART_FIXTURE_ADDED_LINE = "Added to the fixture cart. No Kroger cart changed.";
+export const KROGER_CART_FIXTURE_UNKNOWN_LINE =
+  "The fixture cart did not confirm. No Kroger cart changed.";
+
+export function KrogerCart(props: {
+  state: PlanState;
+  locationId: string | null;
+  krogerMode?: KrogerMode;
+}): JSX.Element {
   const { state, locationId } = props;
   // The preview lives only in component state; the browser stores nothing.
   const [preview, setPreview] = useState<KrogerCartPreview | null>(null);
@@ -126,6 +135,10 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
     latestSend.current += 1;
     const mineSend = latestSend.current;
     const mine = generation.current;
+    // The success and unknown text follow the preview that is sent.
+    const sentFixture = preview.source === "fixture";
+    const addedLine = sentFixture ? KROGER_CART_FIXTURE_ADDED_LINE : KROGER_CART_ADDED_LINE;
+    const unknownLine = sentFixture ? KROGER_CART_FIXTURE_UNKNOWN_LINE : KROGER_CART_UNKNOWN_LINE;
     setSending(true);
     setMessage("");
     addToKrogerCart(preview.items.map(({ upc, quantity }) => ({ upc, quantity }))).then((result) => {
@@ -137,9 +150,9 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
       if (generation.current !== mine) {
         if (latestSend.current === mineSend) {
           if (result === "added") {
-            setMessage(KROGER_CART_ADDED_LINE);
+            setMessage(addedLine);
           } else if (result === "unknown") {
-            setMessage(KROGER_CART_UNKNOWN_LINE);
+            setMessage(unknownLine);
           }
         }
         return;
@@ -154,7 +167,7 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
       }
       if (result === "added") {
         setAdded(true);
-        setMessage(KROGER_CART_ADDED_LINE);
+        setMessage(addedLine);
       } else if (result === "not_connected") {
         setMessage(KROGER_CART_RECONNECT_LINE);
       } else if (result === "unavailable") {
@@ -164,24 +177,29 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
         setMessage(KROGER_CART_REJECTED_LINE);
       } else {
         setUnconfirmed(true);
-        setMessage(KROGER_CART_UNKNOWN_LINE);
+        setMessage(unknownLine);
       }
     });
   };
 
   const count = preview?.items.length ?? 0;
+  const fixturePreview = preview?.source === "fixture";
+  // Before a preview exists, the capability picks the wording; after, the preview does.
+  const fixtureWording = preview === null ? props.krogerMode === "fixture" : fixturePreview;
   let status = message;
   if (previewing) {
-    status = "Preparing Kroger cart preview.";
+    status = fixtureWording ? "Preparing fixture cart preview." : "Preparing Kroger cart preview.";
   } else if (sending) {
-    status = "Sending items to Kroger cart.";
+    status = fixtureWording ? "Sending items to fixture cart." : "Sending items to Kroger cart.";
   } else if (status === "" && preview !== null) {
     status =
       count === 0
-        ? KROGER_CART_EMPTY_LINE
-        : `Kroger cart preview ready: ${String(count)} ${count === 1 ? "item" : "items"}.`;
+        ? fixturePreview
+          ? "No fixture items found for this plan."
+          : KROGER_CART_EMPTY_LINE
+        : `${fixturePreview ? "Fixture" : "Kroger"} cart preview ready: ${String(count)} ${count === 1 ? "item" : "items"}.`;
     if (preview.unmatched.length > 0) {
-      status += ` ${String(preview.unmatched.length)} ${preview.unmatched.length === 1 ? "ingredient has" : "ingredients have"} no Kroger match.`;
+      status += ` ${String(preview.unmatched.length)} ${preview.unmatched.length === 1 ? "ingredient has" : "ingredients have"} no ${fixturePreview ? "fixture" : "Kroger"} match.`;
     }
   }
   return (
@@ -194,13 +212,17 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
           aria-disabled={!ready || previewing || sending}
           onClick={showPreview}
         >
-          Preview Kroger cart
+          {fixtureWording ? "Preview fixture cart" : "Preview Kroger cart"}
         </button>
       ) : null}
       {preview !== null ? (
         <>
+          {fixturePreview ? <p className="tonight-ask-hint"><strong>{KROGER_FIXTURE_LABEL}</strong></p> : null}
           {count > 0 ? (
-            <ul className="tonight-kroger-cart-items" aria-label="Kroger cart preview">
+            <ul
+              className="tonight-kroger-cart-items"
+              aria-label={fixturePreview ? "Fixture cart preview" : "Kroger cart preview"}
+            >
               {preview.items.map((item) => (
                 <li key={item.upc}>
                   <span className="tonight-kroger-cart-name">{item.name}</span>
@@ -213,7 +235,7 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
           ) : null}
           {preview.unmatched.length > 0 ? (
             <p className="tonight-ask-hint">
-              {`No Kroger match: ${preview.unmatched.map((line) => line.name).join(", ")}.`}
+              {`No ${fixturePreview ? "fixture" : "Kroger"} match: ${preview.unmatched.map((line) => line.name).join(", ")}.`}
             </p>
           ) : null}
           {count > 0 && !added ? (
@@ -226,7 +248,7 @@ export function KrogerCart(props: { state: PlanState; locationId: string | null 
             >
               {unconfirmed
                 ? "Retry"
-                : `Send ${String(count)} ${count === 1 ? "item" : "items"} to Kroger cart`}
+                : `Send ${String(count)} ${count === 1 ? "item" : "items"} to ${fixturePreview ? "fixture" : "Kroger"} cart`}
             </button>
           ) : null}
         </>

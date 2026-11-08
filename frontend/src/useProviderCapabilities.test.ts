@@ -14,12 +14,14 @@ const loaded: ProviderCapabilities = {
   chat_configured: true,
   plaid_configured: false,
   spending_source: "fixture",
+  kroger_mode: "off",
 };
 
 const stale: ProviderCapabilities = {
   chat_configured: false,
   plaid_configured: true,
   spending_source: "plaid_sandbox",
+  kroger_mode: "off",
 };
 
 function jsonOk(payload: unknown): Response {

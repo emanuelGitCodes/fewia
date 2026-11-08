@@ -38,6 +38,7 @@ function setChatConfigured(configured: boolean): void {
       chat_configured: configured,
       plaid_configured: false,
       spending_source: "manual",
+      kroger_mode: "off",
     },
     pending: false,
     error: null,
@@ -1375,7 +1376,7 @@ describe("Kroger return plan", () => {
       useEffect(() => { void settled.then(() => { setReady(true); }); }, []);
       return {
         capabilities: ready
-          ? { chat_configured: true, plaid_configured: false, spending_source: "manual" }
+          ? { chat_configured: true, plaid_configured: false, spending_source: "manual", kroger_mode: "off" }
           : null,
         pending: !ready,
         error: null,

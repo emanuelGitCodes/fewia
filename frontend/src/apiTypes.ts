@@ -104,10 +104,15 @@ export type GroceryConfig = {
   ingredients: CatalogItem[];
 };
 
+export type KrogerMode = "off" | "live" | "fixture";
+
+export type KrogerSource = "live" | "fixture";
+
 export type ProviderCapabilities = {
   chat_configured: boolean;
   plaid_configured: boolean;
   spending_source: SpendingSource;
+  kroger_mode: KrogerMode;
 };
 
 export type GroceryJob = {
@@ -120,6 +125,8 @@ export type GroceryJob = {
 
 export const SAMPLE_ESTIMATE_NOTICE =
   "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.";
+
+export const KROGER_FIXTURE_LABEL = "FIXTURE, NOT KROGER";
 
 export const NUTRITION_NOTICE =
   "Estimated nutrition from USDA FoodData Central for the selected recipe quantities. Pantry ingredients are included.";
@@ -164,6 +171,14 @@ export function isStatus(value: unknown): value is JobStatus {
 
 export function isSpendingSource(value: unknown): value is SpendingSource {
   return value === "manual" || value === "fixture" || value === "plaid_sandbox";
+}
+
+export function isKrogerMode(value: unknown): value is KrogerMode {
+  return value === "off" || value === "live" || value === "fixture";
+}
+
+export function isKrogerSource(value: unknown): value is KrogerSource {
+  return value === "live" || value === "fixture";
 }
 
 export function sourceLabel(source: string): string {

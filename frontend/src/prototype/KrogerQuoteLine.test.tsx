@@ -65,6 +65,34 @@ describe("KrogerQuoteLine", () => {
     expect(screen.getByText(/^Live price from /).textContent).not.toContain("sale");
   });
 
+  it("labels a fixture quote and never says Live price", () => {
+    render(
+      <KrogerQuoteLine quote={{ ...quote, kind: "store_fixture" }} degraded={false} store={store} />,
+    );
+    const text = screen.getByText(/^Fixture price from Main Street as of /).textContent ?? "";
+    expect(text).toMatch(/: Long grain rice, 2 lb, regular \$2\.49, sale \$1\.99, /);
+    expect(text.endsWith("FIXTURE, NOT KROGER.")).toBe(true);
+    expect(text).not.toContain("Live price");
+  });
+
+  it("labels a fixture quote from an earlier store without the new store name", () => {
+    render(
+      <KrogerQuoteLine
+        quote={{ ...quote, kind: "store_fixture" }}
+        degraded={false}
+        store={{ locationId: "09999999", name: "New Place" }}
+      />,
+    );
+    const text = screen.getByText(/^Fixture price from /).textContent ?? "";
+    expect(text).not.toContain("New Place");
+    expect(text).toContain("FIXTURE, NOT KROGER.");
+  });
+
+  it("keeps live text free of the fixture label", () => {
+    render(<KrogerQuoteLine quote={quote} degraded={false} store={store} />);
+    expect(screen.getByText(/^Live price from /).textContent).not.toContain("FIXTURE");
+  });
+
   it("shows the fixed sentence when degraded and nothing otherwise", () => {
     const { container, rerender } = render(<KrogerQuoteLine quote={null} degraded store={store} />);
     expect(screen.getByText(KROGER_DEGRADED_LINE)).toBeTruthy();

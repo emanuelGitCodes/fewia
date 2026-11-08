@@ -95,6 +95,7 @@ describe("isSpendingSource", () => {
         chat_configured: true,
         plaid_configured: false,
         spending_source: "manual",
+        kroger_mode: "off",
       }).spending_source,
     ).toBe("manual");
     expect(parseJob(job({ result: manualJobResult() })).result?.spending_source).toBe("manual");
@@ -104,6 +105,7 @@ describe("isSpendingSource", () => {
         chat_configured: true,
         plaid_configured: false,
         spending_source: "bedrock",
+        kroger_mode: "off",
       }),
     ).toThrow(SHAPE_ERROR);
   });

@@ -70,7 +70,11 @@ function chatJob(
   return { id, status: "succeeded", result, error_code: null };
 }
 
-function setProviders(configured: boolean, failed = false): void {
+function setProviders(
+  configured: boolean,
+  failed = false,
+  krogerMode: "off" | "live" | "fixture" = "live",
+): void {
   vi.mocked(useProviderCapabilities).mockReturnValue({
     capabilities: failed
       ? null
@@ -78,6 +82,7 @@ function setProviders(configured: boolean, failed = false): void {
           chat_configured: configured,
           plaid_configured: false,
           spending_source: "manual",
+          kroger_mode: krogerMode,
         },
     pending: false,
     error: failed ? "unavailable" : null,
@@ -423,6 +428,38 @@ describe("PlanChat", () => {
     expect(screen.getByText(SAMPLE_ESTIMATE_NOTICE)).toBeTruthy();
   });
 
+  it("shows a fixture quote with the fixture label and no live wording", async () => {
+    const quote = {
+      kind: "store_fixture", ingredient_id: "rice", product_label: "Long grain rice", brand: null,
+      size: "2 lb", regular_cents: 249, promo_cents: null, stock_level: "HIGH",
+      location_id: "01400943", retrieved_at: "2026-09-01T12:00:00Z",
+    } as const;
+    jobState.submit.mockImplementation(async () => {
+      const job = chatJob("job-1", "planned", "Rice fits.", [{ recipe_id: "chickpea_curry", servings: 2 }]);
+      jobState.job = { ...job, result: { ...job.result, kroger_quote: quote } as ChatResult };
+    });
+    mount(initialPlanState(), { krogerStore: { locationId: "01400943", name: "Main Street" } });
+    await submitText("Rice please");
+    const line = screen.getByText(/^Fixture price from Main Street as of /);
+    expect(line.textContent?.endsWith("FIXTURE, NOT KROGER.")).toBe(true);
+    expect(screen.queryByText(/Live price/)).toBeNull();
+  });
+
+  it("shows FIXTURE, NOT KROGER at the picker and connect control in fixture mode", async () => {
+    setProviders(true, false, "fixture");
+    stubKrogerFetch({});
+    mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(screen.getAllByText("FIXTURE, NOT KROGER")).toHaveLength(2);
+  });
+
+  it("shows no fixture label in live mode", async () => {
+    stubKrogerFetch({});
+    mount(initialPlanState(), { onKrogerChoose: vi.fn(), onKrogerClear: vi.fn() });
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
+  });
+
   it("shows the picked store in the panel above the form and passes the handlers through", async () => {
     stubKrogerFetch({});
     const onKrogerChoose = vi.fn();
@@ -456,7 +493,7 @@ describe("PlanChat", () => {
     const stores = [
       { location_id: "01400943", name: "Main Street", address_line: "1 Test Way", city: "Springfield", state: "OH" },
     ];
-    stubKrogerFetch({ stores });
+    stubKrogerFetch({ stores, source: "live" });
     const onKrogerChoose = vi.fn();
     mount(initialPlanState(), { krogerStore: null, onKrogerChoose, onKrogerClear: vi.fn() });
     fireEvent.click(screen.getByRole("button", { name: "Choose a Kroger store for live prices" }));
@@ -486,7 +523,7 @@ describe("PlanChat", () => {
       vi.fn(async (url: string, init?: RequestInit) => {
         if (url === "/api/grocery/kroger/cart/preview") {
           bodies.push(JSON.parse(init?.body as string));
-          return { ok: true, status: 200, json: async () => ({ items: [], unmatched: [] }) };
+          return { ok: true, status: 200, json: async () => ({ items: [], unmatched: [], source: "live" }) };
         }
         return { ok: true, status: 200, json: async () => ({ connected: true }) };
       }),

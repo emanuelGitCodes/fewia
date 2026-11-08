@@ -30,6 +30,7 @@ const loaded: ProviderCapabilities = {
   chat_configured: true,
   plaid_configured: false,
   spending_source: "fixture",
+  kroger_mode: "off",
 };
 
 type ChatHook = ReturnType<typeof useChatConversation>;

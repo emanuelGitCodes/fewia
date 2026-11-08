@@ -111,7 +111,7 @@ describe("KrogerStorePicker", () => {
   });
 
   it("lists stores, clears the ZIP, and calls onChoose when one is picked", async () => {
-    reply({ stores: [raw] });
+    reply({ stores: [raw], source: "live" });
     const onChoose = vi.fn();
     render(<KrogerStorePicker store={null} onChoose={onChoose} onClear={vi.fn()} />);
     await search();
@@ -131,7 +131,7 @@ describe("KrogerStorePicker", () => {
   });
 
   it("shows the empty and error texts in a polite status region", async () => {
-    reply({ stores: [] });
+    reply({ stores: [], source: "live" });
     const { container } = render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
     await search();
     const region = container.querySelector('[aria-live="polite"]');
@@ -152,6 +152,72 @@ describe("KrogerStorePicker", () => {
     expect(container.textContent).not.toContain("45202");
   });
 
+  it("shows the fixture label from the capability and keeps live text otherwise", () => {
+    const { rerender } = render(
+      <KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} krogerMode="fixture" />,
+    );
+    expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: CHOOSE })).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose a fixture store for fixture prices" })).toBeTruthy();
+    for (const mode of ["live", "off", undefined] as const) {
+      rerender(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} krogerMode={mode} />);
+      expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
+      expect(screen.getByRole("button", { name: CHOOSE })).toBeTruthy();
+    }
+  });
+
+  it("labels a fixture store list from the response source", async () => {
+    reply({ stores: [raw], source: "fixture" });
+    render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} krogerMode="live" />);
+    await search();
+    expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Found 1 fixture store.");
+  });
+
+  it("keeps the fixture label on the chosen store after the picker closes", async () => {
+    reply({ stores: [raw], source: "fixture" });
+    function LiveCapabilityHarness() {
+      const kroger = useKrogerStore();
+      return (
+        <KrogerStorePicker
+          store={kroger.store}
+          onChoose={kroger.choose}
+          onClear={kroger.clear}
+          krogerMode="live"
+        />
+      );
+    }
+    render(<LiveCapabilityHarness />);
+    await search();
+    fireEvent.click(screen.getByRole("button", { name: /^Main Street, / }));
+    expect(screen.queryByLabelText("ZIP code")).toBeNull();
+    expect(screen.getByText("Kroger store: Main Street")).toBeTruthy();
+    expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
+  });
+
+  it("reads Finding fixture stores while a fixture search is pending", () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} krogerMode="fixture" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose a fixture store for fixture prices" }));
+    fireEvent.change(zipInput(), { target: { value: "45202" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find stores" }));
+    expect(screen.getByRole("status").textContent).toBe("Finding fixture stores.");
+  });
+
+  it("does not label a live store list even when the capability says fixture", async () => {
+    reply({ stores: [raw], source: "live" });
+    render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} krogerMode="fixture" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose a fixture store for fixture prices" }));
+    fireEvent.change(zipInput(), { target: { value: "45202" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Find stores" }));
+    });
+    expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Found 1 Kroger store.");
+  });
+
   it("shows the chosen store with Change and Remove", () => {
     const onClear = vi.fn();
     render(
@@ -170,7 +236,7 @@ describe("KrogerStorePicker", () => {
   });
 
   it("returns focus after cancel, choosing, and removing a store", async () => {
-    reply({ stores: [raw] });
+    reply({ stores: [raw], source: "live" });
     render(<PickerHarness />);
     const choose = screen.getByRole("button", { name: CHOOSE });
     choose.focus();
@@ -204,7 +270,7 @@ describe("KrogerStorePicker", () => {
   it("retains Find focus through pending and ZIP clearing without duplicate searches", async () => {
     let finish: () => void = () => undefined;
     const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
-      finish = () => { resolve({ ok: true, json: async () => ({ stores: [raw, { ...raw, location_id: "01400944" }] }) } as Response); };
+      finish = () => { resolve({ ok: true, json: async () => ({ stores: [raw, { ...raw, location_id: "01400944" }], source: "live" }) } as Response); };
     }));
     vi.stubGlobal("fetch", fetchMock);
     render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
@@ -230,7 +296,7 @@ describe("KrogerStorePicker", () => {
   it.each([false, true])("keeps moved focus and suppresses canceled results when cancel=%s", async (cancel) => {
     let finish: () => void = () => undefined;
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
-      finish = () => { resolve({ ok: true, json: async () => ({ stores: [raw] }) } as Response); };
+      finish = () => { resolve({ ok: true, json: async () => ({ stores: [raw], source: "live" }) } as Response); };
     })));
     render(<><KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} /><button>Elsewhere</button></>);
     await search();
@@ -249,7 +315,7 @@ describe("KrogerStorePicker", () => {
   });
 
   it("aborts a pending search on unmount", () => {
-    reply({ stores: [raw] });
+    reply({ stores: [raw], source: "live" });
     const { unmount } = render(<KrogerStorePicker store={null} onChoose={vi.fn()} onClear={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: CHOOSE }));
     fireEvent.change(zipInput(), { target: { value: "45202" } });
@@ -260,7 +326,7 @@ describe("KrogerStorePicker", () => {
   });
 
   it("stores only the two chosen fields, never the ZIP or an address", async () => {
-    reply({ stores: [raw] });
+    reply({ stores: [raw], source: "live" });
     function Harness() {
       const kroger = useKrogerStore();
       return <KrogerStorePicker store={kroger.store} onChoose={kroger.choose} onClear={kroger.clear} />;

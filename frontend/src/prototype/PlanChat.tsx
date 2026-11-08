@@ -396,8 +396,10 @@ export function PlanChat(props: {
             locationId={krogerStore?.locationId ?? null}
             returnStatus={props.krogerReturn ?? null}
             onReturnShown={props.onKrogerReturnShown}
+            krogerMode={providers.capabilities?.kroger_mode}
           />
           <KrogerStorePicker
+            krogerMode={providers.capabilities?.kroger_mode}
             store={krogerStore}
             onChoose={props.onKrogerChoose}
             onClear={props.onKrogerClear}

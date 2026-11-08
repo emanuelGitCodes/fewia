@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
+import { KROGER_FIXTURE_LABEL, type KrogerMode } from "../apiTypes";
 import { disconnectKroger, readKrogerConnection } from "../krogerApi";
 import { KrogerCart } from "./KrogerCart";
 import type { PlanState } from "./planModel";
@@ -26,7 +27,9 @@ export function KrogerConnect(props: {
   returnStatus?: KrogerReturn | null;
   // Called once the return line has been shown, so a remount does not show it again.
   onReturnShown?: () => void;
+  krogerMode?: KrogerMode;
 }): JSX.Element | null {
+  const fixture = props.krogerMode === "fixture";
   // The connection state lives only in component state.
   const [connected, setConnected] = useState<boolean | null>(null);
   const [returned] = useState(() => returnMessage(props.returnStatus));
@@ -132,11 +135,12 @@ export function KrogerConnect(props: {
     );
   };
 
-  if (connected === null && returned === "" && message === "") {
+  if (connected === null && returned === "" && message === "" && !fixture) {
     return null;
   }
   return (
     <div ref={account} className="tonight-kroger-connect" role="group" aria-label="Kroger account" tabIndex={-1}>
+      {fixture ? <p className="tonight-ask-hint"><strong>{KROGER_FIXTURE_LABEL}</strong></p> : null}
       {connected === false ? (
         <a
           ref={connectLink}
@@ -171,7 +175,11 @@ export function KrogerConnect(props: {
         </>
       ) : null}
       {connected === true ? (
-        <KrogerCart state={props.plan} locationId={props.locationId ?? null} />
+        <KrogerCart
+          state={props.plan}
+          locationId={props.locationId ?? null}
+          krogerMode={props.krogerMode}
+        />
       ) : null}
       <p className="tonight-ask-hint" role="status" aria-label="Kroger account status" aria-live="polite">
         {warned ? PLAN_SAVE_WARNING : failed ? KROGER_DISCONNECT_FAILED_LINE : message}

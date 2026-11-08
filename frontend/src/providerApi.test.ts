@@ -11,6 +11,7 @@ function capabilities(overrides: Record<string, unknown> = {}): Record<string, u
     chat_configured: true,
     plaid_configured: false,
     spending_source: "fixture",
+    kroger_mode: "off",
     ...overrides,
   };
 }
@@ -49,12 +50,24 @@ describe("parseProviders", () => {
       chat_configured: true,
       plaid_configured: false,
       spending_source: "fixture",
+      kroger_mode: "off",
     });
     expect(parseProviders(capabilities({ spending_source: "plaid_sandbox" })).spending_source).toBe(
       "plaid_sandbox",
     );
   });
 
+  it("accepts each kroger_mode and rejects a missing or unknown one", () => {
+    for (const mode of ["off", "live", "fixture"]) {
+      expect(parseProviders(capabilities({ kroger_mode: mode })).kroger_mode).toBe(mode);
+    }
+    for (const mode of ["demo", "", "LIVE", null, true, 1]) {
+      expect(() => parseProviders(capabilities({ kroger_mode: mode }))).toThrow(SHAPE_ERROR);
+    }
+    const missing = capabilities();
+    delete missing.kroger_mode;
+    expect(() => parseProviders(missing)).toThrow(SHAPE_ERROR);
+  });
   it("rejects unknown sources, nonbooleans, extra keys, and missing keys", () => {
     expect(() => parseProviders(capabilities({ spending_source: "bedrock" }))).toThrow(SHAPE_ERROR);
     expect(() => parseProviders(capabilities({ spending_source: "plaid" }))).toThrow(SHAPE_ERROR);
