@@ -3,6 +3,7 @@ import { HTTP_ERROR, SHAPE_ERROR } from "./api";
 import { INITIAL_PANTRY, RECIPE_ORDER } from "./prototype/prototypeData";
 import {
   ProposalConflict,
+  ProposalConstraintsError,
   applyProposal,
   discardProposal,
   fetchProposal,
@@ -97,10 +98,75 @@ describe("fetchProposal", () => {
 });
 
 describe("applyProposal", () => {
+  it.each([
+    "over_budget", "diet_conflict", "exclusion_conflict", "estimate_unavailable",
+  ] as const)("recognizes the %s constraint reason", async (reason) => {
+    reply(409, { detail: { code: "proposal_constraints", reason, total_cents: 1703, available_cents: 1702 } });
+    await expect(applyProposal(ID, signal)).rejects.toMatchObject({
+      name: "ProposalConstraintsError",
+      reason,
+      amounts: reason === "over_budget" ? { totalCents: 1703, availableCents: 1702 } : null,
+    });
+  });
+
+  it.each([
+    {},
+    { total_cents: "1703", available_cents: 1702 },
+    { total_cents: 1703, available_cents: "1702" },
+    { total_cents: -1, available_cents: 0 },
+    { total_cents: 1703, available_cents: -1 },
+    { total_cents: 1703.5, available_cents: 1702 },
+    { total_cents: 1703, available_cents: 1702.5 },
+    { total_cents: Number.MAX_SAFE_INTEGER + 1, available_cents: 1702 },
+    { total_cents: 1703, available_cents: Number.MAX_SAFE_INTEGER + 1 },
+    { total_cents: null, available_cents: 1702 },
+    { total_cents: 1702, available_cents: 1702 },
+    { total_cents: 1701, available_cents: 1702 },
+  ])("keeps a budget rejection definitive without usable amounts: %j", async (amounts) => {
+    reply(409, { detail: { code: "proposal_constraints", reason: "over_budget", ...amounts } });
+    await expect(applyProposal(ID, signal)).rejects.toBeInstanceOf(ProposalConstraintsError);
+    await expect(applyProposal(ID, signal)).rejects.toMatchObject({ reason: "over_budget", amounts: null });
+  });
+
+  it.each([
+    null,
+    { detail: null },
+    { detail: [] },
+    { detail: { code: "proposal_constraints", reason: "server text" } },
+    { detail: { code: "proposal_constraints", reason: "constructor" } },
+    { detail: { code: "proposal_constraints" } },
+    { detail: { code: "other", reason: "over_budget" } },
+    { code: "proposal_constraints", reason: "over_budget" },
+  ])("keeps an unrecognized response generic: %j", async (data) => {
+    reply(409, data);
+    await expect(applyProposal(ID, signal)).rejects.toBeInstanceOf(ProposalConflict);
+  });
+
+  it("keeps invalid JSON generic", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("not JSON", { status: 409 }))));
+    await expect(applyProposal(ID, signal)).rejects.toBeInstanceOf(ProposalConflict);
+  });
+
+  it.each([fetchProposal, discardProposal])("keeps constraint payloads generic outside Apply", async (action) => {
+    reply(409, { detail: { code: "proposal_constraints", reason: "over_budget" } });
+    await expect(action(ID, signal)).rejects.toBeInstanceOf(ProposalConflict);
+  });
+
   it("POSTs and returns the plan revision id", async () => {
     reply(200, { plan_revision_id: BASE });
     await expect(applyProposal(ID, signal)).resolves.toBe(BASE);
     expect(fetch).toHaveBeenCalledWith(`/api/grocery/proposals/${ID}/apply`, { method: "POST", signal });
+  });
+
+  it.each([0, 1702])("POSTs the supplied cap of %i cents as JSON", async (planCapCents) => {
+    reply(200, { plan_revision_id: BASE });
+    await expect(applyProposal(ID, signal, planCapCents)).resolves.toBe(BASE);
+    expect(fetch).toHaveBeenCalledWith(`/api/grocery/proposals/${ID}/apply`, {
+      method: "POST",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_cap_cents: planCapCents }),
+    });
   });
 
   it("maps 409 and rejects a bad body", async () => {

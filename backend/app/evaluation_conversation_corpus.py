@@ -79,7 +79,7 @@ def _registered_tool_names() -> frozenset[str]:
             budget,
             date(2026, 9, 1),
             plan_revision=plan,
-            propose=lambda operations: "proposal-fixture",
+            propose=lambda operations, dietary: "proposal-fixture",
         )
     if recorder.names is None:
         raise RuntimeError("run_chat did not offer a tool list")

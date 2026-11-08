@@ -72,7 +72,10 @@ from app.agent.substitute_tool import (
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
-from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
+from app.domain.plan_proposal import (
+    INVALID_PROPOSAL_MESSAGE,
+    ProposalDietaryConstraints,
+)
 from app.domain.plan_revision import PlanRevisionInput
 from app.evaluation_shapes import valid_public_result
 
@@ -913,7 +916,9 @@ class Proposer:
     def __init__(self) -> None:
         self.calls: list[list[dict[str, object]]] = []
 
-    def __call__(self, operations: list[dict[str, object]]) -> str:
+    def __call__(
+        self, operations: list[dict[str, object]], dietary: ProposalDietaryConstraints
+    ) -> str:
         self.calls.append(operations)
         return f"proposal-{len(self.calls)}"
 

@@ -78,7 +78,7 @@ def _run(
         _budget(),
         PERIOD,
         plan_revision=plan,
-        propose=None if plan is None else (lambda operations: "proposal-1"),
+        propose=None if plan is None else (lambda operations, dietary: "proposal-1"),
         model_prose=True,
         previous_what_if_recipe=previous,
     )

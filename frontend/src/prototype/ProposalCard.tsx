@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type JSX } from "react";
-import { isAbortError } from "../api";
+import { SAMPLE_ESTIMATE_NOTICE, isAbortError } from "../api";
+import { formatDollars } from "../money";
 import {
   applyProposal,
   discardProposal,
   fetchProposal,
+  ProposalConstraintsError,
   type ProposalPreview,
   type ProposalStatus,
 } from "../proposalApi";
@@ -18,6 +20,30 @@ export const ACTION_ERROR_LINE = "FEWIA could not save that. Try again.";
 export const DISCARD_ERROR_LINE = "FEWIA could not discard that. Try again.";
 export const UNCONFIRMED_LINE = "FEWIA could not confirm the change. Refresh the page to see your plan.";
 export const NO_CHANGE_LINE = "No changes to your plan.";
+
+function constraintsMessage(error: ProposalConstraintsError): string {
+  let reason: string;
+  switch (error.reason) {
+    case "over_budget":
+      reason = error.amounts === null
+        ? "The proposed plan exceeds your available budget."
+        : `The proposed plan estimate is ${formatDollars(error.amounts.totalCents)}, above your available ${formatDollars(error.amounts.availableCents)}.`;
+      break;
+    case "diet_conflict":
+      reason = "The proposed plan conflicts with your diet.";
+      break;
+    case "exclusion_conflict":
+      reason = "The proposed plan includes an excluded ingredient.";
+      break;
+    case "estimate_unavailable":
+      reason = "The proposed plan estimate is unavailable.";
+      break;
+  }
+  const notice = error.reason === "over_budget" && error.amounts !== null
+    ? ` ${SAMPLE_ESTIMATE_NOTICE}`
+    : "";
+  return `${reason} Your plan did not change.${notice}`;
+}
 
 function servingsText(servings: number): string {
   return `${String(servings)} ${servings === 1 ? "serving" : "servings"}`;
@@ -101,14 +127,25 @@ export function ProposalCard(props: {
     if (busy || preview === null) {
       return;
     }
+    if (state.budgetError !== null) {
+      setNote("Enter a valid budget before applying this change.");
+      return;
+    }
     const snapshot = preview;
     setBusy(true);
     setNote("");
     let outcome: ProposalStatus | "unknown";
     try {
-      await applyProposal(proposalId, new AbortController().signal);
+      await applyProposal(proposalId, new AbortController().signal, state.budgetCents);
       outcome = "applied";
-    } catch {
+    } catch (error: unknown) {
+      if (error instanceof ProposalConstraintsError) {
+        if (mounted.current) {
+          setBusy(false);
+          setNote(constraintsMessage(error));
+        }
+        return;
+      }
       try {
         outcome = (await fetchProposal(proposalId, new AbortController().signal)).status;
       } catch {
@@ -176,19 +213,21 @@ export function ProposalCard(props: {
           ) : (
             <p>{NO_CHANGE_LINE}</p>
           )}
-          <div className="tonight-proposal-actions">
-            <button type="button" className="tonight-ask-send" disabled={busy} onClick={() => void apply()}>
-              Apply
-            </button>
-            <button type="button" className="tonight-ask-btn" disabled={busy} onClick={discard}>
-              Discard
-            </button>
-          </div>
         </>
       ) : null}
       <p className="tonight-proposal-note" aria-live="polite">
         {message}
       </p>
+      {phase === "pending" ? (
+        <div className="tonight-proposal-actions">
+          <button type="button" className="tonight-ask-send" disabled={busy} onClick={() => void apply()}>
+            Apply
+          </button>
+          <button type="button" className="tonight-ask-btn" disabled={busy} onClick={discard}>
+            Discard
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -15,7 +15,11 @@ from app.agent.proposal_tool import (
 )
 from app.domain.budget import BudgetResult
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, GroceryRequest, MealRequest
-from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE, ProposalInvalid
+from app.domain.plan_proposal import (
+    INVALID_PROPOSAL_MESSAGE,
+    ProposalDietaryConstraints,
+    ProposalInvalid,
+)
 from app.domain.plan_revision import PlanRevisionInput
 from app.services.grocery_planner import plan_groceries
 from app.services.meal_nutrition import meal_nutrition
@@ -58,9 +62,13 @@ def _empty_plan(pantry: list[str], cap: int | None) -> PlanRevisionInput:
 class Proposer:
     def __init__(self) -> None:
         self.calls: list[list[dict[str, object]]] = []
+        self.dietary: list[ProposalDietaryConstraints] = []
 
-    def __call__(self, operations: list[dict[str, object]]) -> str:
+    def __call__(
+        self, operations: list[dict[str, object]], dietary: ProposalDietaryConstraints
+    ) -> str:
         self.calls.append(operations)
+        self.dietary.append(dietary)
         return "proposal-1"
 
 
@@ -172,6 +180,46 @@ def test_the_tool_leaves_the_plan_revision_unchanged() -> None:
     before = plan.model_dump(mode="json")
     execute_propose({"operations": [_ADD]}, _BUDGET, plan, Proposer())
     assert plan.model_dump(mode="json") == before
+
+
+def test_new_dietary_constraints_reach_the_typed_callback() -> None:
+    proposer = Proposer()
+    payload = execute_propose(
+        {
+            "operations": [_ADD],
+            "diet": "vegan",
+            "ingredient_exclusions": ["salsa", "unknown restriction"],
+        },
+        _BUDGET,
+        _plan(),
+        proposer,
+    )
+    assert payload["status"] == "proposed"
+    assert proposer.dietary == [
+        ProposalDietaryConstraints(
+            diet="vegan", ingredient_exclusions=["salsa", "unknown restriction"]
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"diet": "paleo"},
+        {"diet": True},
+        {"ingredient_exclusions": "salsa"},
+        {"ingredient_exclusions": [1]},
+        {"monthly_limit_cents": 100_000},
+        {"plan_cap_cents": 100_000},
+    ],
+)
+def test_invalid_constraints_and_model_budget_overrides_store_nothing(
+    extra: dict[str, object],
+) -> None:
+    proposer = Proposer()
+    with pytest.raises(ProposalToolError, match=INVALID_PROPOSAL_MESSAGE):
+        execute_propose({"operations": [_ADD], **extra}, _BUDGET, _plan(), proposer)
+    assert proposer.calls == []
 
 
 @pytest.mark.parametrize("pantry", [[], [_BEANS, "salt"]])
@@ -375,7 +423,7 @@ def test_a_payload_build_failure_stores_nothing(
 
 
 def test_a_proposer_rejection_becomes_the_fixed_tool_error() -> None:
-    def refuse(_: list[dict[str, object]]) -> str:
+    def refuse(_: list[dict[str, object]], dietary: ProposalDietaryConstraints) -> str:
         raise ProposalInvalid(_SECRET)
 
     with pytest.raises(ProposalToolError) as caught:

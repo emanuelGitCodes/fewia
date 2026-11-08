@@ -2873,7 +2873,9 @@ def _propose(*ops: dict[str, object]) -> dict[str, object]:
             {"recipe_id": "bean_tacos", "servings": 2},
         ]
     )
-    return execute_propose({"operations": list(ops)}, _BUDGET, plan, lambda _: "p-1")
+    return execute_propose(
+        {"operations": list(ops)}, _BUDGET, plan, lambda _, dietary: "p-1"
+    )
 
 
 _PROPOSAL_OPS: list[dict[str, object]] = [

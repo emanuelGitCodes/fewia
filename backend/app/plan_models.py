@@ -50,6 +50,9 @@ class PlanProposal(Base):
         sa.Uuid, sa.ForeignKey("plan_revisions.id"), nullable=False
     )
     operations: Mapped[list[dict[str, object]]] = mapped_column(sa.JSON, nullable=False)
+    apply_constraints: Mapped[dict[str, object] | None] = mapped_column(
+        sa.JSON, nullable=True
+    )
     status: Mapped[str] = mapped_column(
         sa.Text, nullable=False, server_default=sa.text("'pending'")
     )

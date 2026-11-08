@@ -13,7 +13,7 @@ import {
   UNCONFIRMED_LINE,
   describeChange,
 } from "./ProposalCard";
-import { addMeal, initialPlanState, togglePlanPantry, type PlanState } from "./planModel";
+import { addMeal, initialPlanState, togglePlanPantry, withPlanBudgetInput, type PlanState } from "./planModel";
 import { INGREDIENTS, PANTRY_IDS, RECIPES, RECIPE_ORDER } from "./prototypeData";
 
 vi.mock("../proposalApi", async (importOriginal) => ({
@@ -60,6 +60,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("describeChange", () => {
@@ -104,6 +105,106 @@ describe("describeChange", () => {
 describe("ProposalCard", () => {
   const onApplied = vi.fn();
   const changed = previewOf(state, { meals: [{ recipe_id: first.recipeId, servings: 4 }] });
+
+  it("sends the budget edited before Apply through the real API", async () => {
+    const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
+    vi.mocked(api.fetchProposal).mockImplementation(actual.fetchProposal);
+    vi.mocked(api.applyProposal).mockImplementation(actual.applyProposal);
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(proposal(changed)), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ plan_revision_id: REVISION }), { status: 200 }));
+    vi.stubGlobal("fetch", request);
+    const { rerender } = render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    await screen.findByRole("button", { name: "Apply" });
+    const edited = withPlanBudgetInput(state, "17.02");
+    rerender(<ProposalCard proposalId={ID} state={edited} onApplied={onApplied} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findByText(APPLIED_LINE);
+    expect(request).toHaveBeenNthCalledWith(2, `/api/grocery/proposals/${ID}/apply`, {
+      method: "POST",
+      signal: expect.any(AbortSignal),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_cap_cents: 1702 }),
+    });
+    expect(onApplied).toHaveBeenCalledWith(changed);
+  });
+
+  it("blocks Apply for an invalid budget draft and keeps Discard available", async () => {
+    vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
+    const invalid = withPlanBudgetInput(state, "invalid");
+    render(<ProposalCard proposalId={ID} state={invalid} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    expect(screen.getByText("Enter a valid budget before applying this change.")).toBeTruthy();
+    expect(api.applyProposal).not.toHaveBeenCalled();
+    expect(api.fetchProposal).toHaveBeenCalledTimes(1);
+    expect(onApplied).not.toHaveBeenCalled();
+    expect((screen.getByRole("button", { name: "Discard" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows exact rejected budget amounts and keeps retry and Discard available", async () => {
+    const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
+    vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
+    vi.mocked(api.applyProposal).mockImplementation(actual.applyProposal);
+    vi.mocked(api.discardProposal).mockResolvedValue(undefined);
+    const request = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      detail: {
+        code: "proposal_constraints", reason: "over_budget",
+        total_cents: 1703, available_cents: 1702, message: "private server text",
+      },
+    }), { status: 409 })));
+    vi.stubGlobal("fetch", request);
+    const original = structuredClone(state);
+    const { container } = render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    const message = "The proposed plan estimate is $17.03, above your available $17.02. Your plan did not change.";
+    await screen.findByText((text) => text.startsWith(message));
+    expect(container.querySelector("p[aria-live='polite']")?.textContent).toContain(message);
+    const card = container.querySelector(".tonight-proposal");
+    expect(card?.querySelectorAll("p[aria-live='polite']").length).toBe(1);
+    expect(card?.children[1]).toBe(card?.querySelector("p[aria-live='polite']"));
+    expect(card?.children[2]).toBe(card?.querySelector(".tonight-proposal-actions"));
+    expect(screen.queryByText(/private server text/)).toBeNull();
+    expect(screen.getByText(/to 4 servings/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Discard" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(api.fetchProposal).toHaveBeenCalledTimes(1);
+    expect(onApplied).not.toHaveBeenCalled();
+    expect(state).toEqual(original);
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findByText((text) => text.startsWith(message));
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(api.fetchProposal).toHaveBeenCalledTimes(1);
+    expect(onApplied).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await screen.findByText(DISCARDED_LINE);
+    expect(api.discardProposal).toHaveBeenCalledTimes(1);
+    expect(onApplied).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["over_budget", { total_cents: "1703", available_cents: 1702 }, "The proposed plan exceeds your available budget."],
+    ["over_budget", {}, "The proposed plan exceeds your available budget."],
+    ["over_budget", { total_cents: 1702, available_cents: 1703 }, "The proposed plan exceeds your available budget."],
+    ["diet_conflict", {}, "The proposed plan conflicts with your diet."],
+    ["exclusion_conflict", {}, "The proposed plan includes an excluded ingredient."],
+    ["estimate_unavailable", {}, "The proposed plan estimate is unavailable."],
+  ] as const)("shows a static %s rejection without a refetch", async (reason, amounts, message) => {
+    const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
+    vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
+    vi.mocked(api.applyProposal).mockImplementation(actual.applyProposal);
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      detail: { code: "proposal_constraints", reason, ...amounts, message: "private server text" },
+    }), { status: 409 }))));
+    render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText(`${message} Your plan did not change.`);
+    expect(screen.queryByText(/private server text|\$/)).toBeNull();
+    expect(api.fetchProposal).toHaveBeenCalledTimes(1);
+    expect(onApplied).not.toHaveBeenCalled();
+    expect((screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Discard" })).toBeTruthy();
+  });
 
   it("shows a loading line, then the change with Apply and Discard", async () => {
     vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));

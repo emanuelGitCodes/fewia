@@ -26,7 +26,10 @@ from app.domain.budget import BudgetResult, SpendingSource
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS, Diet
 from app.domain.nutrition import NutritionFacts
-from app.domain.plan_proposal import INVALID_PROPOSAL_MESSAGE
+from app.domain.plan_proposal import (
+    INVALID_PROPOSAL_MESSAGE,
+    ProposalDietaryConstraints,
+)
 from app.domain.plan_revision import PlanRevisionInput
 from app.providers.usda_live import LiveFood
 
@@ -1651,7 +1654,9 @@ class _Proposer:
     def __init__(self) -> None:
         self.calls: list[list[dict[str, object]]] = []
 
-    def __call__(self, operations: list[dict[str, object]]) -> str:
+    def __call__(
+        self, operations: list[dict[str, object]], dietary: ProposalDietaryConstraints
+    ) -> str:
         self.calls.append(operations)
         return f"proposal-{len(self.calls)}"
 
