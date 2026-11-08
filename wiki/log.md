@@ -5335,3 +5335,7 @@ Apply checks current spending, the tightest cap, the proposed pantry, and stored
 ## 2026-11-07 — Frontend WCAG 2.1 checks
 
 Local branch `codex/wcag21-aa` improves chat focus, meal reflow, legacy form errors, and plan and Kroger status announcements. Frontend lint, tests, and build passed at `8efe84f6`, with 559 of 1,000 code lines. GPT-6 Astra returned `APPROVE` at that revision. Chromium passed all 16 repository Playwright tests and targeted keyboard and reflow checks. Axe found zero automated violations in the sampled states. Verification used synthetic provider responses. Screen-reader speech and live Kroger OAuth remain open. The supervisor recorded 7,498,717 input tokens and 98,631 output tokens for its writers and reviewer.
+
+## 2026-11-07 — Source ZIP startup permissions
+
+Revision `527f6d99` sets the Nginx template directory to mode 0755 and the template to mode 0644. A fresh ZIP extraction under umask 077 left the source template at 0600. The credential-free stack served the frontend, its JavaScript bundle, and the proxied API with HTTP 200. Nginx ran as UID 101. Frontend gates passed, and GPT-6.1 Sol approved the revision. The supervisor recorded 364,878 input tokens and 4,940 output tokens.
