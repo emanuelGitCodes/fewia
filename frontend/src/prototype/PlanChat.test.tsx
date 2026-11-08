@@ -768,7 +768,10 @@ describe("PlanChat", () => {
     fireEvent.change(zip, { target: { value: "" } });
     dialog.focus();
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
-    expect(document.activeElement).toBe(zip);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Find stores" }));
+    expect(
+      screen.getByRole("button", { name: "Find stores" }).getAttribute("aria-disabled"),
+    ).toBe("true");
   });
 
   it("keeps nonmodal Tab navigation free and removes the phone listener when collapsed", () => {

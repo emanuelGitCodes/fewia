@@ -1785,7 +1785,9 @@ describe("Ask FEWIA dock and sheet", () => {
       expect(dock().hasAttribute("aria-describedby")).toBe(false);
       expect(announcement?.textContent).toBe("");
       await askWhile("Something with chickpeas");
-      expect(within(aside()).getByRole("status").textContent).toBe("Running. FEWIA is finding meals.");
+      expect(aside().querySelector(".tonight-ask-status")?.textContent).toBe(
+        "Running. FEWIA is finding meals.",
+      );
       click("Hide chat");
       expect(document.activeElement).toBe(dock());
       expect(aside().hidden).toBe(true);
