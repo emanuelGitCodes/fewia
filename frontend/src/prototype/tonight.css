@@ -735,6 +735,21 @@
     font-weight: 600;
   }
 }
+@media (max-width: 360px) {
+  .tonight-meals {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+    max-block-size: 45vh;
+    max-block-size: 45dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 0.5rem 0.5rem 0.75rem;
+    margin: 0;
+    scroll-snap-type: none;
+  }
+}
 @media (max-width: 359px) {
   .tonight-macros {
     grid-template-columns: minmax(0, 1fr);
@@ -970,7 +985,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.tonight-ask-btn:hover:not(:disabled) {
+.tonight-ask-btn:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--tonight-green);
   background: var(--tonight-select);
 }
@@ -980,6 +995,7 @@
   color: var(--tonight-white);
 }
 .tonight-ask-btn:disabled,
+.tonight-ask-btn[aria-disabled="true"],
 .tonight-ask-send:disabled {
   border-color: var(--tonight-line);
   background: var(--tonight-white);
