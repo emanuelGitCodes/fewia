@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Run from the extracted source root: bash infra/openai/compose-up.sh
 # An absolute script path also works from another directory.
-# Pass Compose up arguments to replace the default: -d --build.
+# The launcher prints one line per stage and lets Compose show its own pull,
+# build, and start progress. It checks the OpenAI key before it builds, waits
+# for the one-shot setup service, waits for the API, and prints the app URL.
+# Extra arguments go to "docker compose up -d". Skip the key check with
+# FEWIA_SKIP_KEY_CHECK=1.
 # Start with --kroger-live as the first argument to add compose.kroger.yaml
 # (live Kroger); the remaining arguments then go to Compose up.
 # Compose project names and profiles use the caller's environment.
@@ -21,6 +25,7 @@ fail() {
 source_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd -P) || fail
 command -v python3 >/dev/null 2>&1 \
     || fail 'Install Python 3; the launcher validates the configuration with it.'
+printf '%s\n' 'Checking .env.'
 [ -f "$source_root/.env" ] \
     || fail 'Create .env from .env.example and set FEWIA_OPENAI_API_KEY.'
 command -v docker >/dev/null 2>&1 \
@@ -28,12 +33,18 @@ command -v docker >/dev/null 2>&1 \
 
 # The Python step prints both failure lines itself; only the exit status is used here.
 python3 - "$source_root" "$@" <<'PYTHON' || exit 1
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
+from urllib.parse import urlsplit
 
 
 class LaunchError(Exception):
@@ -49,31 +60,64 @@ KROGER_INVALID = (
     "The Compose configuration does not set FEWIA_KROGER_MODE to {mode} "
     "on api and worker."
 )
-LINE = re.compile(r"^(?:export\s+)?FEWIA_OPENAI_API_KEY\s*=\s*(.*)$")
+US_MODELS_URL = "https://us.api.openai.com/v1/models"
+GLOBAL_MODELS_URL = "https://api.openai.com/v1/models"
+LOOPBACK_PREFIX = "http://127.0.0.1:"
+MODELS_URL_NAME = "FEWIA_OPENAI_MODELS_URL"
+URL_INVALID = "FEWIA_OPENAI_MODELS_URL must start with http://127.0.0.1: and name that host."
+KEY_REJECTED = (
+    "OpenAI rejected FEWIA_OPENAI_API_KEY (HTTP {code}). "
+    "Create a new key at https://platform.openai.com/api-keys and update .env."
+)
+PULL_FAILED = "Docker Compose pull failed with exit code {code}. See the output above."
+BUILD_FAILED = "Docker Compose build failed with exit code {code}. See the output above."
+UP_FAILED = (
+    "Docker Compose up failed with exit code {code}. "
+    "Run the same command without the launcher to see the Compose output."
+)
+SETUP_FAILED = "Setup did not finish. Run: docker compose logs bootstrap"
+API_FAILED = "The API did not become healthy. Run: docker compose logs api"
+DEFAULT_PORT = "5173"
+POLL_SECONDS = 2.0
+KEY_CHECK_TIMEOUT = 10
 
 
-def env_file_value_is_set(path: Path) -> bool:
-    found = False
+def stage(text: str) -> None:
+    print(text, flush=True)
+
+
+def parse_env_value(raw: str) -> str:
+    value = raw.strip()
+    if value[:1] in ("'", '"') and value.count(value[0]) >= 2:
+        value = value[1 : value.index(value[0], 1)]
+    else:
+        value = "" if value.startswith("#") else re.split(r"\s#", value, maxsplit=1)[0]
+    return value.strip()
+
+
+def env_file_value(path: Path, name: str) -> str:
+    pattern = re.compile(rf"^(?:export\s+)?{re.escape(name)}\s*=\s*(.*)$")
+    found = ""
     for line in path.read_text(errors="replace").splitlines():
-        match = LINE.match(line.strip())
-        if match is None:
-            continue
-        value = match.group(1).strip()
-        if value[:1] in ("'", '"') and value.count(value[0]) >= 2:
-            value = value[1 : value.index(value[0], 1)]
-        else:
-            value = "" if value.startswith("#") else re.split(r"\s#", value, maxsplit=1)[0]
-        found = bool(value.strip())
+        match = pattern.match(line.strip())
+        if match is not None:
+            found = parse_env_value(match.group(1))
     return found
 
 
-def key_is_set(root: Path) -> bool:
-    if os.environ.get(KEY_NAME, "").strip():
-        return True
+def setting(root: Path, name: str) -> str:
+    # The process environment wins over .env, as it does for Compose.
+    value = os.environ.get(name, "").strip()
+    if value:
+        return value
     try:
-        return env_file_value_is_set(root / ".env")
+        return env_file_value(root / ".env", name)
     except OSError:
-        return False
+        return ""
+
+
+def key_is_set(root: Path) -> bool:
+    return bool(setting(root, KEY_NAME))
 
 
 def secret_names(entries: object) -> list[object]:
@@ -114,6 +158,164 @@ def validate_kroger_mode(config: object, mode: str) -> None:
             raise ValueError
 
 
+def loopback_url(url: str) -> bool:
+    if not url.startswith(LOOPBACK_PREFIX):
+        return False
+    try:
+        parts = urlsplit(url)
+        return (
+            parts.hostname == "127.0.0.1"
+            and parts.username is None
+            and parts.password is None
+            and parts.port is not None
+        )
+    except ValueError:
+        return False
+
+
+def models_url(root: Path) -> str:
+    override = os.environ.get(MODELS_URL_NAME, "")
+    if override:
+        if not loopback_url(override):
+            raise LaunchError(URL_INVALID)
+        return override
+    if setting(root, "FEWIA_OPENAI_REGION") == "us":
+        return US_MODELS_URL
+    return GLOBAL_MODELS_URL
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
+
+
+def key_status(url: str, key: str) -> int | None:
+    # Print nothing from here: an exception message can contain the header.
+    try:
+        handlers: list[object] = [NoRedirect()]
+        if url.startswith(LOOPBACK_PREFIX):
+            handlers.append(urllib.request.ProxyHandler({}))
+        opener = urllib.request.build_opener(*handlers)
+        request = urllib.request.Request(
+            url, headers={"User-Agent": "fewia-compose-launcher"}
+        )
+        request.add_unredirected_header("Authorization", f"Bearer {key}")
+        with opener.open(request, timeout=KEY_CHECK_TIMEOUT) as response:
+            return int(response.status)
+    except urllib.error.HTTPError as error:
+        return error.code
+    except Exception:
+        return None
+
+
+def check_openai_key(root: Path) -> None:
+    stage("Checking the OpenAI key.")
+    url = models_url(root)
+    if os.environ.get("FEWIA_SKIP_KEY_CHECK") == "1":
+        stage("Skipped the OpenAI key check.")
+        return
+    status = key_status(url, setting(root, KEY_NAME))
+    if status == 200:
+        stage("OpenAI key accepted.")
+    elif status in (401, 403):
+        raise LaunchError(KEY_REJECTED.format(code=status))
+    else:
+        stage("Could not check the OpenAI key. Continuing.")
+
+
+def run_visible(command: list[str], root: Path, environment: dict[str, str], failure: str) -> None:
+    try:
+        subprocess.run(command, cwd=root, env=environment, check=True)
+    except subprocess.CalledProcessError as error:
+        raise LaunchError(failure.format(code=error.returncode)) from None
+    except Exception:
+        raise LaunchError(failure.format(code=1)) from None
+
+
+def parse_entries(text: str) -> list[dict[str, object]]:
+    text = text.strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+        items = data if isinstance(data, list) else [data]
+    except ValueError:
+        items = []
+        for line in text.splitlines():
+            try:
+                items.append(json.loads(line))
+            except ValueError:
+                continue
+    return [item for item in items if isinstance(item, dict)]
+
+
+def service_entry(
+    compose: list[str], service: str, root: Path, environment: dict[str, str], *, all_states: bool
+) -> dict[str, object] | None:
+    command = [*compose, "ps", *(["-a"] if all_states else []), "--format", "json", service]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=root,
+            env=environment,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=True,
+        )
+    except Exception:
+        return None
+    entries = parse_entries(result.stdout)
+    return entries[0] if entries else None
+
+
+def poll(probe: object, timeout: float) -> bool | None:
+    deadline = time.monotonic() + timeout
+    while True:
+        outcome = probe()  # type: ignore[operator]
+        if outcome is not None:
+            return outcome
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        time.sleep(min(POLL_SECONDS, remaining))
+
+
+def seconds(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return value if value >= 0 else default
+
+
+def wait_for_setup(compose: list[str], root: Path, environment: dict[str, str]) -> None:
+    def probe() -> bool | None:
+        entry = service_entry(compose, "bootstrap", root, environment, all_states=True)
+        if entry is None or entry.get("State") != "exited":
+            return None
+        code = entry.get("ExitCode")
+        return type(code) is int and code == 0
+
+    if poll(probe, seconds("FEWIA_SETUP_TIMEOUT_SECONDS", 300)) is not True:
+        raise LaunchError(SETUP_FAILED)
+
+
+def wait_for_api(compose: list[str], root: Path, environment: dict[str, str]) -> None:
+    def probe() -> bool | None:
+        entry = service_entry(compose, "api", root, environment, all_states=False)
+        return True if entry is not None and entry.get("Health") == "healthy" else None
+
+    if poll(probe, seconds("FEWIA_API_TIMEOUT_SECONDS", 180)) is not True:
+        raise LaunchError(API_FAILED)
+
+
+def report_failure(detail: str) -> int:
+    print("OpenAI Compose launch failed.", file=sys.stderr)
+    print(detail, file=sys.stderr)
+    return 1
+
+
 def main() -> int:
     root = Path(sys.argv[1]).resolve(strict=True)
     environment = os.environ.copy()
@@ -134,6 +336,8 @@ def main() -> int:
     try:
         if not key_is_set(root):
             raise LaunchError(KEY_MISSING)
+        check_openai_key(root)
+        stage("Checking the Compose configuration.")
         try:
             result = subprocess.run(
                 [*compose, "config", "--no-path-resolution", "--format", "json"],
@@ -153,34 +357,28 @@ def main() -> int:
         validate_secret(config)
         detail = KROGER_INVALID.format(mode=mode)
         validate_kroger_mode(config, mode)
-        try:
-            subprocess.run(
-                [*compose, "up", *(arguments or ["-d", "--build"])],
-                cwd=root,
-                env=environment,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
-        except subprocess.CalledProcessError as error:
-            detail = (
-                f"Docker Compose up failed with exit code {error.returncode}. "
-                "Run the same command without the launcher to see the Compose output."
-            )
-            raise
-        except Exception:
-            detail = (
-                "Docker Compose up failed with exit code 1. "
-                "Run the same command without the launcher to see the Compose output."
-            )
-            raise
+        stage("Downloading images.")
+        run_visible([*compose, "pull", "--ignore-buildable"], root, environment, PULL_FAILED)
+        stage("Building images. The first run takes several minutes.")
+        run_visible([*compose, "build"], root, environment, BUILD_FAILED)
+        stage("Starting services.")
+        run_visible([*compose, "up", "-d", *arguments], root, environment, UP_FAILED)
+        stage("OpenAI Compose services started.")
+        stage("Setting up the database and demo user.")
+        wait_for_setup(compose, root, environment)
+        stage("Waiting for the API.")
+        wait_for_api(compose, root, environment)
+    except LaunchError as error:
+        return report_failure(str(error))
     except Exception:
-        print("OpenAI Compose launch failed.", file=sys.stderr)
-        print(detail, file=sys.stderr)
-        return 1
-    print("OpenAI Compose services started.")
+        return report_failure(detail)
+    port = setting(root, "WEB_HOST_PORT")
+    if not (port.isascii() and port.isdigit()):
+        port = DEFAULT_PORT
+    stage(f"FEWIA is ready at http://127.0.0.1:{port}/prototype")
     return 0
 
 
-sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())
 PYTHON
