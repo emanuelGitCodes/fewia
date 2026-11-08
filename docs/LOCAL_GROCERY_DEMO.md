@@ -8,8 +8,9 @@ the invitation-only hosted path, read [HOSTED_DEMO.md](HOSTED_DEMO.md).
 
 The local stack runs a React and TypeScript chat, FastAPI, PostgreSQL, a
 worker, a sync worker, and Floci SQS and S3. Real Bedrock handles chat
-when the Bedrock overlay is on. The base stack runs without Bedrock, and
-the chat panel then shows "Meal chat is unavailable."
+when the Bedrock overlay is on. The default browser path uses GPT-6 Luna
+through OpenAI. The base stack runs without a provider, and the chat panel
+then shows "Ask FEWIA is off. The plan still works."
 
 The catalog holds 40 meals under
 [decision 0017](../wiki/decisions/0017-forty-meal-catalog.md). A request
@@ -33,18 +34,49 @@ The product has no Instacart handoff under
 [decision 0023](../wiki/decisions/0023-retire-instacart-adapter.md). The
 product places no orders and submits no payments.
 
-## Start the base stack
+## Start the default browser path
 
-From the repository root, start the stack:
+Make, Docker Desktop with Docker Compose, and Python 3 are prerequisites.
+For first-time setup, set `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env`
+file to an absolute host path outside the repository. The file at that path
+contains only the API key and uses mode `600`. Do not put the key in `.env`.
+`FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the global
+endpoint.
+
+From the repository root, start the default browser path:
 
 ```bash
-docker compose up -d
+make up
 ```
 
-The base stack needs no `.env` file and no provider credentials. The
-`bootstrap` service runs the migrations, seeds the demo user, and
-provisions the Floci resources. It then exits with code 0. `api`,
-`worker`, and `sync-worker` start after it completes.
+The launcher uses Python 3 to validate the external key-file path before
+it runs Docker Compose. The `bootstrap` service runs the migrations, seeds
+the demo user, and provisions the Floci resources. It then exits with code
+0. `api`, `worker`, and `sync-worker` start after it completes.
+
+The browser listens at
+[`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
+Provider startup does not fall back automatically. Choose an explicit
+alternative when you want Bedrock or no provider.
+
+## Explicit provider alternatives
+
+Configure the Bedrock settings and credentials in `.env` as described in
+[`infra/bedrock/README.md`](../infra/bedrock/README.md). Then run:
+
+```bash
+make up-bedrock
+```
+
+This target starts the base stack with the Bedrock overlay.
+For a stack without provider credentials, run:
+
+```bash
+make up-offline
+```
+
+The offline target starts the base stack only. The chat panel then shows
+"Ask FEWIA is off. The plan still works."
 
 Check that each service is up and that `api` is healthy:
 
@@ -84,7 +116,7 @@ Open `http://127.0.0.1:5173/app`. These controls are on the older page.
 These totals come from the sample catalog on the current `main`. A
 catalog change MAY change them.
 
-## Optional Bedrock chat
+## Bedrock settings
 
 Bedrock uses real service endpoints. Bedrock credentials stay separate
 from the Floci dummy credentials. Do not set a global AWS endpoint.
@@ -92,8 +124,8 @@ from the Floci dummy credentials. Do not set a global AWS endpoint.
 Copy `.env.example` to `.env`. Set mode `600`. Git ignores `.env`. Do not
 paste secret values or host paths into this runbook. Follow
 [`infra/bedrock/README.md`](../infra/bedrock/README.md) for the role and
-the host MFA helper. Then layer
-[`compose.bedrock.yaml`](../compose.bedrock.yaml):
+the host MFA helper. Start Bedrock with `make up-bedrock`. The matching
+Compose command uses the base and Bedrock files with `.env`:
 
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d

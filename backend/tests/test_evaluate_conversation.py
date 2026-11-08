@@ -1,6 +1,8 @@
 import hashlib
 import json
+import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -8,6 +10,7 @@ from app import evaluate_conversation as cli
 from app.agent import chat_loop
 from app.agent.provider import LLMProvider
 from app.evaluation_conversation_corpus import Scenario, load_conversation_corpus
+from app.evaluation_io import EvaluationOutput
 from app.evaluation_manifest import _hash
 from app.evaluation_profiles import resolve_profile
 from app.providers import bedrock
@@ -59,6 +62,9 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     assert len(slots) == expected
     completion = json.loads((out / "completion.json").read_text(encoding="utf-8"))
     assert completion["slot_count"] == expected
+    assert set(completion["sha256"]) == {"report.json", "report.md", "slots.jsonl"}
+    for filename, digest in completion["sha256"].items():
+        assert digest == hashlib.sha256((out / filename).read_bytes()).hexdigest()
 
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
     ids = [s.id for s in corpus.scenarios]
@@ -90,6 +96,8 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
         "suite_version",
         "catalog_hash",
         "system_prompt_hash",
+        "proposal_prompt_hash",
+        "tool_specs_hash",
         "manifest_hash",
     }
     markdown = (out / "report.md").read_text(encoding="utf-8")
@@ -102,6 +110,17 @@ def test_a_fixture_run_writes_the_four_files_and_reports_every_scenario(
     found = {t["name"]: t["status"] for t in report["targets"]}
     for name in ("latency_p50_ms", "latency_p95_ms", "cost_per_turn_usd"):
         assert found[name] == "not_applicable"
+
+
+def test_output_finish_keeps_the_default_marker_shape(tmp_path: Path) -> None:
+    out = tmp_path / "default-output"
+    with EvaluationOutput(out) as output:
+        output.append_slot({"status": "completed"})
+        output.finish({}, "report")
+    marker = json.loads((out / "completion.json").read_bytes())
+    assert set(marker) == {"sha256", "slot_count"}
+    assert set(marker["sha256"]) == {"report.json", "report.md"}
+    assert marker["slot_count"] == 1
 
 
 def test_a_fixture_run_reports_the_purchase_refusal_rate(tmp_path: Path) -> None:
@@ -187,6 +206,8 @@ def test_a_selected_fixture_run_emits_only_the_selected_turns(
     manifest = report["manifest"]
     assert manifest["corpus_sha256"] == hashlib.sha256(_CORPUS.read_bytes()).hexdigest()
     assert manifest["system_prompt_hash"] == _hash(chat_loop.SYSTEM_PROMPT)
+    assert manifest["proposal_prompt_hash"] == _hash(chat_loop.PROPOSAL_PROMPT_SUFFIX)
+    assert manifest["tool_specs_hash"] == cli.tool_specs_hash()
     assert (
         manifest["model_config"]
         == resolve_profile("nova-2-lite", "us-east-1").model_config
@@ -425,3 +446,145 @@ def test_live_mode_is_silent_for_a_verified_profile(
     assert cli.main(_live_argv(tmp_path / "out", "nova-2-lite")) == 0
     assert capsys.readouterr().err == ""
     assert _FakeBedrock.created == [("us.amazon.nova-2-lite-v1:0", "us-east-1")]
+
+
+_LUNA_RATES = (
+    Path(__file__).resolve().parents[2]
+    / "eval/experiments/conversation-quality/luna-us-rates.json"
+)
+
+
+def _openai_argv(out: Path) -> list[str]:
+    return [
+        *_argv(
+            out,
+            **{
+                "--profile": "gpt-6-luna",
+                "--region": "us",
+                "--rates": str(_LUNA_RATES),
+                "--max-chat-turns": "123",
+            },
+        )[:-1],
+        "--live-openai",
+    ]
+
+
+@pytest.mark.parametrize("region", ["us", "global"])
+def test_luna_profile_has_fixed_responses_settings(region: str) -> None:
+    profile = resolve_profile("gpt-6-luna", region)
+    assert profile.model_config == {
+        "reasoning_effort": "none",
+        "max_output_tokens": 4096,
+        "store": False,
+        "parallel_tool_calls": False,
+    }
+    assert resolve_profile("nova-2-lite", "us-east-1").model_config == {
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning_effort": "low",
+    }
+
+
+@pytest.mark.parametrize("missing", ["--rates", "--max-chat-turns"])
+def test_openai_requires_rates_and_explicit_cap_before_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing: str,
+) -> None:
+    def forbidden(region: str) -> cli.ProviderFor:
+        pytest.fail("The provider factory MUST NOT run.")
+
+    monkeypatch.setattr(cli, "_openai_provider_for", forbidden)
+    out = tmp_path / "out"
+    args = _openai_argv(out)
+    index = args.index(missing)
+    del args[index : index + 2]
+    assert cli.main(args) == 2
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("openai", [True, False])
+def test_transport_mismatch_fails_before_either_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    openai: bool,
+) -> None:
+    def forbidden(*args: object) -> cli.ProviderFor:
+        pytest.fail("The provider factory MUST NOT run.")
+
+    monkeypatch.setattr(cli, "_openai_provider_for", forbidden)
+    monkeypatch.setattr(cli, "_live_provider_for", forbidden)
+    out = tmp_path / "out"
+    args = _openai_argv(out) if openai else _live_argv(out, "nova-2-lite")
+    args[-1] = "--live-bedrock" if openai else "--live-openai"
+    assert cli.main(args) == 2
+    assert not out.exists()
+
+
+def test_openai_fixture_excludes_live_modes(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    assert cli.main([*_openai_argv(out), "--fixture"]) == 2
+    assert cli.main([*_openai_argv(out), "--live-bedrock"]) == 2
+    assert not out.exists()
+
+
+def test_openai_uses_lazy_provider_and_records_real_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[tuple[Path, str]] = []
+
+    class FakeOpenAI(_FakeBedrock):
+        def __init__(self, key: Path, *, region: str = "us") -> None:
+            created.append((key, region))
+
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            response = super().converse(system_prompt, messages, tools)
+            response["usage"] = {
+                "inputTokens": 5,
+                "outputTokens": 2,
+                "cacheReadInputTokens": 3,
+            }
+            return response
+
+    module = ModuleType("app.providers.openai_responses")
+    monkeypatch.setattr(module, "OpenAIResponsesProvider", FakeOpenAI, raising=False)
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    key = tmp_path / "unread-key"
+    monkeypatch.setenv("FEWIA_OPENAI_API_KEY_FILE", str(key))
+    out = tmp_path / "out"
+    assert cli.main(_openai_argv(out)) == 0
+    assert created == [(key, "us")]
+    assert not key.exists()
+    report = json.loads((out / "report.json").read_bytes())
+    assert report["manifest"]["evidence_class"] == "real_openai"
+    assert report["manifest"]["model_id"] == "gpt-6-luna"
+    assert report["manifest"]["rates"]["cached_input_usd_per_1000"] == "0.000011"
+    assert report["cost"]["cache_read_tokens"] > 0
+    assert report["cost"]["input_tokens"] > report["cost"]["cache_read_tokens"]
+    assert report["cost"]["coverage_complete"] is True
+
+
+def test_tool_hash_includes_proposal_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = cli.tool_specs_hash()
+    monkeypatch.setattr(chat_loop, "proposal_tool_spec", lambda: {"changed": True})
+    assert cli.tool_specs_hash() != original
+
+
+def test_openai_rejects_wrong_rate_region_before_factory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(region: str) -> cli.ProviderFor:
+        pytest.fail("The provider factory MUST NOT run.")
+
+    monkeypatch.setattr(cli, "_openai_provider_for", forbidden)
+    out = tmp_path / "out"
+    args = _openai_argv(out)
+    args[args.index("--region") + 1] = "global"
+    assert cli.main(args) == 2
+    assert not out.exists()

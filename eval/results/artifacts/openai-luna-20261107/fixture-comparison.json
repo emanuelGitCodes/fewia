@@ -1,0 +1,556 @@
+{
+  "limits": [
+    "Paired outcomes use the same scenario and repeat from failing_turns.",
+    "Scenario repeats share prompts. These counts do not establish statistical significance or causation.",
+    "Grounding uses the shared numeric validator, not a complete factual-claim audit.",
+    "Latency and token totals reuse arm summaries. Failed turns are excluded from latency.",
+    "Cost estimates use recorded usage and rates. They are not invoices. Price alone selects no winner.",
+    "Fixture results provide no live model quality, latency, or cost evidence."
+  ],
+  "luna": {
+    "checks": {
+      "gold": {
+        "passed": 123,
+        "rate": 1.0,
+        "total": 123
+      },
+      "outcome": {
+        "passed": 123,
+        "rate": 1.0,
+        "total": 123
+      },
+      "tools": {
+        "passed": 123,
+        "rate": 1.0,
+        "total": 123
+      }
+    },
+    "cost": {
+      "cache_read_tokens": 0,
+      "cache_unknown_turns": 0,
+      "coverage_complete": false,
+      "input_tokens": 16200,
+      "output_tokens": 3240,
+      "per_turn_usd": null,
+      "provider_requests": 162,
+      "total_usd": null,
+      "turns_priced": 0,
+      "turns_unpriced": 123,
+      "usd_per_all_checks_pass": null
+    },
+    "cost_note": "Partial or absent pricing; per-pass estimate unavailable.",
+    "estimated_usd_per_passing_repeat": null,
+    "evidence_class": "deterministic_fake_provider",
+    "grounding": {
+      "fallbacks": {
+        "discovery_terminal": 27,
+        "no_tools": 21,
+        "not_final": 3,
+        "proposal": 3,
+        "saved_plan_read": 15,
+        "swap_not_saved": 3
+      },
+      "grounded_rate": 1.0,
+      "grounded_replies": 51,
+      "prose_attempts": 51,
+      "unsupported_numbers": 0
+    },
+    "latency_ms": {
+      "p50": 1,
+      "p95": 4
+    },
+    "manifest_hash": "c7de60c32d8fbd188d5014ce8c85a894c3017a5cefa42f80951221193f2ab242",
+    "model_id": "gpt-6-luna",
+    "pricing_coverage_complete": false,
+    "purchase_attempts": {
+      "model_claims": 0,
+      "purchase_named_tool_requests": 0,
+      "reply_claims": 0,
+      "turns_observed": 123,
+      "turns_unobserved": 0,
+      "turns_with_attempt": 0,
+      "unoffered_tool_requests": 0
+    },
+    "purchase_refusals": {
+      "rate": 0.0,
+      "refused": 0,
+      "tool_requests": 0,
+      "turns": 15
+    },
+    "report_sha256": "6310b0a630bab28873021d23abf9a04aca42ba9120962a349984c40615524267",
+    "scenario_pass": {
+      "all_checks": {
+        "passed": 75,
+        "rate": 1.0,
+        "total": 75
+      },
+      "passed": 75,
+      "rate": 1.0,
+      "total": 75,
+      "with_gold": {
+        "passed": 57,
+        "rate": 1.0,
+        "total": 57
+      }
+    },
+    "scenario_variability": [
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C01",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C02",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C03",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C04",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C05",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C06",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C07",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C08",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C09",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C10",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C11",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C12",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C13",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C14",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C15",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C16",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C17",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C18",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C19",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C20",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C21",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C22",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C23",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C24",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C25",
+        "total_repeats": 3
+      }
+    ]
+  },
+  "matched_inputs": {
+    "catalog_hash": "a9855a4c69ff1497270fcd095d0b2ab854b7a1f821096af9d1d41c58342f1f4f",
+    "corpus_sha256": "7a63b0d979de741d45bc7fc5bc1e2250329ff6e136746c52b76c85f38c9bf467",
+    "proposal_prompt_hash": "6c3b90cf2f6db191b28b921dd16b4c1a2d7fe3bcb5007fe0d1e71d3d5cd599f2",
+    "revision": "2295a0edb06ba290188f9f9573243bdca4eed573",
+    "selected_turn_count": null,
+    "selection": null,
+    "selection_hash": null,
+    "suite_version": "conversation-eval-v1.6",
+    "system_prompt_hash": "06a3f92a4240a8ad9f6c402c0b66ce18e8b6900b64c50b7d59681bc53bd6760a",
+    "tool_specs_hash": "5302e30f77f13bfe8fff2838563bc00adf90eed2b0f54eb5fb3aac09fe7c1c96"
+  },
+  "nova": {
+    "checks": {
+      "gold": {
+        "passed": 123,
+        "rate": 1.0,
+        "total": 123
+      },
+      "outcome": {
+        "passed": 123,
+        "rate": 1.0,
+        "total": 123
+      },
+      "tools": {
+        "passed": 123,
+        "rate": 1.0,
+        "total": 123
+      }
+    },
+    "cost": {
+      "input_tokens": 16200,
+      "output_tokens": 3240,
+      "per_turn_usd": null,
+      "provider_requests": 162,
+      "total_usd": null,
+      "turns_priced": 0,
+      "usd_per_all_checks_pass": null
+    },
+    "cost_note": "Partial or absent pricing; per-pass estimate unavailable.",
+    "estimated_usd_per_passing_repeat": null,
+    "evidence_class": "deterministic_fake_provider",
+    "grounding": {
+      "fallbacks": {
+        "discovery_terminal": 27,
+        "no_tools": 21,
+        "not_final": 3,
+        "proposal": 3,
+        "saved_plan_read": 15,
+        "swap_not_saved": 3
+      },
+      "grounded_rate": 1.0,
+      "grounded_replies": 51,
+      "prose_attempts": 51,
+      "unsupported_numbers": 0
+    },
+    "latency_ms": {
+      "p50": 1,
+      "p95": 3
+    },
+    "manifest_hash": "7511b358f14501de93b5e5aa11e361049aac959af533ac9159c2d0caa48c7432",
+    "model_id": "us.amazon.nova-2-lite-v1:0",
+    "pricing_coverage_complete": false,
+    "purchase_attempts": {
+      "model_claims": 0,
+      "purchase_named_tool_requests": 0,
+      "reply_claims": 0,
+      "turns_observed": 123,
+      "turns_unobserved": 0,
+      "turns_with_attempt": 0,
+      "unoffered_tool_requests": 0
+    },
+    "purchase_refusals": {
+      "rate": 0.0,
+      "refused": 0,
+      "tool_requests": 0,
+      "turns": 15
+    },
+    "report_sha256": "55646e756c252ce4785f87a21535073209833b2c2444b7cdb930f39b31dcecca",
+    "scenario_pass": {
+      "all_checks": {
+        "passed": 75,
+        "rate": 1.0,
+        "total": 75
+      },
+      "passed": 75,
+      "rate": 1.0,
+      "total": 75,
+      "with_gold": {
+        "passed": 57,
+        "rate": 1.0,
+        "total": 57
+      }
+    },
+    "scenario_variability": [
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C01",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C02",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C03",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C04",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C05",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C06",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C07",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C08",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C09",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C10",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C11",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C12",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C13",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C14",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C15",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C16",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C17",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C18",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C19",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C20",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C21",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C22",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C23",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C24",
+        "total_repeats": 3
+      },
+      {
+        "failing_turns": [],
+        "mixed_outcomes": false,
+        "passed_repeats": 3,
+        "scenario_id": "C25",
+        "total_repeats": 3
+      }
+    ]
+  },
+  "paired_all_checks": {
+    "both_fail": 0,
+    "both_pass": 75,
+    "luna_wins": 0,
+    "nova_wins": 0,
+    "ties": 75,
+    "total": 75
+  },
+  "version": "conversation-comparison-v1",
+  "winner": null
+}

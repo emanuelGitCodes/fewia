@@ -130,6 +130,8 @@ class _Totals:
     cost: Decimal = Decimal(0)
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_unknown_turns: int = 0
     provider_requests: int = 0
     repeats_all_checks: int = 0
     gold_repeats: int = 0
@@ -163,7 +165,13 @@ class _Totals:
         self.refusal_refused += record.get("gate") == "refusal"
         self.refusal_tool_requests += len(_list(record, "tools"))
 
-    def add(self, record: dict[str, object], rates: EvaluationRates | None) -> None:
+    def add(
+        self,
+        record: dict[str, object],
+        rates: EvaluationRates | None,
+        *,
+        gross_input: bool = False,
+    ) -> None:
         self.recorded += 1
         verdict = _map(record, "verdict")
         if record.get("gate") == "clean":
@@ -183,11 +191,29 @@ class _Totals:
         used, made = usage.get("input"), usage.get("output")
         self.input_tokens += _count(used)
         self.output_tokens += _count(made)
-        if rates is not None and type(used) is int and type(made) is int:
+        cached = usage.get("cache_read")
+        if gross_input:
+            for count in (used, made, cached):
+                if count is not None and (type(count) is not int or count < 0):
+                    raise ValueError("Invalid OpenAI token usage.")
+            if type(cached) is int:
+                if type(used) is int and cached > used:
+                    raise ValueError("Cached input exceeds gross input.")
+                self.cache_read_tokens += cached
+            else:
+                self.cache_unknown_turns += 1
+        known = type(used) is int and type(made) is int
+        if gross_input:
+            known = known and type(cached) is int
+            if rates is not None and cached and rates.cached_input_usd_per_1000 is None:
+                known = False
+        if rates is not None and known and type(used) is int and type(made) is int:
+            input_cost = used * rates.input_usd_per_1000
+            if gross_input and type(cached) is int:
+                input_cost -= cached * rates.input_usd_per_1000
+                input_cost += cached * (rates.cached_input_usd_per_1000 or Decimal(0))
             self.cost_turns += 1
-            self.cost += (
-                used * rates.input_usd_per_1000 + made * rates.output_usd_per_1000
-            ) / 1000
+            self.cost += (input_cost + made * rates.output_usd_per_1000) / 1000
 
 
 def build_report(
@@ -205,6 +231,10 @@ def build_report(
         else None
     )
     totals = _Totals()
+    gross_input = (
+        manifest.get("model_id") == "gpt-6-luna"
+        or manifest.get("evidence_class") == "real_openai"
+    )
     rows: list[dict[str, object]] = []
     for scenario in corpus.scenarios:
         repeats = (
@@ -234,7 +264,7 @@ def build_report(
                     failing.append(f"{repeat}.{index}")
                 totals.add_purchase(record)
                 if record is not None:
-                    totals.add(record, rates)
+                    totals.add(record, rates, gross_input=gross_input)
             totals.repeats_passed += repeat_gold
             totals.repeats_all_checks += repeat_all
             if has_gold:
@@ -263,7 +293,8 @@ def build_report(
         else None
     )
     per_pass = None
-    if totals.cost_turns and totals.repeats_all_checks:
+    complete_cost = not gross_input or totals.cost_turns == totals.expected
+    if totals.cost_turns and totals.repeats_all_checks and complete_cost:
         each = totals.cost / totals.repeats_all_checks
         per_pass = format(each.quantize(Decimal("1e-6")), "f")
     refusal_rate = _rate(totals.refusal_refused, totals.refusal_turns)
@@ -319,7 +350,7 @@ def build_report(
         _target(
             "cost_per_turn_usd",
             f"< {COST_TARGET}",
-            per_turn,
+            per_turn if complete_cost else None,
             average is not None and average < COST_TARGET,
             real,
         ),
@@ -332,6 +363,22 @@ def build_report(
             real,
         ),
     ]
+    cost: dict[str, object] = {
+        "turns_priced": totals.cost_turns,
+        "per_turn_usd": per_turn,
+        "total_usd": total_usd,
+        "input_tokens": totals.input_tokens,
+        "output_tokens": totals.output_tokens,
+        "provider_requests": totals.provider_requests,
+        "usd_per_all_checks_pass": per_pass,
+    }
+    if gross_input:
+        cost.update(
+            cache_read_tokens=totals.cache_read_tokens,
+            cache_unknown_turns=totals.cache_unknown_turns,
+            turns_unpriced=totals.expected - totals.cost_turns,
+            coverage_complete=totals.cost_turns == totals.expected,
+        )
     return {
         "version": "conversation-report-v1",
         "manifest": manifest,
@@ -375,15 +422,7 @@ def build_report(
         "purchase_attempts": purchase_attempts,
         "purchase_refusals": purchase_refusals,
         "latency_ms": {"p50": p50, "p95": p95},
-        "cost": {
-            "turns_priced": totals.cost_turns,
-            "per_turn_usd": per_turn,
-            "total_usd": total_usd,
-            "input_tokens": totals.input_tokens,
-            "output_tokens": totals.output_tokens,
-            "provider_requests": totals.provider_requests,
-            "usd_per_all_checks_pass": per_pass,
-        },
+        "cost": cost,
         "targets": targets,
         "scenarios": rows,
     }

@@ -44,6 +44,8 @@ class GroceryProviderSettings(BaseSettings):
     bedrock_prompt_cache: bool = False
     bedrock_guardrail_id: str | None = None
     bedrock_guardrail_version: str | None = None
+    openai_api_key_file: Path | None = None
+    openai_region: Literal["us", "global"] = "us"
     plaid_client_id: SecretStr | None = None
     plaid_secret_file: Path | None = None
     plaid_tokens_file: Path | None = None
@@ -115,6 +117,12 @@ class GroceryProviderSettings(BaseSettings):
             raise ValueError("guardrail ID and version go together")
         return self
 
+    @model_validator(mode="after")
+    def _one_chat_provider(self) -> Self:
+        if self.bedrock_model_id is not None and self.openai_api_key_file is not None:
+            raise ValueError("chat providers MUST be mutually exclusive")
+        return self
+
     @field_validator("plaid_client_id", mode="before")
     @classmethod
     def _normalize_client_id(cls, value: object) -> SecretStr | None:
@@ -129,6 +137,7 @@ class GroceryProviderSettings(BaseSettings):
         return SecretStr(stripped)
 
     @field_validator(
+        "openai_api_key_file",
         "plaid_secret_file",
         "plaid_tokens_file",
         "usda_fdc_key_file",

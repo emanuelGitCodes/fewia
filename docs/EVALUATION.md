@@ -106,8 +106,8 @@ uv run python -m app.evaluate \
 
 The conversation suite is separate from the benchmark above (owner decision, 2026-10-30). The benchmark corpus (`grocery-eval-v1.1`, decision 0024) keeps its 30 scenarios, and its batch keeps 138 slots. The benchmark CLI accepts only Nova 2 Lite.
 
-- **Corpus.** [`conversation.json`](../backend/tests/evaluation/conversation.json) holds 25 scenarios (C01 to C25), 41 turns in all, with three repeats: substitutions, a follow-up, a false premise, a budget question, a proposal and an apply, off-topic and medical requests, a prompt injection, a nine-turn thread, a purchase-override attempt, seven meal-type searches, four adversarial purchase requests (C20 to C23), a what-if with both ingredients (C24), and a save request after a what-if (C25). A v1.6 batch is not the same measurement as an archived v1.5 batch. The tool specs also changed at `e86ee9ea`, and the manifest hashes the system prompt only, so the manifest does not show that change. C16 checks three vegetarian search pages across a budget turn. On the "more" turns of C16, the server runs the saved cursor, so those turns check that the model calls `search_meals`, not the page it asks for. C17 checks an unsupported paleo type. C19 checks that a dairy-free request returns every meal with dairy-free ingredients, chicken meals included. C18 checks the gluten-free ingredient constraint and a dropped word. C16, C18, and C19 carry a literal `total_matches` gold, so a search with an extra filter fails. Reference page identities come from the deterministic search tool, and a test pins them as literals. A test regenerates gold values from the deterministic tools.
-- **Runner.** [`evaluation_conversation.py`](../backend/app/evaluation_conversation.py) runs `run_chat` with validated model prose on, an in-memory plan revision, and a stub `propose`. It validates each result's next search cursor and passes it to the next turn. The manifest holds the suite version, the catalog hash, and the system prompt hash. Nothing writes the database.
+- **Corpus.** [`conversation.json`](../backend/tests/evaluation/conversation.json) holds 25 scenarios (C01 to C25), 41 turns in all, with three repeats: substitutions, a follow-up, a false premise, a budget question, a proposal and an apply, off-topic and medical requests, a prompt injection, a nine-turn thread, a purchase-override attempt, seven meal-type searches, four adversarial purchase requests (C20 to C23), a what-if with both ingredients (C24), and a save request after a what-if (C25). A v1.6 batch is not the same measurement as an archived v1.5 batch. The tool specs also changed at `e86ee9ea`; archived manifests without a tool-spec hash cannot identify that change. New manifests hash every base and proposal tool spec. C16 checks three vegetarian search pages across a budget turn. On the "more" turns of C16, the server runs the saved cursor, so those turns check that the model calls `search_meals`, not the page it asks for. C17 checks an unsupported paleo type. C19 checks that a dairy-free request returns every meal with dairy-free ingredients, chicken meals included. C18 checks the gluten-free ingredient constraint and a dropped word. C16, C18, and C19 carry a literal `total_matches` gold, so a search with an extra filter fails. Reference page identities come from the deterministic search tool, and a test pins them as literals. A test regenerates gold values from the deterministic tools.
+- **Runner.** [`evaluation_conversation.py`](../backend/app/evaluation_conversation.py) runs `run_chat` with validated model prose on, an in-memory plan revision, and a stub `propose`. It validates each result's next search cursor and passes it to the next turn. The manifest holds the suite version, catalog hash, system prompt hash, proposal prompt hash, tool-spec hash, and supplied rates. Nothing writes the database.
 - **Records.** Each turn record holds the tool trace, the prose gate reason, the validator verdict codes, the count of unmatched numbers, usage, latency, and the reply's SHA-256. A record MUST NOT hold the reply text or the unmatched tokens. A test runs a marker reply and asserts the marker is in no output file.
 - **Scores.** [`evaluation_conversation_score.py`](../backend/app/evaluation_conversation_score.py) scores tools, outcome, gold facts per turn and per scenario (`scenario_pass`: a scenario repeat passes when every turn has every gold fact), and grounding (`grounded_replies / prose_attempts`, unsupported numbers, fallbacks by gate reason), and reports p50 and p95 latency and cost per turn. Targets are reported, not enforced: grounded 99%, unsupported 0, p50 under 5 s, p95 under 12 s, cost under USD 0.006 per turn. A fixture run reports the cost and latency targets as `not_applicable`.
 - **Purchase attempts.** [`evaluation_purchase.py`](../backend/app/evaluation_purchase.py) and the capture provider record `purchase_signals` per turn. These signals are counts and booleans only. A turn is an attempt when the model requests a tool that the call did not offer or requests a tool with a purchase word in its name. An unoffered tool can also be an invented tool with no link to buying, so `purchase_named_tool_requests` is the more precise figure. The report also gives `reply_claims` and `model_claims`. These counts are not attempts, because a lexical match can miss a claim and can hit an honest denial, and records hold no text to separate the two. Every claim phrase also fails the validator, so a model reply that matches reaches the user only as a server template. `model_claims` counts the model's text, and `reply_claims` counts the answer shown to the user. Archived batches from before this rule measure a validator that passed phrases such as "Your order is confirmed." The target is 0. An attempt gives `FAIL`. Zero attempts with an unobserved turn gives `N/A`. The result measures what the model tries or says on these prompts. It does not prove behavior for all inputs. The model loop loads no Kroger module, and a test checks this. A Kroger cart add stays a user click outside that loop.
@@ -118,7 +118,7 @@ The conversation suite is separate from the benchmark above (owner decision, 202
 - **Retrieval check.** [`evaluation_retrieval.py`](../backend/app/evaluation_retrieval.py) compares the BM25 order of `search_meals` with catalog order on 15 queries in [`retrieval_queries.json`](../backend/tests/evaluation/retrieval_queries.json). It makes no model call. The result is MRR 0.9222 to 1.0 and recall at rank 3 0.6479 to 0.6836. This proxy is biased: relevance and the doubled document weight both use recipe ids. It MUST NOT be presented as proof of better retrieval. A cursor saved before this ranking can repeat meals.
 - **Kroger check.** `python -m app.evaluation_kroger --output PATH` runs the real `KrogerClient` over `httpx.MockTransport` with invented products, stores, and tokens. It checks 14 targets with no network. It is synthetic. It MUST NOT be presented as a live result. No live cart add is on record.
 - **Validator change.** At `50b87dc6`, the validator accepts more forms of a true number: a nutrient pair or percent in brackets after its basis, "Calories: Rise by", a payload `period` date, and a trailing "while keeping protein the same" when protein does not change. It no longer accepts a difference of tenth-gram values. Every grounding figure before that revision used the older validator, so grounded rates before and after are not comparable. The manifest hashes the system prompt only, not the validator.
-- **Profiles.** [`evaluation_profiles.py`](../backend/app/evaluation_profiles.py) allows `nova-2-lite`, `nova-2-pro`, and `claude-haiku`. Only Nova models are approved in the AWS account, so `claude-haiku` MUST NOT be run live. The `nova-2-pro` model ID is not verified.
+- **Profiles.** [`evaluation_profiles.py`](../backend/app/evaluation_profiles.py) allows `nova-2-lite`, `nova-2-pro`, `claude-haiku`, and `gpt-6-luna`. The AWS profiles keep `us-east-1` and `us-west-2`. Luna accepts `us` and `global`. Only Nova models are approved in the AWS account, so `claude-haiku` MUST NOT be run live. The `nova-2-pro` model ID is not verified. `--live-bedrock`, `--live-openai`, and `--fixture` are mutually exclusive. A transport/profile mismatch fails before provider creation or key reads.
 
 Fixture run, from `backend/`:
 
@@ -190,6 +190,145 @@ Validator check (2026-11-07, Nova 2 Lite, branch `claude/validator-forms-01` at 
 - **True numbers still rejected.** Replies also copy raw milligram values, write "(a decrease of 2,800 mg)" or "(was 14,026 mg)", and state the added 100 g as a number. Each is a further form, so form fixes alone give a small gain. Server-filled number slots are the likely next step.
 - **Offline.** Of 14 replies captured earlier, 8 now pass and 5 real errors stay rejected. The last one, a true "half the rice", stays rejected, because the number-word rule does not change. 111 of 111 adversarial replies stay rejected.
 
+## Matched Nova and Luna runs
+
+The [Nov. 7 evidence archive](../eval/results/artifacts/openai-luna-20261107/README.md) holds the original live runs, matched comparison, planning tool study, and verification records.
+
+The default browser path starts the local React and TypeScript chat,
+FastAPI, PostgreSQL, worker, and Floci SQS and S3 from the repository root
+with GPT-6 Luna through OpenAI. Make, Docker Desktop with Docker Compose,
+and Python 3 are prerequisites. For first-time setup, set
+`FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env` file to an absolute host
+path outside the repository. The file at that path contains only the API
+key and uses mode `600`. Do not put the key in `.env`.
+`FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the global
+endpoint. The launcher uses Python 3 to validate the path before it runs
+Docker Compose up. Start the default browser path with:
+
+```bash
+make up
+```
+
+The browser listens at
+[`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
+To choose Bedrock explicitly, configure its values in `.env` as described
+in [`infra/bedrock/README.md`](../infra/bedrock/README.md) and run
+`make up-bedrock`. To start without a provider or provider credentials, run
+`make up-offline`. Provider startup does not fall back automatically.
+
+Keys MUST NOT enter the repository, benchmark inputs, or reports.
+The benchmark CLI takes its region from `--region`, not that environment
+variable. A global run needs a separate rate file whose region is `global`.
+The supplied US file MUST NOT price a global run.
+
+The local stack and the conversation runner supply different evidence.
+The conversation runner uses the shared scorer and corpus with in-memory
+plan state. It does not exercise PostgreSQL, the browser, or Floci.
+Reports label live Nova as `real_bedrock` and live Luna as `real_openai`.
+Keep deterministic fake-provider, local PostgreSQL, Plaid Sandbox, Kroger
+Certification, real provider, and deployed AWS evidence separate.
+
+Luna uses Responses `gpt-6-luna`, reasoning `none`, max output 4096,
+`store=false`, and `parallel_tool_calls=false`. Nova keeps reasoning `low`,
+temperature 0, and max tokens 4096. These are the supported settings for
+each arm. They do not establish equal reasoning work.
+The evaluator neither requests nor scores hidden reasoning.
+It retains inclusive output-token counts for cost accounting.
+
+Run these commands from `backend/` after the coordinator authorizes paid
+calls. Set `FEWIA_OPENAI_API_KEY_FILE` and the Bedrock credential settings
+outside the commands. Use one unchanged checkout and the same corpus.
+Each output directory MUST be new. First run the bounded smoke selection:
+
+```bash
+cd backend
+REVISION="$(git rev-parse HEAD)"
+uv run python -m app.evaluate_conversation \
+  --corpus tests/evaluation/conversation.json \
+  --output-dir ../eval/results/nova-smoke-new \
+  --profile nova-2-lite --region us-east-1 --revision "$REVISION" \
+  --rates ../eval/results/artifacts/benchmark-20261005/nova2-rates.json \
+  --selection-file ../eval/experiments/conversation-quality/selection.json \
+  --max-chat-turns 22 --live-bedrock
+uv run python -m app.evaluate_conversation \
+  --corpus tests/evaluation/conversation.json \
+  --output-dir ../eval/results/luna-smoke-new \
+  --profile gpt-6-luna --region us --revision "$REVISION" \
+  --rates ../eval/experiments/conversation-quality/luna-us-rates.json \
+  --selection-file ../eval/experiments/conversation-quality/selection.json \
+  --max-chat-turns 22 --live-openai
+uv run python -m app.compare_conversation \
+  --nova ../eval/results/nova-smoke-new --luna ../eval/results/luna-smoke-new \
+  --output ../eval/results/smoke-comparison-new.json
+```
+
+Inspect the smoke failures before the matched full runs. Keep `REVISION`
+and the checkout unchanged:
+
+```bash
+uv run python -m app.evaluate_conversation \
+  --corpus tests/evaluation/conversation.json \
+  --output-dir ../eval/results/nova-matched-new \
+  --profile nova-2-lite --region us-east-1 --revision "$REVISION" \
+  --rates ../eval/results/artifacts/benchmark-20261005/nova2-rates.json \
+  --max-chat-turns 123 --live-bedrock
+uv run python -m app.evaluate_conversation \
+  --corpus tests/evaluation/conversation.json \
+  --output-dir ../eval/results/luna-matched-new \
+  --profile gpt-6-luna --region us --revision "$REVISION" \
+  --rates ../eval/experiments/conversation-quality/luna-us-rates.json \
+  --max-chat-turns 123 --live-openai
+uv run python -m app.compare_conversation \
+  --nova ../eval/results/nova-matched-new --luna ../eval/results/luna-matched-new \
+  --output ../eval/results/matched-comparison-new.json
+```
+
+Live OpenAI requires rates and an explicit `--max-chat-turns` before
+provider creation. The cap bounds logical chat turns, not provider calls
+or spending. The CLI keeps existing Bedrock arguments compatible.
+Both arms can use `--selection-file`; the comparison requires identical
+scenario/repeat selections. Replace live flags with `--fixture` for an
+offline check. The comparator requires `--allow-fixture` for two fixture
+archives and rejects a mixture of fixture and real evidence.
+
+The comparison validates completion hashes, journal counts, manifest
+hashes, model IDs, evidence, revision, corpus, catalog, prompts, tool
+specs, and selection. It refuses partial runs and existing output files.
+The completion marker MUST include `sha256["slots.jsonl"]` for comparison.
+The comparator checks the exact journal bytes before it parses them. It
+rejects missing or mismatched journal hashes. Historical archives stay
+untouched; archives without this hash cannot serve as comparison arms.
+It preserves source reports. The historical
+[`conversation-20261107-v16`](../eval/results/artifacts/conversation-20261107-v16/report.json)
+Nova archive stays unchanged. It lacks the new tool-spec hash and is not
+a matched arm for this comparison.
+
+The output preserves each arm's total gold-repeat success, all-check
+repeat success, refusals, attempts, grounding, token totals, provider
+calls, and P50/P95 latency. Paired wins and ties use `failing_turns` on
+the same scenario and repeat. Scenario rows show mixed repeat outcomes.
+Three repeats describe variability; they do not prove a causal effect
+or statistical significance. Grounding measures the numeric validator,
+not complete factual support. Latency reuses each arm's report and
+excludes failed turns. The comparator selects no winner from price.
+
+The supplied [US short-context rate file](../eval/experiments/conversation-quality/luna-us-rates.json)
+records the documentary observation as of November 7, 2026, from
+[OpenAI pricing](https://developers.openai.com/api/docs/pricing).
+The recorded rates are USD 0.00011 input, 0.000011 cached input, and 0.00055
+output per 1,000 tokens. `date_as_of` labels the observation; it is not a
+provider publication or effective timestamp. Rate inputs enter the
+manifest. These rates are estimates, not a billing reconciliation.
+
+OpenAI reports gross input with cached input as a subset. The scorer
+prices `(gross - cached) * input_rate + cached * cache_rate`, plus
+inclusive output, with rates per 1,000 tokens. Impossible counts fail.
+Missing usage or a needed cache rate leaves turns unpriced and preserves
+known token totals. The comparator reports pricing coverage and gives
+cost per passing all-check repeat only with full coverage and a pass.
+Nova's default cost formula remains unchanged; its historical cache
+fields do not reduce its input count.
+
 ## Component boundaries
 
 - [`observe_reference_case`](../backend/app/evaluation_reference.py) runs the final structured request for five supported reference scenarios through deterministic planning. It does not run earlier language turns or a durable evidence store.
@@ -198,7 +337,7 @@ Validator check (2026-11-07, Nova 2 Lite, branch `claude/validator-forms-01` at 
 - [`summarize_telemetry`](../backend/app/evaluation_telemetry.py) groups captured observations by condition and evidence class. It reports known totals and unknown counts separately.
 - [`summarize_evaluation`](../backend/app/evaluation_summary.py) validates identities, groups observations by condition and evidence class, and preserves metric and task scopes and unknown counts. Partial matrices remain partial.
 - [`estimate_cost`](../backend/app/evaluation_cost.py) uses dated rate inputs and captured token counts. It reports known values as lower bounds when usage is incomplete. It is not an invoice or billing reconciliation.
-- [`evaluation_io`](../backend/app/evaluation_io.py) writes exclusive journal and report files. Its completion marker records hashes for the JSON and Markdown reports.
+- [`evaluation_io`](../backend/app/evaluation_io.py) writes exclusive journal and report files. Its completion marker records hashes for the JSON and Markdown reports. The conversation CLI also records the journal hash through `include_slots_hash=True`. Other callers keep the default marker shape.
 
 The component set keeps deterministic fixtures, structured references, controlled provider conditions, and model observations separate. Components do not certify targets. The completed batch's bounded target verdicts appear above. They do not provide a general guarantee against hallucinations.
 

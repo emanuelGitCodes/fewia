@@ -10,6 +10,36 @@ from app.evaluation_profiles import PROFILES, ModelProfile, rates_for, resolve_p
 CORPUS = Path(__file__).parent / "evaluation" / "scenarios.json"
 REVISION = "40d41fdec79d7c24e964c570d3afe19328addb74"
 REGIONS = frozenset({"us-east-1", "us-west-2"})
+PROFILE_REGIONS = {
+    "nova-2-lite": REGIONS,
+    "nova-2-pro": REGIONS,
+    "claude-haiku": REGIONS,
+    "gpt-6-luna": frozenset({"us", "global"}),
+}
+PROFILE_CONFIGS: dict[str, dict[str, object]] = {
+    "nova-2-lite": {
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning_effort": "low",
+    },
+    "nova-2-pro": {
+        "max_tokens": 4096,
+        "temperature": 0,
+        "reasoning_effort": "low",
+    },
+    "claude-haiku": {"max_tokens": 4096},
+    "gpt-6-luna": {
+        "reasoning_effort": "none",
+        "max_output_tokens": 4096,
+        "store": False,
+        "parallel_tool_calls": False,
+    },
+}
+PROFILE_REGION_CASES = [
+    (name, region)
+    for name, regions in PROFILE_REGIONS.items()
+    for region in sorted(regions)
+]
 
 
 def rates_body(model_id: str, region: str = "us-east-1") -> dict[str, object]:
@@ -33,45 +63,52 @@ def write_rates(tmp_path: Path, body: dict[str, object]) -> Path:
     return path
 
 
-def test_exactly_three_profiles_with_fixed_fields() -> None:
+def test_exactly_four_profiles_with_fixed_fields() -> None:
     assert {
         name: (p.model_id, p.family, p.id_verified) for name, p in PROFILES.items()
     } == {
         "nova-2-lite": ("us.amazon.nova-2-lite-v1:0", "nova", True),
         "nova-2-pro": ("us.amazon.nova-2-pro-v1:0", "nova", False),
         "claude-haiku": ("us.anthropic.claude-haiku-5-5", "claude", False),
+        "gpt-6-luna": ("gpt-6-luna", "openai", True),
     }
     for name, profile in PROFILES.items():
         assert profile.name == name
-        assert profile.regions == REGIONS
+        assert profile.regions == PROFILE_REGIONS[name]
+        assert profile.model_config == PROFILE_CONFIGS[name]
 
 
-def test_profile_is_frozen() -> None:
+@pytest.mark.parametrize("name", list(PROFILE_REGIONS))
+def test_profile_is_frozen(name: str) -> None:
     with pytest.raises(FrozenInstanceError):
-        PROFILES["nova-2-lite"].name = "x"  # type: ignore[misc]
+        PROFILES[name].name = "x"  # type: ignore[misc]
 
 
-@pytest.mark.parametrize("name", list(PROFILES))
-@pytest.mark.parametrize("region", sorted(REGIONS))
+@pytest.mark.parametrize(("name", "region"), PROFILE_REGION_CASES)
 def test_resolve_profile_accepts_allowlist(name: str, region: str) -> None:
     profile = resolve_profile(name, region)
     assert isinstance(profile, ModelProfile)
     assert profile == PROFILES[name]
 
 
-@pytest.mark.parametrize("name", list(PROFILES))
-def test_resolve_profile_returns_a_fresh_model_config(name: str) -> None:
-    first = resolve_profile(name, "us-east-1")
-    first.model_config["max_tokens"] = 1
+@pytest.mark.parametrize(("name", "region"), PROFILE_REGION_CASES)
+def test_resolve_profile_returns_a_fresh_model_config(name: str, region: str) -> None:
+    expected_config = dict(PROFILE_CONFIGS[name])
+    token_key = "max_output_tokens" if name == "gpt-6-luna" else "max_tokens"
+    first = resolve_profile(name, region)
+    first.model_config[token_key] = 1
     first.model_config["extra"] = True
 
-    second = resolve_profile(name, "us-east-1")
+    second = resolve_profile(name, region)
 
     assert second.model_config is not first.model_config
     assert second.model_config is not PROFILES[name].model_config
     assert second.model_config == PROFILES[name].model_config
+    assert second.model_config == expected_config
+    assert PROFILES[name].model_config == expected_config
+    assert first.model_config[token_key] == 1
     assert "extra" not in PROFILES[name].model_config
-    assert PROFILES[name].model_config["max_tokens"] == 4096
+    assert PROFILES[name].model_config[token_key] == 4096
 
 
 @pytest.mark.parametrize("region", [None, 1, b"us-east-1", ["us-east-1"], {}])
@@ -91,6 +128,10 @@ def test_resolve_profile_rejects_a_non_string_region(region: object) -> None:
         ("nova-2-lite", "eu-west-1"),
         ("claude-haiku", ""),
         ("claude-haiku", "US-EAST-1"),
+        ("gpt-6-luna", "us-east-1"),
+        ("gpt-6-luna", "us-west-2"),
+        ("nova-2-lite", "us"),
+        ("nova-2-pro", "us"),
     ],
 )
 def test_resolve_profile_rejects_unknown_name_or_region_with_one_message(
@@ -101,15 +142,17 @@ def test_resolve_profile_rejects_unknown_name_or_region_with_one_message(
     assert str(error.value) == "Invalid model profile"
 
 
-@pytest.mark.parametrize("name", list(PROFILES))
-def test_rates_for_accepts_matching_file(tmp_path: Path, name: str) -> None:
+@pytest.mark.parametrize(("name", "region"), PROFILE_REGION_CASES)
+def test_rates_for_accepts_matching_file(
+    tmp_path: Path, name: str, region: str
+) -> None:
     profile = PROFILES[name]
-    path = write_rates(tmp_path, rates_body(profile.model_id, "us-west-2"))
+    path = write_rates(tmp_path, rates_body(profile.model_id, region))
 
-    rates = rates_for(profile, path, "us-west-2")
+    rates = rates_for(profile, path, region)
 
     assert rates.model_id == profile.model_id
-    assert rates.region == "us-west-2"
+    assert rates.region == region
 
 
 def test_rates_for_rejects_other_model_id(tmp_path: Path) -> None:
@@ -129,13 +172,18 @@ def test_rates_for_rejects_region_outside_profile(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("file_region", "run_region"),
-    [("us-east-1", "us-west-2"), ("us-west-2", "us-east-1")],
+    ("name", "file_region", "run_region"),
+    [
+        ("nova-2-lite", "us-east-1", "us-west-2"),
+        ("nova-2-lite", "us-west-2", "us-east-1"),
+        ("gpt-6-luna", "us", "global"),
+        ("gpt-6-luna", "global", "us"),
+    ],
 )
 def test_rates_for_rejects_a_rates_file_for_another_region(
-    tmp_path: Path, file_region: str, run_region: str
+    tmp_path: Path, name: str, file_region: str, run_region: str
 ) -> None:
-    profile = PROFILES["nova-2-lite"]
+    profile = PROFILES[name]
     path = write_rates(tmp_path, rates_body(profile.model_id, file_region))
 
     with pytest.raises(ValueError, match="^Invalid model profile$"):

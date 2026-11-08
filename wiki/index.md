@@ -35,6 +35,8 @@ chronological record lives in [log.md](log.md).
 
 ## Phases
 
+- [OpenAI provider and benchmark evidence](phases/openai-luna-20261107.md)
+
 - [PR 469 repair verification — local and hosted evidence](phases/pr469-repair-verification-20261101.md)
 - [Phase 0 — Repo bootstrap and the agent team](phases/phase-0.md)
 - [Phase 1 — Skeleton: Compose, schema, CI](phases/phase-1.md)

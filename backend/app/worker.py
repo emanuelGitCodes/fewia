@@ -15,7 +15,7 @@ from app import models  # noqa: F401
 from app.agent.provider import LLMProvider
 from app.db import SessionLocal
 from app.job_models import Job
-from app.provider_runtime import build_bedrock, build_plaid
+from app.provider_runtime import build_llm, build_plaid
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
@@ -37,6 +37,7 @@ _OUTCOMES = (
 ).split()
 _BACKOFF_SECONDS = 1
 _BEDROCK_UNAVAILABLE = "bedrock_unavailable"
+_OPENAI_UNAVAILABLE = "openai_unavailable"
 QueueFactory = Callable[[str, str], JobQueue]
 SenderFactory = Callable[[str], JobSender]
 Processor = Callable[[sessionmaker[Session], JobQueue, str, JobHandler], str]
@@ -71,16 +72,21 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _bedrock_provider(settings: GroceryProviderSettings) -> LLMProvider | None:
-    if settings.bedrock_model_id is None:
+def _llm_provider(settings: GroceryProviderSettings) -> LLMProvider | None:
+    if settings.bedrock_model_id is None and settings.openai_api_key_file is None:
         return None
     provider: LLMProvider | None = None
     try:
-        provider = build_bedrock(settings)
+        provider = build_llm(settings)
     except ProviderConfigurationError:
         pass
     if provider is None:
-        print(json.dumps({"status": _BEDROCK_UNAVAILABLE}), file=sys.stderr)
+        status = (
+            _OPENAI_UNAVAILABLE
+            if settings.openai_api_key_file is not None
+            else _BEDROCK_UNAVAILABLE
+        )
+        print(json.dumps({"status": status}), file=sys.stderr)
         return None
     return provider
 
@@ -89,7 +95,7 @@ def _default_handler(factory: sessionmaker[Session], kind: str) -> JobHandler:
     settings = load_provider_settings()
     if kind == "sync":
         return make_sync_handler(factory, build_plaid(settings))
-    return make_agent_handler(factory, _bedrock_provider(settings))
+    return make_agent_handler(factory, _llm_provider(settings))
 
 
 def run_publisher(

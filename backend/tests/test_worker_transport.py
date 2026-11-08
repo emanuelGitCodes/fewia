@@ -68,7 +68,7 @@ def effects(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         "_default_handler",
         "build_job_queue",
         "build_job_sender",
-        "build_bedrock",
+        "build_llm",
         "build_plaid",
         "make_agent_handler",
         "make_sync_handler",

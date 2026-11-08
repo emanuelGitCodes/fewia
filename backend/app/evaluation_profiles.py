@@ -13,7 +13,7 @@ _REGIONS = frozenset({"us-east-1", "us-west-2"})
 class ModelProfile:
     name: str
     model_id: str
-    family: Literal["nova", "claude"]
+    family: Literal["nova", "claude", "openai"]
     regions: frozenset[str]
     model_config: dict[str, object]
     id_verified: bool
@@ -28,6 +28,19 @@ _NOVA_CONFIG: dict[str, object] = {
 PROFILES: dict[str, ModelProfile] = {
     profile.name: profile
     for profile in (
+        ModelProfile(
+            "gpt-6-luna",
+            "gpt-6-luna",
+            "openai",
+            frozenset({"us", "global"}),
+            {
+                "reasoning_effort": "none",
+                "max_output_tokens": 4096,
+                "store": False,
+                "parallel_tool_calls": False,
+            },
+            True,
+        ),
         ModelProfile(
             "nova-2-lite",
             "us.amazon.nova-2-lite-v1:0",

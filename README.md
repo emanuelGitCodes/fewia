@@ -2,10 +2,12 @@
 
 FEWIA is a budget-aware grocery planning chat for CAP 6938. It runs as a
 local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and
-local Floci in Docker Compose. FEWIA uses real Amazon Bedrock through the
-`LLMProvider` protocol in `backend/app/agent/` when you start the stack
-with the Bedrock overlay. Plain `docker compose up -d` leaves chat
-unconfigured. The default spending source is `manual`. The monthly limit
+local Floci SQS and S3 in Docker Compose. The default browser path uses
+GPT-6 Luna through OpenAI. Run `make up` to validate the external API key file and start the OpenAI overlay. `make up-bedrock`
+selects real Amazon Bedrock through the `LLMProvider` protocol in
+`backend/app/agent/`. `make up-offline` starts the base stack without a
+provider, so chat is unavailable. FEWIA does not switch providers
+automatically. The default spending source is `manual`. The monthly limit
 that the user enters is the whole budget. Fixture spending stays an
 optional setting. Plaid work is last. The Plaid Sandbox adapters stay in
 the code. Live Plaid Sandbox evidence remains pending. See
@@ -46,18 +48,44 @@ health-prediction scope is historical and retired. See
 
 ## Quick start
 
-`docker compose up -d` starts `postgres`, `floci`, `bootstrap`, `api`,
-`worker`, `sync-worker`, and `web` from [compose.yaml](compose.yaml).
-Read [runbooks/durable-jobs.md](runbooks/durable-jobs.md) for jobs.
-
-Start Bedrock with the overlay. It sets or requires
-`FEWIA_BEDROCK_MODEL_ID`, `FEWIA_BEDROCK_REGION`, `FEWIA_AWS_PROFILE`,
-and `FEWIA_BEDROCK_CREDENTIALS_FILE`. Read
-[infra/bedrock/README.md](infra/bedrock/README.md) for credentials.
+Make, Docker Desktop with Docker Compose, and Python 3 are prerequisites.
+For first-time setup, set `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env`
+file to an absolute host path outside the repository. The file at that path
+contains only the API key and uses mode `600`. Do not put the key in `.env`.
+The launcher uses Python 3 to validate the path before it runs Docker
+Compose. `FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the
+global endpoint. Run the following command from the repository root.
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
+make up
 ```
+
+Open the chat at
+[`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
+Read [runbooks/durable-jobs.md](runbooks/durable-jobs.md) for jobs.
+
+To select Bedrock explicitly, configure these values in `.env`:
+`FEWIA_BEDROCK_MODEL_ID`, `FEWIA_BEDROCK_REGION`, `FEWIA_AWS_PROFILE`,
+and `FEWIA_BEDROCK_CREDENTIALS_FILE`. Read
+[infra/bedrock/README.md](infra/bedrock/README.md) for credentials. Then run:
+
+```bash
+make up-bedrock
+```
+
+To start the base stack without provider credentials, run:
+
+```bash
+make up-offline
+```
+
+The OpenAI path uses Responses `gpt-6-luna` with reasoning `none`, output limit
+4096, `store=false`, and parallel tool calls disabled. Bedrock Nova keeps
+reasoning `low`. The two providers support different reasoning settings.
+See [the matched conversation benchmark](docs/EVALUATION.md#matched-nova-and-luna-runs)
+for smoke, full-run, and offline comparison commands. Real OpenAI evidence
+does not establish Bedrock, Plaid Sandbox, Kroger Certification, or
+deployed AWS evidence.
 
 To show live Kroger prices, add the Kroger override. It reads the client
 ID from `FEWIA_KROGER_CLIENT_ID_FILE` and the secret from

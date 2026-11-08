@@ -1,0 +1,6 @@
+PASS backend:ruff-check All checks passed!
+PASS backend:ruff-format 399 files already formatted
+PASS backend:mypy Success: no issues found in 195 source files
+PASS backend:pytest 18420 passed, 1 skipped, 1 warning in 76.13s (0:01:16)
+LINES 671/1000
+RESULT PASS

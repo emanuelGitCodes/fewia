@@ -49,6 +49,8 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.bedrock_prompt_cache is False
     assert settings.bedrock_guardrail_id is None
     assert settings.bedrock_guardrail_version is None
+    assert settings.openai_api_key_file is None
+    assert settings.openai_region == "us"
     assert settings.plaid_client_id is None
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
@@ -485,3 +487,53 @@ def test_secret_and_token_paths_reject_nul(tmp_path: Path) -> None:
     with pytest.raises(ProviderConfigurationError) as tokens:
         TokenFileResolver(nul_path)(REF)
     _static(tokens.value, marker, TOKEN_MARKER, "embedded null byte", "ValueError")
+
+
+@pytest.mark.parametrize("region", ["us", "global"])
+def test_openai_file_and_region_load_without_reading_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, region: str
+) -> None:
+    path = tmp_path / "not-created"
+    monkeypatch.setenv("FEWIA_OPENAI_API_KEY_FILE", str(path))
+    monkeypatch.setenv("FEWIA_OPENAI_REGION", region)
+    settings = load_provider_settings()
+    assert settings.openai_api_key_file == path
+    assert settings.openai_region == region
+    assert settings.bedrock_model_id is None
+    assert not hasattr(settings, "openai_api_key")
+
+
+@pytest.mark.parametrize("region", ["eu", "", "US", "https://other.invalid"])
+def test_openai_region_rejects_arbitrary_endpoints(
+    monkeypatch: pytest.MonkeyPatch, region: str
+) -> None:
+    monkeypatch.setenv("FEWIA_OPENAI_REGION", region)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        load_provider_settings()
+    _static(raised.value, region or "unused-marker")
+
+
+def test_chat_provider_conflict_is_generic(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_BEDROCK_MODEL_ID", "anthropic.model")
+    monkeypatch.setenv("FEWIA_OPENAI_API_KEY_FILE", "/not-read/openai-key")
+    with pytest.raises(ProviderConfigurationError) as raised:
+        load_provider_settings()
+    _static(raised.value, "anthropic.model", "/not-read/openai-key")
+
+
+def test_blank_openai_key_file_is_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEWIA_OPENAI_API_KEY_FILE", "   ")
+    with pytest.raises(ProviderConfigurationError):
+        load_provider_settings()
+
+
+def test_raw_openai_key_and_endpoint_env_are_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", SECRET_MARKER)
+    monkeypatch.setenv("FEWIA_OPENAI_API_KEY", SECRET_MARKER)
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://other.invalid")
+    settings = load_provider_settings()
+    assert settings.openai_api_key_file is None
+    assert settings.openai_region == "us"
+    assert SECRET_MARKER not in repr(settings)
