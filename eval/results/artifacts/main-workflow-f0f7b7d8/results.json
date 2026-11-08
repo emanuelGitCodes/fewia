@@ -1,0 +1,681 @@
+{
+  "revision": "f0f7b7d80159f4ec182138bd83479df8e27a95b7",
+  "recorded_at": "2026-11-07T23:07:52.807800-05:00",
+  "scope": "local browser, Nginx, API, queue worker and PostgreSQL on archived main; live OpenAI; Kroger MockTransport and synthetic connection state",
+  "rates": {
+    "source": "https://developers.openai.com/api/docs/pricing",
+    "model": "gpt-6-luna",
+    "tier": "Standard short context",
+    "region": "us",
+    "regional_uplift_percent": 10,
+    "usd_per_million": {
+      "uncached_input": "0.11",
+      "cached_input": "0.011",
+      "output": "0.55"
+    }
+  },
+  "completed_cases": [
+    {
+      "case": "valid_apply",
+      "expected_apply_cap_cents": 1703,
+      "evidence": {
+        "model": "live GPT-6 Luna",
+        "retailer": "Kroger fixture"
+      },
+      "stages": {
+        "submit": {
+          "http": 202,
+          "ms": 96.97
+        },
+        "chat": {
+          "http": 200,
+          "ms_from_submit": 3176.01,
+          "job_status": "succeeded",
+          "result_status": "clarification",
+          "model_turns": 2,
+          "usage": {
+            "inputTokens": 9695,
+            "outputTokens": 109,
+            "cacheReadInputTokens": 8820
+          },
+          "tool_trace": [
+            {
+              "name": "propose_plan_change",
+              "outcome": "success"
+            }
+          ],
+          "reply_sha256": "4e0b393aa6dcd8df03c58acc94289cc632ac2bb5588fdef9104e79d0cb07ea0a",
+          "proposal_created": true
+        },
+        "proposal": {
+          "http": 200,
+          "ms_from_submit": 3186.33,
+          "operations": [
+            {
+              "op": "set_pantry",
+              "ingredient_id": "olive_oil",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "cumin",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "salt",
+              "owned": false
+            }
+          ]
+        },
+        "apply": {
+          "http": 200,
+          "ms_to_response": 47.02,
+          "sent_cap_cents": 1703,
+          "ms_to_visible_outcome": 51.83,
+          "visible_total": "$17.03"
+        },
+        "persistence": {
+          "revisions_added_by_apply": 1,
+          "proposal_status": "applied",
+          "original_revision_unchanged": true,
+          "applied_snapshot_cap_cents": 4000,
+          "rejected_database_state_equal": null
+        },
+        "store_fixture": {
+          "http": 200,
+          "ms_to_selected": 82.69
+        },
+        "cart_fixture": {
+          "http": 200,
+          "ms_to_response": 53.06,
+          "ms_to_visible": 56.47,
+          "active_cap_cents": 1703,
+          "matched_ingredients": [
+            "black_beans",
+            "cumin",
+            "olive_oil",
+            "onion",
+            "salsa",
+            "salt",
+            "tortillas"
+          ],
+          "unmatched_count": 0,
+          "preview_saved_expected_snapshot": true,
+          "revisions_added_by_preview_flow": 1
+        }
+      },
+      "workflow_wall_ms": 3751.71,
+      "instrumentation": {
+        "browser_time_includes_test_checks_and_ui_actions": true,
+        "proposal_ready_marker_ms": 3186.32
+      },
+      "outcome": "pass",
+      "forbidden_or_external_browser_requests": 0,
+      "browser_runtime_error_count": 0,
+      "provider_calls": [
+        {
+          "ms": 1559.097,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 4413,
+            "outputTokens": 68,
+            "cacheReadInputTokens": 4410
+          }
+        },
+        {
+          "ms": 1171.396,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 5282,
+            "outputTokens": 41,
+            "cacheReadInputTokens": 4410
+          }
+        }
+      ],
+      "provider_elapsed_ms": 2730.493,
+      "estimated_model_usd": "0.00025322",
+      "app_routes": [
+        {
+          "method": "POST",
+          "path": "/grocery/plans",
+          "status": 201,
+          "ms": 6.113
+        },
+        {
+          "method": "GET",
+          "path": "/grocery/proposals/{id}",
+          "status": 200,
+          "ms": 2.354
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/proposals/{id}/apply",
+          "status": 200,
+          "ms": 5.597
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/kroger/stores",
+          "status": 200,
+          "ms": 1.35
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/plans",
+          "status": 201,
+          "ms": 3.437
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/kroger/cart/preview",
+          "status": 200,
+          "ms": 3.748
+        }
+      ],
+      "kroger_fixture_requests": [
+        {
+          "method": "GET",
+          "path": "/v1/locations"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        }
+      ]
+    },
+    {
+      "case": "one_cent_rejection",
+      "expected_apply_cap_cents": 1702,
+      "evidence": {
+        "model": "live GPT-6 Luna",
+        "retailer": "Kroger fixture"
+      },
+      "stages": {
+        "submit": {
+          "http": 202,
+          "ms": 88.98
+        },
+        "chat": {
+          "http": 200,
+          "ms_from_submit": 3151.85,
+          "job_status": "succeeded",
+          "result_status": "clarification",
+          "model_turns": 2,
+          "usage": {
+            "inputTokens": 9698,
+            "outputTokens": 103,
+            "cacheReadInputTokens": 8820
+          },
+          "tool_trace": [
+            {
+              "name": "propose_plan_change",
+              "outcome": "success"
+            }
+          ],
+          "reply_sha256": "4e0b393aa6dcd8df03c58acc94289cc632ac2bb5588fdef9104e79d0cb07ea0a",
+          "proposal_created": true
+        },
+        "proposal": {
+          "http": 200,
+          "ms_from_submit": 3161.83,
+          "operations": [
+            {
+              "op": "set_pantry",
+              "ingredient_id": "olive_oil",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "cumin",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "salt",
+              "owned": false
+            }
+          ]
+        },
+        "apply": {
+          "http": 409,
+          "ms_to_response": 50.06,
+          "sent_cap_cents": 1702,
+          "rejection": {
+            "code": "proposal_constraints",
+            "reason": "over_budget",
+            "total_cents": 1703,
+            "available_cents": 1702
+          },
+          "ms_to_visible_outcome": 56.69,
+          "visible_total": "$8.06"
+        },
+        "persistence": {
+          "revisions_added_by_apply": 0,
+          "proposal_status": "pending",
+          "original_revision_unchanged": true,
+          "applied_snapshot_cap_cents": null,
+          "rejected_database_state_equal": true
+        },
+        "store_fixture": {
+          "http": 200,
+          "ms_to_selected": 82.98
+        },
+        "cart_fixture": {
+          "http": 200,
+          "ms_to_response": 52.79,
+          "ms_to_visible": 56.19,
+          "active_cap_cents": 1702,
+          "matched_ingredients": [
+            "black_beans",
+            "onion",
+            "salsa",
+            "tortillas"
+          ],
+          "unmatched_count": 0,
+          "preview_saved_expected_snapshot": true,
+          "revisions_added_by_preview_flow": 1
+        }
+      },
+      "workflow_wall_ms": 3644.96,
+      "instrumentation": {
+        "browser_time_includes_test_checks_and_ui_actions": true,
+        "proposal_ready_marker_ms": 3161.82
+      },
+      "outcome": "pass",
+      "forbidden_or_external_browser_requests": 0,
+      "browser_runtime_error_count": 0,
+      "provider_calls": [
+        {
+          "ms": 1235.309,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 4413,
+            "outputTokens": 68,
+            "cacheReadInputTokens": 4410
+          }
+        },
+        {
+          "ms": 1132.632,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 5285,
+            "outputTokens": 35,
+            "cacheReadInputTokens": 4410
+          }
+        }
+      ],
+      "provider_elapsed_ms": 2367.941,
+      "estimated_model_usd": "0.00025025",
+      "app_routes": [
+        {
+          "method": "POST",
+          "path": "/grocery/plans",
+          "status": 201,
+          "ms": 3.272
+        },
+        {
+          "method": "GET",
+          "path": "/grocery/proposals/{id}",
+          "status": 200,
+          "ms": 2.96
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/proposals/{id}/apply",
+          "status": 409,
+          "ms": 4.105
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/kroger/stores",
+          "status": 200,
+          "ms": 1.312
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/plans",
+          "status": 201,
+          "ms": 3.965
+        },
+        {
+          "method": "POST",
+          "path": "/grocery/kroger/cart/preview",
+          "status": 200,
+          "ms": 3.144
+        }
+      ],
+      "kroger_fixture_requests": [
+        {
+          "method": "GET",
+          "path": "/v1/locations"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/products"
+        }
+      ]
+    }
+  ],
+  "exploratory_cases": [
+    {
+      "case": "valid_apply",
+      "expected_apply_cap_cents": 1703,
+      "evidence": {
+        "model": "live GPT-6 Luna",
+        "retailer": "Kroger fixture"
+      },
+      "stages": {
+        "submit": {
+          "http": 202,
+          "ms": 94.98
+        },
+        "chat": {
+          "http": 200,
+          "ms_from_submit": 5472.51,
+          "job_status": "succeeded",
+          "result_status": "clarification",
+          "model_turns": 2,
+          "usage": {
+            "inputTokens": 9696,
+            "outputTokens": 103,
+            "cacheReadInputTokens": 4410
+          },
+          "tool_trace": [
+            {
+              "name": "propose_plan_change",
+              "outcome": "success"
+            }
+          ],
+          "reply_sha256": "4e0b393aa6dcd8df03c58acc94289cc632ac2bb5588fdef9104e79d0cb07ea0a",
+          "proposal_created": true
+        },
+        "proposal": {
+          "http": 200,
+          "ms_from_submit": 5493.49,
+          "operations": [
+            {
+              "op": "set_pantry",
+              "ingredient_id": "olive_oil",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "cumin",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "salt",
+              "owned": false
+            }
+          ]
+        },
+        "apply": {
+          "http": 200,
+          "ms_to_response": 40.36,
+          "sent_cap_cents": 1703,
+          "ms_to_visible_outcome": 44.55,
+          "visible_total": "$17.03"
+        },
+        "persistence": {
+          "revisions_added_by_apply": 1,
+          "proposal_status": "applied",
+          "original_revision_unchanged": true,
+          "rejected_database_state_equal": null
+        },
+        "store_fixture": {
+          "http": 200,
+          "ms_to_selected": 81.82
+        },
+        "cart_fixture": {
+          "http": 200,
+          "ms_to_response": 57.15
+        }
+      },
+      "outcome": "fail",
+      "failure": "Expected values to be strictly deep-equal:",
+      "forbidden_or_external_browser_requests": 0,
+      "browser_runtime_error_count": 0,
+      "provider_calls": [
+        {
+          "ms": 2781.932,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 4413,
+            "outputTokens": 68,
+            "cacheReadInputTokens": 0
+          }
+        },
+        {
+          "ms": 1550.69,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 5283,
+            "outputTokens": 35,
+            "cacheReadInputTokens": 4410
+          }
+        }
+      ],
+      "provider_elapsed_ms": 4332.622,
+      "estimated_model_usd": "0.00068662"
+    },
+    {
+      "case": "one_cent_rejection",
+      "expected_apply_cap_cents": 1702,
+      "evidence": {
+        "model": "live GPT-6 Luna",
+        "retailer": "Kroger fixture"
+      },
+      "stages": {
+        "submit": {
+          "http": 202,
+          "ms": 92.64
+        },
+        "chat": {
+          "http": 200,
+          "ms_from_submit": 3175.11,
+          "job_status": "succeeded",
+          "result_status": "clarification",
+          "model_turns": 2,
+          "usage": {
+            "inputTokens": 9699,
+            "outputTokens": 98,
+            "cacheReadInputTokens": 8820
+          },
+          "tool_trace": [
+            {
+              "name": "propose_plan_change",
+              "outcome": "success"
+            }
+          ],
+          "reply_sha256": "4e0b393aa6dcd8df03c58acc94289cc632ac2bb5588fdef9104e79d0cb07ea0a",
+          "proposal_created": true
+        },
+        "proposal": {
+          "http": 200,
+          "ms_from_submit": 3190.4,
+          "operations": [
+            {
+              "op": "set_pantry",
+              "ingredient_id": "olive_oil",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "cumin",
+              "owned": false
+            },
+            {
+              "op": "set_pantry",
+              "ingredient_id": "salt",
+              "owned": false
+            }
+          ]
+        },
+        "apply": {
+          "http": 409,
+          "ms_to_response": 43.7,
+          "sent_cap_cents": 1702,
+          "rejection": {
+            "code": "proposal_constraints",
+            "reason": "over_budget",
+            "total_cents": 1703,
+            "available_cents": 1702
+          },
+          "ms_to_visible_outcome": 50.96,
+          "visible_total": "$8.06"
+        },
+        "persistence": {
+          "revisions_added_by_apply": 0,
+          "proposal_status": "pending",
+          "original_revision_unchanged": true,
+          "rejected_database_state_equal": true
+        },
+        "store_fixture": {
+          "http": 200,
+          "ms_to_selected": 83.47
+        },
+        "cart_fixture": {
+          "http": 200,
+          "ms_to_response": 55.41
+        }
+      },
+      "outcome": "fail",
+      "failure": "Expected values to be strictly deep-equal:",
+      "forbidden_or_external_browser_requests": 0,
+      "browser_runtime_error_count": 0,
+      "provider_calls": [
+        {
+          "ms": 1380.315,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 4413,
+            "outputTokens": 68,
+            "cacheReadInputTokens": 4410
+          }
+        },
+        {
+          "ms": 1534.953,
+          "status": "ok",
+          "usage": {
+            "inputTokens": 5286,
+            "outputTokens": 30,
+            "cacheReadInputTokens": 4410
+          }
+        }
+      ],
+      "provider_elapsed_ms": 2915.268,
+      "estimated_model_usd": "0.00024761"
+    }
+  ],
+  "exploratory_note": "Initial live pair completed both Apply decisions and received HTTP 200 from cart preview. The harness initially compared all snapshot fields to the earlier revision and did not allow the current browser cap on the cart snapshot. That assertion stopped the browser checks before cart rendering was verified. The later pair asserts meals, pantry and current cart snapshot cap.",
+  "credential_setup": {
+    "attempts": [
+      {
+        "case": "valid_apply",
+        "expected_apply_cap_cents": 1703,
+        "evidence": {
+          "model": "live GPT-6 Luna",
+          "retailer": "Kroger fixture"
+        },
+        "stages": {
+          "submit": {
+            "http": 202,
+            "ms": 96.76
+          },
+          "chat": {
+            "http": 200,
+            "ms_from_submit": 1642.83,
+            "job_status": "failed",
+            "tool_trace": [],
+            "proposal_created": false
+          }
+        },
+        "outcome": "fail",
+        "failure": "Expected values to be strictly equal:",
+        "forbidden_or_external_browser_requests": 0,
+        "browser_runtime_error_count": 0
+      },
+      {
+        "case": "one_cent_rejection",
+        "expected_apply_cap_cents": 1702,
+        "evidence": {
+          "model": "live GPT-6 Luna",
+          "retailer": "Kroger fixture"
+        },
+        "stages": {
+          "submit": {
+            "http": 202,
+            "ms": 80.01
+          },
+          "chat": {
+            "http": 200,
+            "ms_from_submit": 866.73,
+            "job_status": "failed",
+            "tool_trace": [],
+            "proposal_created": false
+          }
+        },
+        "outcome": "fail",
+        "failure": "Expected values to be strictly equal:",
+        "forbidden_or_external_browser_requests": 0,
+        "browser_runtime_error_count": 0
+      }
+    ],
+    "provider_timings": [
+      {
+        "ms": 665.591,
+        "status": "error"
+      },
+      {
+        "ms": 260.593,
+        "status": "error"
+      }
+    ],
+    "provider_http": 401,
+    "error": "invalid_api_key",
+    "token_usage_reported": false
+  },
+  "cost_summary_usd": {
+    "completed_pair": "0.00050347",
+    "exploratory_pair": "0.00093423",
+    "reported_usage_total": "0.00143770"
+  }
+}
