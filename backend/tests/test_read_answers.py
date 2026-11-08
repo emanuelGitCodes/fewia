@@ -983,7 +983,7 @@ def test_real_get_plan_without_meals() -> None:
 def _proposed(*ops: dict[str, object]) -> dict[str, object]:
     meals = [_TACOS, {"recipe_id": "bean_tacos", "servings": 1}]
     return execute_propose(
-        {"operations": list(ops)}, _BUDGET, _revision(meals), lambda _: "p-1"
+        {"operations": list(ops)}, _BUDGET, _revision(meals), lambda _, dietary: "p-1"
     )
 
 

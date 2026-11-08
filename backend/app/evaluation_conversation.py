@@ -26,7 +26,12 @@ from app.agent.chat_messages import is_guardrail_decline, next_what_if_recipe
 from app.agent.grounding import REASON_CODES
 from app.agent.proposal_tool import Propose
 from app.agent.provider import LLMProvider
-from app.domain.plan_proposal import ProposalInvalid, apply_operations, parse_operations
+from app.domain.plan_proposal import (
+    ProposalDietaryConstraints,
+    ProposalInvalid,
+    apply_operations,
+    parse_operations,
+)
 from app.domain.plan_revision import PlanRevisionInput
 from app.evaluation_budget_inputs import fixture_budget
 from app.evaluation_capture import CaptureProvider
@@ -243,7 +248,9 @@ def _observation(
 
 
 def _stub(pending: list[list[dict[str, object]]], label: str) -> Propose:
-    def propose(operations: list[dict[str, object]]) -> str:
+    def propose(
+        operations: list[dict[str, object]], dietary: ProposalDietaryConstraints
+    ) -> str:
         pending[:] = [deepcopy(operations)]
         return label
 

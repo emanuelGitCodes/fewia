@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 import pytest
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -17,6 +18,7 @@ from app.agent.chat_context import plan_ingredient_ids
 from app.agent.chat_loop import ChatUnavailable
 from app.agent.chat_messages import ChatProtocolError
 from app.agent.planning_tool import TOOL_NAME, execute_plan
+from app.api import proposals as proposals_api
 from app.db import Base
 from app.domain.budget import (
     STALE_SPENDING_ERROR,
@@ -24,8 +26,10 @@ from app.domain.budget import (
     StaleSpendingError,
     calculate_budget,
 )
-from app.domain.grocery import SUPPORTED_RECIPE_IDS
+from app.domain.grocery import Diet
+from app.models import User
 from app.plan_models import PlanProposal, PlanRevision
+from app.provider_settings import GroceryProviderSettings
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
 from app.services.plan_job import SpendingInput
@@ -669,10 +673,29 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
         assert loaded["previous_search"] is None
 
 
+@pytest.mark.parametrize(
+    "prior_diet,new_diet,effective_diet",
+    [
+        (None, None, "omnivore"),
+        ("vegetarian", "omnivore", "vegetarian"),
+        ("vegan", "vegetarian", "vegan"),
+        ("vegetarian", "vegan", "vegan"),
+        ("vegan", None, "vegan"),
+    ],
+)
 def test_chat_job_proposal_tool_stores_a_committed_proposal(
     monkeypatch: pytest.MonkeyPatch,
+    prior_diet: Diet | None,
+    new_diet: Diet | None,
+    effective_diet: Diet,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    monkeypatch.setattr(proposals_api.grocery_api, "_ny_now", lambda: NOW)
+    monkeypatch.setattr(
+        proposals_api,
+        "get_provider_settings",
+        lambda: GroceryProviderSettings.model_construct(spending_source="manual"),
+    )
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -680,18 +703,35 @@ def test_chat_job_proposal_tool_stores_a_committed_proposal(
     )
     Base.metadata.create_all(engine)
     factory: sessionmaker[Session] = sessionmaker(engine)
-    kept, added = SUPPORTED_RECIPE_IDS[:2]
     snapshot = {
-        "meals": [{"recipe_id": kept, "servings": 2}],
-        "pantry_ingredient_ids": [],
-        "plan_cap_cents": None,
+        "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+        "pantry_ingredient_ids": ["olive_oil"],
+        "plan_cap_cents": 5000,
     }
     revision_id = "cccccccc-cccc-cccc-cccc-cccccccccccc"
     try:
         with factory() as seed:
+            seed.add(User(id=1, display_name="demo"))
             seed.add(PlanRevision(id=UUID(revision_id), user_id=1, snapshot=snapshot))
             seed.commit()
-        operations = [{"op": "add", "recipe_id": added, "servings": 2}]
+        operations = [
+            {"op": "set_pantry", "ingredient_id": "olive_oil", "owned": False}
+        ]
+        arguments: dict[str, object] = {"operations": operations}
+        if new_diet is not None:
+            arguments.update(
+                diet=new_diet,
+                ingredient_exclusions=["onion", "unknown new restriction", "salsa"],
+            )
+        previous: dict[str, object] | None = None
+        if prior_diet is not None:
+            previous = {
+                "meals": [{"recipe_id": "bean_tacos", "servings": 2}],
+                "budget_period": PERIOD.isoformat(),
+                "diet": prior_diet,
+                "ingredient_exclusions": ["salsa", "unknown prior restriction"],
+                "plan_cap_cents": 1,
+            }
         provider = FakeLLM(
             [
                 _reply(
@@ -700,7 +740,7 @@ def test_chat_job_proposal_tool_stores_a_committed_proposal(
                             "toolUse": {
                                 "toolUseId": "p1",
                                 "name": "propose_plan_change",
-                                "input": {"operations": operations},
+                                "input": arguments,
                             }
                         }
                     ],
@@ -711,7 +751,9 @@ def test_chat_job_proposal_tool_stores_a_committed_proposal(
         )
         result = chat_job_module.chat_job(
             chat_payload(
-                message="add another meal",
+                message="put olive oil back on the shopping list",
+                plan_cap_cents=1702,
+                previous_request=previous,
                 plan_revision_id=revision_id,
                 plan_revision={"id": revision_id, "snapshot": snapshot},
             ),
@@ -728,6 +770,62 @@ def test_chat_job_proposal_tool_stores_a_committed_proposal(
         assert str(rows[0].base_plan_revision_id) == revision_id
         assert rows[0].status == "pending"
         assert rows[0].operations == operations
+        exclusions = []
+        if prior_diet is not None:
+            exclusions += ["salsa", "unknown prior restriction"]
+        if new_diet is not None:
+            exclusions += ["onion", "unknown new restriction", "salsa"]
+        assert rows[0].apply_constraints == {
+            "monthly_limit_cents": 10_000,
+            "plan_cap_cents": 1702,
+            "diet": effective_diet,
+            "ingredient_exclusions": list(dict.fromkeys(exclusions)),
+        }
+        if prior_diet is None and new_diet is None:
+            for _ in range(2):
+                with factory() as attempt:
+                    applied = proposals_api.apply_proposal(UUID(proposal_id), attempt)
+                    assert isinstance(applied, JSONResponse)
+                    assert applied.status_code == 409
+                    assert json.loads(bytes(applied.body)) == {
+                        "detail": {
+                            "code": "proposal_constraints",
+                            "reason": "over_budget",
+                            "total_cents": 1703,
+                            "available_cents": 1702,
+                        }
+                    }
+            with factory() as check:
+                revisions = check.scalars(select(PlanRevision)).all()
+                assert len(revisions) == 1
+                assert revisions[0].snapshot == snapshot
+                pending = check.get(PlanProposal, UUID(proposal_id))
+                assert pending is not None and pending.status == "pending"
+                assert pending.applied_plan_revision_id is None
     finally:
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "previous",
+    [
+        {},
+        {"meals": [{"recipe_id": "bean_tacos", "servings": 1}], "diet": "paleo"},
+        {
+            "meals": [{"recipe_id": "bean_tacos", "servings": 1}],
+            "budget_period": "2026-09-01",
+            "ingredient_exclusions": [1],
+        },
+    ],
+)
+def test_chat_job_rejects_invalid_prior_constraints_before_the_provider(
+    previous: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        chat_job_module.chat_job(
+            chat_payload(previous_request=previous),
+            lambda: None,
+            provider=FailLLM(),
+            factory=FACTORY,
+        )
