@@ -36,12 +36,13 @@ Expected states are observation targets. No one has run this list.
 - The operator MUST keep credentials, client IDs, key files, and file contents
   off the screen and out of the recording.
 - The operator MUST NOT create a public URL.
-- Chat uses GPT-6 Luna through the OpenAI overlay in
+- Chat uses GPT-6 Luna through OpenAI in
   [LOCAL_GROCERY_DEMO.md](../LOCAL_GROCERY_DEMO.md)
   ([decision 0027](../../wiki/decisions/0027-luna-default-chat-provider.md)).
   It needs owner-approved provider use.
-  Kroger needs its overlay and the owner's sign-in.
-- Run both overlays once before the session. Close the tabs. Reopen `/prototype`.
+  The live demo starts with `make up-kroger-live`. Live Kroger needs the
+  owner's sign-in.
+- Run `make up-kroger-live` once before the session. Close the tabs. Reopen `/prototype`.
 - Demo input: a $40 plan cap. `/prototype` has no monthly-limit control and sends the cap as the limit. This is a user choice.
   It is not a measured saving.
 
@@ -57,7 +58,7 @@ Say the class of each result on screen. Use these labels only.
 | `archived` | A saved result from an earlier dated batch. Say `archived` first, then its date, revision, and evidence class. Never a call made in this session. |
 | `fixture` | Deterministic output from a scripted provider or a test. Never a live call. |
 
-`make up` runs Kroger in fixture mode ([decision 0029](../../wiki/decisions/0029-kroger-fixture-mode-default.md)). The page labels each fixture Kroger result `FIXTURE, NOT KROGER`. The live demo uses `compose.kroger.yaml`, not `make up`. The app has no model fallback label. The operator shows that label in a slide, a window title, or a banner.
+`make up` runs Kroger in fixture mode ([decision 0029](../../wiki/decisions/0029-kroger-fixture-mode-default.md)). The page labels each fixture Kroger result `FIXTURE, NOT KROGER`. The live demo uses `make up-kroger-live`, not `make up`. The app has no model fallback label. The operator shows that label in a slide, a window title, or a banner.
 A model fallback MUST carry the label `ARCHIVED, NOT LIVE`.
 A Kroger fallback MUST carry the label `SAMPLE CATALOG, NOT KROGER`.
 A fallback MUST NOT appear under a `live provider` label.

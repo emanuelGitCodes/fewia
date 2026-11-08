@@ -116,11 +116,10 @@ them in the shell):
 - `FEWIA_BEDROCK_GUARDRAIL_ID=<GuardrailId output>`
 - `FEWIA_BEDROCK_GUARDRAIL_VERSION=<GuardrailVersion output>`
 
-`compose.bedrock.yaml` passes both to `api` and `worker`. The guardrail is
+The evaluation command-line tools read both. The guardrail is
 off until both are set. Leaving both unset (or empty) keeps it off, and the
 Converse request does not change. Setting only one is a configuration error.
-Then recreate `api` and `worker` as in the credentials steps above. The
-guardrail adds a per-text-unit charge.
+The guardrail adds a per-text-unit charge.
 
 Only a numbered version (a positive integer such as `1` or `12`) is accepted.
 `DRAFT` is rejected because its policy can change at any time. The guardrail
@@ -132,7 +131,7 @@ A policy edit produces a new guardrail version on deploy. The version
 description is `policy <digest>`, a SHA-256 prefix over the topics, filters,
 and blocked messages, so any policy change replaces the version. After the
 owner deploys, read the `GuardrailVersion` output, update
-`FEWIA_BEDROCK_GUARDRAIL_VERSION` to it, and recreate `api` and `worker`.
+`FEWIA_BEDROCK_GUARDRAIL_VERSION` to it.
 
 ## Local ignored `.env`
 
@@ -162,19 +161,9 @@ code in chat.
 
 Set `FEWIA_BEDROCK_CREDENTIALS_FILE` to the absolute path of that file.
 The helper assumes this role after MFA succeeds. Maximum session duration
-is one hour. Renew the session when it expires. Operators MUST run these
-steps in order. Use the existing host MFA helper. Then force-recreate
-`api` and `worker` with the current Compose override. Then reload nginx.
-Cached DNS can otherwise retain the old API container address.
-
-```bash
-docker compose -p fewia-grocery-b7d4 --env-file .env -f compose.yaml -f compose.bedrock.yaml \
-  up -d --no-deps --force-recreate api worker
-docker exec fewia-grocery-b7d4-web-1 nginx -s reload
-```
-
-The bind mount pins the host file inode. The SDK keeps loaded
-credentials. An in-process restart does not rebind the credentials file.
+is one hour. Renew the session when it expires. Use the existing host MFA
+helper. The credentials serve the evaluation command-line tools. Start a
+new tool run after each renewal, because the SDK keeps loaded credentials.
 
 The host MUST NOT pass the admin user credentials into containers. Floci
 dummy credentials stay separate. Do not set a global `AWS_ENDPOINT_URL`.
@@ -182,38 +171,18 @@ Bedrock MUST keep the real regional `bedrock-runtime` endpoint.
 
 The application `modelId` for this path is `us.amazon.nova-2-lite-v1:0`.
 
-A configured API and worker do not prove Nova 2 Lite is operational.
+A configured credentials file does not prove Nova 2 Lite is operational.
 Operators MUST NOT treat role deploy as application success.
 
-## Optional Compose override
+## No Compose overlay
 
-`compose.bedrock.yaml` overrides `api` and `worker` only. It does not
-change Floci, PostgreSQL, or `sync-worker`.
+No Docker overlay for Bedrock exists. The browser stack in `compose.yaml`
+runs GPT-6 Luna. Bedrock runs only in the evaluation command-line tools
+(`python -m app.evaluate` and `app.evaluate_conversation`) outside Docker.
 
-Pass `.env` only for Compose interpolation:
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
-```
-
-Operators MUST NOT mount `~/.aws`. Compose MUST NOT pass the entire
-`.env` into a container. The override MUST NOT set
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or `AWS_SESSION_TOKEN`.
-
-The override sets this allowlist:
-
-- `FEWIA_BEDROCK_MODEL_ID`
-- `FEWIA_BEDROCK_REGION`
-- `FEWIA_AWS_PROFILE`
-- `AWS_SHARED_CREDENTIALS_FILE=/run/fewia/aws-credentials`
-- `AWS_CONFIG_FILE=/dev/null`
-- `AWS_EC2_METADATA_DISABLED=true`
-
-It bind-mounts `FEWIA_BEDROCK_CREDENTIALS_FILE` read-only to
-`/run/fewia/aws-credentials`. The bind sets `create_host_path: false`.
-Compose MUST fail when that variable is missing or empty. Compose MUST
-fail when the host file is missing. Compose MUST NOT create a directory
-at that path.
+Operators MUST NOT mount `~/.aws` into a container. The host MUST NOT
+export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or
+`AWS_SESSION_TOKEN` from the admin user.
 
 ## Cost allocation tags
 

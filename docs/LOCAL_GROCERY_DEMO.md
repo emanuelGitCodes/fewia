@@ -7,10 +7,9 @@ the invitation-only hosted path, read [HOSTED_DEMO.md](HOSTED_DEMO.md).
 ## Scope
 
 The local stack runs a React and TypeScript chat, FastAPI, PostgreSQL, a
-worker, a sync worker, and Floci SQS and S3. Real Bedrock handles chat
-when the Bedrock overlay is on. The default browser path uses GPT-6 Luna
-through OpenAI. The base stack runs without a provider, and the chat panel
-then shows "Ask FEWIA is off. The plan still works."
+worker, a sync worker, and Floci SQS and S3. Chat uses GPT-6 Luna through
+OpenAI. Kroger runs in fixture mode. Bedrock serves only the evaluation
+tools.
 
 The catalog holds 40 meals under
 [decision 0017](../wiki/decisions/0017-forty-meal-catalog.md). A request
@@ -50,34 +49,29 @@ From the repository root, start the default browser path:
 make up
 ```
 
-The launcher uses Python 3 to check that `FEWIA_OPENAI_API_KEY` is set
-before it runs Docker Compose. The `bootstrap` service runs the migrations, seeds
-the demo user, and provisions the Floci resources. It then exits with code
-0. `api`, `worker`, and `sync-worker` start after it completes.
+`make up` runs `compose.yaml` through `infra/openai/compose-up.sh`. The
+launcher prints stage lines and checks the OpenAI key. HTTP 401 or 403
+stops it before any build. `FEWIA_SKIP_KEY_CHECK=1` skips the check. It
+then shows Compose progress and waits for the `bootstrap` service and the
+API. The `bootstrap` service runs the migrations, seeds the demo user, and
+provisions the Floci resources. It then exits with code 0. `api`,
+`worker`, and `sync-worker` start after it completes. The launcher prints
+the app address when the API is ready.
 
 The browser listens at
 [`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
-Provider startup does not fall back automatically. Choose an explicit
-alternative when you want Bedrock or no provider.
 
-## Explicit provider alternatives
+## Live Kroger
 
-Configure the Bedrock settings and credentials in `.env` as described in
-[`infra/bedrock/README.md`](../infra/bedrock/README.md). Then run:
-
-```bash
-make up-bedrock
-```
-
-This target starts the base stack with the Bedrock overlay.
-For a stack without provider credentials, run:
+To use live Kroger instead of fixture mode, set the three Kroger file
+variables in `.env` as described in
+[Optional Kroger overlay](#optional-kroger-overlay). Then run:
 
 ```bash
-make up-offline
+make up-kroger-live
 ```
 
-The offline target starts the base stack only. The chat panel then shows
-"Ask FEWIA is off. The plan still works."
+There is no offline mode. Without a working OpenAI key, `make up` fails.
 
 Check that each service is up and that `api` is healthy:
 
@@ -119,20 +113,17 @@ catalog change MAY change them.
 
 ## Bedrock settings
 
-Bedrock uses real service endpoints. Bedrock credentials stay separate
-from the Floci dummy credentials. Do not set a global AWS endpoint.
+Bedrock serves only the evaluation command-line tools
+(`python -m app.evaluate` and `app.evaluate_conversation`). They run
+outside Docker and compare Nova with Luna. The browser stack does not use
+Bedrock. Bedrock uses real service endpoints. Bedrock credentials stay
+separate from the Floci dummy credentials. Do not set a global AWS
+endpoint.
 
 Copy `.env.example` to `.env`. Set mode `600`. Git ignores `.env`. Do not
 paste secret values or host paths into this runbook. Follow
 [`infra/bedrock/README.md`](../infra/bedrock/README.md) for the role and
-the host MFA helper. Start Bedrock with `make up-bedrock`. The matching
-Compose command uses the base and Bedrock files with `.env`:
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml up -d
-```
-
-The overlay mounts the credentials file into `api` and `worker` only.
+the host MFA helper. No Docker overlay for Bedrock exists.
 
 ## Optional Kroger overlay
 
@@ -143,16 +134,16 @@ IDs included, in an open source repository. Set
 the absolute paths. `FEWIA_KROGER_ENVIRONMENT` defaults to
 `certification`; set it to `production` only after Kroger approves the app.
 
-`make up` starts Kroger in fixture mode through
-[`compose.kroger-fixture.yaml`](../compose.kroger-fixture.yaml). Fixture
+[`compose.yaml`](../compose.yaml) runs Kroger in fixture mode. Fixture
 mode needs no Kroger files and makes no Kroger call. The steps below set
-up live Kroger instead. Do not combine the two overlays.
+up live Kroger instead.
 
-[`compose.kroger.yaml`](../compose.kroger.yaml) mounts both files
-read-only into `api` and `worker`:
+[`compose.kroger.yaml`](../compose.kroger.yaml) is the only overlay. It
+mounts both files read-only into `api` and `worker`. The equivalent
+Compose command is:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d --build
 ```
 
 The overlay also needs a token key file for the Kroger account sign-in.
@@ -180,16 +171,10 @@ swaps in or looks up a food with no sample price, the API adds one live
 Kroger price as it serves the reply. The application MUST NOT store Kroger
 content. Plan acceptance and every total use sample catalog cents only.
 
-GPT-6 Luna and Kroger together:
+GPT-6 Luna with live Kroger:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.openai.yaml -f compose.kroger.yaml up -d
-```
-
-Bedrock and Kroger together:
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.kroger.yaml up -d
+make up-kroger-live
 ```
 
 ## Health and capability

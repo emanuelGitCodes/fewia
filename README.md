@@ -2,12 +2,10 @@
 
 FEWIA is a budget-aware grocery planning chat for CAP 6938. It runs as a
 local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and
-local Floci SQS and S3 in Docker Compose. The default browser path uses
-GPT-6 Luna through OpenAI. Run `make up` to check the API key setting and start the OpenAI overlay. `make up-bedrock`
-selects real Amazon Bedrock through the `LLMProvider` protocol in
-`backend/app/agent/`. `make up-offline` starts the base stack without a
-provider, so chat is unavailable. FEWIA does not switch providers
-automatically. The default spending source is `manual`. The monthly limit
+local Floci SQS and S3 in Docker Compose. One file, `compose.yaml`, starts
+the whole stack. The chat model is always GPT-6 Luna through OpenAI. Amazon
+Bedrock runs only in the evaluation command-line tools, which compare it
+with Luna. See [decision 0030](wiki/decisions/0030-one-compose-file-luna-only.md). The default spending source is `manual`. The monthly limit
 that the user enters is the whole budget. Fixture spending stays an
 optional setting. Plaid work is last. The Plaid Sandbox adapters stay in
 the code. Live Plaid Sandbox evidence remains pending. See
@@ -30,10 +28,10 @@ services. See
 The nutrition decision is
 [wiki/decisions/0010-usda-spoonacular-overlay.md](wiki/decisions/0010-usda-spoonacular-overlay.md).
 FEWIA stores nutrition facts from USDA FoodData Central. These facts are
-not a medical claim. The prototype chat can show a labeled live Kroger
-price for a food with no sample price. That overlay is optional and off
-by default. It appears only when the Kroger credential files are set and
-the user picks a store. FEWIA stores no Kroger content. Budget acceptance
+not a medical claim. The prototype chat can show a labeled Kroger price
+for a food with no sample price after the user picks a store. With
+`make up`, the price comes from the fixture and carries the label
+`FIXTURE, NOT KROGER`. A live Kroger price needs `make up-kroger-live`. FEWIA stores no Kroger content. Budget acceptance
 still uses the FEWIA sample-catalog cents, not the Kroger price. Every
 sample-catalog estimate MUST carry this exact notice: "Estimated from the
 demo price catalog. Store prices, availability, taxes, delivery fees,
@@ -48,19 +46,42 @@ health-prediction scope is historical and retired. See
 
 ## Quick start
 
-Make, a current Docker Desktop with Docker Compose, and Python 3 are
-prerequisites. FEWIA is tested with Docker Compose 5.2.
-For first-time setup, copy `.env.example` to `.env` and set
-`FEWIA_OPENAI_API_KEY` to an OpenAI API key from your own project. Git
-ignores `.env`. Never commit it, share it, or show it on screen.
-Docker Compose gives the key to the worker as a secret file. The key is not
-in the container environment. The launcher uses Python 3 to check the
-setting before it runs Docker Compose. `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
-processing, which costs 10% more. Run the following command from the repository root.
+You need Make, Python 3, and Docker Desktop with Docker Compose. FEWIA is
+tested with Docker Compose 5.2. Start Docker Desktop before you begin.
 
-```bash
-make up
-```
+1. Copy the example settings file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Open `.env`. Set `FEWIA_OPENAI_API_KEY` to an OpenAI API key from your
+   own project. `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us`
+   for US processing, which costs 10% more and needs a key from a project
+   with US data residency. Git ignores `.env`. Never commit it, share it, or
+   show it on screen.
+
+3. Start FEWIA from the repository root:
+
+   ```bash
+   make up
+   ```
+
+4. Open [`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
+
+`make up` prints one line per stage: the `.env` check, the OpenAI key check,
+the configuration check, the image download, the image build, the service
+start, the database and demo user setup, and the API health check. Docker
+Compose shows its own download and build progress between those lines. The
+first run takes several minutes. The last line prints the app address.
+
+`make up` stops before it builds anything when the key is missing or OpenAI
+rejects it. Create a new key at https://platform.openai.com/api-keys, put it
+in `.env`, and run `make up` again. Without a working OpenAI key, FEWIA does
+not start.
+
+Docker Compose gives the key to the worker as a secret file. The key is not
+in the container environment, and the launcher never prints it.
 
 `make up` also starts Kroger in fixture mode. It needs no Kroger
 credentials and makes no Kroger call. Store search, the Kroger sign-in,
@@ -69,51 +90,30 @@ products. The page labels each fixture result `FIXTURE, NOT KROGER`. A
 fixture cart add changes no Kroger cart. See
 [decision 0029](wiki/decisions/0029-kroger-fixture-mode-default.md).
 
-To make a source ZIP, run `git archive --format=zip -o fewia.zip HEAD`.
-`git archive` leaves out `.env` and every other ignored file.
+To stop FEWIA, run `docker compose down`. To make a source ZIP, run
+`git archive --format=zip -o fewia.zip HEAD`. `git archive` leaves out
+`.env` and every other ignored file. Read
+[runbooks/durable-jobs.md](runbooks/durable-jobs.md) for jobs.
 
-Open the chat at
-[`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
-Read [runbooks/durable-jobs.md](runbooks/durable-jobs.md) for jobs.
+The OpenAI path uses Responses `gpt-6-luna` with reasoning `none`, output
+limit 4096, `store=false`, and parallel tool calls disabled. See
+[the matched conversation benchmark](docs/EVALUATION.md#matched-nova-and-luna-runs)
+for the Bedrock Nova comparison commands.
 
-To select Bedrock explicitly, configure these values in `.env`:
-`FEWIA_BEDROCK_MODEL_ID`, `FEWIA_BEDROCK_REGION`, `FEWIA_AWS_PROFILE`,
-and `FEWIA_BEDROCK_CREDENTIALS_FILE`. Read
-[infra/bedrock/README.md](infra/bedrock/README.md) for credentials. Then run:
+### Live Kroger
 
-```bash
-make up-bedrock
-```
-
-To start the base stack without provider credentials, run:
-
-```bash
-make up-offline
-```
-
-The OpenAI path uses Responses `gpt-6-luna` with reasoning `none`, output limit
-4096, `store=false`, and parallel tool calls disabled. Bedrock Nova keeps
-reasoning `low`. The two providers support different reasoning settings.
-See [the matched conversation benchmark](docs/EVALUATION.md#matched-nova-and-luna-runs)
-for smoke, full-run, and offline comparison commands. Real OpenAI evidence
-does not establish Bedrock, Plaid Sandbox, Kroger Certification, or
-deployed AWS evidence.
-
-To show live Kroger prices, use the Kroger override in place of fixture
-mode. Do not combine `compose.kroger.yaml` with
-`compose.kroger-fixture.yaml`: fixture mode with a Kroger credential file
-fails closed. It reads the client
-ID from `FEWIA_KROGER_CLIENT_ID_FILE` and the secret from
-`FEWIA_KROGER_SECRET_FILE`. Keep both files outside the repository with
-mode 600. The Kroger terms forbid credentials in an open source
-repository. The Kroger account sign-in also needs a Fernet key file in
-`FEWIA_KROGER_TOKEN_KEY_FILE`; see
-[docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md). To use Bedrock
-too, add both `-f` flags.
+Live Kroger replaces fixture mode. It needs three files outside the
+repository, each with mode 600: the client ID in
+`FEWIA_KROGER_CLIENT_ID_FILE`, the secret in `FEWIA_KROGER_SECRET_FILE`, and
+a Fernet key in `FEWIA_KROGER_TOKEN_KEY_FILE`. Set the three absolute paths
+in `.env`. The Kroger terms forbid credentials in an open source repository.
+See [docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md). Then run:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d
+make up-kroger-live
 ```
+
+`make up-kroger-live` adds `compose.kroger.yaml`, the only overlay.
 
 ## Secret scanning
 
