@@ -5339,3 +5339,7 @@ Local branch `codex/wcag21-aa` improves chat focus, meal reflow, legacy form err
 ## 2026-11-07 — Source ZIP startup permissions
 
 Revision `527f6d99` sets the Nginx template directory to mode 0755 and the template to mode 0644. A fresh ZIP extraction under umask 077 left the source template at 0600. The credential-free stack served the frontend, its JavaScript bundle, and the proxied API with HTTP 200. Nginx ran as UID 101. Frontend gates passed, and GPT-6.1 Sol approved the revision. The supervisor recorded 364,878 input tokens and 4,940 output tokens.
+
+## 2026-11-07 — Browser workflow benchmark on main
+
+Live GPT-6 Luna proposed the same pantry change in both browser runs at `f0f7b7d8`. Apply accepted USD 17.03 at the exact cap and rejected USD 17.03 against USD 17.02. The rejected Apply preserved the saved plan. The Kroger fixture returned seven and four matched lines. The measured pair used an estimated USD 0.00050347 in model tokens. The successful Apply stored the proposal's original cap. Cart preview saved a separate revision with the browser's current cap. The [benchmark record](../eval/results/artifacts/main-workflow-f0f7b7d8/report.md) holds the timings and evidence limits.
