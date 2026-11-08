@@ -5327,3 +5327,7 @@ The owner approved four fixes from the PR #484 review. The OpenAI adapter logs o
 ## 2026-11-07 — OpenAI key in `.env`
 
 The owner chose to put the OpenAI key in `.env` so the course grader needs one setting. [Decision 0028](decisions/0028-openai-key-in-env.md) records it. `compose.openai.yaml` turns `FEWIA_OPENAI_API_KEY` into a Compose secret that only the worker mounts. The adapter still reads the key from a file. A source ZIP comes from `git archive`, which leaves out `.env`.
+
+## 2026-11-07 — Frontend WCAG 2.1 checks
+
+Local branch `codex/wcag21-aa` improves chat focus, meal reflow, legacy form errors, and plan and Kroger status announcements. Frontend lint, tests, and build passed at `8efe84f6`, with 559 of 1,000 code lines. GPT-6 Astra returned `APPROVE` at that revision. Chromium passed all 16 repository Playwright tests and targeted keyboard and reflow checks. Axe found zero automated violations in the sampled states. Verification used synthetic provider responses. Screen-reader speech and live Kroger OAuth remain open. The supervisor recorded 7,498,717 input tokens and 98,631 output tokens for its writers and reviewer.
