@@ -13,6 +13,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT / "infra/openai/compose-up.sh"
 COMPOSE_OPENAI = ROOT / "compose.openai.yaml"
+COMPOSE_KROGER_FIXTURE = ROOT / "compose.kroger-fixture.yaml"
+KROGER = (
+    "The Kroger fixture overlay compose.kroger-fixture.yaml is missing or "
+    "does not set FEWIA_KROGER_MODE to fixture on api and worker."
+)
 ERROR = "OpenAI Compose launch failed.\n"
 KEY_VALUE = "sk-PRIVATE_KEY_SENTINEL"
 KEY_MISSING = "Set FEWIA_OPENAI_API_KEY in .env."
@@ -96,6 +101,9 @@ def launcher(tmp_path: Path) -> Launcher:
     (scripts / "compose-up.sh").write_text(LAUNCHER.read_text())
     (root / "compose.yaml").write_text("services: {}\n")
     (root / "compose.openai.yaml").write_text("services: {}\n")
+    (root / "compose.kroger-fixture.yaml").write_text(
+        COMPOSE_KROGER_FIXTURE.read_text()
+    )
     (root / ".env").write_text(
         f"touch SHELL_EVALUATION_MARKER\nFEWIA_OPENAI_API_KEY={KEY_VALUE}\n"
     )
@@ -129,8 +137,16 @@ def _config(
     api_secrets: list[object] | None = None,
     api_path: str = SECRET_PATH,
     worker_path: str = SECRET_PATH,
+    api_mode: str | None = "fixture",
+    worker_mode: str | None = "fixture",
 ) -> dict[str, object]:
-    api: dict[str, object] = {"environment": {"FEWIA_OPENAI_API_KEY_FILE": api_path}}
+    api_environment = {"FEWIA_OPENAI_API_KEY_FILE": api_path}
+    worker_environment = {"FEWIA_OPENAI_API_KEY_FILE": worker_path}
+    if api_mode is not None:
+        api_environment["FEWIA_KROGER_MODE"] = api_mode
+    if worker_mode is not None:
+        worker_environment["FEWIA_KROGER_MODE"] = worker_mode
+    api: dict[str, object] = {"environment": api_environment}
     if api_secrets is not None:
         api["secrets"] = api_secrets
     if worker_secrets is None:
@@ -140,7 +156,7 @@ def _config(
         "services": {
             "api": api,
             "worker": {
-                "environment": {"FEWIA_OPENAI_API_KEY_FILE": worker_path},
+                "environment": worker_environment,
                 "secrets": worker_secrets,
             },
         },
@@ -195,6 +211,8 @@ def test_valid_config_starts_with_the_validated_inputs(
         "compose.yaml",
         "-f",
         "compose.openai.yaml",
+        "-f",
+        "compose.kroger-fixture.yaml",
         "--project-directory",
         str(launcher.root),
     ]
@@ -292,6 +310,32 @@ def test_invalid_secret_shapes_fail_before_up(
     launcher: Launcher, config: dict[str, object]
 ) -> None:
     _assert_rejected(launcher, launcher.run(config))
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        _config(api_mode=None),
+        _config(worker_mode=None),
+        _config(api_mode="live"),
+        _config(worker_mode="live"),
+        _config(api_mode="", worker_mode=""),
+    ],
+)
+def test_missing_or_wrong_kroger_mode_fails_before_up(
+    launcher: Launcher, config: dict[str, object]
+) -> None:
+    _assert_rejected(launcher, launcher.run(config), KROGER)
+
+
+def test_real_kroger_fixture_overlay_sets_mode_only() -> None:
+    yaml = pytest.importorskip("yaml")
+    compose = yaml.safe_load(COMPOSE_KROGER_FIXTURE.read_text())
+    assert set(compose) == {"services"}
+    for name in ("api", "worker"):
+        assert compose["services"][name] == {
+            "environment": {"FEWIA_KROGER_MODE": "fixture"}
+        }
 
 
 def test_full_secret_target_path_is_accepted(launcher: Launcher) -> None:
