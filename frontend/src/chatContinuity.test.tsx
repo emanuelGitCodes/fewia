@@ -136,6 +136,7 @@ describe("chat continuity", () => {
         chat_configured: true,
         plaid_configured: false,
         spending_source: "fixture",
+        kroger_mode: "off",
       },
       pending: false,
       error: null,

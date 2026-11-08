@@ -16,7 +16,10 @@ export function KrogerStorePicker(props: {
   const { store, onChoose, onClear } = props;
   // The label follows the store list when there is one, and the capability otherwise.
   const [listSource, setListSource] = useState<KrogerSource | null>(null);
-  const fixture = listSource === null ? props.krogerMode === "fixture" : listSource === "fixture";
+  // The source of the chosen store stays until the store is removed.
+  const [chosenSource, setChosenSource] = useState<KrogerSource | null>(null);
+  const shownSource = listSource ?? (store === null ? null : chosenSource);
+  const fixture = shownSource === null ? props.krogerMode === "fixture" : shownSource === "fixture";
   const zipId = useId();
   const [open, setOpen] = useState(false);
   // The ZIP and the store list live only in component state.
@@ -93,7 +96,7 @@ export function KrogerStorePicker(props: {
 
   let status = "";
   if (pending) {
-    status = "Finding Kroger stores.";
+    status = fixture ? "Finding fixture stores." : "Finding Kroger stores.";
   } else if (failed) {
     status = KROGER_UNAVAILABLE_LINE;
   } else if (options !== null && options.length === 0) {
@@ -127,6 +130,7 @@ export function KrogerStorePicker(props: {
               } else {
                 focusTarget.current = "opener";
               }
+              setChosenSource(null);
               onClear();
             }}
           >
@@ -192,6 +196,7 @@ export function KrogerStorePicker(props: {
                     className="tonight-ask-btn"
                     onClick={() => {
                       onChoose(option);
+                      setChosenSource(listSource);
                       close();
                     }}
                   >
