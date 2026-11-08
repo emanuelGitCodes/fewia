@@ -11,6 +11,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Literal
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -41,6 +42,7 @@ MAX_TEXT = 160
 MAX_DOLLARS = 100_000
 _LOCATION_ID = re.compile(r"[0-9A-Za-z]{8}")
 _ZIP_CODE = re.compile(r"[0-9]{5}")
+Source = Literal["live", "fixture"]
 
 
 class KrogerUnavailable(Exception):
@@ -218,9 +220,11 @@ class KrogerClient:
         client: httpx.Client | None = None,
         clock: Callable[[], float] = time.monotonic,
         today: Callable[[], date] = lambda: datetime.now(UTC).date(),
+        fixture: bool = False,
     ) -> None:
         if not client_id.strip() or not client_secret.strip():
             raise ValueError("credentials MUST be nonblank")
+        self.fixture = fixture
         self._auth = (client_id, client_secret)
         self._base_url = base_url.rstrip("/")
         self._clock = clock
@@ -234,6 +238,10 @@ class KrogerClient:
         self._budget_day: date | None = None
         self._counts: dict[str, int] = {}
         self.cache_control: dict[str, str | None] = {}
+
+    @property
+    def source(self) -> Source:
+        return "fixture" if self.fixture else "live"
 
     def close(self) -> None:
         if self._owns_client:
@@ -364,7 +372,7 @@ class KrogerClient:
             return token
 
     def authorize_url(self, redirect_uri: str, state: str) -> str:
-        if self._base_url not in HOSTS.values():
+        if not self.fixture and self._base_url not in HOSTS.values():
             raise ValueError("authorize host MUST be a Kroger host")
         query = urlencode(
             {

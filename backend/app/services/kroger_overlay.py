@@ -83,7 +83,7 @@ def attach_kroger_quote(
         return attached
     stamp = now().astimezone(UTC).replace(microsecond=0, tzinfo=None)
     attached["kroger_quote"] = {
-        "kind": "store_live",
+        "kind": "store_fixture" if client.fixture else "store_live",
         "ingredient_id": ingredient_id,
         "product_label": product.description,
         "brand": product.brand,
