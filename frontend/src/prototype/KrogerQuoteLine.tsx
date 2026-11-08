@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { KROGER_FIXTURE_LABEL } from "../apiTypes";
 import type { KrogerQuote, KrogerStore } from "../chatTypes";
 import { formatDollars } from "../money";
 
@@ -22,6 +23,14 @@ export function krogerQuoteSentence(quote: KrogerQuote, store: KrogerStore | nul
   }
   if (quote.stock_level !== null && quote.stock_level.length > 0) {
     parts.push(`stock ${quote.stock_level.toLowerCase().replace(/_/g, " ")}`);
+  }
+  const sameStore = store !== null && store.locationId === quote.location_id;
+  if (quote.kind === "store_fixture") {
+    return (
+      `Fixture price from ${sameStore ? store.name : "a fixture store"} as of ` +
+      `${localTime(quote.retrieved_at)}: ${parts.join(", ")}. ` +
+      `Availability and the final price are not verified. ${KROGER_FIXTURE_LABEL}.`
+    );
   }
   // A quote from an earlier store must not get the new store's name.
   const name =

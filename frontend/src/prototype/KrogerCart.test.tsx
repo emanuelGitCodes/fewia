@@ -32,6 +32,7 @@ function stub(addStatus: () => number | Promise<number>, preview?: unknown): Cal
         const body = preview ?? {
           items: [ITEM],
           unmatched: [{ ingredient_id: "x", name: "Saffron" }],
+          source: "live",
         };
         return { ok: true, status: 200, json: async () => body };
       }
@@ -104,14 +105,14 @@ describe("KrogerCart", () => {
     expect(calls.filter((call) => call.url.endsWith("/preview"))).toHaveLength(1);
     const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
     if (moveFocus) elsewhere.focus();
-    await act(async () => { finish({ items: [ITEM], unmatched: [] }); });
+    await act(async () => { finish({ items: [ITEM], unmatched: [], source: "live" }); });
     expect(status.textContent).toBe("Kroger cart preview ready: 1 item.");
     expect(document.activeElement).toBe(moveFocus ? elsewhere : preview);
     expect(preview.getAttribute("aria-disabled")).toBe("false");
   });
 
   it("shows the unavailable line for a malformed preview", async () => {
-    stub(() => 204, { items: [], unmatched: [], extra: 1 });
+    stub(() => 204, { items: [], unmatched: [], source: "live", extra: 1 });
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
     expect(await screen.findByText("Kroger is unavailable. Try again.")).toBeTruthy();
@@ -459,12 +460,69 @@ describe("KrogerCart", () => {
   });
 
   it("says so when the preview has no items and no unmatched lines", async () => {
-    stub(() => 204, { items: [], unmatched: [] });
+    stub(() => 204, { items: [], unmatched: [], source: "live" });
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
     expect(await screen.findByText("No Kroger items found for this plan.")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("No Kroger items found for this plan.");
     expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+  });
+
+  describe("fixture source", () => {
+    const FIXTURE = { items: [ITEM], unmatched: [], source: "fixture" };
+
+    it("labels a fixture preview and keeps the live text away", async () => {
+      stub(() => 204, FIXTURE);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+      await screen.findByRole("list", { name: "Fixture cart preview" });
+      expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+      expect(screen.getByRole("status").textContent).toBe("Fixture cart preview ready: 1 item.");
+      expect(screen.getByRole("button", { name: "Send 1 item to fixture cart" })).toBeTruthy();
+    });
+
+    it("shows the fixture success text after a fixture preview is added", async () => {
+      const calls = stub(() => 204, FIXTURE);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+      await screen.findByRole("list", { name: "Fixture cart preview" });
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      const line = await screen.findByText("Added to the fixture cart. No Kroger cart changed.");
+      expect(line.textContent).not.toContain("kroger.com");
+      expect(calls.filter((call) => call.url.endsWith("/cart/add"))).toHaveLength(1);
+      expect(screen.queryByText(/kroger\.com/)).toBeNull();
+    });
+
+    it("labels from the preview, not the capability", async () => {
+      stub(() => 204, FIXTURE);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" krogerMode="live" />);
+      fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+      await screen.findByRole("list", { name: "Fixture cart preview" });
+      expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+    });
+
+    it("shows no fixture label for a live preview even in fixture mode", async () => {
+      stub(() => 204);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" krogerMode="fixture" />);
+      fireEvent.click(screen.getByRole("button", { name: "Preview fixture cart" }));
+      await screen.findByRole("list", { name: "Kroger cart preview" });
+      expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      expect(
+        await screen.findByText("Added to your Kroger cart. Review and check out on kroger.com."),
+      ).toBeTruthy();
+    });
+
+    it("says so when a fixture send is not confirmed", async () => {
+      stub(() => 504, FIXTURE);
+      render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+      fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+      await screen.findByRole("list", { name: "Fixture cart preview" });
+      fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+      expect(
+        await screen.findByText("The fixture cart did not confirm. No Kroger cart changed."),
+      ).toBeTruthy();
+    });
   });
 
   it("shows the save line, not the Kroger line, when the plan save fails", async () => {

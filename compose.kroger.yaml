@@ -1,5 +1,9 @@
+# The only overlay on compose.yaml. It switches api and worker from Kroger
+# fixture mode to live mode and needs credential files outside the repository.
+# Start it with `make up-kroger-live`.
 x-kroger: &kroger
   environment: &kroger-environment
+    FEWIA_KROGER_MODE: live
     FEWIA_KROGER_CLIENT_ID_FILE: /run/fewia/kroger-client-id
     FEWIA_KROGER_SECRET_FILE: /run/fewia/kroger-secret
     FEWIA_KROGER_ENVIRONMENT: "${FEWIA_KROGER_ENVIRONMENT:-certification}"

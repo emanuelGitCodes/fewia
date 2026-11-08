@@ -8,7 +8,6 @@ state on screen.
 Sources: [LOCAL_GROCERY_DEMO.md](../LOCAL_GROCERY_DEMO.md),
 [infra/bedrock/README.md](../../infra/bedrock/README.md),
 [compose.yaml](../../compose.yaml),
-[compose.bedrock.yaml](../../compose.bedrock.yaml),
 [compose.kroger.yaml](../../compose.kroger.yaml),
 [decision 0026](../../wiki/decisions/0026-prototype-default-route.md).
 
@@ -26,11 +25,11 @@ A new worktree has no `.env`.
   an absolute path. `FEWIA_KROGER_ENVIRONMENT` defaults to `certification`.
   Leave it at the default.
 
-Start the full stack with the OpenAI and Kroger overlays. `make up` starts
-only the OpenAI overlay, so use this command:
+Start the full stack with live Kroger. `make up` runs Kroger in fixture
+mode, so use this command:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.openai.yaml -f compose.kroger.yaml up -d
+make up-kroger-live
 ```
 
 Confirm each service:
@@ -68,31 +67,16 @@ Check existence and mode only. Never open, print, or screen-share these files.
 - [ ] The owner has a Kroger staging shopper account. The developer portal
   account does not work on the staging login.
 
-The Bedrock steps below apply only to the Bedrock alternative
-(`make up-bedrock`). The Bedrock session lasts at most one hour
+The live demo does not use Bedrock. Bedrock serves only the evaluation
+command-line tools. Skip the Bedrock session unless you run those tools
+before the presentation. The session lasts at most one hour
 (`infra/bedrock/README.md`, "Temporary role credentials"). The helper
 `infra/bedrock_session.py` sets `DURATION_SECONDS = 3600`. It prints the expiry
 time when it finishes.
 
-- [ ] Refresh the Bedrock session shortly before the presentation. Target: 10
-  to 20 minutes before the start. A session from the rehearsal will expire.
-- [ ] Run the host MFA helper `infra/bedrock_session.py` with `--role-arn` and
-  `--mfa-serial`. It asks for an MFA code. Do it away from the screen share.
-- [ ] Recreate `api` and `worker` after each renewal. A running process keeps
-  the old credentials. The documented command names the project
-  `fewia-grocery-b7d4`. Use your own project name if it differs:
-
-```bash
-docker compose -p fewia-grocery-b7d4 --env-file .env -f compose.yaml -f compose.bedrock.yaml \
-  up -d --no-deps --force-recreate api worker
-docker exec fewia-grocery-b7d4-web-1 nginx -s reload
-```
-
-- [ ] If you run Kroger too, add `-f compose.kroger.yaml` to the recreate
-  command. Without it, Compose drops the Kroger overlay from `api` and
-  `worker`.
-- [ ] Note the expiry time. Write it here: __________. The session MUST outlast
-  the 15-minute slot.
+- [ ] Only for an evaluation run: run the host MFA helper
+  `infra/bedrock_session.py` with `--role-arn` and `--mfa-serial`. It asks for
+  an MFA code. Do it away from the screen share.
 
 ## 3. The full path
 
@@ -129,7 +113,7 @@ Notes for the path:
 
 Rehearse each drill once. Say aloud what failed. Never describe fixture or
 archived output as live. A fallback MUST carry a visible on-screen label such
-as `ARCHIVED, NOT LIVE` or `SAMPLE CATALOG, NOT KROGER`.
+as `ARCHIVED, NOT LIVE` or `SAMPLE CATALOG, NOT KROGER`. A stack started with `make up` shows fixture Kroger results labeled `FIXTURE, NOT KROGER`. Start the live demo with `make up-kroger-live`, and confirm that no `FIXTURE, NOT KROGER` label shows before the session.
 
 | Drill | Visible state | Owner action and fallback |
 | --- | --- | --- |

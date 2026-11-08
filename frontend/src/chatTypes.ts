@@ -38,7 +38,7 @@ export type ChatToolTrace = {
 export type KrogerStore = { locationId: string; name: string };
 
 export type KrogerQuote = {
-  kind: "store_live";
+  kind: "store_live" | "store_fixture";
   ingredient_id: string;
   product_label: string;
   brand: string | null;

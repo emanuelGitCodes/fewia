@@ -210,10 +210,9 @@ make up
 
 The browser listens at
 [`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
-To choose Bedrock explicitly, configure its values in `.env` as described
-in [`infra/bedrock/README.md`](../infra/bedrock/README.md) and run
-`make up-bedrock`. To start without a provider or provider credentials, run
-`make up-offline`. Provider startup does not fall back automatically.
+The browser stack runs GPT-6 Luna only. The evaluation command-line tools
+reach Bedrock directly, outside Docker. Configure their credentials as
+described in [`infra/bedrock/README.md`](../infra/bedrock/README.md).
 
 Keys MUST NOT enter the repository, benchmark inputs, or reports.
 The archived matched run used `us`. The benchmark CLI takes its region from `--region`, not that environment

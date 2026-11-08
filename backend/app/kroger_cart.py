@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from app.domain.catalog import RECIPES
 from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.plan_revision import PlanSnapshot
-from app.providers.kroger import KrogerClient, KrogerProduct
+from app.providers.kroger import KrogerClient, KrogerProduct, Source
 from app.services.kroger_overlay import kroger_search_term
 
 MAX_LINES = 30
@@ -33,6 +33,7 @@ class UnmatchedLine(BaseModel):
 class CartPreview(BaseModel):
     items: list[PreviewItem]
     unmatched: list[UnmatchedLine]
+    source: Source
 
 
 def grocery_ingredient_ids(snapshot: PlanSnapshot) -> list[str]:
@@ -86,4 +87,4 @@ def build_preview(
         )
         by_upc[product.upc] = item
         items.append(item)
-    return CartPreview(items=items, unmatched=unmatched)
+    return CartPreview(items=items, unmatched=unmatched, source=client.source)

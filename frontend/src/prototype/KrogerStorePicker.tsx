@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
+import { KROGER_FIXTURE_LABEL, type KrogerMode, type KrogerSource } from "../apiTypes";
 import type { KrogerStore } from "../chatTypes";
 import { findKrogerStores, type KrogerStoreOption } from "../krogerApi";
 
@@ -10,8 +11,15 @@ export function KrogerStorePicker(props: {
   store: KrogerStore | null;
   onChoose: (option: KrogerStoreOption) => void;
   onClear: () => void;
+  krogerMode?: KrogerMode;
 }): JSX.Element {
   const { store, onChoose, onClear } = props;
+  // The label follows the store list when there is one, and the capability otherwise.
+  const [listSource, setListSource] = useState<KrogerSource | null>(null);
+  // The source of the chosen store stays until the store is removed.
+  const [chosenSource, setChosenSource] = useState<KrogerSource | null>(null);
+  const shownSource = listSource ?? (store === null ? null : chosenSource);
+  const fixture = shownSource === null ? props.krogerMode === "fixture" : shownSource === "fixture";
   const zipId = useId();
   const [open, setOpen] = useState(false);
   // The ZIP and the store list live only in component state.
@@ -56,10 +64,12 @@ export function KrogerStorePicker(props: {
     setPending(true);
     setFailed(false);
     setOptions(null);
+    setListSource(null);
     findKrogerStores(zip, current.signal).then(
       (found) => {
         if (controller.current === current) {
-          setOptions(found);
+          setOptions(found.stores);
+          setListSource(found.source);
           setZip("");
           setPending(false);
         }
@@ -78,6 +88,7 @@ export function KrogerStorePicker(props: {
     focusTarget.current = "opener";
     setOpen(false);
     setOptions(null);
+    setListSource(null);
     setPending(false);
     setFailed(false);
     setZip("");
@@ -85,17 +96,18 @@ export function KrogerStorePicker(props: {
 
   let status = "";
   if (pending) {
-    status = "Finding Kroger stores.";
+    status = fixture ? "Finding fixture stores." : "Finding Kroger stores.";
   } else if (failed) {
     status = KROGER_UNAVAILABLE_LINE;
   } else if (options !== null && options.length === 0) {
     status = KROGER_NO_STORES_LINE;
   } else if (options !== null) {
-    status = `Found ${String(options.length)} Kroger ${options.length === 1 ? "store" : "stores"}.`;
+    status = `Found ${String(options.length)} ${fixture ? "fixture" : "Kroger"} ${options.length === 1 ? "store" : "stores"}.`;
   }
 
   return (
     <div className="tonight-kroger-picker">
+      {fixture ? <p className="tonight-ask-hint"><strong>{KROGER_FIXTURE_LABEL}</strong></p> : null}
       {store !== null ? (
         <div className="tonight-kroger-chosen">
           <p id={`${zipId}-store`}>Kroger store: {store.name}</p>
@@ -118,6 +130,7 @@ export function KrogerStorePicker(props: {
               } else {
                 focusTarget.current = "opener";
               }
+              setChosenSource(null);
               onClear();
             }}
           >
@@ -132,7 +145,7 @@ export function KrogerStorePicker(props: {
           className="tonight-ask-btn"
           onClick={start}
         >
-          Choose a Kroger store for live prices
+          {fixture ? "Choose a fixture store for fixture prices" : "Choose a Kroger store for live prices"}
         </button>
       ) : null}
       {open ? (
@@ -183,6 +196,7 @@ export function KrogerStorePicker(props: {
                     className="tonight-ask-btn"
                     onClick={() => {
                       onChoose(option);
+                      setChosenSource(listSource);
                       close();
                     }}
                   >

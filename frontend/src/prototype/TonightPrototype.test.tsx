@@ -38,6 +38,7 @@ function setChatConfigured(configured: boolean): void {
       chat_configured: configured,
       plaid_configured: false,
       spending_source: "manual",
+      kroger_mode: "off",
     },
     pending: false,
     error: null,
@@ -233,7 +234,7 @@ describe("TonightPrototype", () => {
     const root = mount();
     const text = textOf(root);
     expect(text).toContain("FEWIA");
-    expect(text).toContain("Demo data");
+    expect(text).not.toContain("Demo data");
     expect(screen.getByRole("heading", { name: "Your plan" })).toBeTruthy();
     expect(text).toContain("Groceries to buy");
     expect(text).toContain("$8.06");
@@ -244,7 +245,7 @@ describe("TonightPrototype", () => {
     expect(textOf(card("Bean tacos"))).toContain(TACO_MACROS);
     expect(buttonNamed("Bean tacos").getAttribute("aria-pressed")).toBe("true");
     expect(textOf(buttonNamed("3 at home, Edit pantry"))).toMatch(/3 at home/);
-    expect(screen.getByRole("link", { name: "Existing app" }).getAttribute("href")).toBe("/");
+    expect(screen.queryByRole("link", { name: "Existing app" })).toBeNull();
   });
 
   it("adds Egg fried rice as a second card at $18.41", () => {
@@ -1184,14 +1185,13 @@ describe("Ask FEWIA on the prototype", () => {
     });
   }
 
-  it("places the aside after main and before the footer", () => {
+  it("places the aside after main", () => {
     mount();
     const aside = screen.getByRole("complementary", { name: "Ask FEWIA" });
     const main = screen.getByRole("main");
-    const footer = screen.getByRole("contentinfo");
     expect(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(aside.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(main).queryByRole("complementary")).toBeNull();
+    expect(screen.queryByRole("contentinfo")).toBeNull();
   });
 
   it("shows one line and keeps the plan working when chat is off", () => {
@@ -1375,7 +1375,7 @@ describe("Kroger return plan", () => {
       useEffect(() => { void settled.then(() => { setReady(true); }); }, []);
       return {
         capabilities: ready
-          ? { chat_configured: true, plaid_configured: false, spending_source: "manual" }
+          ? { chat_configured: true, plaid_configured: false, spending_source: "manual", kroger_mode: "off" }
           : null,
         pending: !ready,
         error: null,
@@ -1717,13 +1717,11 @@ describe("Ask FEWIA dock and sheet", () => {
     stubWidth(375);
     const root = mount();
     const header = root.querySelector("header");
-    const footer = root.querySelector("footer");
     const main = screen.getByRole("main");
     expect(header?.hasAttribute("inert")).toBe(false);
     openSheet();
     expect(header?.hasAttribute("inert")).toBe(true);
     expect(main.hasAttribute("inert")).toBe(true);
-    expect(footer?.hasAttribute("inert")).toBe(true);
     expect(screen.getByRole("dialog", { name: "Ask FEWIA" }).getAttribute("aria-modal")).toBe("true");
     expect(root.querySelector("nav")?.hasAttribute("inert")).toBe(true);
     expect(aside().hasAttribute("inert")).toBe(false);
@@ -1732,7 +1730,6 @@ describe("Ask FEWIA dock and sheet", () => {
     });
     expect(header?.hasAttribute("inert")).toBe(false);
     expect(main.hasAttribute("inert")).toBe(false);
-    expect(footer?.hasAttribute("inert")).toBe(false);
     expect(root.querySelector("nav")?.hasAttribute("inert")).toBe(false);
     expect(aside().hidden).toBe(true);
     expect(screen.queryByRole("textbox", { name: "Ask for a meal" })).toBeNull();

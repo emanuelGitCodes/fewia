@@ -53,8 +53,8 @@ flowchart TB
 The `bootstrap` service seeds the demo user and the Floci queues, then
 exits. The evaluation CLI drives the same runtime in-process with a
 private Floci queue and its own SQLite store; it is not a service.
-`compose.bedrock.yaml` and `compose.kroger.yaml` only add
-environment to `api` and `worker`.
+`compose.yaml` is the one Compose file. `compose.kroger.yaml` is the only
+overlay and adds live Kroger environment to `api` and `worker`.
 
 ## Feature inventory
 
@@ -73,7 +73,7 @@ deployment.
 | 6 | Meal templates | API, Frontend | `POST /grocery/templates`, `TemplatePicker.tsx` | Live on / | Six presets filtered through the planner. Returns up to six. Reserves no money. |
 | 7 | USDA nutrition facts | Service, Frontend | `meal_nutrition` in `services/meal_nutrition.py`, `Nutrition.tsx` | Live on / | Computed inside `execute_plan` at job time. Stored in the job result. |
 | 8 | Kroger live price | Service | `attach_kroger_quote` on the chat job read with `location_id` | Live on /prototype | Read time only, never stored. Off unless the Kroger credential files are set and the user picks a store. Budget acceptance ignores it. |
-| 9 | Chat with the Bedrock agent | Agent, API | `POST /grocery/chat/jobs`, `agent/chat_loop.py` | Live on / | Tool calling with `plan_groceries` and `get_budget_summary`. 8 model turns, 3 planner revisions. Refusal parser. Needs a provider: `make up` (Luna) or `make up-bedrock`. |
+| 9 | Chat with the Bedrock agent | Agent, API | `POST /grocery/chat/jobs`, `agent/chat_loop.py` | Live on / | Tool calling with `plan_groceries` and `get_budget_summary`. 8 model turns, 3 planner revisions. Refusal parser. Needs a provider: `make up` runs Luna. |
 | 10 | Chat follow-up context | Service | `services/chat_history.py`, `agent/chat_context.py` | Live on / | The server loads history and `previous_ingredient_ids` from the prior job. The client cannot send them. |
 | 11 | Provider capability flags | API, Frontend | `GET /grocery/providers`, `useProviderCapabilities.ts` | Live on / | Returns `chat_configured`, `plaid_configured`, and `spending_source`. |
 | 12 | Durable jobs | Service, Worker | `services/job_submission.py`, `worker.py` | Live on / | Idempotency key per user and kind, outbox in the same transaction, publisher thread, leases, heartbeat, recovery, dead-letter queues. |
@@ -180,7 +180,7 @@ decision. The retired Instacart adapter is not a provider.
 | --- | --- | --- | --- | --- |
 | Floci SQS and S3 | `providers/local_sqs*.py`, `providers/local_artifacts.py`; `aws_sqs_*.py` and `aws_artifacts.py` for real AWS | `job_transport_settings.py` | On in Compose | emulator |
 | USDA FoodData Central | `domain/nutrition_catalog.py`; `usda_refresh.py` rebuilds the file | None at runtime; facts ship in the catalog | On | catalog |
-| Amazon Bedrock | `providers/bedrock.py` `BedrockConverseProvider` behind the `LLMProvider` protocol | `FEWIA_BEDROCK_MODEL_ID` through `compose.bedrock.yaml`; `us-east-1` or `us-west-2`; Nova 2 Lite | On when configured; plain `docker compose up` leaves chat unconfigured | live |
+| Amazon Bedrock | `providers/bedrock.py` `BedrockConverseProvider` behind the `LLMProvider` protocol | `FEWIA_BEDROCK_MODEL_ID`; `us-east-1` or `us-west-2`; Nova 2 Lite | Evaluation command-line tools only; no Compose service uses it | live |
 | Kroger Products and Locations | `providers/kroger.py`; `services/kroger_overlay.py`; `api/kroger.py` | `FEWIA_KROGER_CLIENT_ID_FILE` and `FEWIA_KROGER_SECRET_FILE` through `compose.kroger.yaml` | On when configured; off by default | live, read time |
 | Kroger account and cart | `kroger_customer.py`; `kroger_cart.py`; `api/kroger.py` (`/connect`, `/callback`, `/connection`, `/cart/preview`, `/cart/add`) | Also `FEWIA_KROGER_TOKEN_KEY_FILE`, `FEWIA_KROGER_REDIRECT_URI`, and `FEWIA_KROGER_RETURN_URL`; table `kroger_customer_tokens` holds Fernet-encrypted tokens only | On when configured; the user signs in and clicks | live, user action; not live-checked |
 | Plaid Sandbox | `providers/plaid.py` `PlaidSandboxProvider`, `plaid_contract.py` | `plaid_client_id`, secret file, tokens file | Paused, last by decision 0016 | sandbox, none recorded |
@@ -434,8 +434,8 @@ One line per folder, grouped by layer. Tests sit next to their code:
 **Infrastructure and tooling**
 
 - `compose.yaml`: `postgres`, `floci`, `bootstrap`, `api`, `worker`,
-  `sync-worker`, `web`. `compose.bedrock.yaml` and
-  `compose.kroger.yaml` overlay the `api` and `worker` environment.
+  `sync-worker`, `web`. `compose.kroger.yaml` is the only overlay. It
+  adds live Kroger to the `api` and `worker` environment.
 - `infra/floci_bootstrap.py`, `infra/bedrock/`,
   `infra/bedrock_session.py`, `infra/hosting/`, `infra/rds/`.
 - `dev_supervisor/`: `process.py`, `gates.py`, `review.py`, `usage.py`,
