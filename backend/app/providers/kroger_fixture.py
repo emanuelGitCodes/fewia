@@ -39,11 +39,14 @@ Handler = Callable[[httpx.Request], httpx.Response]
 
 
 def _digits(text: str, width: int) -> int:
-    return int(hashlib.sha256(text.encode()).hexdigest(), 16) % 10**width
+    modulus: int = int("1" + "0" * width)
+    value: int = int(hashlib.sha256(text.encode()).hexdigest(), 16)
+    return value % modulus
 
 
 def _authorized(request: httpx.Request, scheme: str) -> bool:
-    return request.headers.get("authorization", "").startswith(f"{scheme} ")
+    header: str = request.headers.get("authorization", "")
+    return header.startswith(f"{scheme} ")
 
 
 def _token(request: httpx.Request) -> httpx.Response:
