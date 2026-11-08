@@ -57,7 +57,7 @@ Say the class of each result on screen. Use these labels only.
 | `archived` | A saved result from an earlier dated batch. Say `archived` first, then its date, revision, and evidence class. Never a call made in this session. |
 | `fixture` | Deterministic output from a scripted provider or a test. Never a live call. |
 
-The app has no fixture mode and no fallback label. The operator shows the label in a slide, a window title, or a banner.
+`make up` runs Kroger in fixture mode ([decision 0029](../../wiki/decisions/0029-kroger-fixture-mode-default.md)). The page labels each fixture Kroger result `FIXTURE, NOT KROGER`. The live demo uses `compose.kroger.yaml`, not `make up`. The app has no model fallback label. The operator shows that label in a slide, a window title, or a banner.
 A model fallback MUST carry the label `ARCHIVED, NOT LIVE`.
 A Kroger fallback MUST carry the label `SAMPLE CATALOG, NOT KROGER`.
 A fallback MUST NOT appear under a `live provider` label.

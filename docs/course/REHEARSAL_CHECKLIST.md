@@ -129,7 +129,7 @@ Notes for the path:
 
 Rehearse each drill once. Say aloud what failed. Never describe fixture or
 archived output as live. A fallback MUST carry a visible on-screen label such
-as `ARCHIVED, NOT LIVE` or `SAMPLE CATALOG, NOT KROGER`.
+as `ARCHIVED, NOT LIVE` or `SAMPLE CATALOG, NOT KROGER`. A stack started with `make up` shows fixture Kroger results labeled `FIXTURE, NOT KROGER`. Start the live demo with `compose.kroger.yaml`, and confirm that no `FIXTURE, NOT KROGER` label shows before the session.
 
 | Drill | Visible state | Owner action and fallback |
 | --- | --- | --- |

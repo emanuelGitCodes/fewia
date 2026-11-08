@@ -62,6 +62,13 @@ processing, which costs 10% more. Run the following command from the repository 
 make up
 ```
 
+`make up` also starts Kroger in fixture mode. It needs no Kroger
+credentials and makes no Kroger call. Store search, the Kroger sign-in,
+the cart preview, and the cart add run against invented stores and
+products. The page labels each fixture result `FIXTURE, NOT KROGER`. A
+fixture cart add changes no Kroger cart. See
+[decision 0029](wiki/decisions/0029-kroger-fixture-mode-default.md).
+
 To make a source ZIP, run `git archive --format=zip -o fewia.zip HEAD`.
 `git archive` leaves out `.env` and every other ignored file.
 
@@ -92,7 +99,10 @@ for smoke, full-run, and offline comparison commands. Real OpenAI evidence
 does not establish Bedrock, Plaid Sandbox, Kroger Certification, or
 deployed AWS evidence.
 
-To show live Kroger prices, add the Kroger override. It reads the client
+To show live Kroger prices, use the Kroger override in place of fixture
+mode. Do not combine `compose.kroger.yaml` with
+`compose.kroger-fixture.yaml`: fixture mode with a Kroger credential file
+fails closed. It reads the client
 ID from `FEWIA_KROGER_CLIENT_ID_FILE` and the secret from
 `FEWIA_KROGER_SECRET_FILE`. Keep both files outside the repository with
 mode 600. The Kroger terms forbid credentials in an open source

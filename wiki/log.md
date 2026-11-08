@@ -5343,3 +5343,7 @@ Revision `527f6d99` sets the Nginx template directory to mode 0755 and the templ
 ## 2026-11-07 — Browser workflow benchmark on main
 
 Live GPT-6 Luna proposed the same pantry change in both browser runs at `f0f7b7d8`. Apply accepted USD 17.03 at the exact cap and rejected USD 17.03 against USD 17.02. The rejected Apply preserved the saved plan. The Kroger fixture returned seven and four matched lines. The measured pair used an estimated USD 0.00050347 in model tokens. The successful Apply stored the proposal's original cap. Cart preview saved a separate revision with the browser's current cap. The [benchmark record](../eval/results/artifacts/main-workflow-f0f7b7d8/report.md) holds the timings and evidence limits.
+
+## 2026-11-08 — Kroger fixture mode
+
+Branch `claude/kroger-fixture` adds a credential-free Kroger fixture mode. `make up` starts it with GPT-6 Luna ([decision 0029](decisions/0029-kroger-fixture-mode-default.md)). The real `KrogerClient` runs over a mock transport with invented stores and products. The page labels each fixture result `FIXTURE, NOT KROGER`. The combined head passed the gates with 18,536 backend tests and one skip, the frontend checks, and compose config, at 392 of 1,000 code lines. Claude Opus approved each item; item 01 passed seven mutation probes. A local smoke run with a throwaway database covered store search, the fixture sign-in, a saved plan, the cart preview, and the cart add in the browser. No image build ran, because the Docker disk had 5.9 GB free. The run used no Kroger credentials and no live model call.

@@ -34,6 +34,7 @@ chronological record lives in [log.md](log.md).
 - [0026 — `/prototype` is the default route](decisions/0026-prototype-default-route.md)
 - [0027 — GPT-6 Luna is the default local chat provider](decisions/0027-luna-default-chat-provider.md)
 - [0028 — The OpenAI key goes in `.env`](decisions/0028-openai-key-in-env.md)
+- [0029 — `make up` starts Kroger in fixture mode](decisions/0029-kroger-fixture-mode-default.md)
 
 ## Phases
 

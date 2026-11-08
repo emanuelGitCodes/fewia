@@ -143,6 +143,11 @@ IDs included, in an open source repository. Set
 the absolute paths. `FEWIA_KROGER_ENVIRONMENT` defaults to
 `certification`; set it to `production` only after Kroger approves the app.
 
+`make up` starts Kroger in fixture mode through
+[`compose.kroger-fixture.yaml`](../compose.kroger-fixture.yaml). Fixture
+mode needs no Kroger files and makes no Kroger call. The steps below set
+up live Kroger instead. Do not combine the two overlays.
+
 [`compose.kroger.yaml`](../compose.kroger.yaml) mounts both files
 read-only into `api` and `worker`:
 
