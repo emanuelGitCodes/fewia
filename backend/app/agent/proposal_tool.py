@@ -51,12 +51,8 @@ def proposal_tool_spec() -> dict[str, object]:
         PROPOSAL_TOOL,
         "Use this, not plan_groceries, to add, remove, or resize meals in the "
         "user's saved plan (plan_meals) or to mark pantry items. "
-        "Propose a change to the user's saved plan for the user to apply. "
-        "Operations: add (recipe_id, servings), remove (recipe_id), "
-        "set_servings (recipe_id, servings), set_pantry (ingredient_id, owned). "
-        "Include diet and ingredient_exclusions for newly stated restrictions. "
-        "Keep unknown exclusion terms exactly as the user states them. "
-        "The tool never changes the plan and is not for swapping a food.",
+        "Propose changes for the user to apply in the plan panel. "
+        "This tool never changes the plan. Do not use it for ingredient swaps.",
         {
             "operations": {
                 "type": "array",
