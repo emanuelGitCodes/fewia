@@ -636,7 +636,12 @@ describe("App", () => {
     expect(childText(status as HTMLElement)).toBe(
       "The grocery request failed. Lentil soup needs black beans, which is excluded. Clear the black beans exclusion or choose another meal, then rebuild.",
     );
-    expect(within(region).queryAllByRole("status")).toHaveLength(0);
+    expect(status?.getAttribute("role")).not.toBe("status");
+    const ideasStatus = within(mealIdeas(region)).getByRole("status");
+    expect(ideasStatus.getAttribute("aria-live")).toBe("polite");
+    expect(ideasStatus.getAttribute("aria-atomic")).toBe("true");
+    expect(childText(ideasStatus)).toBe("");
+    expect(within(region).getAllByRole("status")).toEqual([ideasStatus]);
     const panel = renderer.container.querySelector<HTMLElement>("section.estimate-panel");
     expect(panel).not.toBeNull();
     const panelStatuses = within(panel as HTMLElement).getAllByRole("status");

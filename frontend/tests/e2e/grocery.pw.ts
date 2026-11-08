@@ -54,7 +54,7 @@ test("example: Bean tacos for two builds a labeled estimate", async ({ page }) =
   await expect(nutrition.getByText("Plan total 758 kcal", { exact: false })).toBeVisible();
 });
 
-test("live regions: one estimate status and no conversation status role", async ({ page }) => {
+test("live regions: one estimate status and no request-message status role", async ({ page }) => {
   await open(page);
   await page.getByRole("button", { name: "Bean tacos for two" }).click();
   await expectEstimate(page, "$17.03");
@@ -65,7 +65,12 @@ test("live regions: one estimate status and no conversation status role", async 
   const conversationStatus = conversation.locator(".conversation-status");
   await expect(conversationStatus).toHaveCount(1);
   await expect(conversationStatus).not.toHaveAttribute("role", "status");
-  await expect(conversation.getByRole("status")).toHaveCount(0);
+  const ideasStatus = conversation.getByRole("group", { name: "Meal ideas" }).getByRole("status");
+  await expect(ideasStatus).toHaveCount(1);
+  await expect(ideasStatus).toHaveAttribute("aria-live", "polite");
+  await expect(ideasStatus).toHaveAttribute("aria-atomic", "true");
+  await expect(ideasStatus).toHaveText("");
+  await expect(conversation.getByRole("status")).toHaveCount(1);
 });
 
 test("pantry change marks the estimate stale until rebuilt", async ({ page }) => {
