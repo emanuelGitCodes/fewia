@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -11,6 +12,14 @@ import pytest
 
 LAUNCHER = Path(__file__).resolve().parents[2] / "infra/openai/compose-up.sh"
 ERROR = "OpenAI Compose launch failed.\n"
+MOUNT = "The OpenAI key mount in compose.openai.yaml is not valid."
+ABSOLUTE = "FEWIA_OPENAI_API_KEY_FILE MUST be an absolute path."
+REGULAR = "FEWIA_OPENAI_API_KEY_FILE MUST name an existing regular file."
+OUTSIDE = "FEWIA_OPENAI_API_KEY_FILE MUST be outside the repository."
+CONFIG = (
+    "Docker Compose could not read the configuration. Check that Docker is "
+    "running and that FEWIA_OPENAI_API_KEY_FILE is set in .env."
+)
 FAKE_DOCKER = """\
 import json
 import os
@@ -130,11 +139,13 @@ def _config(api: object, worker: object | None = None) -> dict[str, object]:
 
 
 def _assert_rejected(
-    launcher: Launcher, result: subprocess.CompletedProcess[str]
+    launcher: Launcher, result: subprocess.CompletedProcess[str], detail: str = MOUNT
 ) -> None:
     assert result.returncode != 0
     assert result.stdout == ""
-    assert result.stderr == ERROR
+    assert result.stderr == f"{ERROR}{detail}\n"
+    assert "PRIVATE_" not in result.stderr
+    assert str(launcher.key) not in result.stderr
     calls = launcher.calls()
     assert len(calls) == 1
     assert "config" in calls[0]["args"]
@@ -189,7 +200,9 @@ def test_absolute_external_file_starts_with_the_validated_inputs(
 )
 def test_unsafe_sources_fail_before_up(launcher: Launcher, kind: str) -> None:
     source: Path | str
+    detail = REGULAR if kind in ("missing", "directory", "symlink") else OUTSIDE
     if kind == "relative":
+        detail = ABSOLUTE
         source = os.path.relpath(launcher.key, launcher.root)
     elif kind == "missing":
         source = launcher.outside / "missing"
@@ -207,7 +220,7 @@ def test_unsafe_sources_fail_before_up(launcher: Launcher, kind: str) -> None:
             source = alias / "internal-key"
         elif kind == "internal_traversal":
             source = launcher.outside / ".." / launcher.root.name / "internal-key"
-    _assert_rejected(launcher, launcher.run(_config(_mount(source))))
+    _assert_rejected(launcher, launcher.run(_config(_mount(source))), detail)
 
 
 def test_file_contents_do_not_need_read_access(launcher: Launcher) -> None:
@@ -273,12 +286,69 @@ def test_invalid_json_fails_closed(launcher: Launcher) -> None:
 
 def test_config_failure_does_not_start_services(launcher: Launcher) -> None:
     result = launcher.run(_config(_mount(launcher.key)), config_status=1)
-    _assert_rejected(launcher, result)
+    _assert_rejected(launcher, result, CONFIG)
 
 
-def test_up_failure_hides_provider_output(launcher: Launcher) -> None:
-    result = launcher.run(_config(_mount(launcher.key)), up_status=1)
+@pytest.mark.parametrize("status", [1, 17])
+def test_up_failure_hides_provider_output(launcher: Launcher, status: int) -> None:
+    result = launcher.run(_config(_mount(launcher.key)), up_status=status)
     assert result.returncode != 0
     assert result.stdout == ""
-    assert result.stderr == ERROR
+    assert result.stderr == (
+        f"{ERROR}Docker Compose up failed with exit code {status}. "
+        "Run the same command without the launcher to see the Compose output.\n"
+    )
+    assert "PRIVATE_" not in result.stderr
     assert len(launcher.calls()) == 2
+
+
+def _restricted_path(launcher: Launcher, *names: str) -> None:
+    tools = launcher.root.parent / "limited-bin"
+    tools.mkdir()
+    for name in names:
+        found = shutil.which(name)
+        assert found is not None
+        (tools / name).symlink_to(found)
+    launcher.environment["PATH"] = str(tools)
+
+
+def _run_bare(launcher: Launcher) -> subprocess.CompletedProcess[str]:
+    bash = shutil.which("bash")
+    assert bash is not None
+    return subprocess.run(
+        [bash, str(launcher.root / "infra/openai/compose-up.sh")],
+        cwd=launcher.outside,
+        env=launcher.environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_missing_python_names_the_step(launcher: Launcher) -> None:
+    _restricted_path(launcher, "dirname")
+    result = _run_bare(launcher)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == (
+        f"{ERROR}Install Python 3; the launcher validates the key path with it.\n"
+    )
+
+
+def test_missing_env_file_fails_before_docker(launcher: Launcher) -> None:
+    (launcher.root / ".env").unlink()
+    result = launcher.run(_config(_mount(launcher.key)))
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == (
+        f"{ERROR}Create .env from .env.example and set FEWIA_OPENAI_API_KEY_FILE.\n"
+    )
+    assert not launcher.log.exists()
+
+
+def test_missing_docker_names_the_step(launcher: Launcher) -> None:
+    _restricted_path(launcher, "dirname", "python3")
+    result = _run_bare(launcher)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == f"{ERROR}Install Docker Desktop with Docker Compose.\n"

@@ -50,7 +50,7 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.bedrock_guardrail_id is None
     assert settings.bedrock_guardrail_version is None
     assert settings.openai_api_key_file is None
-    assert settings.openai_region == "us"
+    assert settings.openai_region == "global"
     assert settings.plaid_client_id is None
     assert settings.plaid_secret_file is None
     assert settings.plaid_tokens_file is None
@@ -535,5 +535,5 @@ def test_raw_openai_key_and_endpoint_env_are_ignored(
     monkeypatch.setenv("OPENAI_BASE_URL", "https://other.invalid")
     settings = load_provider_settings()
     assert settings.openai_api_key_file is None
-    assert settings.openai_region == "us"
+    assert settings.openai_region == "global"
     assert SECRET_MARKER not in repr(settings)

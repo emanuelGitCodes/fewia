@@ -2,6 +2,7 @@ import json
 import os
 import re
 import stat
+import sys
 from pathlib import Path
 from typing import Literal, cast
 
@@ -21,8 +22,56 @@ _MAX_KEY_BYTES = 65536
 _SCHEMA_TYPES = frozenset("object array string number integer boolean null".split())
 
 
+_LABEL = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+
+
 class _Invalid(ValueError):
-    pass
+    def __init__(self, item_type: str | None = None) -> None:
+        super().__init__()
+        self.item_type = item_type
+
+
+def _label(value: object) -> str | None:
+    if isinstance(value, str) and _LABEL.fullmatch(value) is not None:
+        return value
+    return None
+
+
+def _error_labels(response: httpx.Response) -> tuple[str | None, str | None]:
+    try:
+        body = json.loads(response.text)
+        error = body.get("error") if isinstance(body, dict) else None
+        if isinstance(error, dict):
+            return _label(error.get("type")), _label(error.get("code"))
+    except Exception:  # noqa: BLE001
+        pass
+    return None, None
+
+
+def _log_failure(
+    reason: str,
+    *,
+    http_status: int | None = None,
+    exception: str | None = None,
+    error_type: str | None = None,
+    error_code: str | None = None,
+    item_type: str | None = None,
+) -> None:
+    print(
+        json.dumps(
+            {
+                "event": "openai_responses_failed",
+                "reason": reason,
+                "http_status": http_status,
+                "exception": exception,
+                "error_type": error_type,
+                "error_code": error_code,
+                "item_type": item_type,
+            },
+            sort_keys=True,
+        ),
+        file=sys.stderr,
+    )
 
 
 def _mapping(value: object) -> dict[str, object]:
@@ -284,9 +333,13 @@ def _response(
     for raw in output:
         item = _mapping(raw)
         kind = item.get("type")
+        if kind == "reasoning":
+            # FEWIA sends reasoning.effort "none" and store false, so it skips
+            # reasoning items and does not replay them. A non-"none" effort
+            # needs replayed reasoning items.
+            continue
         if kind not in ("function_call", "message"):
-            # Reasoning items MUST fail closed; replay has no reasoning state.
-            raise _Invalid()
+            raise _Invalid(_label(kind))
         if status == "incomplete":
             continue
         if kind == "function_call":
@@ -368,7 +421,7 @@ class OpenAIResponsesProvider:
         self._key = _read_key(api_key_file)
         self._endpoint = _ENDPOINTS[region]
         self._client = client or httpx.Client(
-            timeout=40,
+            timeout=httpx.Timeout(40, connect=3),
             follow_redirects=False,
             trust_env=False,
             transport=httpx.HTTPTransport(retries=0, trust_env=False),
@@ -383,6 +436,7 @@ class OpenAIResponsesProvider:
         request: dict[str, object] | None = None
         names: set[str] = set()
         history_ids: set[str] = set()
+        invalid: str | None = None
         try:
             if not isinstance(system_prompt, str) or not system_prompt.strip():
                 raise _Invalid()
@@ -399,9 +453,11 @@ class OpenAIResponsesProvider:
                 "parallel_tool_calls": False,
             }
             _encode(request)
-        except (ValueError, TypeError, RecursionError, OverflowError):
+        except (ValueError, TypeError, RecursionError, OverflowError) as exc:
             request = None
+            invalid = type(exc).__name__
         if request is None:
+            _log_failure("invalid_input", exception=invalid)
             raise ValueError("Provider input is invalid")
         result: dict[str, object] | None = None
         try:
@@ -411,10 +467,27 @@ class OpenAIResponsesProvider:
                 headers={"Authorization": f"Bearer {self._key.get_secret_value()}"},
                 follow_redirects=False,
             )
-            if response.status_code == 200:
-                result = _response(_decode(response.text), names, history_ids)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            _log_failure("transport_error", exception=type(exc).__name__)
+        else:
+            if response.status_code != 200:
+                error_type, error_code = _error_labels(response)
+                _log_failure(
+                    "http_error",
+                    http_status=response.status_code,
+                    error_type=error_type,
+                    error_code=error_code,
+                )
+            else:
+                try:
+                    result = _response(_decode(response.text), names, history_ids)
+                except Exception as exc:  # noqa: BLE001
+                    _log_failure(
+                        "invalid_response",
+                        http_status=200,
+                        exception=type(exc).__name__,
+                        item_type=exc.item_type if isinstance(exc, _Invalid) else None,
+                    )
         if result is None:
             raise LLMUnavailable("The language model is unavailable")
         return result

@@ -5319,3 +5319,7 @@ Issue #482 adds the direct OpenAI provider beside Bedrock. The [evaluation archi
 ## 2026-11-07 — Default local browser startup
 
 Pull request #484 adds `make up` for GPT-6 Luna. Bedrock and credential-free planning have separate startup targets. An isolated Compose run served the browser and verified the worker model with a synthetic key.
+
+## 2026-11-07 — Luna default follow-up
+
+The owner approved four fixes from the PR #484 review. The OpenAI adapter logs one bounded JSON line per failure and skips reasoning items. Its connect timeout is 3 seconds. The launcher names the failed step. The OpenAI region default is `global`, because `us` processing costs 10% more. [Decision 0027](decisions/0027-luna-default-chat-provider.md) makes GPT-6 Luna the default local chat provider. The hosted path keeps Bedrock. The course demo script and rehearsal checklist now start the OpenAI and Kroger overlays. No live model call verified these changes.

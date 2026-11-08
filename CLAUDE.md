@@ -66,7 +66,9 @@ The skill in `.claude/skills/feature-loop/` holds the Claude Code mechanics.
 ## Commands
 
 ```bash
-docker compose up -d
+make up            # GPT-6 Luna chat (decision 0027)
+make up-bedrock    # Bedrock Nova 2 Lite chat
+make up-offline    # no chat provider
 uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 cd backend && uv run pytest
 cd frontend && npm run lint && npm test && npm run build

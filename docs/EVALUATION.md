@@ -201,8 +201,8 @@ and Python 3 are prerequisites. For first-time setup, set
 `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env` file to an absolute host
 path outside the repository. The file at that path contains only the API
 key and uses mode `600`. Do not put the key in `.env`.
-`FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the global
-endpoint. The launcher uses Python 3 to validate the path before it runs
+`FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
+processing, which costs 10% more. The launcher uses Python 3 to validate the path before it runs
 Docker Compose up. Start the default browser path with:
 
 ```bash
@@ -217,7 +217,7 @@ in [`infra/bedrock/README.md`](../infra/bedrock/README.md) and run
 `make up-offline`. Provider startup does not fall back automatically.
 
 Keys MUST NOT enter the repository, benchmark inputs, or reports.
-The benchmark CLI takes its region from `--region`, not that environment
+The archived matched run used `us`. The benchmark CLI takes its region from `--region`, not that environment
 variable. A global run needs a separate rate file whose region is `global`.
 The supplied US file MUST NOT price a global run.
 

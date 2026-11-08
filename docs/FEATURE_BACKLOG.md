@@ -47,7 +47,7 @@ Sonnet do not write code.
 **Commands.**
 
 ```bash
-docker compose up -d
+make up
 uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 cd backend && uv run pytest
 cd frontend && npm run lint && npm test && npm run build

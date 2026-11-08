@@ -9,7 +9,8 @@ web
 ## Stack
 
 The accepted project uses React and TypeScript, FastAPI, PostgreSQL, and local
-Floci services. Real model calls use Amazon Bedrock. The shared scope lives in
+Floci services. Real model calls use GPT-6 Luna through OpenAI by default. Amazon Bedrock
+with Nova 2 Lite is the alternative ([decision 0027](wiki/decisions/0027-luna-default-chat-provider.md)). The shared scope lives in
 [the project context](.codex/project-context.md).
 
 ## Users

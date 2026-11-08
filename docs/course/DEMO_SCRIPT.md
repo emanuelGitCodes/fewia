@@ -15,7 +15,7 @@ Cut order: shot 8, then shot 7. The presenter MUST NOT cut shot 9, because it st
 |---|---|---|---|
 | 1 | Scope and the agent's job | 1:30 | 1:30 |
 | 2 | Plan on `/prototype` | 1:30 | 3:00 |
-| 3 | Ask FEWIA (Bedrock) | 1:30 | 4:30 |
+| 3 | Ask FEWIA (GPT-6 Luna) | 1:30 | 4:30 |
 | 4 | Kroger store, price, cart | 2:00 | 6:30 |
 | 5 | Stop before payment | 1:00 | 7:30 |
 | 6 | How it is tested | 1:30 | 9:00 |
@@ -36,8 +36,10 @@ Expected states are observation targets. No one has run this list.
 - The operator MUST keep credentials, client IDs, key files, and file contents
   off the screen and out of the recording.
 - The operator MUST NOT create a public URL.
-- Bedrock needs the overlay in
-  [LOCAL_GROCERY_DEMO.md](../LOCAL_GROCERY_DEMO.md) and owner-approved provider use.
+- Chat uses GPT-6 Luna through the OpenAI overlay in
+  [LOCAL_GROCERY_DEMO.md](../LOCAL_GROCERY_DEMO.md)
+  ([decision 0027](../../wiki/decisions/0027-luna-default-chat-provider.md)).
+  It needs owner-approved provider use.
   Kroger needs its overlay and the owner's sign-in.
 - Run both overlays once before the session. Close the tabs. Reopen `/prototype`.
 - Demo input: a $40 plan cap. `/prototype` has no monthly-limit control and sends the cap as the limit. This is a user choice.
@@ -49,14 +51,14 @@ Say the class of each result on screen. Use these labels only.
 
 | Label | Meaning |
 |---|---|
-| `live provider` | A real Bedrock or Kroger call made during this session. |
+| `live provider` | A real GPT-6 Luna, Bedrock, or Kroger call made during this session. |
 | `local application` | The local stack with sample catalog prices. No provider call. |
 | `local emulator` | Floci SQS and S3 on the local stack. |
 | `archived` | A saved result from an earlier dated batch. Say `archived` first, then its date, revision, and evidence class. Never a call made in this session. |
 | `fixture` | Deterministic output from a scripted provider or a test. Never a live call. |
 
 The app has no fixture mode and no fallback label. The operator shows the label in a slide, a window title, or a banner.
-A Bedrock fallback MUST carry the label `ARCHIVED, NOT LIVE`.
+A model fallback MUST carry the label `ARCHIVED, NOT LIVE`.
 A Kroger fallback MUST carry the label `SAMPLE CATALOG, NOT KROGER`.
 A fallback MUST NOT appear under a `live provider` label.
 
@@ -66,7 +68,7 @@ A fallback MUST NOT appear under a `live provider` label.
 
 - Open `/prototype`. The header shows `FEWIA` and `Demo data`.
 - Show [FEATURE_MAP.md](../FEATURE_MAP.md), the edge diagram.
-- Point at three parts: the deterministic planner, Bedrock behind the worker,
+- Point at three parts: the deterministic planner, the model behind the worker,
   and Kroger behind a read and a user click.
 - Observe: the page shows the heading `Your plan`.
 
@@ -86,9 +88,9 @@ Evidence class: `local application`, sample catalog prices.
 7. Check the `Shopping list`. Mark one ingredient under `Already at home`.
    Observe that the total changes.
 
-### Shot 3. Ask FEWIA, live Bedrock (1:30)
+### Shot 3. Ask FEWIA, live GPT-6 Luna (1:30)
 
-Evidence class: `live provider` (Bedrock, `us.amazon.nova-2-lite-v1:0`).
+Evidence class: `live provider` (OpenAI, `gpt-6-luna`).
 
 1. Open `Ask FEWIA`. On a narrow window, use `Ask FEWIA for a meal idea`.
 2. Observe the sub-line `Replies come from a real model call. Prices are sample estimates.`
@@ -98,7 +100,7 @@ Evidence class: `live provider` (Bedrock, `us.amazon.nova-2-lite-v1:0`).
    with the `Changes` list and the buttons `Apply` and `Discard`.
 6. Select `Apply`. Observe the plan update. The plan, not the model, sets every price.
 
-**Fallback 3F (Bedrock unavailable). Label: `ARCHIVED, NOT LIVE`.**
+**Fallback 3F (model unavailable). Label: `ARCHIVED, NOT LIVE`.**
 
 - Trigger: the page shows `Ask FEWIA is off. The plan still works.`
   or `FEWIA did not answer. Your plan did not change.`

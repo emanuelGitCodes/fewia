@@ -28,7 +28,8 @@ Cognito self-registration stays disabled. ECS Fargate tasks remain private.
 RDS PostgreSQL uses isolated subnets, retention, and verified TLS.
 Administrator and application credentials use separate Secrets Manager secrets.
 Execution and application roles grant only the permissions each task needs.
-CloudWatch holds task logs. Real Bedrock calls use the `LLMProvider` boundary.
+CloudWatch holds task logs. Real Bedrock calls use the `LLMProvider` boundary. The hosted path keeps Bedrock
+under [0027](0027-luna-default-chat-provider.md).
 This design is source preparation, not proof of deployed authentication or isolation.
 
 The demo uses manual budgets. Proposed defaults are USD 100 per month and a USD 40 plan cap.
