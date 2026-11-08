@@ -19,8 +19,7 @@ A new worktree has no `.env`.
 
 - [ ] Docker Desktop runs. `docker info` prints server details.
 - [ ] `.env` exists with mode `600`.
-- [ ] `.env` sets `FEWIA_OPENAI_API_KEY_FILE` to an absolute path outside
-  the repository. `FEWIA_OPENAI_REGION` is `global` or unset.
+- [ ] `.env` sets `FEWIA_OPENAI_API_KEY`. Never open `.env` on the screen share. `FEWIA_OPENAI_REGION` is `global` or unset.
 - [ ] Set `FEWIA_KROGER_CLIENT_ID_FILE`, `FEWIA_KROGER_SECRET_FILE`, and
   `FEWIA_KROGER_TOKEN_KEY_FILE` in `.env` or in the shell. Each value MUST be
   an absolute path. `FEWIA_KROGER_ENVIRONMENT` defaults to `certification`.
@@ -57,7 +56,6 @@ Check existence and mode only. Never open, print, or screen-share these files.
 
 | Variable | Needs | Mode |
 | --- | --- | --- |
-| `FEWIA_OPENAI_API_KEY_FILE` | OpenAI API key file | 600 |
 | `FEWIA_KROGER_CLIENT_ID_FILE` | Kroger client ID file | 600 |
 | `FEWIA_KROGER_SECRET_FILE` | Kroger client secret file | 600 |
 | `FEWIA_KROGER_TOKEN_KEY_FILE` | Fernet key for stored customer tokens | 600 |

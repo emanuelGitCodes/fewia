@@ -42,8 +42,9 @@ and USD 0.008103 for Nova. The p95 turn latency was 3.794 seconds for Luna and
 
 ## Consequences
 
-- A grader supplies a key file from their own OpenAI project. The key file
-  path goes in `.env`. The key MUST NOT go in `.env`, Git, logs, or archives.
+- A grader supplies a key from their own OpenAI project.
+  [Decision 0028](0028-openai-key-in-env.md) puts that key in `.env`. The
+  key MUST NOT go in Git, logs, or archives.
 - The infrastructure under `infra/hosting/` is undeployed and keeps the
   Bedrock settings.
 - Evidence from Bedrock runs stays valid as Bedrock evidence. A provider

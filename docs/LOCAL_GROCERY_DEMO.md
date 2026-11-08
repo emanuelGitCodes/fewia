@@ -36,10 +36,11 @@ product places no orders and submits no payments.
 
 ## Start the default browser path
 
-Make, Docker Desktop with Docker Compose, and Python 3 are prerequisites.
-For first-time setup, set `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env`
-file to an absolute host path outside the repository. The file at that path
-contains only the API key and uses mode `600`. Do not put the key in `.env`.
+Make, Docker Desktop with Docker Compose 2.23 or later, and Python 3 are
+prerequisites.
+For first-time setup, copy `.env.example` to `.env` and set
+`FEWIA_OPENAI_API_KEY` to an OpenAI API key from your own project. Git
+ignores `.env`. Never commit it, share it, or show it on screen.
 `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
 processing, which costs 10% more.
 
@@ -49,8 +50,8 @@ From the repository root, start the default browser path:
 make up
 ```
 
-The launcher uses Python 3 to validate the external key-file path before
-it runs Docker Compose. The `bootstrap` service runs the migrations, seeds
+The launcher uses Python 3 to check that `FEWIA_OPENAI_API_KEY` is set
+before it runs Docker Compose. The `bootstrap` service runs the migrations, seeds
 the demo user, and provisions the Floci resources. It then exits with code
 0. `api`, `worker`, and `sync-worker` start after it completes.
 
