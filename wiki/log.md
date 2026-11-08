@@ -5327,3 +5327,7 @@ The owner approved four fixes from the PR #484 review. The OpenAI adapter logs o
 ## 2026-11-07 — OpenAI key in `.env`
 
 The owner chose to put the OpenAI key in `.env` so the course grader needs one setting. [Decision 0028](decisions/0028-openai-key-in-env.md) records it. `compose.openai.yaml` turns `FEWIA_OPENAI_API_KEY` into a Compose secret that only the worker mounts. The adapter still reads the key from a file. A source ZIP comes from `git archive`, which leaves out `.env`.
+
+## 2026-11-07 — Apply checks plan constraints
+
+Apply checks current spending, the tightest cap, the proposed pantry, and stored dietary constraints. Browser tests rejected USD 17.03 against a USD 17.02 cap and preserved the saved plan. Revision `b35e6e1d` passed the gates with 18,497 tests and one skip. Independent review approved the change. The supervisor recorded 3,645,154 input tokens and 42,188 output tokens for the writer and review phases.
