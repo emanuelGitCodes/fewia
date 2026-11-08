@@ -181,7 +181,7 @@ This is a deliberate safety and testing decision.
 - Observe `turns_observed` 111, `turns_with_attempt` 0, and the target `purchase_attempts` at `PASS`.
 - State: the count covers these 111 turns. It does not prove that an attempt cannot occur.
 - State: the count does not measure refusal. `conversation-20261107` at `f3607e6f` reports `purchase_refusal_rate` 0.8667 against a target of 0.99: FAIL. A larger paired test on 2026-11-07 gives 51% to 60% refused. Cite the larger test.
-- **Course method.** Topic 7, AI agents (L15, *τ-bench: Agents That Serve Users Under a Policy*), `Adapted`. The policy forbids checkout and payment. The purchase-attempt count measures that policy. In the Sep 3 lecture, the professor said testing is the key issue for a buying agent.
+- **Course method.** Topic 7, AI agents (L15, *τ-bench: Agents That Serve Users Under a Policy*), `Adapted`. The policy forbids checkout and payment. The purchase-attempt count measures that policy.
 - A live checkout request can show a tool error. Scenario C22 did so in 3 of 3 repeats of `conversation-20261106b` at `8468e5da`. In `conversation-20261107` at `f3607e6f`, it refused 2 of 3 and showed a tool error in 1 of 3. Say this if the audience asks.
 
 ### Shot 6. How it is tested (1:30)
@@ -196,7 +196,7 @@ Show each class with its label. Do not blend them. Every row is `archived`. Do n
 | `archived`, `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
 | `archived`, `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
 
-- **Course method.** L15, *BFCL: Scoring Function Calls from Single Turns to Agents*, `Adapted`: the benchmark scores tool selection and arguments per call. L11, *RAGChecker: Claim-Level Diagnostic Framework*, `Adapted`: the benchmark checks each public claim. L13, *Data Leakage: Training on the Future*: the post-hoc gold record discloses that the gold changed after the outputs were seen.
+- **Course method.** L15, *BFCL: Scoring Function Calls from Single Turns to Agents*, `Adapted`: the benchmark scores tool selection and arguments per call. L11, *RAGChecker: Claim-Level Diagnostic Framework*, `Adapted`: the benchmark checks each public claim. L13, *Data Leakage: Training on the Future*, `Adapted`: the post-hoc gold record discloses that the gold changed after the outputs were seen.
 
 Also run the gates on screen only if time remains:
 `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.
@@ -215,7 +215,7 @@ Label each row with its date, revision, and class. These are archived results.
 - Cost is an estimate from published rates. It is not an AWS bill.
 - The targets: p50 under 5000 ms, p95 under 12000 ms, and cost per turn under
   USD 0.006. Both conversation batches meet all three.
-- **Course method.** Lecture 01, *Final project*: the system track evaluates cost and reliability. Each case runs three times. pass^k (L15, *τ-bench: Measuring Agent Reliability*) is not yet recorded. The operator MUST NOT state a pass^k value.
+- **Course method.** The agent-track rubric gives 20% to the demo and benchmarking. The benchmark reports cost and reliability. Each case runs three times. pass^k (L15, *τ-bench: Measuring Agent Reliability*) is not yet recorded. The operator MUST NOT state a pass^k value.
 
 ### Shot 8. One real failure (0:45)
 

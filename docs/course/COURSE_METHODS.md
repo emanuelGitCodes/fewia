@@ -12,6 +12,7 @@ Each row has one label:
 | Direct | FEWIA runs the course method as the lecture defines it. |
 | Adapted | FEWIA uses the idea of the method in a simpler form. The row names the difference. |
 | Not used | FEWIA does not use the method. |
+| Not yet recorded | FEWIA has the data for the method, but no record computes it yet. |
 
 Lecture citations give the lecture number and the slide title.
 The topic numbers follow the course map in Lecture 01, *Course map*.
@@ -26,7 +27,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | 4. Retrieval | L08–L10 | Direct for BM25 and its metrics; other methods not used |
 | 5. Retrieval-augmented generation | L11–L12 | Adapted |
 | 6. Recommendation systems | L13–L14 | Not used; the evaluation lessons apply |
-| 7. AI agents | L15–L16 | Direct |
+| 7. AI agents | L15–L16 | Direct for function calling and ReAct; Adapted for the policy, scoring, history, clarification, and memory; pass^k not yet recorded; multi-agent systems not used |
 | 8. Knowledge updating | L11 and the Topic 8 lectures | Adapted for external knowledge; model editing not used |
 
 ## Topic 7: AI agents
@@ -35,8 +36,8 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 |---|---|---|---|
 | L15, *Function Calling and the Model Context Protocol* | [`chat_tool_specs`](../../backend/app/agent/chat_loop.py) gives the model up to nine named tools with fixed argument schemas. | Oct 5 batch: 36 of 36 tool calls had a valid shape. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Direct |
 | L15, *ReAct: Interleaving Reasoning and Acting* | [`run_chat`](../../backend/app/agent/chat_loop.py) alternates model turns and tool results. `MAX_MODEL_TURNS` is 8. `MAX_PLANNER_REVISIONS` is 3. | Same batch and section. | Direct |
-| L15, *BFCL: Scoring Function Calls from Single Turns to Agents* | The benchmark scores each call for shape, selection, arguments, and unnecessary calls. | Oct 5 batch: selection 18 of 21 calls, arguments 16 of 21 calls. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Direct |
-| L15, *τ-bench: Agents That Serve Users Under a Policy* | The agent works under a fixed policy: no checkout, no payment, and no plan change without a user Apply. [`_validate_apply`](../../backend/app/api/proposals.py) checks the cap, pantry, and diet again before it saves. | [`conversation-20261107/report.json`](../../eval/results/artifacts/conversation-20261107/report.json): 0 purchase attempts in 111 turns; 13 of 15 purchase requests refused. [Workflow record](../../eval/results/artifacts/main-workflow-f0f7b7d8/report.md): Apply rejected USD 17.03 against a USD 17.02 cap. | Adapted. FEWIA has no simulated user. |
+| L15, *BFCL: Scoring Function Calls from Single Turns to Agents* | The benchmark scores each call for shape, selection, arguments, and unnecessary calls. | Oct 5 batch: selection 18 of 21 calls, arguments 16 of 21 calls. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Adapted. FEWIA runs its own benchmark with the BFCL scoring layers. It does not run BFCL. |
+| L15, *τ-bench: Agents That Serve Users Under a Policy* | The agent works under a fixed policy: no checkout, no payment, and no plan change without a user Apply. [`_validate_apply`](../../backend/app/api/proposals.py) checks the cap, pantry, and diet again before it saves. | [`conversation-20261107/report.json`](../../eval/results/artifacts/conversation-20261107/report.json): 0 purchase attempts in 111 turns; 13 of 15 purchase requests refused. That refusal rate, 0.8667, fails its 0.99 target. [Workflow record](../../eval/results/artifacts/main-workflow-f0f7b7d8/report.md): Apply rejected USD 17.03 against a USD 17.02 cap. | Adapted. FEWIA has no simulated user. |
 | L15, *τ-bench: Measuring Agent Reliability* (pass^k) | The benchmark runs each case three times. | No record computes pass^k. See [gaps](#gaps-the-existing-records-can-close). | Not yet recorded |
 | L15, *The Complexity Trap: Masking vs Summarizing Agent History* | [`chat_context.py`](../../backend/app/agent/chat_context.py) accepts at most `MAX_HISTORY` = 8 messages. It carries the earlier plan as structured state (`previous_request`), not as a long transcript. | Source inspection only. | Adapted. FEWIA truncates. It does not summarize. |
 | L16, *Lost in Conversation: Multi-Turn Underspecification* | The agent asks a question when a request lacks a needed fact. [`chat_answer.py`](../../backend/app/agent/chat_answer.py) maps input errors to clarification replies. | Oct 5 batch: 6 of 6 assessed clarification slots passed. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Adapted |
@@ -87,13 +88,13 @@ L11 and L12 both use the name CRAG. In L11, CRAG is the Comprehensive RAG Benchm
 | Topic | Status | Note |
 |---|---|---|
 | 6. Recommendation systems | Not used | `POST /grocery/templates` filters six preset meal sets through the planner. It does not learn from interactions. |
-| 6. Offline evaluation, L13 *Data Leakage: Training on the Future* | Applied to the evaluation | The repository discloses that the Oct 3 gold changed after the outputs were seen ([post-hoc record](../../wiki/phases/posthoc-gold-20261003.md)). No held-out split is recorded. L05 *The benchmarks leaked* names the same risk. |
+| 6. Offline evaluation, L13 *Data Leakage: Training on the Future* | Adapted | The repository discloses that the Oct 3 gold changed after the outputs were seen ([post-hoc record](../../wiki/phases/posthoc-gold-20261003.md)). No held-out split is recorded. L05 *The benchmarks leaked* names the same risk. |
 | 1. Dense representation | Not used | FEWIA computes no embeddings. |
 | 2. Knowledge graphs | Not used | Catalog entries and USDA FDC IDs are typed records with stable IDs. They give provenance. They do not form a graph. |
 
 ## Gaps the existing records can close
 
-Each gap below needs a writer change. No gap needs a new live model call.
+Each gap below needs a writer change. No gap needs a new call to a hosted model provider. The dense retriever needs a local embedding model, and its results MUST carry an evidence-class label.
 
 | Gap | Source data | Course method |
 |---|---|---|
