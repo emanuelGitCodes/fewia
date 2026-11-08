@@ -32,13 +32,39 @@ function replyLine(count: number): string {
   return `FEWIA replied with ${String(count)} meal ${count === 1 ? "idea" : "ideas"}.`;
 }
 
+function tabbable(node: HTMLElement): boolean {
+  if (node.tabIndex < 0 || node.matches(':disabled, input[type="hidden"]')) {
+    return false;
+  }
+  for (let parent: HTMLElement | null = node; parent !== null; parent = parent.parentElement) {
+    const style = window.getComputedStyle(parent);
+    if (
+      parent.hidden ||
+      parent.hasAttribute("inert") ||
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.visibility === "collapse"
+    ) {
+      return false;
+    }
+    if (parent instanceof HTMLDetailsElement && !parent.open) {
+      const summary = parent.querySelector("summary");
+      if (summary === null || !summary.contains(node)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 export function PlanChat(props: {
   state: PlanState;
   onToggleIdea: (recipeId: string, servings: number, inPlan: boolean) => void;
   onApplyProposal?: (snapshot: ProposalPreview) => void;
   id?: string;
-  // True while the panel is an open sheet; opening moves focus into it.
   open?: boolean;
+  collapsed?: boolean;
+  modal?: boolean;
   onHide?: () => void;
   onReply?: () => void;
   krogerStore?: KrogerStore | null;
@@ -83,7 +109,8 @@ export function PlanChat(props: {
     krogerLocationId: krogerStore?.locationId ?? null,
   });
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const hideRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const announced = useRef<string | null>(null);
   const [again, setAgain] = useState(false);
   // Ideas are fixed when the job succeeds, against the plan at that moment.
@@ -115,9 +142,44 @@ export function PlanChat(props: {
 
   useEffect(() => {
     if (props.open === true) {
-      (inputRef.current ?? hideRef.current)?.focus();
+      headingRef.current?.focus();
     }
   }, [props.open]);
+
+  useEffect(() => {
+    if (!props.open || !props.modal) {
+      return undefined;
+    }
+    const panel = panelRef.current;
+    if (panel !== null && !panel.contains(document.activeElement)) {
+      headingRef.current?.focus();
+    }
+    const onTab = (event: globalThis.KeyboardEvent): void => {
+      if (event.key !== "Tab" || event.defaultPrevented || event.isComposing || panel === null) {
+        return;
+      }
+      const controls = [
+        panel,
+        ...panel.querySelectorAll<HTMLElement>(
+          'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable="true"]',
+        ),
+      ].filter(tabbable);
+      const first = controls[0] ?? panel;
+      const last = controls[controls.length - 1] ?? panel;
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !controls.some((node) => node === active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onTab);
+    return () => {
+      document.removeEventListener("keydown", onTab);
+    };
+  }, [props.open, props.modal]);
 
   const on = providers.capabilities?.chat_configured === true;
   const pending = chat.pending;
@@ -201,10 +263,21 @@ export function PlanChat(props: {
   const empty = chat.messages.length === 0;
 
   return (
-    <aside id={props.id} className="tonight-ask" aria-labelledby={headingId}>
+    <div
+      id={props.id}
+      className="tonight-ask"
+      ref={panelRef}
+      hidden={props.collapsed}
+      role={props.modal ? "dialog" : props.open ? "region" : "complementary"}
+      aria-modal={props.modal ? true : undefined}
+      aria-labelledby={headingId}
+      tabIndex={0}
+    >
       <div className="tonight-ask-head">
         <div>
-          <h2 id={headingId}>Ask FEWIA</h2>
+          <h2 id={headingId} ref={headingRef} tabIndex={-1}>
+            Ask FEWIA
+          </h2>
           {on ? (
             <p className="tonight-ask-sub">
               Replies come from a real model call. Prices are sample estimates.
@@ -221,7 +294,6 @@ export function PlanChat(props: {
             <button
               type="button"
               className="tonight-ask-btn tonight-ask-hide"
-              ref={hideRef}
               onClick={props.onHide}
             >
               Hide chat
@@ -269,7 +341,7 @@ export function PlanChat(props: {
         </div>
       ) : null}
       {on && !empty ? (
-        <ol className="tonight-ask-log" aria-label="Messages">
+        <ol className="tonight-ask-log" role="list" aria-label="Messages" tabIndex={0}>
           {chat.messages.map((turn) => {
             const reply = replies.get(turn.id);
             if (turn.role === "assistant" && reply?.answered === false) {
@@ -297,7 +369,7 @@ export function PlanChat(props: {
                 ) : null}
                 {ideas.length > 0 ? (
                   <>
-                    <ul className="tonight-ask-ideas" aria-label="Meal ideas">
+                    <ul className="tonight-ask-ideas" role="list" aria-label="Meal ideas">
                       {ideas.map((idea) => (
                         <li key={idea.recipeId}>
                           <ChatIdeaCard
@@ -366,6 +438,6 @@ export function PlanChat(props: {
           </p>
         </form>
       ) : null}
-    </aside>
+    </div>
   );
 }

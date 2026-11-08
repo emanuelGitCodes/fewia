@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { DEMO_NOTICE } from "./prototypeData";
 import {
   addMeal,
@@ -69,6 +69,8 @@ export function TonightPrototype(): JSX.Element {
   }, [state, returnPlan]);
   const kroger = useKrogerStore();
   const previousView = useRef(state.view);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const focusedRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -78,21 +80,46 @@ export function TonightPrototype(): JSX.Element {
   const newReplyId = `${askId}-new`;
   const [askOpen, setAskOpen] = useState(false);
   const [newReply, setNewReply] = useState(false);
+  const [replySequence, setReplySequence] = useState(0);
   const sheetLayout = useMediaQuery(SHEET_QUERY, true);
   const phone = useMediaQuery(PHONE_QUERY, false);
   const sheetOpen = askOpen && sheetLayout;
   useEffect(() => {
-    // Widening past 1180 px and narrowing back must not reopen the sheet.
+    // The sheet stays closed after a desktop round trip.
     if (!sheetLayout) {
       setAskOpen(false);
+      setNewReply(false);
     }
   }, [sheetLayout]);
   const wasOpen = useRef(false);
   const restoreFocus = useRef(false);
   const lines = planLines(state);
+  const previousLayout = useRef({ sheetLayout, phone });
+
+  useLayoutEffect(() => {
+    const previous = previousLayout.current;
+    previousLayout.current = { sheetLayout, phone };
+    const panel = rootRef.current?.querySelector(".tonight-ask");
+    const focused = focusedRef.current;
+    if (!(panel instanceof HTMLElement) || focused === null) {
+      return;
+    }
+    if (sheetLayout && !previous.sheetLayout && panel.contains(focused)) {
+      dockRef.current?.focus();
+    } else if (
+      !sheetLayout &&
+      previous.sheetLayout &&
+      (dockRef.current?.contains(focused) === true || focused.matches(".tonight-ask-hide"))
+    ) {
+      panel.querySelector<HTMLElement>("h2")?.focus();
+    } else if (phone && !previous.phone && sheetOpen && !panel.contains(focused)) {
+      panel.querySelector<HTMLElement>("h2")?.focus();
+    }
+  }, [sheetLayout, phone, sheetOpen]);
 
   const closeSheet = useCallback((): void => {
-    restoreFocus.current = true;
+    const panel = rootRef.current?.querySelector(".tonight-ask");
+    restoreFocus.current = panel?.contains(document.activeElement) === true;
     setAskOpen(false);
   }, []);
   const openSheet = (): void => {
@@ -111,22 +138,29 @@ export function TonightPrototype(): JSX.Element {
   const onReply = useCallback((): void => {
     if (sheetLayout && !sheetOpen) {
       setNewReply(true);
+      setReplySequence((current) => current + 1);
     }
   }, [sheetLayout, sheetOpen]);
 
   useEffect(() => {
-    if (wasOpen.current && !sheetOpen && restoreFocus.current) {
+    if (wasOpen.current && !sheetOpen && sheetLayout && restoreFocus.current) {
       dockRef.current?.focus();
     }
     wasOpen.current = sheetOpen;
     restoreFocus.current = false;
-  }, [sheetOpen]);
+  }, [sheetOpen, sheetLayout]);
   useEffect(() => {
     if (!sheetOpen) {
       return undefined;
     }
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
+      if (
+        event.key === "Escape" &&
+        !event.defaultPrevented &&
+        !event.isComposing &&
+        event.keyCode !== 229
+      ) {
+        event.preventDefault();
         closeSheet();
       }
     };
@@ -135,16 +169,23 @@ export function TonightPrototype(): JSX.Element {
       document.removeEventListener("keydown", onKey);
     };
   }, [sheetOpen, closeSheet]);
-  // The sheet covers content the user must not reach: the whole plan on a phone, the meals column otherwise.
+  // Phone chat makes the plan and navigation inert. Tablet chat makes only covered content inert.
   useEffect(() => {
     if (!sheetOpen) {
       return undefined;
     }
     const main = mainRef.current;
     const covered: Array<Element | null> = phone
-      ? [headerRef.current, main, footerRef.current]
+      ? [
+          headerRef.current,
+          main,
+          footerRef.current,
+          rootRef.current?.querySelector(".tonight-nav") ?? null,
+        ]
       : [main?.querySelector(".tonight-plan-main") ?? main];
-    const targets = covered.filter((node): node is Element => node !== null);
+    const targets = covered.filter(
+      (node): node is Element => node !== null && !node.hasAttribute("inert"),
+    );
     for (const node of targets) {
       node.setAttribute("inert", "");
     }
@@ -171,7 +212,18 @@ export function TonightPrototype(): JSX.Element {
     window.scrollTo(0, 0);
   }, [state.view]);
   return (
-    <div className={sheetOpen ? "tonight-prototype is-ask-open" : "tonight-prototype"}>
+    <div
+      ref={rootRef}
+      className={sheetOpen ? "tonight-prototype is-ask-open" : "tonight-prototype"}
+      onFocusCapture={(event) => {
+        focusedRef.current = event.target;
+      }}
+      onBlurCapture={(event) => {
+        if (event.relatedTarget instanceof HTMLElement) {
+          focusedRef.current = event.relatedTarget;
+        }
+      }}
+    >
       <div className="tonight-frame">
         <div className="tonight-canvas" ref={canvasRef}>
           <header className="tonight-header" ref={headerRef}>
@@ -220,6 +272,8 @@ export function TonightPrototype(): JSX.Element {
             id={askId}
             state={state}
             open={sheetOpen}
+            collapsed={sheetLayout && !sheetOpen}
+            modal={phone && sheetOpen}
             onHide={closeSheet}
             onReply={onReply}
             krogerReturn={krogerReturn}
@@ -242,26 +296,25 @@ export function TonightPrototype(): JSX.Element {
             <a href="/">Existing app</a>
           </footer>
         </div>
-        {sheetLayout ? (
-          <div className="tonight-dock">
-            <button
-              type="button"
-              className="tonight-dock-btn"
-              ref={dockRef}
-              aria-expanded={sheetOpen}
-              aria-controls={askId}
-              aria-describedby={newReply ? newReplyId : undefined}
-              onClick={openSheet}
-            >
-              Ask FEWIA for a meal idea
-            </button>
-            {newReply ? (
-              <span id={newReplyId} className="tonight-dock-new">
-                1 new reply
-              </span>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="tonight-dock" hidden={!sheetLayout || sheetOpen}>
+          <button
+            type="button"
+            className="tonight-dock-btn"
+            ref={dockRef}
+            aria-expanded={sheetOpen}
+            aria-controls={askId}
+            aria-haspopup={phone ? "dialog" : undefined}
+            aria-describedby={newReply ? newReplyId : undefined}
+            onClick={openSheet}
+          >
+            Ask FEWIA for a meal idea
+          </button>
+          {newReply ? (
+            <span id={newReplyId} className="tonight-dock-new">
+              1 new reply
+            </span>
+          ) : null}
+        </div>
       </div>
       <PrototypeNav
         view={state.view}
@@ -270,6 +323,9 @@ export function TonightPrototype(): JSX.Element {
           setState((current) => withPlanView(current, view));
         }}
       />
+      <div className="tonight-dock-announcement visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        {newReply ? <span key={replySequence}>FEWIA replied. Open Ask FEWIA to read it.</span> : null}
+      </div>
     </div>
   );
 }

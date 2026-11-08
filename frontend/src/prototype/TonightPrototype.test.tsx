@@ -184,6 +184,7 @@ function memoryStorage(): Storage {
 }
 
 beforeEach(() => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query }));
   Object.defineProperty(window, "sessionStorage", {
     configurable: true,
     writable: true,
@@ -575,10 +576,10 @@ describe("TonightPrototype", () => {
     ).toBeTruthy();
   });
 
-  it("has exactly one plan status element and one chat status element", () => {
+  it("has one plan status, one chat status, and a mounted dock status", () => {
     mount();
     expect(planStatuses()).toHaveLength(1);
-    expect(screen.getAllByRole("status")).toHaveLength(2);
+    expect(screen.getAllByRole("status")).toHaveLength(3);
     expect(screen.getByText(FIT_INITIAL).getAttribute("role")).toBeNull();
   });
 
@@ -1536,12 +1537,49 @@ describe("Ask FEWIA dock and sheet", () => {
     });
   }
 
+  function resizingFrom(initial: number): (next: number) => void {
+    const limits: Record<string, number> = {
+      "(max-width: 1179px)": 1179,
+      "(max-width: 719px)": 719,
+    };
+    let width = initial;
+    const listeners = new Set<() => void>();
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        get matches() {
+          return width <= (limits[query] ?? -1);
+        },
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }),
+    });
+    return (next: number): void => {
+      width = next;
+      act(() => {
+        listeners.forEach((listener) => {
+          listener();
+        });
+      });
+    };
+  }
+
   function dock(): HTMLElement {
-    return screen.getByRole("button", { name: "Ask FEWIA for a meal idea" });
+    const button = document.querySelector<HTMLElement>(".tonight-dock-btn");
+    if (button === null) {
+      throw new Error("Missing chat dock");
+    }
+    return button;
   }
 
   function aside(): HTMLElement {
-    return screen.getByRole("complementary", { name: "Ask FEWIA" });
+    const panel = document.querySelector<HTMLElement>(".tonight-ask");
+    if (panel === null) {
+      throw new Error("Missing chat panel");
+    }
+    return panel;
   }
 
   function openSheet(): void {
@@ -1567,7 +1605,8 @@ describe("Ask FEWIA dock and sheet", () => {
     openSheet();
     expect(dock().getAttribute("aria-expanded")).toBe("true");
     expect(root.querySelector(".is-ask-open")).not.toBeNull();
-    expect(document.activeElement).toBe(screen.getByLabelText("Ask for a meal"));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
+    expect(screen.getByRole("region", { name: "Ask FEWIA" }).hasAttribute("aria-modal")).toBe(false);
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Hide chat" }));
     });
@@ -1609,12 +1648,47 @@ describe("Ask FEWIA dock and sheet", () => {
     mount();
     openSheet();
     const input = screen.getByLabelText("Ask for a meal");
-    expect(document.activeElement).toBe(input);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
     act(() => {
       fireEvent.keyDown(input, { key: "Escape" });
     });
     expect(dock().getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(dock());
+  });
+
+  it("ignores handled and composing Escape events", () => {
+    stubWidth(375);
+    mount();
+    openSheet();
+    const input = screen.getByLabelText("Ask for a meal");
+    const handled = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    handled.preventDefault();
+    fireEvent(input, handled);
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", keyCode: 229 });
+    expect(dock().getAttribute("aria-expanded")).toBe("true");
+    input.focus();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(document.activeElement).toBe(dock());
+    const cap = screen.getByLabelText("Plan cap");
+    cap.focus();
+    expect(fireEvent.keyDown(cap, { key: "Escape" })).toBe(true);
+    expect(document.activeElement).toBe(cap);
+  });
+
+  it("removes phone background inertness on unmount", () => {
+    stubWidth(375);
+    const view = render(createElement(TonightPrototype));
+    const nav = screen.getByRole("navigation");
+    const main = screen.getByRole("main");
+    openSheet();
+    expect(nav.hasAttribute("inert")).toBe(true);
+    expect(main.hasAttribute("inert")).toBe(true);
+    view.unmount();
+    expect(nav.hasAttribute("inert")).toBe(false);
+    expect(main.hasAttribute("inert")).toBe(false);
+    expect(fireEvent.keyDown(document, { key: "Tab" })).toBe(true);
+    expect(fireEvent.keyDown(document, { key: "Escape" })).toBe(true);
   });
 
   it("makes the whole plan inert below 720 px while the sheet is open", () => {
@@ -1628,6 +1702,8 @@ describe("Ask FEWIA dock and sheet", () => {
     expect(header?.hasAttribute("inert")).toBe(true);
     expect(main.hasAttribute("inert")).toBe(true);
     expect(footer?.hasAttribute("inert")).toBe(true);
+    expect(screen.getByRole("dialog", { name: "Ask FEWIA" }).getAttribute("aria-modal")).toBe("true");
+    expect(root.querySelector("nav")?.hasAttribute("inert")).toBe(true);
     expect(aside().hasAttribute("inert")).toBe(false);
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Hide chat" }));
@@ -1635,6 +1711,9 @@ describe("Ask FEWIA dock and sheet", () => {
     expect(header?.hasAttribute("inert")).toBe(false);
     expect(main.hasAttribute("inert")).toBe(false);
     expect(footer?.hasAttribute("inert")).toBe(false);
+    expect(root.querySelector("nav")?.hasAttribute("inert")).toBe(false);
+    expect(aside().hidden).toBe(true);
+    expect(screen.queryByRole("textbox", { name: "Ask for a meal" })).toBeNull();
   });
 
   it("makes only the meals column inert from 720 to 1179 px", () => {
@@ -1647,23 +1726,62 @@ describe("Ask FEWIA dock and sheet", () => {
     expect(side?.hasAttribute("inert")).toBe(false);
     expect(screen.getByRole("main").hasAttribute("inert")).toBe(false);
     expect(screen.getByRole("region", { name: "Plan summary" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Ask FEWIA" })).toBeTruthy();
+    expect(screen.getByRole("navigation").hasAttribute("inert")).toBe(false);
+    const cap = screen.getByLabelText("Plan cap");
+    cap.focus();
     act(() => {
       fireEvent.keyDown(document, { key: "Escape" });
     });
     expect(meals?.hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(cap);
   });
 
-  it("shows 1 new reply when a reply arrives while closed and clears it on open", async () => {
+  it("announces each closed-sheet reply in a mounted polite region and clears the dock cue on open", async () => {
     stubWidth(900);
+    let requests = 0;
     jobState.submit.mockImplementation(async () => {
-      jobState.job = plannedChatJob();
+      requests += 1;
+      jobState.job = { id: `job-${String(requests)}`, status: "running", result: null, error_code: null };
     });
-    mount();
-    expect(screen.queryByText("1 new reply")).toBeNull();
-    await askWhile("Something with chickpeas");
-    expect(screen.getByText("1 new reply")).toBeTruthy();
+    vi.mocked(useChatJob).mockImplementation(() => ({
+      job: jobState.job,
+      error: null,
+      pending: jobState.job?.status === "running",
+      submit: jobState.submit,
+      clear: () => { jobState.job = null; },
+    }));
+    const view = render(createElement(TonightPrototype));
+    const announcement = view.container.querySelector(".tonight-dock-announcement");
+    expect(announcement?.getAttribute("aria-live")).toBe("polite");
+    expect(announcement?.getAttribute("role")).toBe("status");
+    expect(announcement?.textContent).toBe("");
+    let previousNotice: Element | null = null;
+    for (let cycle = 1; cycle <= 2; cycle += 1) {
+      openSheet();
+      expect(screen.queryByText("1 new reply")).toBeNull();
+      expect(dock().hasAttribute("aria-describedby")).toBe(false);
+      expect(announcement?.textContent).toBe("");
+      await askWhile("Something with chickpeas");
+      expect(within(aside()).getByRole("status").textContent).toBe("Running. FEWIA is finding meals.");
+      click("Hide chat");
+      expect(document.activeElement).toBe(dock());
+      expect(aside().hidden).toBe(true);
+      jobState.job = { ...plannedChatJob(), id: `job-${String(cycle)}` };
+      view.rerender(createElement(TonightPrototype));
+      expect(view.container.querySelector(".tonight-dock-announcement")).toBe(announcement);
+      expect(announcement?.closest("[hidden], [inert]")).toBeNull();
+      expect(announcement?.textContent).toBe("FEWIA replied. Open Ask FEWIA to read it.");
+      expect(announcement?.firstElementChild).not.toBe(previousNotice);
+      previousNotice = announcement?.firstElementChild ?? null;
+      const cue = screen.getByText("1 new reply");
+      expect(dock().getAttribute("aria-describedby")).toBe(cue.id);
+    }
     openSheet();
+    expect(announcement?.textContent).toBe("");
     expect(screen.queryByText("1 new reply")).toBeNull();
+    expect(screen.getByRole("list", { name: "Messages" }).tabIndex).toBe(0);
+    expect(screen.getAllByText("Chickpea curry fits your plan.")).toHaveLength(2);
   });
 
   it("does not flag a reply that arrives while the sheet is open", async () => {
@@ -1672,12 +1790,15 @@ describe("Ask FEWIA dock and sheet", () => {
       jobState.job = plannedChatJob();
     });
     mount();
+    const announcement = document.querySelector(".tonight-dock-announcement");
     openSheet();
     await askWhile("Something with chickpeas");
+    expect(announcement?.textContent).toBe("");
     act(() => {
       fireEvent.keyDown(document, { key: "Escape" });
     });
     expect(screen.queryByText("1 new reply")).toBeNull();
+    expect(announcement?.textContent).toBe("");
   });
 
   it("shows the panel on the Pantry view and closes the sheet when the nav changes view", () => {
@@ -1689,45 +1810,67 @@ describe("Ask FEWIA dock and sheet", () => {
     expect(aside()).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Pantry" }));
     openSheet();
-    expect(document.activeElement).toBe(screen.getByLabelText("Ask for a meal"));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
     expect(screen.getByRole("main").hasAttribute("inert")).toBe(true);
   });
 
   it("does not reopen the sheet after widening past 1180 px and narrowing back", () => {
-    const limits: Record<string, number> = {
-      "(max-width: 1179px)": 1179,
-      "(max-width: 719px)": 719,
-    };
-    let width = 900;
-    const listeners = new Set<() => void>();
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        get matches() {
-          return width <= (limits[query] ?? -1);
-        },
-        media: query,
-        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
-        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
-      }),
-    });
-    const resize = (next: number): void => {
-      width = next;
-      act(() => {
-        listeners.forEach((listener) => {
-          listener();
-        });
-      });
-    };
+    const resize = resizingFrom(900);
     mount();
     openSheet();
     expect(dock().getAttribute("aria-expanded")).toBe("true");
+    const input = screen.getByLabelText("Ask for a meal");
+    input.focus();
     resize(1280);
+    expect(document.activeElement).toBe(input);
+    expect(screen.getByRole("complementary", { name: "Ask FEWIA" })).toBe(aside());
     expect(screen.queryByRole("button", { name: "Ask FEWIA for a meal idea" })).toBeNull();
     resize(900);
+    expect(document.activeElement).toBe(dock());
     expect(dock().getAttribute("aria-expanded")).toBe("false");
     expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it.each([375, 900])("restores the dock from desktop chat at %s px and preserves uncovered focus", (width) => {
+    const resize = resizingFrom(1280);
+    mount();
+    const input = screen.getByLabelText("Ask for a meal");
+    input.focus();
+    resize(width);
+    expect(document.activeElement).toBe(dock());
+    expect(aside().hidden).toBe(true);
+    expect(screen.queryByRole("textbox", { name: "Ask for a meal" })).toBeNull();
+    resize(1280);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
+    const cap = screen.getByLabelText("Plan cap");
+    cap.focus();
+    resize(width);
+    expect(document.activeElement).toBe(cap);
+  });
+
+  it("moves focus from Hide chat when it disappears on desktop", () => {
+    const resize = resizingFrom(375);
+    mount();
+    openSheet();
+    screen.getByRole("button", { name: "Hide chat" }).focus();
+    resize(1280);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it("moves uncovered tablet focus into the phone dialog and releases navigation on return", () => {
+    const resize = resizingFrom(900);
+    const root = mount();
+    openSheet();
+    screen.getByLabelText("Plan cap").focus();
+    resize(375);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
+    expect(screen.getByRole("dialog", { name: "Ask FEWIA" }).getAttribute("aria-modal")).toBe("true");
+    expect(root.querySelector("nav")?.hasAttribute("inert")).toBe(true);
+    resize(900);
+    expect(root.querySelector("nav")?.hasAttribute("inert")).toBe(false);
+    expect(screen.getByRole("region", { name: "Ask FEWIA" }).hasAttribute("aria-modal")).toBe(false);
+    expect(fireEvent.keyDown(aside(), { key: "Tab", shiftKey: true })).toBe(true);
   });
 
   it("has no dock bar and no inert content from 1180 px", () => {
@@ -1735,6 +1878,7 @@ describe("Ask FEWIA dock and sheet", () => {
     const root = mount();
     expect(screen.queryByRole("button", { name: "Ask FEWIA for a meal idea" })).toBeNull();
     expect(aside()).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Ask FEWIA" }).hasAttribute("aria-modal")).toBe(false);
     expect(root.querySelector("[inert]")).toBeNull();
     expect(screen.getByRole("region", { name: "Plan summary" })).toBeTruthy();
   });
