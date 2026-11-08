@@ -198,6 +198,7 @@ function demoState(overrides: Partial<GroceryDemo> = {}): GroceryDemo {
     form: initialForm(),
     setForm: vi.fn(),
     formError: null,
+    formValidation: null,
     job: null,
     error: null,
     pending: false,
@@ -209,6 +210,11 @@ function demoState(overrides: Partial<GroceryDemo> = {}): GroceryDemo {
     dirty: false,
     ...overrides,
   };
+}
+
+function notifyValidRequest(): void {
+  const calls = vi.mocked(useGroceryDemo).mock.calls;
+  calls[calls.length - 1]?.[0]?.();
 }
 
 function mount(
@@ -486,7 +492,7 @@ describe("App", () => {
   });
 
   it("moves focus to the estimate heading on Build, then keeps it after the result renders", () => {
-    const submitForm = vi.fn(async () => undefined);
+    const submitForm = vi.fn(async () => { notifyValidRequest(); });
     const renderer = mount(demoState({ submitForm }));
     const build = buttonNamed(renderer.container, "Build my estimate");
     build.focus();
@@ -506,7 +512,7 @@ describe("App", () => {
   });
 
   it("moves focus to the estimate heading on Rebuild", () => {
-    const submitForm = vi.fn(async () => undefined);
+    const submitForm = vi.fn(async () => { notifyValidRequest(); });
     const renderer = mount(demoState({ dirty: true, job: succeededJob, submitForm }));
     const rebuild = buttonNamed(renderer.container, "Rebuild estimate");
     rebuild.focus();
@@ -521,7 +527,7 @@ describe("App", () => {
   });
 
   it("moves focus to the estimate heading on an example", () => {
-    const example = vi.fn();
+    const example = vi.fn(() => { notifyValidRequest(); });
     const renderer = mount(demoState({ example }));
     const button = buttonNamed(renderer.container, "Bean tacos for two");
     button.focus();
@@ -533,6 +539,67 @@ describe("App", () => {
       screen.getByRole("heading", { level: 2, name: "Grocery estimate" }),
     );
     renderer.unmount();
+  });
+
+  it.each([
+    ["monthly", "Monthly limit", "Monthly limit: Enter a non-negative dollar amount with at most two decimal places."],
+    ["cap", "Plan cap (optional)", "Plan cap: Enter a non-negative dollar amount with at most two decimal places."],
+    [null, null, "Choose 1 to 3 meals."],
+  ] as const)("focuses %s validation after every invalid Build, Rebuild, or example", (field, label, message) => {
+    const submitForm = vi.fn(async () => undefined);
+    const example = vi.fn();
+    const state = demoState({ dirty: true, job: succeededJob, submitForm, example });
+    const renderer = mount(state);
+    const heading = screen.getByRole("heading", { name: "Previous estimate" });
+    const estimateFocus = vi.spyOn(heading, "focus");
+    for (const name of ["Build my estimate", "Rebuild estimate", "Bean tacos for two"]) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const button = buttonNamed(renderer.container, name);
+        button.focus();
+        fireEvent.click(button);
+        expect(estimateFocus).not.toHaveBeenCalled();
+        const validation = { message, field, value: field === null ? null : "bad" };
+        vi.mocked(useGroceryDemo).mockReturnValue(
+          demoState({ ...state, formError: message, formValidation: validation }),
+        );
+        renderer.rerender(createElement(App));
+        const alert = screen.getByRole("alert");
+        const target = label === null ? alert : screen.getByLabelText(label);
+        expect(document.activeElement).toBe(target);
+        expect(alert.textContent).toBe(message);
+        expect(alert.id).toBe("form-error");
+        expect(renderer.container.querySelectorAll("#form-error")).toHaveLength(1);
+        if (field !== null) {
+          expect(target.nextElementSibling).toBe(alert);
+          expect(target.getAttribute("aria-invalid")).toBe("true");
+          expect(target.getAttribute("aria-describedby")?.split(" ")).toContain(alert.id);
+          const other = screen.getByLabelText(field === "monthly" ? "Plan cap (optional)" : "Monthly limit");
+          expect(other.hasAttribute("aria-invalid")).toBe(false);
+          expect(other.getAttribute("aria-describedby")?.split(" ")).not.toContain(alert.id);
+        } else {
+          expect(alert.closest("fieldset")).toBeNull();
+        }
+      }
+    }
+    expect(submitForm).toHaveBeenCalledTimes(4);
+    expect(example).toHaveBeenCalledTimes(2);
+    estimateFocus.mockRestore();
+  });
+
+  it("removes field error associations after correction without moving focus", () => {
+    const message = "Plan cap: Enter a non-negative dollar amount with at most two decimal places.";
+    const renderer = mount(demoState({
+      formError: message,
+      formValidation: { field: "cap", message, value: "bad" },
+    }));
+    const cap = screen.getByLabelText("Plan cap (optional)");
+    expect(document.activeElement).toBe(cap);
+    vi.mocked(useGroceryDemo).mockReturnValue(demoState());
+    renderer.rerender(createElement(App));
+    expect(document.activeElement).toBe(cap);
+    expect(cap.hasAttribute("aria-invalid")).toBe(false);
+    expect(cap.getAttribute("aria-describedby")).toBe("amount-format");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("disables a failed new request when the catalog is blocked", () => {

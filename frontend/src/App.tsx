@@ -1,9 +1,9 @@
-import type { JSX } from "react";
+import { useLayoutEffect, type JSX } from "react";
 import { SAMPLE_ESTIMATE_NOTICE, sourceLabel } from "./apiTypes";
 import { BudgetForm } from "./BudgetForm";
 import { TemplatePicker } from "./TemplatePicker";
 import { ChatWorkspace, useChatWorkspace } from "./ChatWorkspace";
-import { Conversation, type ExampleKind } from "./Conversation";
+import { Conversation } from "./Conversation";
 import { Estimate } from "./Estimate";
 import { formatDollars } from "./money";
 import { useGroceryDemo } from "./useGroceryDemo";
@@ -12,9 +12,19 @@ import "./estimate.css";
 import "./chat.css";
 
 const CATALOG_LOADING = "Loading the grocery catalog.";
+const focusEstimate = (): void => {
+  document.getElementById("estimate-heading")?.focus();
+};
 
 export default function App(): JSX.Element {
-  const demo = useGroceryDemo();
+  const demo = useGroceryDemo(focusEstimate);
+  useLayoutEffect(() => {
+    if (demo.formValidation !== null) {
+      const field = demo.formValidation.field;
+      const target = field === "monthly" ? "monthly-limit" : field === "cap" ? "plan-cap" : "form-error";
+      document.getElementById(target)?.focus();
+    }
+  }, [demo.formValidation]);
   const chat = useChatWorkspace({
     form: demo.form,
     setForm: demo.setForm,
@@ -28,9 +38,6 @@ export default function App(): JSX.Element {
   const estimateDirty =
     (chat.estimateJob !== null ? chat.estimateDirty : demo.dirty) || chat.unresolvedChatEstimate;
   const showNotice = estimateJob?.status !== "succeeded" || estimateJob.result === null;
-  const focusEstimate = (): void => {
-    document.getElementById("estimate-heading")?.focus();
-  };
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -50,10 +57,7 @@ export default function App(): JSX.Element {
             freshRequestsDisabled={blocked || chat.pending}
             recipes={demo.config?.recipes ?? []}
             ingredients={demo.config?.ingredients ?? []}
-            onExample={(kind: ExampleKind) => {
-              focusEstimate();
-              demo.example(kind);
-            }}
+            onExample={demo.example}
             onRetry={demo.retry}
             onNewRequest={demo.newRequest}
           >
@@ -76,7 +80,6 @@ export default function App(): JSX.Element {
                 className="budget-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  focusEstimate();
                   void demo.submitForm();
                 }}
               >
@@ -90,6 +93,7 @@ export default function App(): JSX.Element {
                   value={demo.form}
                   onChange={demo.setForm}
                   disabled={blocked || busy}
+                  validation={demo.formValidation}
                 />
                 <TemplatePicker
                   config={demo.config}
@@ -97,8 +101,9 @@ export default function App(): JSX.Element {
                   onChange={demo.setForm}
                   disabled={blocked || busy}
                 />
-                {demo.formError !== null ? (
-                  <p className="form-error" role="alert">
+                {demo.formError !== null &&
+                (demo.formValidation === null || demo.formValidation.field === null) ? (
+                  <p id="form-error" className="form-error" role="alert" tabIndex={-1}>
                     {demo.formError}
                   </p>
                 ) : null}
@@ -127,10 +132,7 @@ export default function App(): JSX.Element {
               recipes={demo.config?.recipes ?? []}
               ingredients={demo.config?.ingredients ?? []}
               onPantryToggle={demo.togglePantry}
-              onRebuild={() => {
-                focusEstimate();
-                return demo.submitForm();
-              }}
+              onRebuild={() => demo.submitForm()}
               rebuildDisabled={blocked || busy}
             />
             {showNotice ? (
