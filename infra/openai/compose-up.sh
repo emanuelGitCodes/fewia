@@ -2,6 +2,8 @@
 # Run from the extracted source root: bash infra/openai/compose-up.sh
 # An absolute script path also works from another directory.
 # Pass Compose up arguments to replace the default: -d --build.
+# Start with --kroger-live as the first argument to add compose.kroger.yaml
+# (live Kroger); the remaining arguments then go to Compose up.
 # Compose project names and profiles use the caller's environment.
 # Put FEWIA_OPENAI_API_KEY=<key> in .env. Compose mounts it as a secret in the worker only.
 # The launcher reads .env as text, never evaluates it, and never prints the key.
@@ -40,11 +42,12 @@ class LaunchError(Exception):
 
 KEY_NAME = "FEWIA_OPENAI_API_KEY"
 KEY_MISSING = "Set FEWIA_OPENAI_API_KEY in .env."
-SECRET_INVALID = "The OpenAI key secret in compose.openai.yaml is not valid."
+SECRET_INVALID = "The OpenAI key secret in compose.yaml is not valid."
 SECRET_PATH = "/run/secrets/openai_api_key"
+KROGER_LIVE_FLAG = "--kroger-live"
 KROGER_INVALID = (
-    "The Kroger fixture overlay compose.kroger-fixture.yaml is missing or "
-    "does not set FEWIA_KROGER_MODE to fixture on api and worker."
+    "The Compose configuration does not set FEWIA_KROGER_MODE to {mode} "
+    "on api and worker."
 )
 LINE = re.compile(r"^(?:export\s+)?FEWIA_OPENAI_API_KEY\s*=\s*(.*)$")
 
@@ -104,20 +107,27 @@ def validate_secret(config: object) -> None:
             raise ValueError
 
 
-def validate_kroger_fixture(config: object) -> None:
+def validate_kroger_mode(config: object, mode: str) -> None:
     services = config["services"]  # type: ignore[index]
     for name in ("api", "worker"):
-        if services[name]["environment"].get("FEWIA_KROGER_MODE") != "fixture":
+        if services[name]["environment"].get("FEWIA_KROGER_MODE") != mode:
             raise ValueError
 
 
 def main() -> int:
     root = Path(sys.argv[1]).resolve(strict=True)
     environment = os.environ.copy()
+    arguments = sys.argv[2:]
+    kroger_live = arguments[:1] == [KROGER_LIVE_FLAG]
+    if kroger_live:
+        arguments = arguments[1:]
+    mode = "live" if kroger_live else "fixture"
+    files = ["-f", "compose.yaml"]
+    if kroger_live:
+        files += ["-f", "compose.kroger.yaml"]
     compose = [
         "docker", "compose", "--env-file", ".env",
-        "-f", "compose.yaml", "-f", "compose.openai.yaml",
-        "-f", "compose.kroger-fixture.yaml",
+        *files,
         "--project-directory", str(root),
     ]
     detail = KEY_MISSING
@@ -141,12 +151,11 @@ def main() -> int:
         detail = SECRET_INVALID
         config = json.loads(result.stdout)
         validate_secret(config)
-        detail = KROGER_INVALID
-        validate_kroger_fixture(config)
-        arguments = sys.argv[2:] or ["-d", "--build"]
+        detail = KROGER_INVALID.format(mode=mode)
+        validate_kroger_mode(config, mode)
         try:
             subprocess.run(
-                [*compose, "up", *arguments],
+                [*compose, "up", *(arguments or ["-d", "--build"])],
                 cwd=root,
                 env=environment,
                 stdout=subprocess.DEVNULL,

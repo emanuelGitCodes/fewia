@@ -2,8 +2,17 @@ x-backend: &backend
   build:
     context: .
     dockerfile: backend/Dockerfile
-  environment:
+  environment: &backend-environment
     DATABASE_URL: postgresql+psycopg://fewia:fewia@postgres:5432/fewia
+
+# GPT-6 Luna is the chat model. Without FEWIA_OPENAI_API_KEY, `make up` fails.
+# Only the worker mounts the key. Kroger runs in fixture mode with invented
+# stores, products, and prices; live Kroger uses the overlay compose.kroger.yaml.
+x-chat-environment: &chat-environment
+  <<: *backend-environment
+  FEWIA_OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+  FEWIA_OPENAI_REGION: ${FEWIA_OPENAI_REGION:-global}
+  FEWIA_KROGER_MODE: fixture
 
 services:
   postgres:
@@ -52,6 +61,7 @@ services:
 
   api:
     <<: *backend
+    environment: *chat-environment
     command:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
@@ -74,8 +84,12 @@ services:
 
   worker:
     <<: *backend
+    environment: *chat-environment
     command:
       ["python", "-m", "app.worker", "--endpoint", "http://floci:4566"]
+    secrets:
+      - source: openai_api_key
+        target: openai_api_key
     stop_grace_period: 600s
     restart: unless-stopped
     depends_on:
@@ -110,6 +124,10 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+secrets:
+  openai_api_key:
+    environment: FEWIA_OPENAI_API_KEY
 
 volumes:
   postgres-data:

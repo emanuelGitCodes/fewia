@@ -12,16 +12,20 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT / "infra/openai/compose-up.sh"
-COMPOSE_OPENAI = ROOT / "compose.openai.yaml"
-COMPOSE_KROGER_FIXTURE = ROOT / "compose.kroger-fixture.yaml"
-KROGER = (
-    "The Kroger fixture overlay compose.kroger-fixture.yaml is missing or "
-    "does not set FEWIA_KROGER_MODE to fixture on api and worker."
+COMPOSE = ROOT / "compose.yaml"
+COMPOSE_KROGER = ROOT / "compose.kroger.yaml"
+KROGER_FIXTURE = (
+    "The Compose configuration does not set FEWIA_KROGER_MODE to fixture "
+    "on api and worker."
+)
+KROGER_LIVE = (
+    "The Compose configuration does not set FEWIA_KROGER_MODE to live "
+    "on api and worker."
 )
 ERROR = "OpenAI Compose launch failed.\n"
 KEY_VALUE = "sk-PRIVATE_KEY_SENTINEL"
 KEY_MISSING = "Set FEWIA_OPENAI_API_KEY in .env."
-SECRET = "The OpenAI key secret in compose.openai.yaml is not valid."
+SECRET = "The OpenAI key secret in compose.yaml is not valid."
 CONFIG = (
     "Docker Compose could not read the configuration. Check that Docker is "
     "running and that .env is valid."
@@ -100,10 +104,7 @@ def launcher(tmp_path: Path) -> Launcher:
     scripts.mkdir(parents=True)
     (scripts / "compose-up.sh").write_text(LAUNCHER.read_text())
     (root / "compose.yaml").write_text("services: {}\n")
-    (root / "compose.openai.yaml").write_text("services: {}\n")
-    (root / "compose.kroger-fixture.yaml").write_text(
-        COMPOSE_KROGER_FIXTURE.read_text()
-    )
+    (root / "compose.kroger.yaml").write_text("services: {}\n")
     (root / ".env").write_text(
         f"touch SHELL_EVALUATION_MARKER\nFEWIA_OPENAI_API_KEY={KEY_VALUE}\n"
     )
@@ -196,10 +197,19 @@ def _assert_key_missing(
 
 @pytest.mark.parametrize("from_root", [True, False])
 @pytest.mark.parametrize("arguments", [(), ("--build", "api")])
+@pytest.mark.parametrize("live", [False, True])
 def test_valid_config_starts_with_the_validated_inputs(
-    launcher: Launcher, from_root: bool, arguments: tuple[str, ...]
+    launcher: Launcher, from_root: bool, arguments: tuple[str, ...], live: bool
 ) -> None:
-    result = launcher.run(_config(), from_root=from_root, arguments=arguments)
+    mode = "live" if live else "fixture"
+    files = ["-f", "compose.yaml"]
+    if live:
+        files += ["-f", "compose.kroger.yaml"]
+    result = launcher.run(
+        _config(api_mode=mode, worker_mode=mode),
+        from_root=from_root,
+        arguments=(("--kroger-live",) if live else ()) + arguments,
+    )
     assert result.returncode == 0
     assert result.stdout == "OpenAI Compose services started.\n"
     assert result.stderr == ""
@@ -207,12 +217,7 @@ def test_valid_config_starts_with_the_validated_inputs(
         "compose",
         "--env-file",
         ".env",
-        "-f",
-        "compose.yaml",
-        "-f",
-        "compose.openai.yaml",
-        "-f",
-        "compose.kroger-fixture.yaml",
+        *files,
         "--project-directory",
         str(launcher.root),
     ]
@@ -325,17 +330,49 @@ def test_invalid_secret_shapes_fail_before_up(
 def test_missing_or_wrong_kroger_mode_fails_before_up(
     launcher: Launcher, config: dict[str, object]
 ) -> None:
-    _assert_rejected(launcher, launcher.run(config), KROGER)
+    _assert_rejected(launcher, launcher.run(config), KROGER_FIXTURE)
 
 
-def test_real_kroger_fixture_overlay_sets_mode_only() -> None:
+@pytest.mark.parametrize(
+    "config",
+    [
+        _config(api_mode=None, worker_mode="live"),
+        _config(api_mode="live", worker_mode=None),
+        _config(api_mode="fixture", worker_mode="live"),
+        _config(api_mode="live", worker_mode="fixture"),
+        _config(api_mode="fixture", worker_mode="fixture"),
+        _config(api_mode="", worker_mode=""),
+    ],
+)
+def test_missing_or_wrong_kroger_mode_fails_in_live_launch(
+    launcher: Launcher, config: dict[str, object]
+) -> None:
+    result = launcher.run(config, arguments=("--kroger-live",))
+    _assert_rejected(launcher, result, KROGER_LIVE)
+
+
+def test_live_mode_config_is_rejected_by_default_launch(launcher: Launcher) -> None:
+    config = _config(api_mode="live", worker_mode="live")
+    _assert_rejected(launcher, launcher.run(config), KROGER_FIXTURE)
+
+
+def test_kroger_live_flag_only_counts_as_the_first_argument(
+    launcher: Launcher,
+) -> None:
+    result = launcher.run(_config(), arguments=("--build", "--kroger-live"))
+    assert result.returncode == 0
+    up = launcher.calls()[1]["args"]
+    assert "compose.kroger.yaml" not in up
+    assert up[-2:] == ["--build", "--kroger-live"]
+
+
+def test_real_kroger_overlay_switches_api_and_worker_to_live() -> None:
     yaml = pytest.importorskip("yaml")
-    compose = yaml.safe_load(COMPOSE_KROGER_FIXTURE.read_text())
-    assert set(compose) == {"services"}
+    compose = yaml.safe_load(COMPOSE_KROGER.read_text())
     for name in ("api", "worker"):
-        assert compose["services"][name] == {
-            "environment": {"FEWIA_KROGER_MODE": "fixture"}
-        }
+        environment = compose["services"][name]["environment"]
+        assert environment["FEWIA_KROGER_MODE"] == "live"
+        assert "FEWIA_KROGER_CLIENT_ID_FILE" in environment
 
 
 def test_full_secret_target_path_is_accepted(launcher: Launcher) -> None:
@@ -429,7 +466,7 @@ def test_missing_docker_names_the_step(launcher: Launcher) -> None:
 
 def test_real_compose_file_mounts_the_secret_in_the_worker_only() -> None:
     yaml = pytest.importorskip("yaml")
-    compose = yaml.safe_load(COMPOSE_OPENAI.read_text())
+    compose = yaml.safe_load(COMPOSE.read_text())
     assert compose["secrets"]["openai_api_key"]["environment"] == (
         "FEWIA_OPENAI_API_KEY"
     )
@@ -437,8 +474,18 @@ def test_real_compose_file_mounts_the_secret_in_the_worker_only() -> None:
     assert services["worker"]["secrets"] == [
         {"source": "openai_api_key", "target": "openai_api_key"}
     ]
-    assert "secrets" not in services["api"]
-    for service in services.values():
-        environment = service["environment"]
+    for name, service in services.items():
+        if name != "worker":
+            assert "secrets" not in service
+    for name in ("api", "worker"):
+        environment = services[name]["environment"]
         assert environment["FEWIA_OPENAI_API_KEY_FILE"] == SECRET_PATH
         assert environment["FEWIA_OPENAI_REGION"] == "${FEWIA_OPENAI_REGION:-global}"
+        assert environment["FEWIA_KROGER_MODE"] == "fixture"
+        assert environment["DATABASE_URL"].startswith("postgresql+psycopg://")
+
+
+def test_real_compose_file_has_no_bedrock_or_global_endpoint() -> None:
+    text = COMPOSE.read_text().lower()
+    assert "bedrock" not in text
+    assert "aws_endpoint_url:" not in text
