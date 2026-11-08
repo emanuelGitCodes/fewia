@@ -55,7 +55,7 @@ def env_file_value_is_set(path: Path) -> bool:
         if value[:1] in ("'", '"') and value.count(value[0]) >= 2:
             value = value[1 : value.index(value[0], 1)]
         else:
-            value = re.split(r"\s#", value, maxsplit=1)[0]
+            value = "" if value.startswith("#") else re.split(r"\s#", value, maxsplit=1)[0]
         found = bool(value.strip())
     return found
 
