@@ -144,6 +144,13 @@ Without a dedicated test database, the backend run skips the database
 tests. `.claude/skills/gates/scripts/gates-with-db.sh --base main` starts a
 throwaway PostgreSQL and runs every check.
 
+## Course methods
+
+FEWIA uses methods from the CAP 6938 lectures: a tool-using agent loop,
+BM25 retrieval with recall and MRR, answer grounding with a fallback, and
+rule-based plan checks. [docs/course/COURSE_METHODS.md](docs/course/COURSE_METHODS.md)
+maps each course topic to its code and evidence, and marks unused topics.
+
 ## About the system
 
 FEWIA runs as a local React and TypeScript chat with FastAPI, PostgreSQL, a
