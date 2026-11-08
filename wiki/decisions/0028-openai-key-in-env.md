@@ -35,7 +35,7 @@ example `FEWIA_USDA_FDC_KEY`.
   Make a source ZIP with `git archive --format=zip -o fewia.zip HEAD`, which
   leaves out ignored files.
 - The operator MUST NOT show `.env` on a screen share.
-- Docker Compose 2.23 or later is a prerequisite for secrets that read an
-  environment variable.
+- Secrets that read an environment variable need a current Docker Compose.
+  FEWIA is tested with Docker Compose 5.2.
 - The benchmark CLI runs on the host and still reads
   `FEWIA_OPENAI_API_KEY_FILE`.

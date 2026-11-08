@@ -36,8 +36,8 @@ product places no orders and submits no payments.
 
 ## Start the default browser path
 
-Make, Docker Desktop with Docker Compose 2.23 or later, and Python 3 are
-prerequisites.
+Make, a current Docker Desktop with Docker Compose, and Python 3 are
+prerequisites. FEWIA is tested with Docker Compose 5.2.
 For first-time setup, copy `.env.example` to `.env` and set
 `FEWIA_OPENAI_API_KEY` to an OpenAI API key from your own project. Git
 ignores `.env`. Never commit it, share it, or show it on screen.
