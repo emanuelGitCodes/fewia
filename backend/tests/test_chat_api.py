@@ -219,9 +219,29 @@ def test_providers_reports_capabilities_without_construction(
         "chat_configured": False,
         "plaid_configured": False,
         "spending_source": "manual",
+        "kroger_mode": "off",
     }
     assert "token" not in str(body).lower()
     assert "secret" not in str(body).lower()
+
+
+def test_providers_reports_fixture_kroger_without_building_a_client(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("GET /grocery/providers MUST NOT build a Kroger client")
+
+    forbid_provider_construction(monkeypatch)
+    monkeypatch.setenv("FEWIA_KROGER_MODE", "fixture")
+    monkeypatch.setattr("app.deps.build_kroger", boom)
+    monkeypatch.setattr("app.deps.build_kroger_cipher", boom)
+    monkeypatch.setattr("app.provider_runtime.build_fixture_client", boom)
+    monkeypatch.setattr("app.provider_runtime.build_fixture_cipher", boom)
+    response = client.get("/grocery/providers")
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["kroger_mode"] == "fixture"
 
 
 def test_providers_does_not_read_secret_files(
@@ -246,8 +266,14 @@ def test_providers_does_not_read_secret_files(
     assert response.status_code == 200
     assert body["chat_configured"] is True
     assert body["plaid_configured"] is True
-    assert set(body) == {"chat_configured", "plaid_configured", "spending_source"}
+    assert set(body) == {
+        "chat_configured",
+        "plaid_configured",
+        "spending_source",
+        "kroger_mode",
+    }
     assert body["spending_source"] == "plaid_sandbox"
+    assert body["kroger_mode"] == "off"
     assert "client-marker" not in str(body)
 
 
