@@ -196,7 +196,7 @@ Show each class with its label. Do not blend them. Every row is `archived`. Do n
 | `archived`, `live provider` | Conversation suite `conversation-eval-v1.4`, 19 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261101b/report.md) |
 | `archived`, `live provider` | Conversation suite `conversation-eval-v1.5`, 23 scenarios, 3 repeats. | [report](../../eval/results/artifacts/conversation-20261106b/report.md) |
 
-- **Course method.** L15, *BFCL: Scoring Function Calls from Single Turns to Agents*, `Adapted`: the benchmark scores tool selection and arguments per call. L11, *RAGChecker: Claim-Level Diagnostic Framework*, `Adapted`: the benchmark checks each public claim. L13, *Data Leakage: Training on the Future*, `Adapted`: the post-hoc gold record discloses that the gold changed after the outputs were seen.
+- **Course method.** L15, *BFCL: Scoring Function Calls from Single Turns to Agents*, `Adapted`: the benchmark scores tool selection and arguments per call. L11, *RAGChecker: Claim-Level Diagnostic Framework*, `Adapted`: the benchmark checks each public claim. L13, *Data Leakage: Training on the Future*, `Not used`: the post-hoc gold record discloses the leak that this lecture warns about. The gold changed after the outputs were seen.
 
 Also run the gates on screen only if time remains:
 `uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main`.

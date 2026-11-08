@@ -26,7 +26,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | 3. Symbolic and neuro-symbolic reasoning | L07 | Adapted |
 | 4. Retrieval | L08–L10 | Direct for BM25 ranking; Adapted for the metrics, on a biased proxy; other methods not used |
 | 5. Retrieval-augmented generation | L11–L12 | Adapted |
-| 6. Recommendation systems | L13–L14 | Not used; the evaluation lessons apply |
+| 6. Recommendation systems | L13–L14 | Not used |
 | 7. AI agents | L15–L16 | Direct for function calling; Adapted for ReAct, the policy, scoring, history, clarification, and memory; pass^k not yet recorded; multi-agent systems not used |
 | 8. Knowledge updating | L11 and the Topic 8 lectures | Adapted for external knowledge; model editing not used |
 
@@ -41,7 +41,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | L15, *τ-bench: Measuring Agent Reliability* (pass^k) | The benchmark runs each case three times. | No record computes pass^k. See [gaps](#gaps-the-existing-records-can-close). | Not yet recorded |
 | L15, *The Complexity Trap: Masking vs Summarizing Agent History* | [`chat_history.py`](../../backend/app/services/chat_history.py) keeps the last `MAX_HISTORY` = 8 messages. [`chat_context.py`](../../backend/app/agent/chat_context.py) rejects a longer history. FEWIA carries the earlier plan as structured state (`previous_request`), not as a long transcript. | Source inspection only. | Adapted. FEWIA truncates. It does not summarize. |
 | L16, *Lost in Conversation: Multi-Turn Underspecification* | The agent asks a question when a request lacks a needed fact. [`chat_answer.py`](../../backend/app/agent/chat_answer.py) maps input errors to clarification replies. | Oct 5 batch: 6 of 6 assessed clarification slots passed; 3 slots were not assessed. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Adapted. FEWIA asks for a missing fact. It does not measure loss across turns. |
-| L16, *MemGPT* and *Mem0* (agent memory) | Saved plan revisions in PostgreSQL ([`plan_revision.py`](../../backend/app/domain/plan_revision.py)) persist across turns. The agent reads them with `get_plan` and `get_meal`. | Source inspection only. | Adapted. FEWIA stores plans, not extracted memories. |
+| L16, *MemGPT* and *Mem0* (agent memory) | Saved plan revisions in PostgreSQL ([`plan_revision.py`](../../backend/app/domain/plan_revision.py)) persist across turns. The `get_plan` tool reads the current saved plan. The agent cannot read earlier revisions. | Source inspection only. | Adapted. FEWIA stores one current plan, not extracted memories. |
 | L16, multi-agent systems | Not used in the product. The writer and reviewer agents in the repository build the code. They are not part of FEWIA. | — | Not used |
 
 ## Topic 4: Retrieval
@@ -49,7 +49,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | Course method | FEWIA component | Evidence | Label |
 |---|---|---|---|
 | L08, *BM25* | [`meal_search_rank.py`](../../backend/app/agent/meal_search_rank.py) ranks catalog meals with Okapi BM25, `K1` = 1.2 and `B` = 0.75. The `search_meals` tool uses this order. | See the next row. | Direct |
-| L08, *Recall@k, MRR@10, nDCG@10* | [`evaluation_retrieval.py`](../../backend/app/evaluation_retrieval.py) scores recall at rank 3 and MRR with no rank cutoff on 15 queries in [`retrieval_queries.json`](../../backend/tests/evaluation/retrieval_queries.json). | [EVALUATION.md](../EVALUATION.md), retrieval check: BM25 gives MRR 1.0 and recall at rank 3 of 0.6836. Catalog order gives 0.9222 and 0.6479. That section states that this proxy "MUST NOT be presented as proof of better retrieval." | Adapted. FEWIA computes recall at rank 3 and MRR with no cutoff. nDCG is not computed. Relevance comes from a biased proxy. |
+| L08, *Recall@k, MRR@10, nDCG@10* | [`evaluation_retrieval.py`](../../backend/app/evaluation_retrieval.py) scores recall at rank 3 and MRR with no rank cutoff on 15 queries in [`retrieval_queries.json`](../../backend/tests/evaluation/retrieval_queries.json). | [EVALUATION.md](../EVALUATION.md), retrieval check: BM25 gives MRR 1.0 and recall at rank 3 of 0.6836. Catalog order gives 0.9222 and 0.6479. The reproduce command below prints each pair. That section states that this proxy "MUST NOT be presented as proof of better retrieval." | Adapted. FEWIA computes recall at rank 3 and MRR with no cutoff. nDCG is not computed. Relevance comes from a biased proxy. |
 | L08–L10 dense retrieval, ANN indexes, ColBERT, rerankers | Not used. The catalog holds 40 meals. | — | Not used |
 
 Reproduce the retrieval check from `backend/` with no model call:
@@ -88,7 +88,7 @@ L11 and L12 both use the name CRAG. In L11, CRAG is the Comprehensive RAG Benchm
 | Topic | Status | Note |
 |---|---|---|
 | 6. Recommendation systems | Not used | `POST /grocery/templates` filters six preset meal sets through the planner. It does not learn from interactions. |
-| 6. Offline evaluation, L13 *Data Leakage: Training on the Future* | Adapted. FEWIA discloses the leak. It has no held-out split. | The repository discloses that the Oct 3 gold changed after the outputs were seen ([post-hoc record](../../wiki/phases/posthoc-gold-20261003.md)). No held-out split is recorded. L05 *The benchmarks leaked* names the same risk. |
+| 6. Offline evaluation, L13 *Data Leakage: Training on the Future* | Not used. The Oct 3 record shows the leak that this lecture warns about. | The repository discloses that the Oct 3 gold changed after the outputs were seen ([post-hoc record](../../wiki/phases/posthoc-gold-20261003.md)). No held-out split is recorded. L05 *The benchmarks leaked* names the same risk. |
 | 1. Dense representation | Not used | FEWIA computes no embeddings. |
 | 2. Knowledge graphs | Not used | Catalog entries and USDA FDC IDs are typed records with stable IDs. They give provenance. They do not form a graph. |
 
