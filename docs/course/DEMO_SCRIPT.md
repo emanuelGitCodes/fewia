@@ -98,7 +98,7 @@ Evidence class: `local application`, sample catalog prices.
 7. Check the `Shopping list`. Mark one ingredient under `Already at home`.
    Observe that the total changes.
 
-- **Course method.** Topic 3, symbolic reasoning (L07), `Adapted`. Deterministic rules compute the total in integer cents. No model call runs in this shot. The `Find a meal` filter is not BM25.
+- **Course method.** Topic 3, symbolic reasoning (L07), `Adapted`. Deterministic rules in the browser (`frontend/src/prototype/planModel.ts`) compute the total in integer cents. The backend rules in the map apply the same idea at Apply. No model call runs in this shot. The `Find a meal` filter is not BM25.
 
 ### Shot 3. Ask FEWIA, live GPT-6 Luna (1:30)
 

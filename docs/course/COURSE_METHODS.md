@@ -27,7 +27,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | 4. Retrieval | L08–L10 | Direct for BM25 and its metrics; other methods not used |
 | 5. Retrieval-augmented generation | L11–L12 | Adapted |
 | 6. Recommendation systems | L13–L14 | Not used; the evaluation lessons apply |
-| 7. AI agents | L15–L16 | Direct for function calling and ReAct; Adapted for the policy, scoring, history, clarification, and memory; pass^k not yet recorded; multi-agent systems not used |
+| 7. AI agents | L15–L16 | Direct for function calling; Adapted for ReAct, the policy, scoring, history, clarification, and memory; pass^k not yet recorded; multi-agent systems not used |
 | 8. Knowledge updating | L11 and the Topic 8 lectures | Adapted for external knowledge; model editing not used |
 
 ## Topic 7: AI agents
@@ -35,7 +35,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | Course method | FEWIA component | Evidence | Label |
 |---|---|---|---|
 | L15, *Function Calling and the Model Context Protocol* | [`chat_tool_specs`](../../backend/app/agent/chat_loop.py) gives the model up to nine named tools with fixed argument schemas. | Oct 5 batch: 36 of 36 tool calls had a valid shape. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Direct |
-| L15, *ReAct: Interleaving Reasoning and Acting* | [`run_chat`](../../backend/app/agent/chat_loop.py) alternates model turns and tool results. `MAX_MODEL_TURNS` is 8. `MAX_PLANNER_REVISIONS` is 3. | Same batch and section. | Direct |
+| L15, *ReAct: Interleaving Reasoning and Acting* | [`run_chat`](../../backend/app/agent/chat_loop.py) alternates model turns and tool results. `MAX_MODEL_TURNS` is 8. `MAX_PLANNER_REVISIONS` is 3. | Source inspection. The Oct 5 call-shape count measures arguments, not the interleaving. | Adapted. FEWIA uses native tool calls. It records no explicit thought traces. |
 | L15, *BFCL: Scoring Function Calls from Single Turns to Agents* | The benchmark scores each call for shape, selection, arguments, and unnecessary calls. | Oct 5 batch: selection 18 of 21 calls, arguments 16 of 21 calls. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Adapted. FEWIA runs its own benchmark with the BFCL scoring layers. It does not run BFCL. |
 | L15, *τ-bench: Agents That Serve Users Under a Policy* | The agent works under a fixed policy: no checkout, no payment, and no plan change without a user Apply. [`_validate_apply`](../../backend/app/api/proposals.py) checks the cap, pantry, and diet again before it saves. | [`conversation-20261107/report.json`](../../eval/results/artifacts/conversation-20261107/report.json): 0 purchase attempts in 111 turns; 13 of 15 purchase requests refused. That refusal rate, 0.8667, fails its 0.99 target. [Workflow record](../../eval/results/artifacts/main-workflow-f0f7b7d8/report.md): Apply rejected USD 17.03 against a USD 17.02 cap. | Adapted. FEWIA has no simulated user. |
 | L15, *τ-bench: Measuring Agent Reliability* (pass^k) | The benchmark runs each case three times. | No record computes pass^k. See [gaps](#gaps-the-existing-records-can-close). | Not yet recorded |
@@ -49,7 +49,7 @@ The topic numbers follow the course map in Lecture 01, *Course map*.
 | Course method | FEWIA component | Evidence | Label |
 |---|---|---|---|
 | L08, *BM25* | [`meal_search_rank.py`](../../backend/app/agent/meal_search_rank.py) ranks catalog meals with Okapi BM25, `K1` = 1.2 and `B` = 0.75. The `search_meals` tool uses this order. | See the next row. | Direct |
-| L08, *Recall@k, MRR@10, nDCG@10* | [`evaluation_retrieval.py`](../../backend/app/evaluation_retrieval.py) scores recall at rank 3 and MRR on 15 queries in [`retrieval_queries.json`](../../backend/tests/evaluation/retrieval_queries.json). | [EVALUATION.md](../EVALUATION.md), retrieval check: BM25 gives MRR 1.0 and recall at rank 3 of 0.6836. Catalog order gives 0.9222 and 0.6479. That section states that this proxy "MUST NOT be presented as proof of better retrieval." | Direct, on a biased proxy |
+| L08, *Recall@k, MRR@10, nDCG@10* | [`evaluation_retrieval.py`](../../backend/app/evaluation_retrieval.py) scores recall at rank 3 and MRR with no rank cutoff on 15 queries in [`retrieval_queries.json`](../../backend/tests/evaluation/retrieval_queries.json). | [EVALUATION.md](../EVALUATION.md), retrieval check: BM25 gives MRR 1.0 and recall at rank 3 of 0.6836. Catalog order gives 0.9222 and 0.6479. That section states that this proxy "MUST NOT be presented as proof of better retrieval." | Direct, on a biased proxy. nDCG is not computed. |
 | L08–L10 dense retrieval, ANN indexes, ColBERT, rerankers | Not used. The catalog holds 40 meals. | — | Not used |
 
 Reproduce the retrieval check from `backend/` with no model call:
@@ -63,7 +63,7 @@ uv run python -m app.evaluation_retrieval --queries tests/evaluation/retrieval_q
 | Course method | FEWIA component | Evidence | Label |
 |---|---|---|---|
 | L11, *Parametric Limits on Long-Tail Facts* | Exact basket costs come from tool results, not from model weights. | [Planning ablation](../../eval/results/artifacts/openai-luna-20261107/planning-ablation/report.md), GPT-6 Luna, 36 trials per condition: all checks passed in 36 trials with tools and 9 without. The basket cost was correct in 36 and 9. | Adapted. The tools compute facts. They do not retrieve passages. |
-| L12, *Corrective RAG (CRAG): Retrieval Evaluation and Fallback* | [`grounding.py`](../../backend/app/agent/grounding.py) checks each number in model prose against tool results. A failed check replaces the prose with a fixed server reply. | [`conversation-20261107/report.json`](../../eval/results/artifacts/conversation-20261107/report.json): 1 of 32 prose attempts was grounded (rate 0.0312). The validator fallback ran 31 times. 105 unsupported numbers were found. | Adapted. FEWIA checks the answer, not the retrieved documents. |
+| L12, *Corrective RAG (CRAG): Retrieval Evaluation and Fallback* | [`grounding.py`](../../backend/app/agent/grounding.py) checks each number in model prose against tool results and returns a verdict. On a failed check, [`run_chat`](../../backend/app/agent/chat_loop.py) replaces the prose with a fixed server reply. | [`conversation-20261107/report.json`](../../eval/results/artifacts/conversation-20261107/report.json): 1 of 32 prose attempts was grounded (rate 0.0312). The validator fallback ran 31 times. 105 unsupported numbers were found. | Adapted. FEWIA checks the answer, not the retrieved documents. |
 | L11, *CRAG Benchmark: Penalizing Hallucinations and False Premises* | This benchmark scores a wrong answer below no answer. The grounding fallback follows the same rule: a fixed reply replaces an unsupported number. | Same record as the row above. | Adapted |
 | L11, *RAGChecker: Claim-Level Diagnostic Framework* | The benchmark checks each public claim against the tool results. | Oct 5 batch: 109 of 112 claims supported. See [evidence tables, section 3a](EVIDENCE_TABLES.md). | Adapted. The check covers bounded public claims. |
 
@@ -83,7 +83,7 @@ L11 and L12 both use the name CRAG. In L11, CRAG is the Comprehensive RAG Benchm
 | L11, *Non-Parametric Memory Updates and Capacity Limits* | Knowledge lives outside the model and changes without retraining: the versioned catalog `sample-prices-v2`, USDA FoodData Central facts, and the optional Kroger price read at request time. | [Decision 0017](../../wiki/decisions/0017-forty-meal-catalog.md), [nutrition sources](../nutrition-sources.md), and the root [README](../../README.md). | Adapted |
 | Topic 8 model editing and continual learning (ROME, MEMIT, MEND) | Not used. FEWIA trains no model. | — | Not used |
 
-## Topics 6, 1, and 2: not used
+## Topics 6, 1, and 2
 
 | Topic | Status | Note |
 |---|---|---|
