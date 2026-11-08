@@ -198,11 +198,10 @@ The default browser path starts the local React and TypeScript chat,
 FastAPI, PostgreSQL, worker, and Floci SQS and S3 from the repository root
 with GPT-6 Luna through OpenAI. Make, Docker Desktop with Docker Compose,
 and Python 3 are prerequisites. For first-time setup, set
-`FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env` file to an absolute host
-path outside the repository. The file at that path contains only the API
-key and uses mode `600`. Do not put the key in `.env`.
+`FEWIA_OPENAI_API_KEY` in the ignored `.env` file to an OpenAI API key.
+Never commit or share `.env`.
 `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
-processing, which costs 10% more. The launcher uses Python 3 to validate the path before it runs
+processing, which costs 10% more. The launcher uses Python 3 to check the setting before it runs
 Docker Compose up. Start the default browser path with:
 
 ```bash
@@ -236,8 +235,9 @@ The evaluator neither requests nor scores hidden reasoning.
 It retains inclusive output-token counts for cost accounting.
 
 Run these commands from `backend/` after the coordinator authorizes paid
-calls. Set `FEWIA_OPENAI_API_KEY_FILE` and the Bedrock credential settings
-outside the commands. Use one unchanged checkout and the same corpus.
+calls. The benchmark CLI runs on the host, not in Docker. Set
+`FEWIA_OPENAI_API_KEY_FILE` to a key file and set the Bedrock credential
+settings outside the commands. Use one unchanged checkout and the same corpus.
 Each output directory MUST be new. First run the bounded smoke selection:
 
 ```bash

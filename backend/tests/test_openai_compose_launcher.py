@@ -10,16 +10,18 @@ from pathlib import Path
 
 import pytest
 
-LAUNCHER = Path(__file__).resolve().parents[2] / "infra/openai/compose-up.sh"
+ROOT = Path(__file__).resolve().parents[2]
+LAUNCHER = ROOT / "infra/openai/compose-up.sh"
+COMPOSE_OPENAI = ROOT / "compose.openai.yaml"
 ERROR = "OpenAI Compose launch failed.\n"
-MOUNT = "The OpenAI key mount in compose.openai.yaml is not valid."
-ABSOLUTE = "FEWIA_OPENAI_API_KEY_FILE MUST be an absolute path."
-REGULAR = "FEWIA_OPENAI_API_KEY_FILE MUST name an existing regular file."
-OUTSIDE = "FEWIA_OPENAI_API_KEY_FILE MUST be outside the repository."
+KEY_VALUE = "sk-PRIVATE_KEY_SENTINEL"
+KEY_MISSING = "Set FEWIA_OPENAI_API_KEY in .env."
+SECRET = "The OpenAI key secret in compose.openai.yaml is not valid."
 CONFIG = (
     "Docker Compose could not read the configuration. Check that Docker is "
-    "running and that FEWIA_OPENAI_API_KEY_FILE is set in .env."
+    "running and that .env is valid."
 )
+SECRET_PATH = "/run/secrets/openai_api_key"
 FAKE_DOCKER = """\
 import json
 import os
@@ -46,7 +48,6 @@ sys.exit(int(os.environ["FAKE_UP_STATUS"]))
 class Launcher:
     root: Path
     outside: Path
-    key: Path
     log: Path
     environment: dict[str, str]
 
@@ -83,6 +84,9 @@ class Launcher:
     def calls(self) -> list[dict[str, object]]:
         return [json.loads(line) for line in self.log.read_text().splitlines()]
 
+    def write_env(self, *lines: str) -> None:
+        (self.root / ".env").write_text("".join(f"{line}\n" for line in lines))
+
 
 @pytest.fixture
 def launcher(tmp_path: Path) -> Launcher:
@@ -92,11 +96,11 @@ def launcher(tmp_path: Path) -> Launcher:
     (scripts / "compose-up.sh").write_text(LAUNCHER.read_text())
     (root / "compose.yaml").write_text("services: {}\n")
     (root / "compose.openai.yaml").write_text("services: {}\n")
-    (root / ".env").write_text("touch SHELL_EVALUATION_MARKER\n")
+    (root / ".env").write_text(
+        f"touch SHELL_EVALUATION_MARKER\nFEWIA_OPENAI_API_KEY={KEY_VALUE}\n"
+    )
     outside = tmp_path / "outside"
     outside.mkdir()
-    key = outside / "key $(touch SHELL_EVALUATION_MARKER)"
-    key.touch()
     binaries = tmp_path / "bin"
     binaries.mkdir()
     docker = binaries / "docker"
@@ -106,7 +110,7 @@ def launcher(tmp_path: Path) -> Launcher:
     environment = {
         name: value
         for name, value in os.environ.items()
-        if not name.startswith("COMPOSE_")
+        if not name.startswith("COMPOSE_") and name != "FEWIA_OPENAI_API_KEY"
     }
     environment.update(
         PATH=f"{binaries}{os.pathsep}{os.environ['PATH']}",
@@ -115,50 +119,71 @@ def launcher(tmp_path: Path) -> Launcher:
         COMPOSE_PROFILES="sample",
         COMPOSE_FILE="unrelated.yaml",
     )
-    return Launcher(root, outside, key, log, environment)
+    return Launcher(root, outside, log, environment)
 
 
-def _mount(source: Path | str, **changes: object) -> dict[str, object]:
+def _config(
+    *,
+    secret_environment: str = "FEWIA_OPENAI_API_KEY",
+    worker_secrets: list[object] | None = None,
+    api_secrets: list[object] | None = None,
+    api_path: str = SECRET_PATH,
+    worker_path: str = SECRET_PATH,
+) -> dict[str, object]:
+    api: dict[str, object] = {"environment": {"FEWIA_OPENAI_API_KEY_FILE": api_path}}
+    if api_secrets is not None:
+        api["secrets"] = api_secrets
+    if worker_secrets is None:
+        worker_secrets = [{"source": "openai_api_key", "target": "openai_api_key"}]
     return {
-        "type": "bind",
-        "source": str(source),
-        "target": "/run/fewia/openai-api-key",
-        "read_only": True,
-        **changes,
-    }
-
-
-def _config(api: object, worker: object | None = None) -> dict[str, object]:
-    return {
+        "secrets": {"openai_api_key": {"environment": secret_environment}},
         "services": {
-            "api": {"volumes": [api]},
-            "worker": {"volumes": [api if worker is None else worker]},
+            "api": api,
+            "worker": {
+                "environment": {"FEWIA_OPENAI_API_KEY_FILE": worker_path},
+                "secrets": worker_secrets,
+            },
         },
         "private": "PRIVATE_CONFIG_SENTINEL",
     }
 
 
+def _assert_no_leak(result: subprocess.CompletedProcess[str]) -> None:
+    for output in (result.stdout, result.stderr):
+        assert "PRIVATE_" not in output
+        assert KEY_VALUE not in output
+
+
 def _assert_rejected(
-    launcher: Launcher, result: subprocess.CompletedProcess[str], detail: str = MOUNT
+    launcher: Launcher,
+    result: subprocess.CompletedProcess[str],
+    detail: str = SECRET,
 ) -> None:
     assert result.returncode != 0
     assert result.stdout == ""
     assert result.stderr == f"{ERROR}{detail}\n"
-    assert "PRIVATE_" not in result.stderr
-    assert str(launcher.key) not in result.stderr
+    _assert_no_leak(result)
     calls = launcher.calls()
     assert len(calls) == 1
     assert "config" in calls[0]["args"]
 
 
+def _assert_key_missing(
+    launcher: Launcher, result: subprocess.CompletedProcess[str]
+) -> None:
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == f"{ERROR}{KEY_MISSING}\n"
+    _assert_no_leak(result)
+    assert not launcher.log.exists()
+
+
 @pytest.mark.parametrize("from_root", [True, False])
 @pytest.mark.parametrize("arguments", [(), ("--build", "api")])
-def test_absolute_external_file_starts_with_the_validated_inputs(
+def test_valid_config_starts_with_the_validated_inputs(
     launcher: Launcher, from_root: bool, arguments: tuple[str, ...]
 ) -> None:
-    result = launcher.run(
-        _config(_mount(launcher.key)), from_root=from_root, arguments=arguments
-    )
+    result = launcher.run(_config(), from_root=from_root, arguments=arguments)
     assert result.returncode == 0
     assert result.stdout == "OpenAI Compose services started.\n"
     assert result.stderr == ""
@@ -187,96 +212,100 @@ def test_absolute_external_file_starts_with_the_validated_inputs(
 
 
 @pytest.mark.parametrize(
-    "kind",
+    "lines",
     [
-        "relative",
-        "missing",
-        "directory",
-        "symlink",
-        "internal",
-        "internal_alias",
-        "internal_traversal",
+        [],
+        ["OTHER=1"],
+        ["FEWIA_OPENAI_API_KEY="],
+        ["FEWIA_OPENAI_API_KEY=   "],
+        ['FEWIA_OPENAI_API_KEY=""'],
+        ["FEWIA_OPENAI_API_KEY='  '"],
+        [f"# FEWIA_OPENAI_API_KEY={KEY_VALUE}"],
+        ["FEWIA_OPENAI_API_KEY= # comment only"],
+        [f"FEWIA_OPENAI_API_KEY={KEY_VALUE}", "FEWIA_OPENAI_API_KEY="],
     ],
 )
-def test_unsafe_sources_fail_before_up(launcher: Launcher, kind: str) -> None:
-    source: Path | str
-    detail = REGULAR if kind in ("missing", "directory", "symlink") else OUTSIDE
-    if kind == "relative":
-        detail = ABSOLUTE
-        source = os.path.relpath(launcher.key, launcher.root)
-    elif kind == "missing":
-        source = launcher.outside / "missing"
-    elif kind == "directory":
-        source = launcher.outside
-    elif kind == "symlink":
-        source = launcher.outside / "link"
-        source.symlink_to(launcher.key)
-    else:
-        source = launcher.root / "internal-key"
-        source.touch()
-        if kind == "internal_alias":
-            alias = launcher.outside / "source-alias"
-            alias.symlink_to(launcher.root, target_is_directory=True)
-            source = alias / "internal-key"
-        elif kind == "internal_traversal":
-            source = launcher.outside / ".." / launcher.root.name / "internal-key"
-    _assert_rejected(launcher, launcher.run(_config(_mount(source))), detail)
-
-
-def test_file_contents_do_not_need_read_access(launcher: Launcher) -> None:
-    launcher.key.chmod(0)
-    try:
-        result = launcher.run(_config(_mount(launcher.key)))
-    finally:
-        launcher.key.chmod(0o600)
-    assert result.returncode == 0
-    assert len(launcher.calls()) == 2
-
-
-@pytest.mark.parametrize("service", ["api", "worker"])
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"type": "volume"},
-        {"read_only": False},
-        {"read_only": "true"},
-        {"target": "/wrong-target"},
-        {"source": None},
-        {"source": 123},
-    ],
-)
-def test_each_service_requires_a_read_only_key_bind(
-    launcher: Launcher, service: str, changes: dict[str, object]
+def test_missing_or_blank_key_fails_before_docker(
+    launcher: Launcher, lines: list[str]
 ) -> None:
-    valid = _mount(launcher.key)
-    invalid = {**valid, **changes}
-    config = _config(invalid, valid) if service == "api" else _config(valid, invalid)
-    _assert_rejected(launcher, launcher.run(config))
+    launcher.write_env("touch SHELL_EVALUATION_MARKER", *lines)
+    _assert_key_missing(launcher, launcher.run(_config()))
+    assert not (launcher.root / "SHELL_EVALUATION_MARKER").exists()
 
 
-def test_services_cannot_mount_different_files(launcher: Launcher) -> None:
-    other = launcher.outside / "other-key"
-    other.touch()
-    config = _config(_mount(launcher.key), _mount(other))
-    _assert_rejected(launcher, launcher.run(config))
+@pytest.mark.parametrize(
+    "line",
+    [
+        f"export FEWIA_OPENAI_API_KEY={KEY_VALUE}",
+        f"FEWIA_OPENAI_API_KEY = {KEY_VALUE}",
+        f'FEWIA_OPENAI_API_KEY="{KEY_VALUE}"',
+        f"FEWIA_OPENAI_API_KEY='{KEY_VALUE}'",
+        f"export FEWIA_OPENAI_API_KEY = '{KEY_VALUE}' # comment",
+        f"FEWIA_OPENAI_API_KEY={KEY_VALUE} # comment",
+    ],
+)
+def test_accepted_env_file_key_forms_start(launcher: Launcher, line: str) -> None:
+    launcher.write_env("touch SHELL_EVALUATION_MARKER", line)
+    result = launcher.run(_config())
+    assert result.returncode == 0
+    assert result.stdout == "OpenAI Compose services started.\n"
+    assert result.stderr == ""
+    assert len(launcher.calls()) == 2
+    assert not (launcher.root / "SHELL_EVALUATION_MARKER").exists()
+
+
+def test_last_matching_line_wins(launcher: Launcher) -> None:
+    launcher.write_env("FEWIA_OPENAI_API_KEY=", f"FEWIA_OPENAI_API_KEY={KEY_VALUE}")
+    assert launcher.run(_config()).returncode == 0
+
+
+def test_key_only_in_process_environment_starts(launcher: Launcher) -> None:
+    launcher.write_env("OTHER=1")
+    launcher.environment["FEWIA_OPENAI_API_KEY"] = KEY_VALUE
+    result = launcher.run(_config())
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert len(launcher.calls()) == 2
 
 
 @pytest.mark.parametrize(
     "config",
-    [None, [], {}, {"services": {}}, {"services": {"api": {"volumes": [None]}}}],
+    [
+        _config(secret_environment="OTHER_KEY"),
+        _config(worker_secrets=[]),
+        _config(worker_secrets=[{"source": "other", "target": "openai_api_key"}]),
+        _config(worker_secrets=[{"source": "openai_api_key", "target": "other"}]),
+        _config(
+            worker_secrets=[
+                {"source": "openai_api_key", "target": "openai_api_key"},
+                {"source": "openai_api_key", "target": SECRET_PATH},
+            ]
+        ),
+        _config(api_secrets=[{"source": "openai_api_key", "target": "openai_api_key"}]),
+        _config(api_secrets=["openai_api_key"]),
+        _config(api_path="/run/fewia/openai-api-key"),
+        _config(worker_path="/run/fewia/openai-api-key"),
+        _config(api_path=""),
+    ],
 )
-def test_malformed_config_fails_closed(launcher: Launcher, config: object) -> None:
+def test_invalid_secret_shapes_fail_before_up(
+    launcher: Launcher, config: dict[str, object]
+) -> None:
     _assert_rejected(launcher, launcher.run(config))
 
 
-def test_duplicate_key_mounts_fail_closed(launcher: Launcher) -> None:
-    mount = _mount(launcher.key)
-    config = {
-        "services": {
-            "api": {"volumes": [mount, mount]},
-            "worker": {"volumes": [mount]},
-        }
-    }
+def test_full_secret_target_path_is_accepted(launcher: Launcher) -> None:
+    config = _config(
+        worker_secrets=[{"source": "openai_api_key", "target": SECRET_PATH}]
+    )
+    assert launcher.run(config).returncode == 0
+
+
+@pytest.mark.parametrize(
+    "config",
+    [None, [], {}, {"services": {}}, {"secrets": {}, "services": {}}],
+)
+def test_malformed_config_fails_closed(launcher: Launcher, config: object) -> None:
     _assert_rejected(launcher, launcher.run(config))
 
 
@@ -285,20 +314,20 @@ def test_invalid_json_fails_closed(launcher: Launcher) -> None:
 
 
 def test_config_failure_does_not_start_services(launcher: Launcher) -> None:
-    result = launcher.run(_config(_mount(launcher.key)), config_status=1)
+    result = launcher.run(_config(), config_status=1)
     _assert_rejected(launcher, result, CONFIG)
 
 
 @pytest.mark.parametrize("status", [1, 17])
 def test_up_failure_hides_provider_output(launcher: Launcher, status: int) -> None:
-    result = launcher.run(_config(_mount(launcher.key)), up_status=status)
+    result = launcher.run(_config(), up_status=status)
     assert result.returncode != 0
     assert result.stdout == ""
     assert result.stderr == (
         f"{ERROR}Docker Compose up failed with exit code {status}. "
         "Run the same command without the launcher to see the Compose output.\n"
     )
-    assert "PRIVATE_" not in result.stderr
+    _assert_no_leak(result)
     assert len(launcher.calls()) == 2
 
 
@@ -331,17 +360,17 @@ def test_missing_python_names_the_step(launcher: Launcher) -> None:
     assert result.returncode != 0
     assert result.stdout == ""
     assert result.stderr == (
-        f"{ERROR}Install Python 3; the launcher validates the key path with it.\n"
+        f"{ERROR}Install Python 3; the launcher validates the configuration with it.\n"
     )
 
 
 def test_missing_env_file_fails_before_docker(launcher: Launcher) -> None:
     (launcher.root / ".env").unlink()
-    result = launcher.run(_config(_mount(launcher.key)))
+    result = launcher.run(_config())
     assert result.returncode != 0
     assert result.stdout == ""
     assert result.stderr == (
-        f"{ERROR}Create .env from .env.example and set FEWIA_OPENAI_API_KEY_FILE.\n"
+        f"{ERROR}Create .env from .env.example and set FEWIA_OPENAI_API_KEY.\n"
     )
     assert not launcher.log.exists()
 
@@ -352,3 +381,20 @@ def test_missing_docker_names_the_step(launcher: Launcher) -> None:
     assert result.returncode != 0
     assert result.stdout == ""
     assert result.stderr == f"{ERROR}Install Docker Desktop with Docker Compose.\n"
+
+
+def test_real_compose_file_mounts_the_secret_in_the_worker_only() -> None:
+    yaml = pytest.importorskip("yaml")
+    compose = yaml.safe_load(COMPOSE_OPENAI.read_text())
+    assert compose["secrets"]["openai_api_key"]["environment"] == (
+        "FEWIA_OPENAI_API_KEY"
+    )
+    services = compose["services"]
+    assert services["worker"]["secrets"] == [
+        {"source": "openai_api_key", "target": "openai_api_key"}
+    ]
+    assert "secrets" not in services["api"]
+    for service in services.values():
+        environment = service["environment"]
+        assert environment["FEWIA_OPENAI_API_KEY_FILE"] == SECRET_PATH
+        assert environment["FEWIA_OPENAI_REGION"] == "${FEWIA_OPENAI_REGION:-global}"

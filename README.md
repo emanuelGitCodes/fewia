@@ -3,7 +3,7 @@
 FEWIA is a budget-aware grocery planning chat for CAP 6938. It runs as a
 local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and
 local Floci SQS and S3 in Docker Compose. The default browser path uses
-GPT-6 Luna through OpenAI. Run `make up` to validate the external API key file and start the OpenAI overlay. `make up-bedrock`
+GPT-6 Luna through OpenAI. Run `make up` to check the API key setting and start the OpenAI overlay. `make up-bedrock`
 selects real Amazon Bedrock through the `LLMProvider` protocol in
 `backend/app/agent/`. `make up-offline` starts the base stack without a
 provider, so chat is unavailable. FEWIA does not switch providers
@@ -48,17 +48,22 @@ health-prediction scope is historical and retired. See
 
 ## Quick start
 
-Make, Docker Desktop with Docker Compose, and Python 3 are prerequisites.
-For first-time setup, set `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env`
-file to an absolute host path outside the repository. The file at that path
-contains only the API key and uses mode `600`. Do not put the key in `.env`.
-The launcher uses Python 3 to validate the path before it runs Docker
-Compose. `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
+Make, a current Docker Desktop with Docker Compose, and Python 3 are
+prerequisites. FEWIA is tested with Docker Compose 5.2.
+For first-time setup, copy `.env.example` to `.env` and set
+`FEWIA_OPENAI_API_KEY` to an OpenAI API key from your own project. Git
+ignores `.env`. Never commit it, share it, or show it on screen.
+Docker Compose gives the key to the worker as a secret file. The key is not
+in the container environment. The launcher uses Python 3 to check the
+setting before it runs Docker Compose. `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
 processing, which costs 10% more. Run the following command from the repository root.
 
 ```bash
 make up
 ```
+
+To make a source ZIP, run `git archive --format=zip -o fewia.zip HEAD`.
+`git archive` leaves out `.env` and every other ignored file.
 
 Open the chat at
 [`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).

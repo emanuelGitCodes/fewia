@@ -5323,3 +5323,7 @@ Pull request #484 adds `make up` for GPT-6 Luna. Bedrock and credential-free pla
 ## 2026-11-07 — Luna default follow-up
 
 The owner approved four fixes from the PR #484 review. The OpenAI adapter logs one bounded JSON line per failure and skips reasoning items. Its connect timeout is 3 seconds. The launcher names the failed step. The OpenAI region default is `global`, because `us` processing costs 10% more. [Decision 0027](decisions/0027-luna-default-chat-provider.md) makes GPT-6 Luna the default local chat provider. The hosted path keeps Bedrock. The course demo script and rehearsal checklist now start the OpenAI and Kroger overlays. No live model call verified these changes.
+
+## 2026-11-07 — OpenAI key in `.env`
+
+The owner chose to put the OpenAI key in `.env` so the course grader needs one setting. [Decision 0028](decisions/0028-openai-key-in-env.md) records it. `compose.openai.yaml` turns `FEWIA_OPENAI_API_KEY` into a Compose secret that only the worker mounts. The adapter still reads the key from a file. A source ZIP comes from `git archive`, which leaves out `.env`.
