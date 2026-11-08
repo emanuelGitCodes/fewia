@@ -1,7 +1,7 @@
 x-openai: &openai
   environment:
     FEWIA_OPENAI_API_KEY_FILE: /run/fewia/openai-api-key
-    FEWIA_OPENAI_REGION: ${FEWIA_OPENAI_REGION:-us}
+    FEWIA_OPENAI_REGION: ${FEWIA_OPENAI_REGION:-global}
   volumes:
     - type: bind
       source: "${FEWIA_OPENAI_API_KEY_FILE:?FEWIA_OPENAI_API_KEY_FILE MUST be an absolute host file path}"
