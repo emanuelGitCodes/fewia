@@ -27,6 +27,42 @@ export class ProposalConflict extends Error {
   }
 }
 
+export type ProposalConstraintReason =
+  | "over_budget"
+  | "diet_conflict"
+  | "exclusion_conflict"
+  | "estimate_unavailable";
+
+export class ProposalConstraintsError extends Error {
+  constructor(
+    readonly reason: ProposalConstraintReason,
+    readonly amounts: { totalCents: number; availableCents: number } | null = null,
+  ) {
+    super("The proposed change does not meet your constraints.");
+    this.name = "ProposalConstraintsError";
+  }
+}
+
+function parseConstraints(value: unknown): ProposalConstraintsError | null {
+  if (!isRecord(value) || !isRecord(value.detail)) {
+    return null;
+  }
+  const { code, reason, total_cents: total, available_cents: available } = value.detail;
+  if (
+    code !== "proposal_constraints" ||
+    (reason !== "over_budget" && reason !== "diet_conflict" &&
+      reason !== "exclusion_conflict" && reason !== "estimate_unavailable")
+  ) {
+    return null;
+  }
+  const amounts = reason === "over_budget" &&
+    isSafeInteger(total) && total >= 0 &&
+    isSafeInteger(available) && available >= 0 && total > available
+    ? { totalCents: total, availableCents: available }
+    : null;
+  return new ProposalConstraintsError(reason, amounts);
+}
+
 function isUuid(value: unknown): value is string {
   return isString(value) && UUID.test(value);
 }
@@ -85,10 +121,23 @@ function parseProposal(value: unknown): Proposal {
   };
 }
 
-async function request(path: string, method: "GET" | "POST", signal: AbortSignal): Promise<unknown> {
+async function request(
+  path: string,
+  method: "GET" | "POST",
+  signal: AbortSignal,
+  checkConstraints = false,
+  planCapCents?: number,
+): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(path, { method, signal });
+    response = await fetch(path, {
+      method,
+      signal,
+      ...(planCapCents === undefined ? {} : {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_cap_cents: planCapCents }),
+      }),
+    });
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
@@ -96,6 +145,18 @@ async function request(path: string, method: "GET" | "POST", signal: AbortSignal
     throw new Error(HTTP_ERROR, { cause: error });
   }
   if (response.status === 409) {
+    if (checkConstraints) {
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        throw new ProposalConflict();
+      }
+      const rejection = parseConstraints(data);
+      if (rejection !== null) {
+        throw rejection;
+      }
+    }
     throw new ProposalConflict();
   }
   if (!response.ok) {
@@ -119,8 +180,8 @@ export async function fetchProposal(id: string, signal: AbortSignal): Promise<Pr
   return parseProposal(await request(path(id, ""), "GET", signal));
 }
 
-export async function applyProposal(id: string, signal: AbortSignal): Promise<string> {
-  const data = await request(path(id, "/apply"), "POST", signal);
+export async function applyProposal(id: string, signal: AbortSignal, planCapCents?: number): Promise<string> {
+  const data = await request(path(id, "/apply"), "POST", signal, true, planCapCents);
   if (!isRecord(data) || !isUuid(data.plan_revision_id)) {
     throw new Error(SHAPE_ERROR);
   }
