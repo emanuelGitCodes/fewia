@@ -1,119 +1,183 @@
 # FEWIA
 
-FEWIA is a budget-aware grocery planning chat for CAP 6938. It runs as a
-local React and TypeScript chat with FastAPI, PostgreSQL, a worker, and
-local Floci SQS and S3 in Docker Compose. One file, `compose.yaml`, starts
-the whole stack. The chat model is always GPT-6 Luna through OpenAI. Amazon
-Bedrock runs only in the evaluation command-line tools, which compare it
-with Luna. See [decision 0030](wiki/decisions/0030-one-compose-file-luna-only.md). The default spending source is `manual`. The monthly limit
-that the user enters is the whole budget. Fixture spending stays an
-optional setting. Plaid work is last. The Plaid Sandbox adapters stay in
-the code. Live Plaid Sandbox evidence remains pending. See
-[wiki/decisions/0016-spoonacular-read-time-overlay.md](wiki/decisions/0016-spoonacular-read-time-overlay.md).
-It uses a versioned sample price catalog. It supports 40 meals. The
-authoritative list is
-`backend/app/domain/catalog_recipes.json`. Each request supports one to
-three (1-3) meals and one to eight (1-8) servings per meal.
-`POST /grocery/templates` holds a library of six preset meal
-combinations. The service filters that library through the
-deterministic planner for budget, diet, pantry, and exclusions. The
-endpoint returns up to six eligible suggestions. An empty list is
-possible. Suggestions use labeled sample prices. They do not reserve
-money. `get_budget_summary` returns read-only budget facts. Pending
-cents and stale-spending warnings stay separate.
-FEWIA has no Instacart shopping-link handoff. The Kroger cart is the
-retailer path. Only the frozen benchmark suite (`grocery-eval-v1.1`, decision 0024) runs the handoff
-services. See
-[wiki/decisions/0023-retire-instacart-adapter.md](wiki/decisions/0023-retire-instacart-adapter.md).
-The nutrition decision is
-[wiki/decisions/0010-usda-spoonacular-overlay.md](wiki/decisions/0010-usda-spoonacular-overlay.md).
-FEWIA stores nutrition facts from USDA FoodData Central. These facts are
-not a medical claim. The prototype chat can show a labeled Kroger price
-for a food with no sample price after the user picks a store. With
-`make up`, the price comes from the fixture and carries the label
-`FIXTURE, NOT KROGER`. A live Kroger price needs `make up-kroger-live`. FEWIA stores no Kroger content. Budget acceptance
-still uses the FEWIA sample-catalog cents, not the Kroger price. Every
-sample-catalog estimate MUST carry this exact notice: "Estimated from the
-demo price catalog. Store prices, availability, taxes, delivery fees,
-and tips are not verified." Section 6.7 of
-[docs/design/chat-architecture-proposal.md](docs/design/chat-architecture-proposal.md)
-describes the Kroger overlay.
+FEWIA is a budget-aware grocery planning agent for CAP 6938. You chat with
+it in the browser. It suggests meals from a 40-meal catalog, checks them
+against your budget, builds a shopping list, and can send the list to a
+grocery cart. GPT-6 Luna, through OpenAI, is the chat model. Fixed Python
+code, not the model, computes every price and budget check. FEWIA never
+checks out or pays. A person always places the order.
 
-FEWIA does not check out or place orders. It does not submit payments. Budget
-totals do not use live retailer prices. It does not train a health model. That
-health-prediction scope is historical and retired. See
-[wiki/decisions/0008-grocery-bot-pivot.md](wiki/decisions/0008-grocery-bot-pivot.md).
+## Start FEWIA (for graders)
 
-## Quick start
+You need three things on your computer:
 
-You need Make, Python 3, and Docker Desktop with Docker Compose. FEWIA is
-tested with Docker Compose 5.2. Start Docker Desktop before you begin.
+- Docker Desktop, running. FEWIA is tested with Docker Compose 5.2.
+- Make and Python 3. macOS and Linux include both.
+- An OpenAI API key. Create one at https://platform.openai.com/api-keys.
 
-1. Copy the example settings file:
+You do not need Kroger, AWS, or Plaid accounts.
+
+1. Copy the example settings file. Run each command from the repository
+   root, the folder that holds this README:
 
    ```bash
    cp .env.example .env
    ```
 
-2. Open `.env`. Set `FEWIA_OPENAI_API_KEY` to an OpenAI API key from your
-   own project. `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us`
-   for US processing, which costs 10% more and needs a key from a project
-   with US data residency. Git ignores `.env`. Never commit it, share it, or
-   show it on screen.
+2. Open `.env` in a text editor. Put your key after
+   `FEWIA_OPENAI_API_KEY=`, with no quotes or spaces. Leave the other values
+   as they are. Git ignores `.env`, so the key stays on your computer.
 
-3. Start FEWIA from the repository root:
+3. Start FEWIA:
 
    ```bash
    make up
    ```
 
+   The first start takes several minutes, because Docker downloads and
+   builds the images. `make up` prints each stage as it runs:
+
+   ```text
+   Checking .env.
+   Checking the OpenAI key.
+   OpenAI key accepted.
+   Checking the Compose configuration.
+   Downloading images.
+   Building images. The first run takes several minutes.
+   Starting services.
+   Setting up the database and demo user.
+   Waiting for the API.
+   FEWIA is ready at http://127.0.0.1:5173/prototype
+   ```
+
 4. Open [`http://127.0.0.1:5173/prototype`](http://127.0.0.1:5173/prototype).
 
-`make up` prints one line per stage: the `.env` check, the OpenAI key check,
-the configuration check, the image download, the image build, the service
-start, the database and demo user setup, and the API health check. Docker
-Compose shows its own download and build progress between those lines. The
-first run takes several minutes. The last line prints the app address.
+To stop FEWIA, run `docker compose down`. To start again, run `make up`.
+To erase all saved data and start clean, run `docker compose down -v`.
 
-`make up` stops before it builds anything when the key is missing or OpenAI
-rejects it. Create a new key at https://platform.openai.com/api-keys, put it
-in `.env`, and run `make up` again. Without a working OpenAI key, FEWIA does
-not start.
+## Try it
 
-Docker Compose gives the key to the worker as a secret file. The key is not
-in the container environment, and the launcher never prints it.
+1. On the left, pick a meal card and set its servings. The plan summary
+   shows the grocery total, the plan cap, and the shopping list.
+2. Change `Plan cap`. The summary says whether the plan still fits.
+3. Under `Already at home`, mark an ingredient you have. The total drops.
+4. Open `Ask FEWIA` and try one of these prompts:
+   - `Cheap vegetarian dinner for 2`
+   - `I want something with rice and meat`
+   - `Use what is in my pantry`
+   - `High-protein meals`
+5. Select `Add to plan` on a meal idea. When FEWIA proposes a change to
+   your plan, it shows a `Proposed plan change` card with `Apply` and
+   `Discard`. The model only proposes. `Apply` checks the cap, pantry, and
+   diet again before it saves.
+6. In the chat panel, select `Choose a fixture store for fixture prices`,
+   enter any five-digit ZIP code, and pick a store. Then select
+   `Connect Kroger`, `Preview fixture cart`, and `Send ... to fixture cart`.
 
-`make up` also starts Kroger in fixture mode. It needs no Kroger
-credentials and makes no Kroger call. Store search, the Kroger sign-in,
-the cart preview, and the cart add run against invented stores and
-products. The page labels each fixture result `FIXTURE, NOT KROGER`. A
-fixture cart add changes no Kroger cart. See
-[decision 0029](wiki/decisions/0029-kroger-fixture-mode-default.md).
+## Demo prices and live prices
 
-To stop FEWIA, run `docker compose down`. To make a source ZIP, run
-`git archive --format=zip -o fewia.zip HEAD`. `git archive` leaves out
-`.env` and every other ignored file. Read
-[runbooks/durable-jobs.md](runbooks/durable-jobs.md) for jobs.
+FEWIA shows prices from two sources. The plan total never uses a store
+price.
 
-The OpenAI path uses Responses `gpt-6-luna` with reasoning `none`, output
-limit 4096, `store=false`, and parallel tool calls disabled. See
-[the matched conversation benchmark](docs/EVALUATION.md#matched-nova-and-luna-runs)
-for the Bedrock Nova comparison commands.
+| What you see | `make up` (default) | `make up-kroger-live` |
+|---|---|---|
+| Meal cards, plan total, cap check, shopping list | Demo price catalog `sample-prices-v2` | The same demo price catalog |
+| The notice under the plan | "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified." | The same notice |
+| Store search | Invented stores named `FEWIA Fixture ...` | Real Kroger stores near the ZIP code |
+| Price line in a chat reply, for a food with no demo price | `Fixture price from ...`, with the label `FIXTURE, NOT KROGER` | `Live price from <store> as of <time>` |
+| Kroger sign-in | A local stand-in page. No Kroger account. | The real Kroger sign-in page |
+| Cart preview and cart add | Invented products. "Added to the fixture cart. No Kroger cart changed." | Real Kroger products, added to the signed-in Kroger cart |
+| Needs | An OpenAI key | An OpenAI key and Kroger developer credentials |
+
+The demo price catalog is in `backend/app/domain/catalog.py`. Its prices
+are fixed, so every grader sees the same totals. Every label
+`FIXTURE, NOT KROGER` marks invented data, not a Kroger result.
+
+Fixture mode runs the same Kroger client code as live mode, with invented
+responses in place of the network. Every step of the cart path therefore
+works without Kroger credentials.
 
 ### Live Kroger
 
-Live Kroger replaces fixture mode. It needs three files outside the
-repository, each with mode 600: the client ID in
-`FEWIA_KROGER_CLIENT_ID_FILE`, the secret in `FEWIA_KROGER_SECRET_FILE`, and
-a Fernet key in `FEWIA_KROGER_TOKEN_KEY_FILE`. Set the three absolute paths
-in `.env`. The Kroger terms forbid credentials in an open source repository.
-See [docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md). Then run:
+Live Kroger needs Kroger developer credentials, which are not in this
+repository: the Kroger terms forbid credentials in an open source
+repository. Put three files outside the repository, each with mode 600:
+the client ID, the secret, and a Fernet token key. Set their absolute paths
+in `.env` as `FEWIA_KROGER_CLIENT_ID_FILE`, `FEWIA_KROGER_SECRET_FILE`, and
+`FEWIA_KROGER_TOKEN_KEY_FILE`. Then run:
 
 ```bash
 make up-kroger-live
 ```
 
-`make up-kroger-live` adds `compose.kroger.yaml`, the only overlay.
+The app uses the Kroger certification environment. Use ZIP code `45202`,
+because certification returns products there. See
+[docs/LOCAL_GROCERY_DEMO.md](docs/LOCAL_GROCERY_DEMO.md) for the key file
+and the redirect address.
+
+## If something goes wrong
+
+| What you see | What to do |
+|---|---|
+| `Set FEWIA_OPENAI_API_KEY in .env.` | Put your key in `.env` and run `make up` again. |
+| `OpenAI rejected FEWIA_OPENAI_API_KEY (HTTP 401)` | The key is wrong, revoked, or from an inactive project. Create a new key, put it in `.env`, and run `make up` again. |
+| A message about Docker, or `Docker Compose ... failed` | Start Docker Desktop and wait until it is running. Then run `make up` again. |
+| `port is already allocated` | Another program uses port 5173, 8010, 55435, or 4567. Stop that program, or run `docker compose down` in another FEWIA copy. |
+| `Setup did not finish.` | Run `docker compose logs bootstrap` and read the last lines. |
+| The chat says `FEWIA did not answer. Your plan did not change.` | Run `docker compose logs worker`. A line with `invalid_api_key` means OpenAI rejected the key. |
+| `No catalog meal matches that search.` | No catalog meal fits that request. A cost limit per serving often causes this, for example "under $10" with high protein. Ask without the cost limit, or raise the plan cap. |
+
+## Run the tests
+
+The tests run on the host and need [uv](https://docs.astral.sh/uv/) and
+Node.js. They make no model call.
+
+```bash
+cd backend && uv run pytest
+```
+
+```bash
+cd frontend && npm ci && npm test
+```
+
+Without a dedicated test database, the backend run skips the database
+tests. `.claude/skills/gates/scripts/gates-with-db.sh --base main` starts a
+throwaway PostgreSQL and runs every check.
+
+## About the system
+
+FEWIA runs as a local React and TypeScript chat with FastAPI, PostgreSQL, a
+worker, a sync worker, and local Floci SQS and S3 in Docker Compose. One
+file, `compose.yaml`, starts the whole stack
+([decision 0030](wiki/decisions/0030-one-compose-file-luna-only.md)).
+`compose.kroger.yaml` is the only overlay. Docker Compose gives the OpenAI
+key to the worker as a secret file. The key is not in the container
+environment, and the launcher never prints it. The OpenAI path uses
+Responses `gpt-6-luna` with reasoning `none`, output limit 4096,
+`store=false`, and parallel tool calls disabled. Amazon Bedrock runs only
+in the evaluation command-line tools, which compare Nova with Luna. See
+[the matched conversation benchmark](docs/EVALUATION.md#matched-nova-and-luna-runs).
+
+The catalog holds 40 meals. The authoritative list is
+`backend/app/domain/catalog_recipes.json`. Each request supports one to
+three (1-3) meals and one to eight (1-8) servings per meal. The monthly
+limit that the user enters is the whole budget. `POST /grocery/templates`
+filters six preset meal combinations through the deterministic planner for
+budget, diet, pantry, and exclusions. FEWIA stores nutrition facts from
+USDA FoodData Central. These facts are not a medical claim. FEWIA stores no
+Kroger content. Every demo-catalog estimate MUST carry the exact notice in
+the price table above.
+
+FEWIA does not check out, place orders, or submit payments
+([decision 0008](wiki/decisions/0008-grocery-bot-pivot.md)). The Kroger
+cart replaces the retired Instacart handoff
+([decision 0023](wiki/decisions/0023-retire-instacart-adapter.md)). Plaid
+Sandbox adapters stay in the code, but Plaid work is last
+([decision 0016](wiki/decisions/0016-spoonacular-read-time-overlay.md)).
+
+To make a source ZIP, run `git archive --format=zip -o fewia.zip HEAD`.
+`git archive` leaves out `.env` and every other ignored file. Read
+[runbooks/durable-jobs.md](runbooks/durable-jobs.md) for jobs.
 
 ## Secret scanning
 
