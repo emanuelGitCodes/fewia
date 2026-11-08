@@ -42,6 +42,10 @@ KEY_NAME = "FEWIA_OPENAI_API_KEY"
 KEY_MISSING = "Set FEWIA_OPENAI_API_KEY in .env."
 SECRET_INVALID = "The OpenAI key secret in compose.openai.yaml is not valid."
 SECRET_PATH = "/run/secrets/openai_api_key"
+KROGER_INVALID = (
+    "The Kroger fixture overlay compose.kroger-fixture.yaml is missing or "
+    "does not set FEWIA_KROGER_MODE to fixture on api and worker."
+)
 LINE = re.compile(r"^(?:export\s+)?FEWIA_OPENAI_API_KEY\s*=\s*(.*)$")
 
 
@@ -100,12 +104,20 @@ def validate_secret(config: object) -> None:
             raise ValueError
 
 
+def validate_kroger_fixture(config: object) -> None:
+    services = config["services"]  # type: ignore[index]
+    for name in ("api", "worker"):
+        if services[name]["environment"].get("FEWIA_KROGER_MODE") != "fixture":
+            raise ValueError
+
+
 def main() -> int:
     root = Path(sys.argv[1]).resolve(strict=True)
     environment = os.environ.copy()
     compose = [
         "docker", "compose", "--env-file", ".env",
         "-f", "compose.yaml", "-f", "compose.openai.yaml",
+        "-f", "compose.kroger-fixture.yaml",
         "--project-directory", str(root),
     ]
     detail = KEY_MISSING
@@ -127,7 +139,10 @@ def main() -> int:
             )
             raise
         detail = SECRET_INVALID
-        validate_secret(json.loads(result.stdout))
+        config = json.loads(result.stdout)
+        validate_secret(config)
+        detail = KROGER_INVALID
+        validate_kroger_fixture(config)
         arguments = sys.argv[2:] or ["-d", "--build"]
         try:
             subprocess.run(

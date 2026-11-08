@@ -1,0 +1,10 @@
+# Default Kroger fixture mode: no Kroger credentials and no mounted files.
+# Sample prices come from the fixture. Live Kroger uses compose.kroger.yaml.
+# The worker gets the variable so settings validation agrees on both services.
+services:
+  api:
+    environment:
+      FEWIA_KROGER_MODE: fixture
+  worker:
+    environment:
+      FEWIA_KROGER_MODE: fixture
