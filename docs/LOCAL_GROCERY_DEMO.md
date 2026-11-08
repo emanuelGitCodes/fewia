@@ -40,8 +40,8 @@ Make, Docker Desktop with Docker Compose, and Python 3 are prerequisites.
 For first-time setup, set `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env`
 file to an absolute host path outside the repository. The file at that path
 contains only the API key and uses mode `600`. Do not put the key in `.env`.
-`FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the global
-endpoint.
+`FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
+processing, which costs 10% more.
 
 From the repository root, start the default browser path:
 
@@ -174,7 +174,13 @@ swaps in or looks up a food with no sample price, the API adds one live
 Kroger price as it serves the reply. The application MUST NOT store Kroger
 content. Plan acceptance and every total use sample catalog cents only.
 
-Both overlays together:
+GPT-6 Luna and Kroger together:
+
+```bash
+docker compose --env-file .env -f compose.yaml -f compose.openai.yaml -f compose.kroger.yaml up -d
+```
+
+Bedrock and Kroger together:
 
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.kroger.yaml up -d

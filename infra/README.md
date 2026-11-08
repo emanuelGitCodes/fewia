@@ -9,8 +9,11 @@ resources in the default Compose stack.
 Run this command from the repository root:
 
 ```bash
-docker compose up -d
+make up
 ```
+
+`make up` adds the GPT-6 Luna chat overlay. `docker compose up -d` starts the
+same stack with no chat provider.
 
 The one-shot `bootstrap` service waits for a healthy Floci and PostgreSQL.
 It provisions the queues and the artifact bucket through

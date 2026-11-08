@@ -19,18 +19,18 @@ A new worktree has no `.env`.
 
 - [ ] Docker Desktop runs. `docker info` prints server details.
 - [ ] `.env` exists with mode `600`.
-- [ ] `.env` sets `FEWIA_BEDROCK_MODEL_ID`, `FEWIA_BEDROCK_REGION`,
-  `FEWIA_AWS_PROFILE`, and `FEWIA_BEDROCK_CREDENTIALS_FILE`.
+- [ ] `.env` sets `FEWIA_OPENAI_API_KEY_FILE` to an absolute path outside
+  the repository. `FEWIA_OPENAI_REGION` is `global` or unset.
 - [ ] Set `FEWIA_KROGER_CLIENT_ID_FILE`, `FEWIA_KROGER_SECRET_FILE`, and
   `FEWIA_KROGER_TOKEN_KEY_FILE` in `.env` or in the shell. Each value MUST be
   an absolute path. `FEWIA_KROGER_ENVIRONMENT` defaults to `certification`.
   Leave it at the default.
 
-Start the full stack with both overlays
-(LOCAL_GROCERY_DEMO.md, "Both overlays together"):
+Start the full stack with the OpenAI and Kroger overlays. `make up` starts
+only the OpenAI overlay, so use this command:
 
 ```bash
-docker compose --env-file .env -f compose.yaml -f compose.bedrock.yaml -f compose.kroger.yaml up -d
+docker compose --env-file .env -f compose.yaml -f compose.openai.yaml -f compose.kroger.yaml up -d
 ```
 
 Confirm each service:
@@ -41,13 +41,13 @@ Confirm each service:
   Compose file, so check that it runs.
 - [ ] `bootstrap` exited with code 0. It is not a failure.
 - [ ] `http://127.0.0.1:5173/api/healthz` returns success through the web port.
-- [ ] `http://127.0.0.1:5173/api/grocery/providers` shows Bedrock and Kroger
+- [ ] `http://127.0.0.1:5173/api/grocery/providers` shows chat and Kroger
   as configured. This response is a configuration flag, not proof that a
   provider answers.
 - [ ] `http://127.0.0.1:5173/prototype` opens. `/` redirects to `/prototype`
   (decision 0026). Do not open `/app` for the demo.
 - [ ] The chat panel does not show "Ask FEWIA is off. The plan still works." That text means
-  Bedrock is not configured.
+  no chat provider is configured.
 
 Stop the stack only after the demo: `docker compose down`. Never add `-v`.
 
@@ -57,7 +57,7 @@ Check existence and mode only. Never open, print, or screen-share these files.
 
 | Variable | Needs | Mode |
 | --- | --- | --- |
-| `FEWIA_BEDROCK_CREDENTIALS_FILE` | The Bedrock session file from the host MFA helper | 600 |
+| `FEWIA_OPENAI_API_KEY_FILE` | OpenAI API key file | 600 |
 | `FEWIA_KROGER_CLIENT_ID_FILE` | Kroger client ID file | 600 |
 | `FEWIA_KROGER_SECRET_FILE` | Kroger client secret file | 600 |
 | `FEWIA_KROGER_TOKEN_KEY_FILE` | Fernet key for stored customer tokens | 600 |
@@ -69,7 +69,8 @@ Check existence and mode only. Never open, print, or screen-share these files.
 - [ ] The owner has a Kroger staging shopper account. The developer portal
   account does not work on the staging login.
 
-The Bedrock session lasts at most one hour
+The Bedrock steps below apply only to the Bedrock alternative
+(`make up-bedrock`). The Bedrock session lasts at most one hour
 (`infra/bedrock/README.md`, "Temporary role credentials"). The helper
 `infra/bedrock_session.py` sets `DURATION_SECONDS = 3600`. It prints the expiry
 time when it finishes.
@@ -133,10 +134,10 @@ as `ARCHIVED, NOT LIVE` or `SAMPLE CATALOG, NOT KROGER`.
 
 | Drill | Visible state | Owner action and fallback |
 | --- | --- | --- |
-| Bedrock down | Chat shows "FEWIA did not answer. Your plan did not change." or no reply after the timeout. | Select Retry once. If it fails again, say that Bedrock fails. Continue with the sample-catalog estimate, which needs no model. Show the archived chat evidence from [DEMO_SCRIPT.md](DEMO_SCRIPT.md) with the label `ARCHIVED, NOT LIVE`. |
+| Model down | Chat shows "FEWIA did not answer. Your plan did not change." or no reply after the timeout. | Select Retry once. If it fails again, say that the model call fails. Continue with the sample-catalog estimate, which needs no model. Show the archived chat evidence from [DEMO_SCRIPT.md](DEMO_SCRIPT.md) with the label `ARCHIVED, NOT LIVE`. |
 | Session expired | Chat fails as above, or the panel shows "Ask FEWIA is off. The plan still works." after a restart. | Leave the Zoom window. Run the host MFA helper, then recreate `api` and `worker` (section 2). Return and retry. If this takes more than 2 minutes, switch to the archived fallback above. |
 | Kroger Certification fails | The store list is empty, the preview shows "Kroger is unavailable. Try again." or the sign-in shows "Kroger sign-in did not finish. Try again." | Retry once. Check ZIP `45202`. If the status reads "Your Kroger sign-in expired. Disconnect, then connect Kroger again.", select Disconnect, then connect again. If Kroger still fails, say so. Do not show Kroger data from memory or a screenshot as live. Keep the estimate on screen with the label `SAMPLE CATALOG, NOT KROGER`. |
-| Stack slow | A running request lasts more than 20 seconds. | Do not click again. Bedrock p50 was 3.1 s and p95 was 10.3 s per turn in batch `conversation-20261106b` at `8468e5da`. Wait up to 30 seconds. Fill the time by explaining the budget logic. If no reply, run the Bedrock drill. |
+| Stack slow | A running request lasts more than 20 seconds. | Do not click again. GPT-6 Luna p50 was 1.6 s and p95 was 3.8 s per turn in the matched run in the [Nov. 7 archive](../../eval/results/artifacts/openai-luna-20261107/summary.md). Wait up to 30 seconds. Fill the time by explaining the budget logic. If no reply, run the model drill. |
 | Cart add unconfirmed | "Kroger did not confirm. Check your Kroger cart before you retry." | Do not click Retry at once. Open the staging cart and check it. Then decide. |
 
 - [ ] Each drill ran once in rehearsal.

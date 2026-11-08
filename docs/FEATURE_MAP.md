@@ -37,7 +37,7 @@ flowchart TB
   floci["floci · SQS and S3<br/>fewia-agent, fewia-sync, dead letters<br/>bucket fewia-eval"]
   worker["worker --kind agent<br/>plan_job, chat_job<br/>outbox publisher thread"]
   sync["sync-worker --kind sync<br/>plaid_sync, paused"]
-  bedrock["Bedrock · Nova 2 Lite"]
+  bedrock["GPT-6 Luna via OpenAI (default)<br/>or Bedrock · Nova 2 Lite"]
   spoon["Kroger · live price on chat read, opt-in"]
   plaid["Plaid Sandbox · spending, paused"]
   web -->|fetch /api/grocery/*| api
@@ -73,7 +73,7 @@ deployment.
 | 6 | Meal templates | API, Frontend | `POST /grocery/templates`, `TemplatePicker.tsx` | Live on / | Six presets filtered through the planner. Returns up to six. Reserves no money. |
 | 7 | USDA nutrition facts | Service, Frontend | `meal_nutrition` in `services/meal_nutrition.py`, `Nutrition.tsx` | Live on / | Computed inside `execute_plan` at job time. Stored in the job result. |
 | 8 | Kroger live price | Service | `attach_kroger_quote` on the chat job read with `location_id` | Live on /prototype | Read time only, never stored. Off unless the Kroger credential files are set and the user picks a store. Budget acceptance ignores it. |
-| 9 | Chat with the Bedrock agent | Agent, API | `POST /grocery/chat/jobs`, `agent/chat_loop.py` | Live on / | Tool calling with `plan_groceries` and `get_budget_summary`. 8 model turns, 3 planner revisions. Refusal parser. Needs the Bedrock overlay. |
+| 9 | Chat with the Bedrock agent | Agent, API | `POST /grocery/chat/jobs`, `agent/chat_loop.py` | Live on / | Tool calling with `plan_groceries` and `get_budget_summary`. 8 model turns, 3 planner revisions. Refusal parser. Needs a provider: `make up` (Luna) or `make up-bedrock`. |
 | 10 | Chat follow-up context | Service | `services/chat_history.py`, `agent/chat_context.py` | Live on / | The server loads history and `previous_ingredient_ids` from the prior job. The client cannot send them. |
 | 11 | Provider capability flags | API, Frontend | `GET /grocery/providers`, `useProviderCapabilities.ts` | Live on / | Returns `chat_configured`, `plaid_configured`, and `spending_source`. |
 | 12 | Durable jobs | Service, Worker | `services/job_submission.py`, `worker.py` | Live on / | Idempotency key per user and kind, outbox in the same transaction, publisher thread, leases, heartbeat, recovery, dead-letter queues. |
@@ -276,7 +276,7 @@ its branch, owned files, state, round, review SHA, and PR.
 **Commands.**
 
 ```bash
-docker compose up -d
+make up
 uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 cd backend && uv run pytest
 cd frontend && npm run lint && npm test && npm run build

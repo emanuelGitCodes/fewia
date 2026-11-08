@@ -16,8 +16,9 @@ The owner MUST explain this shared context before inviting each user.
 Invitees MUST NOT enter private financial, health, or other sensitive information.
 
 The local product uses React and TypeScript chat, FastAPI, PostgreSQL,
-a worker, and Floci SQS and S3. Real Bedrock handles language interpretation
-through `LLMProvider`. Application tools perform budget arithmetic and catalog validation.
+a worker, and Floci SQS and S3. GPT-6 Luna handles language interpretation
+locally through `LLMProvider`. The hosted path keeps Bedrock
+([decision 0027](../wiki/decisions/0027-luna-default-chat-provider.md)). Application tools perform budget arithmetic and catalog validation.
 The hosted path uses AWS SQS for queue transport instead of Floci.
 The private S3 artifact bucket and adapter exist, but artifact export remains dormant.
 Runtime task roles have no S3 grants. The hosted runtime does not actively use S3 artifacts.

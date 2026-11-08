@@ -53,8 +53,8 @@ For first-time setup, set `FEWIA_OPENAI_API_KEY_FILE` in the ignored `.env`
 file to an absolute host path outside the repository. The file at that path
 contains only the API key and uses mode `600`. Do not put the key in `.env`.
 The launcher uses Python 3 to validate the path before it runs Docker
-Compose. `FEWIA_OPENAI_REGION` defaults to `us`. Set it to `global` for the
-global endpoint. Run the following command from the repository root.
+Compose. `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
+processing, which costs 10% more. Run the following command from the repository root.
 
 ```bash
 make up

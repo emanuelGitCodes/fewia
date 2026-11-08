@@ -24,7 +24,8 @@ This brief records accepted scope, not authority for unrelated changes.
 - React/TypeScript chat, FastAPI, PostgreSQL, worker, and Floci in Compose.
 - Loopback access and one server-selected demo user. Public hosting follows later.
 - Direct REST adapters; MCP is not a prerequisite.
-- Real Bedrock through `LLMProvider` in `backend/app/agent/`.
+- A real model through `LLMProvider` in `backend/app/agent/`: GPT-6 Luna
+  through OpenAI by default, or Bedrock Nova 2 Lite (decision 0027).
 - Explicit endpoints and separate Floci dummy credentials and Bedrock credentials.
 - No Instacart handoff. Production code MUST NOT call an Instacart API
   (decision 0023).

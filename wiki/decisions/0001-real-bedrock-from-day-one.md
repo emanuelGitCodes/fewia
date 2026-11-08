@@ -1,7 +1,8 @@
 # 0001 — Real Bedrock from day one
 
 - **Date**: 2026-08-31
-- **Status**: accepted
+- **Status**: accepted; amended by [0027](0027-luna-default-chat-provider.md),
+  which makes GPT-6 Luna the default local chat provider.
 
 ## Decision
 
