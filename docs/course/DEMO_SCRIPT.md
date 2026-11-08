@@ -112,7 +112,7 @@ Evidence class: `live provider` (OpenAI, `gpt-6-luna`).
    with the `Changes` list and the buttons `Apply` and `Discard`.
 6. Select `Apply`. Observe the plan update. The plan, not the model, sets every price.
 
-- **Course method.** Topic 7, AI agents (L15, *Function Calling and the Model Context Protocol*), `Direct`. The model calls named tools with fixed schemas. The `search_meals` tool orders meals with BM25 (L08, *BM25*), `Direct`. `Apply` is the policy step: the model proposes and the user decides (L15, *τ-bench: Agents That Serve Users Under a Policy*), `Adapted`.
+- **Course method.** Topic 7, AI agents (L15, *Function Calling and the Model Context Protocol*), `Direct` for function calling. FEWIA has no MCP server. The model calls named tools with fixed schemas. The `search_meals` tool orders meals with BM25 (L08, *BM25*), `Direct`. `Apply` is the policy step: the model proposes and the user decides (L15, *τ-bench: Agents That Serve Users Under a Policy*), `Adapted`.
 
 **Fallback 3F (model unavailable). Label: `ARCHIVED, NOT LIVE`.**
 
