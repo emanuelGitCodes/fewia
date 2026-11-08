@@ -131,6 +131,7 @@ def test_preview_matches_the_first_product_with_a_valid_upc() -> None:
             {"ingredient_id": "onion", "name": "onion"},
             {"ingredient_id": "tortillas", "name": "corn tortillas"},
         ],
+        "source": "live",
     }
 
 
@@ -203,6 +204,7 @@ def test_preview_merges_lines_that_match_the_same_upc() -> None:
             },
         ],
         "unmatched": [],
+        "source": "live",
     }
     assert len(catalog.searches) == 4
 

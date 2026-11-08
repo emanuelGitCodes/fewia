@@ -53,6 +53,7 @@ class GroceryProviderSettings(BaseSettings):
     kroger_client_id_file: Path | None = None
     kroger_secret_file: Path | None = None
     kroger_environment: Literal["certification", "production"] = "certification"
+    kroger_mode: Literal["live", "fixture"] = "live"
     kroger_token_key_file: Path | None = None
     kroger_redirect_uri: str = "http://localhost:8010/grocery/kroger/callback"
     kroger_return_url: str = "http://127.0.0.1:5173/prototype"

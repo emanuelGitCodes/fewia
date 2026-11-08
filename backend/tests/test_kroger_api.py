@@ -95,7 +95,8 @@ def test_returns_stores_without_store_zip(api: TestClient) -> None:
                 "city": "Testville",
                 "state": "ZZ",
             }
-        ]
+        ],
+        "source": "live",
     }
     assert seen[-1].url.params["filter.zipCode.near"] == SENTINEL_ZIP
 
@@ -136,7 +137,7 @@ def test_no_wider_search_when_first_has_stores(api: TestClient) -> None:
 def test_at_most_two_calls_when_both_empty(api: TestClient) -> None:
     response, calls = _locations_calls(api, [[], []])
     assert response.status_code == 200
-    assert response.json() == {"stores": []}
+    assert response.json() == {"stores": [], "source": "live"}
     assert len(calls) == 2
 
 
@@ -684,6 +685,7 @@ def test_preview_returns_matched_and_unmatched_lines_in_order(rig: Rig) -> None:
             {"ingredient_id": "onion", "name": "onion"},
             {"ingredient_id": "tortillas", "name": "corn tortillas"},
         ],
+        "source": "live",
     }
 
 

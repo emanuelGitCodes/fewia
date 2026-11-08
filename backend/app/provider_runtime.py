@@ -1,6 +1,6 @@
 """Build configured grocery providers from settings."""
 
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from cryptography.fernet import Fernet
 
@@ -15,6 +15,7 @@ from app.provider_settings import (
 )
 from app.providers.bedrock import BedrockConverseProvider
 from app.providers.kroger import KrogerClient, kroger_base_url
+from app.providers.kroger_fixture import build_fixture_cipher, build_fixture_client
 from app.providers.openai_responses import OpenAIResponsesProvider
 from app.providers.plaid import PlaidSandboxProvider
 
@@ -23,6 +24,7 @@ class ProviderCapabilities(TypedDict):
     chat_configured: bool
     plaid_configured: bool
     spending_source: SpendingSource
+    kroger_mode: Literal["off", "live", "fixture"]
 
 
 def build_llm(settings: GroceryProviderSettings) -> LLMProvider | None:
@@ -91,7 +93,22 @@ def build_plaid(settings: GroceryProviderSettings) -> PlaidSandboxProvider | Non
     return provider
 
 
+def _fixture_mode(settings: GroceryProviderSettings) -> bool:
+    """Return True for fixture mode; fail closed when a Kroger file is also set."""
+    if settings.kroger_mode != "fixture":
+        return False
+    if (
+        settings.kroger_client_id_file is not None
+        or settings.kroger_secret_file is not None
+        or settings.kroger_token_key_file is not None
+    ):
+        raise ProviderConfigurationError()
+    return True
+
+
 def build_kroger(settings: GroceryProviderSettings) -> KrogerClient | None:
+    if _fixture_mode(settings):
+        return build_fixture_client(settings.kroger_redirect_uri)
     if settings.kroger_client_id_file is None or settings.kroger_secret_file is None:
         return None
     client_id, secret = load_kroger_credentials(settings)
@@ -110,6 +127,8 @@ def build_kroger(settings: GroceryProviderSettings) -> KrogerClient | None:
 
 
 def build_kroger_cipher(settings: GroceryProviderSettings) -> Fernet | None:
+    if _fixture_mode(settings):
+        return build_fixture_cipher()
     key_file = settings.kroger_token_key_file
     if key_file is None:
         return None
@@ -122,6 +141,19 @@ def build_kroger_cipher(settings: GroceryProviderSettings) -> Fernet | None:
     if cipher is None:
         raise ProviderConfigurationError()
     return cipher
+
+
+def _kroger_mode(
+    settings: GroceryProviderSettings,
+) -> Literal["off", "live", "fixture"]:
+    if settings.kroger_mode == "fixture":
+        return "fixture"
+    if (
+        settings.kroger_client_id_file is not None
+        and settings.kroger_secret_file is not None
+    ):
+        return "live"
+    return "off"
 
 
 def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
@@ -137,4 +169,5 @@ def capabilities(settings: GroceryProviderSettings) -> ProviderCapabilities:
         ),
         "plaid_configured": plaid_configured,
         "spending_source": settings.spending_source,
+        "kroger_mode": _kroger_mode(settings),
     }

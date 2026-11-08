@@ -91,6 +91,7 @@ def test_unconfigured_defaults_have_zero_effects(
         "chat_configured": False,
         "plaid_configured": False,
         "spending_source": "manual",
+        "kroger_mode": "off",
     }
 
 
@@ -283,9 +284,15 @@ def test_capabilities_does_not_construct_or_claim_live(
         "chat_configured": True,
         "plaid_configured": True,
         "spending_source": "plaid_sandbox",
+        "kroger_mode": "off",
     }
     blob = repr(caps)
-    assert set(caps) == {"chat_configured", "plaid_configured", "spending_source"}
+    assert set(caps) == {
+        "chat_configured",
+        "plaid_configured",
+        "spending_source",
+        "kroger_mode",
+    }
     assert "connected" not in blob
     assert PROFILE_MARKER not in blob
     assert MODEL_MARKER not in blob

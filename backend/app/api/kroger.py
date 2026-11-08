@@ -7,7 +7,7 @@ posted items to Kroger once and keeps nothing.
 
 import re
 from typing import Annotated
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
 from cryptography.fernet import Fernet
@@ -49,13 +49,16 @@ from app.kroger_customer import (
 from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import (
+    AUTHORIZE_PATH,
     CartItem,
     KrogerAuthRejected,
     KrogerCartUnknown,
     KrogerClient,
     KrogerStore,
     KrogerUnavailable,
+    Source,
 )
+from app.providers.kroger_fixture import FIXTURE_CODE
 
 router = APIRouter(prefix="/grocery/kroger", tags=["kroger"])
 redact_access_log()
@@ -66,6 +69,9 @@ NOT_CONNECTED_MESSAGE = "Kroger account is not connected"
 CART_UNCONFIRMED_MESSAGE = "Kroger did not confirm the cart add"
 REVISION_NOT_FOUND_MESSAGE = "The plan revision was not found."
 REVISION_INVALID_MESSAGE = "The plan revision can no longer be used."
+NOT_FOUND_MESSAGE = "Not found"
+INVALID_STATE_MESSAGE = "state MUST be 1 to 512 characters"
+MAX_STATE_LENGTH = 512
 _ZIP_CODE = re.compile(r"[0-9]{5}")
 
 
@@ -85,6 +91,7 @@ class StoreView(BaseModel):
 
 class StoreSearchResponse(BaseModel):
     stores: list[StoreView]
+    source: Source
 
 
 class ConnectionResponse(BaseModel):
@@ -171,6 +178,20 @@ def connect_kroger(
         secure=redirect.scheme == "https",
     )
     return response
+
+
+@router.get(f"/fixture{AUTHORIZE_PATH}")
+def kroger_fixture_authorize(request: Request, settings: Settings) -> RedirectResponse:
+    """Stand in for Kroger sign-in in fixture mode. Only `state` is read."""
+    if settings.kroger_mode != "fixture":
+        raise HTTPException(status_code=404, detail=NOT_FOUND_MESSAGE)
+    state = request.query_params.get("state")
+    if not state or len(state) > MAX_STATE_LENGTH:
+        raise HTTPException(status_code=400, detail=INVALID_STATE_MESSAGE)
+    target = urlsplit(settings.kroger_redirect_uri)
+    query = urlencode({"code": FIXTURE_CODE, "state": state})
+    joined = f"{target.query}&{query}" if target.query else query
+    return RedirectResponse(urlunsplit(target._replace(query=joined)), 302)
 
 
 @router.get("/callback")
@@ -299,5 +320,6 @@ def find_kroger_stores(
                 state=s.state,
             )
             for s in stores
-        ]
+        ],
+        source=client.source,
     )
