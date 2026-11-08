@@ -63,6 +63,23 @@ describe("KrogerConnect", () => {
     }
   });
 
+  it("shows FIXTURE, NOT KROGER in fixture mode, even before the connection loads", async () => {
+    stub(() => new Promise(() => undefined));
+    render(<KrogerConnect plan={initialPlanState()} krogerMode="fixture" />);
+    expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+  });
+
+  it("shows the label beside the connect link in fixture mode only", async () => {
+    stub(() => status(false));
+    const fixture = render(<KrogerConnect plan={initialPlanState()} krogerMode="fixture" />);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(screen.getByText("FIXTURE, NOT KROGER")).toBeTruthy();
+    fixture.unmount();
+    render(<KrogerConnect plan={initialPlanState()} krogerMode="live" />);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
+  });
+
   it("links to the connect route when not connected", async () => {
     stub(() => status(false));
     render(<KrogerConnect plan={initialPlanState()} />);

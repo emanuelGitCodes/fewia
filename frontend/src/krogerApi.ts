@@ -1,5 +1,12 @@
 import { readJson } from "./api";
-import { HTTP_ERROR, SHAPE_ERROR, isRecord, isString } from "./apiTypes";
+import {
+  HTTP_ERROR,
+  SHAPE_ERROR,
+  isKrogerSource,
+  isRecord,
+  isString,
+  type KrogerSource,
+} from "./apiTypes";
 
 export type KrogerStoreOption = {
   locationId: string;
@@ -8,6 +15,7 @@ export type KrogerStoreOption = {
   city: string;
   state: string;
 };
+export type KrogerStoreResult = { stores: KrogerStoreOption[]; source: KrogerSource };
 
 export const KROGER_LOCATION_ID = /^[0-9A-Za-z]{8}$/;
 const MAX_STORES = 5;
@@ -74,6 +82,7 @@ export type KrogerCartItem = {
 export type KrogerCartPreview = {
   items: KrogerCartItem[];
   unmatched: { ingredientId: string; name: string }[];
+  source: KrogerSource;
 };
 export type KrogerAddResult = "added" | "not_connected" | "unavailable" | "rejected" | "unknown";
 
@@ -132,9 +141,10 @@ export async function previewKrogerCart(
     headers: { "Content-Type": "application/json" },
   });
   if (
-    !isRecord(body) || !hasExactKeys(body, ["items", "unmatched"]) ||
+    !isRecord(body) || !hasExactKeys(body, ["items", "unmatched", "source"]) ||
     !Array.isArray(body.items) || body.items.length > MAX_CART_LINES ||
-    !Array.isArray(body.unmatched) || body.unmatched.length > MAX_CART_LINES
+    !Array.isArray(body.unmatched) || body.unmatched.length > MAX_CART_LINES ||
+    !isKrogerSource(body.source)
   ) {
     throw new Error(SHAPE_ERROR);
   }
@@ -142,7 +152,7 @@ export async function previewKrogerCart(
   if (new Set(items.map((item) => item.upc)).size !== items.length) {
     throw new Error(SHAPE_ERROR);
   }
-  return { items, unmatched: body.unmatched.map(copyUnmatched) };
+  return { items, unmatched: body.unmatched.map(copyUnmatched), source: body.source };
 }
 
 // Any outcome that is not a clear answer reads as "unknown", because the items may be in the cart.
@@ -176,15 +186,19 @@ export async function addToKrogerCart(
 export async function findKrogerStores(
   zip: string,
   signal?: AbortSignal,
-): Promise<KrogerStoreOption[]> {
+): Promise<KrogerStoreResult> {
   const body = await readJson("/api/grocery/kroger/stores", {
     method: "POST",
     signal,
     body: JSON.stringify({ zip_code: zip }),
     headers: { "Content-Type": "application/json" },
   });
-  if (!isRecord(body) || !Array.isArray(body.stores) || body.stores.length > MAX_STORES) {
+  if (
+    !isRecord(body) || !hasExactKeys(body, ["stores", "source"]) ||
+    !Array.isArray(body.stores) || body.stores.length > MAX_STORES ||
+    !isKrogerSource(body.source)
+  ) {
     throw new Error(SHAPE_ERROR);
   }
-  return body.stores.map(copyStore);
+  return { stores: body.stores.map(copyStore), source: body.source };
 }

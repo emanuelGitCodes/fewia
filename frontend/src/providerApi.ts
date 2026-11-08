@@ -3,6 +3,7 @@ import {
   SHAPE_ERROR,
   isBool,
   isRecord,
+  isKrogerMode,
   isSpendingSource,
   type ProviderCapabilities,
 } from "./apiTypes";
@@ -11,6 +12,7 @@ const PROVIDER_KEYS: ReadonlySet<string> = new Set([
   "chat_configured",
   "plaid_configured",
   "spending_source",
+  "kroger_mode",
 ]);
 
 export function parseProviders(value: unknown): ProviderCapabilities {
@@ -24,7 +26,8 @@ export function parseProviders(value: unknown): ProviderCapabilities {
   if (
     !isBool(value.chat_configured) ||
     !isBool(value.plaid_configured) ||
-    !isSpendingSource(value.spending_source)
+    !isSpendingSource(value.spending_source) ||
+    !isKrogerMode(value.kroger_mode)
   ) {
     throw new Error(SHAPE_ERROR);
   }
@@ -32,6 +35,7 @@ export function parseProviders(value: unknown): ProviderCapabilities {
     chat_configured: value.chat_configured,
     plaid_configured: value.plaid_configured,
     spending_source: value.spending_source,
+    kroger_mode: value.kroger_mode,
   };
 }
 

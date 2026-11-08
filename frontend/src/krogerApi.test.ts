@@ -24,10 +24,12 @@ describe("previewKrogerCart", () => {
       json: async () => ({
         items: [cartItem],
         unmatched: [{ ingredient_id: "x", name: "Saffron" }],
+        source: "live",
       }),
     }));
     vi.stubGlobal("fetch", fetchMock);
     const result = await previewKrogerCart("rev-1", "01400943");
+    expect(result.source).toBe("live");
     expect(result.items[0]).toMatchObject({
       upc: "0001111041600",
       size: null,
@@ -39,21 +41,33 @@ describe("previewKrogerCart", () => {
   });
 
   it("rejects malformed bodies", async () => {
+    const live = "live";
     const bad = [
       null,
       { items: [] },
-      { items: [], unmatched: [], extra: 1 },
-      { items: [{ ...cartItem, quantity: 11 }], unmatched: [] },
-      { items: [{ ...cartItem, upc: "12" }], unmatched: [] },
-      { items: [{ ...cartItem, extra: 1 }], unmatched: [] },
-      { items: [], unmatched: [{ ingredient_id: "x" }] },
-      { items: Array.from({ length: 31 }, () => cartItem), unmatched: [] },
-      { items: [cartItem, { ...cartItem, ingredient_id: "rice" }], unmatched: [] },
+      { items: [], unmatched: [], source: live, extra: 1 },
+      { items: [{ ...cartItem, quantity: 11 }], unmatched: [], source: live },
+      { items: [{ ...cartItem, upc: "12" }], unmatched: [], source: live },
+      { items: [{ ...cartItem, extra: 1 }], unmatched: [], source: live },
+      { items: [], unmatched: [{ ingredient_id: "x" }], source: live },
+      { items: Array.from({ length: 31 }, () => cartItem), unmatched: [], source: live },
+      { items: [cartItem, { ...cartItem, ingredient_id: "rice" }], unmatched: [], source: live },
+      { items: [], unmatched: [] },
+      { items: [], unmatched: [], source: "off" },
+      { items: [], unmatched: [], source: "demo" },
+      { items: [], unmatched: [], source: null },
     ];
     for (const body of bad) {
       reply(body);
       await expect(previewKrogerCart("rev-1", "01400943")).rejects.toThrow(SHAPE_ERROR);
     }
+  });
+});
+
+describe("previewKrogerCart source", () => {
+  it("accepts a fixture preview", async () => {
+    reply({ items: [cartItem], unmatched: [], source: "fixture" });
+    expect((await previewKrogerCart("rev-1", "01400943")).source).toBe("fixture");
   });
 });
 
@@ -163,9 +177,10 @@ describe("disconnectKroger", () => {
 
 describe("findKrogerStores", () => {
   it("posts the ZIP in the body with no query string and maps the stores", async () => {
-    reply({ stores: [store] });
-    const stores = await findKrogerStores("45202");
-    expect(stores).toEqual([
+    reply({ stores: [store], source: "live" });
+    const result = await findKrogerStores("45202");
+    expect(result.source).toBe("live");
+    expect(result.stores).toEqual([
       {
         locationId: "01400943",
         name: "Main Street",
@@ -182,8 +197,27 @@ describe("findKrogerStores", () => {
   });
 
   it("accepts an empty list", async () => {
-    reply({ stores: [] });
-    expect(await findKrogerStores("45202")).toEqual([]);
+    reply({ stores: [], source: "live" });
+    expect(await findKrogerStores("45202")).toEqual({ stores: [], source: "live" });
+  });
+
+  it("returns the fixture source", async () => {
+    reply({ stores: [store], source: "fixture" });
+    expect((await findKrogerStores("45202")).source).toBe("fixture");
+  });
+
+  it("throws SHAPE_ERROR for a missing, unknown, or extra source key", async () => {
+    const bad: unknown[] = [
+      { stores: [store] },
+      { stores: [store], source: "off" },
+      { stores: [store], source: "demo" },
+      { stores: [store], source: null },
+      { stores: [store], source: "live", extra: 1 },
+    ];
+    for (const body of bad) {
+      reply(body);
+      await expect(findKrogerStores("45202")).rejects.toThrow(SHAPE_ERROR);
+    }
   });
 
   it("throws SHAPE_ERROR for each malformed response", async () => {
@@ -212,9 +246,9 @@ describe("findKrogerStores", () => {
   });
 
   it("counts text length in code points, not UTF-16 units", async () => {
-    reply({ stores: [{ ...store, city: "😀".repeat(160) }] });
-    expect(await findKrogerStores("45202")).toHaveLength(1);
-    reply({ stores: [{ ...store, city: "😀".repeat(161) }] });
+    reply({ stores: [{ ...store, city: "😀".repeat(160) }], source: "live" });
+    expect((await findKrogerStores("45202")).stores).toHaveLength(1);
+    reply({ stores: [{ ...store, city: "😀".repeat(161) }], source: "live" });
     await expect(findKrogerStores("45202")).rejects.toThrow(SHAPE_ERROR);
   });
 

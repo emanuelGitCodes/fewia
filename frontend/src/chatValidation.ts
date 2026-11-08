@@ -51,7 +51,7 @@ function copyKrogerQuote(value: unknown): KrogerQuote | null {
   }
   const { regular_cents: regular, promo_cents: promo } = value;
   if (
-    value.kind !== "store_live" ||
+    (value.kind !== "store_live" && value.kind !== "store_fixture") ||
     !shortText(value.ingredient_id) ||
     !shortText(value.product_label) ||
     !optionalText(value.brand) ||
@@ -69,7 +69,7 @@ function copyKrogerQuote(value: unknown): KrogerQuote | null {
     return null;
   }
   return {
-    kind: "store_live",
+    kind: value.kind,
     ingredient_id: value.ingredient_id,
     product_label: value.product_label,
     brand: value.brand,

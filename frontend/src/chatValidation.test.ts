@@ -164,6 +164,18 @@ describe("parseChatResult Kroger overlay", () => {
     expectShapeError(candidate({ kroger_quote: missing }));
   });
 
+  it("accepts a store_fixture quote and rejects any other kind", () => {
+    const fixture = krogerQuote({ kind: "store_fixture" });
+    expect(parseChatResult(candidate({ kroger_quote: fixture })).kroger_quote).toEqual(fixture);
+    for (const kind of ["store_demo", "fixture", "live", "", null, undefined, 1]) {
+      expectShapeError(candidate({ kroger_quote: krogerQuote({ kind }) }));
+    }
+    const missing = krogerQuote();
+    delete missing.kind;
+    expectShapeError(candidate({ kroger_quote: missing }));
+    expectShapeError(candidate({ kroger_quote: krogerQuote({ source: "fixture" }) }));
+  });
+
   it.each(["brand", "size", "stock_level"])("preserves null and empty optional %s", (key) => {
     for (const text of [null, ""]) {
       const quote = krogerQuote({ [key]: text });
