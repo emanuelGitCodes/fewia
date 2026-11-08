@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type JSX } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { isAbortError } from "../api";
 import type { KrogerStore } from "../chatTypes";
 import { findKrogerStores, type KrogerStoreOption } from "../krogerApi";
@@ -20,6 +20,27 @@ export function KrogerStorePicker(props: {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const input = useRef<HTMLInputElement | null>(null);
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const focusTarget = useRef<"input" | "opener" | null>(null);
+
+  useLayoutEffect(() => {
+    if (focusTarget.current === "input") {
+      input.current?.focus();
+    } else if (focusTarget.current === "opener") {
+      opener.current?.focus();
+    }
+    focusTarget.current = null;
+  });
+
+  const start = (): void => {
+    if (open) {
+      input.current?.focus();
+    } else {
+      focusTarget.current = "input";
+      setOpen(true);
+    }
+  };
 
   useEffect(
     () => () => {
@@ -53,6 +74,8 @@ export function KrogerStorePicker(props: {
   };
   const close = (): void => {
     controller.current?.abort();
+    controller.current = null;
+    focusTarget.current = "opener";
     setOpen(false);
     setOptions(null);
     setPending(false);
@@ -67,34 +90,47 @@ export function KrogerStorePicker(props: {
     status = KROGER_UNAVAILABLE_LINE;
   } else if (options !== null && options.length === 0) {
     status = KROGER_NO_STORES_LINE;
+  } else if (options !== null) {
+    status = `Found ${String(options.length)} Kroger ${options.length === 1 ? "store" : "stores"}.`;
   }
 
   return (
     <div className="tonight-kroger-picker">
       {store !== null ? (
         <div className="tonight-kroger-chosen">
-          <p>Kroger store: {store.name}</p>
+          <p id={`${zipId}-store`}>Kroger store: {store.name}</p>
           <button
+            ref={opener}
             type="button"
             className="tonight-ask-btn"
-            onClick={() => {
-              setOpen(true);
-            }}
+            aria-describedby={`${zipId}-store`}
+            onClick={start}
           >
             Change
           </button>
-          <button type="button" className="tonight-ask-btn" onClick={onClear}>
+          <button
+            type="button"
+            className="tonight-ask-btn"
+            aria-describedby={`${zipId}-store`}
+            onClick={() => {
+              if (open) {
+                input.current?.focus();
+              } else {
+                focusTarget.current = "opener";
+              }
+              onClear();
+            }}
+          >
             Remove
           </button>
         </div>
       ) : null}
       {store === null && !open ? (
         <button
+          ref={opener}
           type="button"
           className="tonight-ask-btn"
-          onClick={() => {
-            setOpen(true);
-          }}
+          onClick={start}
         >
           Choose a Kroger store for live prices
         </button>
@@ -110,9 +146,14 @@ export function KrogerStorePicker(props: {
           }}
         >
           <label htmlFor={zipId}>ZIP code</label>
+          <p id={`${zipId}-hint`} className="tonight-ask-hint">
+            Enter a five-digit ZIP code.
+          </p>
           <div className="tonight-ask-row">
             <input
+              ref={input}
               id={zipId}
+              aria-describedby={`${zipId}-hint`}
               type="text"
               inputMode="numeric"
               maxLength={5}
@@ -125,7 +166,7 @@ export function KrogerStorePicker(props: {
             <button
               type="submit"
               className="tonight-ask-btn"
-              disabled={!/^\d{5}$/.test(zip) || pending}
+              aria-disabled={!/^\d{5}$/.test(zip) || pending}
             >
               Find stores
             </button>
@@ -153,7 +194,7 @@ export function KrogerStorePicker(props: {
           ) : null}
         </form>
       ) : null}
-      <p className="tonight-ask-hint" aria-live="polite">
+      <p className="tonight-ask-hint" role="status" aria-live="polite">
         {status}
       </p>
     </div>

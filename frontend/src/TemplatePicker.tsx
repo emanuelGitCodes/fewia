@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type JSX, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type JSX, type SetStateAction } from "react";
 import { SAMPLE_ESTIMATE_NOTICE, type GroceryConfig } from "./apiTypes";
 import type { FormState } from "./BudgetForm";
 import { formatDollars } from "./money";
@@ -25,11 +25,25 @@ function recipeNames(config: GroceryConfig, ids: string[]): string[] {
 
 export function TemplatePicker({ config, form, onChange, disabled }: Props): JSX.Element {
   const [servings, setServings] = useState(2);
+  const findButtonRef = useRef<HTMLButtonElement>(null);
   const { pending, error, suggestions, find } = useTemplateSuggestions(
     config,
     form,
     servings,
   );
+  const renderedSuggestions = (suggestions ?? []).flatMap((suggestion) => {
+    const names = recipeNames(config, suggestion.recipe_ids);
+    return names.length === suggestion.recipe_ids.length ? [{ suggestion, names }] : [];
+  });
+  let status = "";
+  if (pending) {
+    status = "Finding meal ideas.";
+  } else if (suggestions !== null) {
+    const count = renderedSuggestions.length;
+    status = count === 0
+      ? "No meal idea fits these restrictions. Choose meals manually."
+      : `${count} meal ${count === 1 ? "idea" : "ideas"} found.`;
+  }
   const requestIdeas = (): void => {
     if (disabled || pending) {
       return;
@@ -65,34 +79,45 @@ export function TemplatePicker({ config, form, onChange, disabled }: Props): JSX
           </option>
         ))}
       </select>
-      <button type="button" disabled={disabled || pending} onClick={requestIdeas}>
+      <button
+        ref={findButtonRef}
+        type="button"
+        disabled={disabled}
+        aria-disabled={pending}
+        onClick={requestIdeas}
+      >
         Find meal ideas
       </button>
       <p>{GUIDANCE}</p>
-      {pending ? (
-        <p role="status" aria-live="polite">
-          Finding meal ideas.
-        </p>
-      ) : null}
+      <p
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className={status === "" ? "visually-hidden" : undefined}
+      >
+        {status}
+      </p>
       {error !== null ? (
         <>
           <p role="alert">{error}</p>
-          <button type="button" onClick={requestIdeas}>
+          <button
+            type="button"
+            onClick={() => {
+              if (disabled || pending) {
+                return;
+              }
+              findButtonRef.current?.focus();
+              requestIdeas();
+            }}
+          >
             Retry meal ideas
           </button>
         </>
       ) : null}
-      {suggestions !== null && suggestions.length === 0 ? (
-        <p role="status">No meal idea fits these restrictions. Choose meals manually.</p>
-      ) : null}
-      {suggestions !== null && suggestions.length > 0 ? (
+      {renderedSuggestions.length > 0 ? (
         <>
           <ul>
-            {suggestions.map((suggestion) => {
-              const names = recipeNames(config, suggestion.recipe_ids);
-              if (names.length !== suggestion.recipe_ids.length) {
-                return null;
-              }
+            {renderedSuggestions.map(({ suggestion, names }) => {
               return (
                 <li key={suggestion.template_id}>
                   <p>{names.join(", ")}</p>

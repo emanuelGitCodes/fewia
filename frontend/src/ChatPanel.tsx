@@ -83,7 +83,14 @@ export function ChatPanel({
           <p className="empty-title">No messages yet</p>
           <p>Send a meal request to start a conversation.</p>
         </div>
-      ) : (
+      ) : null}
+      <div
+        role="log"
+        aria-label="Meal chat transcript"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-atomic="false"
+      >
         <ul aria-label="Messages">
           {messages.map((message) => (
             <li key={message.id}>
@@ -92,7 +99,7 @@ export function ChatPanel({
             </li>
           ))}
         </ul>
-      )}
+      </div>
       <div className="conversation-composer">
         <form
           className="budget-form"

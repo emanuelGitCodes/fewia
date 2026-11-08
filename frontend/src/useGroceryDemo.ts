@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchConfig, isAbortError } from "./api";
 import type { GroceryConfig, GroceryJobCreate } from "./apiTypes";
-import { buildRequest, initialForm, type FormState } from "./BudgetForm";
+import { AmountValidationError, buildRequest, initialForm, type AmountField, type FormState } from "./BudgetForm";
 import { useGroceryJob } from "./useGroceryJob";
 
 const CONFIG_MS = 20_000;
@@ -40,13 +40,26 @@ function isDirty(config: GroceryConfig | null, form: FormState, last: GroceryJob
   }
 }
 
-export function useGroceryDemo() {
+type FormValidation = {
+  message: string;
+  field: AmountField | null;
+  value: string | null;
+};
+
+export function useGroceryDemo(onValidRequest?: () => void) {
   const [config, setConfig] = useState<GroceryConfig | null>(null);
   const [configPending, setConfigPending] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
   const [form, setForm] = useState<FormState>(initialForm);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formValidation, setValidation] = useState<FormValidation | null>(null);
+  const formError = formValidation?.message ?? null;
+  useEffect(() => {
+    const amounts = { monthly: form.monthly, cap: form.cap };
+    setValidation((current) =>
+      current?.field != null && amounts[current.field] !== current.value ? null : current,
+    );
+  }, [form.monthly, form.cap]);
   const [lastBody, setLastBody] = useState<GroceryJobCreate | null>(null);
   const { job, error, pending, submit, clear } = useGroceryJob();
   const reloadConfig = useCallback((): void => {
@@ -97,19 +110,21 @@ export function useGroceryDemo() {
         body = cloneBody(buildRequest(config, state));
       } catch (caught) {
         if (caught instanceof Error) {
-          setFormError(caught.message);
+          const field = caught instanceof AmountValidationError ? caught.field : null;
+          setValidation({ message: caught.message, field, value: field === null ? null : state[field] });
           return;
         }
         throw caught;
       }
-      setFormError(null);
+      setValidation(null);
+      onValidRequest?.();
       if (forceNewKey || job?.status === "succeeded" || job?.status === "failed") {
         clear();
       }
       setLastBody(body);
       await submit(body);
     },
-    [clear, config, configError, configPending, job, pending, submit],
+    [clear, config, configError, configPending, job, onValidRequest, pending, submit],
   );
   const submitForm = useCallback(
     (next?: FormState): Promise<void> => runSubmit(next ?? form, false),
@@ -141,7 +156,7 @@ export function useGroceryDemo() {
   }, []);
 
   return {
-    config, configPending, configError, reloadConfig, form, setForm, formError,
+    config, configPending, configError, reloadConfig, form, setForm, formError, formValidation,
     job, error, pending, submitForm, retry, newRequest, example, togglePantry,
     dirty: isDirty(config, form, lastBody),
   };

@@ -735,6 +735,21 @@
     font-weight: 600;
   }
 }
+@media (max-width: 360px) {
+  .tonight-meals {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+    max-block-size: 45vh;
+    max-block-size: 45dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 0.5rem 0.5rem 0.75rem;
+    margin: 0;
+    scroll-snap-type: none;
+  }
+}
 @media (max-width: 359px) {
   .tonight-macros {
     grid-template-columns: minmax(0, 1fr);
@@ -856,7 +871,8 @@
   border-top: 1px solid var(--tonight-line);
   background: var(--tonight-white);
 }
-.tonight-prototype.is-ask-open .tonight-dock {
+.tonight-dock[hidden],
+.tonight-ask[hidden] {
   display: none;
 }
 .tonight-dock-btn {
@@ -883,16 +899,24 @@
 /* Below 1180 px the panel is a sheet: closed it is gone, open it fills the frame under the pinned total. */
 .tonight-ask {
   container-type: inline-size;
-  display: none;
+  display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  overflow: hidden;
+  min-height: 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  scroll-padding: 0.5rem;
   padding: 0.9rem 1rem;
   border: 1px solid var(--tonight-line);
   background: var(--tonight-white);
 }
 .tonight-ask > * {
   flex-shrink: 0;
+}
+.tonight-ask:focus-visible,
+.tonight-ask-log:focus-visible {
+  outline: 3px solid var(--tonight-green);
+  outline-offset: -3px;
 }
 .tonight-prototype.is-ask-open .tonight-ask {
   position: absolute;
@@ -901,7 +925,6 @@
   right: 0;
   bottom: 0;
   left: 0;
-  display: flex;
   border-width: 1px 0 0;
   animation: tonight-sheet 180ms ease-out;
 }
@@ -946,9 +969,7 @@
   font-weight: 600;
 }
 .tonight-ask-empty {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
+  flex: 1 0 auto;
 }
 .tonight-ask-empty p {
   margin: 0 0 0.4rem;
@@ -970,7 +991,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-.tonight-ask-btn:hover:not(:disabled) {
+.tonight-ask-btn:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--tonight-green);
   background: var(--tonight-select);
 }
@@ -980,6 +1001,7 @@
   color: var(--tonight-white);
 }
 .tonight-ask-btn:disabled,
+.tonight-ask-btn[aria-disabled="true"],
 .tonight-ask-send:disabled {
   border-color: var(--tonight-line);
   background: var(--tonight-white);
@@ -988,15 +1010,18 @@
 }
 .tonight-ask-log {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 0 8rem;
   flex-direction: column;
-  min-height: 0;
+  min-height: 8rem;
   overflow: auto;
   overscroll-behavior: contain;
   gap: 1rem;
   margin: 0.6rem 0;
   padding: 0;
   list-style: none;
+}
+.tonight-ask-log > li {
+  flex-shrink: 0;
 }
 .tonight-ask-turn.is-user {
   align-self: flex-end;
@@ -1145,12 +1170,13 @@
 }
 .tonight-ask-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.5rem;
 }
 .tonight-ask-row textarea {
   box-sizing: border-box;
-  flex: 1;
+  flex: 1 1 10rem;
   min-width: 0;
   min-height: 2.75rem;
   max-height: 7.5rem;
@@ -1247,7 +1273,6 @@
     right: auto;
     bottom: auto;
     left: auto;
-    display: flex;
     grid-column: 2;
     grid-row: 2 / span 2;
     align-self: start;
@@ -1259,7 +1284,6 @@
     border-radius: 6px;
     animation: none;
   }
-  .tonight-dock,
   .tonight-ask-hide {
     display: none;
   }
@@ -1272,11 +1296,9 @@
 }
 @keyframes tonight-sheet {
   from {
-    opacity: 0;
     transform: translateY(1.5rem);
   }
   to {
-    opacity: 1;
     transform: none;
   }
 }

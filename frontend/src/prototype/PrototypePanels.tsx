@@ -66,7 +66,12 @@ export function PlanPanel(props: {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const pinnedRef = useRef<HTMLParagraphElement>(null);
   const [filter, setFilter] = useState("");
-  const noMatch = filterMeals(filter).length === 0;
+  const visibleMeals = filterMeals(filter);
+  const searchStatus = filter.trim() === ""
+    ? ""
+    : visibleMeals.length === 0
+      ? "No meals match. "
+      : `Found ${String(visibleMeals.length)} ${visibleMeals.length === 1 ? "meal" : "meals"}. `;
   // The pinned bar can wrap at large text sizes, so the canvas scroll padding follows its height (WCAG 2.4.11).
   useEffect(() => {
     const pinned = pinnedRef.current;
@@ -85,12 +90,9 @@ export function PlanPanel(props: {
       canvas.style.removeProperty("--tonight-pinned-height");
     };
   }, []);
-  // A removed card button unmounts, so focus moves to the heading (WCAG 2.4.3).
-  const toggleMeal = (id: RecipeId, planned: boolean): void => {
-    if (planned) {
-      headingRef.current?.focus({ preventScroll: false });
-    }
-    props.onToggleMeal(id, planned);
+  const removeMeal = (id: RecipeId): void => {
+    headingRef.current?.focus({ preventScroll: false });
+    props.onToggleMeal(id, true);
   };
   return (
     <section className="tonight-home" aria-labelledby="plan-heading">
@@ -100,14 +102,14 @@ export function PlanPanel(props: {
       <h1 id="plan-heading" ref={headingRef} tabIndex={-1}>Your plan</h1>
       <div className="tonight-plan-grid">
         <div className="tonight-plan-main">
-          <MealPicker meals={meals} filter={filter} onFilterChange={setFilter} onToggle={toggleMeal} />
+          <MealPicker meals={meals} filter={filter} visible={visibleMeals} onFilterChange={setFilter} onToggle={props.onToggleMeal} />
           <MealCards
             meals={meals}
             servingsError={props.state.servingsError}
             onShiftServings={props.onShiftServings}
             pantry={props.state.pantry}
             onTogglePantry={props.onTogglePantry}
-            onRemove={(id) => { toggleMeal(id, true); }}
+            onRemove={removeMeal}
           />
         </div>
         <div className="tonight-plan-side">
@@ -138,7 +140,7 @@ export function PlanPanel(props: {
       <p className="tonight-notice">{ESTIMATE_NOTICE}</p>
       {/* One atomic status announces meals, servings, cost, fit, and the estimate qualifier. */}
       <div className="tonight-estimate-status" role="status" aria-atomic="true">
-        {`${noMatch ? "No meals match. " : ""}${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fit} Whole packages · Sample estimate.`}
+        {`${searchStatus}${mealCount}, ${servingCount}. Groceries to buy ${cost}. ${fit} Whole packages · Sample estimate.`}
       </div>
     </section>
   );

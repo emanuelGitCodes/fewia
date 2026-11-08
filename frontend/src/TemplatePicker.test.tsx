@@ -132,6 +132,65 @@ describe("TemplatePicker", () => {
     vi.mocked(fetchTemplates).mockReset();
   });
 
+  it("keeps one polite atomic status through pending, results, empty results, and reset", async () => {
+    const { view } = mount();
+    const group = mealIdeas(view.container);
+    const status = within(group).getByRole("status");
+    expect(status.getAttribute("aria-live")).toBe("polite");
+    expect(status.getAttribute("aria-atomic")).toBe("true");
+    expect(status.textContent).toBe("");
+    expect(status.className).toBe("visually-hidden");
+    const result = deferred<TemplateSuggestions>();
+    vi.mocked(fetchTemplates).mockReturnValueOnce(result.promise);
+    act(() => {
+      clickFind(view.container);
+    });
+    expect(within(group).getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("Finding meal ideas.");
+    expect(status.className).toBe("");
+    await act(async () => {
+      result.resolve(payload());
+    });
+    expect(within(group).getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("1 meal idea found.");
+    vi.mocked(fetchTemplates).mockResolvedValueOnce(payload({ suggestions: [] }));
+    await act(async () => {
+      clickFind(view.container);
+    });
+    expect(within(group).getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("No meal idea fits these restrictions. Choose meals manually.");
+    expect(status.className).toBe("");
+    expect(within(group).queryAllByRole("listitem")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("Servings per meal"), { target: { value: "4" } });
+    expect(within(group).getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("");
+    expect(status.className).toBe("visually-hidden");
+    view.unmount();
+  });
+
+  it.each([0, 1, 2])("counts %i rendered ideas and omits unknown recipes", async (count) => {
+    const { view } = mount();
+    const suggestion = payload().suggestions[0]!;
+    vi.mocked(fetchTemplates).mockResolvedValueOnce(payload({
+      suggestions: [
+        ...Array.from({ length: count }, (_, index) => ({
+          ...suggestion,
+          template_id: `known-${index}`,
+        })),
+        { ...suggestion, template_id: "unknown", recipe_ids: ["unknown_recipe"] },
+      ],
+    }));
+    await act(async () => {
+      clickFind(view.container);
+    });
+    const group = mealIdeas(view.container);
+    expect(within(group).queryAllByRole("listitem")).toHaveLength(count);
+    expect(within(group).getByRole("status").textContent).toBe(count === 0
+      ? "No meal idea fits these restrictions. Choose meals manually."
+      : `${count} meal ${count === 1 ? "idea" : "ideas"} found.`);
+    view.unmount();
+  });
+
   it("does not fetch on mount or when servings change", () => {
     const { view } = mount();
     expect(fetchTemplates).not.toHaveBeenCalled();
@@ -180,20 +239,35 @@ describe("TemplatePicker", () => {
 
   it("shows a retryable static network error and hides raw text", async () => {
     const { view } = mount();
+    const status = screen.getByRole("status");
     vi.mocked(fetchTemplates).mockRejectedValueOnce(new Error(RAW));
     await act(async () => {
       clickFind(view.container);
     });
     expect(screen.getByRole("alert").textContent).toBe(HTTP_ERROR);
     expect(view.container.textContent).not.toContain(RAW);
-    vi.mocked(fetchTemplates).mockResolvedValueOnce(payload({ suggestions: [] }));
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Retry meal ideas" }));
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("");
+    const retryResult = deferred<TemplateSuggestions>();
+    vi.mocked(fetchTemplates).mockReturnValueOnce(retryResult.promise);
+    const retry = screen.getByRole("button", { name: "Retry meal ideas" });
+    retry.focus();
+    act(() => {
+      fireEvent.click(retry);
     });
     expect(fetchTemplates).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole("status").textContent).toBe(
+    expect(document.activeElement).toBe(findButton(view.container));
+    expect(screen.queryByRole("button", { name: "Retry meal ideas" })).toBeNull();
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("Finding meal ideas.");
+    await act(async () => {
+      retryResult.resolve(payload({ suggestions: [] }));
+    });
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent).toBe(
       "No meal idea fits these restrictions. Choose meals manually.",
     );
+    expect(document.activeElement).toBe(findButton(view.container));
     view.unmount();
   });
 
@@ -263,7 +337,8 @@ describe("TemplatePicker", () => {
       createElement(TemplatePicker, { config, form: { ...form, monthly: "200" }, onChange, disabled: false }),
     );
     expect(signal?.aborted).toBe(true);
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("");
+    expect(screen.getByRole("status").className).toBe("visually-hidden");
     await act(async () => {
       hung.resolve(payload());
     });
@@ -272,15 +347,21 @@ describe("TemplatePicker", () => {
     view.unmount();
   });
 
-  it("blocks a second find while pending and keeps servings editable", async () => {
+  it("keeps Find focused and blocks a second find while pending with servings editable", async () => {
     const hung = deferred<TemplateSuggestions>();
     vi.mocked(fetchTemplates).mockReturnValueOnce(hung.promise);
     const { view } = mount();
+    const find = findButton(view.container);
+    find.focus();
     act(() => {
       clickFind(view.container);
     });
     expect(screen.getByRole("status").textContent).toBe("Finding meal ideas.");
-    expect(findButton(view.container).disabled).toBe(true);
+    expect(find.disabled).toBe(false);
+    expect(find.getAttribute("aria-disabled")).toBe("true");
+    expect(find.getAttribute("type")).toBe("button");
+    expect(find.tabIndex).toBe(0);
+    expect(document.activeElement).toBe(find);
     act(() => {
       clickFind(view.container);
     });
@@ -292,6 +373,8 @@ describe("TemplatePicker", () => {
       hung.resolve(payload());
     });
     expect(findButton(view.container).disabled).toBe(false);
+    expect(find.getAttribute("aria-disabled")).toBe("false");
+    expect(document.activeElement).toBe(find);
     expect(screen.getByRole("button", { name: "Use these meals: Bean tacos, Lentil soup" })).toBeTruthy();
     view.unmount();
   });

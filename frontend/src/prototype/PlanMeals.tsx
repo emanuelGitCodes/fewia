@@ -50,10 +50,11 @@ export { filterMeals };
 export function MealPicker(props: {
   meals: PlannedMeal[];
   filter: string;
+  visible?: RecipeId[];
   onFilterChange: (value: string) => void;
   onToggle: (id: RecipeId, planned: boolean) => void;
 }): JSX.Element {
-  const visible = filterMeals(props.filter);
+  const visible = props.visible ?? filterMeals(props.filter);
   const note = searchNote(props.filter);
   const visibleKey = visible.join(",");
   const mealsRef = useRef<HTMLDivElement>(null);

@@ -120,11 +120,17 @@ select:disabled {
 }
 
 .budget-form details summary {
-  display: flex;
+  display: list-item;
+  list-style-position: inside;
   min-height: 44px;
-  align-items: center;
+  padding-block: 0.6rem;
   cursor: pointer;
   font-weight: 600;
+}
+
+.budget-form .amount-format {
+  margin: 0;
+  color: var(--muted);
 }
 
 .budget-form details label {

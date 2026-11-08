@@ -122,12 +122,12 @@ describe("useGroceryDemo", () => {
     }));
   }
 
-  function mount(): {
+  function mount(onValidRequest?: () => void): {
     bucket: { current: GroceryDemo };
     renderer: { unmount: () => void };
     refresh: () => void;
   } {
-    const { result, unmount, rerender } = renderHook(() => useGroceryDemo());
+    const { result, unmount, rerender } = renderHook(() => useGroceryDemo(onValidRequest));
     return {
       bucket: result,
       renderer: { unmount },
@@ -176,6 +176,100 @@ describe("useGroceryDemo", () => {
     expect(hookOf(bucket).configError).toBeNull();
     expect(hookOf(bucket).dirty).toBe(false);
     renderer.unmount();
+  });
+
+  it.each([
+    ["monthly", "Monthly limit"],
+    ["cap", "Plan cap"],
+  ] as const)("reports repeated %s failures and clears stale field errors on edit", async (field, label) => {
+    const onValidRequest = vi.fn();
+    const { bucket } = mount(onValidRequest);
+    await flush();
+    act(() => {
+      hookOf(bucket).setForm({ ...initialForm(), [field]: "bad" });
+    });
+    await act(async () => { await hookOf(bucket).submitForm(); });
+    const first = hookOf(bucket).formValidation;
+    expect(first?.field).toBe(field);
+    expect(hookOf(bucket).formError).toBe(
+      `${label}: Enter a non-negative dollar amount with at most two decimal places.`,
+    );
+    await act(async () => { await hookOf(bucket).submitForm(); });
+    expect(hookOf(bucket).formValidation).not.toBe(first);
+    expect(hookOf(bucket).formValidation?.field).toBe(field);
+    expect(onValidRequest).not.toHaveBeenCalled();
+    expect(jobState.submit).not.toHaveBeenCalled();
+    act(() => {
+      hookOf(bucket).setForm((current) => ({ ...current, [field]: "40.50" }));
+    });
+    expect(hookOf(bucket).formError).toBeNull();
+    expect(hookOf(bucket).formValidation).toBeNull();
+    act(() => {
+      hookOf(bucket).setForm((current) => ({ ...current, [field]: "bad" }));
+    });
+    expect(hookOf(bucket).formError).toBeNull();
+  });
+
+  it("calls valid-request focus once before changing or submitting a job", async () => {
+    const onValidRequest = vi.fn(() => {
+      expect(jobState.clear).not.toHaveBeenCalled();
+      expect(jobState.submit).not.toHaveBeenCalled();
+    });
+    const { bucket, refresh } = mount(onValidRequest);
+    await flush();
+    jobState.job = succeededJob;
+    refresh();
+    await act(async () => { await hookOf(bucket).submitForm(); });
+    expect(onValidRequest).toHaveBeenCalledTimes(1);
+    expect(jobState.clear).toHaveBeenCalledTimes(1);
+    expect(jobState.submit).toHaveBeenCalledWith(buildRequest(demoConfig, initialForm()));
+    onValidRequest.mockClear();
+    jobState.submit.mockClear();
+    jobState.clear.mockClear();
+    act(() => { hookOf(bucket).example("beans"); });
+    expect(onValidRequest).toHaveBeenCalledTimes(1);
+    expect(jobState.submit).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains validation from direct explicit-state callers and submits their exact cents", async () => {
+    const { bucket } = mount();
+    await flush();
+    await act(async () => {
+      await hookOf(bucket).submitForm({ ...initialForm(), monthly: "bad" });
+    });
+    expect(hookOf(bucket).form.monthly).toBe("100");
+    expect(hookOf(bucket).formValidation?.field).toBe("monthly");
+    expect(hookOf(bucket).formError).toMatch(/^Monthly limit:/);
+    expect(jobState.submit).not.toHaveBeenCalled();
+    await act(async () => {
+      await hookOf(bucket).submitForm({ ...initialForm(), monthly: "40.50", cap: "" });
+    });
+    expect(hookOf(bucket).formError).toBeNull();
+    expect(jobState.submit).toHaveBeenCalledWith({
+      monthly_limit_cents: 4050,
+      request: {
+        ...buildRequest(demoConfig, initialForm()).request,
+        plan_cap_cents: null,
+      },
+    });
+  });
+
+  it("does not call valid-request focus for an invalid example or blocked submission", async () => {
+    const onValidRequest = vi.fn();
+    const { bucket, refresh } = mount(onValidRequest);
+    await act(async () => { await hookOf(bucket).submitForm(); });
+    expect(onValidRequest).not.toHaveBeenCalled();
+    await flush();
+    act(() => { hookOf(bucket).setForm({ ...initialForm(), cap: "bad" }); });
+    act(() => { hookOf(bucket).example("beans"); });
+    expect(hookOf(bucket).formValidation?.field).toBe("cap");
+    expect(onValidRequest).not.toHaveBeenCalled();
+    expect(jobState.submit).not.toHaveBeenCalled();
+    jobState.pending = true;
+    refresh();
+    await act(async () => { await hookOf(bucket).submitForm(initialForm()); });
+    expect(onValidRequest).not.toHaveBeenCalled();
+    expect(jobState.submit).not.toHaveBeenCalled();
   });
 
   it("retries a failed catalog fetch and uses a static error", async () => {

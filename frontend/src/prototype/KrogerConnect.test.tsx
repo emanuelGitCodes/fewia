@@ -211,26 +211,141 @@ describe("KrogerConnect", () => {
       init?.method === "DELETE" ? { ok: false, status: 500 } : status(true),
     );
     render(<KrogerConnect plan={initialPlanState()} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
+    const disconnect = await screen.findByRole("button", { name: "Disconnect" });
+    disconnect.focus();
+    fireEvent.click(disconnect);
     expect(await screen.findByText("Could not disconnect Kroger. Try again.")).toBeTruthy();
     const button = screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement;
-    expect(button.disabled).toBe(false);
+    expect(button.getAttribute("aria-disabled")).toBe("false");
+    expect(document.activeElement).toBe(button);
+    expect(screen.queryByText("Kroger account disconnected.")).toBeNull();
   });
 
-  it("disables Disconnect while the request is in flight", async () => {
+  it("guards Disconnect and keeps focus while the request is in flight", async () => {
     let finish: () => void = () => undefined;
+    let deletes = 0;
     stub((_url, init) =>
       init?.method === "DELETE"
         ? new Promise((resolve) => {
+            deletes += 1;
             finish = () => { resolve({ ok: false, status: 500 }); };
           })
         : status(true),
     );
     render(<KrogerConnect plan={initialPlanState()} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Disconnect" }));
-    expect((screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement).disabled).toBe(true);
+    const disconnect = await screen.findByRole("button", { name: "Disconnect" });
+    const note = screen.getByRole("status", { name: "Kroger account status" });
+    disconnect.focus();
+    fireEvent.click(disconnect);
+    fireEvent.click(disconnect);
+    expect(disconnect.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(disconnect);
+    expect(note.textContent).toBe("Disconnecting Kroger account.");
+    expect(deletes).toBe(1);
     await act(async () => { finish(); });
-    expect((screen.getByRole("button", { name: "Disconnect" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(disconnect.getAttribute("aria-disabled")).toBe("false");
+    expect(document.activeElement).toBe(disconnect);
+    expect(note.textContent).toBe("Could not disconnect Kroger. Try again.");
+  });
+
+  it.each([false, true])("waits for confirmed disconnect and preserves focus when moved=%s", async (moveFocus) => {
+    let finishDelete: () => void = () => undefined;
+    let finishRead: () => void = () => undefined;
+    let reads = 0;
+    let deletes = 0;
+    stub((_url, init) => {
+      if (init?.method === "DELETE") {
+        deletes += 1;
+        return new Promise<Partial<Response>>((resolve) => {
+          finishDelete = () => { resolve({ ok: true, status: 204 }); };
+        });
+      }
+      reads += 1;
+      if (reads === 1) return status(true);
+      return new Promise<Partial<Response>>((resolve) => {
+        finishRead = () => { resolve({ ok: true, status: 200, json: async () => ({ connected: false }) }); };
+      });
+    });
+    render(<><KrogerConnect plan={initialPlanState()} /><button>Elsewhere</button></>);
+    const disconnect = await screen.findByRole("button", { name: "Disconnect" });
+    const note = screen.getByRole("status", { name: "Kroger account status" });
+    disconnect.focus();
+    fireEvent.click(disconnect);
+    expect(note.textContent).toBe("Disconnecting Kroger account.");
+    await act(async () => { finishDelete(); });
+    expect(disconnect.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(disconnect);
+    expect(note.textContent).toBe("Disconnecting Kroger account.");
+    expect(screen.queryByRole("link", { name: "Connect Kroger" })).toBeNull();
+    fireEvent.click(disconnect);
+    expect(deletes).toBe(1);
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    if (moveFocus) elsewhere.focus();
+    await act(async () => { finishRead(); });
+    const connect = screen.getByRole("link", { name: "Connect Kroger" });
+    expect(document.activeElement).toBe(moveFocus ? elsewhere : connect);
+    expect(note.textContent).toBe("Kroger account disconnected.");
+    expect(note.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("keeps connected controls when confirmation still reports a connection", async () => {
+    stub(async (_url, init) => {
+      if (init?.method === "DELETE") return { ok: true, status: 204 };
+      return status(true);
+    });
+    render(<KrogerConnect plan={initialPlanState()} locationId="01400943" />);
+    const disconnect = await screen.findByRole("button", { name: "Disconnect" });
+    disconnect.focus();
+    fireEvent.click(disconnect);
+    await screen.findByText("Could not disconnect Kroger. Try again.");
+    expect(document.activeElement).toBe(disconnect);
+    expect(disconnect.getAttribute("aria-disabled")).toBe("false");
+    expect(screen.getByRole("button", { name: "Preview Kroger cart" })).toBeTruthy();
+    expect(screen.queryByText("Kroger account disconnected.")).toBeNull();
+  });
+
+  describe.each(["unavailable", "malformed", "network"])("after a %s confirmation", (result) => {
+    it.each([false, true])("hides connected controls and preserves focus when moved=%s", async (moveFocus) => {
+      let reads = 0;
+      let finishRead: () => void = () => undefined;
+      stub((_url, init) => {
+        if (init?.method === "DELETE") return Promise.resolve({ ok: true, status: 204 });
+        reads += 1;
+        if (reads === 1) return status(true);
+        return new Promise<Partial<Response>>((resolve, reject) => {
+          finishRead = () => {
+            if (result === "network") {
+              reject(new Error("Synthetic failure"));
+            } else if (result === "unavailable") {
+              resolve({ ok: false, status: 503 });
+            } else {
+              resolve({ ok: true, status: 200, json: async () => ({ connected: "unknown" }) });
+            }
+          };
+        });
+      });
+      render(<><KrogerConnect plan={initialPlanState()} locationId="01400943" /><button>Elsewhere</button></>);
+      const disconnect = await screen.findByRole("button", { name: "Disconnect" });
+      const note = screen.getByRole("status", { name: "Kroger account status" });
+      disconnect.focus();
+      await act(async () => { fireEvent.click(disconnect); });
+      expect(disconnect.getAttribute("aria-disabled")).toBe("true");
+      const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+      if (moveFocus) elsewhere.focus();
+      await act(async () => { finishRead(); });
+      expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Preview Kroger cart" })).toBeNull();
+      expect(screen.queryByText("Kroger account connected")).toBeNull();
+      expect(screen.queryByRole("link", { name: "Connect Kroger" })).toBeNull();
+      expect(screen.queryByText("Kroger account disconnected.")).toBeNull();
+      expect(screen.getByRole("status", { name: "Kroger account status" })).toBe(note);
+      expect(note.textContent).toBe("Could not verify the current Kroger connection. Reload to check.");
+      expect(note.getAttribute("aria-live")).toBe("polite");
+      const target = moveFocus ? elsewhere : screen.getByRole("group", { name: "Kroger account" });
+      expect(document.activeElement).toBe(target);
+      expect(target.contains(note)).toBe(!moveFocus);
+      expect(target.getAttribute("role")).not.toBe("status");
+    });
   });
 
   it("clears the return message when Disconnect starts", async () => {

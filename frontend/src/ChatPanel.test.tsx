@@ -79,6 +79,40 @@ const messages: ChatPanelMessage[] = [
 afterEach(cleanup);
 
 describe("ChatPanel", () => {
+  it("keeps a named polite log mounted from empty through appended replies and reset", () => {
+    const props: ChatPanelProps = {
+      messages: [], text: "", onChange: vi.fn(), onSend: vi.fn(), onRetry: vi.fn(),
+      onNewConversation: vi.fn(), pending: false, error: null, configured: true,
+      configurationPending: false, hasRequest: false, disabled: false,
+    };
+    const rendered = render(createElement(ChatPanel, props));
+    const log = screen.getByRole("log", { name: "Meal chat transcript" });
+    const list = within(log).getByRole("list", { name: "Messages" });
+    expect(log.getAttribute("aria-live")).toBe("polite");
+    expect(log.getAttribute("aria-relevant")).toBe("additions");
+    expect(log.getAttribute("aria-atomic")).toBe("false");
+    expect(within(log).queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.getByText("No messages yet")).not.toBeNull();
+    const input = messageInput(rendered.container);
+    input.focus();
+    rendered.rerender(createElement(ChatPanel, { ...props, messages: messages.slice(0, 1) }));
+    expect(screen.getByRole("log", { name: "Meal chat transcript" })).toBe(log);
+    expect(within(log).getByRole("list", { name: "Messages" })).toBe(list);
+    expect(within(log).getAllByRole("listitem")).toHaveLength(1);
+    expect(document.activeElement).toBe(input);
+    rendered.rerender(createElement(ChatPanel, { ...props, messages }));
+    expect(screen.getByRole("log", { name: "Meal chat transcript" })).toBe(log);
+    expect(within(log).getAllByRole("listitem")).toHaveLength(2);
+    expect(log.textContent).toContain("You");
+    expect(log.textContent).toContain("Assistant");
+    expect(document.activeElement).toBe(input);
+    rendered.rerender(createElement(ChatPanel, props));
+    expect(screen.getByRole("log", { name: "Meal chat transcript" })).toBe(log);
+    expect(within(log).queryAllByRole("listitem")).toHaveLength(0);
+    expect(screen.getByText("No messages yet")).not.toBeNull();
+    expect(document.activeElement).toBe(input);
+  });
+
   it("enables the labeled form and submits through the form", () => {
     const { rendered, onSend, onChange } = mount({ text: "Bean tacos for two" });
     const textarea = messageInput(rendered.container);
@@ -222,7 +256,7 @@ describe("ChatPanel", () => {
     rendered.unmount();
   });
 
-  it("keeps one live node and shows the error once visibly", () => {
+  it("keeps one progress status and shows the error once visibly", () => {
     const { rendered } = mount({ hasRequest: true, error: TIMEOUT });
     const live = within(rendered.container).getAllByRole("status");
     expect(live).toHaveLength(1);

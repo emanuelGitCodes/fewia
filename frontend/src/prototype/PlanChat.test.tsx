@@ -250,10 +250,10 @@ describe("PlanChat", () => {
     expect(screen.queryByText("Old answer")).toBeNull();
   });
 
-  it("is an aside labelled by its Ask FEWIA heading with one status region", () => {
+  it("is a complementary landmark labelled by its Ask FEWIA heading with one status region", () => {
     mount();
-    const aside = screen.getByRole("complementary", { name: "Ask FEWIA" });
-    expect(aside.querySelector("h2")?.textContent).toBe("Ask FEWIA");
+    const panel = screen.getByRole("complementary", { name: "Ask FEWIA" });
+    expect(panel.querySelector("h2")?.textContent).toBe("Ask FEWIA");
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(
       screen.getByText("Replies come from a real model call. Prices are sample estimates."),
@@ -368,7 +368,7 @@ describe("PlanChat", () => {
     expect(screen.getAllByRole("article")).toHaveLength(1);
     const notice = screen.getByText(SAMPLE_ESTIMATE_NOTICE);
     expect(notice.textContent).toBe(SAMPLE_ESTIMATE_NOTICE);
-    expect(notice.closest("aside")).not.toBeNull();
+    expect(screen.getByRole("complementary", { name: "Ask FEWIA" }).contains(notice)).toBe(true);
     expect(screen.queryByText("Price changes are sample estimates.")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("FEWIA replied with 1 meal idea.");
     fireEvent.click(screen.getByRole("button", { name: /^Add Chickpea curry, 2 servings/ }));
@@ -689,13 +689,106 @@ describe("PlanChat", () => {
     expect(onHide).toHaveBeenCalledTimes(1);
   });
 
-  it("focuses the textarea when the sheet opens and takes the given id", () => {
+  it("focuses the heading when the sheet opens and takes the given id", () => {
     const state = initialPlanState();
     const view = render(<PlanChat state={state} onToggleIdea={vi.fn()} id="ask-panel" open={false} />);
     expect(document.activeElement).not.toBe(box());
     view.rerender(<PlanChat state={state} onToggleIdea={vi.fn()} id="ask-panel" open />);
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Ask FEWIA" }));
+    expect(screen.getByRole("region", { name: "Ask FEWIA" }).id).toBe("ask-panel");
+  });
+
+  it("wraps phone Tab navigation with current enabled and visible controls", () => {
+    mount(initialPlanState(), { open: true, modal: true, onHide: vi.fn() });
+    const dialog = screen.getByRole("dialog", { name: "Ask FEWIA" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    const heading = screen.getByRole("heading", { name: "Ask FEWIA" });
+    expect(document.activeElement).toBe(heading);
+    fireEvent.keyDown(heading, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(box());
-    expect(screen.getByRole("complementary", { name: "Ask FEWIA" }).id).toBe("ask-panel");
+    expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(box(), { key: "Tab" });
+    expect(document.activeElement).toBe(dialog);
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(box());
+
+    type("Dinner");
+    const send = screen.getByRole("button", { name: "Send" });
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(send);
+    fireEvent.keyDown(send, { key: "Tab" });
+    expect(document.activeElement).toBe(dialog);
+    send.hidden = true;
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(box());
+    send.hidden = false;
+    send.style.display = "none";
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(box());
+  });
+
+  it("recovers phone Tab navigation when the focused transcript disappears", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = chatJob("job-1", "clarification", "Which meals?");
+    });
+    mount(initialPlanState(), { open: true, modal: true, onHide: vi.fn() });
+    await submitText("Dinner");
+    const log = screen.getByRole("list", { name: "Messages" });
+    expect(log.tagName).toBe("OL");
+    expect(log.tabIndex).toBe(0);
+    log.focus();
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+    expect(log.isConnected).toBe(false);
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Ask FEWIA" }));
+  });
+
+  it("includes dynamic store controls in the phone focus loop", () => {
+    stubKrogerFetch({});
+    mount(initialPlanState(), {
+      open: true, modal: true, onHide: vi.fn(),
+      onKrogerChoose: vi.fn(), onKrogerClear: vi.fn(),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Choose a Kroger store for live prices" }));
+    const zip = screen.getByLabelText("ZIP code");
+    const input = box();
+    input.hidden = true;
+    const dialog = screen.getByRole("dialog", { name: "Ask FEWIA" });
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.change(zip, { target: { value: "45202" } });
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    cancel.hidden = true;
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Find stores" }));
+    fireEvent.change(zip, { target: { value: "" } });
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Find stores" }));
+    expect(
+      screen.getByRole("button", { name: "Find stores" }).getAttribute("aria-disabled"),
+    ).toBe("true");
+  });
+
+  it("keeps nonmodal Tab navigation free and removes the phone listener when collapsed", () => {
+    const state = initialPlanState();
+    const onToggleIdea = vi.fn();
+    const view = render(<PlanChat state={state} onToggleIdea={onToggleIdea} open modal />);
+    view.rerender(<PlanChat state={state} onToggleIdea={onToggleIdea} open />);
+    const surface = screen.getByRole("region", { name: "Ask FEWIA" });
+    surface.focus();
+    expect(fireEvent.keyDown(surface, { key: "Tab", shiftKey: true })).toBe(true);
+    expect(surface.hasAttribute("aria-modal")).toBe(false);
+    view.rerender(<PlanChat state={state} onToggleIdea={onToggleIdea} collapsed />);
+    expect(surface.hidden).toBe(true);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(fireEvent.keyDown(document, { key: "Tab" })).toBe(true);
+    view.rerender(<PlanChat state={state} onToggleIdea={onToggleIdea} />);
+    expect(screen.getByRole("complementary", { name: "Ask FEWIA" })).toBe(surface);
   });
 
   it("tells the shell once when a reply arrives", async () => {

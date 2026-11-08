@@ -5331,3 +5331,7 @@ The owner chose to put the OpenAI key in `.env` so the course grader needs one s
 ## 2026-11-07 — Apply checks plan constraints
 
 Apply checks current spending, the tightest cap, the proposed pantry, and stored dietary constraints. Browser tests rejected USD 17.03 against a USD 17.02 cap and preserved the saved plan. Revision `b35e6e1d` passed the gates with 18,497 tests and one skip. Independent review approved the change. The supervisor recorded 3,645,154 input tokens and 42,188 output tokens for the writer and review phases.
+
+## 2026-11-07 — Frontend WCAG 2.1 checks
+
+Local branch `codex/wcag21-aa` improves chat focus, meal reflow, legacy form errors, and plan and Kroger status announcements. Frontend lint, tests, and build passed at `8efe84f6`, with 559 of 1,000 code lines. GPT-6 Astra returned `APPROVE` at that revision. Chromium passed all 16 repository Playwright tests and targeted keyboard and reflow checks. Axe found zero automated violations in the sampled states. Verification used synthetic provider responses. Screen-reader speech and live Kroger OAuth remain open. The supervisor recorded 7,498,717 input tokens and 98,631 output tokens for its writers and reviewer.

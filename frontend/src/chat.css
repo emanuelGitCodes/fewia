@@ -38,12 +38,17 @@
   padding: 0;
 }
 
+.chat-workspace ul[aria-label="Messages"]:empty {
+  margin: 0;
+}
+
 .chat-workspace li {
   margin: 0 0 0.85rem;
   padding: 0.75rem 0.9rem;
   color: var(--ink);
   background: var(--message);
   border-radius: 6px;
+  overflow-wrap: anywhere;
 }
 
 .chat-workspace li p {
@@ -58,6 +63,6 @@
 
 @media (max-width: 70rem) {
   .page .workspace {
-    grid-template: "chat" "conversation" "budget" / minmax(0, 1fr);
+    grid-template: "conversation" "chat" "budget" / minmax(0, 1fr);
   }
 }
