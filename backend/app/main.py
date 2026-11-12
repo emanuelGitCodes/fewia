@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import os
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
@@ -7,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.chat import router as chat_router
 from app.api.evidence import router as evidence_router
@@ -17,10 +19,30 @@ from app.api.plans import router as plans_router
 from app.api.proposals import router as proposals_router
 from app.api.sync import router as sync_router
 
-app = FastAPI(title="FEWIA API")
 _GROCERY_TEMPLATES_PATHS = frozenset(
     {"/grocery/templates", "/grocery/templates/", "/grocery/kroger/stores"}
 )
+_DEFAULT_ALLOWED_HOSTS = ("localhost", "127.0.0.1", "[::1]", "api", "testserver")
+_ALLOWED_HOSTS_ENV = "FEWIA_ALLOWED_HOSTS"
+_API_DOCS_ENV = "FEWIA_API_DOCS"
+_INVALID_ALLOWED_HOSTS_MESSAGE = "FEWIA_ALLOWED_HOSTS is invalid."
+
+
+def allowed_hosts(value: str | None) -> list[str]:
+    """Return the default allowed hosts plus the comma-separated extra hosts."""
+    hosts = list(_DEFAULT_ALLOWED_HOSTS)
+    if value is None:
+        return hosts
+    for entry in value.split(","):
+        host = entry.strip()
+        if not host:
+            continue
+        if "*" in host or "/" in host or any(char.isspace() for char in host):
+            raise ValueError(_INVALID_ALLOWED_HOSTS_MESSAGE)
+        if ":" in host and host != "[::1]":
+            raise ValueError(_INVALID_ALLOWED_HOSTS_MESSAGE)
+        hosts.append(host)
+    return hosts
 
 
 def _http_error_code(status_code: int) -> str:
@@ -31,7 +53,6 @@ def _http_error_code(status_code: int) -> str:
         return f"http_{status_code}"
 
 
-@app.exception_handler(StarletteHTTPException)
 async def starlette_http_error_handler(
     request: Request, exc: StarletteHTTPException
 ) -> JSONResponse:
@@ -48,7 +69,6 @@ async def starlette_http_error_handler(
     )
 
 
-@app.exception_handler(RequestValidationError)
 async def validation_error_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
@@ -70,17 +90,36 @@ async def validation_error_handler(
     )
 
 
-@app.get("/healthz")
 def healthz() -> dict[str, str]:
     """Report that the API process runs."""
     return {"status": "ok"}
 
 
-app.include_router(grocery_router)
-app.include_router(kroger_router)
-app.include_router(plan_templates_router)
-app.include_router(plans_router)
-app.include_router(proposals_router)
-app.include_router(chat_router)
-app.include_router(evidence_router)
-app.include_router(sync_router)
+def create_app() -> FastAPI:
+    """Build the API with its handlers, routes, and host check."""
+    hosts = allowed_hosts(os.environ.get(_ALLOWED_HOSTS_ENV))
+    docs_enabled = os.environ.get(_API_DOCS_ENV) == "1"
+    application = FastAPI(
+        title="FEWIA API",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
+    application.add_middleware(
+        TrustedHostMiddleware, allowed_hosts=hosts, www_redirect=False
+    )
+    application.exception_handler(StarletteHTTPException)(starlette_http_error_handler)
+    application.exception_handler(RequestValidationError)(validation_error_handler)
+    application.add_api_route("/healthz", healthz, methods=["GET"])
+    application.include_router(grocery_router)
+    application.include_router(kroger_router)
+    application.include_router(plan_templates_router)
+    application.include_router(plans_router)
+    application.include_router(proposals_router)
+    application.include_router(chat_router)
+    application.include_router(evidence_router)
+    application.include_router(sync_router)
+    return application
+
+
+app = create_app()

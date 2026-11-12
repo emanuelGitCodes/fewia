@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 
@@ -84,17 +84,20 @@ class GroceryRequest(BaseModel):
     plan_cap_cents: StrictInt | None = Field(
         default=None,
         ge=0,
+        le=100_000_000,
         description=("Server plan cap in cents. Keep it or lower it. Never raise it."),
     )
-    pantry_ingredients: list[StrictStr] = Field(
+    pantry_ingredients: list[Annotated[StrictStr, Field(max_length=160)]] = Field(
         default_factory=list,
+        max_length=64,
         description=(
             "Catalog ingredient IDs the user already owns. They cost "
             "nothing in the plan."
         ),
     )
-    ingredient_exclusions: list[StrictStr] = Field(
+    ingredient_exclusions: list[Annotated[StrictStr, Field(max_length=160)]] = Field(
         default_factory=list,
+        max_length=64,
         description=(
             "Catalog ingredient IDs the user excludes, or a restriction "
             "term exactly as the user wrote it."
