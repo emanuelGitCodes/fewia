@@ -89,6 +89,8 @@ services:
 
   worker:
     <<: *backend
+    # Compose mounts an environment secret only into a writable root file system.
+    read_only: false
     environment: *chat-environment
     command:
       ["python", "-m", "app.worker", "--endpoint", "http://floci:4566"]

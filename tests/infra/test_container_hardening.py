@@ -8,6 +8,7 @@ COMPOSE = ROOT / "compose.yaml"
 DOCKERFILE = ROOT / "backend" / "Dockerfile"
 
 BACKEND_SERVICES = ("bootstrap", "api", "worker", "sync-worker")
+WRITABLE_ROOT_SERVICE = "worker"
 OTHER_SERVICES = ("postgres", "floci", "web")
 HARDENING_KEYS = ("user", "read_only", "cap_drop", "security_opt", "tmpfs")
 
@@ -22,11 +23,22 @@ def _services() -> dict[str, dict[str, object]]:
 def test_backend_service_is_hardened(name: str) -> None:
     service = _services()[name]
 
+    # The worker mounts an environment secret, so its root file system is writable.
+    assert service["read_only"] is (name != WRITABLE_ROOT_SERVICE)
     assert service["user"] == "1000:1000"
-    assert service["read_only"] is True
     assert "ALL" in service["cap_drop"]
     assert "no-new-privileges:true" in service["security_opt"]
     assert "/tmp" in service["tmpfs"]
+
+
+def test_worker_is_the_only_backend_service_without_read_only_root() -> None:
+    services = _services()
+
+    writable = [
+        name for name in BACKEND_SERVICES if services[name]["read_only"] is not True
+    ]
+
+    assert writable == [WRITABLE_ROOT_SERVICE]
 
 
 @pytest.mark.parametrize("name", OTHER_SERVICES)
