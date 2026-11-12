@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 from app.kroger_models import KrogerCustomerToken
 from app.models import User
 from app.security_models import KrogerOwner, SecurityIntent
-from tests.test_runtime_database_policy import PgConnection, admin  # noqa: F401
+from tests.test_runtime_database_policy import PgConnection
+
+pytest_plugins: list[str] = ["tests.test_runtime_database_policy"]
 
 
 def test_user_identity_metadata() -> None:
