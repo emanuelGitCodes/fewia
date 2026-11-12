@@ -1,9 +1,11 @@
-"""Tests for the xdist grouping of tests that share the test database.
+"""Tests for the xdist grouping of tests that reach the shared test database.
 
 The names below are built from parts so this file does not name the database
 and stays out of the group it checks.
 """
 
+import gzip
+import re
 import tomllib
 from pathlib import Path
 from typing import cast
@@ -11,13 +13,31 @@ from typing import cast
 import pytest
 from conftest import (
     DATABASE_XDIST_GROUP,
+    NO_DATABASE_MODULES,
+    database_modules,
+    mark_database_items,
     pytest_collection_modifyitems,
     uses_test_database,
 )
+from conftest import test_module_dependencies as module_dependencies
 
 HELPER_NAME = "require_test_" + "database_url"
 URL_NAME = "FEWIA_JOB_TEST_" + "DATABASE_URL"
-PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
+EVALUATION_URL_NAME = "FEWIA_EVALUATION_" + "DATABASE_URL"
+DATABASE_NAMES = [HELPER_NAME, URL_NAME, EVALUATION_URL_NAME]
+TESTS_DIR = Path(__file__).resolve().parent
+PYPROJECT = TESTS_DIR.parent / "pyproject.toml"
+MISSED_BY_TEXT_RULE = [
+    "test_bootstrap_hosting",
+    "test_job_leases_postgres",
+    "test_outbox_postgres",
+    "test_sync_job",
+]
+
+GZIP_HEADER = r"\\x1f\\x8b\\x08\\x00"
+ESCAPED_BYTE = r"(?:\\x[0-9a-f]{2}|\\[tnr\\']|[^\\])"
+# The gzip header, then a four-byte mtime that is not all zero.
+UNSTABLE_GZIP_ID = re.compile(GZIP_HEADER + r"(?!(?:\\x00){4})" + ESCAPED_BYTE + "{4}")
 
 
 class StubItem:
@@ -38,7 +58,19 @@ def group_names(item: pytest.Item) -> list[object]:
     ]
 
 
-@pytest.mark.parametrize("name", [HELPER_NAME, URL_NAME])
+def real_sources() -> dict[str, str]:
+    return {
+        path.stem: path.read_text(encoding="utf-8")
+        for path in TESTS_DIR.glob("test_*.py")
+    }
+
+
+def escaped_id(value: bytes) -> str:
+    """Escape bytes the way pytest writes them into a test id."""
+    return repr(value)[2:-1]
+
+
+@pytest.mark.parametrize("name", DATABASE_NAMES)
 def test_uses_test_database_is_true_for_each_database_name(name: str) -> None:
     assert uses_test_database(f"url = {name}()")
 
@@ -51,22 +83,166 @@ def test_uses_test_database_is_false_for_other_text(source: str) -> None:
     assert not uses_test_database(source)
 
 
+def test_this_file_does_not_name_the_database_as_one_literal() -> None:
+    assert not uses_test_database(Path(__file__).read_text(encoding="utf-8"))
+
+
 def test_database_group_name_is_database() -> None:
     assert DATABASE_XDIST_GROUP == "database"
 
 
-def test_collected_items_carry_the_group_only_when_the_module_names_the_database(
+def test_no_database_modules_are_the_five_that_never_connect() -> None:
+    assert NO_DATABASE_MODULES == frozenset(
+        {
+            "test_openai_compose_launcher",
+            "test_evaluation_cli_config",
+            "test_cloud_database_config",
+            "test_database_gate",
+            "test_xdist_groups",
+        }
+    )
+
+
+@pytest.mark.parametrize("stem", sorted(NO_DATABASE_MODULES))
+def test_each_no_database_module_is_a_file_that_exists(stem: str) -> None:
+    assert (TESTS_DIR / f"{stem}.py").is_file()
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("", set()),
+        ("import test_a", {"test_a"}),
+        ("import tests.test_a", {"test_a"}),
+        ("import tests.test_a as alias", {"test_a"}),
+        ("from test_a import f", {"test_a", "f"}),
+        ("from tests import test_a", {"tests", "test_a"}),
+        ("from tests.test_a import f, g", {"test_a", "f", "g"}),
+        ("from . import test_a", {"test_a"}),
+        ("def f() -> None:\n    import test_a\n", {"test_a"}),
+        ('pytest_plugins = ["test_a", "pkg.test_b"]', {"test_a", "test_b"}),
+        ('pytest_plugins = "test_a"', {"test_a"}),
+        ('other_plugins = ["test_a"]', set()),
+        ("def broken(:\n", set()),
+    ],
+)
+def test_module_dependencies_reads_imports_and_plugins(
+    source: str, expected: set[str]
+) -> None:
+    assert module_dependencies(source) == frozenset(expected)
+
+
+def test_database_modules_starts_with_each_module_naming_a_database_name() -> None:
+    sources = {
+        f"test_{index}": f"x = {name}" for index, name in enumerate(DATABASE_NAMES)
+    }
+    sources["test_plain"] = "x = 1"
+
+    assert database_modules(sources) == frozenset(
+        f"test_{index}" for index in range(len(DATABASE_NAMES))
+    )
+
+
+@pytest.mark.parametrize(
+    "importing_source",
+    [
+        "import test_a",
+        "import tests.test_a",
+        "from test_a import f",
+        "from tests import test_a",
+        "from tests.test_a import f",
+        'pytest_plugins = ["test_a"]',
+    ],
+)
+def test_database_modules_adds_a_module_that_imports_a_database_module(
+    importing_source: str,
+) -> None:
+    sources = {
+        "test_a": f"url = {HELPER_NAME}()",
+        "test_b": importing_source,
+        "test_c": "import os",
+    }
+
+    assert database_modules(sources) == frozenset({"test_a", "test_b"})
+
+
+def test_database_modules_follows_a_chain_of_three_modules() -> None:
+    sources = {
+        "test_c": "from test_b import f",
+        "test_unrelated": "import test_d",
+        "test_b": "from tests import test_a",
+        "test_a": f"url = {URL_NAME}",
+        "test_d": "x = 1",
+    }
+
+    assert database_modules(sources) == frozenset({"test_a", "test_b", "test_c"})
+
+
+def test_database_modules_follows_a_dependency_cycle_once() -> None:
+    sources = {
+        "test_a": "import test_b",
+        "test_b": f"import test_a\nurl = {HELPER_NAME}()",
+    }
+
+    assert database_modules(sources) == frozenset({"test_a", "test_b"})
+
+
+def test_database_modules_keeps_a_no_database_module_out() -> None:
+    stem = sorted(NO_DATABASE_MODULES)[0]
+    sources = {stem: f"url = {HELPER_NAME}()"}
+
+    assert database_modules(sources) == frozenset()
+
+
+def test_database_modules_keeps_out_an_importer_of_only_a_no_database_module() -> None:
+    stem = sorted(NO_DATABASE_MODULES)[0]
+    sources = {
+        stem: f"url = {HELPER_NAME}()",
+        "test_importer": f"import {stem}",
+        "test_real": f"url = {HELPER_NAME}()",
+    }
+
+    assert database_modules(sources) == frozenset({"test_real"})
+
+
+def test_database_modules_does_not_pass_through_a_no_database_module() -> None:
+    stem = sorted(NO_DATABASE_MODULES)[0]
+    sources = {
+        "test_real": f"url = {HELPER_NAME}()",
+        stem: "import test_real",
+        "test_importer": f"import {stem}",
+    }
+
+    assert database_modules(sources) == frozenset({"test_real"})
+
+
+def test_real_tree_includes_the_modules_the_text_rule_missed() -> None:
+    assert set(MISSED_BY_TEXT_RULE) <= database_modules(real_sources())
+
+
+def test_real_tree_excludes_every_no_database_module() -> None:
+    assert not NO_DATABASE_MODULES & database_modules(real_sources())
+
+
+def test_real_items_from_the_modules_the_text_rule_missed_carry_the_group(
+    request: pytest.FixtureRequest,
+) -> None:
+    items = request.session.items
+    missed = [item for item in items if item.path.stem in MISSED_BY_TEXT_RULE]
+    if not missed:
+        pytest.skip("None of the modules the text rule missed is collected.")
+    for item in missed:
+        assert group_names(item) == [DATABASE_XDIST_GROUP], item.nodeid
+
+
+def test_collected_items_carry_the_group_only_when_the_module_reaches_a_database(
     request: pytest.FixtureRequest,
 ) -> None:
     items = request.session.items
     assert items
-    names_database_by_path: dict[Path, bool] = {}
+    members = database_modules(real_sources())
     for item in items:
-        if item.path not in names_database_by_path:
-            names_database_by_path[item.path] = uses_test_database(
-                item.path.read_text(encoding="utf-8")
-            )
-        expected = [DATABASE_XDIST_GROUP] if names_database_by_path[item.path] else []
+        expected = [DATABASE_XDIST_GROUP] if item.path.stem in members else []
         assert group_names(item) == expected, item.nodeid
 
 
@@ -88,29 +264,29 @@ def test_items_from_this_file_are_not_grouped(
     assert all(not group_names(item) for item in own)
 
 
-def test_hook_marks_only_modules_that_name_the_database_and_keeps_order(
-    tmp_path: Path,
-) -> None:
-    database_module = tmp_path / "test_with_database.py"
-    database_module.write_text(f"url = {HELPER_NAME}()\n", encoding="utf-8")
-    url_module = tmp_path / "test_with_url.py"
-    url_module.write_text(f"import os\nos.environ['{URL_NAME}']\n", encoding="utf-8")
-    plain_module = tmp_path / "test_plain.py"
-    plain_module.write_text("def test_plain() -> None: ...\n", encoding="utf-8")
+def test_mark_database_items_marks_only_reaching_modules_and_keeps_order() -> None:
+    database_path = Path("test_with_database.py")
+    importer_path = Path("test_with_importer.py")
+    plain_path = Path("test_plain.py")
+    sources = {
+        database_path.stem: f"url = {HELPER_NAME}()\n",
+        importer_path.stem: f"from tests import {database_path.stem}\n",
+        plain_path.stem: "def test_plain() -> None: ...\n",
+    }
     items = [
-        StubItem(plain_module),
-        StubItem(database_module),
-        StubItem(url_module),
-        StubItem(database_module),
-        StubItem(plain_module),
+        StubItem(plain_path),
+        StubItem(database_path),
+        StubItem(importer_path),
+        StubItem(database_path),
+        StubItem(plain_path),
     ]
     original_order = list(items)
 
-    pytest_collection_modifyitems(cast(list[pytest.Item], items))
+    mark_database_items(cast(list[pytest.Item], items), sources)
 
     assert items == original_order
     for item in items:
-        if item.path == plain_module:
+        if item.path == plain_path:
             assert item.markers == []
         else:
             assert len(item.markers) == 1
@@ -119,11 +295,9 @@ def test_hook_marks_only_modules_that_name_the_database_and_keeps_order(
             assert marker.args == (DATABASE_XDIST_GROUP,)
 
 
-def test_hook_reads_each_module_source_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_hook_reads_each_test_module_in_the_directory_once(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    module = tmp_path / "test_with_database.py"
-    module.write_text(f"url = {HELPER_NAME}()\n", encoding="utf-8")
     reads: list[Path] = []
     original_read_text = Path.read_text
 
@@ -132,11 +306,39 @@ def test_hook_reads_each_module_source_once(
         return original_read_text(self, encoding=encoding)
 
     monkeypatch.setattr(Path, "read_text", counting_read_text)
-    items = [StubItem(module) for _ in range(3)]
+    items = [StubItem(Path("test_plain.py")) for _ in range(3)]
 
     pytest_collection_modifyitems(cast(list[pytest.Item], items))
 
-    assert [path for path in reads if path == module] == [module]
+    test_modules = sorted(TESTS_DIR.glob("test_*.py"))
+    assert sorted(path for path in reads if path.parent == TESTS_DIR) == test_modules
+    assert all(not item.markers for item in items)
+
+
+def test_unstable_gzip_id_matches_a_gzip_id_with_a_nonzero_mtime() -> None:
+    value = escaped_id(gzip.compress(b"x", mtime=5))
+
+    assert UNSTABLE_GZIP_ID.search(f"test_it[{value}]")
+
+
+def test_unstable_gzip_id_ignores_a_gzip_id_with_a_zero_mtime() -> None:
+    value = escaped_id(gzip.compress(b"x", mtime=0))
+
+    assert value.startswith(r"\x1f\x8b\x08\x00")
+    assert not UNSTABLE_GZIP_ID.search(f"test_it[{value}]")
+
+
+def test_unstable_gzip_id_ignores_ids_without_a_gzip_header() -> None:
+    assert not UNSTABLE_GZIP_ID.search("tests/test_it.py::test_it[plain-id]")
+
+
+def test_collected_ids_do_not_carry_a_gzip_timestamp(
+    request: pytest.FixtureRequest,
+) -> None:
+    items = request.session.items
+    assert items
+    for item in items:
+        assert not UNSTABLE_GZIP_ID.search(item.nodeid), item.nodeid
 
 
 def test_pytest_addopts_runs_workers_with_loadgroup() -> None:
