@@ -2,6 +2,11 @@ x-backend: &backend
   build:
     context: .
     dockerfile: backend/Dockerfile
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp"]
   environment: &backend-environment
     DATABASE_URL: postgresql+psycopg://fewia:fewia@postgres:5432/fewia
 
@@ -84,6 +89,8 @@ services:
 
   worker:
     <<: *backend
+    # Compose mounts an environment secret only into a writable root file system.
+    read_only: false
     environment: *chat-environment
     command:
       ["python", "-m", "app.worker", "--endpoint", "http://floci:4566"]
