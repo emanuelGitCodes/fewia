@@ -34,6 +34,7 @@ TOOLS_RUFF_FORMAT = UV_RUN_BACKEND + (
 TOOLS_MYPY_HEAD = UV_RUN_BACKEND + ("mypy", "--strict", "dev_supervisor")
 TOOLS_MYPY = TOOLS_MYPY_HEAD + ("infra/bedrock_session.py", "infra/floci_bootstrap.py")
 GATE_KILL_GRACE = 2.0
+SLOW_GATES = frozenset({"pytest", "test", "build"})
 
 GateRow = tuple[str, str, str, str, tuple[str, ...]]
 
@@ -46,19 +47,19 @@ GATES = (
     ("backend", "ruff-check", "backend", BACKEND_RUFF_CHECK, ()),
     ("backend", "ruff-format", "backend", BACKEND_RUFF_FORMAT, ()),
     ("backend", "mypy", "backend", (*UV_RUN, "mypy", "--strict", "app"), ()),
-    ("backend", "pytest", "backend", (*UV_RUN, "pytest", "-q"), ()),
+    ("backend", "pytest", "backend", (*UV_RUN, "pytest", "-q", "-n", "auto"), ()),
     ("frontend", "npm-ci", "frontend", ("npm", "ci", "--ignore-scripts"), ()),
     ("frontend", "lint", "frontend", ("npm", "run", "lint"), ()),
     ("frontend", "test", "frontend", ("npm", "test"), ()),
     ("frontend", "build", "frontend", ("npm", "run", "build"), ()),
-    ("tools", "pytest", "", TOOLS_PYTEST, PYTHONPATH_ENV),
     ("tools", "ruff-check", "", TOOLS_RUFF_CHECK, PYTHONPATH_ENV),
     ("tools", "ruff-format", "", TOOLS_RUFF_FORMAT, PYTHONPATH_ENV),
     ("tools", "mypy", "", TOOLS_MYPY, PYTHONPATH_ENV),
-    ("cdk", "pytest", "infra/bedrock", (*UV_RUN, "pytest", "-q"), ()),
+    ("tools", "pytest", "", TOOLS_PYTEST, PYTHONPATH_ENV),
     ("cdk", "ruff-check", "infra/bedrock", (*UV_RUN, "ruff", "check", "."), ()),
     ("cdk", "ruff-format", "infra/bedrock", CDK_RUFF_FORMAT, ()),
     ("cdk", "mypy", "infra/bedrock", (*UV_RUN, "mypy", "--strict", "."), ()),
+    ("cdk", "pytest", "infra/bedrock", (*UV_RUN, "pytest", "-q"), ()),
     ("hosting", "ruff-check", "infra/hosting", (*UV_RUN, "ruff", "check", "."), ()),
     ("hosting", "ruff-format", "infra/hosting", CDK_RUFF_FORMAT, ()),
     ("hosting", "mypy", "infra/hosting", (*UV_RUN, "mypy", "--strict", "."), ()),
@@ -171,12 +172,17 @@ def is_clean(cwd: Path) -> bool:
 def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
     out: list[GateRow] = []
     skip_frontend = False
+    first_cheap_fail: dict[str, str] = {}
     for area, gate, folder, argv, env in (row for row in GATES if row[0] in areas):
         if gate == "npm-ci" and (cwd / "frontend" / "node_modules").exists():
             out.append((area, gate, "SKIP", "node_modules present", ()))
             continue
         if skip_frontend and area == "frontend":
             out.append((area, gate, "SKIP", "npm ci failed", ()))
+            continue
+        if gate in SLOW_GATES and area in first_cheap_fail:
+            reason = f"skipped after {first_cheap_fail[area]} failed"
+            out.append((area, gate, "SKIP", reason, ()))
             continue
         if gate == "config" and shutil.which("docker") is None:
             out.append((area, gate, "SKIP", "docker not found", ()))
@@ -192,6 +198,8 @@ def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
             out.append((area, gate, "FAIL", "timeout", ()))
             if gate == "npm-ci":
                 skip_frontend = True
+            if gate not in SLOW_GATES:
+                first_cheap_fail.setdefault(area, gate)
             continue
         lines = [line for line in (proc.stdout or "").splitlines() if line]
         status = "PASS" if proc.returncode == 0 else "FAIL"
@@ -199,6 +207,8 @@ def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
         out.append((area, gate, status, last, tuple(lines[-20:])))
         if gate == "npm-ci" and status == "FAIL":
             skip_frontend = True
+        if status == "FAIL" and gate not in SLOW_GATES:
+            first_cheap_fail.setdefault(area, gate)
     return out
 
 
