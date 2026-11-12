@@ -1,7 +1,9 @@
 import { readJson } from "./api";
 import {
   HTTP_ERROR,
+  KROGER_LOCATION_ID,
   SHAPE_ERROR,
+  hasExactKeys,
   isKrogerSource,
   isRecord,
   isString,
@@ -17,7 +19,7 @@ export type KrogerStoreOption = {
 };
 export type KrogerStoreResult = { stores: KrogerStoreOption[]; source: KrogerSource };
 
-export const KROGER_LOCATION_ID = /^[0-9A-Za-z]{8}$/;
+export { KROGER_LOCATION_ID };
 const MAX_STORES = 5;
 const STORE_KEYS = ["location_id", "name", "address_line", "city", "state"];
 
@@ -31,8 +33,7 @@ export function isKrogerText(value: unknown): value is string {
 
 function copyStore(value: unknown): KrogerStoreOption {
   if (
-    !isRecord(value) || Object.keys(value).length !== STORE_KEYS.length ||
-    !STORE_KEYS.every((key) => Object.prototype.hasOwnProperty.call(value, key)) ||
+    !isRecord(value) || !hasExactKeys(value, STORE_KEYS) ||
     !isString(value.location_id) || !KROGER_LOCATION_ID.test(value.location_id) ||
     !isKrogerText(value.name) || !isKrogerText(value.address_line) ||
     !isKrogerText(value.city) || !isKrogerText(value.state)
@@ -51,8 +52,7 @@ function copyStore(value: unknown): KrogerStoreOption {
 export async function readKrogerConnection(signal?: AbortSignal): Promise<boolean> {
   const body = await readJson("/api/grocery/kroger/connection", { method: "GET", signal });
   if (
-    !isRecord(body) || Object.keys(body).length !== 1 ||
-    !Object.prototype.hasOwnProperty.call(body, "connected") || typeof body.connected !== "boolean"
+    !isRecord(body) || !hasExactKeys(body, ["connected"]) || typeof body.connected !== "boolean"
   ) {
     throw new Error(SHAPE_ERROR);
   }
@@ -89,13 +89,6 @@ export type KrogerAddResult = "added" | "not_connected" | "unavailable" | "rejec
 const MAX_CART_LINES = 30;
 const ITEM_KEYS = ["ingredient_id", "name", "upc", "description", "size", "quantity"];
 const UNMATCHED_KEYS = ["ingredient_id", "name"];
-
-function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
-  return (
-    Object.keys(value).length === keys.length &&
-    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
-  );
-}
 
 function copyCartItem(value: unknown): KrogerCartItem {
   if (

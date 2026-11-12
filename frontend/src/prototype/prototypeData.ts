@@ -164,6 +164,11 @@ export function isKnownRecipe(id: string): boolean {
   return Object.prototype.hasOwnProperty.call(RECIPES, id);
 }
 
+// INGREDIENTS is a plain object, so an inherited key such as "toString" is not an ingredient.
+export function isKnownIngredient(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(INGREDIENTS, id);
+}
+
 // Diet labels first, then tag labels.
 export function mealLabels(recipe: Recipe): string[] {
   return [...recipe.diets.map((d) => DIET_LABELS[d]), ...recipe.tags.map((t) => TAG_LABELS[t])];

@@ -1,5 +1,8 @@
 import {
+  KROGER_LOCATION_ID,
   SHAPE_ERROR,
+  UUID,
+  hasExactKeys,
   isNonemptyString,
   isRecord,
   isSafeInteger,
@@ -19,9 +22,8 @@ import type {
   KrogerQuote,
 } from "./chatTypes";
 
-export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export { UUID };
 const HEX64 = /^[0-9a-f]{64}$/;
-const LOCATION_ID = /^[0-9A-Za-z]{8}$/;
 const RETRIEVED_AT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
 const QUOTE_KEYS = [
   "kind",
@@ -44,8 +46,7 @@ function optionalText(value: unknown): value is string | null {
 function copyKrogerQuote(value: unknown): KrogerQuote | null {
   if (
     !isRecord(value) ||
-    Object.keys(value).length !== QUOTE_KEYS.length ||
-    !QUOTE_KEYS.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+    !hasExactKeys(value, QUOTE_KEYS)
   ) {
     return null;
   }
@@ -61,7 +62,7 @@ function copyKrogerQuote(value: unknown): KrogerQuote | null {
     regular <= 0 ||
     (promo !== null && (!isSafeInteger(promo) || promo < 0)) ||
     !isString(value.location_id) ||
-    !LOCATION_ID.test(value.location_id) ||
+    !KROGER_LOCATION_ID.test(value.location_id) ||
     !isString(value.retrieved_at) ||
     !RETRIEVED_AT.test(value.retrieved_at) ||
     !Number.isFinite(Date.parse(value.retrieved_at))

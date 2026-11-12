@@ -1,5 +1,13 @@
+import { hasExactKeys } from "../apiTypes";
 import { initialPlanState, planLines, withPlanBudgetInput, type PlanState } from "./planModel";
-import { INGREDIENTS, isKnownRecipe, MAX_MEALS, MAX_SERVINGS, MIN_SERVINGS } from "./prototypeData";
+import {
+  INGREDIENTS,
+  isKnownIngredient,
+  isKnownRecipe,
+  MAX_MEALS,
+  MAX_SERVINGS,
+  MIN_SERVINGS,
+} from "./prototypeData";
 
 export const PLAN_CHECKPOINT_KEY = "fewia.plan-checkpoint.v1";
 export const PLAN_CHECKPOINT_TTL_MS = 30 * 60 * 1000;
@@ -21,20 +29,11 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function keys(value: Record<string, unknown>, expected: string[]): boolean {
-  return (
-    Object.keys(value).length === expected.length &&
-    expected.every((key) => Object.prototype.hasOwnProperty.call(value, key))
-  );
-}
-
 function ingredientIds(value: unknown): value is string[] {
   return (
     Array.isArray(value) &&
     value.length <= Object.keys(INGREDIENTS).length &&
-    value.every((id: unknown) =>
-      typeof id === "string" && Object.prototype.hasOwnProperty.call(INGREDIENTS, id),
-    ) &&
+    value.every((id: unknown) => typeof id === "string" && isKnownIngredient(id)) &&
     new Set(value).size === value.length
   );
 }
@@ -45,7 +44,7 @@ function decode(serialized: string, now: number): PlanState | null {
   }
   const value: unknown = JSON.parse(serialized);
   if (
-    !record(value) || !keys(value, ["version", "savedAt", "plan"]) || value.version !== 1 ||
+    !record(value) || !hasExactKeys(value, ["version", "savedAt", "plan"]) || value.version !== 1 ||
     typeof value.savedAt !== "number" || !Number.isSafeInteger(value.savedAt) ||
     value.savedAt < 0 || value.savedAt > now || now - value.savedAt > PLAN_CHECKPOINT_TTL_MS
   ) {
@@ -53,7 +52,7 @@ function decode(serialized: string, now: number): PlanState | null {
   }
   const plan = value.plan;
   if (
-    !record(plan) || !keys(plan, ["meals", "pantry", "checked", "view", "budgetInput", "budgetCents"]) ||
+    !record(plan) || !hasExactKeys(plan, ["meals", "pantry", "checked", "view", "budgetInput", "budgetCents"]) ||
     !Array.isArray(plan.meals) || plan.meals.length > MAX_MEALS ||
     !ingredientIds(plan.pantry) || !ingredientIds(plan.checked) ||
     (plan.view !== "plan" && plan.view !== "pantry") ||
@@ -65,7 +64,7 @@ function decode(serialized: string, now: number): PlanState | null {
   const meals: PlanState["meals"] = [];
   for (const meal of plan.meals) {
     if (
-      !record(meal) || !keys(meal, ["recipeId", "servings"]) ||
+      !record(meal) || !hasExactKeys(meal, ["recipeId", "servings"]) ||
       typeof meal.recipeId !== "string" || !isKnownRecipe(meal.recipeId) ||
       typeof meal.servings !== "number" || !Number.isInteger(meal.servings) ||
       meal.servings < MIN_SERVINGS || meal.servings > MAX_SERVINGS ||
