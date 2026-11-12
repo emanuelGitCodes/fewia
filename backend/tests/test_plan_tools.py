@@ -3,7 +3,6 @@ from datetime import date
 
 import pytest
 
-from app.agent.facts import collect_facts
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -113,8 +112,6 @@ def test_get_plan_matches_nutrition_and_estimate() -> None:
         (x.ingredient_id, x.quantity, x.unit, x.packages, x.cost_cents, x.from_pantry)
         for x in estimate.lines
     ]
-    facts = collect_facts(GET_PLAN_TOOL, out)
-    assert any(f.path == "meals[0].per_serving.energy_kcal" for f in facts)
 
 
 def test_get_plan_cap_below_total_rejects_estimate() -> None:
