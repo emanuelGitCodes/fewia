@@ -34,7 +34,8 @@ def post_grocery_job(client: TestClient, request: dict[str, object]) -> int:
         json={"request": request, "monthly_limit_cents": 40000},
         headers={"Idempotency-Key": "hardening-1"},
     )
-    return response.status_code
+    status_code: int = response.status_code
+    return status_code
 
 
 @pytest.mark.parametrize(
