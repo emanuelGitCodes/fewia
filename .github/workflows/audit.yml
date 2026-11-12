@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -31,17 +31,17 @@ jobs:
       - name: Audit the backend dependencies
         run: |
           uv export --frozen --no-hashes --project backend > req.txt
-          uvx pip-audit -r req.txt --strict --no-deps --disable-pip
+          uvx pip-audit==2.10.1 -r req.txt --strict --no-deps --disable-pip
 
       - name: Audit the Bedrock infrastructure dependencies
         run: |
           uv export --frozen --no-hashes --project infra/bedrock > req.txt
-          uvx pip-audit -r req.txt --strict --no-deps --disable-pip
+          uvx pip-audit==2.10.1 -r req.txt --strict --no-deps --disable-pip
 
       - name: Audit the hosting infrastructure dependencies
         run: |
           uv export --frozen --no-hashes --project infra/hosting > req.txt
-          uvx pip-audit -r req.txt --strict --no-deps --disable-pip
+          uvx pip-audit==2.10.1 -r req.txt --strict --no-deps --disable-pip
 
   npm:
     name: npm dependency audit
@@ -53,10 +53,10 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "22.23.0"
           cache: npm
