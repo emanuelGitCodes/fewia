@@ -184,6 +184,32 @@ make up-kroger-live
 `GET /api/grocery/providers` reports configuration flags. That response is
 not provider proof.
 
+## Host checks and request limits
+
+The API accepts a request only when its `Host` header names `localhost`,
+`127.0.0.1`, `[::1]`, `api`, or a host in `FEWIA_ALLOWED_HOSTS`. The
+variable is a comma-separated list of host names with no port and no
+wildcard. Another host gets HTTP 400.
+
+The web container checks the `Host` header on `/api/` when
+`FEWIA_WEB_HOST_CHECK` is `local`. `compose.yaml` sets `local`. The image
+default is `off`, because the hosted load balancer filters the host. A
+host that is not `localhost`, `127.0.0.1`, or `[::1]` gets HTTP 421.
+
+The API serves `/docs`, `/redoc`, and `/openapi.json` only when
+`FEWIA_API_DOCS` is `1`.
+
+`POST /api/grocery/chat/jobs` accepts 20 new chat jobs per minute.
+`FEWIA_CHAT_JOBS_PER_MINUTE` sets another limit from 1 to 1000. A request
+over the limit gets HTTP 429 with `Retry-After: 60`. A repeat of an
+accepted request does not count.
+
+The backend containers run as user 1000 with no capabilities. The `api`,
+`bootstrap`, and `sync-worker` containers have a read-only root file
+system. The `worker` container has a writable root file system, because
+Compose mounts the OpenAI key secret only into a writable one. A Kroger
+key file MUST be readable by user 1000 inside the container.
+
 ## Checks
 
 Run the repository gates and tests from the repository root:
@@ -195,6 +221,9 @@ uv run --project backend python -m dev_supervisor.gates --cwd "$PWD" --base main
 ```bash
 cd backend && uv run pytest
 ```
+
+`uv run pytest` runs on one process. Add `-n auto` to run the suite on
+workers; the gates and CI pass that flag.
 
 ```bash
 cd frontend && npm run lint && npm test && npm run build
