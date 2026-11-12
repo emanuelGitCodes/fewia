@@ -114,6 +114,8 @@ class AuthSettings(BaseSettings):
     )
 
     auth_mode: Literal["local_demo", "alb"] = "local_demo"
+    database_mode: Literal["local", "aws"] = "local"
+    transport_mode: Literal["local", "aws"] = "local"
     public_origin: str = "http://127.0.0.1:5173"
     alb_signer_arn: str | None = None
     auth_issuer: str | None = None
@@ -167,6 +169,10 @@ class AuthSettings(BaseSettings):
             self.auth_logout_url,
         )
         origin = _url(self.public_origin)
+        if (
+            self.database_mode == "aws" or self.transport_mode == "aws"
+        ) and self.auth_mode != "alb":
+            raise ValueError("AWS settings require ALB authentication.")
         if self.auth_mode == "local_demo":
             if any(value is not None for value in alb_values) or not _loopback(
                 origin.hostname or ""

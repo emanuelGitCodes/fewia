@@ -40,6 +40,8 @@ AUTH_ENV = (
     "FEWIA_AUTH_ISSUER",
     "FEWIA_AUTH_CLIENT_ID",
     "FEWIA_AUTH_LOGOUT_URL",
+    "FEWIA_DATABASE_MODE",
+    "FEWIA_TRANSPORT_MODE",
 )
 
 
@@ -142,6 +144,29 @@ def test_local_demo_defaults_and_aws_guards() -> None:
     for runtime, database in ((True, False), (False, True), (True, True)):
         with pytest.raises(AuthConfigurationError):
             load_auth_settings(aws_runtime=runtime, aws_database=database)
+
+
+@pytest.mark.parametrize("name", ["FEWIA_DATABASE_MODE", "FEWIA_TRANSPORT_MODE"])
+@pytest.mark.parametrize("value", ["", "AWS", " aws", "unknown"])
+def test_runtime_modes_reject_unknown_values(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(name, value)
+    with pytest.raises(AuthConfigurationError) as caught:
+        load_auth_settings()
+    assert str(caught.value) == "Authentication configuration is invalid."
+
+
+@pytest.mark.parametrize("name", ["FEWIA_DATABASE_MODE", "FEWIA_TRANSPORT_MODE"])
+def test_aws_runtime_modes_require_alb_from_environment(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "aws")
+    with pytest.raises(AuthConfigurationError):
+        load_auth_settings()
+    for field, value in alb_values().items():
+        monkeypatch.setenv(f"FEWIA_{field.upper()}", value)
+    assert load_auth_settings().auth_mode == "alb"
 
 
 @pytest.mark.parametrize(
