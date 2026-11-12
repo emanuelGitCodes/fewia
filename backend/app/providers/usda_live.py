@@ -2,6 +2,8 @@
 
 import functools
 import json
+import re
+import string
 import threading
 import time
 import unicodedata
@@ -22,6 +24,7 @@ TIMEOUT = httpx.Timeout(5.0, connect=3.0, read=5.0)
 COOLDOWN_SECONDS = 600
 HOURLY_LIMIT = 900
 MAX_TEXT = 160
+_PLAIN_CHARS = frozenset(string.ascii_letters + string.digits + " ,.'&()%-/")
 _ENERGY_NUMBERS = ("208", "957", "958")
 _MACRO_NUMBERS = ("203", "204", "205", "307")
 
@@ -47,6 +50,25 @@ def _clean(value: object) -> str | None:
         ch for ch in value if unicodedata.category(ch) not in ("Cc", "Cf", "Zl", "Zp")
     )
     return kept.strip()[:MAX_TEXT].strip() or None
+
+
+def _plain_text(value: object) -> str | None:
+    """Keep only plain food-name characters from third-party text."""
+    if not isinstance(value, str):
+        return None
+    kept = "".join(
+        ch for ch in value if unicodedata.category(ch) not in ("Cc", "Cf", "Zl", "Zp")
+    )
+    folded = "".join(
+        ch
+        for ch in unicodedata.normalize("NFKD", kept)
+        if unicodedata.category(ch) != "Mn"
+    )
+    spaced = "".join(ch if ch in _PLAIN_CHARS else " " for ch in folded)
+    spaced = re.sub(r"/{2,}", "/", spaced)
+    spaced = re.sub(r"-{2,}", "-", spaced)
+    spaced = re.sub(r" {2,}", " ", spaced)
+    return spaced.strip()[:MAX_TEXT].strip() or None
 
 
 def _facts(fdc_id: int, nutrients: object) -> NutritionFacts | None:
@@ -95,12 +117,13 @@ def _parse_food(entry: object) -> LiveFood | None:
     if facts is None:
         return None
     try:
-        name = _clean(display_name(description))
+        name = _plain_text(display_name(description))
     except ValueError:
         return None
     if name is None:
         return None
-    return LiveFood(fdc_id, name, _clean(entry.get("brandOwner")), data_type, facts)
+    brand = _plain_text(entry.get("brandOwner"))
+    return LiveFood(fdc_id, name, brand, data_type, facts)
 
 
 class UsdaLiveClient:
