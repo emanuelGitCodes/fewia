@@ -6,6 +6,7 @@ from psycopg import sql
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
     RUNTIME_ROLE,
+    RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
     UNSAFE_ROLE_SQL,
     validate_runtime_password,
@@ -90,6 +91,17 @@ def provision_runtime_access(
                         sql.SQL(privileges), sql.Identifier("public", table), role
                     )
                 )
+            connection.execute(
+                sql.SQL("GRANT INSERT ({}) ON TABLE {} TO {}").format(
+                    sql.SQL(", ").join(
+                        sql.Identifier(column) for column in RUNTIME_USER_INSERT_COLUMNS
+                    ),
+                    sql.Identifier("public", "users"),
+                    role,
+                )
+            )
+            if connection.execute(UNSAFE_ACCESS_SQL).fetchone() != (False,):
+                raise RuntimeDatabaseAccessError("runtime database access is unsafe")
     except Exception:  # noqa: BLE001
         failed = True
     if failed:

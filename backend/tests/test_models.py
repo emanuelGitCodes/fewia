@@ -2,7 +2,14 @@
 
 from sqlalchemy import CheckConstraint, LargeBinary, UniqueConstraint
 
-from app import evidence_models, handoff_models, models, plaid_models
+from app import (
+    evidence_models,
+    handoff_models,
+    kroger_models,
+    models,
+    plaid_models,
+    security_models,
+)
 from app.db import Base
 
 EXPECTED_TABLES = {
@@ -20,7 +27,9 @@ EXPECTED_TABLES = {
     evidence_models.GroceryEvidence.__tablename__,
     "plan_revisions",
     "plan_proposals",
-    "kroger_customer_tokens",
+    kroger_models.KrogerCustomerToken.__tablename__,
+    security_models.KrogerOwner.__tablename__,
+    security_models.SecurityIntent.__tablename__,
 }
 
 

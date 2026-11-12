@@ -10,6 +10,11 @@ from types import MappingProxyType
 from typing import Final
 
 RUNTIME_ROLE: Final[str] = "fewia_app"
+RUNTIME_USER_INSERT_COLUMNS: Final[tuple[str, ...]] = (
+    "display_name",
+    "auth_issuer",
+    "auth_subject",
+)
 RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "users": "SELECT",
@@ -20,6 +25,8 @@ RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
         "plan_revisions": "SELECT, INSERT",
         "plan_proposals": "SELECT, INSERT, UPDATE",
         "kroger_customer_tokens": "SELECT, INSERT, UPDATE, DELETE",
+        "kroger_owners": "SELECT, INSERT, UPDATE, DELETE",
+        "security_intents": "SELECT, INSERT, UPDATE, DELETE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
@@ -72,19 +79,34 @@ SELECT
                         'users', 'jobs', 'job_outbox', 'shopping_handoffs',
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
                         'kroger_customer_tokens', 'plaid_items',
-                        'plaid_transactions'
+                        'plaid_transactions', 'kroger_owners', 'security_intents'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
-                        'kroger_customer_tokens'
+                        'kroger_customer_tokens', 'kroger_owners', 'security_intents'
                     ))
+                    OR (p.priv = 'INSERT' AND c.relname = 'users'
+                        AND NOT has_table_privilege('fewia_app', c.oid, 'INSERT')
+                        AND NOT EXISTS (
+                            SELECT 1 FROM pg_attribute a
+                            WHERE a.attrelid = c.oid
+                            AND a.attnum > 0 AND NOT a.attisdropped
+                            AND a.attname NOT IN (
+                                'display_name', 'auth_issuer', 'auth_subject'
+                            )
+                            AND has_column_privilege(
+                                'fewia_app', c.oid, a.attnum, 'INSERT'
+                            )
+                        )
+                    )
                     OR (p.priv = 'UPDATE' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
-                        'plan_proposals', 'kroger_customer_tokens'
+                        'plan_proposals', 'kroger_customer_tokens',
+                        'kroger_owners', 'security_intents'
                     ))
                     OR (p.priv = 'DELETE' AND c.relname IN (
-                        'kroger_customer_tokens'
+                        'kroger_customer_tokens', 'kroger_owners', 'security_intents'
                     ))
                 )
             )

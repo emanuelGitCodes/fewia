@@ -5,6 +5,7 @@ import re
 from collections.abc import Iterator
 from typing import cast
 from unittest.mock import MagicMock
+from uuid import UUID
 
 import psycopg
 import pytest
@@ -19,6 +20,7 @@ from app.runtime_database_access import (
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
     RUNTIME_ROLE,
+    RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
     UNSAFE_ROLE_SQL,
     validate_runtime_password,
@@ -99,6 +101,9 @@ def test_provision_runtime_access_uses_fixed_role_and_grants(exists: bool) -> No
             f"{sql.Identifier('public', table).as_string()} TO {role}"
             for table, privileges in RUNTIME_GRANTS.items()
         ],
+        'GRANT INSERT ("display_name", "auth_issuer", "auth_subject") '
+        f'ON TABLE "public"."users" TO {role}',
+        UNSAFE_ACCESS_SQL,
     ]
     assert executed[executed.index(UNSAFE_ACCESS_SQL) + 1 :] == expected_grants
     assert all(PASSWORD not in statement for statement in executed)
@@ -118,6 +123,29 @@ def test_invalid_password_does_not_touch_database(password: str) -> None:
     connection.transaction.assert_not_called()
     connection.execute.assert_not_called()
     connection.pgconn.encrypt_password.assert_not_called()
+
+
+def test_unsafe_access_after_grants_rolls_back() -> None:
+    connection = make_connection()
+    execute = connection.execute.side_effect
+    access_checks = 0
+
+    def unsafe_execute(query: str | sql.Composable) -> MagicMock:
+        nonlocal access_checks
+        cursor = execute(query)
+        if query == UNSAFE_ACCESS_SQL:
+            access_checks += 1
+            cursor.fetchone.return_value = (access_checks > 1,)
+        return cast(MagicMock, cursor)
+
+    connection.execute.side_effect = unsafe_execute
+    with pytest.raises(RuntimeDatabaseAccessError):
+        provision(connection)
+    assert access_checks == 2
+    assert any(s.startswith("GRANT INSERT (") for s in statements(connection))
+    assert connection.transaction.return_value.__exit__.call_args.args[0] is (
+        RuntimeDatabaseAccessError
+    )
 
 
 @pytest.mark.parametrize("unsafe_query", [UNSAFE_ROLE_SQL, UNSAFE_ACCESS_SQL])
@@ -496,10 +524,22 @@ def _assert_privileges(connection: PgConnection) -> None:
                     ("public." + str(table), privilege + suffix),
                 ).fetchone() == (privilege in allowed and not suffix,)
                 if privilege in _COLUMN_PRIVILEGES:
+                    column_allowed = privilege in allowed or (
+                        table == "users" and privilege == "INSERT"
+                    )
                     assert connection.execute(
                         "SELECT has_any_column_privilege('fewia_app', %s, %s)",
                         ("public." + str(table), privilege + suffix),
-                    ).fetchone() == (privilege in allowed and not suffix,)
+                    ).fetchone() == (column_allowed and not suffix,)
+    columns = connection.execute(
+        "SELECT attname FROM pg_attribute WHERE attrelid = 'public.users'::regclass "
+        "AND attnum > 0 AND NOT attisdropped"
+    ).fetchall()
+    for (column,) in columns:
+        assert connection.execute(
+            "SELECT has_column_privilege('fewia_app', 'public.users', %s, 'INSERT')",
+            (column,),
+        ).fetchone() == (column in RUNTIME_USER_INSERT_COLUMNS,)
     for privilege in ("CONNECT", "CREATE", "TEMPORARY"):
         for suffix in ("", " WITH GRANT OPTION"):
             assert connection.execute(
@@ -620,13 +660,16 @@ def test_postgres_create_repeat_reset_rotate_and_preserve_rows(
     provision_runtime_access(connection, rotated)
     _assert_privileges(admin)
     assert _assert_password(admin, rotated) != first
-    assert (
-        admin.execute(
-            "SELECT 1 FROM pg_attribute a CROSS JOIN LATERAL aclexplode(a.attacl) acl "
-            "WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'fewia_app')"
-        ).fetchone()
-        is None
-    )
+    assert admin.execute(
+        "SELECT c.relname, a.attname, acl.privilege_type, acl.is_grantable "
+        "FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid "
+        "CROSS JOIN LATERAL aclexplode(a.attacl) acl "
+        "WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'fewia_app') "
+        "ORDER BY c.relname, a.attname"
+    ).fetchall() == [
+        ("users", column, "INSERT", False)
+        for column in sorted(RUNTIME_USER_INSERT_COLUMNS)
+    ]
     assert (
         admin.execute(
             "SELECT 1 FROM pg_default_acl WHERE defaclrole = "
@@ -782,6 +825,8 @@ def test_postgres_non_superuser_creator_with_admin_option(admin: PgConnection) -
         "GRANT UPDATE ON grocery_evidence TO PUBLIC",
         "GRANT INSERT ON plaid_items TO PUBLIC",
         "GRANT UPDATE (display_name) ON users TO PUBLIC",
+        "GRANT INSERT ON users TO PUBLIC",
+        "GRANT INSERT (id) ON users TO PUBLIC",
         "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO PUBLIC",
         "database_create",
         "database_temp",
@@ -916,6 +961,14 @@ def test_postgres_executable_definer_refuses_and_rolls_back(
         "UPDATE plaid_items SET cursor = NULL",
         "DELETE FROM plaid_transactions",
         "TRUNCATE users",
+        "INSERT INTO users (id, display_name) VALUES (987654322, 'Denied')",
+        "INSERT INTO users (display_name, workspace_id) "
+        "VALUES ('Denied', gen_random_uuid())",
+        "INSERT INTO users (display_name, status) VALUES ('Denied', 'active')",
+        "INSERT INTO users (display_name, created_at) VALUES ('Denied', now())",
+        "UPDATE users SET display_name = 'Denied'",
+        "UPDATE users SET auth_subject = 'denied'",
+        "DELETE FROM users",
         "SELECT nextval(pg_get_serial_sequence('users', 'id'))",
     ],
 )
@@ -927,6 +980,78 @@ def test_postgres_runtime_forbidden_operations(
         with admin.transaction():
             admin.execute("SET LOCAL ROLE fewia_app")
             admin.execute(statement)
+
+
+def test_postgres_runtime_jit_insert_preserves_existing_users(
+    admin: PgConnection,
+) -> None:
+    before = admin.execute("SELECT to_jsonb(u) FROM users u ORDER BY id").fetchall()
+    provision_runtime_access(admin, PASSWORD)
+    with admin.transaction():
+        admin.execute("SET LOCAL ROLE fewia_app")
+        row = admin.execute(
+            "INSERT INTO users (display_name, auth_issuer, auth_subject) "
+            "VALUES ('Synthetic JIT user', 'https://issuer.example', "
+            "'synthetic-subject') "
+            "RETURNING id, workspace_id, status"
+        ).fetchone()
+        assert row is not None
+        assert isinstance(row[0], int)
+        assert isinstance(row[1], UUID)
+        assert row[2] == "active"
+        anonymous = admin.execute(
+            "INSERT INTO users (display_name) VALUES ('Synthetic anonymous user') "
+            "RETURNING id, workspace_id, auth_issuer, auth_subject"
+        ).fetchone()
+        assert anonymous is not None
+        assert anonymous[0] != row[0]
+        assert anonymous[1] != row[1]
+        assert anonymous[2:] == (None, None)
+        admin.execute("RESET ROLE")
+    assert admin.execute(
+        "SELECT to_jsonb(u) FROM users u WHERE id NOT IN (%s, %s) ORDER BY id",
+        (row[0], anonymous[0]),
+    ).fetchall() == before
+    _assert_privileges(admin)
+
+
+def test_postgres_runtime_security_records_support_lifecycle(
+    admin: PgConnection,
+) -> None:
+    admin.execute(
+        "INSERT INTO users (id, display_name) VALUES (987654321, 'Synthetic owner')"
+    )
+    provision_runtime_access(admin, PASSWORD)
+    with admin.transaction():
+        admin.execute("SET LOCAL ROLE fewia_app")
+        owner = admin.execute(
+            "INSERT INTO kroger_owners (user_id) VALUES (987654321) "
+            "RETURNING pairing_generation"
+        ).fetchone()
+        assert owner is not None and isinstance(owner[0], UUID)
+        replacement = admin.execute(
+            "UPDATE kroger_owners SET pairing_generation = gen_random_uuid(), "
+            "updated_at = now() WHERE user_id = 987654321 RETURNING pairing_generation"
+        ).fetchone()
+        assert replacement is not None and replacement[0] != owner[0]
+        intent = admin.execute(
+            "INSERT INTO security_intents (user_id, kind, digest, expires_at) "
+            "VALUES (987654321, 'pairing_ticket', %s, now() + interval '1 minute') "
+            "RETURNING id, state, details",
+            ("a" * 64,),
+        ).fetchone()
+        assert intent is not None and isinstance(intent[0], UUID)
+        assert intent[1:] == ("pending", {})
+        for state in ("claimed", "consumed", "succeeded", "failed", "uncertain"):
+            admin.execute(
+                "UPDATE security_intents SET state = %s, updated_at = now() "
+                "WHERE id = %s",
+                (state, intent[0]),
+            )
+        admin.execute("DELETE FROM security_intents WHERE id = %s", (intent[0],))
+        admin.execute("DELETE FROM kroger_owners WHERE user_id = 987654321")
+        admin.execute("RESET ROLE")
+    _assert_privileges(admin)
 
 
 def test_postgres_active_writes_and_evidence_trigger_survive_provisioning(
