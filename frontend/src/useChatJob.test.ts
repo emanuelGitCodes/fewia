@@ -8,7 +8,7 @@ import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
 import { useChatJob } from "./useChatJob";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
-const POLL_MS = 750;
+const POLL_MS = 250;
 const BUDGET_MS = 8 * 60 * 1000;
 const TIMEOUT_ERROR =
   "The chat request is still processing and may continue. Retry checks the same request.";
@@ -264,7 +264,7 @@ describe("useChatJob", () => {
     unmount();
   });
 
-  it("polls queued and running jobs every 750ms until the job completes", async () => {
+  it("polls queued and running jobs every 250ms until the job completes", async () => {
     const fetchMock = vi
       .fn()
       .mockImplementationOnce(async () => jsonOk({ job_id: "job-1", status: "queued" }))
