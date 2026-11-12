@@ -87,7 +87,7 @@ def owners(factory: sessionmaker[Session]) -> None:
 def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
     app.dependency_overrides[evidence_api.get_session_factory] = lambda: factory
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, base_url="http://localhost") as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(evidence_api.get_session_factory, None)

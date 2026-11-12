@@ -40,7 +40,7 @@ def client(session: Session) -> Iterator[TestClient]:
 
     app.dependency_overrides[get_session] = get_test_session
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, base_url="http://localhost") as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_session, None)

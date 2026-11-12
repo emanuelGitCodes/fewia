@@ -66,7 +66,7 @@ def _client(handler: httpx.MockTransport) -> KrogerClient:
 
 @pytest.fixture
 def api() -> Iterator[TestClient]:
-    yield TestClient(app)
+    yield TestClient(app, base_url="http://localhost")
     app.dependency_overrides.pop(get_kroger_client, None)
 
 
@@ -350,7 +350,7 @@ def test_connect_is_503_when_not_configured(rig: Rig, missing: object) -> None:
 
 
 @pytest.mark.parametrize(
-    "host", ["testserver", "127.0.0.1:8010", "localhost:9999", "localhost"]
+    "host", ["api", "127.0.0.1:8010", "localhost:9999", "localhost"]
 )
 def test_connect_from_another_host_goes_to_the_redirect_origin(
     rig: Rig, host: str

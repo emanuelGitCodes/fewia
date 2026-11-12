@@ -33,7 +33,7 @@ def test_unnamed_http_status_uses_a_fallback_error_code() -> None:
     def raise_unnamed_status() -> None:
         raise StarletteHTTPException(status_code=599, detail="Custom status")
 
-    with TestClient(test_app) as client:
+    with TestClient(test_app, base_url="http://localhost") as client:
         response = client.get("/test-http-status-599")
 
     assert response.status_code == 599

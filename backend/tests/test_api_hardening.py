@@ -14,7 +14,7 @@ from app.domain.grocery import GroceryRequest
 from app.domain.plan_proposal import ProposalDietaryConstraints
 from app.main import HostCheckMiddleware, allowed_hosts, create_app, host_name
 
-DEFAULT_HOSTS = ["localhost", "127.0.0.1", "[::1]", "api", "testserver"]
+DEFAULT_HOSTS = ["localhost", "127.0.0.1", "[::1]", "api"]
 REJECTED_HOST_BODY = {
     "error": {"code": "bad_request", "message": "The Host header is not allowed."}
 }
@@ -81,14 +81,13 @@ def call_app(
         "localhost:8010",
         "127.0.0.1:8000",
         "api:8000",
-        "testserver",
         "[::1]:8000",
         "[::1]",
         "LOCALHOST:8010",
     ],
 )
 def test_healthz_accepts_default_hosts(host: str) -> None:
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://localhost")
 
     response = client.get("/healthz", headers={"host": host})
 
@@ -99,6 +98,7 @@ def test_healthz_accepts_default_hosts(host: str) -> None:
     "host",
     [
         "evil.example",
+        "testserver",
         "127.0.0.1.evil.example",
         "localhost.evil.example",
         "evil.example:8010",
@@ -106,7 +106,7 @@ def test_healthz_accepts_default_hosts(host: str) -> None:
     ],
 )
 def test_healthz_rejects_another_host(host: str) -> None:
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://localhost")
 
     response = client.get("/healthz", headers={"host": host})
 
@@ -134,7 +134,7 @@ def test_healthz_rejects_a_missing_host_header() -> None:
 
 def test_healthz_accepts_a_configured_host(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FEWIA_ALLOWED_HOSTS", "Fewia.Example.org")
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://localhost")
 
     configured = client.get("/healthz", headers={"host": "fewia.example.org"})
     other = client.get("/healthz", headers={"host": "evil.example"})
@@ -204,7 +204,7 @@ def test_host_name(value: str, expected: str | None) -> None:
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
 def test_docs_routes_are_off_by_default(path: str) -> None:
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://localhost")
 
     assert client.get(path).status_code == 404
 
@@ -214,7 +214,7 @@ def test_docs_routes_turn_on_with_the_flag(
     monkeypatch: pytest.MonkeyPatch, path: str
 ) -> None:
     monkeypatch.setenv("FEWIA_API_DOCS", "1")
-    client = TestClient(create_app())
+    client = TestClient(create_app(), base_url="http://localhost")
 
     assert client.get(path).status_code == 200
 

@@ -22,7 +22,7 @@ from app.api.sync import router as sync_router
 _GROCERY_TEMPLATES_PATHS = frozenset(
     {"/grocery/templates", "/grocery/templates/", "/grocery/kroger/stores"}
 )
-_DEFAULT_ALLOWED_HOSTS = ("localhost", "127.0.0.1", "[::1]", "api", "testserver")
+_DEFAULT_ALLOWED_HOSTS = ("localhost", "127.0.0.1", "[::1]", "api")
 _ALLOWED_HOSTS_ENV = "FEWIA_ALLOWED_HOSTS"
 _API_DOCS_ENV = "FEWIA_API_DOCS"
 _INVALID_ALLOWED_HOSTS_MESSAGE = "FEWIA_ALLOWED_HOSTS is invalid."
