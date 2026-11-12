@@ -50,7 +50,7 @@ def client(session: Session) -> Iterator[TestClient]:
         yield session
 
     test_app.dependency_overrides[get_session] = get_test_session
-    with TestClient(test_app) as test_client:
+    with TestClient(test_app, base_url="http://localhost") as test_client:
         yield test_client
 
 

@@ -1,12 +1,15 @@
 import json
 import signal
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from dev_supervisor.gates import (
     GATE_KILL_GRACE,
+    GATES,
+    SLOW_GATES,
     GateRow,
     _run_gate,
     areas_for,
@@ -61,6 +64,42 @@ def _route(code: int = 0, output: str = "ok\n") -> object:
         return subprocess.CompletedProcess(argv, code, output, "")
 
     return inner
+
+
+_GateKey = tuple[str, str]
+_GateFake = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def _gate_runner(
+    root: Path,
+    *,
+    fail: frozenset[_GateKey] = frozenset(),
+    hang: frozenset[_GateKey] = frozenset(),
+) -> tuple[_GateFake, list[_GateKey]]:
+    names = {
+        (root / folder, argv): (area, gate) for area, gate, folder, argv, _ in GATES
+    }
+    ran: list[_GateKey] = []
+
+    def fake(
+        argv: tuple[str, ...],
+        *,
+        cwd: Path,
+        timeout: float,
+        env: dict[str, str] | None,
+    ) -> subprocess.CompletedProcess[str]:
+        key = names[(cwd, argv)]
+        ran.append(key)
+        if key in hang:
+            raise subprocess.TimeoutExpired(argv, timeout)
+        code = 1 if key in fail else 0
+        return subprocess.CompletedProcess(list(argv), code, "out\n", "")
+
+    return fake, ran
+
+
+def _gate_status(results: list[GateRow]) -> dict[_GateKey, tuple[str, str]]:
+    return {(area, gate): (status, last) for area, gate, status, last, _ in results}
 
 
 def test_area_backend() -> None:
@@ -393,20 +432,25 @@ def test_hosting_failure_reaches_exit_and_record(
     if failure == "exit":
         assert "  detail\n  failed\n" in output
     assert output.endswith("RESULT FAIL\n")
-    assert len(seen) == 4
+    cheap_failed = failed_index < 3
+    skip_text = f"skipped after {names[failed_index]} failed"
+    assert len(seen) == (3 if cheap_failed else 4)
+    assert ("SKIP hosting:pytest " + skip_text + "\n" in output) is cheap_failed
     sha = _git(repo, "rev-parse", "HEAD").strip()
     data = json.loads((repo / ".fewia-supervisor-gates" / f"{sha}.json").read_text())
     assert data["sha"] == sha
     assert data["base"] == sha
     assert [row["gate"] for row in data["gates"]] == list(names)
     assert all(row["area"] == "hosting" for row in data["gates"])
-    assert [row["status"] for row in data["gates"]] == [
-        "FAIL" if index == failed_index else "PASS" for index in range(4)
-    ]
+    expected = ["FAIL" if index == failed_index else "PASS" for index in range(4)]
+    if cheap_failed:
+        expected[3] = "SKIP"
+        assert data["gates"][3]["last_line"] == skip_text
+    assert [row["status"] for row in data["gates"]] == expected
     assert data["gates"][failed_index]["last_line"] == last
 
 
-def test_frontend_fail_does_not_stop_later_gates(
+def test_frontend_lint_fail_skips_slow_gates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def inner(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -427,9 +471,254 @@ def test_frontend_fail_does_not_stop_later_gates(
     assert [status for _, _, status, _, _ in results] == [
         "PASS",
         "FAIL",
+        "SKIP",
+        "SKIP",
+    ]
+    assert results[2:] == [
+        ("frontend", "test", "SKIP", "skipped after lint failed", ()),
+        ("frontend", "build", "SKIP", "skipped after lint failed", ()),
+    ]
+
+
+def test_backend_cheap_fail_skips_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, fail=frozenset({("backend", "ruff-check")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"backend"}, 5)
+    assert ran == [
+        ("backend", "ruff-check"),
+        ("backend", "ruff-format"),
+        ("backend", "mypy"),
+    ]
+    assert results[-1] == (
+        "backend",
+        "pytest",
+        "SKIP",
+        "skipped after ruff-check failed",
+        (),
+    )
+    assert [status for _, _, status, _, _ in results] == [
+        "FAIL",
         "PASS",
+        "PASS",
+        "SKIP",
+    ]
+
+
+def test_frontend_test_fail_still_runs_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, fail=frozenset({("frontend", "test")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"frontend"}, 5)
+    assert ran == [
+        ("frontend", "npm-ci"),
+        ("frontend", "lint"),
+        ("frontend", "test"),
+        ("frontend", "build"),
+    ]
+    assert [status for _, _, status, _, _ in results] == [
+        "PASS",
+        "PASS",
+        "FAIL",
         "PASS",
     ]
+
+
+@pytest.mark.parametrize("cheap", ["ruff-check", "ruff-format", "mypy"])
+def test_hosting_cheap_fail_runs_three_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cheap: str
+) -> None:
+    fake, ran = _gate_runner(tmp_path, fail=frozenset({("hosting", cheap)}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"hosting"}, 5)
+    assert len(ran) == 3
+    assert ("hosting", "pytest") not in ran
+    assert results[-1] == (
+        "hosting",
+        "pytest",
+        "SKIP",
+        f"skipped after {cheap} failed",
+        (),
+    )
+
+
+def test_hosting_pytest_fail_runs_four_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, fail=frozenset({("hosting", "pytest")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"hosting"}, 5)
+    assert len(ran) == 4
+    assert [status for _, _, status, _, _ in results] == [
+        "PASS",
+        "PASS",
+        "PASS",
+        "FAIL",
+    ]
+
+
+def test_two_cheap_failures_both_run_and_skip_names_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fail = frozenset({("backend", "ruff-format"), ("backend", "mypy")})
+    fake, ran = _gate_runner(tmp_path, fail=fail)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"backend"}, 5)
+    assert ("backend", "ruff-format") in ran
+    assert ("backend", "mypy") in ran
+    assert ("backend", "pytest") not in ran
+    assert _gate_status(results) == {
+        ("backend", "ruff-check"): ("PASS", "out"),
+        ("backend", "ruff-format"): ("FAIL", "out"),
+        ("backend", "mypy"): ("FAIL", "out"),
+        ("backend", "pytest"): ("SKIP", "skipped after ruff-format failed"),
+    }
+
+
+def test_slow_failure_does_not_skip_other_slow_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(
+        tmp_path, fail=frozenset({("frontend", "test"), ("frontend", "build")})
+    )
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"frontend"}, 5)
+    assert ("frontend", "build") in ran
+    assert [status for _, _, status, _, _ in results] == [
+        "PASS",
+        "PASS",
+        "FAIL",
+        "FAIL",
+    ]
+
+
+def test_cheap_timeout_skips_slow_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, hang=frozenset({("backend", "ruff-check")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"backend"}, 5)
+    assert ("backend", "pytest") not in ran
+    assert _gate_status(results) == {
+        ("backend", "ruff-check"): ("FAIL", "timeout"),
+        ("backend", "ruff-format"): ("PASS", "out"),
+        ("backend", "mypy"): ("PASS", "out"),
+        ("backend", "pytest"): ("SKIP", "skipped after ruff-check failed"),
+    }
+
+
+def test_slow_timeout_does_not_skip_later_slow_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, hang=frozenset({("frontend", "test")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"frontend"}, 5)
+    assert ("frontend", "build") in ran
+    assert _gate_status(results)[("frontend", "test")] == ("FAIL", "timeout")
+    assert _gate_status(results)[("frontend", "build")] == ("PASS", "out")
+
+
+def test_failure_in_one_area_does_not_skip_another_area(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, fail=frozenset({("backend", "ruff-check")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"backend", "frontend"}, 5)
+    frontend = [row for row in results if row[0] == "frontend"]
+    assert [gate for _, gate, _, _, _ in frontend] == [
+        "npm-ci",
+        "lint",
+        "test",
+        "build",
+    ]
+    assert all(status == "PASS" for _, _, status, _, _ in frontend)
+    assert ("backend", "pytest") not in ran
+    assert _gate_status(results)[("backend", "pytest")][0] == "SKIP"
+
+
+def test_npm_ci_rule_wins_over_cheap_failure_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, ran = _gate_runner(tmp_path, fail=frozenset({("frontend", "npm-ci")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"frontend"}, 5)
+    assert ran == [("frontend", "npm-ci")]
+    assert all(last == "npm ci failed" for _, _, _, last, _ in results[1:])
+    assert [status for _, _, status, _, _ in results[1:]] == ["SKIP"] * 3
+
+
+@pytest.mark.parametrize("area", sorted({row[0] for row in GATES}))
+def test_cheap_gates_come_before_slow_gates(area: str) -> None:
+    names = [row[1] for row in GATES if row[0] == area]
+    slow = [index for index, gate in enumerate(names) if gate in SLOW_GATES]
+    cheap = [index for index, gate in enumerate(names) if gate not in SLOW_GATES]
+    assert cheap
+    if slow:
+        assert min(slow) > max(cheap)
+
+
+def test_frontend_starts_with_npm_ci_and_slow_gate_set() -> None:
+    frontend = [row[1] for row in GATES if row[0] == "frontend"]
+    assert frontend[0] == "npm-ci"
+    assert SLOW_GATES == frozenset({"pytest", "test", "build"})
+
+
+def test_backend_pytest_runs_on_workers() -> None:
+    commands = [row[3] for row in GATES if row[:2] == ("backend", "pytest")]
+    assert len(commands) == 1
+    assert commands[0][-2:] == ("-n", "auto")
+    assert commands[0] == ("uv", "run", "pytest", "-q", "-n", "auto")
+
+
+def test_main_cheap_failure_prints_skip_and_reuse_stays_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    argv = ["--cwd", str(repo), "--base", base]
+    fake, ran = _gate_runner(repo, fail=frozenset({("backend", "ruff-check")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    assert main(argv) == 1
+    out = capsys.readouterr().out
+    assert "SKIP backend:pytest skipped after ruff-check failed\n" in out
+    assert out.endswith("RESULT FAIL\n")
+    assert ("backend", "pytest") not in ran
+
+    def never_run(*args: object, **kwargs: object) -> None:
+        raise AssertionError("_run_gate must not be called")
+
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", never_run)
+    assert main([*argv, "--reuse"]) == 1
+    reused = capsys.readouterr().out
+    assert "REUSED SKIP backend:pytest skipped after ruff-check failed\n" in reused
+    assert "REUSED FAIL backend:ruff-check out\n" in reused
+    assert reused.endswith("RESULT FAIL\n")
+
+
+def test_reuse_record_with_fail_and_skip_rows_exits_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _repo(tmp_path)
+    base = _commit_backend(repo)
+    sha = _git(repo, "rev-parse", "HEAD").strip()
+    rows: list[GateRow] = [
+        ("backend", "ruff-check", "FAIL", "bad", ()),
+        ("backend", "ruff-format", "PASS", "ok", ()),
+        ("backend", "mypy", "PASS", "ok", ()),
+        ("backend", "pytest", "SKIP", "skipped after ruff-check failed", ()),
+    ]
+    write_record(repo, sha, True, 1, rows, base=base)
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", _route())
+    assert main(["--cwd", str(repo), "--base", base, "--reuse"]) == 1
+    out = capsys.readouterr().out
+    assert "REUSED SKIP backend:pytest skipped after ruff-check failed\n" in out
+    assert out.endswith("RESULT FAIL\n")
 
 
 def test_is_clean_rejects_untracked(tmp_path: Path) -> None:

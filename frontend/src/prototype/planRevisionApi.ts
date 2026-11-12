@@ -1,6 +1,6 @@
 import { readJson } from "../api";
 import type { PlanState } from "./planModel";
-import { INGREDIENTS } from "./prototypeData";
+import { isKnownIngredient } from "./prototypeData";
 
 export type PlanRevisionBody = {
   meals: { recipe_id: string; servings: number }[];
@@ -11,7 +11,7 @@ export type PlanRevisionBody = {
 export const PLAN_REVISION_ERROR = "The plan revision response was not valid.";
 
 export function planRevisionBody(state: PlanState): PlanRevisionBody {
-  const pantry = state.pantry.filter((id) => Object.prototype.hasOwnProperty.call(INGREDIENTS, id));
+  const pantry = state.pantry.filter((id) => isKnownIngredient(id));
   return {
     meals: state.meals.map((meal) => ({ recipe_id: meal.recipeId, servings: meal.servings })),
     pantry_ingredient_ids: [...new Set(pantry)],

@@ -588,8 +588,8 @@ def test_load_bundle_reads_a_gzip_file(tmp_path: Path) -> None:
     "content",
     [
         b"not gzip",
-        gzip.compress(b"{not json"),
-        gzip.compress(b"\xff\xfe"),
+        gzip.compress(b"{not json", mtime=0),
+        gzip.compress(b"\xff\xfe", mtime=0),
         b"\x1f\x8b\x08",
     ],
 )

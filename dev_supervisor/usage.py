@@ -46,14 +46,6 @@ def token(value: object) -> int | None:
     return value
 
 
-def fingerprint(event: dict[str, Any]) -> str | None:
-    for key in ("turn_id", "id"):
-        ident = event.get(key)
-        if isinstance(ident, str) and ident:
-            return ident
-    return None
-
-
 def parse_codex_usage(event: dict[str, Any]) -> dict[str, int | None] | None:
     if event.get("type") != "turn.completed":
         return None

@@ -2,13 +2,14 @@
 
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { usePolledJob } from "./usePolledJob";
+import { pollDelayMs, usePolledJob } from "./usePolledJob";
 
 type Body = { message: string };
 type Ack = { job_id: string };
 type Job = { id: string; status: "queued" | "running" | "succeeded" | "failed" };
 
-const POLL_MS = 750;
+const FAST_POLL_MS = 250;
+const SLOW_POLL_MS = 750;
 const BUDGET_MS = 3000;
 const TIMEOUT_TEXT = "The configured request budget expired.";
 const FAILED_TEXT = "The configured job failed.";
@@ -96,7 +97,7 @@ describe("usePolledJob", () => {
     expect(result.current.error).toBeNull();
     expect(requests.fetchRequest).toHaveBeenCalledTimes(1);
 
-    await advance(POLL_MS - 1);
+    await advance(FAST_POLL_MS - 1);
     expect(requests.fetchRequest).toHaveBeenCalledTimes(1);
     expect(result.current.job).toEqual(queued);
     await advance(1);
@@ -105,7 +106,7 @@ describe("usePolledJob", () => {
     expect(result.current.pending).toBe(true);
     expect(result.current.error).toBeNull();
 
-    await advance(POLL_MS - 1);
+    await advance(FAST_POLL_MS - 1);
     expect(requests.fetchRequest).toHaveBeenCalledTimes(2);
     await advance(1);
     await act(async () => {
@@ -133,7 +134,7 @@ describe("usePolledJob", () => {
     });
     expect(result.current.pending).toBe(true);
     expect(result.current.error).toBeNull();
-    await advance(POLL_MS);
+    await advance(FAST_POLL_MS);
     await act(async () => {
       await finished;
     });
@@ -216,7 +217,7 @@ describe("usePolledJob", () => {
       });
       if (stage === "fetch") {
         expect(result.current.job).toEqual(queued);
-        await advance(POLL_MS);
+        await advance(FAST_POLL_MS);
       }
       const signal =
         stage === "submit"
@@ -318,6 +319,100 @@ describe("usePolledJob", () => {
       expect(requests.fetchRequest).toHaveBeenCalledTimes(stage === "submit" ? 1 : 2);
     },
   );
+
+  it("returns the poll delay for the elapsed time", () => {
+    expect(pollDelayMs(0)).toBe(FAST_POLL_MS);
+    expect(pollDelayMs(9_999)).toBe(FAST_POLL_MS);
+    expect(pollDelayMs(10_000)).toBe(SLOW_POLL_MS);
+    expect(pollDelayMs(60_000)).toBe(SLOW_POLL_MS);
+  });
+
+  it("polls every 250 ms during the first seconds of a running job", async () => {
+    const requests = options();
+    requests.fetchRequest.mockResolvedValue(running);
+    const { result } = renderHook(() => usePolledJob(requests));
+
+    await act(async () => {
+      void result.current.submit(body);
+    });
+    expect(requests.fetchRequest).toHaveBeenCalledTimes(1);
+    await advance(2_000);
+    expect(requests.fetchRequest).toHaveBeenCalledTimes(9);
+    act(() => result.current.clear());
+  });
+
+  it("polls every 750 ms after 10 s of elapsed time", async () => {
+    const requests = options();
+    requests.budgetMs = 60_000;
+    requests.fetchRequest.mockResolvedValue(running);
+    const { result } = renderHook(() => usePolledJob(requests));
+
+    await act(async () => {
+      void result.current.submit(body);
+    });
+    await advance(10_000);
+    const polls = requests.fetchRequest.mock.calls.length;
+    await advance(SLOW_POLL_MS - 1);
+    expect(requests.fetchRequest).toHaveBeenCalledTimes(polls);
+    await advance(1);
+    expect(requests.fetchRequest).toHaveBeenCalledTimes(polls + 1);
+    act(() => result.current.clear());
+  });
+
+  it("keeps the job object when consecutive responses are equal", async () => {
+    const requests = options();
+    requests.fetchRequest
+      .mockResolvedValueOnce({ ...running })
+      .mockResolvedValueOnce({ ...running })
+      .mockResolvedValueOnce({ ...running })
+      .mockResolvedValue(succeeded);
+    const { result } = renderHook(() => usePolledJob(requests));
+
+    let finished: Promise<void> | undefined;
+    await act(async () => {
+      finished = result.current.submit(body);
+    });
+    const first = result.current.job;
+    expect(first).toEqual(running);
+    await advance(FAST_POLL_MS);
+    expect(requests.fetchRequest).toHaveBeenCalledTimes(2);
+    expect(result.current.job).toBe(first);
+    await advance(FAST_POLL_MS);
+    expect(requests.fetchRequest).toHaveBeenCalledTimes(3);
+    expect(result.current.job).toBe(first);
+    await advance(FAST_POLL_MS);
+    await act(async () => {
+      await finished;
+    });
+    expect(result.current.job).toEqual(succeeded);
+    expect(result.current.pending).toBe(false);
+  });
+
+  it("updates the job when the status or the content changes", async () => {
+    const requests = options();
+    const renamed: Job = { id: "job-2", status: "running" };
+    requests.fetchRequest
+      .mockResolvedValueOnce(queued)
+      .mockResolvedValueOnce(running)
+      .mockResolvedValueOnce(renamed)
+      .mockResolvedValue(succeeded);
+    const { result } = renderHook(() => usePolledJob(requests));
+
+    let finished: Promise<void> | undefined;
+    await act(async () => {
+      finished = result.current.submit(body);
+    });
+    expect(result.current.job).toEqual(queued);
+    await advance(FAST_POLL_MS);
+    expect(result.current.job).toEqual(running);
+    await advance(FAST_POLL_MS);
+    expect(result.current.job).toEqual(renamed);
+    await advance(FAST_POLL_MS);
+    await act(async () => {
+      await finished;
+    });
+    expect(result.current.job).toEqual(succeeded);
+  });
 
   it("reuses keys for identical bodies, changes keys for changed bodies, and resets on clear", async () => {
     const requests = options();

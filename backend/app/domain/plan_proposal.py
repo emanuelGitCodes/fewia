@@ -35,7 +35,9 @@ class ProposalDietaryConstraints(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     diet: Diet | None = None
-    ingredient_exclusions: list[StrictStr] = Field(default_factory=list)
+    ingredient_exclusions: list[Annotated[StrictStr, Field(max_length=160)]] = Field(
+        default_factory=list, max_length=64
+    )
 
 
 class ApplyConstraints(BaseModel):

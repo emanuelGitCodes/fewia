@@ -1,7 +1,6 @@
 import { HTTP_ERROR, SHAPE_ERROR, isAbortError } from "./api";
-import { isRecord, isSafeInteger, isString } from "./apiTypes";
-import { UUID } from "./chatValidation";
-import { INGREDIENTS, isKnownRecipe } from "./prototype/prototypeData";
+import { UUID, isRecord, isSafeInteger, isString } from "./apiTypes";
+import { isKnownIngredient, isKnownRecipe } from "./prototype/prototypeData";
 
 export type ProposalStatus = "pending" | "applied" | "discarded";
 export type ProposalPreview = {
@@ -82,7 +81,7 @@ function parsePreview(value: unknown): ProposalPreview {
     return { recipe_id: meal.recipe_id, servings: meal.servings };
   });
   const pantry = value.pantry_ingredient_ids.map((id: unknown) => {
-    if (!isString(id) || !Object.prototype.hasOwnProperty.call(INGREDIENTS, id)) {
+    if (!isString(id) || !isKnownIngredient(id)) {
       throw new Error(SHAPE_ERROR);
     }
     return id;

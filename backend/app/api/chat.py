@@ -1,12 +1,14 @@
 """HTTP routes for grocery chat jobs and provider capabilities."""
 
+import os
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import ValidationError
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
@@ -24,9 +26,8 @@ from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import KrogerClient
 from app.services.chat_history import (
     ChatContextUnavailable,
-    load_chat_context,
-    load_previous_search_state,
-    load_previous_what_if,
+    PreviousState,
+    load_previous_state,
 )
 from app.services.chat_job import ChatHistoryTurn, ChatJobInput
 from app.services.job_submission import (
@@ -40,6 +41,10 @@ from app.services.kroger_overlay import attach_kroger_quote
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
 CHAT_KEY_PREFIX = "chat:"
+CHAT_JOBS_PER_MINUTE = 20
+MAX_CHAT_JOBS_PER_MINUTE = 1000
+CHAT_RATE_WINDOW_SECONDS = 60
+CHAT_RATE_LIMIT_MESSAGE = "Too many chat requests. Try again in one minute."
 CHAT_UNAVAILABLE_MESSAGE = "Chat is not configured."
 CHAT_CONTEXT_MESSAGE = "Chat context is unavailable."
 PLAN_REVISION_MESSAGE = "The plan is not available. Refresh the page and try again."
@@ -51,6 +56,38 @@ IdempotencyKey = Annotated[str, Header(min_length=1, max_length=120)]
 
 def _ny_now() -> datetime:
     return datetime.now(UTC).astimezone(NEW_YORK)
+
+
+def chat_jobs_per_minute(value: str | None) -> int:
+    if value is None:
+        return CHAT_JOBS_PER_MINUTE
+    text = value.strip()
+    if not (text.isascii() and text.isdigit()):
+        return CHAT_JOBS_PER_MINUTE
+    limit = int(text)
+    if not 1 <= limit <= MAX_CHAT_JOBS_PER_MINUTE:
+        return CHAT_JOBS_PER_MINUTE
+    return limit
+
+
+def _window_start(session: Session) -> ColumnElement[datetime]:
+    if session.get_bind().dialect.name == "sqlite":
+        return func.datetime("now", f"-{CHAT_RATE_WINDOW_SECONDS} seconds")
+    return func.now() - timedelta(seconds=CHAT_RATE_WINDOW_SECONDS)
+
+
+def _recent_chat_jobs(session: Session) -> int:
+    count = session.scalar(
+        select(func.count())
+        .select_from(Job)
+        .where(
+            Job.user_id == DEMO_USER_ID,
+            Job.kind == "agent",
+            Job.request_key.startswith(CHAT_KEY_PREFIX, autoescape=True),
+            Job.created_at > _window_start(session),
+        )
+    )
+    return int(count or 0)
 
 
 @router.get("/providers")
@@ -78,6 +115,13 @@ def create_chat_job(
         raise HTTPException(status_code=409, detail=grocery_api.CONFLICT_MESSAGE)
     if existing is not None:
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
+    limit = chat_jobs_per_minute(os.environ.get("FEWIA_CHAT_JOBS_PER_MINUTE"))
+    if _recent_chat_jobs(session) >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=CHAT_RATE_LIMIT_MESSAGE,
+            headers={"Retry-After": str(CHAT_RATE_WINDOW_SECONDS)},
+        )
     settings = get_provider_settings()
     if not capabilities(settings)["chat_configured"]:
         raise HTTPException(status_code=503, detail=CHAT_UNAVAILABLE_MESSAGE)
@@ -86,26 +130,14 @@ def create_chat_job(
     spending = grocery_api.require_spending(
         session, settings.spending_source, _ny_now()
     )
-    loaded: (
-        tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None] | None
-    ) = None
-    previous_search: dict[str, object] | None = None
-    previous_exhausted_search: dict[str, object] | None = None
-    previous_what_if_recipe: str | None = None
+    previous: PreviousState | None = None
     try:
-        context = load_chat_context(session, DEMO_USER_ID, body.previous_job_id)
-        previous_search, previous_exhausted_search = load_previous_search_state(
-            session, DEMO_USER_ID, body.previous_job_id
-        )
-        previous_what_if_recipe = load_previous_what_if(
-            session, DEMO_USER_ID, body.previous_job_id
-        )
-        loaded = context
+        previous = load_previous_state(session, DEMO_USER_ID, body.previous_job_id)
     except ChatContextUnavailable:
         pass
-    if loaded is None:
+    if previous is None:
         raise HTTPException(status_code=409, detail=CHAT_CONTEXT_MESSAGE)
-    history, previous_request, previous_ingredient_ids = loaded
+    history, previous_request, previous_ingredient_ids = previous.context
     plan_revision: PlanRevisionInput | None = None
     if body.plan_revision_id is not None:
         row = session.get(PlanRevision, body.plan_revision_id)
@@ -132,9 +164,9 @@ def create_chat_job(
             history=turns,
             previous_request=previous_request,
             previous_ingredient_ids=previous_ingredient_ids,
-            previous_search=previous_search,
-            previous_exhausted_search=previous_exhausted_search,
-            previous_what_if_recipe=previous_what_if_recipe,
+            previous_search=previous.search,
+            previous_exhausted_search=previous.exhausted_search,
+            previous_what_if_recipe=previous.what_if_recipe,
             spending=spending,
             spending_source=settings.spending_source,
         ).model_dump(mode="json"),

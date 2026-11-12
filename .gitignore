@@ -14,3 +14,10 @@ frontend/playwright-report/
 .claude/loop/
 .claude/worktrees/
 .claude/settings.local.json
+.env.*
+!.env.example
+*.pem
+!infra/rds/us-east-1-bundle.pem
+*.key
+cdk.out/
+cdk.context.json

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isAbortError } from "./api";
 
-const POLL_MS = 750;
+const FAST_POLL_MS = 250;
+const SLOW_POLL_MS = 750;
+const FAST_POLL_WINDOW_MS = 10_000;
+
+export function pollDelayMs(elapsedMs: number): number {
+  return elapsedMs < FAST_POLL_WINDOW_MS ? FAST_POLL_MS : SLOW_POLL_MS;
+}
 
 type JobAck = { job_id: string };
 type PolledJob = { status: string };
@@ -95,15 +101,21 @@ export function usePolledJob<Job extends PolledJob, Body>(
       try {
         const ack = await options.submitRequest(body, key, controller.signal);
         if (!live()) return;
+        const ackedAt = Date.now();
         let current = await options.fetchRequest(ack.job_id, controller.signal);
         if (!live()) return;
+        let lastSerialized = JSON.stringify(current);
         setJob(current);
         while (current.status === "queued" || current.status === "running") {
-          await wait(POLL_MS, controller.signal);
+          await wait(pollDelayMs(Date.now() - ackedAt), controller.signal);
           if (!live()) return;
           current = await options.fetchRequest(ack.job_id, controller.signal);
           if (!live()) return;
-          setJob(current);
+          const serializedJob = JSON.stringify(current);
+          if (serializedJob !== lastSerialized) {
+            lastSerialized = serializedJob;
+            setJob(current);
+          }
         }
         if (!live()) return;
         setError(current.status === "failed" ? options.failedText : null);

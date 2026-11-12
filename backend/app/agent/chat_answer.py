@@ -1,6 +1,7 @@
 from typing import get_args
 
 from app.agent.catalog_tool import catalog_answer
+from app.agent.money_text import format_usd as _usd
 from app.domain.budget import STALE_SPENDING_WARNING
 from app.domain.catalog import INGREDIENTS, RECIPES
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS, Diet
@@ -20,12 +21,6 @@ _UNKNOWN_RESTRICTION = (
 _QUESTION = (
     "Which meal should I plan, and what servings, restrictions, and pantry items apply?"
 )
-
-
-def _usd(cents: int) -> str:
-    sign = "-" if cents < 0 else ""
-    magnitude = -cents if cents < 0 else cents
-    return f"USD {sign}${magnitude // 100}.{magnitude % 100:02d}"
 
 
 def _vegan_meal_names() -> list[str]:

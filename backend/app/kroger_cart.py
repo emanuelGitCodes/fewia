@@ -1,6 +1,10 @@
-"""Match a saved plan's grocery lines to Kroger products. Nothing is stored."""
+"""Match a saved plan's grocery lines to Kroger products. Nothing is stored.
+
+Searches run on one thread pool that all requests share.
+"""
 
 import re
+from concurrent.futures import FIRST_EXCEPTION, ThreadPoolExecutor, wait
 
 from pydantic import BaseModel
 
@@ -13,7 +17,11 @@ from app.services.kroger_overlay import kroger_search_term
 MAX_LINES = 30
 MAX_QUANTITY = 10
 OUT_OF_STOCK = "TEMPORARILY_OUT_OF_STOCK"
+PREVIEW_WORKERS = 3
 _UPC = re.compile(r"[0-9]{8,14}")
+_POOL = ThreadPoolExecutor(
+    max_workers=PREVIEW_WORKERS, thread_name_prefix="kroger-preview"
+)
 
 
 class PreviewItem(BaseModel):
@@ -46,22 +54,51 @@ def grocery_ingredient_ids(snapshot: PlanSnapshot) -> list[str]:
     return sorted(needed - set(snapshot.pantry_ingredient_ids))[:MAX_LINES]
 
 
+def _search_all(
+    client: KrogerClient, location_id: str, terms: list[str]
+) -> dict[str, list[KrogerProduct]]:
+    """Search each distinct term on the shared pool, submitted in the given order.
+
+    On a failure, cancel the searches that have not started and wait for the
+    running ones. Raise the failure of the earliest term.
+    """
+    futures = {
+        term: _POOL.submit(client.search_products, term, location_id, limit=5)
+        for term in terms
+    }
+    try:
+        wait(futures.values(), return_when=FIRST_EXCEPTION)
+    finally:
+        for future in futures.values():
+            future.cancel()
+        wait(futures.values())
+    for future in futures.values():
+        if not future.cancelled():
+            error = future.exception()
+            if error is not None:
+                raise error
+    return {term: future.result().products for term, future in futures.items()}
+
+
 def build_preview(
     snapshot: PlanSnapshot, client: KrogerClient, location_id: str
 ) -> CartPreview:
-    """Search Kroger once per line. KrogerUnavailable propagates with no partial.
+    """Search Kroger once per distinct term, on a shared thread pool.
 
-    Lines that match the same UPC merge into the first line's item.
+    A search failure propagates with no partial result. Lines that match the
+    same UPC merge into the first line's item.
     """
+    ingredient_ids = grocery_ingredient_ids(snapshot)
+    line_terms = {i: kroger_search_term(i) for i in ingredient_ids}
+    distinct = list(dict.fromkeys(t for t in line_terms.values() if t is not None))
+    results = _search_all(client, location_id, distinct)
     items: list[PreviewItem] = []
     by_upc: dict[str, PreviewItem] = {}
     unmatched: list[UnmatchedLine] = []
-    for ingredient_id in grocery_ingredient_ids(snapshot):
+    for ingredient_id in ingredient_ids:
         name = ALL_INGREDIENTS[ingredient_id].name
-        term = kroger_search_term(ingredient_id)
-        found: list[KrogerProduct] = []
-        if term is not None:
-            found = client.search_products(term, location_id, limit=5).products
+        term = line_terms[ingredient_id]
+        found = results[term] if term is not None else []
         product = next(
             (
                 p

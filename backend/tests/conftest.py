@@ -1,9 +1,11 @@
 """Shared fixtures for deterministic tool tests."""
 
+import ast
 import os
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import NoReturn, Protocol
 
 import pytest
@@ -20,6 +22,20 @@ from app.main import app
 
 _JOB_TEST_DATABASE_URL = "FEWIA_JOB_TEST_DATABASE_URL"
 _REQUIRE_DB = "FEWIA_REQUIRE_DB"
+_DATABASE_HELPER = "require_test_database_url"
+_EVALUATION_DATABASE_URL = "FEWIA_EVALUATION_DATABASE_URL"
+_DATABASE_NAMES = (_DATABASE_HELPER, _JOB_TEST_DATABASE_URL, _EVALUATION_DATABASE_URL)
+DATABASE_XDIST_GROUP = "database"
+# These modules name the database but never connect to it.
+NO_DATABASE_MODULES = frozenset(
+    {
+        "test_openai_compose_launcher",
+        "test_evaluation_cli_config",
+        "test_cloud_database_config",
+        "test_database_gate",
+        "test_xdist_groups",
+    }
+)
 _database_skip_count = 0
 
 
@@ -38,6 +54,118 @@ def require_test_database_url() -> str:
     _skip_or_fail_test_database(
         "Set FEWIA_JOB_TEST_DATABASE_URL to an isolated migrated PostgreSQL."
     )
+
+
+def uses_test_database(source: str) -> bool:
+    """Tell whether test module source names the shared test database."""
+    return any(name in source for name in _DATABASE_NAMES)
+
+
+def _last_part(dotted_name: str) -> str:
+    return dotted_name.rpartition(".")[2]
+
+
+def _plugin_names(statement: ast.stmt) -> set[str]:
+    targets: Sequence[ast.expr]
+    if isinstance(statement, ast.Assign):
+        targets, value = statement.targets, statement.value
+    elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+        targets, value = [statement.target], statement.value
+    else:
+        return set()
+    if not any(
+        isinstance(target, ast.Name) and target.id == "pytest_plugins"
+        for target in targets
+    ):
+        return set()
+    return {
+        _last_part(node.value)
+        for node in ast.walk(value)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+
+
+def module_dependencies(source: str) -> frozenset[str]:
+    """Give the last dotted part of every module, name, and plugin source loads."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return frozenset()
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(_last_part(alias.name) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                names.add(_last_part(node.module))
+            names.update(alias.name for alias in node.names)
+    for statement in tree.body:
+        names.update(_plugin_names(statement))
+    return frozenset(names)
+
+
+def database_modules(sources: Mapping[str, str]) -> frozenset[str]:
+    """Give the module stems that reach the shared test database.
+
+    A module reaches it when it names the database or depends, directly or
+    through other modules, on one that does. Stems in NO_DATABASE_MODULES stay out.
+    """
+    dependencies = {
+        stem: module_dependencies(source) for stem, source in sources.items()
+    }
+    members = {
+        stem
+        for stem, source in sources.items()
+        if uses_test_database(source) and stem not in NO_DATABASE_MODULES
+    }
+    added = True
+    while added:
+        added = False
+        for stem, stem_dependencies in dependencies.items():
+            if stem in members or stem in NO_DATABASE_MODULES:
+                continue
+            if not stem_dependencies.isdisjoint(members):
+                members.add(stem)
+                added = True
+    return frozenset(members)
+
+
+def _read_test_sources() -> dict[str, str]:
+    return {
+        path.stem: path.read_text(encoding="utf-8")
+        for path in Path(__file__).resolve().parent.glob("test_*.py")
+    }
+
+
+def mark_database_items(
+    items: Sequence[pytest.Item], sources: Mapping[str, str]
+) -> None:
+    """Add the database xdist group to each item from a module that reaches it."""
+    members = database_modules(sources)
+    for item in items:
+        if item.path.stem in members:
+            item.add_marker(pytest.mark.xdist_group(DATABASE_XDIST_GROUP))
+
+
+def _runs_distributed(config: pytest.Config) -> bool:
+    """Tell whether this process is an xdist worker or the xdist controller."""
+    if hasattr(config, "workerinput"):
+        return True
+    return bool(config.getoption("numprocesses", None))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Keep every test that uses the shared PostgreSQL on one xdist worker.
+
+    Runs first so the marker exists when xdist appends the group to node ids.
+    One process has no groups to keep, so it reads no test file.
+    """
+    if not _runs_distributed(config):
+        return
+    mark_database_items(items, _read_test_sources())
 
 
 def skip_or_fail_unreachable_test_database(error: BaseException) -> NoReturn:
@@ -195,7 +323,7 @@ def client(session: Session) -> Iterator[TestClient]:
 
     app.dependency_overrides[get_session] = get_test_session
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, base_url="http://localhost") as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_session, None)

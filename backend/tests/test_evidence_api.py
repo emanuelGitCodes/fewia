@@ -81,7 +81,7 @@ def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_session_factory] = lambda: factory
-    with TestClient(app) as test_client:
+    with TestClient(app, base_url="http://localhost") as test_client:
         yield test_client
 
 
