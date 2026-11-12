@@ -4,6 +4,7 @@ import os
 from collections.abc import Collection, Iterator, Mapping
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import NoReturn, Protocol
 
 import pytest
@@ -20,6 +21,8 @@ from app.main import app
 
 _JOB_TEST_DATABASE_URL = "FEWIA_JOB_TEST_DATABASE_URL"
 _REQUIRE_DB = "FEWIA_REQUIRE_DB"
+_DATABASE_HELPER = "require_test_database_url"
+DATABASE_XDIST_GROUP = "database"
 _database_skip_count = 0
 
 
@@ -38,6 +41,28 @@ def require_test_database_url() -> str:
     _skip_or_fail_test_database(
         "Set FEWIA_JOB_TEST_DATABASE_URL to an isolated migrated PostgreSQL."
     )
+
+
+def uses_test_database(source: str) -> bool:
+    """Tell whether test module source names the shared test database."""
+    return _DATABASE_HELPER in source or _JOB_TEST_DATABASE_URL in source
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Keep every test that uses the shared PostgreSQL on one xdist worker.
+
+    Runs first so the marker exists when xdist appends the group to node ids.
+    """
+    uses_database_by_path: dict[Path, bool] = {}
+    for item in items:
+        path = item.path
+        if path not in uses_database_by_path:
+            uses_database_by_path[path] = uses_test_database(
+                path.read_text(encoding="utf-8")
+            )
+        if uses_database_by_path[path]:
+            item.add_marker(pytest.mark.xdist_group(DATABASE_XDIST_GROUP))
 
 
 def skip_or_fail_unreachable_test_database(error: BaseException) -> NoReturn:

@@ -19,6 +19,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-xdist",
     "mypy",
     "ruff",
 ]
@@ -29,6 +30,7 @@ package = false
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+addopts = "-n 4 --dist loadgroup"
 
 [tool.ruff]
 line-length = 88
