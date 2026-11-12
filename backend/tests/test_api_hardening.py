@@ -1,16 +1,23 @@
 """Tests for trusted hosts, docs routes, and request bounds."""
 
+import asyncio
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api.chat_models import CreateChatJobBody
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import GroceryRequest
 from app.domain.plan_proposal import ProposalDietaryConstraints
-from app.main import allowed_hosts, create_app
+from app.main import HostCheckMiddleware, allowed_hosts, create_app, host_name
 
 DEFAULT_HOSTS = ["localhost", "127.0.0.1", "[::1]", "api", "testserver"]
+REJECTED_HOST_BODY = {
+    "error": {"code": "bad_request", "message": "The Host header is not allowed."}
+}
 INGREDIENT_ID = next(iter(INGREDIENTS))
 OVER_LIMIT_CENTS = 100_000_001
 MEALS = [{"recipe_id": "bean_tacos", "servings": 2}]
@@ -38,8 +45,47 @@ def post_grocery_job(client: TestClient, request: dict[str, object]) -> int:
     return status_code
 
 
+def call_app(
+    app: ASGIApp, scope_type: str, headers: list[tuple[bytes, bytes]]
+) -> list[Message]:
+    """Run one raw ASGI request through the app and return the sent messages."""
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    scope: Scope = {
+        "type": scope_type,
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/healthz",
+        "raw_path": b"/healthz",
+        "query_string": b"",
+        "root_path": "",
+        "headers": headers,
+        "client": ("127.0.0.1", 50000),
+        "server": ("testserver", 80),
+    }
+    asyncio.run(app(scope, receive, send))
+    return sent
+
+
 @pytest.mark.parametrize(
-    "host", ["localhost:8010", "127.0.0.1:8000", "api:8000", "testserver"]
+    "host",
+    [
+        "localhost:8010",
+        "127.0.0.1:8000",
+        "api:8000",
+        "testserver",
+        "[::1]:8000",
+        "[::1]",
+        "LOCALHOST:8010",
+    ],
 )
 def test_healthz_accepts_default_hosts(host: str) -> None:
     client = TestClient(create_app())
@@ -49,16 +95,45 @@ def test_healthz_accepts_default_hosts(host: str) -> None:
     assert response.status_code == 200
 
 
-def test_healthz_rejects_another_host() -> None:
+@pytest.mark.parametrize(
+    "host",
+    [
+        "evil.example",
+        "127.0.0.1.evil.example",
+        "localhost.evil.example",
+        "evil.example:8010",
+        "[::2]:8000",
+    ],
+)
+def test_healthz_rejects_another_host(host: str) -> None:
     client = TestClient(create_app())
 
-    response = client.get("/healthz", headers={"host": "evil.example"})
+    response = client.get("/healthz", headers={"host": host})
 
     assert response.status_code == 400
+    assert response.json() == REJECTED_HOST_BODY
+    assert response.headers["content-type"] == "application/json"
+
+
+def test_healthz_rejects_two_host_headers() -> None:
+    sent = call_app(
+        create_app(),
+        "http",
+        [(b"host", b"localhost"), (b"host", b"localhost")],
+    )
+
+    assert sent[0]["status"] == 400
+    assert json.loads(sent[1]["body"]) == REJECTED_HOST_BODY
+
+
+def test_healthz_rejects_a_missing_host_header() -> None:
+    sent = call_app(create_app(), "http", [])
+
+    assert sent[0]["status"] == 400
 
 
 def test_healthz_accepts_a_configured_host(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("FEWIA_ALLOWED_HOSTS", "fewia.example.org")
+    monkeypatch.setenv("FEWIA_ALLOWED_HOSTS", "Fewia.Example.org")
     client = TestClient(create_app())
 
     configured = client.get("/healthz", headers={"host": "fewia.example.org"})
@@ -66,6 +141,65 @@ def test_healthz_accepts_a_configured_host(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert configured.status_code == 200
     assert other.status_code == 400
+
+
+def test_host_check_passes_other_scope_types_through() -> None:
+    seen: list[str] = []
+
+    async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+        seen.append(scope["type"])
+
+    middleware = HostCheckMiddleware(inner, ["localhost"])
+    scope: Scope = {"type": "lifespan"}
+
+    async def receive() -> Message:
+        return {"type": "lifespan.startup"}
+
+    async def send(message: Message) -> None:
+        raise AssertionError(message)
+
+    asyncio.run(middleware(scope, receive, send))
+
+    assert seen == ["lifespan"]
+
+
+def test_host_check_closes_a_rejected_websocket() -> None:
+    async def inner(scope: Scope, receive: Receive, send: Send) -> None:
+        raise AssertionError("the app must not run")
+
+    sent = call_app(
+        HostCheckMiddleware(inner, ["localhost"]),
+        "websocket",
+        [(b"host", b"evil.example")],
+    )
+
+    assert [message["type"] for message in sent] == ["websocket.close"]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("localhost", "localhost"),
+        ("localhost:8010", "localhost"),
+        ("[::1]:8000", "[::1]"),
+        ("[::1]", "[::1]"),
+        ("LocalHost:80", "localhost"),
+        ("", None),
+        (":8000", None),
+        ("localhost:", None),
+        ("localhost:abc", None),
+        ("localhost:123456", None),
+        ("a:b:c", None),
+        ("[::1]x", None),
+        ("[::1", None),
+        ("evil.example/", None),
+        ("user@localhost", None),
+        ("local host", None),
+        ("local\thost", None),
+    ],
+)
+def test_host_name(value: str, expected: str | None) -> None:
+    assert host_name(value) == expected
 
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
@@ -117,6 +251,10 @@ def test_allowed_hosts_trims_extras_and_drops_empty_entries() -> None:
 def test_allowed_hosts_rejects_invalid_entries(value: str) -> None:
     with pytest.raises(ValueError, match=r"^FEWIA_ALLOWED_HOSTS is invalid\.$"):
         allowed_hosts(value)
+
+
+def test_allowed_hosts_lower_cases_extras() -> None:
+    assert allowed_hosts("Fewia.Example.org") == [*DEFAULT_HOSTS, "fewia.example.org"]
 
 
 def test_allowed_hosts_accepts_the_bracketed_ipv6_form() -> None:

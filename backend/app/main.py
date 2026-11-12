@@ -8,7 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.api.chat import router as chat_router
 from app.api.evidence import router as evidence_router
@@ -41,8 +41,67 @@ def allowed_hosts(value: str | None) -> list[str]:
             raise ValueError(_INVALID_ALLOWED_HOSTS_MESSAGE)
         if ":" in host and host != "[::1]":
             raise ValueError(_INVALID_ALLOWED_HOSTS_MESSAGE)
-        hosts.append(host)
+        hosts.append(host.lower())
     return hosts
+
+
+def _is_port(text: str) -> bool:
+    """Return whether the text is 1 to 5 ASCII digits."""
+    return 1 <= len(text) <= 5 and text.isascii() and text.isdigit()
+
+
+def host_name(value: str) -> str | None:
+    """Return the lower-case host name of a Host header value, or None."""
+    value = value.lower()
+    if any(char in "/@ " or ord(char) < 32 or ord(char) == 127 for char in value):
+        return None
+    if value.startswith("["):
+        end = value.find("]")
+        if end == -1:
+            return None
+        name, rest = value[: end + 1], value[end + 1 :]
+    else:
+        name, _, rest = value.partition(":")
+        if rest:
+            rest = f":{rest}"
+        elif value.endswith(":"):
+            return None
+        if not name:
+            return None
+    if rest and not (rest.startswith(":") and _is_port(rest[1:])):
+        return None
+    return name
+
+
+class HostCheckMiddleware:
+    """Reject HTTP and WebSocket requests whose Host header is not allowed."""
+
+    def __init__(self, app: ASGIApp, allowed_hosts: list[str]) -> None:
+        self.app = app
+        self.allowed = frozenset(host.lower() for host in allowed_hosts)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        values = [value for key, value in scope["headers"] if key.lower() == b"host"]
+        name = host_name(values[0].decode("latin-1")) if len(values) == 1 else None
+        if name is not None and name in self.allowed:
+            await self.app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        response = JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "code": "bad_request",
+                    "message": "The Host header is not allowed.",
+                }
+            },
+        )
+        await response(scope, receive, send)
 
 
 def _http_error_code(status_code: int) -> str:
@@ -105,9 +164,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
     )
-    application.add_middleware(
-        TrustedHostMiddleware, allowed_hosts=hosts, www_redirect=False
-    )
+    application.add_middleware(HostCheckMiddleware, allowed_hosts=hosts)
     application.exception_handler(StarletteHTTPException)(starlette_http_error_handler)
     application.exception_handler(RequestValidationError)(validation_error_handler)
     application.add_api_route("/healthz", healthz, methods=["GET"])
