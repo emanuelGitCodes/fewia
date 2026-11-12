@@ -1,4 +1,4 @@
-import type { GroceryConfig, GroceryJob } from "./apiTypes";
+import type { GroceryJob } from "./apiTypes";
 import type { FormState } from "./BudgetForm";
 import type { ChatBudget } from "./chatConversationModel";
 import type { ChatJob, ChatResult } from "./chatTypes";
@@ -72,18 +72,4 @@ export function formFromChat(form: FormState, result: ChatResult): FormState {
     pantry: [...request.pantry_ingredients],
     exclusions: [...request.ingredient_exclusions],
   };
-}
-
-export function configFingerprint(config: GroceryConfig | null): string {
-  if (config === null) {
-    return "";
-  }
-  return JSON.stringify([
-    config.budget_period,
-    config.source,
-    config.posted_cents,
-    config.pending_cents,
-    config.catalog_version,
-    config.spending_refreshed_at,
-  ]);
 }

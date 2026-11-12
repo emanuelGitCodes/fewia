@@ -1,30 +1,17 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from "vitest";
-import { SAMPLE_ESTIMATE_NOTICE, type GroceryConfig } from "./apiTypes";
+import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { initialForm, type FormState } from "./BudgetForm";
 import type { ChatJob, ChatResult } from "./chatTypes";
 import {
   chatBudgetFromForm,
   chatEstimateJob,
-  configFingerprint,
   formFromChat,
 } from "./chatWorkspaceModel";
 
 const REVISION = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-const demoConfig: GroceryConfig = {
-  budget_period: "2026-09-01",
-  source: "fixture",
-  catalog_version: "sample-prices-v1",
-  posted_cents: 1200,
-  pending_cents: -50,
-  spending_refreshed_at: "2026-09-07T16:00:00Z",
-  notice: SAMPLE_ESTIMATE_NOTICE,
-  recipes: [{ id: "bean_tacos", name: "Bean tacos" }],
-  ingredients: [{ id: "black_beans", name: "black beans" }],
-};
 
 function plannedResult(overrides: Partial<ChatResult> = {}): ChatResult {
   return {
@@ -326,33 +313,5 @@ describe("formFromChat", () => {
     expect(formBefore.pantry).toEqual(["salt"]);
     expect(resultBefore.request?.meals).toEqual([{ recipe_id: "lentil_soup", servings: 4 }]);
     expect(next.meals).toEqual([{ recipe_id: "overnight_oats", servings: 8 }]);
-  });
-});
-
-describe("configFingerprint", () => {
-  it("returns an empty fingerprint for a null config", () => {
-    expect(configFingerprint(null)).toBe("");
-  });
-
-  it("changes when period, source, spending, catalog, or refresh time change", () => {
-    const base = configFingerprint(demoConfig);
-    expect(base).not.toBe("");
-    expect(configFingerprint({ ...demoConfig, budget_period: "2026-10-01" })).not.toBe(base);
-    expect(configFingerprint({ ...demoConfig, source: "plaid_sandbox" })).not.toBe(base);
-    expect(configFingerprint({ ...demoConfig, posted_cents: 1201 })).not.toBe(base);
-    expect(configFingerprint({ ...demoConfig, pending_cents: 0 })).not.toBe(base);
-    expect(configFingerprint({ ...demoConfig, catalog_version: "sample-prices-v2" })).not.toBe(base);
-    expect(
-      configFingerprint({ ...demoConfig, spending_refreshed_at: "2026-09-08T16:00:00Z" }),
-    ).not.toBe(base);
-    expect(configFingerprint({ ...demoConfig, spending_refreshed_at: null })).not.toBe(base);
-    expect(
-      configFingerprint({
-        ...demoConfig,
-        notice: "other",
-        recipes: [],
-        ingredients: [],
-      }),
-    ).toBe(base);
   });
 });
