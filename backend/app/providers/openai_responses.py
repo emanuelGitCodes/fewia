@@ -12,6 +12,7 @@ from pydantic import SecretStr
 from app.agent.chat_messages import MAX_TOOL_CALLS, MAX_TOOL_FIELD_LEN
 from app.agent.provider import LLMUnavailable
 from app.provider_settings import ProviderConfigurationError
+from app.providers.http_client import build_http_client, request_bounded
 
 _ENDPOINTS = {
     "us": "https://us.api.openai.com/v1/responses",
@@ -19,6 +20,8 @@ _ENDPOINTS = {
 }
 _IDENTIFIER = re.compile(rf"[A-Za-z0-9_-]{{1,{MAX_TOOL_FIELD_LEN}}}")
 _MAX_KEY_BYTES = 65536
+MAX_REQUEST_BYTES = 64 * 1024
+MAX_RESPONSE_ITEMS = 128
 _SCHEMA_TYPES = frozenset("object array string number integer boolean null".split())
 
 
@@ -322,13 +325,18 @@ def _response(
 ) -> dict[str, object]:
     response = _mapping(value)
     status, output = response.get("status"), response.get("output")
-    if response.get("error") is not None or not isinstance(output, list):
+    if (
+        response.get("error") is not None
+        or not isinstance(output, list)
+        or len(output) > MAX_RESPONSE_ITEMS
+    ):
         raise _Invalid()
     if status not in ("completed", "incomplete"):
         raise _Invalid()
     content: list[dict[str, object]] = []
     seen = set(history_ids)
     calls = 0
+    block_count = 0
     refused = False
     for raw in output:
         item = _mapping(raw)
@@ -369,6 +377,9 @@ def _response(
                 or item.get("status", "completed") not in ("completed", "incomplete")
                 or (status == "completed" and item.get("status") == "incomplete")
             ):
+                raise _Invalid()
+            block_count += len(blocks)
+            if block_count > MAX_RESPONSE_ITEMS:
                 raise _Invalid()
             for raw_block in blocks:
                 block = _mapping(raw_block)
@@ -420,12 +431,7 @@ class OpenAIResponsesProvider:
             raise ProviderConfigurationError()
         self._key = _read_key(api_key_file)
         self._endpoint = _ENDPOINTS[region]
-        self._client = client or httpx.Client(
-            timeout=httpx.Timeout(40, connect=3),
-            follow_redirects=False,
-            trust_env=False,
-            transport=httpx.HTTPTransport(retries=0, trust_env=False),
-        )
+        self._client = client or build_http_client(self._endpoint)
 
     def converse(
         self,
@@ -434,6 +440,7 @@ class OpenAIResponsesProvider:
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
         request: dict[str, object] | None = None
+        serialized = b""
         names: set[str] = set()
         history_ids: set[str] = set()
         invalid: str | None = None
@@ -452,7 +459,9 @@ class OpenAIResponsesProvider:
                 "max_output_tokens": 4096,
                 "parallel_tool_calls": False,
             }
-            _encode(request)
+            serialized = _encode(request).encode("utf-8")
+            if len(serialized) > MAX_REQUEST_BYTES:
+                raise _Invalid()
         except (ValueError, TypeError, RecursionError, OverflowError) as exc:
             request = None
             invalid = type(exc).__name__
@@ -461,11 +470,15 @@ class OpenAIResponsesProvider:
             raise ValueError("Provider input is invalid")
         result: dict[str, object] | None = None
         try:
-            response = self._client.post(
+            response = request_bounded(
+                self._client,
+                "POST",
                 self._endpoint,
-                json=request,
-                headers={"Authorization": f"Bearer {self._key.get_secret_value()}"},
-                follow_redirects=False,
+                content=serialized,
+                headers={
+                    "Authorization": f"Bearer {self._key.get_secret_value()}",
+                    "Content-Type": "application/json",
+                },
             )
         except Exception as exc:  # noqa: BLE001
             _log_failure("transport_error", exception=type(exc).__name__)

@@ -21,7 +21,7 @@ from app.provider_settings import (
     load_kroger_credentials,
     load_provider_settings,
 )
-from app.providers.http_client import build_http_client
+from app.providers.http_client import build_http_client, request_bounded
 
 HOSTS = {
     "certification": "https://api-ce.kroger.com",
@@ -32,7 +32,7 @@ AUTHORIZE_PATH = "/v1/connect/oauth2/authorize"
 CUSTOMER_SCOPE = "cart.basic:write profile.compact"
 LOCATIONS_PATH = "/v1/locations"
 PRODUCTS_PATH = "/v1/products"
-TIMEOUT = httpx.Timeout(5.0, connect=3.0, read=5.0)
+MAX_PAGE_ENTRIES = 50
 TOKEN_MARGIN_SECONDS = 60
 MAX_EXPIRES_IN_SECONDS = 86_400
 COOLDOWN_SECONDS = 600
@@ -197,7 +197,7 @@ def _parse_product(entry: object) -> KrogerProduct | None:
 def _data_list(payload: object) -> list[object]:
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
         raise KrogerUnavailable()
-    return list(payload["data"])
+    return list(payload["data"][:MAX_PAGE_ENTRIES])
 
 
 def _require_location_id(location_id: str) -> None:
@@ -282,7 +282,8 @@ class KrogerClient:
         response: httpx.Response | None = None
         unknown = False
         try:
-            response = self._client.request(
+            response = request_bounded(
+                self._client,
                 method,
                 f"{self._base_url}{path}",
                 headers=headers,
@@ -290,8 +291,6 @@ class KrogerClient:
                 data=data,
                 params=params,
                 json=json_body,
-                follow_redirects=False,
-                timeout=TIMEOUT,
             )
         except (httpx.RequestError, httpx.InvalidURL, TypeError, ValueError) as error:
             unknown = (

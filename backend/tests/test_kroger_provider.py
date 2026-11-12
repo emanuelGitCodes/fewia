@@ -1,10 +1,13 @@
 """Tests for the Kroger client, using invented data and a mock transport."""
 
+import asyncio
 import base64
+import gzip
 import json
 import logging
 import threading
 import time
+from collections.abc import AsyncIterator, Iterator
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -12,7 +15,7 @@ from urllib.parse import parse_qs
 import httpx
 import pytest
 
-from app.providers import kroger
+from app.providers import http_client, kroger
 from app.providers.kroger import (
     CartItem,
     KrogerCartUnknown,
@@ -1183,3 +1186,140 @@ def test_add_to_cart_429_starts_cooldown() -> None:
     clock.now += 1
     client.add_to_cart(TOKEN, ITEMS)
     assert len(server.requests) == 2
+
+
+@pytest.mark.parametrize("operation", ["cart", "refresh", "token", "products"])
+@pytest.mark.parametrize("failure", ["oversize", "gzip", "read_error", "bad_gzip"])
+def test_stream_failures_keep_kroger_mapping_and_never_retry(
+    operation: str, failure: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    requests: list[httpx.Request] = []
+    closed: list[bool] = []
+    content = b"x" * (http_client.MAX_RESPONSE_BYTES + 1)
+    if failure == "gzip":
+        content = gzip.compress(content)
+    elif failure == "read_error":
+        content = b"partial"
+    elif failure == "bad_gzip":
+        content = b"bad compressed body"
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield content
+            if failure == "read_error":
+                raise httpx.ReadTimeout(f"{TOKEN} {SECRET}")
+
+        def close(self) -> None:
+            closed.append(True)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if operation == "products" and request.url.path == kroger.TOKEN_PATH:
+            return httpx.Response(200, json={"access_token": TOKEN, "expires_in": 1800})
+        encoding = "gzip" if failure in ("gzip", "bad_gzip") else "identity"
+        return httpx.Response(
+            200,
+            stream=Stream(),
+            headers={"Content-Encoding": encoding},
+        )
+
+    caplog.set_level(logging.DEBUG)
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http:
+        client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+        expected = KrogerCartUnknown if operation == "cart" else KrogerUnavailable
+        with pytest.raises(expected) as raised:
+            if operation == "cart":
+                client.add_to_cart(TOKEN, ITEMS)
+            elif operation == "refresh":
+                client.refresh_customer(REFRESH)
+            elif operation == "token":
+                client.find_stores(ZIP)
+            else:
+                client.search_products("TEST_QUERY_MARKER", LOCATION)
+    assert len(requests) == (2 if operation == "products" else 1)
+    assert closed == [True]
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+    rendered = f"{raised.value!s}{raised.value!r}{caplog.text}"
+    for marker in (TOKEN, SECRET, CLIENT_ID, "TEST_QUERY_MARKER"):
+        assert marker not in rendered
+
+
+@pytest.mark.parametrize("kind", ["locations", "products"])
+def test_kroger_page_collections_are_bounded(kind: str) -> None:
+    server = Server()
+    server.locations = {"data": [_store()] * 100}
+    server.products = {"data": [_product()] * 100}
+    client, _ = _make(server)
+    if kind == "locations":
+        assert len(client.find_stores(ZIP, limit=50)) == 50
+    else:
+        assert len(client.search_products("x", LOCATION, limit=50).products) == 50
+
+
+@pytest.mark.parametrize("status", [200, 401, 429, 503])
+def test_streamed_cart_status_mapping_closes_the_stream(status: int) -> None:
+    closed: list[bool] = []
+    sent: list[httpx.Request] = []
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield b"{}"
+
+        def close(self) -> None:
+            closed.append(True)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(status, stream=Stream())
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http:
+        client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE, client=http)
+        if status == 200:
+            client.add_to_cart(TOKEN, ITEMS)
+        else:
+            expected = {
+                401: kroger.KrogerAuthRejected,
+                429: KrogerUnavailable,
+                503: KrogerCartUnknown,
+            }[status]
+            with pytest.raises(expected):
+                client.add_to_cart(TOKEN, ITEMS)
+    assert len(sent) == 1
+    assert closed == [True]
+
+
+def test_cancelled_cart_deadline_is_unknown_and_never_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            try:
+                yield b"{}"
+                await asyncio.Event().wait()
+            finally:
+                events.append("cancelled")
+
+        async def aclose(self) -> None:
+            events.append("closed")
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PUT" and request.url.path == kroger.CART_ADD_PATH
+        events.append("sent")
+        return httpx.Response(200, stream=Stream())
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.05)
+    client = KrogerClient(CLIENT_ID, SECRET, base_url=BASE)
+    try:
+        with pytest.raises(KrogerCartUnknown) as raised:
+            client.add_to_cart(TOKEN, ITEMS)
+        assert raised.value.__context__ is None
+    finally:
+        client.close()
+    assert events == ["sent", "cancelled", "closed"]

@@ -7,6 +7,7 @@ from typing import NoReturn
 
 import httpx
 
+from app.providers.http_client import build_http_client, request_bounded
 from app.providers.plaid_contract import SyncPage, parse_sync_page
 
 SANDBOX_BASE_URL = "https://sandbox.plaid.com"
@@ -14,7 +15,6 @@ SYNC_URL = "https://sandbox.plaid.com/transactions/sync"
 SYNC_COUNT = 500
 _MUTATION_CODE = "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION"
 _HISTORICAL_UPDATE_COMPLETE = "HISTORICAL_UPDATE_COMPLETE"
-_TIMEOUT = httpx.Timeout(20.0, connect=3.0, read=20.0, write=20.0, pool=3.0)
 
 
 class PlaidUnavailable(Exception):
@@ -53,6 +53,14 @@ def _parse_success(response: httpx.Response) -> SyncPage:
     except Exception:  # noqa: BLE001
         pass
     _reject_incomplete_update(payload)
+    if isinstance(payload, dict):
+        count = sum(
+            len(value)
+            for key in ("added", "modified", "removed")
+            if isinstance(value := payload.get(key), list)
+        )
+        if count > SYNC_COUNT:
+            return parse_sync_page(None)
     return parse_sync_page(payload)
 
 
@@ -84,13 +92,7 @@ class PlaidSandboxProvider:
         self._secret = _require_nonblank(secret, "secret")
         self._token_resolver = token_resolver
         if client is None:
-            self._client = httpx.Client(
-                base_url=SANDBOX_BASE_URL,
-                timeout=_TIMEOUT,
-                follow_redirects=False,
-                trust_env=False,
-                transport=httpx.HTTPTransport(retries=0, trust_env=False),
-            )
+            self._client = build_http_client(SANDBOX_BASE_URL)
             self._owns_client = True
         else:
             self._client = client
@@ -121,11 +123,11 @@ class PlaidSandboxProvider:
             payload["cursor"] = cursor
         response: httpx.Response | None = None
         try:
-            response = self._client.post(
+            response = request_bounded(
+                self._client,
+                "POST",
                 SYNC_URL,
                 json=payload,
-                follow_redirects=False,
-                timeout=_TIMEOUT,
             )
         except httpx.RequestError:
             pass
