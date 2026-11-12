@@ -10,7 +10,7 @@ import {
   type ProposalStatus,
 } from "../proposalApi";
 import type { PlanState } from "./planModel";
-import { INGREDIENTS, RECIPES } from "./prototypeData";
+import { INGREDIENTS, RECIPES, isKnownIngredient } from "./prototypeData";
 
 export const APPLIED_LINE = "Applied to your plan.";
 export const DISCARDED_LINE = "Discarded.";
@@ -73,7 +73,7 @@ export function describeChange(state: PlanState, preview: ProposalPreview): stri
     }
   }
   for (const id of state.pantry) {
-    if (Object.prototype.hasOwnProperty.call(INGREDIENTS, id) && !preview.pantry_ingredient_ids.includes(id)) {
+    if (isKnownIngredient(id) && !preview.pantry_ingredient_ids.includes(id)) {
       lines.push(`Remove ${INGREDIENTS[id].name} from your pantry`);
     }
   }

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { hasExactKeys, isRecord } from "../apiTypes";
 import type { KrogerStore } from "../chatTypes";
 import { KROGER_LOCATION_ID, isKrogerText, type KrogerStoreOption } from "../krogerApi";
 
@@ -12,13 +13,10 @@ function readStore(): KrogerStore | null {
       return null;
     }
     const value: unknown = JSON.parse(raw);
-    if (
-      typeof value !== "object" || value === null || Array.isArray(value) ||
-      Object.keys(value).sort().join() !== "locationId,name"
-    ) {
+    if (!isRecord(value) || !hasExactKeys(value, ["locationId", "name"])) {
       return null;
     }
-    const { locationId, name } = value as Record<string, unknown>;
+    const { locationId, name } = value;
     return typeof locationId === "string" && KROGER_LOCATION_ID.test(locationId) && isKrogerText(name)
       ? { locationId, name }
       : null;

@@ -2,7 +2,7 @@ import type { ChatBudget } from "../chatConversationModel";
 import type { ChatJob, KrogerQuote } from "../chatTypes";
 import { formatDollars } from "../money";
 import type { PlanState } from "./planModel";
-import { INGREDIENTS, INITIAL_SERVINGS, RECIPES, isKnownRecipe } from "./prototypeData";
+import { INGREDIENTS, INITIAL_SERVINGS, RECIPES, isKnownIngredient, isKnownRecipe } from "./prototypeData";
 
 export const MAX_IDEAS = 3;
 
@@ -54,7 +54,7 @@ export function planChatPrefix(state: PlanState): string {
           .map((meal) => `${RECIPES[meal.recipeId].name}, ${servingsText(meal.servings)}`)
           .join("; ");
   const pantry = state.pantry
-    .filter((id) => Object.prototype.hasOwnProperty.call(INGREDIENTS, id))
+    .filter((id) => isKnownIngredient(id))
     .map((id) => INGREDIENTS[id].name);
   const pantryText = pantry.length === 0 ? "none" : pantry.join(", ");
   return (
