@@ -809,6 +809,7 @@ def test_shared_transport_caps_decoded_bytes_and_closes_streams(
         ("gzip", gzip.compress(b"text")[:-1], False),
         ("br", b"unsupported", False),
     ],
+    ids=["read-error", "invalid-gzip", "truncated-gzip", "unsupported-encoding"],
 )
 def test_shared_transport_closes_streams_on_read_and_decode_errors(
     encoding: str, content: bytes, fail: bool
