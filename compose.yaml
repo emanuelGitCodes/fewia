@@ -2,6 +2,11 @@ x-backend: &backend
   build:
     context: .
     dockerfile: backend/Dockerfile
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp"]
   environment: &backend-environment
     DATABASE_URL: postgresql+psycopg://fewia:fewia@postgres:5432/fewia
 
