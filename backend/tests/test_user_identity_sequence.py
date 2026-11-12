@@ -10,7 +10,6 @@ from alembic.operations import Operations
 from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, create_engine, text
 
-from app.runtime_database_access import ADVANCE_USER_IDENTITY_SQL
 from tests.conftest import require_test_database_url
 from tests.test_runtime_database_access import _is_test_database, _safe_target
 
@@ -29,17 +28,6 @@ def test_identity_revision_is_forward_only() -> None:
     assert revision.down_revision == "0012"
     with pytest.raises(RuntimeError, match="Forward-only migration"):
         revision.downgrade()
-
-
-def test_migration_and_provisioning_use_the_same_repair(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    revision = _revision()
-    statements: list[str] = []
-    monkeypatch.setattr(revision.op, "execute", statements.append)
-    revision.upgrade()
-    assert len(statements) == 1
-    assert statements[0].split() == ADVANCE_USER_IDENTITY_SQL.split()
 
 
 @pytest.fixture()

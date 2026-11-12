@@ -33,6 +33,7 @@ _TABLE_GRANTS: dict[str, frozenset[str]] = {
     "kroger_customer_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "kroger_owners": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "security_intents": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "quota_counters": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "plaid_items": frozenset({"SELECT"}),
     "plaid_transactions": frozenset({"SELECT"}),
     "daily_finance": frozenset(),
@@ -109,6 +110,7 @@ def test_runtime_grants_are_exact_and_immutable() -> None:
         "kroger_customer_tokens": "SELECT, INSERT, UPDATE, DELETE",
         "kroger_owners": "SELECT, INSERT, UPDATE, DELETE",
         "security_intents": "SELECT, INSERT, UPDATE, DELETE",
+        "quota_counters": "SELECT, INSERT, UPDATE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
@@ -368,6 +370,18 @@ def test_postgres_policy_queries_do_not_change_role_or_acls(
     assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (False,)
     assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (False,)
     assert _snapshot(runtime) == before
+
+
+@pytest.mark.parametrize("recipient", ["fewia_app", "PUBLIC"])
+def test_postgres_quota_delete_privilege_is_unsafe(
+    runtime: PgConnection, recipient: str
+) -> None:
+    runtime.execute(
+        sql.SQL("GRANT DELETE ON public.quota_counters TO {}").format(
+            sql.SQL(recipient)
+        )
+    )
+    assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (True,)
 
 
 @pytest.mark.parametrize("privilege", ["CREATE", "TEMPORARY"])

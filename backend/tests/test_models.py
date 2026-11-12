@@ -30,6 +30,7 @@ EXPECTED_TABLES = {
     kroger_models.KrogerCustomerToken.__tablename__,
     security_models.KrogerOwner.__tablename__,
     security_models.SecurityIntent.__tablename__,
+    security_models.QuotaCounter.__tablename__,
 }
 
 
@@ -97,3 +98,41 @@ def test_kroger_customer_tokens_hold_ciphertext_for_one_user() -> None:
         assert isinstance(table.c[name].type, LargeBinary)
         assert table.c[name].nullable is False
     assert table.c.access_expires_at.nullable is False
+
+
+def test_quota_counters_hold_only_bounded_counter_metadata() -> None:
+    table = security_models.QuotaCounter.__table__
+    assert set(table.c.keys()) == {
+        "action",
+        "scope",
+        "scope_key",
+        "minute_start",
+        "count",
+        "expires_at",
+    }
+    assert [column.name for column in table.primary_key.columns] == [
+        "action",
+        "scope",
+        "scope_key",
+        "minute_start",
+    ]
+    assert all(not column.nullable for column in table.c)
+    assert table.c.count.default is not None
+    assert table.c.count.default.arg == 1
+    assert table.c.count.server_default is not None
+    assert str(table.c.count.server_default.arg) == "1"
+    checks = {
+        constraint.name: str(constraint.sqltext)
+        for constraint in table.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    assert checks["ck_quota_counters_count_positive"] == "count > 0"
+    assert checks["ck_quota_counters_expiry"] == "expires_at > minute_start"
+    assert checks["ck_quota_counters_action_scope_key"] == (
+        "(action = 'mutation' AND scope = 'user' AND scope_key > 0) OR "
+        "(action = 'retailer' AND ((scope = 'global' AND scope_key = 0) OR "
+        "(scope = 'user' AND scope_key > 0)))"
+    )
+    assert {index.name: list(index.columns.keys()) for index in table.indexes} == {
+        "ix_quota_counters_expires_at": ["expires_at"]
+    }

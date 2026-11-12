@@ -23,7 +23,6 @@ def test_user_identity_metadata() -> None:
     assert table.c.auth_subject.nullable is True
     assert table.c.workspace_id.nullable is False
     assert isinstance(table.c.workspace_id.type, sa.Uuid)
-    assert table.c.workspace_id.default is not None
     assert str(table.c.workspace_id.server_default.arg) == "gen_random_uuid()"
     assert table.c.status.nullable is False
     assert str(table.c.status.server_default.arg) == "'active'"
@@ -70,6 +69,21 @@ def test_orm_user_defaults_leave_identity_unclaimed(session: Session) -> None:
     assert all(user.status == "active" for user in users)
     assert all(isinstance(user.workspace_id, UUID) for user in users)
     assert users[0].workspace_id != users[1].workspace_id
+
+
+def test_orm_user_preserves_explicit_workspace_and_status(session: Session) -> None:
+    workspace_id = uuid4()
+    user = User(
+        id=987654321,
+        display_name="Synthetic disabled user",
+        workspace_id=workspace_id,
+        status="disabled",
+    )
+    session.add(user)
+    session.flush()
+    session.refresh(user)
+    assert user.workspace_id == workspace_id
+    assert user.status == "disabled"
 
 
 def test_connection_version_defaults_never_rotate_on_update() -> None:

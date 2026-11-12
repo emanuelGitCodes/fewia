@@ -1,4 +1,4 @@
-"""Ownership generations and hashed security intents."""
+"""Ownership generations, hashed security intents, and quota counters."""
 
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -85,4 +85,39 @@ class SecurityIntent(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+class QuotaCounter(Base):
+    """Count admitted actions within one UTC minute."""
+
+    __tablename__ = "quota_counters"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint(
+            "action", "scope", "scope_key", "minute_start", name="pk_quota_counters"
+        ),
+        sa.CheckConstraint(
+            "(action = 'mutation' AND scope = 'user' AND scope_key > 0) OR "
+            "(action = 'retailer' AND ((scope = 'global' AND scope_key = 0) OR "
+            "(scope = 'user' AND scope_key > 0)))",
+            name="ck_quota_counters_action_scope_key",
+        ),
+        sa.CheckConstraint("count > 0", name="ck_quota_counters_count_positive"),
+        sa.CheckConstraint(
+            "expires_at > minute_start", name="ck_quota_counters_expiry"
+        ),
+        sa.Index("ix_quota_counters_expires_at", "expires_at"),
+    )
+
+    action: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    scope: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    scope_key: Mapped[int] = mapped_column(sa.BigInteger, nullable=False)
+    minute_start: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False
+    )
+    count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=1, server_default=sa.text("1")
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False
     )

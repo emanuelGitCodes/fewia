@@ -10,9 +10,12 @@ from uuid import UUID
 import psycopg
 import pytest
 from psycopg import sql
+from sqlalchemy import Connection, create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
+from sqlalchemy.orm import Session
 
+from app.models import User
 from app.runtime_database_access import (
     ADVANCE_USER_IDENTITY_SQL,
     RuntimeDatabaseAccessError,
@@ -109,6 +112,15 @@ def test_provision_runtime_access_uses_fixed_role_and_grants(exists: bool) -> No
     ]
     assert executed[executed.index(UNSAFE_ACCESS_SQL) + 1 :] == expected_grants
     assert all(PASSWORD not in statement for statement in executed)
+    assert (
+        f'GRANT SELECT, INSERT, UPDATE ON TABLE "public"."quota_counters" TO {role}'
+    ) in executed
+    assert not any(
+        statement.startswith("GRANT")
+        and "quota_counters" in statement
+        and "DELETE" in statement
+        for statement in executed
+    )
     connection.transaction.assert_called_once_with()
     connection.transaction.return_value.__exit__.assert_called_once_with(
         None, None, None
@@ -406,69 +418,80 @@ def test_postgres_target_accepts_local_test_database(
 
 
 @pytest.fixture()
-def admin() -> Iterator[PgConnection]:
+def orm_connection() -> Iterator[Connection]:
     options = _safe_target(require_test_database_url())
-    with psycopg.connect(**options, autocommit=True) as connection:
-        assert connection.info.dbname == options["dbname"]
-        assert connection.execute(
-            "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
-        ).fetchone() == (True,), "runtime role tests require a disposable superuser"
-        assert connection.execute(
-            "SELECT datdba = (SELECT oid FROM pg_roles WHERE rolname = current_user) "
-            "FROM pg_database WHERE datname = current_database()"
-        ).fetchone() == (True,), "runtime role tests require the task database owner"
-        assert all(
-            _is_test_database(cast(str, row[0]))
-            for row in connection.execute(
-                "SELECT datname FROM pg_database WHERE datname NOT IN "
-                "('postgres', 'template0', 'template1')"
-            ).fetchall()
-        ), "runtime role tests require an isolated PostgreSQL server"
-        with connection.transaction():
-            connection.execute("SET LOCAL lock_timeout = '5s'")
-            connection.execute("SET LOCAL statement_timeout = '10s'")
-            connection.execute("SELECT pg_advisory_xact_lock(782346921)")
-            assert (
-                connection.execute(
-                    "SELECT 1 FROM pg_roles WHERE rolname = ANY(%s)",
-                    (list(_TEST_ROLES),),
-                ).fetchone()
-                is None
-            ), "runtime role tests require absent test roles"
-            original = _catalog(connection)
-            for table in _TABLE_GRANTS:
-                assert connection.execute(
-                    "SELECT to_regclass(%s)", ("public." + table,)
-                ).fetchone() != (None,), "runtime role tests require migrated tables"
-            assert connection.execute(
-                "SELECT count(*) FROM public.alembic_version"
-            ).fetchone() == (1,), "runtime role tests require a migration revision"
-            assert connection.execute(
-                "SELECT 1 FROM pg_trigger WHERE tgrelid = "
-                "'public.grocery_evidence'::regclass "
-                "AND tgname = 'fewia_grocery_evidence_immutable' AND tgenabled = 'O'"
-            ).fetchone() == (1,), "runtime role tests require the evidence trigger"
-            connection.execute(
-                sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(
-                    sql.Identifier(connection.info.dbname)
-                )
-            )
-            connection.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
-            connection.execute("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC")
-            connection.execute(
-                "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC"
-            )
-            try:
-                yield connection
-            finally:
-                raise psycopg.Rollback()
+    engine = create_engine(
+        "postgresql+psycopg://", connect_args=options, isolation_level="AUTOCOMMIT"
+    )
+    try:
+        with engine.connect() as connection:
+            yield connection
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture()
+def admin(orm_connection: Connection) -> Iterator[PgConnection]:
+    options = _safe_target(require_test_database_url())
+    connection = cast(PgConnection, orm_connection.connection.driver_connection)
+    assert connection.info.dbname == options["dbname"]
+    assert connection.execute(
+        "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
+    ).fetchone() == (True,), "runtime role tests require a disposable superuser"
+    assert connection.execute(
+        "SELECT datdba = (SELECT oid FROM pg_roles WHERE rolname = current_user) "
+        "FROM pg_database WHERE datname = current_database()"
+    ).fetchone() == (True,), "runtime role tests require the task database owner"
+    assert all(
+        _is_test_database(cast(str, row[0]))
+        for row in connection.execute(
+            "SELECT datname FROM pg_database WHERE datname NOT IN "
+            "('postgres', 'template0', 'template1')"
+        ).fetchall()
+    ), "runtime role tests require an isolated PostgreSQL server"
+    with connection.transaction():
+        connection.execute("SET LOCAL lock_timeout = '5s'")
+        connection.execute("SET LOCAL statement_timeout = '10s'")
+        connection.execute("SELECT pg_advisory_xact_lock(782346921)")
         assert (
             connection.execute(
-                "SELECT 1 FROM pg_roles WHERE rolname = ANY(%s)", (list(_TEST_ROLES),)
+                "SELECT 1 FROM pg_roles WHERE rolname = ANY(%s)",
+                (list(_TEST_ROLES),),
             ).fetchone()
             is None
-        ), "runtime role tests MUST roll back test roles"
-        assert _catalog(connection) == original
+        ), "runtime role tests require absent test roles"
+        original = _catalog(connection)
+        for table in _TABLE_GRANTS:
+            assert connection.execute(
+                "SELECT to_regclass(%s)", ("public." + table,)
+            ).fetchone() != (None,), "runtime role tests require migrated tables"
+        assert connection.execute(
+            "SELECT count(*) FROM public.alembic_version"
+        ).fetchone() == (1,), "runtime role tests require a migration revision"
+        assert connection.execute(
+            "SELECT 1 FROM pg_trigger WHERE tgrelid = "
+            "'public.grocery_evidence'::regclass "
+            "AND tgname = 'fewia_grocery_evidence_immutable' AND tgenabled = 'O'"
+        ).fetchone() == (1,), "runtime role tests require the evidence trigger"
+        connection.execute(
+            sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(
+                sql.Identifier(connection.info.dbname)
+            )
+        )
+        connection.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
+        connection.execute("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC")
+        connection.execute("REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC")
+        try:
+            yield connection
+        finally:
+            raise psycopg.Rollback()
+    assert (
+        connection.execute(
+            "SELECT 1 FROM pg_roles WHERE rolname = ANY(%s)", (list(_TEST_ROLES),)
+        ).fetchone()
+        is None
+    ), "runtime role tests MUST roll back test roles"
+    assert _catalog(connection) == original
 
 
 class RecordingConnection:
@@ -1073,6 +1096,39 @@ def test_postgres_runtime_jit_insert_preserves_existing_users(
     _assert_privileges(admin)
 
 
+def test_postgres_runtime_orm_insert_returns_server_defaults(
+    admin: PgConnection, orm_connection: Connection
+) -> None:
+    provision_runtime_access(admin, PASSWORD)
+    _assert_privileges(admin)
+    orm_connection.exec_driver_sql("SET LOCAL ROLE fewia_app")
+    try:
+        assert (
+            orm_connection.exec_driver_sql("SELECT current_user").scalar_one()
+            == RUNTIME_ROLE
+        )
+        with Session(
+            bind=orm_connection, join_transaction_mode="create_savepoint"
+        ) as session:
+            user = User(
+                display_name="Synthetic ORM user",
+                auth_issuer="https://issuer.example",
+                auth_subject="synthetic-orm-subject",
+            )
+            session.add(user)
+            session.flush()
+            assert isinstance(user.id, int) and user.id > 1
+            assert isinstance(user.workspace_id, UUID)
+            assert user.status == "active"
+            assert admin.execute(
+                "SELECT workspace_id, status FROM public.users WHERE id = %s",
+                (user.id,),
+            ).fetchone() == (user.workspace_id, user.status)
+    finally:
+        orm_connection.exec_driver_sql("RESET ROLE")
+    _assert_privileges(admin)
+
+
 def test_postgres_reprovision_repairs_later_explicit_user_ids(
     admin: PgConnection,
 ) -> None:
@@ -1131,6 +1187,36 @@ def test_postgres_runtime_security_records_support_lifecycle(
             )
         admin.execute("DELETE FROM security_intents WHERE id = %s", (intent[0],))
         admin.execute("DELETE FROM kroger_owners WHERE user_id = 987654321")
+        admin.execute("RESET ROLE")
+    _assert_privileges(admin)
+
+
+def test_postgres_runtime_quota_counters_allow_reservations_without_delete(
+    admin: PgConnection,
+) -> None:
+    provision_runtime_access(admin, PASSWORD)
+    with admin.transaction():
+        admin.execute("SET LOCAL ROLE fewia_app")
+        row = admin.execute(
+            "INSERT INTO quota_counters "
+            "(action, scope, scope_key, minute_start, expires_at) "
+            "VALUES ('mutation', 'user', 987654321, "
+            "date_trunc('minute', now()), "
+            "date_trunc('minute', now()) + interval '1 minute') RETURNING count"
+        ).fetchone()
+        assert row == (1,)
+        assert admin.execute(
+            "UPDATE quota_counters SET count = count + 1 "
+            "WHERE action = 'mutation' AND scope = 'user' "
+            "AND scope_key = 987654321 RETURNING count"
+        ).fetchone() == (2,)
+        assert admin.execute(
+            "SELECT count FROM quota_counters WHERE action = 'mutation' "
+            "AND scope = 'user' AND scope_key = 987654321"
+        ).fetchone() == (2,)
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            with admin.transaction():
+                admin.execute("DELETE FROM quota_counters")
         admin.execute("RESET ROLE")
     _assert_privileges(admin)
 

@@ -27,6 +27,7 @@ RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
         "kroger_customer_tokens": "SELECT, INSERT, UPDATE, DELETE",
         "kroger_owners": "SELECT, INSERT, UPDATE, DELETE",
         "security_intents": "SELECT, INSERT, UPDATE, DELETE",
+        "quota_counters": "SELECT, INSERT, UPDATE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
@@ -79,12 +80,14 @@ SELECT
                         'users', 'jobs', 'job_outbox', 'shopping_handoffs',
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
                         'kroger_customer_tokens', 'plaid_items',
-                        'plaid_transactions', 'kroger_owners', 'security_intents'
+                        'plaid_transactions', 'kroger_owners', 'security_intents',
+                        'quota_counters'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
-                        'kroger_customer_tokens', 'kroger_owners', 'security_intents'
+                        'kroger_customer_tokens', 'kroger_owners', 'security_intents',
+                        'quota_counters'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname = 'users'
                         AND NOT has_table_privilege('fewia_app', c.oid, 'INSERT')
@@ -103,7 +106,7 @@ SELECT
                     OR (p.priv = 'UPDATE' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
                         'plan_proposals', 'kroger_customer_tokens',
-                        'kroger_owners', 'security_intents'
+                        'kroger_owners', 'security_intents', 'quota_counters'
                     ))
                     OR (p.priv = 'DELETE' AND c.relname IN (
                         'kroger_customer_tokens', 'kroger_owners', 'security_intents'
