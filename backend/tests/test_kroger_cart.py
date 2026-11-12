@@ -1,15 +1,30 @@
 """Tests for matching plan grocery lines to Kroger products, using invented data."""
 
-from collections.abc import Sequence
+import threading
+import time
+from collections.abc import Callable, Sequence
+from typing import cast
 
 import httpx
 import pytest
 
 from app import kroger_cart
+from app.domain.curated_foods import ALL_INGREDIENTS
 from app.domain.plan_revision import PlanMeal, PlanSnapshot
-from app.kroger_cart import build_preview, grocery_ingredient_ids
+from app.kroger_cart import (
+    PREVIEW_WORKERS,
+    CartPreview,
+    build_preview,
+    grocery_ingredient_ids,
+)
 from app.providers import kroger
-from app.providers.kroger import KrogerClient, KrogerUnavailable
+from app.providers.kroger import (
+    KrogerClient,
+    KrogerProduct,
+    KrogerSearch,
+    KrogerUnavailable,
+    Source,
+)
 from app.services.kroger_overlay import kroger_search_term
 
 LOCATION = "01234567"
@@ -250,3 +265,263 @@ def test_preview_is_all_or_nothing_when_kroger_is_unavailable() -> None:
     catalog.fail_on = kroger_search_term("salsa")
     with pytest.raises(KrogerUnavailable):
         build_preview(_snapshot(), _client(catalog), LOCATION)
+
+
+IDS = list(ALL_INGREDIENTS)[:12]
+
+
+def _kp(upc: str | None, description: str, stock_level: str | None = None) -> object:
+    return KrogerProduct(
+        product_id=f"id-{description}",
+        upc=upc,
+        description=description,
+        brand=None,
+        size="1 lb",
+        sold_by=None,
+        regular_cents=None,
+        promo_cents=None,
+        stock_level=stock_level,
+    )
+
+
+class FakeClient:
+    """Count concurrent searches. Delays and errors are set per term."""
+
+    source: Source = "live"
+
+    def __init__(
+        self,
+        products: dict[str, list[object]] | None = None,
+        delays: dict[str, float] | None = None,
+        errors: dict[str, Exception] | None = None,
+    ) -> None:
+        self.products = products or {}
+        self.delays = delays or {}
+        self.errors = errors or {}
+        self.lock = threading.Lock()
+        self.current = 0
+        self.peak = 0
+        self.calls: list[str] = []
+
+    def search_products(
+        self, term: str, location_id: str, limit: int = 5
+    ) -> KrogerSearch:
+        with self.lock:
+            self.current += 1
+            self.peak = max(self.peak, self.current)
+            self.calls.append(term)
+        try:
+            time.sleep(self.delays.get(term, 0))
+            error = self.errors.get(term)
+            if error is not None:
+                raise error
+            found = cast(list[KrogerProduct], self.products.get(term, []))
+            return KrogerSearch(products=found, cache_control=None)
+        finally:
+            with self.lock:
+                self.current -= 1
+
+
+def _use_lines(
+    monkeypatch: pytest.MonkeyPatch,
+    ids: Sequence[str],
+    term_of: Callable[[str], str | None] = lambda i: f"term-{i}",
+) -> None:
+    monkeypatch.setattr(kroger_cart, "grocery_ingredient_ids", lambda s: list(ids))
+    monkeypatch.setattr(kroger_cart, "kroger_search_term", term_of)
+
+
+def _run(client: FakeClient) -> CartPreview:
+    return build_preview(_snapshot(), cast(KrogerClient, client), LOCATION)
+
+
+def _reference(client: FakeClient) -> CartPreview:
+    """Search in series, with no pool."""
+    items: list[kroger_cart.PreviewItem] = []
+    by_upc: dict[str, kroger_cart.PreviewItem] = {}
+    unmatched: list[kroger_cart.UnmatchedLine] = []
+    for ingredient_id in kroger_cart.grocery_ingredient_ids(_snapshot()):
+        name = ALL_INGREDIENTS[ingredient_id].name
+        term = kroger_cart.kroger_search_term(ingredient_id)
+        found = (
+            []
+            if term is None
+            else client.search_products(term, LOCATION, limit=5).products
+        )
+        product = next(
+            (
+                p
+                for p in found
+                if p.upc is not None
+                and p.upc.isdigit()
+                and 8 <= len(p.upc) <= 14
+                and p.stock_level != "TEMPORARILY_OUT_OF_STOCK"
+            ),
+            None,
+        )
+        if product is None or product.upc is None:
+            unmatched.append(
+                kroger_cart.UnmatchedLine(ingredient_id=ingredient_id, name=name)
+            )
+            continue
+        if product.upc in by_upc:
+            existing = by_upc[product.upc]
+            existing.quantity = min(existing.quantity + 1, kroger_cart.MAX_QUANTITY)
+            continue
+        item = kroger_cart.PreviewItem(
+            ingredient_id=ingredient_id,
+            name=name,
+            upc=product.upc,
+            description=product.description,
+            size=product.size,
+            quantity=1,
+        )
+        by_upc[product.upc] = item
+        items.append(item)
+    return CartPreview(items=items, unmatched=unmatched, source=client.source)
+
+
+def test_preview_runs_searches_in_parallel_within_the_worker_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_lines(monkeypatch, IDS)
+    client = FakeClient(delays={f"term-{i}": 0.05 for i in IDS})
+    start = time.perf_counter()
+    _run(client)
+    elapsed = time.perf_counter() - start
+    assert len(client.calls) == 12
+    assert 1 < client.peak <= PREVIEW_WORKERS
+    assert elapsed < 12 * 0.05 / 2
+
+
+def _term_map(overrides: dict[str, str]) -> Callable[[str], str | None]:
+    """Return a term function. An empty override means no term."""
+    return lambda i: overrides.get(i, f"term-{i}") or None
+
+
+def test_preview_equals_the_sequential_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sold_out = "TEMPORARILY_OUT_OF_STOCK"
+    a, b, c, d, e, f = IDS[:6]
+    plans: list[tuple[Sequence[str], dict[str, str], dict[str, list[object]]]] = [
+        (
+            [a, b, c, d, e, f],
+            {e: ""},
+            {
+                f"term-{a}": [
+                    _kp("11111111", "Sold Out", sold_out),
+                    _kp("22222222", "In Stock"),
+                ],
+                f"term-{b}": [_kp("33333333", "Shared")],
+                f"term-{c}": [_kp("33333333", "Shared Again")],
+                f"term-{d}": [_kp("22222222", "In Stock Again")],
+            },
+        ),
+        (
+            IDS,
+            {},
+            {f"term-{i}": [_kp("44444444", "Same")] for i in IDS},
+        ),
+        (
+            [a, b, c],
+            {b: f"term-{a}", c: f"term-{a}"},
+            {f"term-{a}": [_kp("55555555", "Duplicated term")]},
+        ),
+        ([a, b], {}, {}),
+    ]
+    for index, (ids, term_map, products) in enumerate(plans):
+        _use_lines(monkeypatch, ids, _term_map(term_map))
+        expected = _reference(FakeClient(products))
+        assert _run(FakeClient(products)) == expected
+        if index == 0:
+            assert expected.unmatched
+        if ids is IDS:
+            quantities = [i.quantity for i in expected.items]
+            assert quantities == [min(len(IDS), kroger_cart.MAX_QUANTITY)]
+
+
+def test_a_failed_search_raises_with_no_partial_and_cancels_the_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ids = IDS[:5]
+    _use_lines(monkeypatch, ids)
+    delays = {f"term-{i}": 0.3 for i in ids}
+    delays[f"term-{ids[1]}"] = 0.0
+    client = FakeClient(delays=delays, errors={f"term-{ids[1]}": KrogerUnavailable()})
+    with pytest.raises(KrogerUnavailable):
+        _run(client)
+    assert client.current == 0
+    assert f"term-{ids[4]}" not in client.calls
+    assert len(client.calls) < 5
+    seen = list(client.calls)
+    time.sleep(0.4)
+    assert client.calls == seen
+
+
+def test_two_failures_raise_the_earlier_line_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ids = IDS[:3]
+    _use_lines(monkeypatch, ids)
+    client = FakeClient(
+        delays={f"term-{ids[1]}": 0.2},
+        errors={
+            f"term-{ids[1]}": ValueError("earlier line"),
+            f"term-{ids[2]}": RuntimeError("later line"),
+        },
+    )
+    with pytest.raises(ValueError, match="earlier line"):
+        _run(client)
+    assert client.current == 0
+
+
+def test_a_duplicated_search_term_makes_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ids = IDS[:3]
+    _use_lines(monkeypatch, ids, lambda i: "other" if i == ids[2] else "same")
+    client = FakeClient({"same": [_kp("66666666", "Same Item")]})
+    preview = _run(client)
+    assert sorted(client.calls) == ["other", "same"]
+    assert [(i.ingredient_id, i.quantity) for i in preview.items] == [(ids[0], 2)]
+    assert [line.ingredient_id for line in preview.unmatched] == [ids[2]]
+
+
+def test_lines_without_a_term_make_no_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    ids = IDS[:6]
+    _use_lines(monkeypatch, ids, _term_map({i: "" for i in ids[1::2]}))
+    client = FakeClient()
+    preview = _run(client)
+    assert sorted(client.calls) == sorted(f"term-{i}" for i in ids[::2])
+    assert [line.ingredient_id for line in preview.unmatched] == ids
+
+    _use_lines(monkeypatch, ids, lambda i: None)
+    none_client = FakeClient()
+    _run(none_client)
+    assert none_client.calls == []
+
+
+def test_concurrent_previews_share_the_worker_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_lines(monkeypatch, IDS)
+    client = FakeClient(delays={f"term-{i}": 0.02 for i in IDS})
+    results: list[CartPreview] = []
+    errors: list[Exception] = []
+
+    def work() -> None:
+        try:
+            results.append(_run(client))
+        except Exception as error:  # noqa: BLE001
+            errors.append(error)
+
+    threads = [threading.Thread(target=work) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    assert len(results) == 2
+    assert len(client.calls) == 24
+    assert 1 <= client.peak <= PREVIEW_WORKERS
