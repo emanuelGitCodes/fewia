@@ -12,6 +12,28 @@ from app.runtime_database_policy import (
     validate_runtime_password,
 )
 
+ADVANCE_USER_IDENTITY_SQL: str = """
+DO $$
+DECLARE
+    user_sequence regclass;
+    sequence_value bigint;
+BEGIN
+    LOCK TABLE public.users IN SHARE ROW EXCLUSIVE MODE;
+    user_sequence := pg_get_serial_sequence('public.users', 'id')::regclass;
+    IF user_sequence IS NULL THEN
+        RAISE EXCEPTION 'users identity sequence is missing';
+    END IF;
+    EXECUTE format('SELECT last_value FROM %s', user_sequence)
+        INTO sequence_value;
+    PERFORM setval(
+        user_sequence,
+        GREATEST(1, (SELECT MAX(id) FROM public.users), sequence_value),
+        true
+    );
+END;
+$$;
+"""
+
 
 class RuntimeDatabaseAccessError(RuntimeError):
     """The application role cannot meet the access contract."""
@@ -79,6 +101,7 @@ def provision_runtime_access(
                 )
             if connection.execute(UNSAFE_ACCESS_SQL).fetchone() != (False,):
                 raise RuntimeDatabaseAccessError("runtime database access is unsafe")
+            connection.execute(ADVANCE_USER_IDENTITY_SQL)
             connection.execute(
                 sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(database, role)
             )

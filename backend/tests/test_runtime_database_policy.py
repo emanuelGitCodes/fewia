@@ -455,6 +455,32 @@ def test_postgres_sequence_access_is_unsafe(
     assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (True,)
 
 
+@pytest.mark.parametrize("privilege", ["USAGE", "SELECT", "UPDATE"])
+@pytest.mark.parametrize("recipient", ["PUBLIC", "fewia_app"])
+def test_postgres_users_identity_sequence_access_is_unsafe(
+    runtime: PgConnection, privilege: str, recipient: str
+) -> None:
+    sequence = runtime.execute(
+        "SELECT n.nspname, c.relname FROM pg_class c "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE c.oid = pg_get_serial_sequence('public.users', 'id')::regclass"
+    ).fetchone()
+    assert sequence is not None
+    assert isinstance(sequence[0], str) and isinstance(sequence[1], str)
+    assert runtime.execute(
+        "SELECT has_sequence_privilege('fewia_app', "
+        "pg_get_serial_sequence('public.users', 'id'), 'USAGE, SELECT, UPDATE')"
+    ).fetchone() == (False,)
+    runtime.execute(
+        sql.SQL("GRANT {} ON SEQUENCE {} TO {}").format(
+            sql.SQL(privilege),
+            sql.Identifier(sequence[0], sequence[1]),
+            sql.SQL(recipient),
+        )
+    )
+    assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (True,)
+
+
 @pytest.mark.parametrize(
     "grant",
     [

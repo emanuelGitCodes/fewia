@@ -14,6 +14,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
 from app.runtime_database_access import (
+    ADVANCE_USER_IDENTITY_SQL,
     RuntimeDatabaseAccessError,
     provision_runtime_access,
 )
@@ -94,6 +95,7 @@ def test_provision_runtime_access_uses_fixed_role_and_grants(exists: bool) -> No
         assert f"REVOKE ALL ON ALL {kind} IN SCHEMA public FROM {role}" in executed
     assert f'REVOKE ALL ("email") ON TABLE "public"."users" FROM {role}' in executed
     expected_grants = [
+        ADVANCE_USER_IDENTITY_SQL,
         f'GRANT CONNECT ON DATABASE "runtime_access_test" TO {role}',
         f"GRANT USAGE ON SCHEMA public TO {role}",
         *[
@@ -110,6 +112,42 @@ def test_provision_runtime_access_uses_fixed_role_and_grants(exists: bool) -> No
     connection.transaction.assert_called_once_with()
     connection.transaction.return_value.__exit__.assert_called_once_with(
         None, None, None
+    )
+
+
+def test_provision_repairs_identity_on_each_call_before_any_grant() -> None:
+    connection = make_connection(exists=True)
+    for _ in range(2):
+        connection.execute.reset_mock()
+        provision(connection)
+        executed = statements(connection)
+        repair = executed.index(ADVANCE_USER_IDENTITY_SQL)
+        assert executed.count(ADVANCE_USER_IDENTITY_SQL) == 1
+        assert executed.index(UNSAFE_ACCESS_SQL) < repair
+        assert all(
+            index > repair
+            for index, statement in enumerate(executed)
+            if statement.startswith("GRANT ")
+        )
+        assert not any("GRANT" in s and "SEQUENCE" in s for s in executed)
+
+
+def test_identity_repair_failure_rolls_back_without_grants() -> None:
+    connection = make_connection()
+    execute = connection.execute.side_effect
+
+    def fail_repair(query: str | sql.Composable) -> MagicMock:
+        if query == ADVANCE_USER_IDENTITY_SQL:
+            raise psycopg.OperationalError(PASSWORD)
+        return cast(MagicMock, execute(query))
+
+    connection.execute.side_effect = fail_repair
+    with pytest.raises(RuntimeDatabaseAccessError) as caught:
+        provision(connection)
+    _assert_static_error(caught.value)
+    assert not any(s.startswith("GRANT ") for s in statements(connection))
+    assert connection.transaction.return_value.__exit__.call_args.args[0] is (
+        psycopg.OperationalError
     )
 
 
@@ -982,10 +1020,26 @@ def test_postgres_runtime_forbidden_operations(
             admin.execute(statement)
 
 
+@pytest.mark.parametrize("sequence_ahead", [False, True])
+@pytest.mark.parametrize("is_called", [False, True])
 def test_postgres_runtime_jit_insert_preserves_existing_users(
-    admin: PgConnection,
+    admin: PgConnection, sequence_ahead: bool, is_called: bool
 ) -> None:
+    admin.execute(
+        "INSERT INTO users (id, display_name) "
+        "VALUES (1, 'Synthetic legacy user'), (987654321, 'Synthetic imported user') "
+        "ON CONFLICT (id) DO NOTHING"
+    )
+    admin.execute("ALTER TABLE public.users ALTER COLUMN id RESTART WITH 1")
+    sequence_value = 1000000000 if sequence_ahead else 1
+    admin.execute(
+        "SELECT setval(pg_get_serial_sequence('public.users', 'id'), %s, %s)",
+        (sequence_value, is_called),
+    )
+    maximum = admin.execute("SELECT MAX(id) FROM public.users").fetchone()
+    assert maximum is not None and isinstance(maximum[0], int)
     before = admin.execute("SELECT to_jsonb(u) FROM users u ORDER BY id").fetchall()
+    provision_runtime_access(admin, PASSWORD)
     provision_runtime_access(admin, PASSWORD)
     with admin.transaction():
         admin.execute("SET LOCAL ROLE fewia_app")
@@ -997,6 +1051,7 @@ def test_postgres_runtime_jit_insert_preserves_existing_users(
         ).fetchone()
         assert row is not None
         assert isinstance(row[0], int)
+        assert row[0] == max(1, maximum[0], sequence_value) + 1
         assert isinstance(row[1], UUID)
         assert row[2] == "active"
         anonymous = admin.execute(
@@ -1008,10 +1063,36 @@ def test_postgres_runtime_jit_insert_preserves_existing_users(
         assert anonymous[1] != row[1]
         assert anonymous[2:] == (None, None)
         admin.execute("RESET ROLE")
-    assert admin.execute(
-        "SELECT to_jsonb(u) FROM users u WHERE id NOT IN (%s, %s) ORDER BY id",
-        (row[0], anonymous[0]),
-    ).fetchall() == before
+    assert (
+        admin.execute(
+            "SELECT to_jsonb(u) FROM users u WHERE id NOT IN (%s, %s) ORDER BY id",
+            (row[0], anonymous[0]),
+        ).fetchall()
+        == before
+    )
+    _assert_privileges(admin)
+
+
+def test_postgres_reprovision_repairs_later_explicit_user_ids(
+    admin: PgConnection,
+) -> None:
+    provision_runtime_access(admin, PASSWORD)
+    admin.execute(
+        "INSERT INTO public.users (id, display_name) "
+        "VALUES (2000000000, 'Synthetic imported user')"
+    )
+    admin.execute("ALTER TABLE public.users ALTER COLUMN id RESTART WITH 1")
+    provision_runtime_access(admin, PASSWORD)
+    with admin.transaction():
+        admin.execute("SET LOCAL ROLE fewia_app")
+        generated = admin.execute(
+            "INSERT INTO public.users (display_name, auth_issuer, auth_subject) "
+            "VALUES ('Synthetic JIT user', 'https://issuer.example', 'later-import') "
+            "RETURNING id"
+        ).fetchone()
+        assert generated is not None and isinstance(generated[0], int)
+        assert generated[0] > 2000000000
+        admin.execute("RESET ROLE")
     _assert_privileges(admin)
 
 
