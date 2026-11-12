@@ -1,6 +1,6 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
-COPY --from=ghcr.io/astral-sh/uv:0.8.20 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.8.20@sha256:4e3bde91035d8d11cc1d5e4d1c273b895bb293575b8d23c3e5c6058eed2f1bb9 /uv /usr/local/bin/uv
 
 WORKDIR /app
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
