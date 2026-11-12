@@ -1,6 +1,7 @@
 """Load stored chat context for a follow-up job."""
 
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import NoReturn, cast
 from uuid import UUID
 
@@ -21,8 +22,19 @@ _USER = "user"
 _ASSISTANT = "assistant"
 
 
+ChatContext = tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None]
+
+
 class ChatContextUnavailable(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class PreviousState:
+    context: ChatContext
+    search: dict[str, object] | None
+    exhausted_search: dict[str, object] | None
+    what_if_recipe: str | None
 
 
 def _fail() -> NoReturn:
@@ -152,23 +164,15 @@ def _search_state(
     return deepcopy(search), deepcopy(exhausted)
 
 
-def load_previous_search_state(
-    session: Session,
-    user_id: int,
-    previous_job_id: str | UUID | None,
+def _search_from_job(
+    job: Job | None,
 ) -> tuple[dict[str, object] | None, dict[str, object] | None]:
-    job = _previous_job(session, user_id, previous_job_id)
     if job is None:
         return None, None
     return _search_state(_mapping(job.result))
 
 
-def load_previous_what_if(
-    session: Session,
-    user_id: int,
-    previous_job_id: str | UUID | None,
-) -> str | None:
-    job = _previous_job(session, user_id, previous_job_id)
+def _what_if_from_job(job: Job | None) -> str | None:
     if job is None:
         return None
     previous = _mapping(job.payload).get("previous_what_if_recipe")
@@ -177,12 +181,7 @@ def load_previous_what_if(
     )
 
 
-def load_chat_context(
-    session: Session,
-    user_id: int,
-    previous_job_id: str | UUID | None,
-) -> tuple[list[dict[str, str]], dict[str, object] | None, list[str] | None]:
-    job = _previous_job(session, user_id, previous_job_id)
+def _context_from_job(job: Job | None) -> ChatContext:
     if job is None:
         return [], None, None
     payload = _mapping(job.payload)
@@ -194,3 +193,43 @@ def load_chat_context(
     if "operation" in payload:
         _fail()
     return [], _previous_request(result, payload, chat=False), ingredient_ids
+
+
+def load_previous_search_state(
+    session: Session,
+    user_id: int,
+    previous_job_id: str | UUID | None,
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+    return _search_from_job(_previous_job(session, user_id, previous_job_id))
+
+
+def load_previous_what_if(
+    session: Session,
+    user_id: int,
+    previous_job_id: str | UUID | None,
+) -> str | None:
+    return _what_if_from_job(_previous_job(session, user_id, previous_job_id))
+
+
+def load_chat_context(
+    session: Session,
+    user_id: int,
+    previous_job_id: str | UUID | None,
+) -> ChatContext:
+    return _context_from_job(_previous_job(session, user_id, previous_job_id))
+
+
+def load_previous_state(
+    session: Session,
+    user_id: int,
+    previous_job_id: str | UUID | None,
+) -> PreviousState:
+    job = _previous_job(session, user_id, previous_job_id)
+    context = _context_from_job(job)
+    search, exhausted_search = _search_from_job(job)
+    return PreviousState(
+        context=context,
+        search=search,
+        exhausted_search=exhausted_search,
+        what_if_recipe=_what_if_from_job(job),
+    )
