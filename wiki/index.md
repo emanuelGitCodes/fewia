@@ -36,6 +36,7 @@ chronological record lives in [log.md](log.md).
 - [0028 — The OpenAI key goes in `.env`](decisions/0028-openai-key-in-env.md)
 - [0029 — `make up` starts Kroger in fixture mode](decisions/0029-kroger-fixture-mode-default.md)
 - [0030 — One compose file, and the stack runs Luna only](decisions/0030-one-compose-file-luna-only.md)
+- [0031 — Security hardening and hosted accounts](decisions/0031-security-hardening-and-hosted-accounts.md)
 
 ## Phases
 
