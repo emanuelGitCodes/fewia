@@ -1,6 +1,7 @@
 from datetime import date
 from typing import TypeGuard, cast, get_args
 
+from app.agent.money_text import format_usd as _usd
 from app.domain.budget import STALE_SPENDING_WARNING, BudgetResult, SpendingSource
 
 TOOL_NAME = "get_budget_summary"
@@ -41,12 +42,6 @@ def budget_tool_spec() -> dict[str, object]:
 
 def _exact_int(value: object) -> TypeGuard[int]:
     return type(value) is int
-
-
-def _usd(cents: int) -> str:
-    sign = "-" if cents < 0 else ""
-    magnitude = -cents if cents < 0 else cents
-    return f"USD {sign}${magnitude // 100}.{magnitude % 100:02d}"
 
 
 def _warnings_output(stale: bool) -> list[str]:
