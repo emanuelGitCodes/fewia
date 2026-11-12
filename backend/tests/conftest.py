@@ -85,7 +85,7 @@ def _plugin_names(statement: ast.stmt) -> set[str]:
     }
 
 
-def test_module_dependencies(source: str) -> frozenset[str]:
+def module_dependencies(source: str) -> frozenset[str]:
     """Give the last dotted part of every module, name, and plugin source loads."""
     try:
         tree = ast.parse(source)
@@ -111,7 +111,7 @@ def database_modules(sources: Mapping[str, str]) -> frozenset[str]:
     through other modules, on one that does. Stems in NO_DATABASE_MODULES stay out.
     """
     dependencies = {
-        stem: test_module_dependencies(source) for stem, source in sources.items()
+        stem: module_dependencies(source) for stem, source in sources.items()
     }
     members = {
         stem
@@ -147,12 +147,24 @@ def mark_database_items(
             item.add_marker(pytest.mark.xdist_group(DATABASE_XDIST_GROUP))
 
 
+def _runs_distributed(config: pytest.Config) -> bool:
+    """Tell whether this process is an xdist worker or the xdist controller."""
+    if hasattr(config, "workerinput"):
+        return True
+    return bool(config.getoption("numprocesses", None))
+
+
 @pytest.hookimpl(tryfirst=True)
-def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
     """Keep every test that uses the shared PostgreSQL on one xdist worker.
 
     Runs first so the marker exists when xdist appends the group to node ids.
+    One process has no groups to keep, so it reads no test file.
     """
+    if not _runs_distributed(config):
+        return
     mark_database_items(items, _read_test_sources())
 
 

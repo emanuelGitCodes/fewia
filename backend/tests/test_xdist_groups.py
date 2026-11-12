@@ -10,16 +10,18 @@ import tomllib
 from pathlib import Path
 from typing import cast
 
+import conftest
 import pytest
 from conftest import (
     DATABASE_XDIST_GROUP,
     NO_DATABASE_MODULES,
+    _runs_distributed,
     database_modules,
     mark_database_items,
+    module_dependencies,
     pytest_collection_modifyitems,
     uses_test_database,
 )
-from conftest import test_module_dependencies as module_dependencies
 
 HELPER_NAME = "require_test_" + "database_url"
 URL_NAME = "FEWIA_JOB_TEST_" + "DATABASE_URL"
@@ -49,6 +51,24 @@ class StubItem:
 
     def add_marker(self, marker: pytest.MarkDecorator) -> None:
         self.markers.append(marker)
+
+
+class StubConfig:
+    """Answer the two questions `_runs_distributed` asks of a pytest config."""
+
+    def __init__(
+        self, options: dict[str, object] | None = None, *, worker: bool = False
+    ) -> None:
+        self.options = options or {}
+        if worker:
+            self.workerinput = {"workerid": "gw0"}
+
+    def getoption(self, name: str, default: object = None) -> object:
+        return self.options.get(name, default)
+
+
+def as_config(stub: StubConfig) -> pytest.Config:
+    return cast(pytest.Config, stub)
 
 
 def group_names(item: pytest.Item) -> list[object]:
@@ -228,6 +248,9 @@ def test_real_items_from_the_modules_the_text_rule_missed_carry_the_group(
     request: pytest.FixtureRequest,
 ) -> None:
     items = request.session.items
+    if not _runs_distributed(request.config):
+        assert all(not group_names(item) for item in items)
+        return
     missed = [item for item in items if item.path.stem in MISSED_BY_TEXT_RULE]
     if not missed:
         pytest.skip("None of the modules the text rule missed is collected.")
@@ -240,9 +263,11 @@ def test_collected_items_carry_the_group_only_when_the_module_reaches_a_database
 ) -> None:
     items = request.session.items
     assert items
+    distributed = _runs_distributed(request.config)
     members = database_modules(real_sources())
     for item in items:
-        expected = [DATABASE_XDIST_GROUP] if item.path.stem in members else []
+        grouped = distributed and item.path.stem in members
+        expected = [DATABASE_XDIST_GROUP] if grouped else []
         assert group_names(item) == expected, item.nodeid
 
 
@@ -308,11 +333,82 @@ def test_hook_reads_each_test_module_in_the_directory_once(
     monkeypatch.setattr(Path, "read_text", counting_read_text)
     items = [StubItem(Path("test_plain.py")) for _ in range(3)]
 
-    pytest_collection_modifyitems(cast(list[pytest.Item], items))
+    pytest_collection_modifyitems(
+        as_config(StubConfig(worker=True)), cast(list[pytest.Item], items)
+    )
 
     test_modules = sorted(TESTS_DIR.glob("test_*.py"))
     assert sorted(path for path in reads if path.parent == TESTS_DIR) == test_modules
     assert all(not item.markers for item in items)
+
+
+def test_runs_distributed_is_true_on_an_xdist_worker() -> None:
+    assert _runs_distributed(as_config(StubConfig(worker=True)))
+
+
+def test_runs_distributed_is_true_on_the_xdist_controller() -> None:
+    assert _runs_distributed(as_config(StubConfig({"numprocesses": 4})))
+
+
+@pytest.mark.parametrize("numprocesses", [0, None])
+def test_runs_distributed_is_false_on_one_process(numprocesses: int | None) -> None:
+    config = StubConfig({"numprocesses": numprocesses})
+
+    assert not _runs_distributed(as_config(config))
+
+
+def test_runs_distributed_is_false_when_xdist_is_not_installed() -> None:
+    assert not _runs_distributed(as_config(StubConfig()))
+
+
+def test_hook_reads_no_file_and_marks_no_item_on_one_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reads: list[object] = []
+
+    def recording_read() -> dict[str, str]:
+        reads.append(None)
+        return {"test_with_database": f"url = {HELPER_NAME}()\n"}
+
+    monkeypatch.setattr(conftest, "_read_test_sources", recording_read)
+    items = [StubItem(Path("test_with_database.py")) for _ in range(2)]
+
+    pytest_collection_modifyitems(
+        as_config(StubConfig({"numprocesses": 0})), cast(list[pytest.Item], items)
+    )
+
+    assert reads == []
+    assert all(not item.markers for item in items)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [StubConfig(worker=True), StubConfig({"numprocesses": 4})],
+    ids=["worker", "controller"],
+)
+def test_hook_marks_the_items_of_a_database_module_when_distributed(
+    monkeypatch: pytest.MonkeyPatch, config: StubConfig
+) -> None:
+    monkeypatch.setattr(
+        conftest,
+        "_read_test_sources",
+        lambda: {
+            "test_with_database": f"url = {HELPER_NAME}()\n",
+            "test_plain": "x = 1\n",
+        },
+    )
+    database_items = [StubItem(Path("test_with_database.py")) for _ in range(2)]
+    plain_item = StubItem(Path("test_plain.py"))
+
+    pytest_collection_modifyitems(
+        as_config(config), cast(list[pytest.Item], [*database_items, plain_item])
+    )
+
+    for item in database_items:
+        assert [marker.mark.args for marker in item.markers] == [
+            (DATABASE_XDIST_GROUP,)
+        ]
+    assert plain_item.markers == []
 
 
 def test_unstable_gzip_id_matches_a_gzip_id_with_a_nonzero_mtime() -> None:
@@ -341,8 +437,8 @@ def test_collected_ids_do_not_carry_a_gzip_timestamp(
         assert not UNSTABLE_GZIP_ID.search(item.nodeid), item.nodeid
 
 
-def test_pytest_addopts_runs_workers_with_loadgroup() -> None:
+def test_pytest_addopts_sets_loadgroup_and_starts_no_workers() -> None:
     config = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     addopts = config["tool"]["pytest"]["ini_options"]["addopts"]
-    assert "-n 4" in addopts
-    assert "--dist loadgroup" in addopts
+    assert addopts == "--dist loadgroup"
+    assert "-n" not in addopts

@@ -30,7 +30,7 @@ package = false
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-n 4 --dist loadgroup"
+addopts = "--dist loadgroup"
 
 [tool.ruff]
 line-length = 88
