@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from app.agent.chat_answer import _usd
+from app.agent.money_text import format_usd as _usd
 from app.agent.plan_tools import GET_PLAN_TOOL
 from app.agent.read_answers import read_tool_answer
 from app.domain.budget import STALE_SPENDING_WARNING

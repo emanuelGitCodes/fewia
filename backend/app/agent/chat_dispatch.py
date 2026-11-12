@@ -19,6 +19,7 @@ from app.agent.ingredient_tool import (
     IngredientToolError,
     execute_ingredient_facts,
 )
+from app.agent.money_text import format_usd
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -71,11 +72,7 @@ def _revision_index(trace: list[dict[str, object]]) -> int:
 def _usd_cents_display(cents: object) -> str | None:
     if type(cents) is not int:
         return None
-    sign = "-" if cents < 0 else ""
-    magnitude = -cents if cents < 0 else cents
-    dollars = magnitude // 100
-    fraction = magnitude % 100
-    return f"USD {sign}${dollars}.{fraction:02d}"
+    return format_usd(cents)
 
 
 def _money_display(payload: dict[str, object]) -> dict[str, str]:

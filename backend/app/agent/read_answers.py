@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 
-from app.agent.chat_answer import _usd
 from app.agent.ingredient_tool import INGREDIENT_TOOL
+from app.agent.money_text import format_usd as _usd
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
 from app.agent.price_tool import PRICE_TOOL
 from app.agent.price_tool import meal_name as _meal
