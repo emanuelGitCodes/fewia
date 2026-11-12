@@ -19,6 +19,7 @@ from app.services.chat_history import (
     ChatContextUnavailable,
     load_chat_context,
     load_previous_search_state,
+    load_previous_state,
     load_previous_what_if,
 )
 from tests.test_chat_loop import (
@@ -1115,3 +1116,77 @@ def test_previous_plan_ingredient_ids(
     assert ids == ["eggs", "tortillas"]
     assert job.result == before
     assert SECRET not in str(loaded)
+
+
+def test_previous_state_equals_the_three_loaders(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    exhausted = terminal_search({"query": "vegetarian"})
+    jobs = [
+        add_job(session, user_id=1, payload=chat_payload(), result=_search_result()),
+        add_job(
+            session,
+            user_id=1,
+            payload=chat_payload(),
+            result={"answer": "Done.", "exhausted_search": exhausted},
+        ),
+        add_job(
+            session,
+            user_id=1,
+            payload=chat_payload(),
+            result=_what_if_result("swapped"),
+        ),
+        add_job(
+            session,
+            user_id=1,
+            payload=plan_payload(),
+            result={"answer": "Plan.", "request": request_body()},
+        ),
+    ]
+    for previous_job_id in [None, *[job.id for job in jobs]]:
+        state = load_previous_state(session, 1, previous_job_id)
+        assert state.context == load_chat_context(session, 1, previous_job_id)
+        assert (state.search, state.exhausted_search) == load_previous_search_state(
+            session, 1, previous_job_id
+        )
+        assert state.what_if_recipe == load_previous_what_if(
+            session, 1, previous_job_id
+        )
+    assert load_previous_state(session, 1, jobs[0].id).search is not None
+    assert load_previous_state(session, 1, jobs[1].id).exhausted_search == exhausted
+    assert (
+        load_previous_state(session, 1, jobs[2].id).what_if_recipe
+        == "baked_potatoes_with_beans"
+    )
+    assert load_previous_state(session, 1, jobs[3].id).context[0] == []
+
+
+def test_previous_state_rejects_what_the_three_loaders_reject(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    seed_user(1)
+    exhausted = terminal_search({"query": "vegetarian"})
+    queued = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(),
+        result=_search_result(),
+        status="queued",
+    )
+    both = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(),
+        result=_search_result(exhausted_search=exhausted),
+    )
+    other_operation = add_job(
+        session,
+        user_id=1,
+        payload=chat_payload(operation="other"),
+        result={"answer": "Done."},
+    )
+    for previous_job_id in (uuid4(), queued.id, both.id, other_operation.id):
+        with pytest.raises(ChatContextUnavailable) as caught:
+            load_previous_state(session, 1, previous_job_id)
+        assert_static(caught.value)
