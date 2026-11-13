@@ -1,20 +1,20 @@
 # Security hardening handoff
 
-Date: 2026-11-12. Branch: `codex/security-hardening`. Base: `cad31e86`.
-Source snapshot: `94a5ec3fa04e0bdc0485a62858d0538dc5d2855f`.
+Date: 2026-11-13. Branch: `codex/security-hardening`. Base: `cad31e86`.
+Source snapshot before this record: `abd701cc`.
 
 ## Status
 
-The owner requested a usage cutoff and one pull request containing the saved work.
-Implementation stopped. All workstream changes are committed on the final branch.
-The source snapshot changes 236 files, with 30,404 additions and 2,594 deletions, including tests and documentation.
+The owner resumed work with 15 additional weekly percentage points from the original 21% baseline.
+The cutoff is 36%. The latest observed meter was 34% before final verification.
+All workstream changes are committed on the final branch. No further implementation is planned for this checkpoint.
 The owner approved the size exception in [decision 0031](decisions/0031-security-hardening-and-hosted-accounts.md).
 
 Publication is pending. The repository hook rejected the push from Codex.
 Its reason was: "Codex hooks cannot ask: give the command to the user to run."
 No pull request or merge exists at this checkpoint. The target is one draft pull request against `main`.
 The draft MUST remain unmerged until the remaining checks pass.
-The account meter reported 21% usage in a 10,080-minute weekly window. It exposed no daily window or task-specific usage.
+The account meter exposes a 10,080-minute weekly window, with no daily window or task-specific usage.
 
 ## Saved implementation
 
@@ -49,23 +49,54 @@ This list describes committed code. It does not establish deployed security or f
 | Dependencies `5a7a2391` | npm and Python audits found no known vulnerabilities in the checked dependency sets. |
 | Security mutation probes | Signature, expiry, database grants, and HTTP body-cap mutations caused the expected test failures. |
 | Independent review | Terra approved HTTP snapshot `22d31250`. No review approved the final combined source snapshot. |
+| Resumed backend boundary review `e13c6ac1` | Terra returned APPROVE for inspected authentication, ownership, admission, effects, cost, and retention boundaries. This was not final release approval. |
+| Hosted sign-out `9223388c` | 1,906 hosting tests passed. Synthetic Chromium verified cookie deletion, protected API routes, and explicit sign-in at two viewport sizes. |
+| Combined gates `88d515b8` | RESULT PASS: 20,301 backend tests, 585 tooling tests, 1,906 hosting tests, frontend lint/tests/build, and Compose validation. Alembic found no drift. |
+| Frontend framework repair | All 1,265 tests passed, including the four Nginx assertions through Vitest. |
+| New mutation probes | Removing TCP readiness, required database settings, or the job-effect metadata guard caused the expected regression failures. |
 
-The earlier full-suite skip covered a PostgreSQL 17 privilege check on PostgreSQL 16.
-Earlier snapshots do not establish final acceptance. No live Cognito, Kroger, model, or AWS deployment check ran.
+The combined gate skipped the opt-in Compose credential rotation test and a PostgreSQL 17 privilege check on PostgreSQL 16.
+The separate synthetic credential-upgrade test passed earlier. Required PostgreSQL tests ran in the combined gate.
+The final committed root revision receives its own gate and Terra review records before publication handoff.
+Those records use the final SHA under `.fewia-supervisor-gates` and `.fewia-supervisor-reviews`; the PR states their actual results.
+No live Cognito, Kroger, model, or AWS deployment check ran.
 
 ## Release blockers
 
-1. Repair gates and CI setup for the new private local-state variables. The persistent helper change is absent.
-2. Complete `.agents/skills/gates/scripts/gates-with-db.sh --base main` on the final committed SHA, with database tests enabled.
-   Investigate the prior timeout before attributing it only to the environment.
-3. Complete independent Terra review of the combined boundaries and final SHA. Repeat regression and mutation probes after repairs.
-4. Resolve container findings and scan the exact release digests.
-   Local arm64 candidates reported 98 backend, 45 frontend-build, and 52 frontend-runtime HIGH/CRITICAL findings.
-   A Debian Trixie probe still reported 18 HIGH findings without listed fixes.
-   The amd64 emulated scan exceeded 15 minutes and stopped. No clean release scan exists.
-5. Verify hosted sign-out end to end. The Cognito logout allowlist still returns to `/`.
-   Confirm that ALB authentication does not immediately sign the user back in.
-6. Reconcile the operator guides with the new flows. Complete Floci smoke checks and integrated browser journeys.
+1. Resolve container findings and scan the exact release digests. No clean backend or toolchain release scan exists.
+2. Complete Linux amd64 release-image scans and the GitHub image workflow. Local native-arm64 evidence does not establish hosted-image acceptance.
+3. Complete live Cognito sign-out and account isolation checks, Floci smoke checks, and deployed browser journeys before hosted activation.
+4. Complete the exact final-head gates and independent review before marking the draft ready. The PR records those results separately.
+
+The resumed work repaired private Compose fixtures, TCP readiness, test failure diagnostics, metadata drift, legacy regression fixtures, and test discovery.
+Hosted logout now returns to an exact public `/signed-out` ALB fixed response. It forwards no request to the application.
+The operator guides now describe hosted accounts, credential migration, owner pairing, and signed confirmation.
+
+### Image evidence
+
+Trivy 0.76.2 used a database updated at `2026-11-13T07:00:07Z`.
+The table counts unique HIGH/CRITICAL package-CVE pairs from retained native-arm64 reports.
+These are local candidate configuration digests, not hosted release attestations.
+
+| Candidate | Configuration digest | Findings |
+| --- | --- | --- |
+| Backend runtime | `sha256:6ba81ce8514e026602de92ba9049f68b114433a32fa2015b91e6658ef8e3732f` | 98; Debian reports no fixed versions. |
+| Frontend build before toolchain separation | `sha256:3404ff479421ef0027171369bb3667c56ab516978fc82abf5c36aa77a6c6d269` | 35; Debian reports no fixed versions. |
+| Frontend runtime candidate | `sha256:321c2bb1c073fe1329f479c4a31219e85955b59835715b6ea5ce341faa6f19c2` | 0. |
+| Final dedicated toolchain | `sha256:0ca36339d7a33a8a3fe454b753fff79c773e536195ab54c26d9b572e2c9f386c` | 44; Debian and bundled bootstrap npm remain visible. |
+
+The toolchain uses npm 12.2.2 with engine enforcement and preserves bundled npm for scanning.
+The coordinator verified that its Trivy image identity matches the archive configuration hash.
+Retained reports are in `/private/tmp/fewia-image-current-2026-11-13`.
+No vulnerability suppression was added. Hosted activation remains blocked.
+
+### Graphify
+
+The requested refresh updates the full supported corpus incrementally and preserves unchanged source references.
+The graph contains about 17,000 nodes. Local artifacts are in ignored `graphify-out/`.
+The report names the exact source SHA, manifest status, extraction coverage, and diagnostics.
+The detector skips `secrets.yml` and the RDS certificate bundle. The unchanged PDF retains prior records.
+Published graph endpoints resolve; self-loops and raw extraction limits remain explicit in the report.
 
 Deployment and live-provider validation remain separate release steps. This checkpoint grants no deployment approval.
 

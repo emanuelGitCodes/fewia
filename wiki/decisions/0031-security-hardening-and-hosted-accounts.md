@@ -1,8 +1,8 @@
 # 0031 — Security hardening and hosted accounts
 
 - Date: 2026-11-12.
-- Status: accepted; implementation paused at the owner's usage cutoff.
-  Publication and final verification remain pending. See the
+- Status: accepted; resumed implementation is saved. Hosted release remains
+  blocked by image findings. Publication and final-head verification use the
   [handoff](../security-hardening-handoff.md).
 - Amends: [0019](0019-invitation-only-hosting.md) and
   [0022](0022-grounded-model-prose.md).
