@@ -1009,10 +1009,21 @@ def test_prepared_response_closes_after_mapping(
     ("encoding", "content", "error"),
     [
         ("identity", b"x" * (1024 * 1024 + 1), http_client.ResponseTooLarge),
-        ("gzip", gzip.compress(b"x" * (1024 * 1024 + 1)), http_client.ResponseTooLarge),
+        (
+            "gzip",
+            gzip.compress(b"x" * (1024 * 1024 + 1), mtime=0),
+            http_client.ResponseTooLarge,
+        ),
         ("gzip", b"invalid gzip", httpx.DecodingError),
-        ("gzip", gzip.compress(b"ok")[:-1], httpx.DecodingError),
+        ("gzip", gzip.compress(b"ok", mtime=0)[:-1], httpx.DecodingError),
         ("br", b"unsupported", httpx.DecodingError),
+    ],
+    ids=[
+        "identity-oversize",
+        "gzip-oversize",
+        "invalid-gzip",
+        "truncated-gzip",
+        "unsupported-encoding",
     ],
 )
 def test_prepared_response_failures_close_streams(
