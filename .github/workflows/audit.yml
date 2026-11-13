@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   python:
     name: Python dependency audit
@@ -30,17 +34,17 @@ jobs:
 
       - name: Audit the backend dependencies
         run: |
-          uv export --frozen --no-hashes --project backend > req.txt
+          uv export --locked --no-hashes --project backend > req.txt
           uvx pip-audit==2.10.1 -r req.txt --strict --no-deps --disable-pip
 
       - name: Audit the Bedrock infrastructure dependencies
         run: |
-          uv export --frozen --no-hashes --project infra/bedrock > req.txt
+          uv export --locked --no-hashes --project infra/bedrock > req.txt
           uvx pip-audit==2.10.1 -r req.txt --strict --no-deps --disable-pip
 
       - name: Audit the hosting infrastructure dependencies
         run: |
-          uv export --frozen --no-hashes --project infra/hosting > req.txt
+          uv export --locked --no-hashes --project infra/hosting > req.txt
           uvx pip-audit==2.10.1 -r req.txt --strict --no-deps --disable-pip
 
   npm:
