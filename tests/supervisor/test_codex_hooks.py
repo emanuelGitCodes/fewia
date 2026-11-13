@@ -544,6 +544,7 @@ def test_publication_does_not_grant_other_external_writes(
         "--work-tree '/tmp/a b'",
         '--work-tree="/tmp/a b"',
         "--no-pager -C {checkout} -c key=value",
+        "--no-replace-objects",
     ],
 )
 def test_publication_global_options_preserve_record(
@@ -662,6 +663,93 @@ def test_guard_global_options_external_writes(
         host=host,
     )
     assert_permission(result, "deny" if host else "ask")
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "--no-replace-objects",
+        "--config-env core.pager=GIT_PAGER",
+        "--namespace='team space'",
+        "--future-global-option first second",
+    ],
+)
+@pytest.mark.parametrize(
+    "command",
+    ["push origin feature", "push --force origin HEAD:main", "merge codex/other"],
+)
+def test_guard_unfamiliar_global_options_deny_publication(
+    tmp_path: Path, host: str | None, prefix: str, command: str
+) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": f"git {prefix} {command}"}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "deny")
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "/usr/bin/git --no-replace-objects push origin feature",
+        "./git --future-global-option first second merge codex/other",
+        '"git" --no-replace-objects push>output',
+        "'git' --no-replace-objects merge<input",
+        "\"/usr/bin/git\" --no-replace-objects 'push'>output",
+        "'/opt/tool kit/git' --future-global-option first 'merge'",
+        '("/usr/bin/git" --no-replace-objects "merge")',
+        "(/usr/bin/git --no-replace-objects push)",
+        "\"git\" 'push' origin feature",
+        "'/usr/bin/git' merge codex/other",
+    ],
+)
+def test_guard_direct_git_executables_deny_publication(
+    tmp_path: Path, host: str | None, command: str
+) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "deny")
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git --no-replace-objects status",
+        "git --config-env=core.pager=GIT_PAGER log --oneline",
+        "git --namespace team diff",
+        "git --future-global-option log --grep='push merge'",
+        "git log --grep push",
+        "git show HEAD:merge",
+        "/usr/bin/git --no-replace-objects status",
+        './git --future-global-option log --grep="push merge"',
+        '"git" --no-replace-objects status>output',
+        "'git' --no-replace-objects diff<input",
+        '("/usr/bin/git" --no-replace-objects "status")',
+        "'/opt/tool kit/git' --no-replace-objects log --oneline",
+        '"git" log --grep push',
+        "/usr/bin/git-helper --no-replace-objects push",
+        "'/usr/bin/git-helper' --no-replace-objects merge",
+    ],
+)
+def test_guard_unfamiliar_global_options_allow_reads(
+    tmp_path: Path, host: str | None, command: str
+) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "allow")
 
 
 @pytest.mark.parametrize(

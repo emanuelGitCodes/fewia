@@ -57,4 +57,11 @@ if grep -Eq "${git_prefix}(push|merge)\\b|gh\\s+pr\\s+(create|merge|edit|close|r
   ask "External write. CLAUDE.md requires user confirmation for pushes, pull requests, and merges."
 fi
 
+# Match simple words after an option without assuming its name or value count.
+fallback_word="${argument}+"
+fallback_git="(([^[:space:]\"'\\\\;&|()<>]+/)?git|\"([^\"\\\\]*/)?git\"|'([^'\\\\]*/)?git')"
+fallback_prefix="(^|[[:space:];&|()<>])${fallback_git}[[:space:]]+(-${fallback_word}[[:space:]]+(${fallback_word}[[:space:]]+)*)?"
+grep -Eq "${fallback_prefix}(push|merge|\"(push|merge)\"|'(push|merge)')([[:space:];&|()<>]|$)" <<<"$cmd" \
+  && deny "Git push or merge with an unfamiliar prefix needs a separate user action."
+
 exit 0
