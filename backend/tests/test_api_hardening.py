@@ -14,6 +14,8 @@ from app.domain.grocery import GroceryRequest
 from app.domain.plan_proposal import ProposalDietaryConstraints
 from app.main import HostCheckMiddleware, allowed_hosts, create_app, host_name
 
+pytestmark = pytest.mark.usefixtures("local_demo_owner")
+
 DEFAULT_HOSTS = ["localhost", "127.0.0.1", "[::1]", "api"]
 REJECTED_HOST_BODY = {
     "error": {"code": "bad_request", "message": "The Host header is not allowed."}

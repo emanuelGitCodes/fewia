@@ -5,13 +5,13 @@ from http import HTTPStatus
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api.chat import router as chat_router
 from app.api.evidence import router as evidence_router
@@ -24,6 +24,7 @@ from app.api.sync import router as sync_router
 from app.auth import AuthSettings
 from app.deps import get_auth_settings, get_current_user
 from app.models import User
+from app.services.security_admission import AdmissionLimitError, OwnerUnavailableError
 
 _GROCERY_TEMPLATES_PATHS = frozenset(
     {"/grocery/templates", "/grocery/templates/", "/grocery/kroger/stores"}
@@ -151,6 +152,70 @@ class HostCheckMiddleware:
         await response(scope, receive, send)
 
 
+class BrowserPolicyMiddleware:
+    """Check unsafe browser requests and prevent grocery response caching."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_private(message: Message) -> None:
+            if message["type"] == "http.response.start" and (
+                scope["path"] == "/grocery" or scope["path"].startswith("/grocery/")
+            ):
+                message = dict(message)
+                message["headers"] = [
+                    (name, value)
+                    for name, value in message.get("headers", [])
+                    if name.lower() != b"cache-control"
+                ] + [(b"cache-control", b"private, no-store")]
+            await send(message)
+
+        if scope["method"] in {"POST", "PUT", "PATCH", "DELETE"}:
+            headers: dict[bytes, list[bytes]] = {}
+            for name, value in scope["headers"]:
+                headers.setdefault(name.lower(), []).append(value)
+            origins = headers.get(b"origin", [])
+            fetch_headers = {
+                name: values
+                for name, values in headers.items()
+                if name.startswith(b"sec-fetch-")
+            }
+            browser = bool(origins) or bool(fetch_headers)
+            if browser:
+                allowed_fetch = {
+                    b"sec-fetch-site": {b"same-origin", b"same-site", b"none"},
+                    b"sec-fetch-mode": {b"cors", b"same-origin"},
+                    b"sec-fetch-dest": {b"empty"},
+                }
+                try:
+                    origin = get_auth_settings().public_origin.encode("ascii")
+                except HTTPException as exc:
+                    response = await starlette_http_error_handler(Request(scope), exc)
+                    await response(scope, receive, send_private)
+                    return
+                if origins != [origin] or any(
+                    len(values) != 1 or values[0] not in allowed_fetch.get(name, set())
+                    for name, values in fetch_headers.items()
+                ):
+                    response = JSONResponse(
+                        status_code=403,
+                        content={
+                            "error": {
+                                "code": "forbidden",
+                                "message": "The browser request is not allowed.",
+                            }
+                        },
+                    )
+                    await response(scope, receive, send_private)
+                    return
+        await self.app(scope, receive, send_private)
+
+
 def _http_error_code(status_code: int) -> str:
     """Return a stable error code for an HTTP status."""
     try:
@@ -182,6 +247,7 @@ async def validation_error_handler(
     detail = (
         []
         if request.url.path in _GROCERY_TEMPLATES_PATHS
+        or request.url.path.startswith("/grocery/kroger/")
         else jsonable_encoder(exc.errors())
     )
     return JSONResponse(
@@ -191,6 +257,43 @@ async def validation_error_handler(
                 "code": "validation_error",
                 "message": "The request has invalid parameters.",
                 "detail": detail,
+            }
+        },
+    )
+
+
+async def admission_error_handler(
+    request: Request, exc: AdmissionLimitError | OwnerUnavailableError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        headers=(
+            {"Retry-After": str(exc.retry_after)}
+            if isinstance(exc, AdmissionLimitError)
+            else None
+        ),
+        content={
+            "error": {
+                "code": _http_error_code(exc.status_code),
+                "message": str(exc),
+            }
+        },
+    )
+
+
+async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    headers = (
+        {"Cache-Control": "private, no-store"}
+        if request.url.path == "/grocery" or request.url.path.startswith("/grocery/")
+        else None
+    )
+    return JSONResponse(
+        status_code=500,
+        headers=headers,
+        content={
+            "error": {
+                "code": "internal_server_error",
+                "message": "The server could not complete the request.",
             }
         },
     )
@@ -212,8 +315,12 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if docs_enabled else None,
     )
     application.add_middleware(HostCheckMiddleware, allowed_hosts=hosts)
+    application.add_middleware(BrowserPolicyMiddleware)
     application.exception_handler(StarletteHTTPException)(starlette_http_error_handler)
     application.exception_handler(RequestValidationError)(validation_error_handler)
+    application.exception_handler(AdmissionLimitError)(admission_error_handler)
+    application.exception_handler(OwnerUnavailableError)(admission_error_handler)
+    application.exception_handler(Exception)(internal_error_handler)
     application.add_api_route("/healthz", healthz, methods=["GET"])
     application.add_api_route("/grocery/session", grocery_session, methods=["GET"])
     application.add_api_route("/grocery/signout", grocery_signout, methods=["POST"])

@@ -16,8 +16,7 @@ from pydantic import (
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
-from app.demo import DEMO_USER_ID
-from app.deps import get_provider_settings, get_session
+from app.deps import get_current_user, get_provider_settings, get_session
 from app.domain.budget import (
     NEW_YORK,
     STALE_SPENDING_ERROR,
@@ -90,11 +89,12 @@ def suggest_plan_templates(
     body: SuggestTemplatesBody,
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[GroceryProviderSettings, Depends(get_provider_settings)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> TemplateSuggestionsResponse:
-    if session.get(User, DEMO_USER_ID) is None:
-        raise HTTPException(status_code=503, detail=grocery_api.DEMO_NOT_READY_MESSAGE)
     now = _ny_now()
-    spending = grocery_api.require_spending(session, settings.spending_source, now)
+    spending = grocery_api.require_spending(
+        session, settings.spending_source, now, user.id
+    )
     if body.budget_period != spending.period:
         raise HTTPException(status_code=422, detail=grocery_api.PERIOD_MISMATCH_MESSAGE)
     snapshot = SpendingSnapshot(

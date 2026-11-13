@@ -17,6 +17,7 @@ from app import models
 from app.agent.planning_tool import execute_plan
 from app.api import evidence as evidence_api
 from app.db import Base
+from app.deps import get_session
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.evidence_models import GroceryEvidence
 from app.job_models import Job
@@ -85,12 +86,18 @@ def owners(factory: sessionmaker[Session]) -> None:
 
 @pytest.fixture()
 def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
+    def auth_session() -> Iterator[Session]:
+        with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = auth_session
     app.dependency_overrides[evidence_api.get_session_factory] = lambda: factory
     try:
         with TestClient(app, base_url="http://localhost") as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(evidence_api.get_session_factory, None)
+        app.dependency_overrides.pop(get_session, None)
 
 
 def evidence_inputs() -> EvidenceInputs:
