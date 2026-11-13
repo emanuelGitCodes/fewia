@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from copy import deepcopy
 from datetime import date
+from typing import TypedDict
 
 from app.agent import chat_messages as msgs
 from app.agent import grounding
@@ -181,6 +182,10 @@ _INCOMPLETE = "The model did not complete a reply."
 _UNAVAILABLE = "The language model is unavailable."
 _NO_MORE = "There are no more matching meals."
 _TOOL_FAILURE = "A tool call failed. Check the request."
+
+
+class _DispatchExtra(TypedDict, total=False):
+    propose: Propose
 
 
 class ChatUnavailable(Exception):
@@ -767,7 +772,7 @@ def run_chat(
                     )
                     continue
                 revisions += 1
-            extra: dict[str, Propose] = {} if propose is None else {"propose": propose}
+            extra: _DispatchExtra = {} if propose is None else {"propose": propose}
             if call.name == INGREDIENT_TOOL and live_food is not None:
                 payload, block = dispatch(
                     call,
