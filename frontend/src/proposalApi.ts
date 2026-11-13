@@ -1,12 +1,23 @@
-import { HTTP_ERROR, SHAPE_ERROR, isAbortError } from "./api";
+import {
+  HTTP_ERROR,
+  SHAPE_ERROR,
+  apiRequest,
+  captureSessionGuard,
+  isAbortError,
+} from "./api";
 import { UUID, isRecord, isSafeInteger, isString } from "./apiTypes";
 import { isKnownIngredient, isKnownRecipe } from "./prototype/prototypeData";
 
 export type ProposalStatus = "pending" | "applied" | "discarded";
-export type ProposalPreview = {
+export type PlanSnapshot = {
   meals: { recipe_id: string; servings: number }[];
   pantry_ingredient_ids: string[];
   plan_cap_cents: number | null;
+};
+export type ProposalPreview = PlanSnapshot;
+export type AppliedProposal = {
+  plan_revision_id: string;
+  snapshot: PlanSnapshot;
 };
 export type Proposal = {
   id: string;
@@ -66,7 +77,7 @@ function isUuid(value: unknown): value is string {
   return isString(value) && UUID.test(value);
 }
 
-function parsePreview(value: unknown): ProposalPreview {
+function parseSnapshot(value: unknown): PlanSnapshot {
   if (!isRecord(value) || !Array.isArray(value.meals) || !Array.isArray(value.pantry_ingredient_ids)) {
     throw new Error(SHAPE_ERROR);
   }
@@ -115,9 +126,30 @@ function parseProposal(value: unknown): Proposal {
     id: value.id,
     status,
     base_plan_revision_id: value.base_plan_revision_id,
-    preview: parsePreview(value.preview),
+    preview: parseSnapshot(value.preview),
     applied_plan_revision_id: applied,
   };
+}
+
+function readBody(response: Response, signal: AbortSignal): Promise<unknown> {
+  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort);
+    Promise.resolve().then(() => response.json() as Promise<unknown>).then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 async function request(
@@ -125,50 +157,48 @@ async function request(
   method: "GET" | "POST",
   signal: AbortSignal,
   checkConstraints = false,
-  planCapCents?: number,
+  body?: { plan_cap_cents: number } | { confirm: true },
 ): Promise<unknown> {
+  const isCurrent = captureSessionGuard();
+  const assertCurrent = (): void => {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    if (!isCurrent()) throw new Error(HTTP_ERROR);
+  };
+  assertCurrent();
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await apiRequest(path, {
       method,
       signal,
-      ...(planCapCents === undefined ? {} : {
+      ...(body === undefined ? {} : {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_cap_cents: planCapCents }),
+        body: JSON.stringify(body),
       }),
     });
   } catch (error) {
-    if (isAbortError(error)) {
-      throw error;
-    }
+    assertCurrent();
+    if (isAbortError(error)) throw error;
     throw new Error(HTTP_ERROR, { cause: error });
   }
+  assertCurrent();
+  if (!response.ok && response.status !== 409) throw new Error(HTTP_ERROR);
+  let data: unknown;
+  if (response.ok || checkConstraints) {
+    try {
+      data = await readBody(response, signal);
+    } catch (error) {
+      assertCurrent();
+      if (isAbortError(error)) throw error;
+      if (response.status === 409) throw new ProposalConflict();
+      throw new Error(SHAPE_ERROR, { cause: error });
+    }
+  }
+  assertCurrent();
   if (response.status === 409) {
-    if (checkConstraints) {
-      let data: unknown;
-      try {
-        data = await response.json();
-      } catch {
-        throw new ProposalConflict();
-      }
-      const rejection = parseConstraints(data);
-      if (rejection !== null) {
-        throw rejection;
-      }
-    }
-    throw new ProposalConflict();
+    const rejection = checkConstraints ? parseConstraints(data) : null;
+    throw rejection ?? new ProposalConflict();
   }
-  if (!response.ok) {
-    throw new Error(HTTP_ERROR);
-  }
-  try {
-    return (await response.json()) as unknown;
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw error;
-    }
-    throw new Error(SHAPE_ERROR, { cause: error });
-  }
+  return data;
 }
 
 function path(id: string, action: string): string {
@@ -179,16 +209,19 @@ export async function fetchProposal(id: string, signal: AbortSignal): Promise<Pr
   return parseProposal(await request(path(id, ""), "GET", signal));
 }
 
-export async function applyProposal(id: string, signal: AbortSignal, planCapCents?: number): Promise<string> {
-  const data = await request(path(id, "/apply"), "POST", signal, true, planCapCents);
+export async function applyProposal(id: string, signal: AbortSignal, planCapCents: number): Promise<AppliedProposal> {
+  if (!isSafeInteger(planCapCents) || planCapCents < 0) {
+    throw new Error(SHAPE_ERROR);
+  }
+  const data = await request(path(id, "/apply"), "POST", signal, true, { plan_cap_cents: planCapCents });
   if (!isRecord(data) || !isUuid(data.plan_revision_id)) {
     throw new Error(SHAPE_ERROR);
   }
-  return data.plan_revision_id;
+  return { plan_revision_id: data.plan_revision_id, snapshot: parseSnapshot(data.snapshot) };
 }
 
 export async function discardProposal(id: string, signal: AbortSignal): Promise<void> {
-  const data = await request(path(id, "/discard"), "POST", signal);
+  const data = await request(path(id, "/discard"), "POST", signal, false, { confirm: true });
   if (!isRecord(data) || data.status !== "discarded") {
     throw new Error(SHAPE_ERROR);
   }

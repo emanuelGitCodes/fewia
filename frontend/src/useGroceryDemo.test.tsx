@@ -2,6 +2,7 @@
 
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedTestSession } from "./testSession";
 import {
   HTTP_ERROR,
   SAMPLE_ESTIMATE_NOTICE,
@@ -144,6 +145,7 @@ describe("useGroceryDemo", () => {
   }
 
   beforeEach(() => {
+    seedTestSession();
     vi.useFakeTimers();
     jobState = {
       job: null,
@@ -164,6 +166,7 @@ describe("useGroceryDemo", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("loads config, keeps the initial form, and hides raw fetch errors", async () => {

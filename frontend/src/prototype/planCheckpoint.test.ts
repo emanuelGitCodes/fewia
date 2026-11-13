@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { acceptSession, loseSession, workspaceStorageKey } from "../api";
 import {
   consumePlanCheckpoint,
   MAX_BUDGET_DRAFT_LENGTH,
   MAX_CHECKPOINT_LENGTH,
-  PLAN_CHECKPOINT_KEY,
+  PLAN_CHECKPOINT_KEY as LEGACY_PLAN_CHECKPOINT_KEY,
   PLAN_CHECKPOINT_TTL_MS,
   PLAN_RESTORE_ERROR,
   readReturnPlan,
@@ -14,6 +15,8 @@ import { initialPlanState, withPlanBudgetInput } from "./planModel";
 import { INGREDIENTS } from "./prototypeData";
 
 const NOW = 1_800_000_000_000;
+const WORKSPACE = "12345678-1234-4234-8234-123456789abc";
+const PLAN_CHECKPOINT_KEY = `${LEGACY_PLAN_CHECKPOINT_KEY}:${WORKSPACE}`;
 
 function checkpoint() {
   const { meals, pantry, checked, view, budgetInput, budgetCents } = initialPlanState();
@@ -27,17 +30,29 @@ function store(value: unknown): void {
 beforeEach(() => {
   vi.spyOn(Date, "now").mockReturnValue(NOW);
   window.sessionStorage.clear();
+  acceptSession({ auth_mode: "local_demo", workspace_id: WORKSPACE });
   window.history.replaceState(null, "", "/prototype?kroger=connected");
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  loseSession();
   window.sessionStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
 describe("plan checkpoint", () => {
+  it.each(["local_demo", "alb"])("restores a legacy plan only in local demo: %s", (auth_mode) => {
+    window.sessionStorage.setItem(LEGACY_PLAN_CHECKPOINT_KEY, JSON.stringify(checkpoint()));
+    acceptSession({ auth_mode, workspace_id: WORKSPACE });
+    expect(readReturnPlan().error).toBe(auth_mode === "local_demo" ? null : PLAN_RESTORE_ERROR);
+    expect(window.sessionStorage.getItem(LEGACY_PLAN_CHECKPOINT_KEY)).toBeNull();
+  });
+
+  it("uses the current workspace key", () => {
+    expect(workspaceStorageKey(LEGACY_PLAN_CHECKPOINT_KEY)).toBe(PLAN_CHECKPOINT_KEY);
+  });
   it.each(["connected", "error"])("restores the local plan on a %s return without consuming during reads", (marker) => {
     const state = {
       ...withPlanBudgetInput(initialPlanState(), "25.50"),

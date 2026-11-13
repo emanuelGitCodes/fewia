@@ -3,9 +3,11 @@
 import type { ComponentProps } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedKrogerOwnerProof, seedTestSession } from "../testSession";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import { MAX_MESSAGE_LENGTH } from "../chatConversationModel";
 import type { ChatJob, ChatJobCreate, ChatResult } from "../chatTypes";
+import { parseChatJob } from "../chatValidation";
 import { useChatJob } from "../useChatJob";
 import { useProviderCapabilities } from "../useProviderCapabilities";
 import { FAILED_LINE, OFF_LINE, PlanChat } from "./PlanChat";
@@ -100,6 +102,7 @@ function mount(
 }
 
 function stubKrogerFetch(body: object): void {
+  seedKrogerOwnerProof();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => ({
@@ -134,6 +137,7 @@ function submitted(index: number): ChatJobCreate {
 }
 
 beforeEach(() => {
+  seedTestSession();
   jobState = {
     job: null,
     error: null,
@@ -163,9 +167,52 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   vi.restoreAllMocks();
+  clearTestSession();
 });
 
 describe("PlanChat", () => {
+  it.each([
+    ["model_budget_exhausted", "The daily chat limit has been reached. Try again after the limit resets."],
+    ["model_capacity_unavailable", "Chat is busy. Wait a moment, then try again."],
+  ])("announces %s safely and leaves retry to the user", async (code, message) => {
+    const guidance = "Untrusted server retry guidance";
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = parseChatJob({
+        id: "job-model", status: "failed", result: null, error_code: code,
+        error_detail: { code, retry_guidance: guidance },
+      });
+      jobState.error = "Generic failure";
+    });
+    const { container } = mount();
+    await submitText("Cheap dinner");
+    expect(screen.getByRole("status").textContent).toBe(message);
+    expect(container.textContent).not.toContain(guidance);
+    expect(container.textContent).not.toContain(code);
+    expect(jobState.submit).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry request" })); });
+    expect(jobState.submit).toHaveBeenCalledTimes(2);
+    expect(submitted(1)).toEqual(submitted(0));
+    expect(document.activeElement).toBe(box());
+  });
+
+  it.each([
+    ["unknown", { code: "model_budget_exhausted", retry_guidance: "Server guidance" }],
+    ["model_budget_exhausted", { code: "model_capacity_unavailable", retry_guidance: "Server guidance" }],
+    ["model_budget_exhausted", { code: "model_budget_exhausted", retry_guidance: "Server guidance", forged: true }],
+  ] as const)("keeps unknown or malformed %s errors generic", async (code, detail) => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.job = parseChatJob({
+        id: "job-model", status: "failed", result: null, error_code: code, error_detail: detail,
+      });
+      jobState.error = "Server guidance";
+    });
+    const { container } = mount();
+    await submitText("Cheap dinner");
+    expect(screen.getByRole("status").textContent).toBe(FAILED_LINE);
+    expect(container.textContent).not.toContain("Server guidance");
+    expect(jobState.submit).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps current cards and hidden failed turns after transcript eviction", async () => {
     let count = 0;
     jobState.submit.mockImplementation(async () => {
@@ -516,6 +563,7 @@ describe("PlanChat", () => {
   });
 
   it("passes the plan and the chosen store to the Kroger cart preview", async () => {
+    seedKrogerOwnerProof();
     vi.mocked(savePlanRevision).mockResolvedValue("rev-1");
     const bodies: unknown[] = [];
     vi.stubGlobal(
@@ -523,7 +571,9 @@ describe("PlanChat", () => {
       vi.fn(async (url: string, init?: RequestInit) => {
         if (url === "/api/grocery/kroger/cart/preview") {
           bodies.push(JSON.parse(init?.body as string));
-          return { ok: true, status: 200, json: async () => ({ items: [], unmatched: [], source: "live" }) };
+          return { ok: true, status: 200, json: async () => ({
+            items: [], unmatched: [], source: "live", confirmation_token: null, expires_in_seconds: 300,
+          }) };
         }
         return { ok: true, status: 200, json: async () => ({ connected: true }) };
       }),
@@ -539,6 +589,7 @@ describe("PlanChat", () => {
   });
 
   it("hides the Kroger cart preview without a chosen store", async () => {
+    seedKrogerOwnerProof();
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ connected: true }) })),
@@ -596,16 +647,16 @@ describe("PlanChat", () => {
     expect(screen.queryByRole("article")).toBeNull();
   });
 
-  it("shows the failure line and Retry for a failed request, and retries the same body", async () => {
+  it("shows the failure line and Retry request for a terminal failure with the same body", async () => {
     jobState.submit.mockImplementation(async () => {
       jobState.job = { id: "job-1", status: "failed", result: null, error_code: "tool" };
-      jobState.error = "The chat request failed. Retry checks the same request.";
+      jobState.error = "The chat request failed. Try again.";
     });
     mount();
     await submitText("Cheap dinner");
     expect(screen.getByRole("status").textContent).toBe(FAILED_LINE);
     expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
-    const retry = screen.getByRole("button", { name: "Retry" });
+    const retry = screen.getByRole("button", { name: "Retry request" });
     retry.focus();
     await act(async () => {
       fireEvent.click(retry);
@@ -613,6 +664,19 @@ describe("PlanChat", () => {
     expect(jobState.submit).toHaveBeenCalledTimes(2);
     expect(submitted(1)).toEqual(submitted(0));
     expect(document.activeElement).toBe(box());
+  });
+
+  it("keeps Retry for an uncertain transport failure without a terminal job", async () => {
+    jobState.submit.mockImplementation(async () => {
+      jobState.error = "The chat request is still processing and may continue. Retry checks the same request.";
+    });
+    mount();
+    await submitText("Cheap dinner");
+    expect(screen.getByRole("status").textContent).toBe(FAILED_LINE);
+    expect(screen.queryByRole("button", { name: "Retry request" })).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry" })); });
+    expect(jobState.submit).toHaveBeenCalledTimes(2);
+    expect(submitted(1)).toEqual(submitted(0));
   });
 
   it.each(["limit", "incomplete"] as const)(

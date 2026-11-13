@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from "react";
 import type { CatalogItem, GroceryJob } from "./apiTypes";
+import { HTTP_ERROR, modelJobFailureText } from "./apiTypes";
 import { exclusionMessage } from "./exclusionMessage";
 
 export type ExampleKind = "beans" | "vegan";
@@ -54,7 +55,7 @@ function liveStatus(
   if (job?.status === "failed") {
     return (
       exclusionMessage(job, recipes, ingredients) ??
-      "The grocery request failed. Check meals, servings, and budget, then retry."
+      modelJobFailureText(job) ?? HTTP_ERROR
     );
   }
   return null;
@@ -74,6 +75,7 @@ export function Conversation({
 }: ConversationProps): JSX.Element {
   const status = liveStatus(job, pending, recipes, ingredients);
   const namedExclusion = exclusionMessage(job, recipes, ingredients);
+  const modelFailure = modelJobFailureText(job);
   const showAction = error !== null || job?.status === "failed";
   const failed = job?.status === "failed";
   const examplesDisabled = pending || freshRequestsDisabled;
@@ -118,7 +120,7 @@ export function Conversation({
       ) : null}
       {error !== null ? (
         <p className="conversation-error" role="status">
-          {namedExclusion ?? error}
+          {namedExclusion ?? modelFailure ?? error}
         </p>
       ) : null}
       {showAction ? (

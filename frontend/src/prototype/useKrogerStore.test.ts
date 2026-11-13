@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { KROGER_STORE_KEY, useKrogerStore } from "./useKrogerStore";
+import { acceptSession, loseSession } from "../api";
+import { KROGER_STORE_KEY as LEGACY_STORE_KEY, useKrogerStore } from "./useKrogerStore";
+
+const WORKSPACE = "12345678-1234-4234-8234-123456789abc";
+const KROGER_STORE_KEY = `${LEGACY_STORE_KEY}:${WORKSPACE}`;
 
 const option = {
   locationId: "01400943",
@@ -39,10 +43,12 @@ function setStorage(value: unknown): void {
 
 beforeEach(() => {
   setStorage(memoryStorage());
+  acceptSession({ auth_mode: "local_demo", workspace_id: WORKSPACE });
 });
 
 afterEach(() => {
   cleanup();
+  loseSession();
   if (originalStorage === undefined) {
     Reflect.deleteProperty(window, "localStorage");
   } else {
@@ -51,6 +57,24 @@ afterEach(() => {
 });
 
 describe("useKrogerStore", () => {
+  it.each(["local_demo", "alb"])("restores a legacy store only in local demo: %s", (auth_mode) => {
+    window.localStorage.setItem(LEGACY_STORE_KEY, JSON.stringify({ locationId: option.locationId, name: option.name }));
+    acceptSession({ auth_mode, workspace_id: WORKSPACE });
+    const view = renderHook(() => useKrogerStore());
+    expect(view.result.current.store).toEqual(auth_mode === "local_demo" ? { locationId: option.locationId, name: option.name } : null);
+    expect(window.localStorage.getItem(LEGACY_STORE_KEY)).toBeNull();
+  });
+
+  it("ignores a store callback retained from the previous workspace", () => {
+    const view = renderHook(() => useKrogerStore());
+    const choose = view.result.current.choose;
+    const other = "87654321-4321-4321-8321-cba987654321";
+    acceptSession({ auth_mode: "local_demo", workspace_id: other });
+    act(() => { choose(option); });
+    expect(window.localStorage.getItem(`${LEGACY_STORE_KEY}:${other}`)).toBeNull();
+    expect(window.localStorage.getItem(KROGER_STORE_KEY)).toBeNull();
+  });
+
   it("starts with no store, round trips a choice, and clears it", () => {
     const first = renderHook(() => useKrogerStore());
     expect(first.result.current.store).toBeNull();

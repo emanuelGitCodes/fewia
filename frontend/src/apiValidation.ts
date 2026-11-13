@@ -3,6 +3,7 @@ import {
   NUTRITION_PORTION_NOTICE,
   SAMPLE_ESTIMATE_NOTICE,
   SHAPE_ERROR,
+  copyModelJobErrorDetail,
   isBool,
   isNonemptyString,
   isRecord,
@@ -202,7 +203,10 @@ export function parseAck(value: unknown): GroceryJobAck {
   return { job_id: value.job_id, status: value.status };
 }
 
-function copyErrorDetail(value: unknown): JobErrorDetail | null {
+function copyErrorDetail(value: unknown, errorCode: string | null): JobErrorDetail | null {
+  if (errorCode === "model_budget_exhausted" || errorCode === "model_capacity_unavailable") {
+    return copyModelJobErrorDetail(value, errorCode);
+  }
   if (!isRecord(value) || !isString(value.recipe_id) || !isString(value.ingredient_id)) {
     return null;
   }
@@ -222,7 +226,7 @@ export function parseJob(value: unknown): GroceryJob {
   if (value.result !== null && !isResult(value.result)) {
     throw new Error(SHAPE_ERROR);
   }
-  const error_detail = copyErrorDetail(value.error_detail);
+  const error_detail = copyErrorDetail(value.error_detail, value.error_code);
   let result = value.result;
   if (result !== null && result.meal_nutrition !== undefined) {
     const meal_nutrition = copyMealPlanNutrition(result.meal_nutrition);

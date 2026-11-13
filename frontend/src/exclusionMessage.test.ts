@@ -35,6 +35,12 @@ describe("exclusionMessage", () => {
     expect(exclusionMessage(failed({ error_code: "tool" }), recipes, ingredients)).toBeNull();
   });
 
+  it("returns null when exclusion_reject has a model error detail", () => {
+    expect(exclusionMessage(failed({
+      error_detail: { code: "model_budget_exhausted", retry_guidance: "Untrusted guidance" },
+    }), recipes, ingredients)).toBeNull();
+  });
+
   it("returns null when error_detail is missing or null", () => {
     expect(exclusionMessage(failed({ error_detail: null }), recipes, ingredients)).toBeNull();
     const missingDetail: GroceryJob = {

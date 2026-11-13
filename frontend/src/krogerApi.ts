@@ -1,4 +1,4 @@
-import { readJson } from "./api";
+import { apiRequest, readJson } from "./api";
 import {
   HTTP_ERROR,
   KROGER_LOCATION_ID,
@@ -8,6 +8,7 @@ import {
   isRecord,
   isString,
   type KrogerSource,
+  type KrogerMode,
 } from "./apiTypes";
 
 export type KrogerStoreOption = {
@@ -49,8 +50,25 @@ function copyStore(value: unknown): KrogerStoreOption {
   };
 }
 
-export async function readKrogerConnection(signal?: AbortSignal): Promise<boolean> {
-  const body = await readJson("/api/grocery/kroger/connection", { method: "GET", signal });
+export function validateKrogerStartUrl(value: unknown): string {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || /[\\\s]/.test(value)) {
+    throw new Error(SHAPE_ERROR);
+  }
+  const url = new URL(value, window.location.origin);
+  if (url.origin !== window.location.origin || url.pathname !== "/api/grocery/kroger/connect/start" || url.hash !== "") {
+    throw new Error(SHAPE_ERROR);
+  }
+  return value;
+}
+
+export async function connectKroger(mode?: KrogerMode): Promise<string> {
+  const body = await readJson("/api/grocery/kroger/connect", { method: "POST" }, mode);
+  if (!isRecord(body) || !hasExactKeys(body, ["authorization_url"])) throw new Error(SHAPE_ERROR);
+  return validateKrogerStartUrl(body.authorization_url);
+}
+
+export async function readKrogerConnection(signal?: AbortSignal, mode?: KrogerMode): Promise<boolean> {
+  const body = await readJson("/api/grocery/kroger/connection", { method: "GET", signal }, mode);
   if (
     !isRecord(body) || !hasExactKeys(body, ["connected"]) || typeof body.connected !== "boolean"
   ) {
@@ -59,10 +77,10 @@ export async function readKrogerConnection(signal?: AbortSignal): Promise<boolea
   return body.connected;
 }
 
-export async function disconnectKroger(): Promise<void> {
+export async function disconnectKroger(mode?: KrogerMode): Promise<void> {
   let response: Response;
   try {
-    response = await fetch("/api/grocery/kroger/connection", { method: "DELETE" });
+    response = await apiRequest("/api/grocery/kroger/connection", { method: "DELETE" }, mode);
   } catch (error) {
     throw new Error(HTTP_ERROR, { cause: error });
   }
@@ -83,6 +101,8 @@ export type KrogerCartPreview = {
   items: KrogerCartItem[];
   unmatched: { ingredientId: string; name: string }[];
   source: KrogerSource;
+  confirmationToken: string | null;
+  expiresInSeconds: 300;
 };
 export type KrogerAddResult = "added" | "not_connected" | "unavailable" | "rejected" | "unknown";
 
@@ -126,39 +146,51 @@ export async function previewKrogerCart(
   planRevisionId: string,
   locationId: string,
   signal?: AbortSignal,
+  mode?: KrogerMode,
 ): Promise<KrogerCartPreview> {
   const body = await readJson("/api/grocery/kroger/cart/preview", {
     method: "POST",
     signal,
     body: JSON.stringify({ plan_revision_id: planRevisionId, location_id: locationId }),
     headers: { "Content-Type": "application/json" },
-  });
+  }, mode);
   if (
-    !isRecord(body) || !hasExactKeys(body, ["items", "unmatched", "source"]) ||
+    !isRecord(body) || !hasExactKeys(body, ["items", "unmatched", "source", "confirmation_token", "expires_in_seconds"]) ||
     !Array.isArray(body.items) || body.items.length > MAX_CART_LINES ||
     !Array.isArray(body.unmatched) || body.unmatched.length > MAX_CART_LINES ||
-    !isKrogerSource(body.source)
+    !isKrogerSource(body.source) ||
+    (body.confirmation_token !== null && (
+      typeof body.confirmation_token !== "string" ||
+      body.confirmation_token.length === 0 || body.confirmation_token.length > 8192
+    )) || body.expires_in_seconds !== 300
   ) {
     throw new Error(SHAPE_ERROR);
   }
   const items = body.items.map(copyCartItem);
-  if (new Set(items.map((item) => item.upc)).size !== items.length) {
+  if (
+    (items.length === 0) !== (body.confirmation_token === null) ||
+    new Set(items.map((item) => item.upc)).size !== items.length
+  ) {
     throw new Error(SHAPE_ERROR);
   }
-  return { items, unmatched: body.unmatched.map(copyUnmatched), source: body.source };
+  return {
+    items, unmatched: body.unmatched.map(copyUnmatched), source: body.source,
+    confirmationToken: body.confirmation_token, expiresInSeconds: body.expires_in_seconds,
+  };
 }
 
 // Any outcome that is not a clear answer reads as "unknown", because the items may be in the cart.
 export async function addToKrogerCart(
-  items: { upc: string; quantity: number }[],
+  confirmationToken: string,
+  mode?: KrogerMode,
 ): Promise<KrogerAddResult> {
   let response: Response;
   try {
-    response = await fetch("/api/grocery/kroger/cart/add", {
+    response = await apiRequest("/api/grocery/kroger/cart/add", {
       method: "POST",
-      body: JSON.stringify({ items: items.map(({ upc, quantity }) => ({ upc, quantity })) }),
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
       headers: { "Content-Type": "application/json" },
-    });
+    }, mode);
   } catch {
     return "unknown";
   }

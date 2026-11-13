@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { workspaceStorageKey } from "../api";
+import { clearTestSession, seedKrogerOwnerProof, seedTestSession } from "../testSession";
 import {
   KROGER_NO_STORES_LINE,
   KROGER_UNAVAILABLE_LINE,
@@ -41,48 +43,15 @@ async function search(zip = "45202"): Promise<void> {
   });
 }
 
-const originalStorage = {
-  localStorage: Object.getOwnPropertyDescriptor(window, "localStorage"),
-  sessionStorage: Object.getOwnPropertyDescriptor(window, "sessionStorage"),
-};
-
-function memoryStorage(): Storage {
-  const data = new Map<string, string>();
-  return {
-    get length() {
-      return data.size;
-    },
-    clear: () => {
-      data.clear();
-    },
-    getItem: (key: string) => data.get(key) ?? null,
-    key: (index: number) => [...data.keys()][index] ?? null,
-    removeItem: (key: string) => {
-      data.delete(key);
-    },
-    setItem: (key: string, value: string) => {
-      data.set(key, String(value));
-    },
-  };
-}
-
 beforeEach(() => {
-  for (const name of ["localStorage", "sessionStorage"] as const) {
-    Object.defineProperty(window, name, { configurable: true, writable: true, value: memoryStorage() });
-  }
+  seedTestSession();
+  seedKrogerOwnerProof();
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  for (const name of ["localStorage", "sessionStorage"] as const) {
-    const original = originalStorage[name];
-    if (original === undefined) {
-      Reflect.deleteProperty(window, name);
-    } else {
-      Object.defineProperty(window, name, original);
-    }
-  }
+  clearTestSession();
 });
 
 describe("KrogerStorePicker", () => {
@@ -337,11 +306,16 @@ describe("KrogerStorePicker", () => {
     expect(screen.getByText("Kroger store: Main Street")).toBeTruthy();
     expect(window.localStorage.length).toBe(1);
     const key = window.localStorage.key(0) ?? "";
-    expect(key).toBe("fewia.krogerStore.v1");
+    expect(key).toBe(workspaceStorageKey("fewia.krogerStore.v1"));
     const value = window.localStorage.getItem(key) ?? "";
     expect(JSON.parse(value)).toEqual({ locationId: "01400943", name: "Main Street" });
     expect(value).not.toContain("45202");
     expect(value).not.toContain("1 Test Way");
-    expect(window.sessionStorage.length).toBe(0);
+    expect(window.sessionStorage.getItem(key)).toBeNull();
+    const sessionValues = Array.from({ length: window.sessionStorage.length }, (_, index) =>
+      window.sessionStorage.getItem(window.sessionStorage.key(index) ?? ""),
+    );
+    expect(JSON.stringify(sessionValues)).not.toContain("45202");
+    expect(JSON.stringify(sessionValues)).not.toContain("1 Test Way");
   });
 });

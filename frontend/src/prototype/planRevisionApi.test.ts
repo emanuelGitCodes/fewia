@@ -1,10 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+/** @vitest-environment jsdom */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedTestSession } from "../testSession";
 import { initialPlanState, type PlanState } from "./planModel";
 import { planRevisionBody, savePlanRevision } from "./planRevisionApi";
 import { INGREDIENTS } from "./prototypeData";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  clearTestSession();
 });
 
 describe("planRevisionBody", () => {
@@ -26,6 +30,8 @@ describe("planRevisionBody", () => {
 });
 
 describe("savePlanRevision", () => {
+  beforeEach(seedTestSession);
+
   const body = { meals: [], pantry_ingredient_ids: [], plan_cap_cents: 100 };
 
   it("posts the body and returns the revision id", async () => {

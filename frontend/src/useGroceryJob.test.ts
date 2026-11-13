@@ -2,6 +2,7 @@
 
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedTestSession } from "./testSession";
 import type { GroceryJobCreate } from "./apiTypes";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
@@ -75,12 +76,12 @@ function postKey(call: unknown[]): string | null {
   if (init === undefined || init.method !== "POST") {
     return null;
   }
-  const headers = init.headers as Record<string, string>;
-  return headers["Idempotency-Key"] ?? null;
+  return new Headers(init.headers).get("Idempotency-Key");
 }
 
 describe("useGroceryJob", () => {
   beforeEach(() => {
+    seedTestSession();
     vi.useFakeTimers();
   });
 
@@ -89,6 +90,7 @@ describe("useGroceryJob", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("reuses the idempotency key for the same body and issues a new key for a new body", async () => {
@@ -152,6 +154,19 @@ describe("useGroceryJob", () => {
     await act(async () => {
       await second;
     });
+  });
+
+  it("keeps the same key when transport fails before the outcome is known", async () => {
+    const fetchMock = vi.fn(async () => { throw new Error("Synthetic transport failure"); });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useGroceryJob());
+    await act(async () => { await result.current.submit(body); });
+    expect(result.current.error).toBe("The grocery request failed. Check meals, servings, and budget, then retry.");
+    await act(async () => { await result.current.submit(body); });
+    const keys = vi.mocked(fetch).mock.calls.map(postKey).filter((key) => key !== null);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
   });
 
   it("times out a hung POST, sets the timeout error, and sets pending false", async () => {

@@ -6,7 +6,7 @@ import { pollDelayMs, usePolledJob } from "./usePolledJob";
 
 type Body = { message: string };
 type Ack = { job_id: string };
-type Job = { id: string; status: "queued" | "running" | "succeeded" | "failed" };
+type Job = { id: string; status: "queued" | "running" | "succeeded" | "failed" | "rejected" };
 
 const FAST_POLL_MS = 250;
 const SLOW_POLL_MS = 750;
@@ -438,4 +438,75 @@ describe("usePolledJob", () => {
     expect(result.current.pending).toBe(false);
     expect(result.current.error).toBeNull();
   });
+
+  it.each(["failed", "rejected"] as const)(
+    "waits for an explicit retry after %s and gives it a fresh key",
+    async (status) => {
+      const requests = options();
+      requests.fetchRequest.mockResolvedValueOnce({ id: "job-1", status });
+      const { result } = renderHook(() => usePolledJob(requests));
+      await act(async () => { await result.current.submit(body); });
+      expect(result.current.error).toBe(FAILED_TEXT);
+      await advance(BUDGET_MS * 2);
+      expect(requests.submitRequest).toHaveBeenCalledTimes(1);
+      expect(requests.fetchRequest).toHaveBeenCalledTimes(1);
+      await act(async () => { await result.current.submit({ ...body }); });
+      expect(requests.submitRequest.mock.calls.map((call) => call[1])).toEqual([
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000002",
+      ]);
+      expect(result.current.job).toEqual(succeeded);
+    },
+  );
+
+  it.each(["submit", "fetch", "polling"] as const)(
+    "keeps the key on a user retry after a network failure during %s",
+    async (stage) => {
+      const requests = options();
+      if (stage === "submit") {
+        requests.submitRequest.mockRejectedValueOnce(new TypeError("Network failed"));
+      } else if (stage === "fetch") {
+        requests.fetchRequest.mockRejectedValueOnce(new TypeError("Network failed"));
+      } else {
+        requests.fetchRequest.mockResolvedValueOnce(running).mockRejectedValueOnce(new TypeError("Network failed"));
+      }
+      const { result } = renderHook(() => usePolledJob(requests));
+      let finished: Promise<void> | undefined;
+      await act(async () => { finished = result.current.submit(body); });
+      if (stage === "polling") await advance(FAST_POLL_MS);
+      await act(async () => { await finished; });
+      expect(result.current.error).toBe(FALLBACK_TEXT);
+      await advance(BUDGET_MS * 2);
+      expect(requests.submitRequest).toHaveBeenCalledTimes(1);
+      await act(async () => { await result.current.submit(body); });
+      expect(requests.submitRequest.mock.calls[1][1]).toBe(requests.submitRequest.mock.calls[0][1]);
+      expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["submit", "fetch", "polling"] as const)(
+    "keeps the key on a user retry after a timeout during %s",
+    async (stage) => {
+      const requests = options();
+      if (stage === "submit") {
+        requests.submitRequest.mockImplementationOnce((_body, _key, signal) => untilAborted<Ack>(signal));
+      } else if (stage === "fetch") {
+        requests.fetchRequest.mockImplementationOnce((_id, signal) => untilAborted<Job>(signal));
+      } else {
+        requests.fetchRequest.mockResolvedValue(running);
+      }
+      const { result } = renderHook(() => usePolledJob(requests));
+      let finished: Promise<void> | undefined;
+      await act(async () => { finished = result.current.submit(body); });
+      await advance(BUDGET_MS);
+      await act(async () => { await finished; });
+      expect(result.current.error).toBe(TIMEOUT_TEXT);
+      await advance(BUDGET_MS);
+      expect(requests.submitRequest).toHaveBeenCalledTimes(1);
+      requests.fetchRequest.mockResolvedValue(succeeded);
+      await act(async () => { await result.current.submit(body); });
+      expect(requests.submitRequest.mock.calls[1][1]).toBe(requests.submitRequest.mock.calls[0][1]);
+      expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
+    },
+  );
 });

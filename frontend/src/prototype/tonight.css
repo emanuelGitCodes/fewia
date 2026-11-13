@@ -73,6 +73,18 @@
   font-weight: 600;
   letter-spacing: -0.03em;
 }
+.tonight-signout {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--tonight-control-border);
+  border-radius: 6px;
+  color: var(--tonight-green);
+  background: var(--tonight-white);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
 .tonight-carousel {
   position: relative;
 }

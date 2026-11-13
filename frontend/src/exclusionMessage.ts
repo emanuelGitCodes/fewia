@@ -20,7 +20,11 @@ export function exclusionMessage(
   if (job?.status !== "failed" || job.error_code !== "exclusion_reject" || job.error_detail == null) {
     return null;
   }
-  const recipeName = recipeTitle(recipes, job.error_detail.recipe_id);
-  const ingredientName = catalogName(ingredients, job.error_detail.ingredient_id);
+  const detail = job.error_detail;
+  if (typeof detail.recipe_id !== "string" || typeof detail.ingredient_id !== "string") {
+    return null;
+  }
+  const recipeName = recipeTitle(recipes, detail.recipe_id);
+  const ingredientName = catalogName(ingredients, detail.ingredient_id);
   return `The grocery request failed. ${recipeName} needs ${ingredientName}, which is excluded. Clear the ${ingredientName} exclusion or choose another meal, then rebuild.`;
 }

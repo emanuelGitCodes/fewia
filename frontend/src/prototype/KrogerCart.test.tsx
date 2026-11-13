@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedKrogerOwnerProof, seedTestSession } from "../testSession";
 import { KrogerCart } from "./KrogerCart";
 import { initialPlanState } from "./planModel";
 
@@ -14,6 +15,12 @@ const ITEM = {
 };
 
 type Calls = { url: string; init?: RequestInit }[];
+const CONFIRMATION = { confirmation_token: "confirmation-1", expires_in_seconds: 300 };
+
+beforeEach(() => {
+  seedTestSession();
+  seedKrogerOwnerProof();
+});
 
 function stub(addStatus: () => number | Promise<number>, preview?: unknown): Calls {
   const calls: Calls = [];
@@ -34,7 +41,10 @@ function stub(addStatus: () => number | Promise<number>, preview?: unknown): Cal
           unmatched: [{ ingredient_id: "x", name: "Saffron" }],
           source: "live",
         };
-        return { ok: true, status: 200, json: async () => body };
+        return { ok: true, status: 200, json: async () => {
+          const value: unknown = await body;
+          return typeof value === "object" && value !== null ? { ...CONFIRMATION, ...value } : value;
+        } };
       }
       return { ok: false, status: await addStatus() };
     }),
@@ -55,7 +65,9 @@ async function showPreview(): Promise<void> {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  clearTestSession();
 });
 
 describe("KrogerCart", () => {
@@ -119,17 +131,34 @@ describe("KrogerCart", () => {
     expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
   });
 
-  it("sends the previewed items and hides Send after success", async () => {
+  it("sends only the preview confirmation token and hides Send after success", async () => {
     const calls = stub(() => 204);
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     await showPreview();
+    expect(JSON.stringify(window.sessionStorage)).not.toContain("confirmation-1");
+    expect(JSON.stringify(window.localStorage)).not.toContain("confirmation-1");
     fireEvent.click(screen.getByRole("button", { name: "Send 1 item to Kroger cart" }));
     expect(
       await screen.findByText("Added to your Kroger cart. Review and check out on kroger.com."),
     ).toBeTruthy();
     expect(JSON.parse(calls[2]?.init?.body as string)).toEqual({
-      items: [{ upc: "0001111041600", quantity: 2 }],
+      confirmation_token: "confirmation-1",
     });
+    expect(JSON.stringify(window.sessionStorage)).not.toContain("confirmation-1");
+    expect(JSON.stringify(window.localStorage)).not.toContain("confirmation-1");
+    expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+  });
+
+  it("requires a new preview after the confirmation expires", async () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const calls = stub(() => 204);
+    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    await showPreview();
+    vi.mocked(Date.now).mockReturnValue(now + 300_000);
+    fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+    expect(screen.getByText("Cart confirmation expired. Preview the cart again.")).toBeTruthy();
+    expect(calls.filter((call) => call.url.endsWith("/cart/add"))).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
   });
 
@@ -152,31 +181,26 @@ describe("KrogerCart", () => {
   });
 
   it.each([500, 501, 502, 504, 505, 599])(
-    "requires an explicit Retry after an unconfirmed HTTP %s send",
+    "blocks every resend after an unconfirmed HTTP %s send",
     async (initialStatus) => {
-      let status = initialStatus;
-      const calls = stub(() => status);
+      const calls = stub(() => initialStatus);
       render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
       await showPreview();
       const adds = (): number => calls.filter((call) => call.url.endsWith("/cart/add")).length;
       expect(adds()).toBe(0);
       fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
       expect(
-        await screen.findByText("Kroger did not confirm. Check your Kroger cart before you retry."),
+        await screen.findByText("Kroger did not confirm. Check your Kroger cart. This request will not be sent again."),
       ).toBeTruthy();
       await settle();
       expect(adds()).toBe(1);
       expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
-      expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
       await settle();
       expect(adds()).toBe(1);
-      status = 204;
-      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-      expect(
-        await screen.findByText("Added to your Kroger cart. Review and check out on kroger.com."),
-      ).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
       await settle();
-      expect(adds()).toBe(2);
+      expect(adds()).toBe(1);
       expect(screen.queryByRole("button", { name: /^(Send|Retry)/ })).toBeNull();
     },
   );
@@ -209,42 +233,33 @@ describe("KrogerCart", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Preview Kroger cart" }));
   });
 
-  describe.each(["Send", "Retry"] as const)("focus after %s", (action) => {
+  describe.each(["Send"] as const)("focus after %s", () => {
     it.each([204, 422, 504])("follows the remaining action after HTTP %s", async (result) => {
       let finish: (value: number) => void = () => undefined;
-      let pending = action === "Send";
-      stub(() => pending ? new Promise<number>((resolve) => { finish = resolve; }) : 504);
+      stub(() => new Promise<number>((resolve) => { finish = resolve; }));
       render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
       await showPreview();
-      if (action === "Retry") {
-        fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
-        await screen.findByRole("button", { name: "Retry" });
-        pending = true;
-      }
-      const button = screen.getByRole("button", { name: action === "Send" ? /^Send/ : "Retry" });
+      const button = screen.getByRole("button", { name: /^Send/ });
       button.focus();
       fireEvent.click(button);
       expect(document.activeElement).toBe(button);
       expect(button.getAttribute("aria-disabled")).toBe("true");
       expect(screen.getByRole("status").textContent).toBe("Sending items to Kroger cart.");
       await act(async () => { finish(result); });
-      const target = screen.getByRole("button", { name: result === 504 ? "Retry" : "Preview Kroger cart" });
+      const target = result === 504
+        ? screen.getByRole("group", { name: "Kroger cart" })
+        : screen.getByRole("button", { name: "Preview Kroger cart" });
       expect(document.activeElement).toBe(target);
-      expect(target.getAttribute("aria-disabled")).toBe("false");
+      expect(screen.getByRole("button", { name: "Preview Kroger cart" }).getAttribute("aria-disabled"))
+        .toBe(result === 504 ? "true" : "false");
     });
 
     it.each([204, 422, 504])("keeps user-moved focus after HTTP %s", async (result) => {
       let finish: (value: number) => void = () => undefined;
-      let pending = action === "Send";
-      stub(() => pending ? new Promise<number>((resolve) => { finish = resolve; }) : 504);
+      stub(() => new Promise<number>((resolve) => { finish = resolve; }));
       render(<><KrogerCart state={initialPlanState()} locationId="01400943" /><button>Elsewhere</button></>);
       await showPreview();
-      if (action === "Retry") {
-        fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
-        await screen.findByRole("button", { name: "Retry" });
-        pending = true;
-      }
-      const button = screen.getByRole("button", { name: action === "Send" ? /^Send/ : "Retry" });
+      const button = screen.getByRole("button", { name: /^Send/ });
       button.focus();
       fireEvent.click(button);
       const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
@@ -460,12 +475,41 @@ describe("KrogerCart", () => {
   });
 
   it("says so when the preview has no items and no unmatched lines", async () => {
-    stub(() => 204, { items: [], unmatched: [], source: "live" });
+    const calls = stub(() => 204, { items: [], unmatched: [], source: "live", confirmation_token: null });
     render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
     fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
     expect(await screen.findByText("No Kroger items found for this plan.")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("No Kroger items found for this plan.");
     expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith("/cart/add"))).toHaveLength(0);
+  });
+
+  it("shows unmatched lines for an empty preview with a null token", async () => {
+    const calls = stub(() => 204, {
+      items: [], unmatched: [{ ingredient_id: "x", name: "Saffron" }],
+      source: "live", confirmation_token: null,
+    });
+    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+    expect(await screen.findByText("No Kroger match: Saffron.")).toBeTruthy();
+    expect(screen.getByRole("status").textContent)
+      .toBe("No Kroger items found for this plan. 1 ingredient has no Kroger match.");
+    expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith("/cart/add"))).toHaveLength(0);
+  });
+
+  it.each([
+    { items: [ITEM], confirmation_token: null },
+    { items: [ITEM], confirmation_token: "" },
+    { items: [], confirmation_token: "confirmation-1" },
+  ])("never sends a preview with mismatched items and token %#", async (fields) => {
+    const calls = stub(() => 204, { unmatched: [], source: "live", ...fields });
+    render(<KrogerCart state={initialPlanState()} locationId="01400943" />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview Kroger cart" }));
+    expect(await screen.findByText("Kroger is unavailable. Try again.")).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Kroger cart preview" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Send/ })).toBeNull();
+    expect(calls.filter((call) => call.url.endsWith("/cart/add"))).toHaveLength(0);
   });
 
   describe("fixture source", () => {

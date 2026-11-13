@@ -1,11 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { acceptSession, loseSession, OWNER_PROOF_STORAGE, workspaceStorageKey } from "./api";
 import { HTTP_ERROR, SHAPE_ERROR } from "./apiTypes";
 import {
   addToKrogerCart,
+  connectKroger,
   disconnectKroger,
   findKrogerStores,
   previewKrogerCart,
   readKrogerConnection,
+  validateKrogerStartUrl,
 } from "./krogerApi";
 
 const cartItem = {
@@ -16,6 +20,12 @@ const cartItem = {
   size: null,
   quantity: 2,
 };
+const confirmation = { confirmation_token: "confirmation-1", expires_in_seconds: 300 };
+
+beforeEach(() => {
+  acceptSession({ auth_mode: "local_demo", workspace_id: "12345678-1234-4234-8234-123456789abc" });
+  window.sessionStorage.setItem(workspaceStorageKey(OWNER_PROOF_STORAGE), JSON.stringify({ proof: "owner-proof", expiresAt: Date.now() + 28800_000 }));
+});
 
 describe("previewKrogerCart", () => {
   it("posts the ids and maps the body", async () => {
@@ -25,11 +35,13 @@ describe("previewKrogerCart", () => {
         items: [cartItem],
         unmatched: [{ ingredient_id: "x", name: "Saffron" }],
         source: "live",
+        ...confirmation,
       }),
     }));
     vi.stubGlobal("fetch", fetchMock);
     const result = await previewKrogerCart("rev-1", "01400943");
     expect(result.source).toBe("live");
+    expect(result.confirmationToken).toBe("confirmation-1");
     expect(result.items[0]).toMatchObject({
       upc: "0001111041600",
       size: null,
@@ -58,7 +70,11 @@ describe("previewKrogerCart", () => {
       { items: [], unmatched: [], source: null },
     ];
     for (const body of bad) {
-      reply(body);
+      reply(body === null ? null : {
+        ...confirmation,
+        confirmation_token: body.items.length === 0 ? null : confirmation.confirmation_token,
+        ...body,
+      });
       await expect(previewKrogerCart("rev-1", "01400943")).rejects.toThrow(SHAPE_ERROR);
     }
   });
@@ -66,7 +82,7 @@ describe("previewKrogerCart", () => {
 
 describe("previewKrogerCart source", () => {
   it("accepts a fixture preview", async () => {
-    reply({ items: [cartItem], unmatched: [], source: "fixture" });
+    reply({ items: [cartItem], unmatched: [], source: "fixture", ...confirmation });
     expect((await previewKrogerCart("rev-1", "01400943")).source).toBe("fixture");
   });
 });
@@ -89,18 +105,13 @@ describe("addToKrogerCart", () => {
     for (const [status, expected] of cases) {
       const fetchMock = vi.fn(async () => ({ status }) as Response);
       vi.stubGlobal("fetch", fetchMock);
-      expect(await addToKrogerCart([{ upc: "0001111041600", quantity: 1 }])).toBe(expected);
+      expect(await addToKrogerCart("confirmation-1")).toBe(expected);
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(fetch).mock.calls[0]).toEqual([
-        "/api/grocery/kroger/cart/add",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            items: [{ upc: "0001111041600", quantity: 1 }],
-          }),
-          headers: { "Content-Type": "application/json" },
-        },
-      ]);
+      const [path, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+      expect(path).toBe("/api/grocery/kroger/cart/add");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({ confirmation_token: "confirmation-1" });
+      expect(new Headers(init?.headers).get("Content-Type")).toBe("application/json");
     }
   });
 
@@ -111,7 +122,7 @@ describe("addToKrogerCart", () => {
         throw new TypeError("down");
       }),
     );
-    expect(await addToKrogerCart([{ upc: "0001111041600", quantity: 1 }])).toBe("unknown");
+    expect(await addToKrogerCart("confirmation-1")).toBe("unknown");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
@@ -129,7 +140,68 @@ function reply(body: unknown, ok = true): void {
 }
 
 afterEach(() => {
+  loseSession();
   vi.unstubAllGlobals();
+});
+
+describe("connectKroger", () => {
+  it("posts connect and accepts only the allowed relative start URL", async () => {
+    reply({ authorization_url: "/api/grocery/kroger/connect/start?attempt=opaque" });
+    expect(await connectKroger()).toBe("/api/grocery/kroger/connect/start?attempt=opaque");
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.method).toBe("POST");
+  });
+
+  it.each([
+    "https://foreign.example/api/grocery/kroger/connect/start",
+    "//foreign.example/api/grocery/kroger/connect/start",
+    "/api/grocery/kroger/connect/start#fragment", "/api/grocery/kroger/connection",
+    "/api/grocery/kroger/connect/../connection", "javascript:alert(1)",
+    "/\\foreign.example/api/grocery/kroger/connect/start", " /api/grocery/kroger/connect/start",
+  ])("rejects unsafe start URLs %s", (url) => {
+    expect(() => validateKrogerStartUrl(url)).toThrow(SHAPE_ERROR);
+  });
+
+  it("rejects an absolute URL even on this origin", () => {
+    expect(() => validateKrogerStartUrl(`${window.location.origin}/api/grocery/kroger/connect/start`)).toThrow(SHAPE_ERROR);
+  });
+});
+
+describe("cart confirmation shape", () => {
+  it.each(["live", "fixture"])("accepts an empty %s preview with a null token", async (source) => {
+    reply({ items: [], unmatched: [{ ingredient_id: "x", name: "Saffron" }], source,
+      confirmation_token: null, expires_in_seconds: 300 });
+    expect(await previewKrogerCart("rev-1", "01400943")).toEqual({
+      items: [], unmatched: [{ ingredientId: "x", name: "Saffron" }], source,
+      confirmationToken: null, expiresInSeconds: 300,
+    });
+  });
+
+  it.each([
+    { items: [], confirmation_token: "token" },
+    { items: [], confirmation_token: "" },
+    { items: [], confirmation_token: undefined },
+    { items: [cartItem], confirmation_token: null },
+    { items: [cartItem], confirmation_token: "" },
+    { items: [cartItem], confirmation_token: 123 },
+    { items: [cartItem], confirmation_token: "x".repeat(8193) },
+  ])("rejects mismatched items and token %#", async (fields) => {
+    reply({ unmatched: [], source: "live", expires_in_seconds: 300, ...fields });
+    await expect(previewKrogerCart("rev-1", "01400943")).rejects.toThrow(SHAPE_ERROR);
+  });
+
+  it.each([null, 0, 299, 301, "300"])("rejects invalid empty-preview expiry %s", async (expires) => {
+    reply({ items: [], unmatched: [], source: "live", confirmation_token: null, expires_in_seconds: expires });
+    await expect(previewKrogerCart("rev-1", "01400943")).rejects.toThrow(SHAPE_ERROR);
+  });
+
+  it.each([
+    {}, { confirmation_token: "", expires_in_seconds: 300 },
+    { confirmation_token: "token", expires_in_seconds: 301 },
+    { confirmation_token: "token", expires_in_seconds: "300" },
+  ])("rejects invalid confirmation %#", async (fields) => {
+    reply({ items: [cartItem], unmatched: [], source: "live", ...fields });
+    await expect(previewKrogerCart("rev-1", "01400943")).rejects.toThrow(SHAPE_ERROR);
+  });
 });
 
 describe("readKrogerConnection", () => {

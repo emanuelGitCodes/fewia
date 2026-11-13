@@ -2,6 +2,7 @@
 
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedTestSession } from "./testSession";
 import { SAMPLE_ESTIMATE_NOTICE } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import type { ChatJob, ChatJobCreate, ChatResult } from "./chatTypes";
@@ -12,7 +13,7 @@ const POLL_MS = 250;
 const BUDGET_MS = 8 * 60 * 1000;
 const TIMEOUT_ERROR =
   "The chat request is still processing and may continue. Retry checks the same request.";
-const CHAT_FAILURE = "The chat request failed. Retry checks the same request.";
+const CHAT_FAILURE = "The chat request failed. Try again.";
 const HTTP_FALLBACK =
   "The chat request failed. Check the message and budget, then retry.";
 const RAW = "do-not-echo-this";
@@ -158,8 +159,7 @@ function postKey(call: unknown[]): string | null {
   if (init === undefined || init.method !== "POST") {
     return null;
   }
-  const headers = init.headers as Record<string, string>;
-  return headers["Idempotency-Key"] ?? null;
+  return new Headers(init.headers).get("Idempotency-Key");
 }
 
 async function flushMicrotasks(): Promise<void> {
@@ -172,6 +172,7 @@ async function flushMicrotasks(): Promise<void> {
 
 describe("useChatJob", () => {
   beforeEach(() => {
+    seedTestSession();
     vi.useFakeTimers();
   });
 
@@ -180,6 +181,7 @@ describe("useChatJob", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("loads a succeeded planned job and does not mutate the caller body", async () => {
@@ -370,7 +372,7 @@ describe("useChatJob", () => {
     unmount();
   });
 
-  it("shows a static failure for a known failed job and hides the error code", async () => {
+  it("shows a static terminal failure and retries explicitly with a new key", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/grocery/chat/jobs") {
@@ -388,7 +390,61 @@ describe("useChatJob", () => {
     expect(result.current.pending).toBe(false);
     expect(result.current.error).toBe(CHAT_FAILURE);
     expect(result.current.error).not.toContain(RAW);
+    await act(async () => { await vi.advanceTimersByTimeAsync(BUDGET_MS); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => { await result.current.submit(body); });
+    const keys = fetchMock.mock.calls.map(postKey).filter((key) => key !== null);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).not.toBe(keys[0]);
     unmount();
+  });
+
+  it.each([
+    ["model_budget_exhausted", "The daily chat limit has been reached. Try again after the limit resets."],
+    ["model_capacity_unavailable", "Chat is busy. Wait a moment, then try again."],
+  ])("shows fixed text for %s and only resubmits on an explicit retry", async (code, message) => {
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000002");
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+      jsonOk(init?.method === "POST"
+        ? { job_id: "job-1", status: "queued" }
+        : { ...failedJob, error_code: code, error_detail: { code, retry_guidance: RAW } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useChatJob());
+    await act(async () => { await result.current.submit(body); });
+    expect(result.current.error).toBe(message);
+    expect(result.current.error).not.toContain(RAW);
+    await act(async () => { await vi.advanceTimersByTimeAsync(BUDGET_MS * 2); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => { await result.current.submit(body); });
+    expect(fetchMock.mock.calls.map(postKey).filter((key) => key !== null)).toEqual([
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ]);
+  });
+
+  it.each([
+    ["unknown", { code: "model_budget_exhausted", retry_guidance: RAW }],
+    ["model_budget_exhausted", { code: "model_capacity_unavailable", retry_guidance: RAW }],
+    ["model_budget_exhausted", { code: "model_budget_exhausted", retry_guidance: RAW, forged: true }],
+    ["model_budget_exhausted", null],
+  ] as const)("keeps malformed or unknown %s failures generic", async (code, error_detail) => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+      jsonOk(init?.method === "POST"
+        ? { job_id: "job-1", status: "queued" }
+        : { ...failedJob, error_code: code, error_detail }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useChatJob());
+    await act(async () => { await result.current.submit(body); });
+    expect(result.current.job?.status).toBe("failed");
+    expect(result.current.error).toBe(CHAT_FAILURE);
+    expect(result.current.error).not.toContain(RAW);
+    await act(async () => { await vi.advanceTimersByTimeAsync(BUDGET_MS); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("ignores a late response from an aborted earlier attempt", async () => {
@@ -465,6 +521,11 @@ describe("useChatJob", () => {
     expect(result.current.job).toBeNull();
     expect(result.current.error).toBe(HTTP_FALLBACK);
     expect(result.current.error).not.toContain(RAW);
+    await act(async () => { await result.current.submit(body); });
+    const keys = vi.mocked(fetch).mock.calls.map(postKey).filter((key) => key !== null);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
     unmount();
   });
 

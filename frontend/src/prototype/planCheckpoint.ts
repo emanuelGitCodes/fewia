@@ -1,4 +1,5 @@
 import { hasExactKeys } from "../apiTypes";
+import { workspaceStorageKey } from "../api";
 import { initialPlanState, planLines, withPlanBudgetInput, type PlanState } from "./planModel";
 import {
   INGREDIENTS,
@@ -99,7 +100,7 @@ function decode(serialized: string, now: number): PlanState | null {
 // A failed save must not leave an older checkpoint that sign-in would restore silently.
 function dropCheckpoint(): void {
   try {
-    window.sessionStorage.removeItem(PLAN_CHECKPOINT_KEY);
+    window.sessionStorage.removeItem(workspaceStorageKey(PLAN_CHECKPOINT_KEY));
   } catch {
     // A failed remove is ignored.
   }
@@ -129,8 +130,9 @@ function writeCheckpoint(state: PlanState): boolean {
       return false;
     }
     const storage = window.sessionStorage;
-    storage.setItem(PLAN_CHECKPOINT_KEY, serialized);
-    return storage.getItem(PLAN_CHECKPOINT_KEY) === serialized;
+    const key = workspaceStorageKey(PLAN_CHECKPOINT_KEY);
+    storage.setItem(key, serialized);
+    return storage.getItem(key) === serialized;
   } catch {
     return false;
   }
@@ -145,7 +147,7 @@ export function readReturnPlan(): ReturnPlan {
     return { state: initialPlanState(), returning, error: null, kroger };
   }
   try {
-    const serialized = window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY);
+    const serialized = window.sessionStorage.getItem(workspaceStorageKey(PLAN_CHECKPOINT_KEY));
     const state = serialized === null ? null : decode(serialized, Date.now());
     if (state !== null) {
       return { state, returning, error: null, kroger };
@@ -158,7 +160,7 @@ export function readReturnPlan(): ReturnPlan {
 
 export function consumePlanCheckpoint(): boolean {
   try {
-    window.sessionStorage.removeItem(PLAN_CHECKPOINT_KEY);
+    window.sessionStorage.removeItem(workspaceStorageKey(PLAN_CHECKPOINT_KEY));
     return true;
   } catch {
     return false;

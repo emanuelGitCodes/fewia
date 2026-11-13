@@ -2,9 +2,13 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState, type JSX } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { acceptSession, loseSession, OWNER_PROOF_STORAGE, workspaceStorageKey } from "../api";
 import { KrogerConnect } from "./KrogerConnect";
 import { initialPlanState } from "./planModel";
-import { PLAN_CHECKPOINT_KEY, PLAN_SAVE_WARNING, readReturnPlan } from "./planCheckpoint";
+import { PLAN_CHECKPOINT_KEY as LEGACY_PLAN_KEY, PLAN_SAVE_WARNING, readReturnPlan } from "./planCheckpoint";
+
+const WORKSPACE = "12345678-1234-4234-8234-123456789abc";
+const PLAN_CHECKPOINT_KEY = `${LEGACY_PLAN_KEY}:${WORKSPACE}`;
 
 type Handler = (url: string, init?: RequestInit) => Promise<Partial<Response>>;
 
@@ -25,17 +29,36 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   window.sessionStorage.clear();
+  acceptSession({ auth_mode: "local_demo", workspace_id: WORKSPACE });
+  window.sessionStorage.setItem(workspaceStorageKey(OWNER_PROOF_STORAGE), JSON.stringify({ proof: "owner-proof", expiresAt: Date.now() + 28800_000 }));
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  loseSession();
   window.sessionStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
 describe("KrogerConnect", () => {
+  it("keeps fixture mode usable without a live owner proof", async () => {
+    window.sessionStorage.removeItem(workspaceStorageKey(OWNER_PROOF_STORAGE));
+    stub(() => status(false));
+    render(<KrogerConnect plan={initialPlanState()} krogerMode="fixture" />);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    const init = vi.mocked(fetch).mock.calls[0]?.[1];
+    expect(new Headers(init?.headers).has("X-FEWIA-Kroger-Owner")).toBe(false);
+  });
+
+  it("requests an operator pairing link before making a local live call", () => {
+    window.sessionStorage.removeItem(workspaceStorageKey(OWNER_PROOF_STORAGE));
+    stub(() => status(false));
+    render(<KrogerConnect plan={initialPlanState()} krogerMode="live" />);
+    expect(screen.getByText("Open the operator pairing link to use live Kroger.")).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("renders nothing while loading, when not configured, and for a malformed body", async () => {
     stub(() => new Promise(() => undefined));
     const { container, unmount } = render(<KrogerConnect plan={initialPlanState()} />);
@@ -80,34 +103,71 @@ describe("KrogerConnect", () => {
     expect(screen.queryByText("FIXTURE, NOT KROGER")).toBeNull();
   });
 
-  it("links to the connect route when not connected", async () => {
+  it("refreshes on mode changes without repeating return announcements on rerenders", async () => {
+    stub((_url, init) => status(!new Headers(init?.headers).has("X-FEWIA-Kroger-Owner")));
+    const onReturnShown = vi.fn();
+    const plan = initialPlanState();
+    const view = render(<KrogerConnect plan={plan} krogerMode="live" returnStatus="error" onReturnShown={onReturnShown} />);
+    const connect = await screen.findByRole("link", { name: "Connect Kroger" });
+    const note = screen.getByRole("status", { name: "Kroger account status" });
+    expect(note.textContent).toBe("Kroger sign-in did not finish. Try again.");
+    expect(onReturnShown).toHaveBeenCalledTimes(1);
+    const onReturnShownAgain = vi.fn();
+    view.rerender(<KrogerConnect plan={{ ...plan, budgetInput: "25" }} krogerMode="live" returnStatus="error" onReturnShown={onReturnShownAgain} />);
+    await settle();
+    expect(screen.getByRole("link", { name: "Connect Kroger" })).toBe(connect);
+    expect(screen.getByRole("status", { name: "Kroger account status" })).toBe(note);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(onReturnShownAgain).not.toHaveBeenCalled();
+    view.rerender(<KrogerConnect plan={plan} krogerMode="fixture" returnStatus="error" onReturnShown={onReturnShownAgain} />);
+    await screen.findByRole("button", { name: "Disconnect" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(onReturnShownAgain).not.toHaveBeenCalled();
+    expect(note.textContent).toBe("Kroger sign-in did not finish. Try again.");
+    view.rerender(<KrogerConnect plan={plan} krogerMode="live" returnStatus="error" onReturnShown={onReturnShownAgain} />);
+    await screen.findByRole("link", { name: "Connect Kroger" });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(onReturnShownAgain).not.toHaveBeenCalled();
+  });
+
+  it("requires the connect POST before navigation", async () => {
     stub(() => status(false));
     render(<KrogerConnect plan={initialPlanState()} />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
-    expect(link.getAttribute("href")).toBe("/api/grocery/kroger/connect");
+    expect(link.getAttribute("href")).toBe("#");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("saves and verifies the current plan synchronously before permitting navigation", async () => {
-    stub(() => status(false));
+  it("saves and verifies the scoped plan before the connect POST", async () => {
+    stub(async (url, init) => {
+      if (init?.method === "POST") {
+        expect(url).toBe("/api/grocery/kroger/connect");
+        expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).not.toBeNull();
+        return { ok: true, json: async () => ({ authorization_url: "https://foreign.example/start" }) };
+      }
+      return status(false);
+    });
     const plan = { ...initialPlanState(), meals: [], budgetInput: "25", budgetCents: 2500 };
     render(<KrogerConnect plan={plan} />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
-    let allowed = false;
+    let prevented = false;
     const stopNavigation = (event: MouseEvent): void => {
-      allowed = !event.defaultPrevented;
+      prevented = event.defaultPrevented;
       expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).not.toBeNull();
       event.preventDefault();
     };
     document.addEventListener("click", stopNavigation, { once: true });
     fireEvent.click(link);
-    expect(allowed).toBe(true);
+    expect(prevented).toBe(true);
+    await screen.findByText("Kroger sign-in did not finish. Try again.");
+    expect(fetch).toHaveBeenCalledTimes(2);
     window.history.replaceState(null, "", "/prototype?kroger=connected");
     expect(readReturnPlan().state).toEqual(plan);
   });
 
-  it.each(["write", "read", "mismatch", "access"])("warns once after a storage %s failure, then permits sign-in", async (failure) => {
+  it.each(["write", "read", "mismatch", "access"])("warns once after a storage %s failure, then requests sign-in", async (failure) => {
     stub(() => status(false));
-    render(<KrogerConnect plan={initialPlanState()} />);
+    render(<KrogerConnect plan={initialPlanState()} krogerMode="fixture" />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
     const storage = window.sessionStorage;
     if (failure === "access") {
@@ -134,20 +194,22 @@ describe("KrogerConnect", () => {
     const warning = screen.getByText(PLAN_SAVE_WARNING);
     expect(warning.getAttribute("aria-live")).toBe("polite");
     expect(warning.textContent).not.toContain("private");
-    // Storage still fails, yet the next click follows the link.
-    let allowed = false;
+    expect(fetch).toHaveBeenCalledTimes(1);
+    let preventedAgain = false;
     document.addEventListener("click", (event) => {
-      allowed = !event.defaultPrevented;
+      preventedAgain = event.defaultPrevented;
       event.preventDefault();
     }, { once: true });
     fireEvent.click(link);
-    expect(allowed).toBe(true);
+    expect(preventedAgain).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
     expect(screen.getByText(PLAN_SAVE_WARNING)).toBeTruthy();
+    await settle();
   });
 
   it("tries the save on every click and clears the warning when it succeeds", async () => {
     stub(() => status(false));
-    render(<KrogerConnect plan={initialPlanState()} />);
+    render(<KrogerConnect plan={initialPlanState()} krogerMode="fixture" />);
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
     const storage = window.sessionStorage;
     let failing = true;
@@ -170,9 +232,10 @@ describe("KrogerConnect", () => {
     failing = false;
     fireEvent.click(link);
     document.removeEventListener("click", record);
-    expect(outcomes).toEqual([true, false]);
+    expect(outcomes).toEqual([true, true]);
     expect(screen.queryByText(PLAN_SAVE_WARNING)).toBeNull();
     expect(storage.getItem(PLAN_CHECKPOINT_KEY)).not.toBeNull();
+    await settle();
   });
 
   it("shows the return line once when the component remounts", async () => {

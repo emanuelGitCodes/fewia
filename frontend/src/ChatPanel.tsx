@@ -1,5 +1,6 @@
 import { useRef, type JSX } from "react";
 import { BUDGET_ERROR, TEXT_ERROR } from "./chatConversationModel";
+import { MODEL_BUDGET_ERROR, MODEL_CAPACITY_ERROR } from "./apiTypes";
 
 export type ChatPanelRole = "user" | "assistant";
 
@@ -26,7 +27,7 @@ export type ChatPanelProps = {
 };
 
 const MAX_LENGTH = 4000;
-const FAIL = "The chat request failed. Retry checks the same request.";
+const FAIL = "The chat request failed. Try again.";
 const TIMEOUT =
   "The chat request is still processing and may continue. Retry checks the same request.";
 const HTTP_FALLBACK =
@@ -39,6 +40,8 @@ function visibleError(error: string): string {
   if (
     error === TIMEOUT ||
     error === HTTP_FALLBACK ||
+    error === MODEL_BUDGET_ERROR ||
+    error === MODEL_CAPACITY_ERROR ||
     error === TEXT_ERROR ||
     error === BUDGET_ERROR
   ) {
@@ -129,7 +132,7 @@ export function ChatPanel({
           </button>
         </form>
         <button type="button" className="conversation-action" disabled={retryLocked} onClick={onRetry}>
-          Retry the same request
+          Retry chat request
         </button>
         <button type="button" disabled={disabled || pending} onClick={onNewConversation}>
           Start a new conversation

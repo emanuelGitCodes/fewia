@@ -3,6 +3,8 @@
 import { createElement, StrictMode, useEffect, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { workspaceStorageKey } from "../api";
+import { clearTestSession, seedTestSession } from "../testSession";
 import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
 import {
   INGREDIENTS,
@@ -109,7 +111,7 @@ function mount(): HTMLElement {
 }
 
 function card(meal: string): HTMLElement {
-  return screen.getByRole("article", { name: meal });
+  return within(screen.getByRole("main")).getByRole("article", { name: meal });
 }
 
 function mainText(): string {
@@ -161,42 +163,10 @@ function clearMealPantry(): void {
   }
 }
 
-const originalLocalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
-const originalSessionStorage = Object.getOwnPropertyDescriptor(window, "sessionStorage");
-
-function memoryStorage(): Storage {
-  const data = new Map<string, string>();
-  return {
-    get length() {
-      return data.size;
-    },
-    clear: () => {
-      data.clear();
-    },
-    getItem: (key: string) => data.get(key) ?? null,
-    key: (index: number) => [...data.keys()][index] ?? null,
-    removeItem: (key: string) => {
-      data.delete(key);
-    },
-    setItem: (key: string, value: string) => {
-      data.set(key, String(value));
-    },
-  };
-}
-
 beforeEach(() => {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query }));
-  Object.defineProperty(window, "sessionStorage", {
-    configurable: true,
-    writable: true,
-    value: memoryStorage(),
-  });
   window.history.replaceState(null, "", "/prototype");
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    writable: true,
-    value: memoryStorage(),
-  });
+  seedTestSession();
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   jobState.job = null;
   jobState.submit = vi.fn(async (_body: ChatJobCreate) => undefined);
@@ -216,17 +186,8 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  clearTestSession();
   window.history.replaceState(null, "", "/");
-  if (originalSessionStorage === undefined) {
-    Reflect.deleteProperty(window, "sessionStorage");
-  } else {
-    Object.defineProperty(window, "sessionStorage", originalSessionStorage);
-  }
-  if (originalLocalStorage === undefined) {
-    Reflect.deleteProperty(window, "localStorage");
-  } else {
-    Object.defineProperty(window, "localStorage", originalLocalStorage);
-  }
 });
 
 describe("TonightPrototype", () => {
@@ -1231,7 +1192,7 @@ describe("Ask FEWIA on the prototype", () => {
 
   it("shows the stored Kroger store in the panel, passes its id to the chat, and removes it", () => {
     window.localStorage.setItem(
-      "fewia.krogerStore.v1",
+      workspaceStorageKey("fewia.krogerStore.v1"),
       JSON.stringify({ locationId: "01400943", name: "Main Street" }),
     );
     try {
@@ -1240,7 +1201,7 @@ describe("Ask FEWIA on the prototype", () => {
       expect(vi.mocked(useChatJob)).toHaveBeenCalledWith("01400943");
       click("Remove");
       expect(screen.getByRole("button", { name: "Choose a Kroger store for live prices" })).toBeTruthy();
-      expect(window.localStorage.getItem("fewia.krogerStore.v1")).toBeNull();
+      expect(window.localStorage.getItem(workspaceStorageKey("fewia.krogerStore.v1"))).toBeNull();
     } finally {
       window.localStorage.clear();
     }
@@ -1259,6 +1220,7 @@ describe("Ask FEWIA on the prototype", () => {
 
 describe("Kroger return plan", () => {
   const revisions: unknown[] = [];
+  const pendingConnects: (() => void)[] = [];
 
   beforeEach(() => {
     revisions.length = 0;
@@ -1267,19 +1229,33 @@ describe("Kroger return plan", () => {
         revisions.push(JSON.parse(String(init?.body)) as unknown);
         return { ok: true, status: 200, json: async () => ({ plan_revision_id: "restored-revision" }) };
       }
+      if (url === "/api/grocery/kroger/connect" && init?.method === "POST") {
+        return new Promise<Response>((resolve) => {
+          pendingConnects.push(() => { resolve({
+            ok: true, status: 200,
+            json: async () => ({ authorization_url: "/api/grocery/kroger/connect/start?ticket=synthetic-start-ticket" }),
+          } as Response); });
+        });
+      }
+      expect(url).toBe("/api/grocery/kroger/connection");
+      expect(init?.method).toBe("GET");
       return { ok: true, status: 200, json: async () => ({ connected: false }) };
     }));
   });
 
+  afterEach(async () => {
+    cleanup();
+    await act(async () => {
+      for (const finish of pendingConnects.splice(0)) finish();
+    });
+  });
+
   async function connect(): Promise<void> {
     const link = await screen.findByRole("link", { name: "Connect Kroger" });
-    let allowed = false;
-    document.addEventListener("click", (event) => {
-      allowed = !event.defaultPrevented;
-      event.preventDefault();
-    }, { once: true });
-    fireEvent.click(link);
-    expect(allowed).toBe(true);
+    expect(fireEvent.click(link)).toBe(false);
+    expect(link.getAttribute("aria-disabled")).toBe("true");
+    expect(fetch).toHaveBeenCalledWith("/api/grocery/kroger/connect", expect.objectContaining({ method: "POST" }));
+    expect(window.sessionStorage.getItem(workspaceStorageKey(PLAN_CHECKPOINT_KEY))).not.toBeNull();
   }
 
   it.each([
@@ -1302,7 +1278,7 @@ describe("Kroger return plan", () => {
     expect(screen.getByRole("heading", { name: "Pantry" })).toBeTruthy();
     expect(pantryBox("olive_oil").checked).toBe(false);
     expect(window.location.pathname + window.location.search + window.location.hash).toBe("/prototype?keep=1#plan");
-    expect(window.sessionStorage.getItem(PLAN_CHECKPOINT_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(workspaceStorageKey(PLAN_CHECKPOINT_KEY))).toBeNull();
     expect(screen.queryByText(PLAN_RESTORE_ERROR)).toBeNull();
     click("Plan");
     expect(textOf(card("Bean tacos"))).toContain("3 servings");
@@ -1359,7 +1335,7 @@ describe("Kroger return plan", () => {
     expect(screen.queryByText(SERVING_ERROR)).toBeNull();
     expect(screen.queryByText(PLAN_RESTORE_ERROR)).toBeNull();
     expect(remove).toHaveBeenCalledTimes(1);
-    expect(remove).toHaveBeenCalledWith(PLAN_CHECKPOINT_KEY);
+    expect(remove).toHaveBeenCalledWith(workspaceStorageKey(PLAN_CHECKPOINT_KEY));
     returned.unmount();
     window.history.replaceState(null, "", "/prototype?kroger=connected");
     render(<TonightPrototype />);
@@ -1416,7 +1392,7 @@ describe("Kroger return plan", () => {
 
   it.each(["corrupt", "missing", "denied"])("shows a bounded restore error for a %s checkpoint", (failure) => {
     if (failure === "corrupt") {
-      window.sessionStorage.setItem(PLAN_CHECKPOINT_KEY, "{broken");
+      window.sessionStorage.setItem(workspaceStorageKey(PLAN_CHECKPOINT_KEY), "{broken");
     } else if (failure === "denied") {
       vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => { throw new Error("private"); });
     }
@@ -1429,6 +1405,7 @@ describe("Kroger return plan", () => {
 });
 
 describe("proposal Apply preserves the local cap", () => {
+  type AppliedProposal = Awaited<ReturnType<typeof proposalApi.applyProposal>>;
   const proposalId = "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b";
   const revisionId = "9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d";
   const preview = {
@@ -1476,8 +1453,8 @@ describe("proposal Apply preserves the local cap", () => {
     ["invalid", ["17", "12.345"], "12.345", 1700],
     ["away and back", ["25", "40"], "40", 4000],
   ] as const)("keeps a %s cap edit while Apply is deferred", async (_name, edits, draft, cents) => {
-    let finish: (id: string) => void = () => undefined;
-    vi.spyOn(proposalApi, "applyProposal").mockImplementation(() => new Promise<string>((resolve) => { finish = resolve; }));
+    let finish: (result: AppliedProposal) => void = () => undefined;
+    vi.spyOn(proposalApi, "applyProposal").mockImplementation(() => new Promise<AppliedProposal>((resolve) => { finish = resolve; }));
     mount();
     fireEvent.click(within(shoppingSection()).getByLabelText(/salsa/));
     fireEvent.click(within(shoppingSection()).getByLabelText(/onion/));
@@ -1487,7 +1464,7 @@ describe("proposal Apply preserves the local cap", () => {
       editCap(edit);
     }
     click("Pantry");
-    await act(async () => { finish(revisionId); });
+    await act(async () => { finish({ plan_revision_id: revisionId, snapshot: preview }); });
     expect(screen.getByRole("heading", { name: "Pantry" })).toBeTruthy();
     expect(pantryBox("rice").checked).toBe(true);
     click("Plan");
@@ -1516,7 +1493,7 @@ describe("proposal Apply preserves the local cap", () => {
     jobState.submit.mockImplementation(() => new Promise<void>((resolve) => {
       finish = () => { jobState.job = proposalJob(); resolve(); };
     }));
-    vi.spyOn(proposalApi, "applyProposal").mockResolvedValue(revisionId);
+    vi.spyOn(proposalApi, "applyProposal").mockResolvedValue({ plan_revision_id: revisionId, snapshot: preview });
     mount();
     await ask("Change my plan");
     editCap("23");
@@ -1533,6 +1510,26 @@ describe("proposal Apply preserves the local cap", () => {
     expect(revisions[1]).toEqual({
       meals: preview.meals, pantry_ingredient_ids: ["rice"], plan_cap_cents: 2300,
     });
+  });
+
+  it("applies the committed snapshot when it differs from the proposal preview", async () => {
+    const snapshot = {
+      ...preview,
+      meals: [{ recipe_id: "chickpea_curry", servings: 3 }],
+    };
+    vi.spyOn(proposalApi, "applyProposal").mockResolvedValue({ plan_revision_id: revisionId, snapshot });
+    mount();
+    await ask("Change my plan");
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText("Applied to your plan.");
+    expect(textOf(card("Chickpea curry"))).toContain("3 servings");
+    expect(within(screen.getByRole("main")).queryByRole("article", { name: "Bean tacos" })).toBeNull();
+    expect(within(screen.getByRole("main")).queryByRole("article", { name: "Egg fried rice" })).toBeNull();
+    click("Pantry");
+    expect(pantryBox("rice").checked).toBe(true);
+    expect(preview.meals).toEqual([
+      { recipe_id: "bean_tacos", servings: 4 }, { recipe_id: "egg_fried_rice", servings: 2 },
+    ]);
   });
 });
 

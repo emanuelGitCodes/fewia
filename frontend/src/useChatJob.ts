@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { fetchChatJob, submitChatJob } from "./chatApi";
 import type { ChatJob, ChatJobCreate } from "./chatTypes";
+import { modelJobFailureText } from "./apiTypes";
 import { usePolledJob } from "./usePolledJob";
 import type { PolledJobState } from "./usePolledJob";
 
@@ -19,7 +20,8 @@ export function useChatJob(
     budgetMs: 8 * 60 * 1000,
     timeoutText:
       "The chat request is still processing and may continue. Retry checks the same request.",
-    failedText: "The chat request failed. Retry checks the same request.",
+    failedText: (job) =>
+      modelJobFailureText(job) ?? "The chat request failed. Try again.",
     fallbackText: HTTP_FALLBACK,
     mapError: (_caught, fallbackText) => fallbackText,
   });

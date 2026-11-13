@@ -16,7 +16,7 @@ const focusEstimate = (): void => {
   document.getElementById("estimate-heading")?.focus();
 };
 
-export default function App(): JSX.Element {
+export default function App({ onSignOut }: { onSignOut?: () => void } = {}): JSX.Element {
   const demo = useGroceryDemo(focusEstimate);
   useLayoutEffect(() => {
     if (demo.formValidation !== null) {
@@ -43,6 +43,7 @@ export default function App(): JSX.Element {
       <header className="site-header">
         <span className="wordmark">FEWIA</span>
         <span className="mode-label">Local demo · Sample prices</span>
+        {onSignOut !== undefined ? <button type="button" onClick={onSignOut}>Sign out</button> : null}
       </header>
       <main className="page">
         <div className="intro">

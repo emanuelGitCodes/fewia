@@ -280,7 +280,7 @@ describe("chat continuity", () => {
     expect(hookOf(bucket).chat.needsRebuild).toBe(true);
     expect(childText(renderer.container)).toContain(REBUILD_CHAT_GUIDANCE);
     expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Retry chat request").disabled).toBe(false);
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     const sends = jobState.submit.mock.calls.length;
     act(() => {
@@ -319,12 +319,12 @@ describe("chat continuity", () => {
     });
     expect(hookOf(bucket).chat.needsRebuild).toBe(true);
     expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Retry chat request").disabled).toBe(false);
     expect(buttonNamed(renderer.container, "Start a new conversation").disabled).toBe(false);
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     const retryCalls = jobState.submit.mock.calls.length;
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Retry the same request" }));
+      fireEvent.click(screen.getByRole("button", { name: "Retry chat request" }));
     });
     expect(jobState.submit.mock.calls.length).toBe(retryCalls + 1);
     expect(submitted(jobState, retryCalls)).toEqual(submitted(jobState, 0));

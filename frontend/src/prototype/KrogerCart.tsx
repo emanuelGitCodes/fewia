@@ -13,7 +13,7 @@ export const KROGER_CART_UNAVAILABLE_LINE = "Kroger is unavailable. Try again.";
 export const KROGER_CART_EMPTY_LINE = "No Kroger items found for this plan.";
 export const KROGER_CART_SAVE_FAILED_LINE = "Could not save the plan. Try again.";
 export const KROGER_CART_UNKNOWN_LINE =
-  "Kroger did not confirm. Check your Kroger cart before you retry.";
+  "Kroger did not confirm. Check your Kroger cart. This request will not be sent again.";
 
 export const KROGER_CART_FIXTURE_ADDED_LINE = "Added to the fixture cart. No Kroger cart changed.";
 export const KROGER_CART_FIXTURE_UNKNOWN_LINE =
@@ -32,6 +32,8 @@ export function KrogerCart(props: {
   const [sending, setSending] = useState(false);
   const [added, setAdded] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
+  const confirmationExpiresAt = useRef(0);
+  const uncertain = useRef(false);
   const cart = useRef<HTMLDivElement | null>(null);
   const previewButton = useRef<HTMLButtonElement | null>(null);
   const setPreviewButton = useCallback((node: HTMLButtonElement | null): void => {
@@ -70,7 +72,7 @@ export function KrogerCart(props: {
       setSending(false);
     }
     setAdded(false);
-    setUnconfirmed(false);
+    setUnconfirmed(uncertain.current);
     return () => {
       generation.current += 1;
       controller.current?.abort();
@@ -80,7 +82,7 @@ export function KrogerCart(props: {
   const ready = locationId !== null && state.meals.length > 0;
 
   const showPreview = (): void => {
-    if (!ready || locationId === null || inFlight.current || previewing) {
+    if (!ready || locationId === null || inFlight.current || previewing || uncertain.current) {
       return;
     }
     controller.current?.abort();
@@ -105,10 +107,11 @@ export function KrogerCart(props: {
         return;
       }
       try {
-        const value = await previewKrogerCart(id, locationId, current.signal);
+        const value = await previewKrogerCart(id, locationId, current.signal, props.krogerMode);
         if (generation.current === mine) {
           setPreviewing(false);
           setPreview(value);
+          confirmationExpiresAt.current = Date.now() + value.expiresInSeconds * 1000;
         }
       } catch {
         if (generation.current === mine) {
@@ -125,10 +128,18 @@ export function KrogerCart(props: {
       !ready ||
       preview === null ||
       preview.items.length === 0 ||
+      preview.confirmationToken === null ||
       added ||
+      uncertain.current ||
       inFlight.current ||
       previewing
     ) {
+      return;
+    }
+    if (Date.now() >= confirmationExpiresAt.current) {
+      setPreview(null);
+      setMessage("Cart confirmation expired. Preview the cart again.");
+      previewButton.current?.focus();
       return;
     }
     inFlight.current = true;
@@ -141,12 +152,18 @@ export function KrogerCart(props: {
     const unknownLine = sentFixture ? KROGER_CART_FIXTURE_UNKNOWN_LINE : KROGER_CART_UNKNOWN_LINE;
     setSending(true);
     setMessage("");
-    addToKrogerCart(preview.items.map(({ upc, quantity }) => ({ upc, quantity }))).then((result) => {
+    addToKrogerCart(preview.confirmationToken, preview.source).then((result) => {
       inFlight.current = false;
+      if (result === "unknown") uncertain.current = true;
       if (!mounted.current) {
         return;
       }
       setSending(false);
+      if (result === "unknown") {
+        setUnconfirmed(true);
+        if (sendButton.current === document.activeElement) cart.current?.focus();
+        setPreview(null);
+      }
       if (generation.current !== mine) {
         if (latestSend.current === mineSend) {
           if (result === "added") {
@@ -209,7 +226,7 @@ export function KrogerCart(props: {
           ref={setPreviewButton}
           type="button"
           className="tonight-ask-btn"
-          aria-disabled={!ready || previewing || sending}
+          aria-disabled={!ready || previewing || sending || unconfirmed}
           onClick={showPreview}
         >
           {fixtureWording ? "Preview fixture cart" : "Preview Kroger cart"}
@@ -238,7 +255,7 @@ export function KrogerCart(props: {
               {`No ${fixturePreview ? "fixture" : "Kroger"} match: ${preview.unmatched.map((line) => line.name).join(", ")}.`}
             </p>
           ) : null}
-          {count > 0 && !added ? (
+          {count > 0 && preview.confirmationToken !== null && !added && !unconfirmed ? (
             <button
               ref={sendButton}
               type="button"
@@ -246,9 +263,7 @@ export function KrogerCart(props: {
               aria-disabled={!ready || sending || previewing}
               onClick={send}
             >
-              {unconfirmed
-                ? "Retry"
-                : `Send ${String(count)} ${count === 1 ? "item" : "items"} to ${fixturePreview ? "fixture" : "Kroger"} cart`}
+              {`Send ${String(count)} ${count === 1 ? "item" : "items"} to ${fixturePreview ? "fixture" : "Kroger"} cart`}
             </button>
           ) : null}
         </>

@@ -633,14 +633,14 @@ describe("ChatWorkspace", () => {
     expect(childText(renderer.container)).toContain(REBUILD_CHAT_GUIDANCE);
     expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
-    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Retry chat request").disabled).toBe(false);
     expect(buttonNamed(renderer.container, "Start a new conversation").disabled).toBe(false);
     act(() => {
       fireEvent.submit(screen.getByRole("textbox").closest("form")!);
     });
     expect(send).not.toHaveBeenCalled();
     act(() => {
-      fireEvent.click(buttonNamed(renderer.container, "Retry the same request"));
+      fireEvent.click(buttonNamed(renderer.container, "Retry chat request"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();
