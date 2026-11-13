@@ -1,0 +1,283 @@
+name: Image security
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend-runtime
+            context: .
+            dockerfile: backend/Dockerfile
+            target: runtime
+            os: debian
+            library: python-pkg
+          - name: frontend-build
+            context: frontend
+            dockerfile: frontend/Dockerfile
+            target: build
+            os: debian
+            library: node-pkg
+          - name: frontend-runtime
+            context: frontend
+            dockerfile: frontend/Dockerfile
+            target: runtime
+            os: alpine
+            library: ""
+    env:
+      TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Probe credential exclusions in the build context
+        env:
+          BUILD_CONTEXT: ${{ matrix.context }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import tarfile
+          import tempfile
+          import uuid
+
+          context = Path(os.environ["BUILD_CONTEXT"]).resolve()
+          token = uuid.uuid4().hex
+          marker = f"fewia-context-sentinel-{token}".encode()
+          created_files: list[Path] = []
+          created_dirs: list[Path] = []
+          sentinel_paths: set[str] = set()
+
+          def run(*args: str) -> None:
+              subprocess.run(args, check=True)
+
+          def ensure_directory(path: Path) -> None:
+              if path.is_symlink():
+                  raise RuntimeError(f"Refuse a symbolic link: {path.name}")
+              if path.exists():
+                  if not path.is_dir():
+                      raise RuntimeError(f"Expected a directory: {path.name}")
+                  return
+              ensure_directory(path.parent)
+              path.mkdir()
+              created_dirs.append(path)
+
+          with tempfile.TemporaryDirectory(
+              prefix="fewia-context-", dir=os.environ["RUNNER_TEMP"]
+          ) as temporary:
+              scratch = Path(temporary)
+              iidfile = scratch / "image.iid"
+              cidfile = scratch / "container.cid"
+              try:
+                  for base in (context, context / f"context-probe-{token}" / "nested"):
+                      names = (
+                          ".env", ".env0600", f".env.{token}",
+                          f".fewia-state/{token}", ".aws/credentials", ".ssh/id_rsa",
+                          ".netrc", ".git-credentials", ".npmrc",
+                          f"{token}.key", f"private-{token}.pem", f"{token}.pem",
+                      )
+                      for name in names:
+                          path = base / name
+                          ensure_directory(path.parent)
+                          relative = path.relative_to(context).as_posix()
+                          with path.open("xb") as sentinel:
+                              created_files.append(path)
+                              path.chmod(0o600)
+                              sentinel.write(marker + b":" + relative.encode() + b"\n")
+                          sentinel_paths.add(relative)
+
+                  dockerfile = scratch / "Dockerfile"
+                  dockerfile.write_text("FROM scratch\nCOPY . /\n")
+                  run("docker", "build", "--file", str(dockerfile),
+                      "--iidfile", str(iidfile), str(context))
+                  image_id = iidfile.read_text().strip()
+                  if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
+                      raise RuntimeError("Invalid probe image ID")
+                  run("docker", "create", "--cidfile", str(cidfile), image_id, "/probe")
+                  container_id = cidfile.read_text().strip()
+                  archive = scratch / "filesystem.tar"
+                  run("docker", "export", "--output", str(archive), container_id)
+                  with tarfile.open(archive) as filesystem:
+                      for member in filesystem:
+                          name = member.name.removeprefix("./").lstrip("/")
+                          if name in sentinel_paths:
+                              raise RuntimeError(f"Credential sentinel path leaked: {name}")
+                          if not member.isfile():
+                              continue
+                          content = filesystem.extractfile(member)
+                          if content is None:
+                              raise RuntimeError("Cannot read a probe filesystem entry")
+                          with content:
+                              overlap = b""
+                              while chunk := content.read(1024 * 1024):
+                                  data = overlap + chunk
+                                  if marker in data:
+                                      raise RuntimeError(f"Credential sentinel content leaked: {name}")
+                                  overlap = data[-(len(marker) - 1):]
+                  print("Context probe passed: root and nested credential sentinels excluded")
+              finally:
+                  cleanup_errors: list[Exception] = []
+                  for path in reversed(created_files):
+                      try:
+                          path.unlink()
+                      except Exception as error:
+                          cleanup_errors.append(error)
+                  for path in reversed(created_dirs):
+                      try:
+                          path.rmdir()
+                      except Exception as error:
+                          cleanup_errors.append(error)
+                  for record, pattern, command in (
+                      (cidfile, r"[0-9a-f]{64}", ("docker", "rm")),
+                      (iidfile, r"sha256:[0-9a-f]{64}", ("docker", "image", "rm")),
+                  ):
+                      try:
+                          if record.exists():
+                              identity = record.read_text().strip()
+                              if not re.fullmatch(pattern, identity):
+                                  raise RuntimeError("Invalid probe artifact ID")
+                              run(*command, identity)
+                      except Exception as error:
+                          cleanup_errors.append(error)
+                  if cleanup_errors:
+                      raise RuntimeError("Probe artifact cleanup failed") from cleanup_errors[0]
+          PY
+
+      - name: Build and record the image ID
+        id: build
+        env:
+          BUILD_CONTEXT: ${{ matrix.context }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          docker build --file "$DOCKERFILE" --target "$BUILD_TARGET" \
+            --iidfile "$RUNNER_TEMP/image.iid" "$BUILD_CONTEXT"
+          image_id="$(cat "$RUNNER_TEMP/image.iid")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf 'image_id=%s\n' "$image_id" >> "$GITHUB_OUTPUT"
+          printf 'Built image: %s\n' "$image_id"
+
+      - name: Download and validate the vulnerability database
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/trivy-cache" "$RUNNER_TEMP/trivy-reports"
+          docker run --rm --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m \
+            --mount "type=bind,src=$RUNNER_TEMP/trivy-cache,dst=/cache" \
+            "$TRIVY_IMAGE" image --cache-dir /cache --download-db-only
+          test -s "$RUNNER_TEMP/trivy-cache/db/trivy.db"
+          jq -e '
+            .Version == 2
+            and (.UpdatedAt | type == "string" and length > 0)
+            and (.NextUpdate | type == "string" and length > 0)
+          ' "$RUNNER_TEMP/trivy-cache/db/metadata.json" > /dev/null
+
+      - name: Scan an archive of the recorded image ID
+        id: scan
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.image_id }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_archive="$(mktemp "$RUNNER_TEMP/image-XXXXXXXX.tar")"
+          trap 'rm -f -- "$image_archive"' EXIT
+          docker save --output "$image_archive" "$IMAGE_ID"
+          test -s "$image_archive"
+          config_path="$(tar -xOf "$image_archive" manifest.json | jq -er '
+            if type == "array" and length == 1 then
+              .[0].Config | select(type == "string")
+            else error("Expected one archive manifest entry") end
+          ')"
+          case "$config_path" in
+            blobs/sha256/*) config_hex="${config_path#blobs/sha256/}" ;;
+            *.json) config_hex="${config_path%.json}" ;;
+            *) printf 'Invalid archive config path\n' >&2; exit 1 ;;
+          esac
+          [[ "$config_hex" =~ ^[0-9a-f]{64}$ ]]
+          config_checksum="$(tar -xOf "$image_archive" "$config_path" | sha256sum)"
+          [[ "${config_checksum%% *}" == "$config_hex" ]]
+          config_digest="sha256:$config_hex"
+          printf 'config_digest=%s\n' "$config_digest" >> "$GITHUB_OUTPUT"
+          printf 'Archive image: %s config: %s\n' "$IMAGE_ID" "$config_digest"
+          docker run --rm --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m \
+            --mount "type=bind,src=$image_archive,dst=/image.tar,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/trivy-cache,dst=/cache" \
+            --mount "type=bind,src=$RUNNER_TEMP/trivy-reports,dst=/reports" \
+            "$TRIVY_IMAGE" image --cache-dir /cache --skip-db-update \
+            --input /image.tar --scanners vuln --pkg-types os,library \
+            --list-all-pkgs --severity HIGH,CRITICAL --exit-code 1 \
+            --exit-on-eol 1 --format json --output /reports/report.json
+
+      - name: Validate image identity and package scan coverage
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.image_id }}
+          CONFIG_DIGEST: ${{ steps.scan.outputs.config_digest }}
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_LIBRARY: ${{ matrix.library }}
+        run: |
+          set -euo pipefail
+          [[ "$CONFIG_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          test -s "$RUNNER_TEMP/trivy-reports/report.json"
+          jq -e -s --arg config_digest "$CONFIG_DIGEST" --arg os "$EXPECTED_OS" \
+            --arg library "$EXPECTED_LIBRARY" '
+            def nonempty_string: type == "string" and length > 0;
+            def complete_packages:
+              type == "array" and length > 0
+              and all(.[];
+                type == "object"
+                and (.Name | nonempty_string)
+                and (.Version | nonempty_string));
+            def complete_vulnerabilities:
+              type == "array"
+              and all(.[];
+                type == "object"
+                and (.VulnerabilityID | nonempty_string)
+                and (.PkgName | nonempty_string)
+                and (.Severity == "UNKNOWN" or .Severity == "LOW"
+                  or .Severity == "MEDIUM"));
+            def complete_result:
+              type == "object"
+              and (.Target | nonempty_string)
+              and (.Class == "os-pkgs" or .Class == "lang-pkgs")
+              and (.Type | nonempty_string)
+              and (.Packages | complete_packages)
+              and ((has("Vulnerabilities") | not)
+                or (.Vulnerabilities | complete_vulnerabilities));
+            length == 1 and (.[0] |
+              .SchemaVersion == 2
+              and .ArtifactType == "container_image"
+              and .Metadata.ImageID == $config_digest
+              and .Metadata.OS.Family == $os
+              and (.Metadata.OS.Name | nonempty_string)
+              and (.Results | type == "array" and length > 0)
+              and all(.Results[]; complete_result)
+              and any(.Results[];
+                .Class == "os-pkgs" and .Type == $os)
+              and ($library == "" or any(.Results[];
+                .Class == "lang-pkgs" and .Type == $library)))
+          ' "$RUNNER_TEMP/trivy-reports/report.json" > /dev/null
+          printf 'Validated %s config=%s: OS=%s language=%s\n' \
+            "$IMAGE_ID" "$CONFIG_DIGEST" "$EXPECTED_OS" "${EXPECTED_LIBRARY:-none expected}"
