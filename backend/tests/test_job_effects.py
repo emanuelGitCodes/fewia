@@ -9,7 +9,8 @@ from uuid import uuid4
 
 import pytest
 from conftest import require_test_database_url
-from sqlalchemy import select
+from sqlalchemy import MetaData, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 from test_plaid_sync import ScriptedProvider, page, txn
 from test_plan_job import NOW, payload
@@ -94,6 +95,70 @@ def expire(factory: sessionmaker[Session], context: JobContext) -> None:
 def test_context_hides_lease_token(effect_factory: sessionmaker[Session]) -> None:
     context = claim_context(effect_factory)
     assert context.lease_token not in repr(context)
+
+
+@pytest.mark.parametrize(
+    ("reference", "valid"),
+    [
+        ({"kind": "evidence", "id": "a" * 64}, True),
+        ({"kind": "proposal", "id": "01234567-89ab-cdef-0123-456789abcdef"}, True),
+        ({"kind": "sync", "changed_count": 0}, True),
+        ({"kind": "sync", "changed_count": 2_147_483_647}, True),
+        (None, False),
+        ([], False),
+        ({}, False),
+        ({"kind": ["sync"], "changed_count": 1}, False),
+        ({"kind": "unknown"}, False),
+        ({"kind": "evidence"}, False),
+        ({"kind": "evidence", "id": None}, False),
+        ({"kind": "evidence", "id": 1}, False),
+        ({"kind": "evidence", "id": "A" * 64}, False),
+        ({"kind": "evidence", "id": "a" * 64, "extra": 1}, False),
+        ({"kind": "proposal", "id": "invalid"}, False),
+        (
+            {
+                "kind": "proposal",
+                "id": "01234567-89ab-cdef-0123-456789abcdef",
+                "extra": 1,
+            },
+            False,
+        ),
+        ({"kind": "sync"}, False),
+        ({"kind": "sync", "changed_count": None}, False),
+        ({"kind": "sync", "changed_count": True}, False),
+        ({"kind": "sync", "changed_count": "1"}, False),
+        ({"kind": "sync", "changed_count": -1}, False),
+        ({"kind": "sync", "changed_count": 1.5}, False),
+        ({"kind": "sync", "changed_count": 2_147_483_648}, False),
+        ({"kind": "sync", "changed_count": 1, "extra": 1}, False),
+    ],
+)
+def test_postgresql_metadata_enforces_effect_reference_guard(
+    effect_factory: sessionmaker[Session], reference: object, valid: bool
+) -> None:
+    context = claim_context(effect_factory)
+    metadata = MetaData()
+    Job.__table__.to_metadata(metadata)
+    table = JobEffect.__table__.to_metadata(
+        metadata, name=f"job_effect_metadata_{uuid4().hex}"
+    )
+    with effect_factory() as session:
+        assert session.get_bind().dialect.name == "postgresql"
+        table.create(session.connection())
+        statement = table.insert().values(
+            job_id=context.job_id,
+            user_id=context.user_id,
+            effect_key="sync:0",
+            input_digest="a" * 64,
+            result_reference=reference,
+        )
+        if valid:
+            session.execute(statement)
+            assert session.scalar(select(table.c.result_reference)) == reference
+        else:
+            with pytest.raises(IntegrityError, match="ck_job_effects_reference"):
+                with session.begin_nested():
+                    session.execute(statement)
 
 
 def test_crash_reclaim_reuses_first_immutable_evidence(
