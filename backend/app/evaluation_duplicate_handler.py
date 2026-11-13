@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, StrictInt
@@ -10,11 +9,11 @@ from app.evaluation_inputs import CaseContext
 from app.evaluation_plan_inputs import fixture_plan
 from app.providers.local_artifacts import ArtifactPut
 from app.services.evidence_contract import EvidenceInputs
-from app.services.evidence_store import load_evidence, save_plan_evidence
+from app.services.evidence_store import load_evidence, save_job_plan_evidence
 from app.services.handoff_contract import HandoffView
 from app.services.handoff_dispatch import dispatch_handoff
 from app.services.handoff_intents import prepare_handoff
-from app.services.job_delivery import JobHandler
+from app.services.job_delivery import JobContext, JobHandler
 from app.services.shopping_payload import build_shopping_payload, shopping_payload_hash
 
 
@@ -103,32 +102,35 @@ class DuplicateHandler(JobHandler):
         return self.handoff
 
     def __call__(
-        self, payload: dict[str, object], heartbeat: Callable[[], None]
+        self, payload: dict[str, object], context: JobContext
     ) -> dict[str, object]:
         envelope = _Envelope.model_validate(payload)
-        if envelope.user_id != self.context.user_id:
+        if (
+            envelope.user_id != self.context.user_id
+            or context.user_id != self.context.user_id
+        ):
             raise ValueError("duplicate handler owner does not match")
         self.handler_calls += 1
-        heartbeat()
+        context.heartbeat()
         planning = execute_plan(
             self._request.model_dump(mode="json"),
             self.context.budget,
             self.context.period,
-            user_id=self.context.user_id,
+            user_id=context.user_id,
         )
         self.planning = planning
         current_plan = fixture_plan(self.context.inputs)
         self.shopping_payload = build_shopping_payload(current_plan)
-        heartbeat()
-        revision = save_plan_evidence(
-            self.factory, self.context.user_id, planning, self._inputs
+        context.heartbeat()
+        revision = save_job_plan_evidence(
+            self.factory, context, "evidence:0", planning, self._inputs
         )
         if load_evidence(self.factory, self.context.user_id, revision) is None:
             raise RuntimeError("duplicate handler evidence is missing")
         self.evidence_revision_id = revision
-        heartbeat()
+        context.heartbeat()
         handoff = self.repeat_handoff()
-        heartbeat()
+        context.heartbeat()
         summary: dict[str, object] = {
             "case_id": self.context.case_id,
             "planning": {key: planning[key] for key in ("request", "plan", "budget")},
@@ -146,5 +148,5 @@ class DuplicateHandler(JobHandler):
         self.artifact_attempts += 1
         self.artifact = self.artifact_store.put_report(summary)
         summary["artifact"] = {"key": self.artifact.key, "sha256": self.artifact.sha256}
-        heartbeat()
+        context.heartbeat()
         return summary

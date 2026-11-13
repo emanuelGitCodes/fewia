@@ -54,7 +54,7 @@ def effects(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         calls.append("effect")
         raise RuntimeError(MARKER)
 
-    for name in ("build_job_queue", "process_one", "plan_job", "SessionLocal"):
+    for name in ("build_job_queue", "process_one", "SessionLocal"):
         monkeypatch.setattr(consume_jobs, name, forbidden)
     monkeypatch.setattr(consume_jobs.signal, "signal", forbidden)
     return calls

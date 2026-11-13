@@ -11,9 +11,9 @@ from app import models  # noqa: F401
 from app.db import SessionLocal
 from app.providers.job_transport import build_job_queue
 from app.providers.job_transport_settings import load_job_transport
+from app.services.agent_jobs import make_agent_handler
 from app.services.job_consumer import process_one
 from app.services.job_delivery import JobHandler, JobQueue
-from app.services.plan_job import plan_job
 
 _OUTCOMES = (
     "empty invalid busy retry lease_lost handler_failed succeeded terminal exhausted"
@@ -70,7 +70,9 @@ def main(
         return 1
     selected_factory = SessionLocal if factory is None else factory
     selected_processor = process_one if processor is None else processor
-    selected_handler = plan_job if handler is None else handler
+    selected_handler = (
+        make_agent_handler(selected_factory, None) if handler is None else handler
+    )
     stop_requested = False
     signals = (signal.SIGINT, signal.SIGTERM)
     previous_handlers = {signum: signal.getsignal(signum) for signum in signals}

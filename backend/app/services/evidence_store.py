@@ -13,6 +13,8 @@ from app.services.evidence_contract import (
     canonical_json,
     normalize_snapshot,
 )
+from app.services.job_delivery import JobContext
+from app.services.job_effects import apply_effect
 
 _CONFLICT = "evidence snapshot conflicts"
 _USER_ERROR = "user_id is invalid"
@@ -65,37 +67,54 @@ def save_plan_evidence(
     inputs: EvidenceInputs,
 ) -> str:
     snapshot = _json_object(normalize_snapshot(user_id, planning, inputs))
+    with factory.begin() as session:
+        return persist_snapshot(session, user_id, snapshot)
+
+
+def persist_snapshot(
+    session: Session, user_id: int, snapshot: dict[str, object]
+) -> str:
+    """Persist a normalized immutable snapshot in the caller's transaction."""
     evidence_id = _evidence_id(user_id, snapshot)
-    conflict: EvidenceConflict | None = None
-    stored: str | None = None
-    with factory() as session:
-        _insert_ignore(session, evidence_id, user_id, snapshot)
-        row = session.scalar(
-            select(GroceryEvidence).where(GroceryEvidence.id == evidence_id)
-        )
-        if row is None:
-            raise RuntimeError(_MISSING)
-        payload: dict[str, object] | None
-        try:
-            payload = _json_object(row.snapshot)
-            owner = row.user_id
-        except (TypeError, ValueError):
-            payload = None
-            owner = None
-        if (
-            payload is None
-            or owner != user_id
-            or canonical_json(payload) != canonical_json(snapshot)
-        ):
-            conflict = EvidenceConflict(_CONFLICT)
-        else:
-            session.commit()
-            stored = evidence_id
-    if conflict is not None:
-        raise conflict
-    if stored is None:
+    _insert_ignore(session, evidence_id, user_id, snapshot)
+    row = session.scalar(
+        select(GroceryEvidence).where(GroceryEvidence.id == evidence_id)
+    )
+    if row is None:
         raise RuntimeError(_MISSING)
-    return stored
+    try:
+        payload = _json_object(row.snapshot)
+    except (TypeError, ValueError):
+        raise EvidenceConflict(_CONFLICT) from None
+    if row.user_id != user_id or canonical_json(payload) != canonical_json(snapshot):
+        raise EvidenceConflict(_CONFLICT)
+    return evidence_id
+
+
+def save_job_plan_evidence(
+    factory: sessionmaker[Session],
+    context: JobContext,
+    effect_key: str,
+    planning: dict[str, object],
+    inputs: EvidenceInputs,
+) -> str:
+    snapshot = _json_object(normalize_snapshot(context.user_id, planning, inputs))
+    budget_inputs = inputs.model_dump(mode="json", exclude={"calculated_at"})
+
+    def write(session: Session) -> dict[str, object]:
+        return {
+            "kind": "evidence",
+            "id": persist_snapshot(session, context.user_id, snapshot),
+        }
+
+    reference = apply_effect(
+        factory,
+        context,
+        effect_key,
+        {"planning": planning, "budget_inputs": budget_inputs},
+        write,
+    )
+    return cast(str, reference["id"])
 
 
 def load_evidence(

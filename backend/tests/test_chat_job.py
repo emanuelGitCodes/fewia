@@ -1,6 +1,6 @@
 import copy
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
@@ -10,6 +10,8 @@ from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+from test_job_effects import claim_context
+from test_plan_job import pure_context
 
 from app.agent.catalog_tool import TOOL_NAME as CATALOG_TOOL_NAME
 from app.agent.catalog_tool import execute_catalog_search
@@ -27,11 +29,13 @@ from app.domain.budget import (
     calculate_budget,
 )
 from app.domain.grocery import Diet
+from app.evaluation_database import fixture_database
 from app.models import User
 from app.plan_models import PlanProposal, PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
+from app.services.job_delivery import JobContext
 from app.services.plan_job import SpendingInput
 from tests.test_search_recovery import terminal_search
 
@@ -39,6 +43,19 @@ NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 PERIOD = date(2026, 9, 1)
 _REV = "a" * 64
 FACTORY: sessionmaker[Session] = sessionmaker()
+
+
+@pytest.fixture()
+def chat_factory() -> Iterator[sessionmaker[Session]]:
+    with fixture_database() as database:
+        with database.factory() as session:
+            Base.metadata.create_all(
+                session.get_bind(),
+                tables=[PlanRevision.__table__, PlanProposal.__table__],
+            )
+        with database.factory.begin() as session:
+            session.add(User(id=1, display_name="Owner"))
+        yield database.factory
 
 
 def spending(**overrides: object) -> dict[str, object]:
@@ -156,16 +173,18 @@ def _patch_save(
 ) -> None:
     def fake_save(
         factory: sessionmaker[Session],
-        user_id: int,
+        context: JobContext,
+        effect_key: str,
         planning: dict[str, object],
         inputs: EvidenceInputs,
     ) -> str:
         assert factory is FACTORY
-        assert user_id == 1
+        assert context.user_id == 1
+        assert effect_key == "evidence:0"
         saved.append({"planning": dict(planning), "inputs": inputs})
         return _REV
 
-    monkeypatch.setattr(chat_job_module, "save_plan_evidence", fake_save)
+    monkeypatch.setattr(chat_job_module, "save_job_plan_evidence", fake_save)
 
 
 def test_chat_job_terminal_plan_and_followup(
@@ -178,7 +197,7 @@ def test_chat_job_terminal_plan_and_followup(
     provider = FakeLLM(_planner_then_final())
 
     result = chat_job_module.chat_job(
-        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+        chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
 
     assert result["status"] == "planned"
@@ -212,7 +231,7 @@ def test_chat_job_terminal_plan_and_followup(
                 {"role": "assistant", "text": "Here is a labeled estimate."},
             ],
         ),
-        lambda: None,
+        pure_context(),
         provider=follow_provider,
         factory=FACTORY,
     )
@@ -237,7 +256,7 @@ def test_chat_job_carries_the_next_search_to_the_next_turn(
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
     first = chat_job_module.chat_job(
         chat_payload(message="vegetarian meals"),
-        lambda: None,
+        pure_context(),
         provider=FakeLLM([_search_reply({"query": "vegetarian"})]),
         factory=FACTORY,
     )
@@ -247,7 +266,7 @@ def test_chat_job_carries_the_next_search_to_the_next_turn(
     provider = FakeLLM([_search_reply(next_search)])
     second = chat_job_module.chat_job(
         chat_payload(message="more", previous_search=next_search),
-        lambda: None,
+        pure_context(),
         provider=provider,
         factory=FACTORY,
     )
@@ -287,7 +306,7 @@ def test_chat_job_carries_the_previous_what_if_recipe(
             message="can you add it to the list",
             previous_what_if_recipe="baked_potatoes_with_beans",
         ),
-        lambda: None,
+        pure_context(),
         provider=FakeLLM([]),
         factory=FACTORY,
     )
@@ -303,7 +322,7 @@ def test_chat_job_transports_exhaustion_without_restarting(
     exhausted = terminal_search({"query": "vegetarian"})
     terminal = chat_job_module.chat_job(
         chat_payload(message="more", previous_search=exhausted),
-        lambda: None,
+        pure_context(),
         provider=FakeLLM([_search_reply({"query": "chicken"})]),
         factory=FACTORY,
     )
@@ -314,7 +333,7 @@ def test_chat_job_transports_exhaustion_without_restarting(
         chat_payload(
             message="more", previous_exhausted_search=terminal["exhausted_search"]
         ),
-        lambda: None,
+        pure_context(),
         provider=provider,
         factory=FACTORY,
     )
@@ -336,7 +355,7 @@ def test_chat_job_rejects_forged_exhaustion_before_provider(
     with pytest.raises(ChatProtocolError, match="previous_exhausted_search is invalid"):
         chat_job_module.chat_job(
             chat_payload(previous_exhausted_search={"query": "vegetarian"}),
-            lambda: None,
+            pure_context(),
             provider=FailLLM(),
             factory=FACTORY,
         )
@@ -356,7 +375,7 @@ def test_chat_job_opts_in_to_validated_model_prose(
     monkeypatch.setattr(chat_job_module, "run_chat", spy)
     provider = FakeLLM([_reply([{"text": "How many servings?"}], "end_turn")])
     result = chat_job_module.chat_job(
-        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+        chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
     assert seen == [True]
     assert result["reply_source"] == "template"
@@ -372,7 +391,7 @@ def test_chat_job_stores_snapshot_before_return(
 
     provider = FakeLLM(_planner_then_final())
     result = chat_job_module.chat_job(
-        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+        chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
     assert result["status"] == "planned"
     assert len(provider.requests) == 1
@@ -388,17 +407,18 @@ def test_chat_job_clarification_has_no_plan(
 
     def boom_save(
         factory: sessionmaker[Session],
-        user_id: int,
+        context: JobContext,
+        effect_key: str,
         planning: dict[str, object],
         inputs: EvidenceInputs,
     ) -> str:
-        del factory, user_id, planning, inputs
+        del factory, context, effect_key, planning, inputs
         raise AssertionError("store must not run")
 
-    monkeypatch.setattr(chat_job_module, "save_plan_evidence", boom_save)
+    monkeypatch.setattr(chat_job_module, "save_job_plan_evidence", boom_save)
     provider = FakeLLM([_reply([{"text": "How many servings?"}], "end_turn")])
     result = chat_job_module.chat_job(
-        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+        chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
     assert result["status"] == "clarification"
     assert result["plan"] is None
@@ -411,21 +431,21 @@ def test_chat_job_rejects_extra_and_user_id_before_provider() -> None:
     with pytest.raises(ValidationError):
         chat_job_module.chat_job(
             chat_payload(user_id=1),
-            lambda: None,
+            pure_context(),
             provider=provider,
             factory=FACTORY,
         )
     with pytest.raises(ValidationError):
         chat_job_module.chat_job(
             chat_payload(token="secret"),
-            lambda: None,
+            pure_context(),
             provider=provider,
             factory=FACTORY,
         )
     with pytest.raises(ValidationError):
         chat_job_module.chat_job(
             chat_payload(raw_ledger=[{"id": "tx-1"}]),
-            lambda: None,
+            pure_context(),
             provider=provider,
             factory=FACTORY,
         )
@@ -438,14 +458,14 @@ def test_chat_job_stale_cap_and_period(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(StaleSpendingError, match=STALE_SPENDING_ERROR):
         chat_job_module.chat_job(
             chat_payload(spending=stale),
-            lambda: None,
+            pure_context(),
             provider=provider,
             factory=FACTORY,
         )
     with pytest.raises(ValueError, match="current New York month"):
         chat_job_module.chat_job(
             chat_payload(spending=spending(period=date(2026, 8, 1))),
-            lambda: None,
+            pure_context(),
             provider=provider,
             factory=FACTORY,
         )
@@ -454,7 +474,7 @@ def test_chat_job_stale_cap_and_period(monkeypatch: pytest.MonkeyPatch) -> None:
     ok_provider = FakeLLM(_planner_then_final())
     result = chat_job_module.chat_job(
         chat_payload(spending=stale, plan_cap_cents=5_000),
-        lambda: None,
+        pure_context(),
         provider=ok_provider,
         factory=FACTORY,
     )
@@ -470,7 +490,7 @@ def test_chat_job_omits_raw_ledger_from_model_inputs(
     _patch_save(monkeypatch, saved)
     provider = FakeLLM(_planner_then_final())
     chat_job_module.chat_job(
-        chat_payload(), lambda: None, provider=provider, factory=FACTORY
+        chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
     dumped = json.dumps(provider.requests)
     for token in (
@@ -491,7 +511,7 @@ def test_chat_job_provider_failure_stays_static(
     provider = FakeLLM([RuntimeError("bedrock-secret")])
     with pytest.raises(ChatUnavailable, match="unavailable") as caught:
         chat_job_module.chat_job(
-            chat_payload(), lambda: None, provider=provider, factory=FACTORY
+            chat_payload(), pure_context(), provider=provider, factory=FACTORY
         )
     assert "bedrock-secret" not in str(caught.value)
     assert caught.value.__cause__ is None
@@ -505,18 +525,19 @@ def test_chat_job_recorder_failure_skips_followup(
 
     def boom_save(
         factory: sessionmaker[Session],
-        user_id: int,
+        context: JobContext,
+        effect_key: str,
         planning: dict[str, object],
         inputs: EvidenceInputs,
     ) -> str:
-        del factory, user_id, planning, inputs
+        del factory, context, effect_key, planning, inputs
         raise RuntimeError("store-failed")
 
-    monkeypatch.setattr(chat_job_module, "save_plan_evidence", boom_save)
+    monkeypatch.setattr(chat_job_module, "save_job_plan_evidence", boom_save)
     provider = FakeLLM(_planner_then_final())
     with pytest.raises(RuntimeError, match="store-failed") as caught:
         chat_job_module.chat_job(
-            chat_payload(), lambda: None, provider=provider, factory=FACTORY
+            chat_payload(), pure_context(), provider=provider, factory=FACTORY
         )
     assert caught.value.__cause__ is None
     assert len(provider.requests) == 1
@@ -562,6 +583,7 @@ def test_chat_job_input_rejects_invalid_plan_revision() -> None:
 
 def test_chat_job_get_plan_reads_the_job_plan_revision(
     monkeypatch: pytest.MonkeyPatch,
+    chat_factory: sessionmaker[Session],
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
     revision_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
@@ -590,11 +612,15 @@ def test_chat_job_get_plan_reads_the_job_plan_revision(
             _reply([{"text": "Done."}], "end_turn"),
         ]
     )
+    with chat_factory.begin() as session:
+        session.add(
+            PlanRevision(id=UUID(revision_id), user_id=1, snapshot=revision["snapshot"])
+        )
     result = chat_job_module.chat_job(
         chat_payload(plan_revision_id=revision_id, plan_revision=revision),
-        lambda: None,
+        claim_context(chat_factory),
         provider=provider,
-        factory=FACTORY,
+        factory=chat_factory,
     )
     assert result["status"] == "clarification"
     assert len(provider.requests) == 2
@@ -607,7 +633,7 @@ def test_chat_job_heartbeat_failure_is_before_provider() -> None:
 
     with pytest.raises(RuntimeError, match="heartbeat-lost"):
         chat_job_module.chat_job(
-            chat_payload(), heartbeat, provider=FailLLM(), factory=FACTORY
+            chat_payload(), pure_context(heartbeat), provider=FailLLM(), factory=FACTORY
         )
 
 
@@ -640,7 +666,7 @@ def test_chat_job_forwards_explicit_cap_when_available_is_smaller(
                 {"role": "assistant", "text": "Here is a labeled estimate."},
             ],
         ),
-        lambda: None,
+        pure_context(),
         provider=provider,
         factory=FACTORY,
     )
@@ -757,7 +783,7 @@ def test_chat_job_proposal_tool_stores_a_committed_proposal(
                 plan_revision_id=revision_id,
                 plan_revision={"id": revision_id, "snapshot": snapshot},
             ),
-            lambda: None,
+            claim_context(factory),
             provider=provider,
             factory=factory,
         )
@@ -825,7 +851,7 @@ def test_chat_job_rejects_invalid_prior_constraints_before_the_provider(
     with pytest.raises(ValidationError):
         chat_job_module.chat_job(
             chat_payload(previous_request=previous),
-            lambda: None,
+            pure_context(),
             provider=FailLLM(),
             factory=FACTORY,
         )

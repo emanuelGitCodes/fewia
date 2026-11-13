@@ -8,6 +8,7 @@ from app.evaluation_duplicate_handler import DuplicateHandler, ReportStore
 from app.evaluation_inputs import prepare_case
 from app.evidence_models import GroceryEvidence
 from app.handoff_models import ShoppingHandoff
+from app.job_effect_models import JobEffect
 from app.job_models import Job, JobOutbox
 from app.models import User
 from app.providers.local_artifacts import LocalArtifactStore
@@ -92,6 +93,7 @@ def _evaluate(
                 jobs = session.scalars(select(Job)).all()
                 outboxes = session.scalars(select(JobOutbox)).all()
                 evidence = session.scalars(select(GroceryEvidence)).all()
+                effects = session.scalars(select(JobEffect)).all()
                 handoffs = session.scalars(select(ShoppingHandoff)).all()
             plan = (handler.planning or {}).get("plan")
             total = plan.get("total_cents") if isinstance(plan, dict) else None
@@ -109,6 +111,12 @@ def _evaluate(
                 "outbox_sent": outboxes[0].published_at is not None,
                 "one_revision": len(evidence) == 1,
                 "revision": evidence[0].id == handler.evidence_revision_id,
+                "one_effect": len(effects) == 1,
+                "effect_reference": len(effects) == 1
+                and effects[0].user_id == owner
+                and effects[0].job_id == job.id
+                and effects[0].result_reference
+                == {"kind": "evidence", "id": handler.evidence_revision_id},
                 "one_handoff": len(handoffs) == 1,
                 "handoff_succeeded": handoffs[0].state == "succeeded",
                 "handoff_attempts": handoffs[0].attempts == 1,
@@ -128,6 +136,7 @@ def _evaluate(
             observed["job_status"] = jobs[0].status
             observed["outbox_count"] = len(outboxes)
             observed["evidence_count"] = len(evidence)
+            observed["effect_count"] = len(effects)
             observed["handoff_count"] = len(handoffs)
         return {
             "case_id": "P05",

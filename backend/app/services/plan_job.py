@@ -6,7 +6,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 from app.agent.planning_tool import PlanningToolError, execute_plan
 from app.domain.budget import SpendingSnapshot, SpendingSource, calculate_budget
 from app.domain.grocery import GroceryRequest
-from app.services.job_delivery import JobFailure
+from app.services.job_delivery import JobContext, JobFailure
 
 
 class SpendingInput(BaseModel):
@@ -44,11 +44,11 @@ def _is_revision_id(value: object) -> bool:
 
 def plan_job(
     payload: dict[str, object],
-    heartbeat: Callable[[], None],
+    context: JobContext,
     *,
     record_evidence: PlanEvidenceRecorder | None = None,
 ) -> dict[str, object]:
-    heartbeat()
+    context.heartbeat()
     parsed = PlanJobInput.model_validate(payload)
     if parsed.request.budget_period != parsed.spending.period:
         raise ValueError("request.budget_period must match spending.period")
@@ -70,7 +70,7 @@ def plan_job(
             parsed.request.model_dump(mode="json"),
             budget,
             parsed.spending.period,
-            user_id=1,
+            user_id=context.user_id,
             spending_source=parsed.spending_source,
         )
     except PlanningToolError as exc:
@@ -82,5 +82,5 @@ def plan_job(
         if not _is_revision_id(revision):
             raise ValueError("evidence revision id is invalid")
         result["evidence_revision_id"] = revision
-    heartbeat()
+    context.heartbeat()
     return result

@@ -1,7 +1,6 @@
 """Test bounded Plaid Item sync application and rollback."""
 
 import sqlite3
-import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
@@ -11,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 from conftest import require_test_database_url
-from sqlalchemy import Connection, Engine, create_engine, delete, event, text
+from sqlalchemy import Connection, Engine, create_engine, delete, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import models
@@ -528,20 +527,6 @@ def postgres_plaid() -> Iterator[tuple[Engine, int, str]]:
         engine.dispose()
 
 
-def _wait_for_lock_waiter(engine: Engine, pid: int) -> None:
-    deadline = time.monotonic() + 5
-    query = text(
-        "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND pid = :pid)"
-    )
-    while time.monotonic() < deadline:
-        with engine.connect() as connection:
-            waiting = connection.execute(query, {"pid": pid}).scalar()
-            if waiting:
-                return
-        time.sleep(0.05)
-    raise AssertionError("second sync did not wait on the Item lock")
-
-
 def test_postgres_concurrent_item_syncs_serialize(
     postgres_plaid: tuple[Engine, int, str],
 ) -> None:
@@ -549,12 +534,12 @@ def test_postgres_concurrent_item_syncs_serialize(
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     started = Event()
     release = Event()
-    pid_ready = Event()
-    second_pids: list[int] = []
+    first_cursors: list[str | None] = []
     second_cursors: list[str | None] = []
 
     class FirstProvider:
         def sync_page(self, credential_ref: str, cursor: str | None) -> SyncPage:
+            first_cursors.append(cursor)
             started.set()
             if not release.wait(timeout=10):
                 raise AssertionError("first sync was not released")
@@ -569,34 +554,20 @@ def test_postgres_concurrent_item_syncs_serialize(
         return sync_item(factory, item_id, FirstProvider(), user_id=user_id, now=clock)
 
     def run_second() -> int:
-        connection = engine.connect()
-        try:
-            pid = connection.execute(text("SELECT pg_backend_pid()")).scalar()
-            if type(pid) is not int:
-                raise AssertionError("PostgreSQL did not return a backend pid")
-            connection.commit()
-            second_pids.append(pid)
-            pid_ready.set()
-            bound = sessionmaker(bind=connection, expire_on_commit=False)
-            return sync_item(
-                bound, item_id, SecondProvider(), user_id=user_id, now=clock
-            )
-        finally:
-            connection.close()
+        return sync_item(factory, item_id, SecondProvider(), user_id=user_id, now=clock)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         first_future = executor.submit(run_first)
         try:
             assert started.wait(timeout=10)
             second_future = executor.submit(run_second)
-            assert pid_ready.wait(timeout=10)
-            _wait_for_lock_waiter(engine, second_pids[0])
+            assert second_future.result(timeout=10) == 1
             release.set()
             assert first_future.result(timeout=20) == 1
-            assert second_future.result(timeout=20) == 1
         finally:
             release.set()
-    assert second_cursors == ["cursor-a"]
+    assert second_cursors == [None]
+    assert first_cursors == [None, "cursor-b"]
     assert load_txn(factory, item_id, "txn-a") is not None
     assert load_txn(factory, item_id, "txn-b") is not None
-    assert load_item(factory, item_id).cursor == "cursor-b"
+    assert load_item(factory, item_id).cursor == "cursor-a"

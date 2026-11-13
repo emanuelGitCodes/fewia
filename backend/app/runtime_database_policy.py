@@ -20,6 +20,7 @@ RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
         "users": "SELECT",
         "jobs": "SELECT, INSERT, UPDATE",
         "job_outbox": "SELECT, INSERT, UPDATE",
+        "job_effects": "SELECT, INSERT",
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
         "plan_revisions": "SELECT, INSERT",
@@ -81,13 +82,13 @@ SELECT
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
                         'kroger_customer_tokens', 'plaid_items',
                         'plaid_transactions', 'kroger_owners', 'security_intents',
-                        'quota_counters'
+                        'quota_counters', 'job_effects'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
                         'kroger_customer_tokens', 'kroger_owners', 'security_intents',
-                        'quota_counters'
+                        'quota_counters', 'job_effects'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname = 'users'
                         AND NOT has_table_privilege('fewia_app', c.oid, 'INSERT')
