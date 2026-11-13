@@ -30,6 +30,15 @@ class EvaluationRates(BaseModel):
     cached_input_usd_per_1000: Decimal | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    cache_write_usd_per_1000: Decimal | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    cache_write_30m_usd_per_1000: Decimal | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    cache_write_12h_usd_per_1000: Decimal | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     source_url: str
     source_version: str
     published_at: datetime | None = None
@@ -68,7 +77,13 @@ class EvaluationRates(BaseModel):
             raise ValueError("Invalid decimal rate.")
         return result
 
-    @field_validator("cached_input_usd_per_1000", mode="before")
+    @field_validator(
+        "cached_input_usd_per_1000",
+        "cache_write_usd_per_1000",
+        "cache_write_30m_usd_per_1000",
+        "cache_write_12h_usd_per_1000",
+        mode="before",
+    )
     @classmethod
     def validate_cached_rate(cls, value: object) -> Decimal | None:
         return None if value is None else cls.validate_rate(value)
