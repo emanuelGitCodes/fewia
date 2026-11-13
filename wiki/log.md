@@ -5379,3 +5379,7 @@ The owner published [draft PR 494](https://github.com/emanuelGitCodes/fewia/pull
 ## 2026-11-13 — Publication classifier review repair
 
 Terra requested changes to hook snapshot `f3919de4` because unfamiliar Git options could escape its classifier. The coordinator reproduced that behavior without executing a push. Repair `098d55a8` rejects those ambiguous write forms and passed 296 hook tests. Its regression failed against the previous hook and passed after repair. Normal status commands and quoted search text remain supported; the classifier is still not a shell sandbox. Final gates and independent re-review cover the published hook revision.
+
+## 2026-11-13 — Literal publication command parsing
+
+Terra found that the text classifier missed shell words assembled from quoted fragments. Repair `688b9eab` replaces Git text matching with bounded literal-word classification and passed 443 guard tests. Approval still matches the exact raw command. Unsupported direct-Git syntax is denied; the classifier never executes or expands input. Regression probes caught concatenated commands and flags, ambiguous option values, command wrappers, executable case, and line continuations. The destination check permits `codex/main` while preserving the prohibition on the actual `main` branch.
