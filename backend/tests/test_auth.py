@@ -5,6 +5,7 @@ import json
 import socket
 import threading
 import time
+from concurrent.futures import Future
 from dataclasses import dataclass, fields
 
 import jwt
@@ -130,6 +131,39 @@ class KeyService:
         if self.unavailable:
             raise OSError("Key service failed.")
         return self.keys[kid]
+
+
+class BlockingKeyService(KeyService):
+    def __init__(self, key: ec.EllipticCurvePrivateKey, kid: str = KID) -> None:
+        super().__init__(key)
+        self.blocked_kid = kid
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def __call__(self, region: str, kid: str) -> bytes:
+        if kid == self.blocked_kid:
+            self.entered.set()
+            if not self.release.wait(timeout=3.0):
+                raise OSError("Synthetic key fetch timed out.")
+        return super().__call__(region, kid)
+
+
+def verify_in_thread(
+    verifier: AlbTokenVerifier, token: bytes
+) -> tuple[threading.Thread, Future[AuthIdentity]]:
+    result: Future[AuthIdentity] = Future()
+
+    def verify() -> None:
+        try:
+            identity = verifier.verify_headers(headers(token))
+        except (AuthenticationError, AuthKeyUnavailableError) as exc:
+            result.set_exception(exc)
+        else:
+            result.set_result(identity)
+
+    worker = threading.Thread(target=verify)
+    worker.start()
+    return worker, result
 
 
 def headers(token: bytes) -> list[tuple[bytes, bytes]]:
@@ -420,6 +454,128 @@ def test_cache_hit_and_rotation_to_new_kid(
         headers(signed_token(rotated, header_changes={"kid": OTHER_KID}))
     )
     assert service.calls == [("us-east-1", KID), ("us-east-1", OTHER_KID)]
+
+
+def test_cached_key_completes_while_unrelated_key_fetch_is_blocked(
+    settings: AuthSettings,
+    signing_key: ec.EllipticCurvePrivateKey,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.auth._MAX_FETCHES_PER_WINDOW", 2)
+    service = BlockingKeyService(signing_key, OTHER_KID)
+    verifier = AlbTokenVerifier(settings, key_fetch=service, clock=Clock())
+    token = signed_token(signing_key)
+    verifier.verify_headers(headers(token))
+    slow, missing = verify_in_thread(
+        verifier, signed_token(signing_key, header_changes={"kid": OTHER_KID})
+    )
+    workers = [slow]
+    try:
+        assert service.entered.wait(timeout=1.0)
+        fast, cached = verify_in_thread(verifier, token)
+        workers.append(fast)
+        assert cached.result(timeout=0.5) == AuthIdentity(ISSUER, "subject-1")
+        assert not service.release.is_set()
+        assert not missing.done()
+        extra, over_budget = verify_in_thread(
+            verifier,
+            signed_token(
+                signing_key,
+                header_changes={"kid": "33333333-3333-4333-8333-333333333333"},
+            ),
+        )
+        workers.append(extra)
+        with pytest.raises(AuthKeyUnavailableError):
+            over_budget.result(timeout=0.5)
+    finally:
+        service.release.set()
+        for worker in workers:
+            worker.join(timeout=1.0)
+            assert not worker.is_alive()
+    with pytest.raises(AuthKeyUnavailableError):
+        missing.result(timeout=1.0)
+    assert service.calls == [("us-east-1", KID), ("us-east-1", OTHER_KID)]
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_concurrent_same_key_misses_share_one_fetch_and_outcome(
+    settings: AuthSettings,
+    signing_key: ec.EllipticCurvePrivateKey,
+    monkeypatch: pytest.MonkeyPatch,
+    unavailable: bool,
+) -> None:
+    service = BlockingKeyService(signing_key)
+    service.unavailable = unavailable
+    verifier = AlbTokenVerifier(settings, key_fetch=service, clock=Clock())
+    token = signed_token(signing_key)
+    first, first_result = verify_in_thread(verifier, token)
+    workers = [first]
+    joined = threading.Event()
+    try:
+        assert service.entered.wait(timeout=1.0)
+        with verifier._lock:
+            completed = verifier._inflight[KID].completed
+        original_wait = completed.wait
+
+        def wait(timeout: float | None = None) -> bool:
+            joined.set()
+            return original_wait(timeout)
+
+        monkeypatch.setattr(completed, "wait", wait)
+        second, second_result = verify_in_thread(verifier, token)
+        workers.append(second)
+        assert joined.wait(timeout=1.0)
+        assert not first_result.done()
+        assert not second_result.done()
+        service.release.set()
+        for result in (first_result, second_result):
+            if unavailable:
+                with pytest.raises(AuthKeyUnavailableError):
+                    result.result(timeout=1.0)
+            else:
+                assert result.result(timeout=1.0) == AuthIdentity(ISSUER, "subject-1")
+    finally:
+        service.release.set()
+        for worker in workers:
+            worker.join(timeout=1.0)
+            assert not worker.is_alive()
+    assert service.calls == [("us-east-1", KID)]
+    if unavailable:
+        service.unavailable = False
+        assert verifier.verify_headers(headers(token)) == AuthIdentity(
+            ISSUER, "subject-1"
+        )
+        assert service.calls == [("us-east-1", KID)] * 2
+
+
+def test_same_key_waiter_stops_at_fetch_deadline_without_starting_another_fetch(
+    settings: AuthSettings,
+    signing_key: ec.EllipticCurvePrivateKey,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.auth._KEY_TIMEOUT_SECONDS", 0.05)
+    service = BlockingKeyService(signing_key)
+    verifier = AlbTokenVerifier(settings, key_fetch=service, clock=Clock())
+    token = signed_token(signing_key)
+    first, first_result = verify_in_thread(verifier, token)
+    workers = [first]
+    try:
+        assert service.entered.wait(timeout=1.0)
+        second, second_result = verify_in_thread(verifier, token)
+        workers.append(second)
+        with pytest.raises(AuthKeyUnavailableError):
+            second_result.result(timeout=0.5)
+        assert not first_result.done()
+        assert not service.release.is_set()
+        assert service.calls == []
+    finally:
+        service.release.set()
+        for worker in workers:
+            worker.join(timeout=1.0)
+            assert not worker.is_alive()
+    with pytest.raises(AuthKeyUnavailableError):
+        first_result.result(timeout=1.0)
+    assert service.calls == [("us-east-1", KID)]
 
 
 def test_same_kid_refresh_is_bounded_and_accepts_rotated_key(

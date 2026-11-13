@@ -313,6 +313,13 @@ class _CachedKey:
     fetched_at: float
 
 
+@dataclass(slots=True)
+class _KeyFetch:
+    completed: threading.Event
+    deadline: float
+    cached: _CachedKey | None = None
+
+
 class AlbTokenVerifier:
     """Verify one ALB token without exposing its claims."""
 
@@ -333,6 +340,7 @@ class AlbTokenVerifier:
         self._cache: OrderedDict[str, _CachedKey] = OrderedDict()
         self._fetch_times: deque[float] = deque()
         self._refresh_times: OrderedDict[str, float] = OrderedDict()
+        self._inflight: dict[str, _KeyFetch] = {}
         self._lock = threading.Lock()
 
     def verify_headers(self, headers: Sequence[tuple[bytes, bytes]]) -> AuthIdentity:
@@ -430,46 +438,77 @@ class AlbTokenVerifier:
         with self._lock:
             now = self._clock()
             cached = self._cache.get(kid)
-            if cached is not None and now - cached.fetched_at < _CACHE_TTL_SECONDS:
-                if not refresh:
-                    self._cache.move_to_end(kid)
-                    return cached
-                last_refresh = self._refresh_times.get(kid, cached.fetched_at)
-                if now - last_refresh < _REFRESH_INTERVAL_SECONDS:
-                    raise AuthenticationError()
-            while self._fetch_times and (
-                now - self._fetch_times[0] >= _FETCH_WINDOW_SECONDS
+            fresh = cached is not None and now - cached.fetched_at < _CACHE_TTL_SECONDS
+            if cached is not None and fresh and not refresh:
+                self._cache.move_to_end(kid)
+                return cached
+            pending = self._inflight.get(kid)
+            owner = pending is None
+            if pending is None:
+                if fresh and cached is not None:
+                    last_refresh = self._refresh_times.get(kid, cached.fetched_at)
+                    if now - last_refresh < _REFRESH_INTERVAL_SECONDS:
+                        raise AuthenticationError()
+                while self._fetch_times and (
+                    now - self._fetch_times[0] >= _FETCH_WINDOW_SECONDS
+                ):
+                    self._fetch_times.popleft()
+                if (
+                    len(self._fetch_times) >= _MAX_FETCHES_PER_WINDOW
+                    or len(self._inflight) >= _MAX_FETCHES_PER_WINDOW
+                ):
+                    raise AuthKeyUnavailableError()
+                self._fetch_times.append(now)
+                self._refresh_times[kid] = now
+                self._refresh_times.move_to_end(kid)
+                while len(self._refresh_times) > _MAX_CACHE_KEYS:
+                    self._refresh_times.popitem(last=False)
+                pending = _KeyFetch(
+                    completed=threading.Event(),
+                    deadline=time.monotonic() + _KEY_TIMEOUT_SECONDS,
+                )
+                self._inflight[kid] = pending
+        if not owner:
+            remaining = pending.deadline - time.monotonic()
+            if (
+                remaining <= 0
+                or not pending.completed.wait(remaining)
+                or time.monotonic() >= pending.deadline
+                or pending.cached is None
             ):
-                self._fetch_times.popleft()
-            if len(self._fetch_times) >= _MAX_FETCHES_PER_WINDOW:
                 raise AuthKeyUnavailableError()
-            self._fetch_times.append(now)
-            self._refresh_times[kid] = now
-            self._refresh_times.move_to_end(kid)
-            while len(self._refresh_times) > _MAX_CACHE_KEYS:
-                self._refresh_times.popitem(last=False)
-            try:
-                pem = self._fetch(self._region, kid)
-                if not isinstance(pem, bytes) or not 0 < len(pem) <= _MAX_KEY_BYTES:
-                    raise ValueError
-                public_material = load_pem_public_key(pem)
-                if not isinstance(
-                    public_material, ec.EllipticCurvePublicKey
-                ) or not isinstance(public_material.curve, ec.SECP256R1):
-                    raise ValueError
-            except (
-                OSError,
-                ValueError,
-                KeyError,
-                http.client.HTTPException,
-                UnsupportedAlgorithm,
-                AuthKeyUnavailableError,
-            ):
-                self._cache.pop(kid, None)
-                raise AuthKeyUnavailableError() from None
+            return pending.cached
+        try:
+            pem = self._fetch(self._region, kid)
+            if not isinstance(pem, bytes) or not 0 < len(pem) <= _MAX_KEY_BYTES:
+                raise ValueError
+            public_material = load_pem_public_key(pem)
+            if not isinstance(
+                public_material, ec.EllipticCurvePublicKey
+            ) or not isinstance(public_material.curve, ec.SECP256R1):
+                raise ValueError
+            if time.monotonic() >= pending.deadline:
+                raise AuthKeyUnavailableError()
             cached = _CachedKey(key=public_material, fetched_at=self._clock())
-            self._cache[kid] = cached
-            self._cache.move_to_end(kid)
-            while len(self._cache) > _MAX_CACHE_KEYS:
-                self._cache.popitem(last=False)
+            with self._lock:
+                self._cache[kid] = cached
+                self._cache.move_to_end(kid)
+                while len(self._cache) > _MAX_CACHE_KEYS:
+                    self._cache.popitem(last=False)
+                pending.cached = cached
             return cached
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            http.client.HTTPException,
+            UnsupportedAlgorithm,
+            AuthKeyUnavailableError,
+        ):
+            raise AuthKeyUnavailableError() from None
+        finally:
+            with self._lock:
+                if pending.cached is None:
+                    self._cache.pop(kid, None)
+                self._inflight.pop(kid, None)
+                pending.completed.set()
