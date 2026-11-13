@@ -38,8 +38,9 @@ product places no orders and submits no payments.
 Make, a current Docker Desktop with Docker Compose, and Python 3 are
 prerequisites. FEWIA is tested with Docker Compose 5.2.
 For first-time setup, copy `.env.example` to `.env` and set
-`FEWIA_OPENAI_API_KEY` to an OpenAI API key from your own project. Git
-ignores `.env`. Never commit it, share it, or show it on screen.
+`FEWIA_OPENAI_API_KEY` to an OpenAI API key from your own project. Set
+`.env` to mode `0600` before launch. Git ignores `.env`.
+Never commit it, share it, or show it on screen.
 `FEWIA_OPENAI_REGION` defaults to `global`. Set it to `us` for US
 processing, which costs 10% more.
 
@@ -53,7 +54,10 @@ make up
 launcher prints stage lines and checks the OpenAI key. HTTP 401 or 403
 stops it before any build. `FEWIA_SKIP_KEY_CHECK=1` skips the check. It
 then shows Compose progress and waits for the `bootstrap` service and the
-API. The `bootstrap` service runs the migrations, seeds the demo user, and
+API. The launcher manages private local password and pairing state.
+It rotates the internal database administrator password before bootstrap.
+The `bootstrap` service prepares separate administrator and application
+database roles, runs migrations, seeds the demo user, and
 provisions the Floci resources. It then exits with code 0. `api`,
 `worker`, and `sync-worker` start after it completes. The launcher prints
 the app address when the API is ready.
@@ -73,30 +77,38 @@ make up-kroger-live
 
 There is no offline mode. Without a working OpenAI key, `make up` fails.
 
-Check that each service is up and that `api` is healthy:
+Find the running API and its Compose project without loading launcher secrets:
 
 ```bash
-docker compose ps
+docker ps --filter 'label=com.docker.compose.service=api' --format 'table {{.ID}}\t{{.Label "com.docker.compose.project"}}\t{{.Status}}\t{{.Ports}}'
 ```
 
-[`compose.yaml`](../compose.yaml) binds these loopback host ports:
+Match the project to the stack just launched. The API status MUST show
+healthy. Inspect other services with a filter for that exact project label.
+
+[`compose.yaml`](../compose.yaml) binds these loopback host ports by default:
 
 | Service | Host variable | Default host port | Container port |
 | --- | --- | --- | --- |
 | Web | `WEB_HOST_PORT` | 5173 | 8080 |
 | API | `API_HOST_PORT` | 8010 | 8000 |
-| PostgreSQL | `POSTGRES_HOST_PORT` | 55435 | 5432 |
-| Floci | `FLOCI_HOST_PORT` | 4567 | 4566 |
+| PostgreSQL | Unpublished | None | 5432 |
+| Floci | Unpublished | None | 4566 |
+
+`make up-tools` uses the launcher with `compose.tools.yaml`. It adds
+the Floci endpoint at `http://127.0.0.1:4566` to the default web and API ports.
+PostgreSQL stays unpublished. Floci proves local SQS and S3 integration
+behavior only. It provides no real AWS evidence.
 
 Open `http://127.0.0.1:5173/prototype`. The web container redirects `/` to
 `/prototype`, serves the older page at `/app`, and forwards `/api/` to the API.
 
-A second Compose project MUST use a unique project name and unused host
-ports. Do not delete the volumes of another project. Example:
-
-```bash
-API_HOST_PORT=8020 WEB_HOST_PORT=5183 POSTGRES_HOST_PORT=55445 FLOCI_HOST_PORT=4577 docker compose -p fewia-alt up -d --build
-```
+The current launcher path expects the frontend origin
+`http://127.0.0.1:5173`. Use that exact origin, including the port.
+The Compose files do not wire `FEWIA_PUBLIC_ORIGIN` into the API.
+Changing `WEB_HOST_PORT` or Kroger URLs alone does not configure another
+accepted browser origin. Another hostname or port needs separate wiring
+and verification. Do not delete another project's volumes.
 
 ## Try the demo
 
@@ -120,7 +132,7 @@ Bedrock. Bedrock uses real service endpoints. Bedrock credentials stay
 separate from the Floci dummy credentials. Do not set a global AWS
 endpoint.
 
-Copy `.env.example` to `.env`. Set mode `600`. Git ignores `.env`. Do not
+Copy `.env.example` to `.env`. Set mode `0600`. Git ignores `.env`. Do not
 paste secret values or host paths into this runbook. Follow
 [`infra/bedrock/README.md`](../infra/bedrock/README.md) for the role and
 the host MFA helper. No Docker overlay for Bedrock exists.
@@ -138,13 +150,10 @@ the absolute paths. `FEWIA_KROGER_ENVIRONMENT` defaults to
 mode needs no Kroger files and makes no Kroger call. The steps below set
 up live Kroger instead.
 
-[`compose.kroger.yaml`](../compose.kroger.yaml) is the only overlay. It
-mounts both files read-only into `api` and `worker`. The equivalent
-Compose command is:
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.kroger.yaml up -d --build
-```
+[`compose.kroger.yaml`](../compose.kroger.yaml) is the live Kroger overlay.
+`make up-kroger-live` selects it through the launcher. It mounts both
+files read-only into `api` and `worker`. Direct Compose startup lacks
+the launcher's generated private file paths and host user settings.
 
 The overlay also needs a token key file for the Kroger account sign-in.
 The API uses this Fernet key to encrypt the customer tokens it stores.
@@ -162,9 +171,31 @@ Set `FEWIA_KROGER_TOKEN_KEY_FILE` in `.env` to its absolute path. The
 overlay mounts it read-only into `api` only.
 
 The Kroger app MUST list `http://localhost:8010/grocery/kroger/callback` as
-a redirect URI. To use another API port or frontend address, set
-`FEWIA_KROGER_REDIRECT_URI` and `FEWIA_KROGER_RETURN_URL`. The return URL
-defaults to `http://127.0.0.1:5173/prototype` and MUST NOT hold a query.
+a redirect URI. Keep the API on port 8010 for this registered callback.
+The return URL defaults to `http://127.0.0.1:5173/prototype` and MUST NOT
+hold a query. The overlay passes `FEWIA_KROGER_REDIRECT_URI` and
+`FEWIA_KROGER_RETURN_URL`, but these settings do not change the API's
+accepted browser origin. This runbook uses only the default ports and
+exact frontend origin above.
+
+After `make up-kroger-live`, pair the operator's browser before live calls.
+Use the API discovery command above. Select the exact running API
+container in the project just started in live mode. Do not select another
+project's API. In a private terminal, run:
+
+```bash
+LIVE_API_CONTAINER='EXACT_RUNNING_LIVE_API_CONTAINER_ID'
+docker exec "$LIVE_API_CONTAINER" python -m app.kroger_pairing_cli --user-id 1
+```
+
+Use the existing container environment. Do not reconstruct launcher
+variables or print container secrets. The output is one single-use
+`#kroger-pair=...` fragment. Append it privately to the configured frontend
+URL in the same browser tab within five minutes. For the default stack,
+use `http://127.0.0.1:5173/prototype` followed by that fragment.
+The redeemed proof lasts eight hours in that tab. Do not share, capture,
+log, or persist the link. A new tab needs its own pairing. Fixture mode
+needs no pairing.
 
 On `/prototype`, choose a Kroger store in the chat panel. When a chat reply
 swaps in or looks up a food with no sample price, the API adds one live
@@ -199,16 +230,23 @@ host that is not `localhost`, `127.0.0.1`, or `[::1]` gets HTTP 421.
 The API serves `/docs`, `/redoc`, and `/openapi.json` only when
 `FEWIA_API_DOCS` is `1`.
 
-`POST /api/grocery/chat/jobs` accepts 20 new chat jobs per minute.
-`FEWIA_CHAT_JOBS_PER_MINUTE` sets another limit from 1 to 1000. A request
-over the limit gets HTTP 429 with `Retry-After: 60`. A repeat of an
-accepted request does not count.
+Browser mutations also need an accepted `Origin` and valid workspace access.
+Use the exact frontend origin above. A permitted `Host` does not replace
+the Origin or workspace checks.
 
-The backend containers run as user 1000 with no capabilities. The `api`,
+Each owner can submit 20 new agent jobs per 60 seconds across chat and plan
+requests combined. Queued and running jobs share a concurrency limit of
+3 per owner and 200 across all owners, including sync jobs.
+A request over a limit gets HTTP 429 with `Retry-After: 60`.
+An idempotent retry with the same request key and matching content returns
+the accepted job without consuming another submission or concurrency slot.
+
+The backend containers use the launcher's host UID and GID with no
+capabilities. The `api`,
 `bootstrap`, and `sync-worker` containers have a read-only root file
 system. The `worker` container has a writable root file system, because
 Compose mounts the OpenAI key secret only into a writable one. A Kroger
-key file MUST be readable by user 1000 inside the container.
+key file MUST be readable by that user inside the container.
 
 ## Checks
 
@@ -237,9 +275,14 @@ The evaluation runbook is [EVALUATION.md](EVALUATION.md).
 
 ## Stop the stack
 
+There is no Make stop target. List running containers for the exact
+project before stopping them:
+
 ```bash
-docker compose down
+docker ps --filter 'label=com.docker.compose.project=EXACT_PROJECT_NAME' --format 'table {{.ID}}\t{{.Names}}\t{{.Status}}'
+docker stop EXACT_CONTAINER_ID
 ```
 
-`docker compose down` keeps the PostgreSQL and Floci volumes. Add `-v`
-only to delete the local demo data on purpose.
+Repeat `docker stop` for each listed container in that project.
+This keeps PostgreSQL and Floci volumes. Delete volumes only when you
+intend to delete the local demo data.

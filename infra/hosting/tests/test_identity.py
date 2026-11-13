@@ -84,7 +84,7 @@ def test_client_has_exact_code_grant_and_token_settings(identity_case: _Case) ->
         "AllowedOAuthFlows": ["code"],
         "AllowedOAuthScopes": ["openid"],
         "CallbackURLs": ["https://example.test/oauth2/idpresponse"],
-        "LogoutURLs": ["https://example.test/"],
+        "LogoutURLs": ["https://example.test/signed-out"],
         "ExplicitAuthFlows": ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"],
         "PreventUserExistenceErrors": "ENABLED",
         "EnableTokenRevocation": True,
@@ -240,7 +240,7 @@ def test_valid_offline_names_keep_exact_urls(
         "AWS::Cognito::UserPoolClient",
         {
             "CallbackURLs": [f"https://{hostname}/oauth2/idpresponse"],
-            "LogoutURLs": [f"https://{hostname}/"],
+            "LogoutURLs": [f"https://{hostname}/signed-out"],
         },
     )
     template.has_resource_properties(

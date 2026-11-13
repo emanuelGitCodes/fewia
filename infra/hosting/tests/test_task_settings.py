@@ -2,6 +2,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from aws_cdk import App, CfnResource, Environment, Stack
@@ -130,9 +131,30 @@ def test_browser_auth_uses_exact_origin_and_fixed_logout(settings_case: _Case) -
         "FEWIA_AUTH_LOGOUT_URL": (
             f"{identity.domain.base_url()}/logout?client_id="
             f"{identity.client.user_pool_client_id}"
-            "&logout_uri=https%3A%2F%2Fdemo.example.test%2F"
+            "&logout_uri=https%3A%2F%2Fdemo.example.test%2Fsigned-out"
         ),
     }
+    query = parse_qs(environment["FEWIA_AUTH_LOGOUT_URL"].split("?", 1)[1])
+    client = Template.from_stack(stack).find_resources("AWS::Cognito::UserPoolClient")
+    assert len(client) == 1
+    allowed_urls = next(iter(client.values()))["Properties"]["LogoutURLs"]
+    assert query == {
+        "client_id": [identity.client.user_pool_client_id],
+        "logout_uri": allowed_urls,
+    }
+    return_uri = urlsplit(query["logout_uri"][0])
+    assert (return_uri.scheme, return_uri.netloc, return_uri.path) == (
+        "https",
+        "demo.example.test",
+        "/signed-out",
+    )
+    assert not return_uri.query and not return_uri.fragment
+    resolved = stack.resolve(environment["FEWIA_AUTH_LOGOUT_URL"])
+    assert resolved["Fn::Join"][0] == ""
+    assert resolved["Fn::Join"][1][-2:] == [
+        {"Ref": _logical_id(identity.client)},
+        "&logout_uri=https%3A%2F%2Fdemo.example.test%2Fsigned-out",
+    ]
     next_environment = browser_auth_environment(
         identity, signer_arn="synthetic-alb-arn"
     )

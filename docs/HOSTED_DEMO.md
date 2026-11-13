@@ -10,9 +10,11 @@ The coordinator MUST NOT treat preflight success as owner confirmation.
 Follow [decision 0019](../wiki/decisions/0019-invitation-only-hosting.md).
 Only the owner and invited users receive access.
 An administrator creates Cognito users. Public signup stays disabled.
-All invitees share one server-selected demo user and its application data.
-Authentication provides no per-user data isolation.
-The owner MUST explain this shared context before inviting each user.
+Under [decision 0031](../wiki/decisions/0031-security-hardening-and-hosted-accounts.md),
+hosted users receive separate application accounts and workspaces.
+The API verifies signed ALB identity and selects the account on the server.
+The first hosted login never inherits the local legacy demo account or its data.
+These source contracts still need deployed acceptance evidence.
 Invitees MUST NOT enter private financial, health, or other sensitive information.
 
 The local product uses React and TypeScript chat, FastAPI, PostgreSQL,
@@ -74,7 +76,7 @@ The deployment owner MUST supply these inputs:
 - An `ISSUED`, unexpired ACM certificate in that account and `us-east-1` matching the hostname.
 - A unique available Cognito domain prefix, with 3-63 lowercase letters, digits, or hyphens.
 - Permission to manage the hostname's DNS records and certificate validation records.
-- Approval for the private shared demo context, cost exposure, and each separate AWS mutation.
+- Approval for invitation-only access, cost exposure, and each separate AWS mutation.
 
 The coordinator MUST check the certificate's trust chain separately using normal HTTPS validation.
 A metadata match alone does not prove browser trust.
@@ -509,7 +511,7 @@ For another DNS provider, return its concrete record change to the owner for sep
 Administrator-only user creation MUST keep public signup disabled.
 User creation and invitation delivery each need a separate explicit owner confirmation.
 The coordinator MUST NOT send an invitation without an explicit instruction to send it.
-The owner MUST explain the shared demo context to each invitee before sending an invitation.
+The owner MUST explain the demo's data limits to each invitee before sending an invitation.
 Prepare the exact user and delivery action for review without recording passwords or tokens.
 An administrator MAY create a user with delivery suppressed, then send a separately approved invitation.
 Do not treat a suppressed invitation as a usable login or a sent invitation.
@@ -550,14 +552,27 @@ If either operation has an uncertain result, inspect state before proposing anot
 The coordinator MUST observe these acceptance checks before recording deployed success:
 
 - The chosen hostname resolves to the ALB. Normal HTTPS validation passes without a trust bypass.
-- Anonymous requests to the chosen host redirect to authentication before reaching the app or API.
+- Anonymous requests to interactive paths such as `/prototype` start Cognito login before reaching the app.
+- Anonymous `/api/*` requests receive HTTP 401. They do not redirect to Cognito.
+- Exact `GET` and `HEAD` requests to `/signed-out` on the chosen host match one fixed edge response.
+  `GET` displays a static page with the heading "You are signed out" and an explicit "Sign in" link.
+  `HEAD` returns the same status and content type without a response body.
+  The page loads no app assets or scripts. It makes no API calls or automatic navigation.
+  The relative `/prototype` link starts protected interactive login only when the user selects it.
+- Other `/signed-out` methods and other paths remain protected. Wrong-host requests never reach this landing rule.
 - A request with a wrong Host header receives the listener's fixed 404 response.
 - The ALB has no HTTP port 80 listener. The public edge exposes HTTPS only.
 - The API has no public bypass. Tasks have no public IPs. RDS is not public.
 - Private subnet and security group controls match the reviewed design.
 - Cognito has no public signup. An approved invited account can log in.
 - Logged-in chat completes a real Bedrock request through the agent worker.
-- The owner confirms each invitee received the shared demo context explanation before invitation delivery.
+- The owner confirms each invitee received the data-limit explanation before invitation delivery.
+- With separately authorized invitees, verify separate workspace IDs and isolation of account data, jobs, and browser state.
+  A first hosted login MUST NOT expose the local legacy demo account.
+- With a separately authorized signed-in account, select Sign out and confirm expiration of ALB session cookies.
+  Verify Cognito returns to the exactly allowlisted HTTPS `/signed-out` URL without starting login again.
+  Confirm signed-out `/api/*` access returns HTTP 401 with no Cognito redirect.
+  Verify the static page stays signed out until the user selects "Sign in".
 - Manual budget defaults, meal limits, serving limits, and catalog validation match the accepted product scope.
 - Budget inputs and arithmetic use USD integer cents. The entered monthly limit remains the whole budget.
   Available budget equals the monthly limit minus net posted grocery spending, with a zero floor.
@@ -565,7 +580,7 @@ The coordinator MUST observe these acceptance checks before recording deployed s
 - Each displayed grocery estimate includes the exact sample-price notice above.
 - The product has no Instacart handoff. Plaid and the sync worker remain parked.
 
-The internal ALB target port 80 does not create a public HTTP listener.
+The internal ALB target and health-check port is 8080. It does not create a public HTTP listener.
 For a wrong-host probe, use valid TLS for the chosen hostname and change only the HTTP Host header.
 The coordinator MUST NOT disable certificate validation to obtain a passing probe.
 Live chat submits a job and incurs Bedrock usage. Obtain owner confirmation before that acceptance action.

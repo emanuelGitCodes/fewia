@@ -8,8 +8,18 @@ from aws_cdk import aws_elasticloadbalancingv2 as elbv2
 from aws_cdk import aws_elasticloadbalancingv2_actions as actions
 from constructs import Construct
 
-from identity import HostingIdentity
+from identity import SIGNED_OUT_PATH, HostingIdentity
 from network import HostingNetwork
+
+_SIGNED_OUT_HTML = (
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+    '<meta http-equiv="Content-Security-Policy" '
+    "content=\"default-src 'none'; base-uri 'none'; form-action 'none'\">"
+    '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    "<title>Signed out | FEWIA</title></head><body><main>"
+    '<h1>You are signed out</h1><p><a href="/prototype">Sign in</a></p>'
+    "</main></body></html>"
+)
 
 
 class HostingEdge(Construct):
@@ -111,11 +121,27 @@ class HostingEdge(Construct):
                 next=elbv2.ListenerAction.forward([self.target_group]),
             ),
         )
+        self.signed_out_rule: elbv2.ApplicationListenerRule = (
+            elbv2.ApplicationListenerRule(
+                self,
+                "SignedOut",
+                listener=self.listener,
+                priority=10,
+                conditions=[
+                    elbv2.ListenerCondition.host_headers([identity.hostname]),
+                    elbv2.ListenerCondition.path_patterns([SIGNED_OUT_PATH]),
+                    elbv2.ListenerCondition.http_request_methods(["GET", "HEAD"]),
+                ],
+                action=elbv2.ListenerAction.fixed_response(
+                    200, content_type="text/html", message_body=_SIGNED_OUT_HTML
+                ),
+            )
+        )
         self.rule: elbv2.ApplicationListenerRule = elbv2.ApplicationListenerRule(
             self,
             "AuthenticatedHost",
             listener=self.listener,
-            priority=2,
+            priority=20,
             conditions=[elbv2.ListenerCondition.host_headers([identity.hostname])],
             action=actions.AuthenticateCognitoAction(
                 user_pool=identity.user_pool,

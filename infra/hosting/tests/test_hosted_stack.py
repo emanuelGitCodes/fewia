@@ -140,7 +140,7 @@ def test_complete_templates_have_exact_phase_resources(
         ("AWS::Cognito::UserPoolDomain", 1),
         ("AWS::ElasticLoadBalancingV2::LoadBalancer", 1),
         ("AWS::ElasticLoadBalancingV2::Listener", 1),
-        ("AWS::ElasticLoadBalancingV2::ListenerRule", 2),
+        ("AWS::ElasticLoadBalancingV2::ListenerRule", 3),
         ("AWS::ElasticLoadBalancingV2::TargetGroup", 1),
     ):
         template.resource_count_is(kind, count if runtime else 0)
@@ -418,7 +418,7 @@ def test_composed_edge_authenticates_owned_app_service(
     assert pool["AdminCreateUserConfig"]["AllowAdminCreateUserOnly"] is True
     client = _properties(template, demo.identity.client)
     assert client["CallbackURLs"] == [f"https://{_RUNTIME.hostname}/oauth2/idpresponse"]
-    assert client["LogoutURLs"] == [f"https://{_RUNTIME.hostname}/"]
+    assert client["LogoutURLs"] == [f"https://{_RUNTIME.hostname}/signed-out"]
 
 
 @pytest.mark.parametrize("phase", ["bootstrap", "active"])
@@ -455,7 +455,7 @@ def test_api_auth_environment_synthesizes_without_a_dependency_cycle(
         "FEWIA_AUTH_LOGOUT_URL": (
             f"{demo.identity.domain.base_url()}/logout?client_id="
             f"{demo.identity.client.user_pool_client_id}"
-            f"&logout_uri=https%3A%2F%2F{_RUNTIME.hostname}%2F"
+            f"&logout_uri=https%3A%2F%2F{_RUNTIME.hostname}%2Fsigned-out"
         ),
     }
     assert {key: environment[key] for key in expected} == demo.resolve(expected)

@@ -1,11 +1,12 @@
 import re
+from urllib.parse import quote
 
 from aws_cdk import Stack
 from aws_cdk import aws_ecr as ecr
 from aws_cdk import aws_ecs as ecs
 
 from database import HostingDatabase
-from identity import HostingIdentity
+from identity import SIGNED_OUT_PATH, HostingIdentity
 from stack import HostingResources
 
 
@@ -51,6 +52,7 @@ def browser_auth_environment(
 ) -> dict[str, str]:
     origin = f"https://{identity.hostname}"
     client_id = identity.client.user_pool_client_id
+    logout_uri = quote(f"{origin}{SIGNED_OUT_PATH}", safe="")
     return {
         "FEWIA_AUTH_MODE": "alb",
         "FEWIA_PUBLIC_ORIGIN": origin,
@@ -59,7 +61,7 @@ def browser_auth_environment(
         "FEWIA_AUTH_ISSUER": identity.user_pool.user_pool_provider_url,
         "FEWIA_AUTH_LOGOUT_URL": (
             f"{identity.domain.base_url()}/logout?client_id={client_id}"
-            f"&logout_uri=https%3A%2F%2F{identity.hostname}%2F"
+            f"&logout_uri={logout_uri}"
         ),
     }
 

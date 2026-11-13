@@ -1,5 +1,7 @@
 import json
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, cast
 
@@ -125,13 +127,15 @@ def test_https_only_listener_has_exact_fixed_default(inputs: _Inputs) -> None:
     }
 
 
-def test_host_rule_authenticates_before_forward_for_all_routes(inputs: _Inputs) -> None:
+def test_host_rule_authenticates_before_forward_for_other_routes(
+    inputs: _Inputs,
+) -> None:
     edge = inputs.build()
     template = Template.from_stack(inputs.stack)
-    template.resource_count_is("AWS::ElasticLoadBalancingV2::ListenerRule", 2)
+    template.resource_count_is("AWS::ElasticLoadBalancingV2::ListenerRule", 3)
     rule = _properties(template, edge.rule)
     assert set(rule) == {"Actions", "Conditions", "ListenerArn", "Priority"}
-    assert rule["Priority"] == 2
+    assert rule["Priority"] == 20
     assert rule["ListenerArn"] == {"Ref": _logical_id(edge.listener)}
     assert rule["Conditions"] == [
         {
@@ -194,6 +198,158 @@ def test_api_rule_denies_unauthenticated_requests_on_exact_host(
     expected = json.loads(json.dumps(interactive["Actions"]))
     expected[0]["AuthenticateCognitoConfig"]["OnUnauthenticatedRequest"] = "deny"
     assert api["Actions"] == expected
+
+
+class _LandingParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.elements: list[tuple[str, list[tuple[str, str | None]]]] = []
+        self.text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.elements.append((tag, attrs))
+
+    def handle_data(self, data: str) -> None:
+        self.text.append(data)
+
+
+def test_signed_out_rule_has_only_fixed_accessible_html(inputs: _Inputs) -> None:
+    edge = inputs.build()
+    template = Template.from_stack(inputs.stack)
+    landing = _properties(template, edge.signed_out_rule)
+    assert set(landing) == {"Actions", "Conditions", "ListenerArn", "Priority"}
+    assert landing["ListenerArn"] == {"Ref": _logical_id(edge.listener)}
+    assert landing["Priority"] == 10
+    assert _properties(template, edge.api_rule)["Priority"] == 1
+    assert _properties(template, edge.rule)["Priority"] == 20
+    assert landing["Conditions"] == [
+        {
+            "Field": "host-header",
+            "HostHeaderConfig": {"Values": [inputs.identity.hostname]},
+        },
+        {"Field": "path-pattern", "PathPatternConfig": {"Values": ["/signed-out"]}},
+        {
+            "Field": "http-request-method",
+            "HttpRequestMethodConfig": {"Values": ["GET", "HEAD"]},
+        },
+    ]
+    assert len(landing["Actions"]) == 1
+    action = landing["Actions"][0]
+    config = action["FixedResponseConfig"]
+    body = config["MessageBody"]
+    assert action == {"Type": "fixed-response", "FixedResponseConfig": config}
+    assert set(config) == {"ContentType", "StatusCode", "MessageBody"}
+    assert config["ContentType"] == "text/html"
+    assert config["StatusCode"] == "200"
+    assert isinstance(body, str)
+    assert body.isascii()
+    assert len(body.encode("utf-8")) < 1024
+    assert (
+        '<meta http-equiv="Content-Security-Policy" '
+        "content=\"default-src 'none'; base-uri 'none'; form-action 'none'\">"
+    ) in body
+    assert "<title>Signed out | FEWIA</title>" in body
+    assert "<h1>You are signed out</h1>" in body
+    parser = _LandingParser()
+    parser.feed(body)
+    assert parser.elements == [
+        ("html", [("lang", "en")]),
+        ("head", []),
+        ("meta", [("charset", "utf-8")]),
+        (
+            "meta",
+            [
+                ("http-equiv", "Content-Security-Policy"),
+                (
+                    "content",
+                    "default-src 'none'; base-uri 'none'; form-action 'none'",
+                ),
+            ],
+        ),
+        (
+            "meta",
+            [("name", "viewport"), ("content", "width=device-width, initial-scale=1")],
+        ),
+        ("title", []),
+        ("body", []),
+        ("main", []),
+        ("h1", []),
+        ("p", []),
+        ("a", [("href", "/prototype")]),
+    ]
+    assert parser.text == ["Signed out | FEWIA", "You are signed out", "Sign in"]
+    fixed_rules = [
+        resource["Properties"]
+        for resource in template.find_resources(
+            "AWS::ElasticLoadBalancingV2::ListenerRule"
+        ).values()
+        if any(
+            action["Type"] == "fixed-response"
+            for action in resource["Properties"]["Actions"]
+        )
+    ]
+    assert fixed_rules == [landing]
+
+
+@pytest.mark.parametrize(
+    ("host", "path", "method", "expected"),
+    [
+        ("example.test", "/signed-out", "GET", "landing"),
+        ("example.test", "/signed-out", "HEAD", "landing"),
+        ("example.test", "/signed-out", "POST", "authenticate"),
+        ("example.test", "/signed-out", "OPTIONS", "authenticate"),
+        ("example.test", "/signed-out/", "GET", "authenticate"),
+        ("example.test", "/signed-out/extra", "GET", "authenticate"),
+        ("example.test", "/SIGNED-OUT", "GET", "authenticate"),
+        ("example.test", "/prototype", "GET", "authenticate"),
+        ("example.test", "/", "GET", "authenticate"),
+        ("example.test", "/assets/app.js", "GET", "authenticate"),
+        ("example.test", "/oauth2/idpresponse", "GET", "authenticate"),
+        ("example.test", "/api/session", "GET", "deny"),
+        ("example.test", "/api/session", "POST", "deny"),
+        ("example.test", "/api/signed-out", "HEAD", "deny"),
+        ("wrong.test", "/signed-out", "GET", "404"),
+        ("sub.example.test", "/signed-out", "HEAD", "404"),
+        ("wrong.test", "/api/session", "GET", "404"),
+        ("wrong.test", "/prototype", "GET", "404"),
+    ],
+)
+def test_synthesized_routes_keep_landing_boundary(
+    inputs: _Inputs, host: str, path: str, method: str, expected: str
+) -> None:
+    inputs.build()
+    template = Template.from_stack(inputs.stack)
+    rules = sorted(
+        (
+            resource["Properties"]
+            for resource in template.find_resources(
+                "AWS::ElasticLoadBalancingV2::ListenerRule"
+            ).values()
+        ),
+        key=lambda rule: rule["Priority"],
+    )
+    fields = {
+        "host-header": ("HostHeaderConfig", host),
+        "path-pattern": ("PathPatternConfig", path),
+        "http-request-method": ("HttpRequestMethodConfig", method),
+    }
+    outcome = "404"
+    for rule in rules:
+        matches = True
+        for condition in rule["Conditions"]:
+            config, value = fields[condition["Field"]]
+            matches = matches and any(
+                fnmatchcase(value, pattern) for pattern in condition[config]["Values"]
+            )
+        if matches:
+            action = rule["Actions"][0]
+            outcome = (
+                "landing"
+                if action["Type"] == "fixed-response"
+                else action["AuthenticateCognitoConfig"]["OnUnauthenticatedRequest"]
+            )
+            break
+    assert outcome == expected
 
 
 def test_target_is_absent_before_service_attachment(inputs: _Inputs) -> None:
