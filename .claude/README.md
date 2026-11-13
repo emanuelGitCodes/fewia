@@ -74,8 +74,9 @@ with `CLAUDE_PROJECT_DIR` set to the main checkout. Claude Code removes a
 leading `cd` to the session cwd from the command before a hook reads it.
 The input `cwd` still names the worktree, so the hooks check the worktree.
 
-`guard-bash.sh` reads the whole command text. A heredoc that quotes a
-blocked command trips it. Write such text with the Write tool instead.
+`guard-bash.sh` reads the whole command text. Its raw checkpoint deletion
+and `gh` checks can match text inside a heredoc. Write such text with the
+Write tool instead.
 `guard-senior-edits.sh` does not see file writes made with a shell
 command. The rule in `CLAUDE.md` still binds the senior there. A Claude
 writer runs `claude -p --safe-mode`, so no project hook runs inside it;
@@ -170,9 +171,40 @@ recording again. Do not retry an uncertain external action.
 This local check trusts the local user, hooks, and Git executable. It does
 not authenticate chat approval. The operator MUST preserve Git state from
 validation through the push. The hook cannot lock state across that gap.
-The guard recognizes common command forms; it is not a shell sandbox.
-Arbitrary aliases and programs that invoke Git indirectly remain outside
-its text classifier.
+The guard uses `git-publication-command.py` to classify literal shell
+words. The bounded lexer decodes adjacent quoted pieces and backslash
+escapes without executing shell code. For example, `pu''sh` and `p\ush`
+both name `push`. Quoted separators remain inside their words. Unquoted
+separators split compound commands for inspection.
+
+The classifier inspects bare, path, quoted, and concatenated Git executable
+names. It compares executable basenames without case for macOS paths.
+It handles common `env`, `command`, `exec`, `time`, and `nohup`
+wrappers. It checks global options before the Git subcommand. Unknown
+global options receive a conservative scan for publication commands.
+The scan keeps uncertainty through the remaining words. A possible write
+causes a denial even if an earlier word names a read command.
+For example, `git --namespace status push origin feature` is denied.
+This can deny a read such as `git --namespace team log --grep push`.
+An unfamiliar prefix without a possible write retains literal-read behavior.
+Normalized force flags, broad pushes, gitleaks skips, and destinations of
+`main` or `refs/heads/main` remain hard denials. A feature destination such
+as `codex/main` does not name `main`.
+
+The guard denies unsupported or ambiguous direct Git write forms. Simple
+literal pushes and merges use the host's confirmation policy. The lexer
+does not grant approval: only the unchanged raw decoded command can match
+the approval record. This match remains case-sensitive. Quoting, escapes,
+wrappers, extra arguments, and compound commands cannot match it through
+normalization.
+
+This guard is not a shell sandbox. Shell aliases, Git aliases, functions,
+indirect programs, and dynamically constructed shell code fall outside
+its supported classification. It does not resolve aliases, evaluate
+expansions, or parse arbitrary shell grammar. ANSI-C fragments and dynamic
+subcommands in direct Git calls are denied without evaluation.
+Direct Git commands with an ambiguous subcommand or dynamic write arguments
+are denied. The coordinator MUST use direct literal commands for publication.
 
 ### Test a hook
 

@@ -672,7 +672,9 @@ def test_guard_global_options_external_writes(
         "--no-replace-objects",
         "--config-env core.pager=GIT_PAGER",
         "--namespace='team space'",
+        "--namespace status",
         "--future-global-option first second",
+        "--future-global-option status",
     ],
 )
 @pytest.mark.parametrize(
@@ -695,6 +697,8 @@ def test_guard_unfamiliar_global_options_deny_publication(
 @pytest.mark.parametrize(
     "command",
     [
+        "/usr/bin/GIT push origin feature",
+        "/usr/bin/GIT push --force origin HEAD:main",
         "/usr/bin/git --no-replace-objects push origin feature",
         "./git --future-global-option first second merge codex/other",
         '"git" --no-replace-objects push>output',
@@ -726,6 +730,7 @@ def test_guard_direct_git_executables_deny_publication(
         "git --no-replace-objects status",
         "git --config-env=core.pager=GIT_PAGER log --oneline",
         "git --namespace team diff",
+        "git --namespace status log --oneline",
         "git --future-global-option log --grep='push merge'",
         "git log --grep push",
         "git show HEAD:merge",
@@ -748,6 +753,150 @@ def test_guard_unfamiliar_global_options_allow_reads(
         {"tool_input": {"command": command}},
         tmp_path,
         host=host,
+    )
+    assert_permission(result, "allow")
+
+
+@pytest.mark.parametrize("wrapper", [False, True])
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda cmd: cmd.replace("git push", "git pu''sh"),
+        lambda cmd: cmd.replace("git push", r"git p\ush"),
+        lambda cmd: cmd.replace("git push", 'git pu"sh"'),
+        lambda cmd: cmd.replace("git push", "git pu\\\nsh"),
+        lambda cmd: cmd.replace("git push", "g'i't push"),
+        lambda cmd: cmd.replace("git push", "GIT push"),
+        lambda cmd: cmd.replace("git push", "/usr/bin/GIT push"),
+        lambda cmd: cmd.replace("git push", r"g\it push"),
+        lambda cmd: cmd.replace("git push", "\"/usr/bin/git\" pu''sh"),
+        lambda cmd: cmd.replace("git push", "/usr/bin/git pu''sh"),
+        lambda cmd: cmd.replace("git push", "'/usr/bin/'git push"),
+        lambda cmd: cmd.replace("git push", "git --no-pager pu''sh"),
+        lambda cmd: cmd.replace("git push", "git --future-option a b pu''sh"),
+        lambda cmd: "command -- " + cmd,
+        lambda cmd: "env -u GIT_PAGER " + cmd,
+        lambda cmd: "exec " + cmd,
+        lambda cmd: "true && " + cmd.replace("push", "pu''sh", 1),
+        lambda cmd: cmd.replace("push", "pu''sh", 1) + "; git status",
+        lambda cmd: cmd.replace("push", "pu''sh", 1) + " --fo''rce",
+        lambda cmd: cmd + " --no-ver''ify",
+        lambda cmd: cmd.replace("refs/heads/codex/main", "refs/heads/ma''in"),
+        lambda cmd: cmd.replace("refs/heads/codex/main", r"refs/heads/ma\in"),
+        lambda cmd: cmd.replace("codex/main", "codex/ma''in"),
+        lambda cmd: cmd.replace("origin", "'origin;git push --force'"),
+        lambda cmd: cmd.replace("git push", "git 2>/dev/null pu''sh"),
+    ],
+)
+def test_publication_literal_variants_preserve_record(
+    publication_repo: PublicationRepo,
+    change: Callable[[str], str],
+    wrapper: bool,
+) -> None:
+    repo = publication_repo
+    repo.git("branch", "-m", "codex/main")
+    command = repo.approved()
+    before = repo.approval.read_bytes()
+    assert_permission(repo.hook(change(command), wrapper=wrapper), "deny")
+    assert repo.approval.read_bytes() == before
+    assert_permission(repo.hook(command, wrapper=wrapper), "allow")
+    assert not repo.approval.exists()
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git pu''sh origin codex/main",
+        r"git p\ush origin codex/main",
+        'git me""rge codex/other',
+        "git pu\\\nsh origin HEAD:refs/heads/codex/main",
+        "git push origin main:codex/main",
+        "printf '%s' 'a;b|c' && git pu''sh origin feature",
+        "(git me''rge codex/other)",
+    ],
+)
+def test_guard_literal_publication_requests_confirmation(
+    tmp_path: Path, host: str | None, command: str
+) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "deny" if host else "ask")
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git pu''sh origin feature --fo''rce",
+        "git pu\\\nsh --force origin HEAD:main",
+        "command git pu\\\nsh --force origin HEAD:main",
+        "true && command git pu\\\nsh --force origin HEAD:main",
+        r"git p\ush origin feature --fo\rce-with-lease",
+        "git push origin feature -v''f",
+        "git push origin feature --a''ll",
+        "git push origin feature --de''lete",
+        "git push origin HEAD:ma''in",
+        r"git push origin HEAD:refs/heads/ma\in",
+        "git push origin ma''in",
+        "git pu''sh origin feature --no-ver''ify",
+        "g'i't co''mmit --no-ver''ify -m example",
+        "git commit -''n -m example",
+        "env SKIP='gitleaks' git commit -m example",
+        "git --future-option a b pu''sh origin feature",
+        "git --namespace status commit --no-verify -m example",
+        "git --future-option status commit -n -m example",
+        "git --namespace team log --grep push",
+        "git pu$'sh' origin feature",
+        "git $'push' origin feature",
+        'git "$ACTION" origin feature',
+        'git pu"$SUFFIX" origin feature',
+        'git "$(printf push)" origin feature',
+        'git push "$REMOTE" feature',
+        "git >&2 pu''sh origin feature",
+    ],
+)
+def test_guard_literal_hard_denials(
+    tmp_path: Path, host: str | None, command: str
+) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command + " # private-test-marker"}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "deny")
+    assert "private-test-marker" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "g'i't sta''tus",
+        "/usr/bin/GIT status",
+        r"/usr/bin/g\it lo\g --oneline",
+        "'/usr/bin/'git diff",
+        'git log --grep="a; git push --force | git merge"',
+        "git log --grep='push' --grep='merge'",
+        r'git log --grep="a\;b"',
+        "git -C '/tmp/a;b|c' status",
+        "command git --no-pager show HEAD",
+        "env -u GIT_PAGER git status",
+        "git status; git diff && git log --oneline",
+        "git status # git push --force",
+        "git log --grep='private-test-marker'",
+    ],
+)
+def test_guard_literal_reads(tmp_path: Path, command: str) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command}},
+        tmp_path,
+        host="codex",
     )
     assert_permission(result, "allow")
 

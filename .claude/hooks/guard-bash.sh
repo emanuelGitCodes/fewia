@@ -35,33 +35,28 @@ cmd="$(jq -ers '
 ' <<<"$input")" || deny "Invalid hook input."
 [ -z "$cmd" ] && exit 0
 
-# Match simple Git global options. Shell expressions still need confirmation.
-argument="([^[:space:]\"'\\\\;&|]+|\"[^\"\\\\]*\"|'[^'\\\\]*')"
-git_prefix="git[[:space:]]+(((-C|-c|--git-dir|--work-tree)[[:space:]]+$argument|(-C|-c|--git-dir=|--work-tree=)$argument|--no-pager|--paginate|--bare)[[:space:]]+)*"
-push="${git_prefix}push\\b"
-grep -Eq "${git_prefix}(commit|push)\\b[^|;&]*--no-verify|SKIP=gitleaks[^|;&]*\\bgit\\b" <<<"$cmd" \
+# Keep raw checkpoint and environment denials independent of literal parsing.
+grep -Eq 'SKIP=gitleaks[^|;&]*\bgit\b' <<<"$cmd" \
   && deny "AGENTS.md: agents MUST NOT skip the gitleaks hook."
 grep -Eq 'rm\s+(-[a-zA-Z]+\s+)*[^ ]*\.fewia-supervisor' <<<"$cmd" \
   && deny "Never delete .fewia-supervisor-* dirs. A stale lease blocks the next writer run; clear it through dev_supervisor."
-grep -Eq "${push}[^|;&]*[[:space:]](--f(o(r(c(e(-[a-z-]*)?)?)?)?)?([=[:space:]]|$)|-[[:alpha:]]*f[[:alpha:]]*([[:space:]]|$))" <<<"$cmd" \
-  && deny "Force push is blocked. Open a new branch or ask the user."
-grep -Eq "${push}[^|;&]*[[:space:]](--(tags|all|delete|mirror)([=[:space:]]|$)|-d([[:space:]]|$))" <<<"$cmd" \
-  && deny "Broad and destructive pushes need a separate user action."
-grep -Eq "${push}[^|;&]*[[:space:]:/]main([[:space:]]|$)" <<<"$cmd" \
-  && deny "AGENTS.md: agents MUST NOT push to main."
-if grep -Eq "${git_prefix}(push|merge)\\b|gh\\s+pr\\s+(create|merge|edit|close|ready)\\b|gh\\s+api\\b.*-X\\s*(POST|PATCH|PUT|DELETE)" <<<"$cmd"; then
+classification="$(printf '%s' "$input" | python3 "$(dirname "${BASH_SOURCE[0]}")/git-publication-command.py" 2>/dev/null)" \
+  || deny "Git command classification failed."
+case "$classification" in
+  gitleaks) deny "AGENTS.md: agents MUST NOT skip the gitleaks hook." ;;
+  force) deny "Force push is blocked. Open a new branch or ask the user." ;;
+  broad) deny "Broad and destructive pushes need a separate user action." ;;
+  main) deny "AGENTS.md: agents MUST NOT push to main." ;;
+  ambiguous) deny "Git write with an unsupported or ambiguous form needs a separate user action." ;;
+  allow|external) ;;
+  *) deny "Git command classification failed." ;;
+esac
+if [ "$classification" = external ] || grep -Eq 'gh\s+pr\s+(create|merge|edit|close|ready)\b|gh\s+api\b.*-X\s*(POST|PATCH|PUT|DELETE)' <<<"$cmd"; then
   if [ "${FEWIA_HOOK_HOST:-}" = codex ] && \
     printf '%s' "$input" | python3 "$(dirname "${BASH_SOURCE[0]}")/publication-approval.py" consume 2>/dev/null; then
     exit 0
   fi
   ask "External write. CLAUDE.md requires user confirmation for pushes, pull requests, and merges."
 fi
-
-# Match simple words after an option without assuming its name or value count.
-fallback_word="${argument}+"
-fallback_git="(([^[:space:]\"'\\\\;&|()<>]+/)?git|\"([^\"\\\\]*/)?git\"|'([^'\\\\]*/)?git')"
-fallback_prefix="(^|[[:space:];&|()<>])${fallback_git}[[:space:]]+(-${fallback_word}[[:space:]]+(${fallback_word}[[:space:]]+)*)?"
-grep -Eq "${fallback_prefix}(push|merge|\"(push|merge)\"|'(push|merge)')([[:space:];&|()<>]|$)" <<<"$cmd" \
-  && deny "Git push or merge with an unfamiliar prefix needs a separate user action."
 
 exit 0
