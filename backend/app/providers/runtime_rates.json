@@ -1,0 +1,44 @@
+[
+  {
+    "model_id": "gpt-6-luna",
+    "region": "global",
+    "currency": "USD",
+    "input_usd_per_1000": "0.0001",
+    "output_usd_per_1000": "0.0005",
+    "cached_input_usd_per_1000": "0.00001",
+    "cache_write_30m_usd_per_1000": "0.000125",
+    "cache_write_12h_usd_per_1000": "0.00025",
+    "source_url": "https://developers.openai.com/api/docs/pricing",
+    "source_version": "Standard short-context rates as of 2026-11-12",
+    "date_as_of": "2026-11-12",
+    "retrieved_at": "2026-11-12"
+  },
+  {
+    "model_id": "gpt-6-luna",
+    "region": "us",
+    "currency": "USD",
+    "input_usd_per_1000": "0.00011",
+    "output_usd_per_1000": "0.00055",
+    "cached_input_usd_per_1000": "0.000011",
+    "cache_write_30m_usd_per_1000": "0.0001375",
+    "cache_write_12h_usd_per_1000": "0.000275",
+    "source_url": "https://developers.openai.com/api/docs/pricing",
+    "source_version": "Standard short-context US regional rates as of 2026-11-12",
+    "date_as_of": "2026-11-12",
+    "retrieved_at": "2026-11-12"
+  },
+  {
+    "model_id": "us.amazon.nova-2-lite-v1:0",
+    "region": "us-east-1",
+    "currency": "USD",
+    "input_usd_per_1000": "0.00033",
+    "output_usd_per_1000": "0.00275",
+    "cached_input_usd_per_1000": "0.0000825",
+    "cache_write_usd_per_1000": "0",
+    "source_url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/20261111013037/us-east-1/index.json",
+    "source_version": "20261111013037",
+    "published_at": "2026-11-11T01:30:37Z",
+    "effective_date": "2026-11-01",
+    "retrieved_at": "2026-11-12"
+  }
+]
