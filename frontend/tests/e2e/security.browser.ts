@@ -348,10 +348,12 @@ test("409 from a real mutation clears workspace A before revalidation loads B wi
   await draft.fill("Workspace B can send a fresh request");
   await draft.press("Enter");
   await expect(page.locator(".tonight-ask-status")).toHaveText("Queued");
-  expect(api.calls.filter((call) => call.method === "DELETE"), "workspace conflict never replays the rejected mutation in B").toHaveLength(1);
-  expect(api.calls.filter((call) => call.method === "POST" && call.path === "/api/grocery/chat/jobs")).toHaveLength(1);
+  await expect.poll(() => api.calls.filter((call) => call.method === "POST" && call.path === "/api/grocery/chat/jobs")).toHaveLength(1);
+  await expect.poll(() => api.state.polls).toBeGreaterThanOrEqual(1);
   await closeChat(page);
   await capturePlan(page, info, "workspace-conflict-b");
+  expect(api.calls.filter((call) => call.method === "DELETE"), "workspace conflict never replays the rejected mutation in B").toHaveLength(1);
+  expect(api.calls.filter((call) => call.method === "POST" && call.path === "/api/grocery/chat/jobs")).toHaveLength(1);
   expect(api.unexpected, "unhandled API calls").toEqual([]);
 });
 
