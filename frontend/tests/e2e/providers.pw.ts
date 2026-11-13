@@ -4,7 +4,7 @@ import { CHAT_ANSWER, expect, test } from "./fakes";
 const SAMPLE_NOTICE =
   "Estimated from the demo price catalog. Store prices, availability, taxes, delivery fees, and tips are not verified.";
 const CHAT_PENDING = "Your request is in progress.";
-const CHAT_FAILED = "The chat request failed. Retry checks the same request.";
+const CHAT_FAILED = "The chat request failed. Try again.";
 const CHAT_MESSAGE = "Make the tacos cheaper.";
 
 test.describe.configure({ timeout: 60_000 });
@@ -86,7 +86,7 @@ test("chat: a held request shows progress, then the answer", async ({
   });
 });
 
-test("chat: a retry with the same key returns the same failed job", async ({ page, chat }) => {
+test("chat: explicit retry after a terminal failure creates a new job", async ({ page, chat }) => {
   await buildBeanTacos(page);
   const panel = chatPanel(page);
   const message = panel.getByLabel("Message", { exact: true });
@@ -100,7 +100,8 @@ test("chat: a retry with the same key returns the same failed job", async ({ pag
   await expect(status).toHaveCount(1);
   await expect(status).toHaveText(CHAT_FAILED);
   await expect(panel.locator(".conversation-error")).toHaveText(CHAT_FAILED);
-  const retry = panel.getByRole("button", { name: "Retry the same request", exact: true });
+  expect(chat.posts, "terminal failure waits for an explicit retry").toHaveLength(1);
+  const retry = panel.getByRole("button", { name: "Retry chat request", exact: true });
   await expect(retry).toBeEnabled();
   const pollsBeforeRetry = chat.polls();
   await retry.focus();
@@ -110,12 +111,16 @@ test("chat: a retry with the same key returns the same failed job", async ({ pag
 
   const [first, second] = chat.posts;
   expect(first?.key, "Idempotency-Key header").toBeTruthy();
-  expect(second?.key, "retry reuses the Idempotency-Key").toBe(first?.key);
+  expect(second?.key, "retry has an Idempotency-Key").toBeTruthy();
+  expect(second?.key, "terminal failure gives the retry a new Idempotency-Key").not.toBe(first?.key);
   expect(second?.body, "retry sends an equal body").toEqual(first?.body);
   expect(first?.jobId, "first POST job ID").toBeTruthy();
-  expect(second?.jobId, "retry returns the same job").toBe(first?.jobId);
+  expect(second?.jobId, "retry POST job ID").toBeTruthy();
+  expect(second?.jobId, "explicit retry creates a new job").not.toBe(first?.jobId);
 
-  await expect(status).toHaveText(CHAT_FAILED);
-  await expect(panel.locator(".conversation-error")).toHaveText(CHAT_FAILED);
-  await expect(panel.getByRole("list", { name: "Messages" })).not.toContainText(CHAT_ANSWER);
+  await expect(status).toHaveText(CHAT_PENDING);
+  chat.finish("succeeded");
+  await expect(panel.getByRole("list", { name: "Messages" })).toContainText(CHAT_ANSWER);
+  await expect(status).toHaveText("");
+  await expect(panel.locator(".conversation-error")).toHaveCount(0);
 });
