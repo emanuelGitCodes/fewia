@@ -1,5 +1,9 @@
 """Build configured grocery providers from settings."""
 
+import os
+import re
+import stat
+from pathlib import Path
 from typing import Literal, TypedDict
 
 from cryptography.fernet import Fernet
@@ -18,6 +22,8 @@ from app.providers.kroger import KrogerClient, kroger_base_url
 from app.providers.kroger_fixture import build_fixture_cipher, build_fixture_client
 from app.providers.openai_responses import OpenAIResponsesProvider
 from app.providers.plaid import PlaidSandboxProvider
+
+_MAX_PAIRING_KEY_BYTES = 4096
 
 
 class ProviderCapabilities(TypedDict):
@@ -141,6 +147,44 @@ def build_kroger_cipher(settings: GroceryProviderSettings) -> Fernet | None:
     if cipher is None:
         raise ProviderConfigurationError()
     return cipher
+
+
+def _read_private_pairing_cipher(path: Path) -> Fernet:
+    cipher: Fernet | None = None
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_mode & 0o077
+                or metadata.st_size > _MAX_PAIRING_KEY_BYTES
+            ):
+                raise ValueError
+            with os.fdopen(descriptor, "rb", closefd=False) as handle:
+                payload = handle.read(_MAX_PAIRING_KEY_BYTES + 1)
+        finally:
+            os.close(descriptor)
+        if len(payload) > _MAX_PAIRING_KEY_BYTES:
+            raise ValueError
+        key = payload.decode("ascii").strip()
+        if re.fullmatch(r"[A-Za-z0-9_-]{43}=", key) is None:
+            raise ValueError
+        cipher = Fernet(key)
+    except (OSError, ValueError):
+        pass
+    if cipher is None:
+        raise ProviderConfigurationError()
+    return cipher
+
+
+def build_kroger_pairing_cipher(settings: GroceryProviderSettings) -> Fernet | None:
+    if _kroger_mode(settings) != "live":
+        return None
+    key_file = settings.kroger_pairing_key_file
+    if key_file is None:
+        raise ProviderConfigurationError()
+    return _read_private_pairing_cipher(key_file)
 
 
 def _kroger_mode(

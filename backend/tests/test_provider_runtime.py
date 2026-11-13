@@ -5,9 +5,13 @@ import os
 from pathlib import Path
 
 import pytest
+from cryptography.fernet import Fernet
 
 from app.provider_runtime import (
     build_bedrock,
+    build_kroger,
+    build_kroger_cipher,
+    build_kroger_pairing_cipher,
     build_llm,
     build_plaid,
     capabilities,
@@ -375,3 +379,231 @@ def test_conflicting_constructed_settings_fail_before_provider_access(
     )
     with pytest.raises(ProviderConfigurationError):
         build_llm(settings)
+
+
+def _live_pairing_settings(
+    tmp_path: Path, key_file: Path | None
+) -> GroceryProviderSettings:
+    return GroceryProviderSettings(
+        kroger_client_id_file=tmp_path / "unread-client-id",
+        kroger_secret_file=tmp_path / "unread-client-secret",
+        kroger_token_key_file=tmp_path / "unread-token-key",
+        kroger_pairing_key_file=key_file,
+    )
+
+
+@pytest.mark.parametrize("permissions", [0o400, 0o600])
+def test_build_kroger_pairing_cipher_loads_private_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, permissions: int
+) -> None:
+    key = Fernet.generate_key()
+    path = tmp_path / "pairing-key"
+    path.write_bytes(key + b"\n")
+    path.chmod(permissions)
+    _forbid_reads(monkeypatch)
+    settings = _live_pairing_settings(tmp_path, path)
+    cipher = build_kroger_pairing_cipher(settings)
+    assert isinstance(cipher, Fernet)
+    payload = b"synthetic-pairing-payload"
+    assert Fernet(key).decrypt(cipher.encrypt(payload)) == payload
+    assert capabilities(settings)["kroger_mode"] == "live"
+    assert str(path) not in repr(capabilities(settings))
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["fixture", "fixture-with-credentials", "off", "client-only", "secret-only"],
+)
+@pytest.mark.parametrize("configured_key", [False, True])
+def test_pairing_cipher_inactive_modes_do_not_access_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    configured_key: bool,
+) -> None:
+    values: dict[str, object] = {
+        "kroger_mode": "fixture" if mode.startswith("fixture") else "live",
+        "kroger_pairing_key_file": tmp_path / "unread-key" if configured_key else None,
+    }
+    if mode in ("fixture-with-credentials", "client-only"):
+        values["kroger_client_id_file"] = tmp_path / "unread-client"
+    if mode in ("fixture-with-credentials", "secret-only"):
+        values["kroger_secret_file"] = tmp_path / "unread-secret"
+    settings = GroceryProviderSettings.model_validate(values)
+
+    def forbid(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Inactive pairing cipher MUST NOT access files")
+
+    _forbid_reads(monkeypatch)
+    with monkeypatch.context() as guard:
+        guard.setattr("app.provider_runtime.os.open", forbid)
+        guard.setattr(Path, "open", forbid)
+        guard.setattr(Path, "stat", forbid)
+        guard.setattr(Path, "lstat", forbid)
+        cipher = build_kroger_pairing_cipher(settings)
+    assert cipher is None
+
+
+def test_fixture_factories_work_without_pairing_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _forbid_reads(monkeypatch)
+    settings = GroceryProviderSettings(kroger_mode="fixture")
+    assert build_kroger(settings) is not None
+    assert isinstance(build_kroger_cipher(settings), Fernet)
+    assert build_kroger_pairing_cipher(settings) is None
+
+
+@pytest.mark.parametrize("configured_key", [False, True])
+def test_pairing_cipher_live_requires_existing_key(
+    tmp_path: Path, configured_key: bool
+) -> None:
+    path = tmp_path / "missing-pairing-key"
+    settings = _live_pairing_settings(tmp_path, path if configured_key else None)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(settings)
+    _static(raised.value, str(path))
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"",
+        b" \n",
+        b"TEST_INVALID_FERNET_KEY",
+        b"A" * 40,
+        b"A" * 44,
+        b"A" * 43 + b"!",
+        b"\xff\xfe",
+        b"\xc2\xa0" + b"A" * 43 + b"=",
+        b"\x00" + b"A" * 43 + b"=",
+        b"A" * 20 + b"\n" + b"A" * 23 + b"=",
+        b"A" * 43 + b"=!",
+    ],
+    ids=[
+        "empty",
+        "blank",
+        "invalid-key",
+        "wrong-decoded-length",
+        "missing-padding",
+        "invalid-base64",
+        "invalid-encoding",
+        "non-ascii-whitespace",
+        "nul",
+        "embedded-newline",
+        "trailing-junk",
+    ],
+)
+def test_pairing_cipher_rejects_malformed_keys(tmp_path: Path, payload: bytes) -> None:
+    path = tmp_path / "pairing-key"
+    path.write_bytes(payload)
+    path.chmod(0o600)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, str(path), "TEST_INVALID_FERNET_KEY", repr(payload))
+
+
+@pytest.mark.parametrize("dangling", [False, True])
+def test_pairing_cipher_rejects_symlinks(tmp_path: Path, dangling: bool) -> None:
+    target = tmp_path / "target-key"
+    if not dangling:
+        target.write_bytes(Fernet.generate_key())
+        target.chmod(0o600)
+    path = tmp_path / "pairing-link"
+    path.symlink_to(target)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, str(path), str(target))
+
+
+@pytest.mark.parametrize("kind", ["directory", "fifo"])
+def test_pairing_cipher_rejects_nonregular_files(tmp_path: Path, kind: str) -> None:
+    path = tmp_path / "nonregular-key"
+    if kind == "directory":
+        path.mkdir(mode=0o700)
+    else:
+        os.mkfifo(path, 0o600)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, str(path))
+
+
+@pytest.mark.parametrize("permissions", [0o640, 0o620, 0o604, 0o602, 0o644, 0o666])
+def test_pairing_cipher_rejects_unsafe_modes_before_reading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, permissions: int
+) -> None:
+    path = tmp_path / "unsafe-key"
+    key = Fernet.generate_key()
+    path.write_bytes(key)
+    path.chmod(permissions)
+
+    def forbid(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Unsafe pairing key MUST NOT be read")
+
+    monkeypatch.setattr("app.provider_runtime.os.fdopen", forbid)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, str(path), key.decode("ascii"))
+
+
+@pytest.mark.parametrize("stale_size", [False, True])
+def test_pairing_cipher_rejects_oversized_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stale_size: bool
+) -> None:
+    path = tmp_path / "oversized-key"
+    key = Fernet.generate_key()
+    path.write_bytes(b" " * 4096 + key)
+    path.chmod(0o600)
+    if stale_size:
+        original_fstat = os.fstat
+
+        def stale_fstat(descriptor: int) -> os.stat_result:
+            fields = list(original_fstat(descriptor))
+            fields[6] = len(key)
+            return os.stat_result(fields)
+
+        monkeypatch.setattr("app.provider_runtime.os.fstat", stale_fstat)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, str(path), key.decode("ascii"))
+
+
+def test_pairing_cipher_does_not_require_process_uid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "mapped-uid-key"
+    key = Fernet.generate_key()
+    path.write_bytes(key)
+    path.chmod(0o600)
+    mapped_uid = path.stat().st_uid + 1
+
+    def process_uid() -> int:
+        return mapped_uid
+
+    monkeypatch.setattr(os, "getuid", process_uid)
+    monkeypatch.setattr(os, "geteuid", process_uid)
+    cipher = build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    assert isinstance(cipher, Fernet)
+    payload = b"synthetic-pairing-payload"
+    assert Fernet(key).decrypt(cipher.encrypt(payload)) == payload
+
+
+def test_pairing_cipher_file_access_errors_are_generic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "unreadable-key"
+
+    def deny(*args: object, **kwargs: object) -> None:
+        raise PermissionError(SECRET_MARKER)
+
+    monkeypatch.setattr("app.provider_runtime.os.open", deny)
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, str(path), SECRET_MARKER)
+
+
+def test_pairing_cipher_rejects_nul_path(tmp_path: Path) -> None:
+    path = Path(str(tmp_path / "key") + "\x00NUL_PATH_SENTINEL")
+    with pytest.raises(ProviderConfigurationError) as raised:
+        build_kroger_pairing_cipher(_live_pairing_settings(tmp_path, path))
+    _static(raised.value, "NUL_PATH_SENTINEL", "embedded null byte")
