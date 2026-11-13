@@ -10,11 +10,12 @@ from uuid import UUID
 import psycopg
 import pytest
 from psycopg import sql
-from sqlalchemy import Connection, create_engine
+from sqlalchemy import Connection, create_engine, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import Session
 
+from app.job_models import JobOutbox
 from app.models import User
 from app.runtime_database_access import (
     ADVANCE_USER_IDENTITY_SQL,
@@ -28,6 +29,13 @@ from app.runtime_database_policy import (
     UNSAFE_ACCESS_SQL,
     UNSAFE_ROLE_SQL,
     validate_runtime_password,
+)
+from app.security_models import QuotaCounter
+from app.services.job_submission import submit_job
+from app.services.security_admission import (
+    OwnerUnavailableError,
+    lock_active_owner,
+    reserve_action,
 )
 from tests.conftest import require_test_database_url
 
@@ -1044,6 +1052,9 @@ def test_postgres_executable_definer_refuses_and_rolls_back(
         "INSERT INTO users (display_name, created_at) VALUES ('Denied', now())",
         "UPDATE users SET display_name = 'Denied'",
         "UPDATE users SET auth_subject = 'denied'",
+        "UPDATE users SET status = 'disabled'",
+        "UPDATE users SET workspace_id = gen_random_uuid()",
+        "SELECT id FROM users FOR UPDATE",
         "DELETE FROM users",
         "SELECT nextval(pg_get_serial_sequence('users', 'id'))",
     ],
@@ -1140,6 +1151,91 @@ def test_postgres_runtime_orm_insert_returns_server_defaults(
                 "SELECT workspace_id, status FROM public.users WHERE id = %s",
                 (user.id,),
             ).fetchone() == (user.workspace_id, user.status)
+    finally:
+        orm_connection.exec_driver_sql("RESET ROLE")
+    _assert_privileges(admin)
+
+
+def test_postgres_runtime_action_and_job_admission_use_select_only_users(
+    orm_admin: PgConnection, orm_connection: Connection
+) -> None:
+    admin = orm_admin
+    admin.execute(
+        "INSERT INTO users (id, display_name) VALUES (987654321, 'Admission owner')"
+    )
+    provision_runtime_access(admin, PASSWORD)
+    orm_connection.exec_driver_sql("SET LOCAL ROLE fewia_app")
+    try:
+        with Session(
+            bind=orm_connection, join_transaction_mode="create_savepoint"
+        ) as session:
+            owner = lock_active_owner(session, 987654321)
+            assert isinstance(owner, User) and owner.status == "active"
+            reserve_action(session, 987654321, "mutation")
+            reserve_action(session, 987654321, "retailer")
+            session.commit()
+            job = submit_job(
+                session, 987654321, "agent", "runtime-admission", {}, lambda _: True
+            )
+            assert job.request_namespace == "plan"
+            assert (
+                session.scalar(select(JobOutbox.id).where(JobOutbox.job_id == job.id))
+                is not None
+            )
+            assert (
+                session.scalar(
+                    select(func.sum(QuotaCounter.count)).where(
+                        QuotaCounter.action == "mutation",
+                        QuotaCounter.scope_key == 987654321,
+                    )
+                )
+                == 2
+            )
+        for statement in (
+            "UPDATE users SET status = 'disabled' WHERE id = 987654321",
+            "UPDATE users SET auth_subject = 'denied' WHERE id = 987654321",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                with admin.transaction():
+                    admin.execute(statement)
+    finally:
+        orm_connection.exec_driver_sql("RESET ROLE")
+    _assert_privileges(admin)
+
+
+@pytest.mark.parametrize("status", ["disabled", "deleting", "missing"])
+def test_postgres_runtime_owner_lock_rejects_stale_auth_user(
+    orm_admin: PgConnection, orm_connection: Connection, status: str
+) -> None:
+    admin = orm_admin
+    admin.execute(
+        "INSERT INTO users (id, display_name) VALUES (987654321, 'Admission owner')"
+    )
+    provision_runtime_access(admin, PASSWORD)
+    orm_connection.exec_driver_sql("SET LOCAL ROLE fewia_app")
+    try:
+        with Session(
+            bind=orm_connection, join_transaction_mode="create_savepoint"
+        ) as session:
+            owner = lock_active_owner(session, 987654321)
+            assert owner.status == "active"
+            admin.execute("RESET ROLE")
+            if status == "missing":
+                admin.execute("DELETE FROM users WHERE id = 987654321")
+            else:
+                admin.execute(
+                    "UPDATE users SET status = %s WHERE id = 987654321", (status,)
+                )
+            admin.execute("SET LOCAL ROLE fewia_app")
+            assert owner.status == "active"
+            pending = JobOutbox(job_id="unflushed-invalid-reference")
+            session.add(pending)
+            with pytest.raises(OwnerUnavailableError):
+                lock_active_owner(session, 987654321)
+            assert pending in session.new
+            if status != "missing":
+                assert owner.status == status
+            session.rollback()
     finally:
         orm_connection.exec_driver_sql("RESET ROLE")
     _assert_privileges(admin)

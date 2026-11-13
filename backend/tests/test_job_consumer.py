@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app import models
 from app.job_models import Job
 from app.providers.local_sqs_consumer import QueueMessage
-from app.services import job_consumer
+from app.services import job_consumer, job_leases
 from app.services.heartbeat import Heartbeat
 from app.services.job_consumer import (
     LeaseLost,
@@ -642,3 +642,106 @@ def test_retryable_error_with_background_loss_is_lease_lost(
     assert held.result is None
     assert queue.acknowledgments == 0
     assert queue.events == ["receive"]
+
+
+@pytest.mark.parametrize("live_other", [False, True])
+def test_default_consumer_clock_uses_database_time_for_claim_and_busy(
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    live_other: bool,
+) -> None:
+    job_id = seed_job(factory)
+    monkeypatch.setattr(job_leases, "database_utc_now", lambda _: T0)
+    monkeypatch.setattr(job_consumer, "database_utc_now", lambda _: T0)
+    if live_other:
+        with factory.begin() as session:
+            other, _ = create_job(session, 1, "sync", "other-lease", {})
+            assert claim_job(session, other.id, now=T0) is not None
+    queue = FakeQueue(body(job_id))
+    called = False
+
+    def handler(
+        payload: dict[str, object], heartbeat: Callable[[], None]
+    ) -> dict[str, object]:
+        nonlocal called
+        called = True
+        running = stored_job(factory, job_id)
+        assert running.lease_expires_at is not None
+        expiry = running.lease_expires_at.replace(tzinfo=UTC)
+        assert expiry == T0 + timedelta(seconds=60)
+        heartbeat()
+        return {"answer": "safe"}
+
+    assert process_one(factory, queue, "agent", handler) == (
+        "busy" if live_other else "succeeded"
+    )
+    assert called is not live_other
+    assert queue.acknowledgments == (0 if live_other else 1)
+    assert stored_job(factory, job_id).status == (
+        "queued" if live_other else "succeeded"
+    )
+
+
+@pytest.mark.parametrize("disable_owner", [False, True])
+def test_default_consumer_clock_fences_expiry_and_disabled_owner(
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    disable_owner: bool,
+) -> None:
+    job_id = seed_job(factory)
+    current = T0
+    monkeypatch.setattr(job_leases, "database_utc_now", lambda _: current)
+    monkeypatch.setattr(job_consumer, "database_utc_now", lambda _: current)
+    queue = FakeQueue(body(job_id))
+
+    def handler(
+        payload: dict[str, object], heartbeat: Callable[[], None]
+    ) -> dict[str, object]:
+        nonlocal current
+        if disable_owner:
+            with factory.begin() as session:
+                owner = session.get(models.User, 1)
+                assert owner is not None
+                owner.status = "disabled"
+        else:
+            current = T0 + timedelta(seconds=61)
+        return {"answer": "uncommitted"}
+
+    assert process_one(factory, queue, "agent", handler) == "lease_lost"
+    held = stored_job(factory, job_id)
+    assert held.status == "running" and held.result is None
+    assert queue.acknowledgments == 0
+    assert queue.extensions == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "error_code", "expected"),
+    [
+        ("queued", None, "invalid"),
+        ("running", None, "invalid"),
+        ("succeeded", None, "terminal"),
+        ("failed", "attempts_exhausted", "exhausted"),
+    ],
+)
+def test_disabled_owner_preserves_terminal_labels_without_handler(
+    factory: sessionmaker[Session], status: str, error_code: str | None, expected: str
+) -> None:
+    job_id = seed_job(factory)
+    with factory.begin() as session:
+        owner = session.get(models.User, 1)
+        job = session.get(Job, job_id)
+        assert owner is not None and job is not None
+        owner.status = "disabled"
+        job.status = status
+        job.error_code = error_code
+    queue = FakeQueue(body(job_id))
+
+    def handler(
+        payload: dict[str, object], heartbeat: Callable[[], None]
+    ) -> dict[str, object]:
+        raise AssertionError("An inactive owner cannot invoke the handler.")
+
+    assert process_one(factory, queue, "agent", handler, now=lambda: T0) == expected
+    assert queue.extensions == 0
+    assert queue.acknowledgments == (1 if expected in {"terminal", "exhausted"} else 0)
+    assert stored_job(factory, job_id).attempts == 0

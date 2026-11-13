@@ -2,19 +2,32 @@
 
 import sqlite3
 from collections.abc import Iterator
+from contextlib import nullcontext
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, cast
 from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import Connection, Engine, create_engine, event, func, select
+from sqlalchemy import (
+    Connection,
+    Engine,
+    create_engine,
+    delete,
+    event,
+    func,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models
 from app.db import Base
 from app.job_models import Job, JobOutbox
+from app.plan_models import PlanRevision
+from app.security_models import QuotaCounter
 from app.services import job_submission
 from app.services.job_submission import (
     IdempotencyConflict,
@@ -26,18 +39,24 @@ from app.services.job_submission import (
     reuse_job,
     submit_job,
 )
+from app.services.security_admission import AdmissionLimitError, OwnerUnavailableError
 
 JobKind = Literal["sync", "agent"]
 
 
-@pytest.mark.parametrize("outcome", ["none", "conflict", "match"])
+@pytest.mark.parametrize("outcome", ["none", "gone", "conflict", "match"])
 def test_reuse_job_commits_only_a_match(
     monkeypatch: pytest.MonkeyPatch, outcome: str
 ) -> None:
     session = Mock(spec=Session)
+    session.no_autoflush = nullcontext()
     job = Job(payload={"meal": "tacos"})
     lookup = Mock(return_value=None if outcome == "none" else job)
+    if outcome == "gone":
+        lookup.side_effect = [job, None]
     monkeypatch.setattr(job_submission, "find_job", lookup)
+    owner_check = Mock()
+    monkeypatch.setattr(job_submission, "require_active_owner", owner_check)
     matches = Mock(return_value=outcome == "match")
 
     if outcome == "conflict":
@@ -47,11 +66,20 @@ def test_reuse_job_commits_only_a_match(
         result = reuse_job(cast(Session, session), 1, "agent", "key", matches)
         assert result is (job if outcome == "match" else None)
 
-    lookup.assert_called_once_with(session, 1, "agent", "key")
-    if outcome == "none":
+    lookup.assert_called_with(session, 1, "agent", "key", request_namespace=None)
+    assert lookup.call_count == (1 if outcome == "none" else 2)
+    if outcome in {"none", "gone"}:
         matches.assert_not_called()
     else:
         matches.assert_called_once_with(job.payload)
+    if outcome == "none":
+        owner_check.assert_not_called()
+    else:
+        owner_check.assert_called_once_with(session, 1)
+    if outcome == "gone":
+        session.rollback.assert_called_once_with()
+    else:
+        session.rollback.assert_not_called()
     if outcome == "match":
         session.commit.assert_called_once_with()
     else:
@@ -79,9 +107,14 @@ def test_submit_job_commits_created_job_and_outbox(
 
 @pytest.mark.parametrize("error_type", [IdempotencyConflict, IntegrityError])
 def test_submit_job_commits_matching_race_winner(
-    monkeypatch: pytest.MonkeyPatch, error_type: type[Exception]
+    job_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    error_type: type[Exception],
 ) -> None:
-    session = Mock(spec=Session)
+    session = job_session
+    seed_user(session)
+    commit = Mock(wraps=session.commit)
+    monkeypatch.setattr(session, "commit", commit)
     payload: dict[str, object] = {"meal": "tacos"}
     winner = Job(payload=payload)
     error = (
@@ -90,18 +123,19 @@ def test_submit_job_commits_matching_race_winner(
         else IdempotencyConflict()
     )
     create = Mock(side_effect=error)
-    lookup = Mock(return_value=winner)
+    lookup = Mock(side_effect=[None, winner])
     monkeypatch.setattr(job_submission, "create_job", create)
     monkeypatch.setattr(job_submission, "find_job", lookup)
     matches = Mock(return_value=True)
 
-    job = submit_job(cast(Session, session), 1, "agent", "key", payload, matches)
+    job = submit_job(session, 1, "agent", "key", payload, matches)
 
     assert job is winner
     create.assert_called_once_with(session, 1, "agent", "key", payload)
-    lookup.assert_called_once_with(session, 1, "agent", "key")
+    assert lookup.call_count == 2
+    lookup.assert_called_with(session, 1, "agent", "key", request_namespace="plan")
     matches.assert_called_once_with(winner.payload)
-    session.commit.assert_called_once_with()
+    commit.assert_called_once_with()
 
 
 @pytest.mark.parametrize(
@@ -115,27 +149,32 @@ def test_submit_job_commits_matching_race_winner(
     ],
 )
 def test_submit_job_errors_do_not_commit(
+    job_session: Session,
     monkeypatch: pytest.MonkeyPatch,
     error: Exception,
     has_winner: bool,
     expected: type[Exception],
 ) -> None:
-    session = Mock(spec=Session)
+    session = job_session
+    seed_user(session)
+    commit = Mock(wraps=session.commit)
+    monkeypatch.setattr(session, "commit", commit)
     winner = Job(payload={"meal": "beans"}) if has_winner else None
-    lookup = Mock(return_value=winner)
+    lookup = Mock(side_effect=[None, winner])
     matches = Mock(return_value=False)
     monkeypatch.setattr(job_submission, "create_job", Mock(side_effect=error))
     monkeypatch.setattr(job_submission, "find_job", lookup)
 
     with pytest.raises(expected):
-        submit_job(cast(Session, session), 1, "agent", "key", {}, matches)
+        submit_job(session, 1, "agent", "key", {}, matches)
 
-    session.commit.assert_not_called()
+    commit.assert_not_called()
     if isinstance(error, IdempotencyConflict | IntegrityError):
-        lookup.assert_called_once_with(session, 1, "agent", "key")
+        assert lookup.call_count == 2
     else:
-        lookup.assert_not_called()
-    if winner is None:
+        assert lookup.call_count == 1
+    lookup.assert_called_with(session, 1, "agent", "key", request_namespace="plan")
+    if winner is None or type(error) is ValueError:
         matches.assert_not_called()
     else:
         matches.assert_called_once_with(winner.payload)
@@ -166,14 +205,26 @@ def job_engine(tmp_path: Path) -> Iterator[Engine]:
 
     Base.metadata.create_all(
         test_engine,
-        tables=[models.User.__table__, Job.__table__, JobOutbox.__table__],
+        tables=[
+            models.User.__table__,
+            Job.__table__,
+            JobOutbox.__table__,
+            QuotaCounter.__table__,
+            PlanRevision.__table__,
+        ],
     )
     try:
         yield test_engine
     finally:
         Base.metadata.drop_all(
             test_engine,
-            tables=[models.User.__table__, Job.__table__, JobOutbox.__table__],
+            tables=[
+                models.User.__table__,
+                Job.__table__,
+                JobOutbox.__table__,
+                QuotaCounter.__table__,
+                PlanRevision.__table__,
+            ],
         )
         test_engine.dispose()
 
@@ -481,3 +532,308 @@ def test_unrelated_integrity_error_is_rethrown(job_engine: Engine) -> None:
     with Session(job_engine) as observer:
         assert count_rows(observer, Job) == 0
         assert count_rows(observer, JobOutbox) == 0
+
+
+def test_plan_and_chat_keys_coexist_and_replay_independently(
+    job_session: Session,
+) -> None:
+    seed_user(job_session)
+    plan_payload: dict[str, object] = {"operation": "plan", "meal": "tacos"}
+    chat_payload: dict[str, object] = {"operation": "chat", "message": "tacos"}
+    plan = submit_job(
+        job_session, 1, "agent", "chat:same", plan_payload, plan_payload.__eq__
+    )
+    chat = submit_job(
+        job_session, 1, "agent", "chat:same", chat_payload, chat_payload.__eq__
+    )
+    assert plan.id != chat.id
+    assert plan.request_key == chat.request_key == "chat:same"
+    assert plan.request_namespace == "plan"
+    assert chat.request_namespace == "chat"
+    for namespace, payload, expected in (
+        ("plan", plan_payload, plan.id),
+        ("chat", chat_payload, chat.id),
+    ):
+        reused = reuse_job(
+            job_session,
+            1,
+            "agent",
+            "chat:same",
+            payload.__eq__,
+            request_namespace=namespace,
+        )
+        assert reused is not None and reused.id == expected
+        replay = submit_job(
+            job_session, 1, "agent", "chat:same", payload, payload.__eq__
+        )
+        assert replay.id == expected
+    assert count_rows(job_session, JobOutbox) == 2
+    assert job_session.scalar(select(func.sum(QuotaCounter.count))) == 2
+
+
+def test_replay_at_capacity_consumes_no_mutation_and_conflict_leaves_no_rows(
+    job_session: Session,
+) -> None:
+    seed_user(job_session)
+    first = submit_job(job_session, 1, "agent", "first", {"value": 1}, lambda _: True)
+    submit_job(job_session, 1, "sync", "second", {}, lambda _: True)
+    submit_job(job_session, 1, "agent", "third", {}, lambda _: True)
+    counter = job_session.scalar(select(QuotaCounter))
+    assert counter is not None
+    counter.count = 60
+    job_session.commit()
+    replay = submit_job(
+        job_session,
+        1,
+        "agent",
+        "first",
+        {"value": 1, "snapshot": 2},
+        lambda payload: payload.get("value") == 1,
+    )
+    assert replay.id == first.id
+    with pytest.raises(JobConflict):
+        submit_job(job_session, 1, "agent", "first", {}, lambda _: False)
+    with pytest.raises(AdmissionLimitError):
+        submit_job(job_session, 1, "sync", "fourth", {}, lambda _: True)
+    job_session.commit()
+    assert count_rows(job_session, Job) == count_rows(job_session, JobOutbox) == 3
+    assert job_session.scalar(select(func.sum(QuotaCounter.count))) == 60
+
+
+@pytest.mark.parametrize("age_seconds", [59, 60])
+def test_rolling_agent_limit_spans_operations_and_excludes_old_jobs(
+    job_session: Session, monkeypatch: pytest.MonkeyPatch, age_seconds: int
+) -> None:
+    seed_user(job_session)
+    now = datetime(2026, 11, 12, 12, 34, 15, tzinfo=UTC)
+    monkeypatch.setattr(job_submission, "database_utc_now", lambda _: now)
+    for index in range(20):
+        job, _ = create_job(
+            job_session,
+            1,
+            "agent",
+            f"existing-{index}",
+            {"operation": "chat" if index % 2 else "plan"},
+        )
+        job.status = "succeeded"
+        job.created_at = now - timedelta(seconds=age_seconds)
+    job_session.commit()
+    if age_seconds == 59:
+        with pytest.raises(AdmissionLimitError) as caught:
+            submit_job(job_session, 1, "agent", "new", {}, lambda _: True)
+        assert caught.value.retry_after == 60
+        expected = 20
+    else:
+        submit_job(job_session, 1, "agent", "new", {}, lambda _: True)
+        expected = 21
+    job_session.commit()
+    assert count_rows(job_session, Job) == expected
+    assert count_rows(job_session, JobOutbox) == expected
+    mutation_count = job_session.scalar(select(func.sum(QuotaCounter.count))) or 0
+    assert mutation_count == expected - 20
+
+
+@pytest.mark.parametrize("status", ["disabled", "deleting", "missing"])
+def test_unavailable_submission_leaves_no_job_or_quota(
+    job_session: Session, status: str
+) -> None:
+    if status != "missing":
+        seed_user(job_session)
+        owner = job_session.get(models.User, 1)
+        assert owner is not None
+        owner.status = status
+        job_session.commit()
+    with pytest.raises(OwnerUnavailableError):
+        submit_job(job_session, 1, "sync", "denied", {}, lambda _: True)
+    job_session.commit()
+    assert count_rows(job_session, Job) == count_rows(job_session, JobOutbox) == 0
+    assert job_session.scalar(select(func.count()).select_from(QuotaCounter)) == 0
+
+
+def test_full_mutation_quota_rolls_back_new_job_and_outbox(
+    job_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_user(job_session)
+    now = datetime(2026, 11, 12, 12, 34, 15, tzinfo=UTC)
+    monkeypatch.setattr(job_submission, "database_utc_now", lambda _: now)
+    job_session.add(
+        QuotaCounter(
+            action="mutation",
+            scope="user",
+            scope_key=1,
+            minute_start=now.replace(second=0),
+            count=60,
+            expires_at=now.replace(second=0) + timedelta(minutes=1),
+        )
+    )
+    job_session.commit()
+    with pytest.raises(AdmissionLimitError):
+        submit_job(job_session, 1, "agent", "denied", {}, lambda _: True)
+    job_session.commit()
+    assert count_rows(job_session, Job) == count_rows(job_session, JobOutbox) == 0
+    assert job_session.scalar(select(func.sum(QuotaCounter.count))) == 60
+
+
+@pytest.mark.parametrize("table", ["JOBS", "JOB_OUTBOX", "QUOTA_COUNTERS"])
+def test_service_storage_failure_rolls_back_all_admission_rows(
+    job_engine: Engine, table: str
+) -> None:
+    with Session(job_engine) as session:
+        seed_user(session)
+        session.commit()
+
+    def fail_insert(
+        connection: Connection,
+        cursor: sqlite3.Cursor,
+        statement: str,
+        parameters: object,
+        context: object,
+        executemany: bool,
+    ) -> None:
+        del connection, cursor, parameters, context, executemany
+        if statement.lstrip().upper().startswith(f"INSERT INTO {table} "):
+            raise RuntimeError("Synthetic storage failure.")
+
+    event.listen(job_engine, "before_cursor_execute", fail_insert)
+    try:
+        with Session(job_engine) as session:
+            with pytest.raises(RuntimeError, match="Synthetic storage failure"):
+                submit_job(session, 1, "agent", "failure", {}, lambda _: True)
+            session.commit()
+    finally:
+        event.remove(job_engine, "before_cursor_execute", fail_insert)
+    with Session(job_engine) as observer:
+        assert count_rows(observer, Job) == count_rows(observer, JobOutbox) == 0
+        assert observer.scalar(select(func.count()).select_from(QuotaCounter)) == 0
+
+
+def test_reuse_refreshes_payload_after_owner_lock(
+    job_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed_user(job_session)
+    job, _ = create_job(job_session, 1, "agent", "refresh", {"value": "old"})
+    job_session.commit()
+    assert job.payload == {"value": "old"}
+    require_owner = job_submission.require_active_owner
+
+    def change_before_lock(session: Session, user_id: int) -> None:
+        session.execute(
+            update(Job)
+            .where(Job.id == job.id)
+            .values(payload={"value": "new"})
+            .execution_options(synchronize_session=False)
+        )
+        require_owner(session, user_id)
+
+    monkeypatch.setattr(job_submission, "require_active_owner", change_before_lock)
+    with pytest.raises(JobConflict):
+        reuse_job(job_session, 1, "agent", "refresh", lambda p: p["value"] == "old")
+    assert job.payload == {"value": "new"}
+
+
+@pytest.mark.parametrize(
+    ("kind", "payload", "namespace"),
+    [
+        ("sync", {}, "plan"),
+        ("agent", {"operation": "chat"}, "plan"),
+        ("agent", {}, "chat"),
+    ],
+)
+def test_namespace_constraint_rejects_explicit_mismatch(
+    job_session: Session, kind: str, payload: dict[str, object], namespace: str
+) -> None:
+    seed_user(job_session)
+    job_session.commit()
+    with pytest.raises(IntegrityError), job_session.begin_nested():
+        job_session.execute(
+            Job.__table__.insert().values(
+                user_id=1,
+                kind=kind,
+                request_namespace=namespace,
+                request_key="wrong-namespace",
+                payload=payload,
+            )
+        )
+    assert count_rows(job_session, Job) == 0
+
+
+@pytest.mark.parametrize(
+    "violation",
+    [
+        "valid",
+        "foreign_previous",
+        "queued_previous",
+        "sync_previous",
+        "missing_previous",
+        "foreign_revision",
+        "missing_revision",
+        "wrong_embedded_id",
+        "stale_snapshot",
+        "unknown_field",
+    ],
+)
+def test_chat_submission_checks_current_owned_references(
+    job_session: Session, violation: str
+) -> None:
+    seed_user(job_session)
+    seed_user(job_session, 2)
+    previous, _ = create_job(
+        job_session,
+        2 if violation == "foreign_previous" else 1,
+        "sync" if violation == "sync_previous" else "agent",
+        "previous",
+        {},
+    )
+    previous.status = "queued" if violation == "queued_previous" else "succeeded"
+    revision = PlanRevision(
+        id=uuid4(),
+        user_id=2 if violation == "foreign_revision" else 1,
+        snapshot={"meals": [], "pantry_ingredient_ids": []},
+    )
+    job_session.add(revision)
+    job_session.commit()
+    embedded_id = uuid4() if violation == "wrong_embedded_id" else revision.id
+    payload: dict[str, object] = {
+        "operation": "chat",
+        "message": "Plan dinner",
+        "monthly_limit_cents": 10000,
+        "spending": {
+            "period": "2026-11-01",
+            "posted_cents": 0,
+            "pending_cents": 0,
+            "refreshed_at": "2026-11-12T12:00:00+00:00",
+        },
+        "spending_source": "manual",
+        "previous_job_id": (
+            str(uuid4()) if violation == "missing_previous" else previous.id
+        ),
+        "plan_revision_id": (
+            str(uuid4()) if violation == "missing_revision" else str(revision.id)
+        ),
+        "plan_revision": {
+            "id": str(embedded_id),
+            "snapshot": {
+                "meals": [],
+                "pantry_ingredient_ids": [],
+                "plan_cap_cents": 0 if violation == "stale_snapshot" else None,
+            },
+        },
+    }
+    if violation == "unknown_field":
+        payload["unknown"] = "raw input"
+    if violation != "valid":
+        with pytest.raises(JobInputInvalid):
+            submit_job(job_session, 1, "agent", "chat:refs", payload, payload.__eq__)
+        job_session.commit()
+        assert count_rows(job_session, Job) == count_rows(job_session, JobOutbox) == 1
+        assert job_session.scalar(select(func.count()).select_from(QuotaCounter)) == 0
+        return
+    accepted = submit_job(job_session, 1, "agent", "chat:refs", payload, payload.__eq__)
+    accepted_id = accepted.id
+    job_session.execute(delete(JobOutbox).where(JobOutbox.job_id == previous.id))
+    job_session.delete(previous)
+    job_session.delete(revision)
+    job_session.commit()
+    replay = submit_job(job_session, 1, "agent", "chat:refs", payload, payload.__eq__)
+    assert replay.id == accepted_id
+    assert job_session.scalar(select(func.sum(QuotaCounter.count))) == 1

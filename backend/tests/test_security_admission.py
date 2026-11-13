@@ -26,6 +26,7 @@ from app.services.security_admission import (
     RETAILER_USER_LIMIT,
     AdmissionLimitError,
     OwnerUnavailableError,
+    lock_owner,
     reserve_action,
 )
 from tests.conftest import require_test_database_url
@@ -496,6 +497,7 @@ def test_disable_waits_for_caller_then_later_admission_rejects(
             pid = session.scalar(sa.select(sa.func.pg_backend_pid()))
             assert isinstance(pid, int)
             backend_pids.put(pid)
+            lock_owner(session, owners[0])
             session.execute(
                 sa.update(User).where(User.id == owners[0]).values(status="disabled")
             )
@@ -582,3 +584,15 @@ def test_database_rejects_duplicate_counter_buckets(
         _seed(session, "mutation", "user", owners[0], 1)
         with pytest.raises(IntegrityError):
             _seed(session, "mutation", "user", owners[0], 1)
+
+
+@pytest.mark.parametrize("status", ["disabled", "deleting"])
+def test_maintenance_can_lock_an_inactive_owner_without_admission(
+    sqlite_quota_database: Engine, status: str
+) -> None:
+    with Session(sqlite_quota_database) as session:
+        session.execute(sa.update(User).where(User.id == 1).values(status=status))
+        session.commit()
+        lock_owner(session, 1)
+        session.commit()
+        assert session.scalar(sa.select(sa.func.count()).select_from(_TABLE)) == 0
