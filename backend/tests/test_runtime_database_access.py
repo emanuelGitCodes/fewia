@@ -431,9 +431,24 @@ def orm_connection() -> Iterator[Connection]:
 
 
 @pytest.fixture()
-def admin(orm_connection: Connection) -> Iterator[PgConnection]:
+def orm_admin(orm_connection: Connection) -> Iterator[PgConnection]:
+    yield from admin.__wrapped__(orm_connection)
+
+
+@pytest.fixture()
+def admin(orm_connection: Connection | None = None) -> Iterator[PgConnection]:
     options = _safe_target(require_test_database_url())
+    if orm_connection is None:
+        with psycopg.connect(**options, autocommit=True) as connection:
+            yield from _admin_transaction(connection, options)
+        return
     connection = cast(PgConnection, orm_connection.connection.driver_connection)
+    yield from _admin_transaction(connection, options)
+
+
+def _admin_transaction(
+    connection: PgConnection, options: dict[str, str | int]
+) -> Iterator[PgConnection]:
     assert connection.info.dbname == options["dbname"]
     assert connection.execute(
         "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
@@ -1097,8 +1112,9 @@ def test_postgres_runtime_jit_insert_preserves_existing_users(
 
 
 def test_postgres_runtime_orm_insert_returns_server_defaults(
-    admin: PgConnection, orm_connection: Connection
+    orm_admin: PgConnection, orm_connection: Connection
 ) -> None:
+    admin = orm_admin
     provision_runtime_access(admin, PASSWORD)
     _assert_privileges(admin)
     orm_connection.exec_driver_sql("SET LOCAL ROLE fewia_app")
