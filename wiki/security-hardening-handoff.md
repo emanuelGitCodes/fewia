@@ -1,13 +1,13 @@
 # Security hardening handoff
 
 Date: 2026-11-13. Branch: `codex/security-hardening`. Base: `cad31e86`.
-Source snapshot before this record: `abd701cc`.
+Verified and reviewed source checkpoint: `956c0f908c8cc17cd6b4bdb43b654234e8a6728d`.
 
 ## Status
 
 The owner resumed work with 15 additional weekly percentage points from the original 21% baseline.
-The cutoff is 36%. The latest observed meter was 34% before final verification.
-All workstream changes are committed on the final branch. No further implementation is planned for this checkpoint.
+The cutoff is 36%. The meter reached that cutoff after the final review finished.
+Implementation stopped. The final documentation commit records the review; it does not change the reviewed source.
 The owner approved the size exception in [decision 0031](decisions/0031-security-hardening-and-hosted-accounts.md).
 
 Publication is pending. The repository hook rejected the push from Codex.
@@ -54,19 +54,31 @@ This list describes committed code. It does not establish deployed security or f
 | Combined gates `88d515b8` | RESULT PASS: 20,301 backend tests, 585 tooling tests, 1,906 hosting tests, frontend lint/tests/build, and Compose validation. Alembic found no drift. |
 | Frontend framework repair | All 1,265 tests passed, including the four Nginx assertions through Vitest. |
 | New mutation probes | Removing TCP readiness, required database settings, or the job-effect metadata guard caused the expected regression failures. |
+| Exact source checkpoint `956c0f90` | All gates passed, including fresh frontend dependency installation, 20,301 backend tests, 585 tooling tests, 1,906 hosting tests, and Compose. |
+| Final Terra review `956c0f90` | REQUEST_CHANGES: two blocking Kroger connection races. No repair started after the usage cutoff. |
 
 The combined gate skipped the opt-in Compose credential rotation test and a PostgreSQL 17 privilege check on PostgreSQL 16.
 The separate synthetic credential-upgrade test passed earlier. Required PostgreSQL tests ran in the combined gate.
-The final committed root revision receives its own gate and Terra review records before publication handoff.
-Those records use the final SHA under `.fewia-supervisor-gates` and `.fewia-supervisor-reviews`; the PR states their actual results.
+The exact source checkpoint has its gate record under `.fewia-supervisor-gates`.
+Its review is in `/private/tmp/fewia-security-final-review/.fewia-supervisor-reviews`.
+The final documentation commit adds these outcomes; it does not have a separate source review.
 No live Cognito, Kroger, model, or AWS deployment check ran.
 
 ## Release blockers
 
+Terra flagged two blocking races in `backend/app/api/kroger.py` at the reviewed checkpoint:
+
+- Around line 317, an older OAuth exchange can overwrite a newer retailer connection after an overlapping exchange completes.
+- Around line 410, preview lookup can span a reconnect and receive a confirmation bound to the new connection.
+
+These are review findings, not results from live-provider probes. They remain unresolved.
+The next repair MUST fence each operation against the connection state captured when that operation starts.
+Regression tests MUST exercise overlapping exchanges and reconnects during preview lookup.
+
 1. Resolve container findings and scan the exact release digests. No clean backend or toolchain release scan exists.
 2. Complete Linux amd64 release-image scans and the GitHub image workflow. Local native-arm64 evidence does not establish hosted-image acceptance.
 3. Complete live Cognito sign-out and account isolation checks, Floci smoke checks, and deployed browser journeys before hosted activation.
-4. Complete the exact final-head gates and independent review before marking the draft ready. The PR records those results separately.
+4. Repair both review findings, repeat their race tests and the gates, and obtain independent approval before marking the draft ready.
 
 The resumed work repaired private Compose fixtures, TCP readiness, test failure diagnostics, metadata drift, legacy regression fixtures, and test discovery.
 Hosted logout now returns to an exact public `/signed-out` ALB fixed response. It forwards no request to the application.
