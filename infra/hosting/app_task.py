@@ -27,6 +27,7 @@ class HostingAppTask(Construct):
         task_roles: HostingTaskRoles,
         backend_digest: str,
         frontend_digest: str,
+        auth_environment: dict[str, str] | None = None,
     ) -> None:
         backend_image = image_from_digest(assets.backend_repository, backend_digest)
         frontend_image = image_from_digest(assets.frontend_repository, frontend_digest)
@@ -48,7 +49,10 @@ class HostingAppTask(Construct):
             "Api",
             container_name="api",
             image=backend_image,
-            environment=application_environment(database, resources),
+            environment={
+                **application_environment(database, resources),
+                **(auth_environment or {}),
+            },
             secrets=application_secrets(database),
             essential=True,
             readonly_root_filesystem=True,

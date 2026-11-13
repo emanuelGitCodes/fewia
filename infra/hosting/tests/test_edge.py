@@ -30,15 +30,19 @@ class _Inputs:
     identity: HostingIdentity
     service: ecs.FargateService
 
-    def build(self, certificate_arn: str = _CERTIFICATE) -> HostingEdge:
-        return HostingEdge(
+    def build(
+        self, certificate_arn: str = _CERTIFICATE, *, attach: bool = True
+    ) -> HostingEdge:
+        edge = HostingEdge(
             self.stack,
             "Edge",
             network=self.network,
             identity=self.identity,
-            service=self.service,
             certificate_arn=certificate_arn,
         )
+        if attach:
+            edge.attach_service(self.service)
+        return edge
 
 
 def _inputs(tmp_path: Path, env: Environment) -> _Inputs:
@@ -124,10 +128,10 @@ def test_https_only_listener_has_exact_fixed_default(inputs: _Inputs) -> None:
 def test_host_rule_authenticates_before_forward_for_all_routes(inputs: _Inputs) -> None:
     edge = inputs.build()
     template = Template.from_stack(inputs.stack)
-    template.resource_count_is("AWS::ElasticLoadBalancingV2::ListenerRule", 1)
+    template.resource_count_is("AWS::ElasticLoadBalancingV2::ListenerRule", 2)
     rule = _properties(template, edge.rule)
     assert set(rule) == {"Actions", "Conditions", "ListenerArn", "Priority"}
-    assert rule["Priority"] == 1
+    assert rule["Priority"] == 2
     assert rule["ListenerArn"] == {"Ref": _logical_id(edge.listener)}
     assert rule["Conditions"] == [
         {
@@ -169,6 +173,34 @@ def test_host_rule_authenticates_before_forward_for_all_routes(inputs: _Inputs) 
     assert client["AllowedOAuthScopes"] == ["openid"]
     assert client["GenerateSecret"] is True
     assert client["AccessTokenValidity"] == client["IdTokenValidity"] == 60
+
+
+def test_api_rule_denies_unauthenticated_requests_on_exact_host(
+    inputs: _Inputs,
+) -> None:
+    edge = inputs.build()
+    template = Template.from_stack(inputs.stack)
+    api = _properties(template, edge.api_rule)
+    interactive = _properties(template, edge.rule)
+    assert api["Priority"] < interactive["Priority"]
+    assert api["ListenerArn"] == interactive["ListenerArn"]
+    assert api["Conditions"] == [
+        {
+            "Field": "host-header",
+            "HostHeaderConfig": {"Values": [inputs.identity.hostname]},
+        },
+        {"Field": "path-pattern", "PathPatternConfig": {"Values": ["/api/*"]}},
+    ]
+    expected = json.loads(json.dumps(interactive["Actions"]))
+    expected[0]["AuthenticateCognitoConfig"]["OnUnauthenticatedRequest"] = "deny"
+    assert api["Actions"] == expected
+
+
+def test_target_is_absent_before_service_attachment(inputs: _Inputs) -> None:
+    edge = inputs.build(attach=False)
+    template = Template.from_stack(inputs.stack)
+    assert "Targets" not in _properties(template, edge.target_group)
+    assert not _properties(template, inputs.service).get("LoadBalancers")
 
 
 def test_public_ipv4_alb_has_exact_group_subnets_and_protection(

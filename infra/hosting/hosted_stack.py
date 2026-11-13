@@ -14,6 +14,7 @@ from network import HOSTING_AVAILABILITY_ZONES, HostingNetwork
 from services import HostingServices
 from stack import HostingResources
 from task_roles import HostingTaskRoles
+from task_settings import browser_auth_environment
 from worker_tasks import HostingWorkerTasks
 
 
@@ -70,6 +71,13 @@ class HostedDemoStack(Stack):
             hostname=runtime.hostname,
             domain_prefix=runtime.domain_prefix,
         )
+        self.edge = HostingEdge(
+            self,
+            "Edge",
+            network=self.network,
+            identity=self.identity,
+            certificate_arn=runtime.certificate_arn,
+        )
         self.app_task = HostingAppTask(
             self,
             "AppTask",
@@ -80,6 +88,10 @@ class HostedDemoStack(Stack):
             task_roles=self.task_roles,
             backend_digest=runtime.backend_digest,
             frontend_digest=runtime.frontend_digest,
+            auth_environment=browser_auth_environment(
+                self.identity,
+                signer_arn=self.edge.load_balancer.load_balancer_arn,
+            ),
         )
         self.worker_tasks = HostingWorkerTasks(
             self,
@@ -99,14 +111,7 @@ class HostedDemoStack(Stack):
             worker_tasks=self.worker_tasks,
             services_enabled=config.phase == "active",
         )
-        self.edge = HostingEdge(
-            self,
-            "Edge",
-            network=self.network,
-            identity=self.identity,
-            service=self.services.app_service,
-            certificate_arn=runtime.certificate_arn,
-        )
+        self.edge.attach_service(self.services.app_service)
         for key, value in {
             "ClusterName": self.services.cluster.cluster_name,
             "ClusterArn": self.services.cluster.cluster_arn,

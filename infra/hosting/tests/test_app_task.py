@@ -36,6 +36,8 @@ class _Inputs:
         self,
         backend_digest: str = _BACKEND_DIGEST,
         frontend_digest: str = _FRONTEND_DIGEST,
+        *,
+        auth_environment: dict[str, str] | None = None,
     ) -> HostingAppTask:
         return HostingAppTask(
             self.stack,
@@ -47,6 +49,7 @@ class _Inputs:
             task_roles=self.task_roles,
             backend_digest=backend_digest,
             frontend_digest=frontend_digest,
+            auth_environment=auth_environment,
         )
 
 
@@ -238,6 +241,24 @@ def test_container_security_ports_health_dependency_and_logs(
         "StartPeriod": 30,
     }
     assert web["DependsOn"] == [{"ContainerName": "api", "Condition": "HEALTHY"}]
+
+
+def test_browser_auth_settings_go_only_to_api(inputs: _Inputs) -> None:
+    environment = {
+        "FEWIA_AUTH_MODE": "alb",
+        "FEWIA_PUBLIC_ORIGIN": "https://demo.example.test",
+        "FEWIA_ALB_SIGNER_ARN": "synthetic-alb-arn",
+        "FEWIA_AUTH_CLIENT_ID": "synthetic-client",
+        "FEWIA_AUTH_ISSUER": "https://issuer.example.test/pool",
+        "FEWIA_AUTH_LOGOUT_URL": "https://login.example.test/logout",
+    }
+    inputs.build(auth_environment=environment)
+    containers = _containers(Template.from_stack(inputs.stack))
+    actual = {item["Name"]: item["Value"] for item in containers["api"]["Environment"]}
+    assert {key: actual[key] for key in environment} == environment
+    assert containers["web"]["Environment"] == [
+        {"Name": "FEWIA_API_UPSTREAM", "Value": "127.0.0.1:8000"}
+    ]
 
 
 def test_every_app_container_has_non_root_user(

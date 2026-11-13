@@ -111,7 +111,7 @@ def check_image(
     repository_name: str,
     digest: str,
 ) -> None:
-    """Check image existence. Architecture and scan results need separate checks."""
+    """Check image existence. Architecture needs a separate check."""
     repository_name = _string(repository_name)
     digest = _string(digest)
     if (
@@ -130,3 +130,46 @@ def check_image(
         or _string(image.get("registryId")) != config.account
     ):
         raise PreflightError(_ERROR)
+
+
+def check_image_scan_page(
+    config: DeploymentConfig,
+    response: object,
+    *,
+    repository_name: str,
+    digest: str,
+) -> tuple[dict[str, int], dict[str, int], str | None]:
+    page = _object(response)
+    if (
+        _string(page.get("registryId")) != config.account
+        or _string(page.get("repositoryName")) != repository_name
+        or _string(_object(page.get("imageId")).get("imageDigest")) != digest
+        or _string(_object(page.get("imageScanStatus")).get("status")) != "COMPLETE"
+    ):
+        raise PreflightError(_ERROR)
+    scan = _object(page.get("imageScanFindings"))
+    summary = _object(scan.get("findingSeverityCounts"))
+    severities = {"INFORMATIONAL", "UNDEFINED", "LOW", "MEDIUM", "HIGH", "CRITICAL"}
+    for severity, count in summary.items():
+        if severity not in severities or type(count) is not int or count < 0:
+            raise PreflightError(_ERROR)
+        if severity in ("HIGH", "CRITICAL") and count:
+            raise PreflightError(_ERROR)
+    findings = scan.get("findings")
+    if type(findings) is not list:
+        raise PreflightError(_ERROR)
+    counts = dict.fromkeys(severities, 0)
+    for finding in cast(list[object], findings):
+        severity = _string(_object(finding).get("severity"))
+        if severity not in severities or severity in ("HIGH", "CRITICAL"):
+            raise PreflightError(_ERROR)
+        counts[severity] += 1
+    token: str | None = None
+    if "nextToken" in page:
+        token = _string(page["nextToken"])
+        if re.fullmatch(r"[!-~]{1,2048}", token) is None:
+            raise PreflightError(_ERROR)
+    normalized = {
+        severity: cast(int, summary.get(severity, 0)) for severity in severities
+    }
+    return counts, normalized, token

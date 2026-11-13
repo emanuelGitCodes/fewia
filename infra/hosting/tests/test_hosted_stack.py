@@ -140,7 +140,7 @@ def test_complete_templates_have_exact_phase_resources(
         ("AWS::Cognito::UserPoolDomain", 1),
         ("AWS::ElasticLoadBalancingV2::LoadBalancer", 1),
         ("AWS::ElasticLoadBalancingV2::Listener", 1),
-        ("AWS::ElasticLoadBalancingV2::ListenerRule", 1),
+        ("AWS::ElasticLoadBalancingV2::ListenerRule", 2),
         ("AWS::ElasticLoadBalancingV2::TargetGroup", 1),
     ):
         template.resource_count_is(kind, count if runtime else 0)
@@ -419,6 +419,49 @@ def test_composed_edge_authenticates_owned_app_service(
     client = _properties(template, demo.identity.client)
     assert client["CallbackURLs"] == [f"https://{_RUNTIME.hostname}/oauth2/idpresponse"]
     assert client["LogoutURLs"] == [f"https://{_RUNTIME.hostname}/"]
+
+
+@pytest.mark.parametrize("phase", ["bootstrap", "active"])
+def test_api_auth_environment_synthesizes_without_a_dependency_cycle(
+    tmp_path: Path, phase: _Phase
+) -> None:
+    demo = _build(tmp_path, phase)
+    assert demo.identity is not None
+    assert demo.edge is not None
+    assert demo.app_task is not None
+    children = [child.node.id for child in demo.node.children]
+    assert children.index("Identity") < children.index("Edge")
+    assert children.index("Edge") < children.index("AppTask")
+    assert children.index("AppTask") < children.index("Services")
+    app = demo.node.root
+    assert isinstance(app, App)
+    template = Template.from_stack(demo).to_json()
+    assert app.synth().get_stack_artifact(demo.artifact_id).template == template
+    containers = {
+        container["Name"]: container
+        for resource in template["Resources"].values()
+        if resource["Type"] == "AWS::ECS::TaskDefinition"
+        for container in resource["Properties"]["ContainerDefinitions"]
+    }
+    environment = {
+        item["Name"]: item["Value"] for item in containers["api"]["Environment"]
+    }
+    expected = {
+        "FEWIA_AUTH_MODE": "alb",
+        "FEWIA_PUBLIC_ORIGIN": f"https://{_RUNTIME.hostname}",
+        "FEWIA_ALB_SIGNER_ARN": demo.edge.load_balancer.load_balancer_arn,
+        "FEWIA_AUTH_CLIENT_ID": demo.identity.client.user_pool_client_id,
+        "FEWIA_AUTH_ISSUER": demo.identity.user_pool.user_pool_provider_url,
+        "FEWIA_AUTH_LOGOUT_URL": (
+            f"{demo.identity.domain.base_url()}/logout?client_id="
+            f"{demo.identity.client.user_pool_client_id}"
+            f"&logout_uri=https%3A%2F%2F{_RUNTIME.hostname}%2F"
+        ),
+    }
+    assert {key: environment[key] for key in expected} == demo.resolve(expected)
+    for name in ("web", "agent", "bootstrap"):
+        names = {entry["Name"] for entry in containers[name].get("Environment", [])}
+        assert names.isdisjoint(expected)
 
 
 def _statements_for_role(template: Template, role: IConstruct) -> list[_Json]:

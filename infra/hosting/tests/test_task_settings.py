@@ -12,6 +12,7 @@ from constructs import IConstruct
 
 from assets import HostingAssets
 from database import HostingDatabase
+from identity import HostingIdentity
 from network import HostingNetwork
 from stack import HostingResources, HostingStack
 from task_settings import (
@@ -19,6 +20,7 @@ from task_settings import (
     application_secrets,
     bootstrap_environment,
     bootstrap_secrets,
+    browser_auth_environment,
     image_from_digest,
 )
 
@@ -111,6 +113,31 @@ def test_bootstrap_environment_has_only_admin_database_values(
         "FEWIA_DATABASE_NAME": "fewia",
         "FEWIA_DATABASE_USER": "fewia_admin",
     }
+
+
+def test_browser_auth_uses_exact_origin_and_fixed_logout(settings_case: _Case) -> None:
+    stack, _, _, _ = settings_case
+    identity = HostingIdentity(
+        stack, "Identity", hostname="demo.example.test", domain_prefix="fewia-test"
+    )
+    environment = browser_auth_environment(identity, signer_arn="synthetic-alb-arn")
+    assert environment == {
+        "FEWIA_AUTH_MODE": "alb",
+        "FEWIA_PUBLIC_ORIGIN": "https://demo.example.test",
+        "FEWIA_ALB_SIGNER_ARN": "synthetic-alb-arn",
+        "FEWIA_AUTH_CLIENT_ID": identity.client.user_pool_client_id,
+        "FEWIA_AUTH_ISSUER": identity.user_pool.user_pool_provider_url,
+        "FEWIA_AUTH_LOGOUT_URL": (
+            f"{identity.domain.base_url()}/logout?client_id="
+            f"{identity.client.user_pool_client_id}"
+            "&logout_uri=https%3A%2F%2Fdemo.example.test%2F"
+        ),
+    }
+    next_environment = browser_auth_environment(
+        identity, signer_arn="synthetic-alb-arn"
+    )
+    assert next_environment == environment
+    assert next_environment is not environment
 
 
 def test_secrets_map_only_assigned_arns_and_password_fields(
