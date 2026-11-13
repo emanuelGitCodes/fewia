@@ -2,7 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
-from threading import Barrier
+from threading import Barrier, Event
 
 import pytest
 from sqlalchemy import Engine, func, select
@@ -12,12 +12,61 @@ from test_job_consumer import FakeQueue, body
 from app.job_models import Job
 from app.models import User
 from app.services.job_consumer import process_one
+from app.services.job_delivery import JobContext
 from app.services.job_leases import claim_job, finish_job, renew_lease
 from app.services.job_submission import create_job
 
 pytest_plugins = ["test_job_submission_postgres"]
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def test_consumers_contend_for_one_owner_with_fresh_context(
+    postgres_user: tuple[Engine, int],
+) -> None:
+    engine, user_id = postgres_user
+    factory = sessionmaker(engine, expire_on_commit=False)
+    with factory.begin() as session:
+        jobs = [
+            create_job(
+                session,
+                user_id,
+                "agent",
+                f"consumer-contention-{index}",
+                {"user_id": -1, "attempt": 99, "lease_token": "forged"},
+            )[0].id
+            for index in range(2)
+        ]
+    queues = [FakeQueue(body(job_id)) for job_id in jobs]
+    start = Barrier(2)
+    busy = Event()
+    contexts: list[JobContext] = []
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        assert busy.wait(timeout=10)
+        with factory() as session:
+            job = session.get(Job, context.job_id)
+            assert job is not None
+            assert context.user_id == job.user_id == user_id
+            assert context.attempt == job.attempts == 1
+            assert context.lease_token == job.lease_token != "forged"
+        contexts.append(context)
+        return {"answer": "safe"}
+
+    def consume(queue: FakeQueue) -> str:
+        start.wait(timeout=10)
+        result = process_one(factory, queue, "agent", handler, now=lambda: T0)
+        if result == "busy":
+            busy.set()
+        return result
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(consume, queues))
+    assert sorted(results) == ["busy", "succeeded"]
+    assert len(contexts) == 1
+    assert queues[results.index("busy")].acknowledgments == 0
+    assert queues[results.index("busy")].extensions == 1
+    assert queues[results.index("succeeded")].acknowledgments == 1
 
 
 @pytest.mark.parametrize("other_kind", ["agent", "sync"])
@@ -65,7 +114,7 @@ def test_concurrent_jobs_share_one_owner_lease_and_queue_visibility(
         )
     queue = FakeQueue(body(blocked_id))
 
-    def handler(payload: dict[str, object], heartbeat: object) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         raise AssertionError("A busy owner cannot invoke the handler.")
 
     factory = sessionmaker(engine, expire_on_commit=False)

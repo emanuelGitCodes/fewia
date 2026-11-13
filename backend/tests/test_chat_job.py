@@ -35,7 +35,12 @@ from app.plan_models import PlanProposal, PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.services import chat_job as chat_job_module
 from app.services.evidence_contract import EvidenceInputs
-from app.services.job_delivery import JobContext
+from app.services.job_delivery import JobContext, LeaseLost
+from app.services.model_cost import (
+    ModelBudgetExhausted,
+    ModelCapacityUnavailable,
+    ModelCostError,
+)
 from app.services.plan_job import SpendingInput
 from tests.test_search_recovery import terminal_search
 
@@ -361,7 +366,7 @@ def test_chat_job_rejects_forged_exhaustion_before_provider(
         )
 
 
-def test_chat_job_opts_in_to_validated_model_prose(
+def test_chat_job_uses_runtime_template_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
@@ -377,9 +382,28 @@ def test_chat_job_opts_in_to_validated_model_prose(
     result = chat_job_module.chat_job(
         chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
-    assert seen == [True]
+    assert seen == [False]
     assert result["reply_source"] == "template"
-    assert result["reply_check"] == {"gate": "no_tools"}
+    assert result.get("reply_check") is None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ModelBudgetExhausted(), ModelCapacityUnavailable(), ModelCostError(), LeaseLost()],
+)
+def test_chat_job_preserves_typed_provider_failures(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    provider = FakeLLM([error])
+    with pytest.raises(type(error)) as caught:
+        chat_job_module.chat_job(
+            chat_payload(), pure_context(), provider=provider, factory=FACTORY
+        )
+    assert caught.value is error
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert len(provider.requests) == 1
 
 
 def test_chat_job_stores_snapshot_before_return(

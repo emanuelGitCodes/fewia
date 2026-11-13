@@ -1,8 +1,9 @@
 import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -27,7 +28,16 @@ from app.services import plan_job as plan_job_module
 from app.services.agent_jobs import make_agent_handler
 from app.services.evidence_store import load_evidence
 from app.services.job_consumer import process_one
+from app.services.job_delivery import JobFailure, LeaseLost
 from app.services.job_submission import create_job
+from app.services.model_cost import (
+    ModelBudgetExhausted,
+    ModelCapacityUnavailable,
+    ModelCostError,
+    ModelCostLedger,
+    Reservation,
+)
+from app.services.model_cost_rates import RuntimeRates
 from app.services.security_admission import database_utc_now
 
 
@@ -230,6 +240,136 @@ def test_handler_does_not_fake_chat_when_provider_missing(
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
     assert count_rows(factory) == 0
+
+
+@pytest.mark.parametrize("error", [ModelBudgetExhausted(), ModelCapacityUnavailable()])
+def test_handler_maps_model_denial_to_static_job_failure(
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    error: ModelCostError,
+) -> None:
+    freeze_clocks(monkeypatch)
+    handler = make_agent_handler(factory, FakeLLM([error]))
+    with pytest.raises(JobFailure) as caught:
+        handler(chat_payload(), pure_context())
+    assert caught.value.error_code == error.code
+    assert caught.value.detail == {
+        "code": error.code,
+        "retry_guidance": error.retry_guidance,
+    }
+    assert caught.value.__context__ is None
+    assert count_rows(factory) == 0
+
+
+def test_handler_maps_technical_model_cost_failure_to_unavailable(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    freeze_clocks(monkeypatch)
+    with pytest.raises(ChatUnavailable, match="^The language model is unavailable.$"):
+        make_agent_handler(factory, FakeLLM([ModelCostError()]))(
+            chat_payload(), pure_context()
+        )
+    assert count_rows(factory) == 0
+
+
+@pytest.mark.parametrize("state", ["active", "expired", "disabled", "replaced"])
+def test_cost_provider_uses_shared_fence_before_network(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    freeze_clocks(monkeypatch)
+    seed_user(factory)
+    context = claim_context(factory, payload=chat_payload())
+    with factory.begin() as session:
+        job = session.get(Job, context.job_id)
+        owner = session.get(models.User, context.user_id)
+        assert job is not None and owner is not None
+        if state == "expired":
+            job.lease_expires_at = database_utc_now(session)
+        elif state == "disabled":
+            owner.status = "disabled"
+        elif state == "replaced":
+            job.lease_token = "replacement"
+    attempts: list[int] = []
+
+    def reserve(self: ModelCostLedger, **kwargs: object) -> Reservation:
+        fence = cast(Callable[[Session], int], kwargs["fence"])
+        with factory.begin() as session:
+            attempts.append(fence(session))
+        raise ModelBudgetExhausted()
+
+    monkeypatch.setattr(ModelCostLedger, "reserve", reserve)
+    provider = FakeLLM([])
+    handler = make_agent_handler(factory, provider, rates=cast(RuntimeRates, object()))
+    expected = JobFailure if state == "active" else LeaseLost
+    with pytest.raises(expected):
+        handler(chat_payload(), context)
+    assert attempts == ([context.attempt] if state == "active" else [])
+    assert provider.requests == []
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+@pytest.mark.parametrize("disable", [False, True])
+def test_provider_failure_or_cancellation_keeps_stale_owner_fenced(
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    cancel: bool,
+    disable: bool,
+) -> None:
+    freeze_clocks(monkeypatch)
+    seed_user(factory)
+    context = claim_context(factory, payload=chat_payload())
+    settlements: list[int | None] = []
+
+    def reserve(self: ModelCostLedger, **kwargs: object) -> Reservation:
+        fence = cast(Callable[[Session], int], kwargs["fence"])
+        with factory.begin() as session:
+            attempt = fence(session)
+        return Reservation(
+            "reservation",
+            context.job_id,
+            context.user_id,
+            attempt,
+            1,
+            "gpt-6-luna",
+            "global",
+            "sha256:" + "a" * 64,
+            1000,
+        )
+
+    def settle(
+        self: ModelCostLedger, reservation: Reservation, cost: int | None
+    ) -> None:
+        settlements.append(cost)
+
+    class FailingLLM(FakeLLM):
+        def converse(
+            self,
+            system_prompt: str,
+            messages: list[dict[str, object]],
+            tools: list[dict[str, object]],
+        ) -> dict[str, object]:
+            with factory.begin() as session:
+                job = session.get(Job, context.job_id)
+                owner = session.get(models.User, context.user_id)
+                assert job is not None and owner is not None
+                if disable:
+                    owner.status = "disabled"
+                else:
+                    job.lease_expires_at = database_utc_now(session)
+            return super().converse(system_prompt, messages, tools)
+
+    monkeypatch.setattr(ModelCostLedger, "reserve", reserve)
+    monkeypatch.setattr(ModelCostLedger, "settle", settle)
+    error = KeyboardInterrupt() if cancel else RuntimeError("Synthetic failure")
+    provider = FailingLLM([error])
+    handler = make_agent_handler(factory, provider, rates=cast(RuntimeRates, object()))
+    with pytest.raises(KeyboardInterrupt if cancel else ChatUnavailable):
+        handler(chat_payload(), context)
+    assert settlements == [None]
+    with pytest.raises(LeaseLost):
+        handler(chat_payload(), context)
+    assert len(provider.requests) == 1
+    assert settlements == [None]
 
 
 def test_handler_invalid_payloads_fail_closed(

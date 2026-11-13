@@ -180,7 +180,12 @@ def sync_item(
         current = _aware_utc(now())
         heartbeat()
 
-        def write(session: Session) -> dict[str, object]:
+        def write(
+            session: Session,
+            snapshot: _ItemSnapshot = snapshot,
+            pages: list[SyncPage] = pages,
+            current: datetime = current,
+        ) -> dict[str, object]:
             owned = session.scalar(
                 select(PlaidItem)
                 .where(PlaidItem.id == item_id, PlaidItem.user_id == user_id)

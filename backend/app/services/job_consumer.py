@@ -3,12 +3,13 @@ import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.job_models import Job
 from app.services.heartbeat import Heartbeat
 from app.services.job_delivery import (
+    JobContext,
     JobFailure,
     JobHandler,
     JobQueue,
@@ -50,6 +51,8 @@ def process_one(
     action = "claimed"
     token: str | None = None
     payload: dict[str, object] | None = None
+    user_id: int | None = None
+    attempt: int | None = None
     with factory.begin() as session:
         job = session.get(Job, job_id)
         if job is None or job.kind != kind:
@@ -99,7 +102,16 @@ def process_one(
             else:
                 action = "invalid"
         else:
+            job = session.scalar(
+                select(Job)
+                .where(Job.id == job_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            assert job is not None
             payload = _json_object(job.payload)
+            user_id = job.user_id
+            attempt = job.attempts
 
     if action in {"terminal", "exhausted"}:
         queue.acknowledge(message)
@@ -110,6 +122,7 @@ def process_one(
     if action == "invalid":
         return "invalid"
     assert token is not None and payload is not None
+    assert user_id is not None and attempt is not None
 
     def renew() -> None:
         with factory.begin() as session:
@@ -161,7 +174,8 @@ def process_one(
 
     try:
         with Heartbeat(renew) as heartbeat:
-            result = _json_object(handler(payload, heartbeat))
+            context = JobContext(job_id, user_id, token, heartbeat, attempt)
+            result = _json_object(handler(payload, context))
             heartbeat()
     except RetryableJobError:
         queue.extend(message, 120)

@@ -20,9 +20,33 @@ from app.domain.plan_revision import PlanRevisionInput, PlanSnapshot
 from app.plan_models import PlanRevision
 from app.services.evidence_contract import EvidenceInputs
 from app.services.evidence_store import save_job_plan_evidence
-from app.services.job_delivery import JobContext
+from app.services.job_delivery import JobContext, LeaseLost
 from app.services.job_effects import apply_effect
+from app.services.model_cost import ModelCostError
 from app.services.plan_job import SpendingInput
+
+
+class _TypedProviderFailure(BaseException):
+    """Carry job failures through the chat loop's Exception handler."""
+
+    def __init__(self, error: ModelCostError | LeaseLost) -> None:
+        self.error = error
+
+
+class _JobProvider:
+    def __init__(self, provider: LLMProvider) -> None:
+        self._provider = provider
+
+    def converse(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        try:
+            return self._provider.converse(system_prompt, messages, tools)
+        except (ModelCostError, LeaseLost) as exc:
+            raise _TypedProviderFailure(exc) from None
 
 
 class ChatHistoryTurn(BaseModel):
@@ -210,23 +234,27 @@ def chat_job(
         )
         return str(result["id"])
 
-    return run_chat(
-        provider,
-        parsed.message,
-        budget,
-        parsed.spending.period,
-        heartbeat=context.heartbeat,
-        user_id=context.user_id,
-        spending_source=parsed.spending_source,
-        previous_request=parsed.previous_request,
-        previous_ingredient_ids=parsed.previous_ingredient_ids,
-        previous_search=parsed.previous_search,
-        previous_exhausted_search=parsed.previous_exhausted_search,
-        previous_what_if_recipe=parsed.previous_what_if_recipe,
-        history=history,
-        record_evidence=record_evidence,
-        plan_cap_cents=parsed.plan_cap_cents,
-        plan_revision=plan,
-        model_prose=True,
-        propose=None if plan is None else propose,
-    )
+    try:
+        return run_chat(
+            _JobProvider(provider),
+            parsed.message,
+            budget,
+            parsed.spending.period,
+            heartbeat=context.heartbeat,
+            user_id=context.user_id,
+            spending_source=parsed.spending_source,
+            previous_request=parsed.previous_request,
+            previous_ingredient_ids=parsed.previous_ingredient_ids,
+            previous_search=parsed.previous_search,
+            previous_exhausted_search=parsed.previous_exhausted_search,
+            previous_what_if_recipe=parsed.previous_what_if_recipe,
+            history=history,
+            record_evidence=record_evidence,
+            plan_cap_cents=parsed.plan_cap_cents,
+            plan_revision=plan,
+            model_prose=False,
+            propose=None if plan is None else propose,
+        )
+    except _TypedProviderFailure as exc:
+        error = exc.error
+    raise error

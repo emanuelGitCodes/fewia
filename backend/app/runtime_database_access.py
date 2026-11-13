@@ -5,6 +5,7 @@ from psycopg import sql
 
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
+    RUNTIME_MODEL_UPDATE_COLUMNS,
     RUNTIME_ROLE,
     RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
@@ -114,6 +115,16 @@ def provision_runtime_access(
                         sql.SQL(privileges), sql.Identifier("public", table), role
                     )
                 )
+            connection.execute(
+                sql.SQL("GRANT UPDATE ({}) ON TABLE {} TO {}").format(
+                    sql.SQL(", ").join(
+                        sql.Identifier(column)
+                        for column in RUNTIME_MODEL_UPDATE_COLUMNS
+                    ),
+                    sql.Identifier("public", "model_call_reservations"),
+                    role,
+                )
+            )
             connection.execute(
                 sql.SQL("GRANT INSERT ({}) ON TABLE {} TO {}").format(
                     sql.SQL(", ").join(

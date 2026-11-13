@@ -15,12 +15,18 @@ RUNTIME_USER_INSERT_COLUMNS: Final[tuple[str, ...]] = (
     "auth_issuer",
     "auth_subject",
 )
+RUNTIME_MODEL_UPDATE_COLUMNS: Final[tuple[str, ...]] = (
+    "status",
+    "charged_microdollars",
+    "finished_at",
+)
 RUNTIME_GRANTS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "users": "SELECT",
         "jobs": "SELECT, INSERT, UPDATE",
         "job_outbox": "SELECT, INSERT, UPDATE",
         "job_effects": "SELECT, INSERT",
+        "model_call_reservations": "SELECT, INSERT",
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
         "plan_revisions": "SELECT, INSERT",
@@ -82,13 +88,13 @@ SELECT
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
                         'kroger_customer_tokens', 'plaid_items',
                         'plaid_transactions', 'kroger_owners', 'security_intents',
-                        'quota_counters', 'job_effects'
+                        'quota_counters', 'job_effects', 'model_call_reservations'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname IN (
                         'jobs', 'job_outbox', 'shopping_handoffs',
                         'grocery_evidence', 'plan_revisions', 'plan_proposals',
                         'kroger_customer_tokens', 'kroger_owners', 'security_intents',
-                        'quota_counters', 'job_effects'
+                        'quota_counters', 'job_effects', 'model_call_reservations'
                     ))
                     OR (p.priv = 'INSERT' AND c.relname = 'users'
                         AND NOT has_table_privilege('fewia_app', c.oid, 'INSERT')
@@ -109,6 +115,20 @@ SELECT
                         'plan_proposals', 'kroger_customer_tokens',
                         'kroger_owners', 'security_intents', 'quota_counters'
                     ))
+                    OR (p.priv = 'UPDATE' AND c.relname = 'model_call_reservations'
+                        AND NOT has_table_privilege('fewia_app', c.oid, 'UPDATE')
+                        AND NOT EXISTS (
+                            SELECT 1 FROM pg_attribute a
+                            WHERE a.attrelid = c.oid
+                            AND a.attnum > 0 AND NOT a.attisdropped
+                            AND a.attname NOT IN (
+                                'status', 'charged_microdollars', 'finished_at'
+                            )
+                            AND has_column_privilege(
+                                'fewia_app', c.oid, a.attnum, 'UPDATE'
+                            )
+                        )
+                    )
                     OR (p.priv = 'DELETE' AND c.relname IN (
                         'kroger_customer_tokens', 'kroger_owners', 'security_intents'
                     ))

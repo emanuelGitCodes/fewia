@@ -8,6 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.engine.default import DefaultExecutionContext
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app import job_effect_models  # noqa: F401
 from app.db import Base
 
 
@@ -30,6 +31,7 @@ def _request_namespace(context: DefaultExecutionContext) -> str:
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
+        sa.UniqueConstraint("id", "user_id", name="uq_jobs_id_user"),
         sa.CheckConstraint("kind IN ('sync', 'agent')", name="ck_jobs_kind"),
         sa.CheckConstraint(
             "status IN ('queued', 'running', 'succeeded', 'failed')",

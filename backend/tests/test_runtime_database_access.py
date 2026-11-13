@@ -24,6 +24,7 @@ from app.runtime_database_access import (
 )
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
+    RUNTIME_MODEL_UPDATE_COLUMNS,
     RUNTIME_ROLE,
     RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
@@ -114,6 +115,8 @@ def test_provision_runtime_access_uses_fixed_role_and_grants(exists: bool) -> No
             f"{sql.Identifier('public', table).as_string()} TO {role}"
             for table, privileges in RUNTIME_GRANTS.items()
         ],
+        'GRANT UPDATE ("status", "charged_microdollars", "finished_at") '
+        f'ON TABLE "public"."model_call_reservations" TO {role}',
         'GRANT INSERT ("display_name", "auth_issuer", "auth_subject") '
         f'ON TABLE "public"."users" TO {role}',
         UNSAFE_ACCESS_SQL,
@@ -608,8 +611,12 @@ def _assert_privileges(connection: PgConnection) -> None:
                     ("public." + str(table), privilege + suffix),
                 ).fetchone() == (privilege in allowed and not suffix,)
                 if privilege in _COLUMN_PRIVILEGES:
-                    column_allowed = privilege in allowed or (
-                        table == "users" and privilege == "INSERT"
+                    column_allowed = (
+                        privilege in allowed
+                        or (table == "users" and privilege == "INSERT")
+                        or (
+                            table == "model_call_reservations" and privilege == "UPDATE"
+                        )
                     )
                     assert connection.execute(
                         "SELECT has_any_column_privilege('fewia_app', %s, %s)",
@@ -624,6 +631,17 @@ def _assert_privileges(connection: PgConnection) -> None:
             "SELECT has_column_privilege('fewia_app', 'public.users', %s, 'INSERT')",
             (column,),
         ).fetchone() == (column in RUNTIME_USER_INSERT_COLUMNS,)
+    columns = connection.execute(
+        "SELECT attname FROM pg_attribute "
+        "WHERE attrelid = 'public.model_call_reservations'::regclass "
+        "AND attnum > 0 AND NOT attisdropped"
+    ).fetchall()
+    for (column,) in columns:
+        assert connection.execute(
+            "SELECT has_column_privilege('fewia_app', "
+            "'public.model_call_reservations', %s, 'UPDATE')",
+            (column,),
+        ).fetchone() == (column in RUNTIME_MODEL_UPDATE_COLUMNS,)
     for privilege in ("CONNECT", "CREATE", "TEMPORARY"):
         for suffix in ("", " WITH GRANT OPTION"):
             assert connection.execute(
@@ -751,6 +769,9 @@ def test_postgres_create_repeat_reset_rotate_and_preserve_rows(
         "WHERE acl.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'fewia_app') "
         "ORDER BY c.relname, a.attname"
     ).fetchall() == [
+        ("model_call_reservations", column, "UPDATE", False)
+        for column in sorted(RUNTIME_MODEL_UPDATE_COLUMNS)
+    ] + [
         ("users", column, "INSERT", False)
         for column in sorted(RUNTIME_USER_INSERT_COLUMNS)
     ]
@@ -909,6 +930,12 @@ def test_postgres_non_superuser_creator_with_admin_option(admin: PgConnection) -
         "GRANT UPDATE ON grocery_evidence TO PUBLIC",
         "GRANT INSERT ON plaid_items TO PUBLIC",
         "GRANT UPDATE (display_name) ON users TO PUBLIC",
+        "GRANT UPDATE ON model_call_reservations TO PUBLIC",
+        "GRANT UPDATE (reserved_microdollars) ON model_call_reservations TO PUBLIC",
+        "GRANT UPDATE (user_id) ON model_call_reservations TO PUBLIC",
+        "GRANT UPDATE (rate_version) ON model_call_reservations TO PUBLIC",
+        "GRANT DELETE ON model_call_reservations TO PUBLIC",
+        "GRANT TRUNCATE ON model_call_reservations TO PUBLIC",
         "GRANT INSERT ON users TO PUBLIC",
         "GRANT INSERT (id) ON users TO PUBLIC",
         "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO PUBLIC",
@@ -954,23 +981,32 @@ def test_postgres_excess_effective_access_refuses_and_rolls_back(
     assert _rows(admin) == rows
 
 
+@pytest.mark.parametrize(
+    ("table", "column", "privilege"),
+    [
+        ("users", "display_name", "SELECT"),
+        ("model_call_reservations", "status", "UPDATE"),
+    ],
+)
 def test_postgres_public_column_grant_option_refuses_and_restores_acl(
-    admin: PgConnection,
+    admin: PgConnection, table: str, column: str, privilege: str
 ) -> None:
     provision_runtime_access(admin, PASSWORD)
     _seed_direct_acl(admin)
     admin.execute(
         "UPDATE pg_attribute SET attacl = array_append(attacl, "
         "makeaclitem(0, (SELECT oid FROM pg_roles WHERE rolname = current_user), "
-        "'SELECT', true)) "
-        "WHERE attrelid = 'public.users'::regclass AND attname = 'display_name'"
+        "%s, true)) "
+        "WHERE attrelid = %s::regclass AND attname = %s",
+        (privilege, "public." + table, column),
     )
     assert admin.execute(
         "SELECT acl.privilege_type, acl.is_grantable FROM pg_attribute a "
         "CROSS JOIN LATERAL aclexplode(a.attacl) acl "
-        "WHERE a.attrelid = 'public.users'::regclass "
-        "AND a.attname = 'display_name' AND acl.grantee = 0"
-    ).fetchall() == [("SELECT", True)]
+        "WHERE a.attrelid = %s::regclass "
+        "AND a.attname = %s AND acl.grantee = 0",
+        ("public." + table, column),
+    ).fetchall() == [(privilege, True)]
     before = _catalog(admin)
     with pytest.raises(RuntimeDatabaseAccessError) as caught:
         provision_runtime_access(admin, "B2" * 16)
@@ -1041,6 +1077,13 @@ def test_postgres_executable_definer_refuses_and_rolls_back(
         "SELECT * FROM alembic_version",
         "DELETE FROM jobs",
         "UPDATE grocery_evidence SET snapshot = '{}'::json",
+        "UPDATE job_effects SET input_digest = input_digest",
+        "DELETE FROM job_effects",
+        "UPDATE model_call_reservations SET reserved_microdollars = 1",
+        "UPDATE model_call_reservations SET user_id = 987654321",
+        "UPDATE model_call_reservations SET rate_version = 'denied'",
+        "DELETE FROM model_call_reservations",
+        "TRUNCATE model_call_reservations",
         "DELETE FROM grocery_evidence",
         "UPDATE plaid_items SET cursor = NULL",
         "DELETE FROM plaid_transactions",
@@ -1413,3 +1456,107 @@ def test_postgres_future_objects_have_no_default_access(admin: PgConnection) -> 
         admin.execute("SELECT * FROM pg_default_acl ORDER BY oid").fetchall()
         == defaults_before
     )
+
+
+def _seed_runtime_effect_job(admin: PgConnection) -> str:
+    admin.execute(
+        "INSERT INTO users (id, display_name) VALUES "
+        "(987654321, 'Synthetic owner'), (987654322, 'Other synthetic owner')"
+    )
+    job_id = "00000000-0000-0000-0000-000000000001"
+    admin.execute(
+        "INSERT INTO jobs (id, user_id, kind, request_key, payload, status, "
+        "attempts, lease_token, lease_expires_at) "
+        "VALUES (%s, 987654321, 'agent', 'runtime-effects', '{}', "
+        "'running', 1, 'synthetic-lease', clock_timestamp() + interval '60 seconds')",
+        (job_id,),
+    )
+    provision_runtime_access(admin, PASSWORD)
+    return job_id
+
+
+def test_postgres_runtime_effect_insert_select_and_owner_constraint(
+    admin: PgConnection,
+) -> None:
+    job_id = _seed_runtime_effect_job(admin)
+    with admin.transaction():
+        admin.execute("SET LOCAL ROLE fewia_app")
+        admin.execute(
+            "INSERT INTO job_effects "
+            "(job_id, effect_key, user_id, input_digest, result_reference) "
+            "VALUES (%s, 'sync:0', 987654321, %s, "
+            '\'{"kind":"sync","changed_count":1}\')',
+            (job_id, "a" * 64),
+        )
+        assert admin.execute(
+            "SELECT user_id, result_reference FROM job_effects "
+            "WHERE job_id = %s AND effect_key = 'sync:0'",
+            (job_id,),
+        ).fetchone() == (987654321, {"kind": "sync", "changed_count": 1})
+        with pytest.raises(psycopg.errors.ForeignKeyViolation) as caught:
+            with admin.transaction():
+                admin.execute(
+                    "INSERT INTO job_effects "
+                    "(job_id, effect_key, user_id, input_digest, result_reference) "
+                    "VALUES (%s, 'sync:1', 987654322, %s, "
+                    '\'{"kind":"sync","changed_count":0}\')',
+                    (job_id, "b" * 64),
+                )
+        assert caught.value.diag.constraint_name == "fk_job_effects_job_owner"
+        for statement in (
+            "UPDATE job_effects SET input_digest = input_digest",
+            "DELETE FROM job_effects",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                with admin.transaction():
+                    admin.execute(statement)
+        assert admin.execute(
+            "SELECT count(*) FROM job_effects WHERE job_id = %s", (job_id,)
+        ).fetchone() == (1,)
+        admin.execute("RESET ROLE")
+    _assert_privileges(admin)
+
+
+@pytest.mark.parametrize("unknown", [False, True])
+def test_postgres_runtime_model_call_insert_lock_and_settle(
+    admin: PgConnection, unknown: bool
+) -> None:
+    job_id = _seed_runtime_effect_job(admin)
+    with admin.transaction():
+        admin.execute("SET LOCAL ROLE fewia_app")
+        admin.execute("SELECT pg_advisory_xact_lock(7046231908117)")
+        admin.execute(
+            "WITH t AS (SELECT clock_timestamp() AS started) "
+            "INSERT INTO model_call_reservations "
+            "(id, job_id, user_id, attempt, turn, model_id, region, rate_version, "
+            "utc_day, reserved_microdollars, status, started_at, slot_deadline) "
+            "SELECT %s, %s, 987654321, 1, 1, 'gpt-6-luna', 'global', %s, "
+            "(started AT TIME ZONE 'UTC')::date, 1000, 'in_flight', "
+            "started, started + interval '60 seconds' FROM t",
+            (job_id, job_id, "sha256:" + "a" * 64),
+        )
+        assert admin.execute(
+            "SELECT status, reserved_microdollars FROM model_call_reservations "
+            "WHERE id = %s FOR UPDATE",
+            (job_id,),
+        ).fetchone() == ("in_flight", 1000)
+        state = "unknown" if unknown else "settled"
+        cost = None if unknown else 7
+        assert admin.execute(
+            "UPDATE model_call_reservations SET status = %s, "
+            "charged_microdollars = %s, finished_at = clock_timestamp() "
+            "WHERE id = %s RETURNING status, charged_microdollars, "
+            "reserved_microdollars, finished_at IS NOT NULL",
+            (state, cost, job_id),
+        ).fetchone() == (state, cost, 1000, True)
+        for statement in (
+            "UPDATE model_call_reservations SET reserved_microdollars = 1",
+            "UPDATE model_call_reservations SET user_id = 987654322",
+            "UPDATE model_call_reservations SET rate_version = 'denied'",
+            "DELETE FROM model_call_reservations",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                with admin.transaction():
+                    admin.execute(statement)
+        admin.execute("RESET ROLE")
+    _assert_privileges(admin)
