@@ -184,7 +184,12 @@ def identity_request(
         },
     )
     return Request(
-        {"type": "http", "headers": [(b"x-amzn-oidc-data", token.encode("ascii"))]}
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/grocery/session",
+            "headers": [(b"x-amzn-oidc-data", token.encode("ascii"))],
+        }
     )
 
 
@@ -202,6 +207,8 @@ def test_local_identity_uses_only_active_user_one(
     request = Request(
         {
             "type": "http",
+            "method": "GET",
+            "path": "/grocery/session",
             "headers": [(b"x-user-id", b"2"), (b"x-amzn-oidc-identity", b"2")],
             "query_string": b"user_id=2",
         }
@@ -338,7 +345,14 @@ def test_alb_dependency_rejects_bad_header_without_provisioning(
         "malformed": [(b"x-amzn-oidc-data", b"bad.token.value")],
         "duplicate": values + values,
     }
-    request = Request({"type": "http", "headers": invalid[kind]})
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/grocery/session",
+            "headers": invalid[kind],
+        }
+    )
     with pytest.raises(HTTPException) as caught:
         get_current_user(request, identity_session, identity_settings)
     assert caught.value.status_code == 401

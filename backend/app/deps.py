@@ -33,6 +33,7 @@ from app.provider_settings import (
 )
 from app.providers.kroger import KrogerClient
 from app.security_models import KrogerOwner
+from app.workspace import check_workspace
 
 PROVIDER_UNAVAILABLE_MESSAGE = "Provider configuration is invalid"
 AUTH_UNAVAILABLE_MESSAGE = "Authentication service is unavailable."
@@ -77,6 +78,7 @@ def get_current_user(
             )
             if user is None or user.status != "active":
                 raise HTTPException(status_code=503, detail=AUTH_UNAVAILABLE_MESSAGE)
+            check_workspace(request, user)
             return user
 
         identity = get_alb_verifier(settings).verify_headers(request.scope["headers"])
@@ -91,6 +93,7 @@ def get_current_user(
         user = session.scalars(statement).one_or_none()
         changed = False
         if user is None:
+            check_workspace(request, None)
             session.execute(
                 text(
                     "INSERT INTO users (display_name, auth_issuer, auth_subject) "
@@ -109,6 +112,7 @@ def get_current_user(
             raise HTTPException(status_code=503, detail=AUTH_UNAVAILABLE_MESSAGE)
         if user.status != "active":
             raise HTTPException(status_code=403, detail="Workspace access is disabled.")
+        check_workspace(request, user)
         if session.get(KrogerOwner, user.id) is None:
             session.execute(
                 text(

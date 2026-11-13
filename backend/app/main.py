@@ -25,6 +25,7 @@ from app.auth import AuthSettings
 from app.deps import get_auth_settings, get_current_user
 from app.models import User
 from app.services.security_admission import AdmissionLimitError, OwnerUnavailableError
+from app.workspace import UNSAFE_METHODS, WorkspaceChangedError, is_browser_request
 
 _GROCERY_TEMPLATES_PATHS = frozenset(
     {"/grocery/templates", "/grocery/templates/", "/grocery/kroger/stores"}
@@ -175,7 +176,7 @@ class BrowserPolicyMiddleware:
                 ] + [(b"cache-control", b"private, no-store")]
             await send(message)
 
-        if scope["method"] in {"POST", "PUT", "PATCH", "DELETE"}:
+        if scope["method"] in UNSAFE_METHODS:
             headers: dict[bytes, list[bytes]] = {}
             for name, value in scope["headers"]:
                 headers.setdefault(name.lower(), []).append(value)
@@ -185,8 +186,7 @@ class BrowserPolicyMiddleware:
                 for name, values in headers.items()
                 if name.startswith(b"sec-fetch-")
             }
-            browser = bool(origins) or bool(fetch_headers)
-            if browser:
+            if is_browser_request(scope):
                 allowed_fetch = {
                     b"sec-fetch-site": {b"same-origin", b"same-site", b"none"},
                     b"sec-fetch-mode": {b"cors", b"same-origin"},
@@ -281,6 +281,16 @@ async def admission_error_handler(
     )
 
 
+async def workspace_error_handler(
+    request: Request, exc: WorkspaceChangedError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        headers={"Cache-Control": "private, no-store"},
+        content={"error": {"code": "workspace_changed", "message": str(exc)}},
+    )
+
+
 async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
     headers = (
         {"Cache-Control": "private, no-store"}
@@ -320,6 +330,7 @@ def create_app() -> FastAPI:
     application.exception_handler(RequestValidationError)(validation_error_handler)
     application.exception_handler(AdmissionLimitError)(admission_error_handler)
     application.exception_handler(OwnerUnavailableError)(admission_error_handler)
+    application.exception_handler(WorkspaceChangedError)(workspace_error_handler)
     application.exception_handler(Exception)(internal_error_handler)
     application.add_api_route("/healthz", healthz, methods=["GET"])
     application.add_api_route("/grocery/session", grocery_session, methods=["GET"])

@@ -668,15 +668,22 @@ def test_unsafe_browser_requests_fail_before_mutation(
 )
 def test_cli_and_configured_browser_origin_ignore_forwarded_host(
     client: TestClient,
+    session: Session,
     alb_headers: tuple[AuthSettings, dict[str, str]],
     browser_headers: dict[str, str],
 ) -> None:
     _, auth = alb_headers
+    workspace_headers: dict[str, str] = {}
+    if browser_headers:
+        user = session.get(User, 12)
+        assert user is not None
+        workspace_headers["X-FEWIA-Workspace"] = str(user.workspace_id)
     response = client.post(
         "/grocery/signout",
         headers={
             **auth,
             **browser_headers,
+            **workspace_headers,
             "x-forwarded-host": "attacker.example.test",
             "x-forwarded-proto": "http",
             "forwarded": "host=attacker.example.test;proto=http",
