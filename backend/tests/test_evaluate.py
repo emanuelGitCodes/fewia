@@ -129,6 +129,11 @@ def test_full_fake_run_journals_before_progress_and_finishes(
     assert report["total_slot_count"] == 138
     assert report["revision"] == REVISION
     assert report["metrics_status"] == "partial"
+    assert "summary" in report
+    assert report["slots"] + report["baseline_slots"] == rows
+    for artifact in directory.iterdir():
+        if artifact.is_file():
+            assert PRIVATE.encode() not in artifact.read_bytes()
     manifest = _map(report["manifest"])
     assert manifest["model_id"] == MODEL_ID
     assert manifest["region"] == "us-east-1"
@@ -166,6 +171,45 @@ def test_full_fake_run_journals_before_progress_and_finishes(
         assert len(line) < 100
     assert PRIVATE not in captured.out + captured.err
     assert captured.err == ""
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--detailed-export"],
+        ["--synthetic-inputs"],
+        ["--detailed-export", "--synthetic-inputs"],
+    ],
+)
+def test_export_opt_in_rejects_unrecognized_bytes_before_output_or_provider(
+    argv: list[str], tmp_path: Path, flags: list[str]
+) -> None:
+    corpus = tmp_path / "scenarios.json"
+    corpus.write_bytes(CORPUS.read_bytes() + b" ")
+    argv[1] = str(corpus)
+    factory = Mock(side_effect=AssertionError("provider MUST NOT run"))
+    assert evaluate.main([*argv, *flags], provider_factory=factory) == 1
+    factory.assert_not_called()
+    assert not Path(argv[3]).exists()
+
+
+def test_verified_synthetic_bytes_allow_detailed_options_without_creating_output(
+    argv: list[str],
+) -> None:
+    options = config.load_options(
+        [*argv, "--detailed-export", "--synthetic-inputs"], fixture=True
+    )
+    assert options.detailed_export is True
+    assert options.recognized_synthetic is True
+    assert not options.output_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "data", [b'{"a":1,"a":2}', b'{"a":NaN}', b"[]", b'{"reasoningContent":null}']
+)
+def test_corpus_bytes_parser_rejects_ambiguous_or_invalid_objects(data: bytes) -> None:
+    with pytest.raises(ValueError):
+        config._parse_corpus(data)
 
 
 @pytest.mark.parametrize("injected", [False, True])

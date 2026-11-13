@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from app.agent.ingredient_tool import INGREDIENT_TOOL
+from app.agent.ingredient_tool import INGREDIENT_TOOL, authorized_live_food
 from app.agent.money_text import format_usd as _usd
 from app.agent.plan_tools import GET_MEAL_TOOL, GET_PLAN_TOOL
 from app.agent.price_tool import PRICE_TOOL
@@ -269,6 +269,27 @@ def _ingredient_facts(payload: dict[str, object]) -> str:
     return _ask_food(status == "ambiguous", _candidate_names(payload))
 
 
+def _runtime_ingredient_facts(payload: dict[str, object], live_food: str | None) -> str:
+    if payload.get("status") == "live":
+        if live_food is None or payload.get("name") != live_food:
+            return _ask_food(False, [])
+        if authorized_live_food(f"Look up {live_food} nutrition") != live_food:
+            return _ask_food(False, [])
+        foods = _d_list(payload["live"])
+        if not foods:
+            raise ValueError("payload is invalid")
+        first = _d(foods[0])
+        return (
+            f"USDA FoodData Central lists a match for {live_food} per 100 g: "
+            f"{_macro_line(_d(first['per_100g']))} "
+            f"(USDA FDC {_int(first['fdc_id'])}). "
+            "FEWIA cannot add this food to a meal yet."
+        )
+    if payload.get("status") == "unknown" and payload.get("name") != live_food:
+        return _ask_food(False, [])
+    return _ingredient_facts(payload)
+
+
 def _get_meal(payload: dict[str, object]) -> str:
     lines = _d_list(payload["ingredients"])
     names = ", ".join(str(_d(line)["name"]) for line in lines)
@@ -355,12 +376,16 @@ def read_tool_answer(
     *,
     stale: bool = False,
     failed: bool = False,
+    all_results: bool = False,
+    sanitize_trace: bool = False,
+    live_food: str | None = None,
 ) -> str | None:
+    parts: list[str] = []
     for name in _PRIORITY:
         payloads = [payload for tool, payload in results if tool == name]
         if not payloads:
             continue
-        if name != GET_MEAL_TOOL:
+        if name != GET_MEAL_TOOL and not all_results:
             payloads = payloads[-1:]
         else:
             seen: set[object] = set()
@@ -373,8 +398,19 @@ def read_tool_answer(
                     unique.append(payload)
             payloads = unique
         try:
-            text = " ".join(_render(name, payload, stale) for payload in payloads)
+            text = " ".join(
+                _runtime_ingredient_facts(payload, live_food)
+                if sanitize_trace and name == INGREDIENT_TOOL
+                else _render(name, payload, stale)
+                for payload in payloads
+            )
         except (KeyError, TypeError, ValueError):
             return None
-        return f"{text} {TOOL_FAILED}" if failed else text
-    return None
+        if not all_results:
+            return f"{text} {TOOL_FAILED}" if failed else text
+        if text not in parts:
+            parts.append(text)
+    if not parts:
+        return None
+    text = " ".join(parts)
+    return f"{text} {TOOL_FAILED}" if failed else text

@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 from app.agent.plan_tools import _spec
@@ -20,6 +21,31 @@ from app.providers.usda_live import (
 INGREDIENT_TOOL = "get_ingredient_facts"
 _MAX_CANDIDATES = 3
 _USDA = UsdaIndex(USDA_FOODS, USDA_DEFAULTS)
+_FOOD = r"[a-z]{2,24}(?: [a-z]{2,24}){0,3}"
+_LOOKUP = re.compile(
+    rf"(?:what is the nutrition for (?P<question>{_FOOD})\?"
+    rf"|look up (?P<lookup>{_FOOD}) nutrition[.?]?)",
+    re.IGNORECASE | re.ASCII,
+)
+_NON_FOOD = frozenset(
+    "and or with then ignore instructions instruction system prompt history "
+    "context previous token tokens secret secrets password credentials credential "
+    "authorization bearer api key access private user account send export reveal "
+    "print include execute http https www com net org please nutrition "
+    "raw provider payload stored prior bank banking credit debit ssn "
+    "calories protein carbohydrate carbs".split()
+)
+
+
+def authorized_live_food(message: str) -> str | None:
+    """Accept one explicit food lookup from the latest user request."""
+    if not 1 <= len(message) <= 140:
+        return None
+    match = _LOOKUP.fullmatch(message)
+    if match is None:
+        return None
+    food = (match.group("question") or match.group("lookup")).lower()
+    return None if _NON_FOOD.intersection(food.split()) else food
 
 
 class IngredientToolError(ValueError):
@@ -118,7 +144,9 @@ def resolve_food(name: object) -> FoodResolution:
     return FoodResolution("unknown", query, tuple(_related(query)))
 
 
-def execute_ingredient_facts(arguments: object) -> dict[str, object]:
+def execute_ingredient_facts(
+    arguments: object, *, live_food: str | None = None
+) -> dict[str, object]:
     if type(arguments) is not dict or set(arguments) != {"name"}:
         raise IngredientToolError("arguments are invalid")
     resolution = resolve_food(arguments["name"])
@@ -129,8 +157,17 @@ def execute_ingredient_facts(arguments: object) -> dict[str, object]:
         "name": resolution.query,
         "candidates": [_facts(item) for item in resolution.ids],
     }
-    if resolution.status == "unknown":
-        live = _live_foods(resolution.query)
+    authorized = (
+        authorized_live_food(f"Look up {live_food} nutrition")
+        if type(live_food) is str
+        else None
+    )
+    if (
+        resolution.status == "unknown"
+        and authorized is not None
+        and authorized == resolution.query
+    ):
+        live = _live_foods(authorized)
         if live:
             payload["status"] = "live"
             payload["live"] = live

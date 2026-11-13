@@ -381,6 +381,7 @@ def test_get_ingredient_facts_live_trace_has_only_fdc_ids(
         1,
         "fixture",
         trace,
+        live_food="paneer",
     )
     assert payload is not None and payload["status"] == "live"
     assert trace[0]["inputs"] == {"status": "live", "fdc_ids": [7, 9]}

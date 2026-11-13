@@ -89,6 +89,22 @@ def test_empty_results_return_none() -> None:
     assert read_tool_answer([]) is None
 
 
+def test_runtime_batch_keeps_every_validated_food_and_plan_answer() -> None:
+    beef = execute_ingredient_facts({"name": "beef"})
+    beans = execute_ingredient_facts({"name": "black beans"})
+    results = [
+        (INGREDIENT_TOOL, beef),
+        (INGREDIENT_TOOL, beans),
+        (GET_PLAN_TOOL, {"meals": []}),
+    ]
+    answer = read_tool_answer(results, all_results=True)
+    assert answer is not None
+    assert "Ground beef" in answer
+    assert "Black beans" in answer
+    assert "Your plan has no meals yet." in answer
+    assert read_tool_answer(results) == read_tool_answer([(INGREDIENT_TOOL, beans)])
+
+
 def test_substitute_swap_with_prices() -> None:
     price = {
         "before": _estimate(806, 10_000, True),
