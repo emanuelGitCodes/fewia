@@ -309,6 +309,75 @@ def test_timeout_killpg_process_lookup_error(
     assert killed == [(4242, signal.SIGTERM), (4242, signal.SIGKILL)]
 
 
+@pytest.mark.parametrize("as_bytes", [False, True])
+def test_timeout_retains_partial_output_after_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, as_bytes: bool
+) -> None:
+    output = "\n".join(f"progress {index}" for index in range(25))
+    partial: str | bytes = output.encode() + b"\ninvalid \xff" if as_bytes else output
+    error: str | bytes = b"stderr detail\n" if as_bytes else "stderr detail\n"
+    killed: list[tuple[int, int]] = []
+
+    class FakeProc:
+        pid = 4242
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            if timeout == GATE_KILL_GRACE:
+                return ("", "")
+            raise subprocess.TimeoutExpired(
+                cmd=["uv"], timeout=timeout or 0, output=partial, stderr=error
+            )
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeProc:
+        assert kwargs.get("start_new_session") is True
+        return FakeProc()
+
+    def fake_killpg(pgid: int, sig: int) -> None:
+        killed.append((pgid, sig))
+
+    monkeypatch.setattr("dev_supervisor.gates.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("dev_supervisor.gates.os.killpg", fake_killpg)
+    results = run_area_gates(tmp_path, {"backend"}, 1)
+    assert results[0][:4] == ("backend", "ruff-check", "FAIL", "timeout")
+    expected = [f"progress {index}" for index in range(25)]
+    if as_bytes:
+        expected.append("invalid \ufffd")
+    expected.append("stderr detail")
+    assert results[0][4] == tuple(expected[-20:])
+    assert results[-1] == (
+        "backend",
+        "pytest",
+        "SKIP",
+        "skipped after ruff-check failed",
+        (),
+    )
+    assert killed == [(4242, signal.SIGTERM), (4242, signal.SIGKILL)] * 3
+    rendered = format_output(results[:1], 0, {"backend"})
+    assert rendered.startswith("FAIL backend:ruff-check timeout\n")
+    assert "  stderr detail\n" in rendered
+    assert rendered.endswith("RESULT FAIL\n")
+
+
+def test_timeout_caps_partial_line_length(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def hang(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired("gate", 1, output="x" * 10000)
+
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", hang)
+    results = run_area_gates(tmp_path, {"backend"}, 1)
+    assert results[0] == ("backend", "ruff-check", "FAIL", "timeout", ("x" * 2000,))
+
+
+def test_timeout_without_output_keeps_empty_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake, _ = _gate_runner(tmp_path, hang=frozenset({("backend", "pytest")}))
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake)
+    results = run_area_gates(tmp_path, {"backend"}, 1)
+    assert results[-1] == ("backend", "pytest", "FAIL", "timeout", ())
+
+
 def test_exit_codes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1149,6 +1218,30 @@ def test_compose_docker_missing_skips(
     results = run_area_gates(tmp_path, {"compose"}, 5)
     assert results == [("compose", "config", "SKIP", "docker not found", ())]
     assert started == []
+
+
+def test_compose_dispatches_shared_helper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[str, ...]] = []
+
+    def fake_run(
+        argv: tuple[str, ...],
+        *,
+        cwd: Path,
+        timeout: float,
+        env: dict[str, str] | None,
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == tmp_path
+        assert timeout == 17
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr("dev_supervisor.gates.shutil.which", lambda _: "/bin/docker")
+    monkeypatch.setattr("dev_supervisor.gates._run_gate", fake_run)
+    results = run_area_gates(tmp_path, {"compose"}, 17)
+    assert results == [("compose", "config", "PASS", "", ())]
+    assert seen == [("bash", ".github/scripts/validate-compose.sh")]
 
 
 def test_npm_ci_skipped_when_node_modules_present(

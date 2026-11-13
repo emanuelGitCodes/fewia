@@ -21,7 +21,7 @@ PYTHONPATH_ENV = (("PYTHONPATH", "."),)
 BACKEND_RUFF_CHECK = (*UV_RUN, "ruff", "check", "app", "tests")
 BACKEND_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", "app", "tests")
 CDK_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", ".")
-COMPOSE_CONFIG = ("docker", "compose", "config", "--quiet")
+COMPOSE_CONFIG = ("bash", ".github/scripts/validate-compose.sh")
 TOOLS_PYTEST = UV_RUN_BACKEND + ("pytest", "-q", "tests/supervisor", "tests/infra")
 TOOLS_RUFF_CHECK = UV_RUN_BACKEND + ("ruff", "check", *TOOLS_TARGETS, *EXCLUDE_BEDROCK)
 TOOLS_RUFF_FORMAT = UV_RUN_BACKEND + (
@@ -169,6 +169,19 @@ def is_clean(cwd: Path) -> bool:
     return _git(cwd, "status", "--porcelain", "--untracked-files=all") == []
 
 
+def _timeout_tail(exc: subprocess.TimeoutExpired) -> tuple[str, ...]:
+    lines: list[str] = []
+    outputs: tuple[bytes | str | None, ...] = (exc.stdout, exc.stderr)
+    for raw_output in outputs:
+        if isinstance(raw_output, bytes):
+            output = raw_output.decode("utf-8", errors="replace")
+        else:
+            output = raw_output or ""
+        if output:
+            lines.extend(line[:2000] for line in output.splitlines() if line)
+    return tuple(lines[-20:])
+
+
 def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
     out: list[GateRow] = []
     skip_frontend = False
@@ -194,8 +207,8 @@ def run_area_gates(cwd: Path, areas: set[str], timeout: float) -> list[GateRow]:
                 timeout=timeout,
                 env=os.environ | dict(env) if env else None,
             )
-        except subprocess.TimeoutExpired:
-            out.append((area, gate, "FAIL", "timeout", ()))
+        except subprocess.TimeoutExpired as exc:
+            out.append((area, gate, "FAIL", "timeout", _timeout_tail(exc)))
             if gate == "npm-ci":
                 skip_frontend = True
             if gate not in SLOW_GATES:
