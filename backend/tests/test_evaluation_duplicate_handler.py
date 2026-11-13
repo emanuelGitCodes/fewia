@@ -1,7 +1,7 @@
 import hashlib
 import json
 from collections.abc import Iterator
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
@@ -17,7 +17,9 @@ from app.providers import instacart
 from app.providers.local_artifacts import ArtifactPut
 from app.services.evidence_store import load_evidence
 from app.services.handoff_intents import read_handoff
-from app.services.job_delivery import JobHandler
+from app.services.job_delivery import JobContext, JobHandler
+from app.services.job_leases import claim_job
+from app.services.job_submission import create_job
 from app.services.shopping_payload import build_shopping_payload, shopping_payload_hash
 
 
@@ -76,12 +78,39 @@ def harness() -> Iterator[tuple[DuplicateHandler, _Store, CaseContext]]:
         yield DuplicateHandler(database.factory, context, store), store, context
 
 
+@pytest.fixture
+def job_context(harness: tuple[DuplicateHandler, _Store, CaseContext]) -> JobContext:
+    handler, _, context = harness
+    with handler.factory.begin() as session:
+        job, created = create_job(
+            session,
+            context.user_id,
+            "agent",
+            "duplicate-P05",
+            {"case_id": context.case_id, "user_id": context.user_id},
+        )
+        assert created
+        token = claim_job(session, job.id, now=datetime.now(UTC))
+        assert token is not None
+        session.refresh(job)
+        assert job.status == "running"
+        assert job.lease_token == token
+        return JobContext(
+            job_id=job.id,
+            user_id=job.user_id,
+            lease_token=token,
+            heartbeat=lambda: None,
+            attempt=job.attempts,
+        )
+
+
 def test_production_evidence_is_owner_scoped(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
 ) -> None:
     handler, store, context = harness
     job_handler: JobHandler = handler
-    result = job_handler({"case_id": "P05", "user_id": 7}, lambda: None)
+    result = job_handler({"case_id": "P05", "user_id": 7}, job_context)
     revision = handler.evidence_revision_id
     assert revision is not None
     assert result["evidence_revision_id"] == revision
@@ -99,9 +128,10 @@ def test_production_evidence_is_owner_scoped(
 
 def test_payload_preserves_current_plan_quantities(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
 ) -> None:
     handler, _, context = harness
-    result = handler({"case_id": "P05", "user_id": 7}, lambda: None)
+    result = handler({"case_id": "P05", "user_id": 7}, job_context)
     current_plan = fixture_plan(context.inputs)
     expected_payload = build_shopping_payload(current_plan)
     assert handler.shopping_payload == expected_payload
@@ -123,9 +153,10 @@ def test_payload_preserves_current_plan_quantities(
 
 def test_repeat_handoff_uses_cached_intent_and_fixed_clock(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
 ) -> None:
     handler, store, _ = harness
-    handler({"case_id": "P05", "user_id": 7}, lambda: None)
+    handler({"case_id": "P05", "user_id": 7}, job_context)
     original = handler.handoff
     assert original is not None
     assert original.state == "succeeded"
@@ -143,11 +174,12 @@ def test_repeat_handoff_uses_cached_intent_and_fixed_clock(
 
 def test_duplicate_handler_call_keeps_evidence_and_handoff(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
 ) -> None:
     handler, store, _ = harness
     payload: dict[str, object] = {"case_id": "P05", "user_id": 7}
-    first = handler(payload, lambda: None)
-    second = handler(payload, lambda: None)
+    first = handler(payload, job_context)
+    second = handler(payload, job_context)
     assert first["evidence_revision_id"] == second["evidence_revision_id"]
     assert first["handoff"] == second["handoff"]
     assert handler.handler_calls == second["handler_calls"] == 2
@@ -163,12 +195,13 @@ def test_duplicate_handler_call_keeps_evidence_and_handoff(
 
 def test_artifact_failure_propagates_and_retry_caches_handoff(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
 ) -> None:
     handler, store, _ = harness
     store.fail = True
     payload: dict[str, object] = {"case_id": "P05", "user_id": 7}
     with pytest.raises(RuntimeError, match="^artifact put failed$"):
-        handler(payload, lambda: None)
+        handler(payload, job_context)
     assert handler.handler_calls == 1
     assert handler.artifact_attempts == store.attempts == 1
     assert handler.artifact is None
@@ -177,7 +210,7 @@ def test_artifact_failure_propagates_and_retry_caches_handoff(
     assert original is not None
     assert original.state == "succeeded"
     store.fail = False
-    result = handler(payload, lambda: None)
+    result = handler(payload, job_context)
     assert handler.handoff == original
     assert result["artifact_attempts"] == store.attempts == 2
     assert handler.provider.calls == 1
@@ -196,6 +229,7 @@ def test_artifact_failure_propagates_and_retry_caches_handoff(
 )
 def test_invalid_envelope_rejects_before_effects(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
     monkeypatch: pytest.MonkeyPatch,
     payload: dict[str, object],
 ) -> None:
@@ -205,23 +239,24 @@ def test_invalid_envelope_rejects_before_effects(
         raise AssertionError("unexpected stage")
 
     with monkeypatch.context() as patch:
-        for name in ("execute_plan", "save_plan_evidence", "prepare_handoff"):
+        for name in ("execute_plan", "save_job_plan_evidence", "prepare_handoff"):
             patch.setattr(f"app.evaluation_duplicate_handler.{name}", forbidden)
         with pytest.raises(ValueError):
-            handler(payload, lambda: forbidden())
+            handler(payload, replace(job_context, heartbeat=lambda: forbidden()))
     assert handler.handler_calls == 0
     assert handler.planning is None
     assert handler.evidence_revision_id is None
     assert handler.handoff is None
     assert handler.provider.calls == 0
     assert handler.artifact_attempts == store.attempts == 0
-    result = handler({"case_id": "P05", "user_id": 7}, lambda: None)
+    result = handler({"case_id": "P05", "user_id": 7}, job_context)
     assert handler.handler_calls == result["handler_calls"] == 1
     assert handler.artifact_attempts == store.attempts == 1
 
 
 def test_heartbeat_brackets_meaningful_stages(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
 ) -> None:
     handler, _, _ = harness
     stages: list[tuple[bool, bool, int, int]] = []
@@ -236,7 +271,7 @@ def test_heartbeat_brackets_meaningful_stages(
             )
         )
 
-    handler({"case_id": "P05", "user_id": 7}, heartbeat)
+    handler({"case_id": "P05", "user_id": 7}, replace(job_context, heartbeat=heartbeat))
     assert stages == [
         (False, False, 0, 0),
         (True, False, 0, 0),
@@ -248,6 +283,7 @@ def test_heartbeat_brackets_meaningful_stages(
 
 def test_untrusted_fields_cannot_override_facts_or_reach_report(
     harness: tuple[DuplicateHandler, _Store, CaseContext],
+    job_context: JobContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     existing, store, context = harness
@@ -269,7 +305,7 @@ def test_untrusted_fields_cannot_override_facts_or_reach_report(
             "inputs": {"meals": [], "monthly_limit_cents": 0},
             "hostile_url": "https://example.invalid",
         },
-        lambda: None,
+        job_context,
     )
     assert handler.planning is not None
     request = cast(dict[str, object], handler.planning["request"])

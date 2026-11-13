@@ -6,22 +6,31 @@ Every product, store, UPC, and token here is invented.
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 import httpx
 import pytest
 from conftest import UserSeeder
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.demo import DEMO_USER_ID
-from app.deps import get_kroger_cipher, get_kroger_client, get_provider_settings
+from app.deps import (
+    get_kroger_cipher,
+    get_kroger_client,
+    get_kroger_pairing_cipher,
+    get_provider_settings,
+)
 from app.kroger_customer import store_tokens
 from app.kroger_models import KrogerCustomerToken
 from app.main import app
 from app.provider_settings import GroceryProviderSettings
 from app.providers import kroger
 from app.providers.kroger import CustomerTokens, KrogerClient
+from app.security_models import SecurityIntent
+from app.services import kroger_security
 from app.services.kroger_overlay import kroger_search_term
 
 CLIENT_ID = "PATH-CLIENT-ID"
@@ -66,11 +75,16 @@ class Transport:
     def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
         self.cipher: Fernet | None = None
+        self.cart_read_timeout = False
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         path = request.url.path
         if path == kroger.CART_ADD_PATH:
+            if self.cart_read_timeout:
+                raise httpx.ReadTimeout(
+                    "Invented cart response timeout.", request=request
+                )
             return httpx.Response(204)
         if path == kroger.TOKEN_PATH:
             return httpx.Response(
@@ -111,10 +125,9 @@ def transport(
     client: TestClient,
     session: Session,
     seed_user: UserSeeder,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[Transport]:
     seed_user(DEMO_USER_ID)
-    monkeypatch.setattr(session, "commit", session.flush)
+    session.commit()
     mock = Transport()
     kroger_client = KrogerClient(
         CLIENT_ID,
@@ -123,13 +136,16 @@ def transport(
         client=httpx.Client(transport=httpx.MockTransport(mock)),
     )
     cipher = Fernet(Fernet.generate_key())
+    pairing_cipher = Fernet(Fernet.generate_key())
     settings = GroceryProviderSettings(
+        kroger_mode="live",
         kroger_redirect_uri="http://localhost:8010/grocery/kroger/callback",
         kroger_return_url="http://127.0.0.1:5173/prototype",
     )
     overrides = {
         get_kroger_client: lambda: kroger_client,
         get_kroger_cipher: lambda: cipher,
+        get_kroger_pairing_cipher: lambda: pairing_cipher,
         get_provider_settings: lambda: settings,
     }
     app.dependency_overrides.update(overrides)
@@ -149,10 +165,21 @@ def _seed_customer_token(session: Session, cipher: Fernet) -> None:
     session.flush()
 
 
+@pytest.mark.parametrize("cart_read_timeout", [False, True])
 def test_plan_to_cart_path_on_one_transport(
-    client: TestClient, session: Session, transport: Transport
+    client: TestClient,
+    session: Session,
+    transport: Transport,
+    caplog: pytest.LogCaptureFixture,
+    cart_read_timeout: bool,
 ) -> None:
     responses: list[httpx.Response] = []
+    ticket = kroger_security.issue_pairing_ticket(session, DEMO_USER_ID)
+    redeemed = client.post("/grocery/kroger/pairing/redeem", json={"ticket": ticket})
+    assert redeemed.status_code == 200
+    proof = redeemed.json()["proof"]
+    assert isinstance(proof, str) and proof
+    headers = {"X-FEWIA-Kroger-Owner": proof}
 
     saved = client.post(
         "/grocery/plans",
@@ -166,7 +193,9 @@ def test_plan_to_cart_path_on_one_transport(
     assert saved.status_code == 201
     revision_id = saved.json()["plan_revision_id"]
 
-    found = client.post("/grocery/kroger/stores", json={"zip_code": "00000"})
+    found = client.post(
+        "/grocery/kroger/stores", headers=headers, json={"zip_code": "00000"}
+    )
     responses.append(found)
     assert found.status_code == 200
     location_id = found.json()["stores"][0]["location_id"]
@@ -178,6 +207,7 @@ def test_plan_to_cart_path_on_one_transport(
 
     previewed = client.post(
         "/grocery/kroger/cart/preview",
+        headers=headers,
         json={"plan_revision_id": revision_id, "location_id": location_id},
     )
     responses.append(previewed)
@@ -199,9 +229,50 @@ def test_plan_to_cart_path_on_one_transport(
     assert ALL_SOLD_OUT_UPC not in preview_upcs
 
     lines = [{"upc": i["upc"], "quantity": i["quantity"]} for i in preview["items"]]
-    added = client.post("/grocery/kroger/cart/add", json={"items": lines})
+    confirmation_token = preview["confirmation_token"]
+    assert isinstance(confirmation_token, str) and confirmation_token
+    transport.cart_read_timeout = cart_read_timeout
+    added = client.post(
+        "/grocery/kroger/cart/add",
+        headers=headers,
+        json={"confirmation_token": confirmation_token},
+    )
     responses.append(added)
-    assert added.status_code == 204
+    expected_status = 504 if cart_read_timeout else 204
+    assert added.status_code == expected_status
+    if cart_read_timeout:
+        assert added.json() == {
+            "error": {
+                "code": "gateway_timeout",
+                "message": "Kroger did not confirm the cart add",
+            }
+        }
+    else:
+        assert added.content == b""
+
+    intent = session.scalar(
+        select(SecurityIntent).where(
+            SecurityIntent.digest == sha256(confirmation_token.encode()).hexdigest()
+        )
+    )
+    assert intent is not None
+    assert intent.state == ("uncertain" if cart_read_timeout else "succeeded")
+    assert intent.details["outcome"] == ("unknown" if cart_read_timeout else "added")
+    stored_state = intent.state
+    stored_details = dict(intent.details)
+    request_count = len(transport.requests)
+    replayed = client.post(
+        "/grocery/kroger/cart/add",
+        headers=headers,
+        json={"confirmation_token": confirmation_token},
+    )
+    responses.append(replayed)
+    assert replayed.status_code == expected_status
+    assert replayed.content == added.content
+    assert len(transport.requests) == request_count
+    session.refresh(intent)
+    assert intent.state == stored_state
+    assert intent.details == stored_details
 
     sent = transport.cart_requests()
     assert len(sent) == 1
@@ -214,8 +285,16 @@ def test_plan_to_cart_path_on_one_transport(
     for upc in (SOLD_OUT_UPC, ALL_SOLD_OUT_UPC):
         assert upc not in sent[0].content.decode()
 
-    secrets = [CLIENT_ID, CLIENT_SECRET, APP_TOKEN, ACCESS, REFRESH]
+    assert {request.url.path for request in transport.requests} <= {
+        kroger.TOKEN_PATH,
+        kroger.LOCATIONS_PATH,
+        kroger.PRODUCTS_PATH,
+        kroger.CART_ADD_PATH,
+    }
+    secrets = [CLIENT_ID, CLIENT_SECRET, APP_TOKEN, ACCESS, REFRESH, ticket, proof]
     for response in responses:
         for secret in secrets:
             assert secret not in response.text
             assert secret not in str(response.headers)
+    for secret in [*secrets, confirmation_token]:
+        assert secret not in caplog.text

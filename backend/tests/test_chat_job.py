@@ -886,7 +886,16 @@ def test_chat_job_proposal_tool_stores_a_committed_proposal(
         if prior_diet is None and new_diet is None:
             for _ in range(2):
                 with factory() as attempt:
-                    applied = proposals_api.apply_proposal(UUID(proposal_id), attempt)
+                    owner = attempt.get(User, rows[0].user_id)
+                    assert owner is not None
+                    applied = proposals_api.apply_proposal(
+                        UUID(proposal_id),
+                        proposals_api.ApplyProposalRequest.model_validate_json(
+                            '{"plan_cap_cents": 1702}'
+                        ),
+                        attempt,
+                        owner,
+                    )
                     assert isinstance(applied, JSONResponse)
                     assert applied.status_code == 409
                     assert json.loads(bytes(applied.body)) == {

@@ -2,10 +2,12 @@
 
 from uuid import uuid4
 
+from conftest import UserSeeder
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.demo import DEMO_USER_ID
 from app.main import app
 
 
@@ -42,7 +44,10 @@ def test_unnamed_http_status_uses_a_fallback_error_code() -> None:
     }
 
 
-def test_existing_404_and_422_responses_keep_their_bodies(client: TestClient) -> None:
+def test_existing_404_and_422_responses_keep_their_bodies(
+    client: TestClient, seed_user: UserSeeder
+) -> None:
+    seed_user(DEMO_USER_ID)
     not_found_response = client.get(f"/grocery/jobs/{uuid4()}")
     validation_response = client.get("/grocery/jobs/not-a-uuid")
 

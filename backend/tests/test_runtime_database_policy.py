@@ -12,6 +12,7 @@ from sqlalchemy.exc import ArgumentError
 
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
+    RUNTIME_MODEL_UPDATE_COLUMNS,
     RUNTIME_ROLE,
     RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
@@ -26,6 +27,8 @@ _TABLE_GRANTS: dict[str, frozenset[str]] = {
     "users": frozenset({"SELECT"}),
     "jobs": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "job_outbox": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    "job_effects": frozenset({"SELECT", "INSERT"}),
+    "model_call_reservations": frozenset({"SELECT", "INSERT"}),
     "shopping_handoffs": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "grocery_evidence": frozenset({"SELECT", "INSERT"}),
     "plan_revisions": frozenset({"SELECT", "INSERT"}),
@@ -103,6 +106,8 @@ def test_runtime_grants_are_exact_and_immutable() -> None:
         "users": "SELECT",
         "jobs": "SELECT, INSERT, UPDATE",
         "job_outbox": "SELECT, INSERT, UPDATE",
+        "job_effects": "SELECT, INSERT",
+        "model_call_reservations": "SELECT, INSERT",
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
         "plan_revisions": "SELECT, INSERT",
@@ -120,6 +125,11 @@ def test_runtime_grants_are_exact_and_immutable() -> None:
         "display_name",
         "auth_issuer",
         "auth_subject",
+    )
+    assert RUNTIME_MODEL_UPDATE_COLUMNS == (
+        "status",
+        "charged_microdollars",
+        "finished_at",
     )
 
 
@@ -284,6 +294,10 @@ def _grant_exact(connection: PgConnection) -> None:
         "GRANT INSERT (display_name, auth_issuer, auth_subject) "
         "ON TABLE public.users TO fewia_app"
     )
+    connection.execute(
+        "GRANT UPDATE (status, charged_microdollars, finished_at) "
+        "ON TABLE public.model_call_reservations TO fewia_app"
+    )
 
 
 @pytest.fixture()
@@ -338,8 +352,10 @@ def test_postgres_exact_grants_and_catalog_visibility_are_safe(
                 ),
             ).fetchone() == (privilege in allowed, False)
             if privilege in _COLUMN_PRIVILEGES:
-                column_allowed = privilege in allowed or (
-                    table == "users" and privilege == "INSERT"
+                column_allowed = (
+                    privilege in allowed
+                    or (table == "users" and privilege == "INSERT")
+                    or (table == "model_call_reservations" and privilege == "UPDATE")
                 )
                 assert runtime.execute(
                     "SELECT has_any_column_privilege('fewia_app', %s, %s), "
@@ -351,6 +367,19 @@ def test_postgres_exact_grants_and_catalog_visibility_are_safe(
                         privilege + " WITH GRANT OPTION",
                     ),
                 ).fetchone() == (column_allowed, False)
+    model_columns = runtime.execute(
+        "SELECT attname, "
+        "has_column_privilege('fewia_app', attrelid, attnum, 'UPDATE'), "
+        "has_column_privilege('fewia_app', attrelid, attnum, "
+        "'UPDATE WITH GRANT OPTION') "
+        "FROM pg_attribute "
+        "WHERE attrelid = 'public.model_call_reservations'::regclass "
+        "AND attnum > 0 AND NOT attisdropped"
+    ).fetchall()
+    assert {name for name, allowed, _ in model_columns if allowed} == set(
+        RUNTIME_MODEL_UPDATE_COLUMNS
+    )
+    assert all(not grantable for _, _, grantable in model_columns)
     with runtime.transaction():
         runtime.execute("SET LOCAL ROLE fewia_app")
         assert runtime.execute("SELECT count(*) FROM pg_catalog.pg_class").fetchone()

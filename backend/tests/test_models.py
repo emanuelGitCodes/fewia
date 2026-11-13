@@ -5,7 +5,9 @@ from sqlalchemy import CheckConstraint, LargeBinary, UniqueConstraint
 from app import (
     evidence_models,
     handoff_models,
+    job_effect_models,
     kroger_models,
+    model_cost_models,
     models,
     plaid_models,
     security_models,
@@ -21,6 +23,8 @@ EXPECTED_TABLES = {
     "predictions",
     "jobs",
     "job_outbox",
+    job_effect_models.JobEffect.__tablename__,
+    model_cost_models.ModelCallReservation.__tablename__,
     plaid_models.PlaidItem.__tablename__,
     plaid_models.PlaidTransaction.__tablename__,
     handoff_models.ShoppingHandoff.__tablename__,

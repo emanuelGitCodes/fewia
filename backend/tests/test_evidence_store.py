@@ -139,23 +139,24 @@ def test_owner_isolation(factory: sessionmaker[Session]) -> None:
 
 
 def test_commit_failure_does_not_return_an_id(
-    evidence_engine: Engine, factory: sessionmaker[Session]
+    factory: sessionmaker[Session],
 ) -> None:
     seed_users(factory)
     parsed = inputs()
     planning = genuine_planning(evidence_inputs=parsed)
 
-    def failing_factory() -> Session:
-        session = Session(bind=evidence_engine, expire_on_commit=False)
+    def fail(session: Session) -> None:
+        assert session.scalar(select(func.count()).select_from(GroceryEvidence)) == 1
+        raise RuntimeError("commit failed")
 
-        def fail() -> None:
-            raise RuntimeError("commit failed")
-
-        session.commit = fail  # type: ignore[method-assign]
-        return session
-
-    with pytest.raises(RuntimeError, match="commit failed"):
-        save_plan_evidence(failing_factory, 1, planning, parsed)  # type: ignore[arg-type]
+    evidence_id: str | None = None
+    event.listen(factory, "before_commit", fail)
+    try:
+        with pytest.raises(RuntimeError, match="^commit failed$"):
+            evidence_id = save_plan_evidence(factory, 1, planning, parsed)
+    finally:
+        event.remove(factory, "before_commit", fail)
+    assert evidence_id is None
     assert count_rows(factory) == 0
 
 
