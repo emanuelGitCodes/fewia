@@ -55,7 +55,8 @@ def reserve_action(
 
     Callers MUST commit a successful reservation before a provider request.
     Callers MUST reserve only new actions after their idempotency checks.
-    The active owner row stays locked until the caller commits or rolls back.
+    PostgreSQL keeps the active owner row locked until the caller commits or rolls back.
+    SQLite supports fixture operations without concurrency guarantees.
     The now argument supplies a deterministic test clock.
     """
     if action not in ("mutation", "retailer"):
@@ -64,6 +65,9 @@ def reserve_action(
         raise ValueError("Action owner is invalid.")
     if now is not None and now.utcoffset() is None:
         raise ValueError("Action time requires a timezone.")
+    dialect = session.get_bind().dialect.name
+    if dialect not in {"postgresql", "sqlite"}:
+        raise RuntimeError("Action admission is unavailable.")
 
     quotas: list[tuple[str, int, int]] = (
         [("global", 0, RETAILER_GLOBAL_LIMIT), ("user", user_id, RETAILER_USER_LIMIT)]
@@ -72,7 +76,7 @@ def reserve_action(
     )
     table = QuotaCounter.__table__
     with session.no_autoflush:
-        if action == "retailer":
+        if dialect == "postgresql" and action == "retailer":
             session.execute(
                 sa.text("SELECT pg_advisory_xact_lock(:key)"),
                 {"key": _lock_key(action, "global", 0)},
@@ -84,16 +88,24 @@ def reserve_action(
         )
         if owner_id is None:
             raise OwnerUnavailableError()
-        session.execute(
-            sa.text("SELECT pg_advisory_xact_lock(:key)"),
-            {"key": _lock_key(action, "user", user_id)},
-        )
+        if dialect == "postgresql":
+            session.execute(
+                sa.text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": _lock_key(action, "user", user_id)},
+            )
 
         current = now
         if current is None:
-            current = session.scalar(
-                sa.select(sa.func.clock_timestamp(type_=sa.DateTime(timezone=True)))
-            )
+            if dialect == "postgresql":
+                current = session.scalar(
+                    sa.select(sa.func.clock_timestamp(type_=sa.DateTime(timezone=True)))
+                )
+            else:
+                current = session.scalar(
+                    sa.select(sa.func.current_timestamp(type_=sa.DateTime()))
+                )
+                if isinstance(current, datetime) and current.utcoffset() is None:
+                    current = current.replace(tzinfo=UTC)
         if not isinstance(current, datetime) or current.utcoffset() is None:
             raise ValueError("Action time requires a timezone.")
         current = current.astimezone(UTC)

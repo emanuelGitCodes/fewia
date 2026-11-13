@@ -1,12 +1,13 @@
-"""Check action admission on the disposable migrated PostgreSQL database."""
+"""Check action admission on SQLite fixtures and disposable PostgreSQL."""
 
+import sqlite3
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta, timezone
 from queue import Queue
 from threading import Barrier, Event
 from time import monotonic, sleep
-from typing import Literal
+from typing import Literal, cast
 from unittest.mock import Mock
 from uuid import uuid4
 
@@ -35,6 +36,32 @@ QuotaDatabase = tuple[Engine, list[int]]
 _NOW = datetime(2026, 11, 12, 12, 34, 15, 250000, tzinfo=UTC)
 _MINUTE = _NOW.replace(second=0, microsecond=0)
 _TABLE = QuotaCounter.__table__
+
+
+@pytest.fixture()
+def sqlite_quota_database() -> Iterator[Engine]:
+    engine = sa.create_engine("sqlite:///:memory:")
+
+    @sa.event.listens_for(engine, "connect")
+    def set_fixture_clock(
+        connection: sqlite3.Connection, connection_record: object
+    ) -> None:
+        del connection_record
+
+        def current_timestamp() -> str:
+            return _NOW.strftime("%Y-%m-%d %H:%M:%S")
+
+        connection.create_function("current_timestamp", 0, current_timestamp)
+
+    try:
+        User.__table__.create(engine)
+        _TABLE.create(engine)
+        with Session(engine) as session:
+            session.add(User(id=1, display_name="Synthetic SQLite admission owner"))
+            session.commit()
+        yield engine
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture()
@@ -119,6 +146,70 @@ def test_admission_defaults_and_safe_error() -> None:
     owner_error = OwnerUnavailableError()
     assert owner_error.status_code == 403
     assert str(owner_error) == "Action owner is unavailable."
+
+
+@pytest.mark.parametrize("action", ["mutation", "retailer"])
+def test_sqlite_repeated_reservations_share_one_minute_counter(
+    sqlite_quota_database: Engine, action: Action
+) -> None:
+    with Session(sqlite_quota_database) as session:
+        for current in (
+            None,
+            _NOW,
+            _NOW.astimezone(timezone(timedelta(hours=-5))),
+            None,
+        ):
+            reserve_action(session, 1, action, now=current)
+            session.commit()
+        rows = session.execute(
+            sa.select(
+                _TABLE.c.scope,
+                _TABLE.c.scope_key,
+                _TABLE.c.minute_start,
+                _TABLE.c.expires_at,
+                _TABLE.c.count,
+            ).order_by(_TABLE.c.scope)
+        ).all()
+        minute = _MINUTE.replace(tzinfo=None)
+        expected = [("user", 1, minute, minute + timedelta(minutes=1), 4)]
+        if action == "retailer":
+            expected.insert(0, ("global", 0, minute, minute + timedelta(minutes=1), 4))
+        assert rows == expected
+
+
+@pytest.mark.parametrize("action", ["mutation", "retailer"])
+@pytest.mark.parametrize("status", ["missing", "disabled", "deleting"])
+def test_sqlite_unavailable_owner_preserves_counters(
+    sqlite_quota_database: Engine, action: Action, status: str
+) -> None:
+    with Session(sqlite_quota_database) as session:
+        reserve_action(session, 1, "mutation")
+        owner_id = 2 if status == "missing" else 1
+        if status != "missing":
+            session.execute(sa.update(User).where(User.id == 1).values(status=status))
+        session.commit()
+        before = _counts(session)
+        assert before == {("mutation", "user", 1): 1}
+        with pytest.raises(OwnerUnavailableError) as caught:
+            reserve_action(session, owner_id, action)
+        assert str(caught.value) == "Action owner is unavailable."
+        session.commit()
+        assert _counts(session) == before
+        assert session.scalar(sa.select(sa.func.count()).select_from(_TABLE)) == 1
+
+
+@pytest.mark.parametrize("dialect", ["mysql", "oracle", "mssql", "unknown"])
+def test_unsupported_dialect_fails_before_sql(dialect: str) -> None:
+    session = Mock(spec=Session)
+    session.get_bind.return_value.dialect.name = dialect
+    with pytest.raises(RuntimeError) as caught:
+        reserve_action(cast(Session, session), 1, "retailer")
+    assert str(caught.value) == "Action admission is unavailable."
+    session.get_bind.assert_called_once_with()
+    session.execute.assert_not_called()
+    session.scalar.assert_not_called()
+    session.flush.assert_not_called()
+    session.commit.assert_not_called()
 
 
 @pytest.mark.parametrize("action", ["mutation", "retailer"])
