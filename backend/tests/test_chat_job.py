@@ -17,9 +17,10 @@ from app.agent.catalog_tool import TOOL_NAME as CATALOG_TOOL_NAME
 from app.agent.catalog_tool import execute_catalog_search
 from app.agent.chat_answer import render_public_answer
 from app.agent.chat_context import plan_ingredient_ids
-from app.agent.chat_loop import ChatUnavailable
+from app.agent.chat_loop import BUDGET_TOOL_NAME, ChatUnavailable, run_chat
 from app.agent.chat_messages import ChatProtocolError
 from app.agent.planning_tool import TOOL_NAME, execute_plan
+from app.agent.provider import LLMUnavailable
 from app.api import proposals as proposals_api
 from app.db import Base
 from app.domain.budget import (
@@ -374,7 +375,7 @@ def test_chat_job_uses_runtime_template_output(
     real = chat_job_module.run_chat
 
     def spy(*args: object, **kwargs: object) -> dict[str, object]:
-        seen.append(kwargs.get("model_prose"))
+        seen.append((kwargs.get("model_prose"), kwargs.get("sanitize_trace")))
         return real(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(chat_job_module, "run_chat", spy)
@@ -382,9 +383,52 @@ def test_chat_job_uses_runtime_template_output(
     result = chat_job_module.chat_job(
         chat_payload(), pure_context(), provider=provider, factory=FACTORY
     )
-    assert seen == [False]
+    assert seen == [(False, True)]
     assert result["reply_source"] == "template"
     assert result.get("reply_check") is None
+
+
+def test_runtime_trace_sanitizes_provider_ids_but_eval_keeps_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
+    marker = "synthetic-provider-id-marker"
+    replies: list[dict[str, object] | BaseException] = [
+        _reply(
+            [
+                {
+                    "toolUse": {
+                        "toolUseId": marker,
+                        "name": BUDGET_TOOL_NAME,
+                        "input": {},
+                    }
+                }
+            ],
+            "tool_use",
+        ),
+        _reply([{"text": "Synthetic model prose."}], "end_turn"),
+    ]
+    runtime = chat_job_module.chat_job(
+        chat_payload(), pure_context(), provider=FakeLLM(replies), factory=FACTORY
+    )
+    assert marker not in json.dumps(runtime)
+    assert "Synthetic model prose." not in runtime["answer"]
+    assert runtime["reply_source"] == "template"
+    assert runtime.get("reply_check") is None
+    trace = runtime["tool_trace"]
+    assert isinstance(trace, list) and len(trace) == 1
+    assert '"call-1"' in json.dumps(trace)
+
+    budget = calculate_budget(
+        10_000,
+        SpendingSnapshot(PERIOD, 2_500, 400, NOW - timedelta(hours=1)),
+        now=NOW,
+    )
+    evaluated = run_chat(
+        FakeLLM(replies), "What is my budget?", budget, PERIOD, model_prose=True
+    )
+    assert marker in json.dumps(evaluated["tool_trace"])
+    assert evaluated.get("reply_check") is not None
 
 
 @pytest.mark.parametrize(
@@ -528,16 +572,24 @@ def test_chat_job_omits_raw_ledger_from_model_inputs(
         assert token not in dumped
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("synthetic-provider-error"),
+        LLMUnavailable("synthetic-provider-error"),
+    ],
+)
 def test_chat_job_provider_failure_stays_static(
     monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
 ) -> None:
     monkeypatch.setattr(chat_job_module, "_utc_now", lambda: NOW)
-    provider = FakeLLM([RuntimeError("bedrock-secret")])
+    provider = FakeLLM([error])
     with pytest.raises(ChatUnavailable, match="unavailable") as caught:
         chat_job_module.chat_job(
             chat_payload(), pure_context(), provider=provider, factory=FACTORY
         )
-    assert "bedrock-secret" not in str(caught.value)
+    assert str(caught.value) == "The language model is unavailable."
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
 

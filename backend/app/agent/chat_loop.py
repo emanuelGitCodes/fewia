@@ -290,6 +290,7 @@ def run_chat(
     | None = None,
     model_prose: bool = False,
     sanitize_trace: bool = False,
+    provider_control_errors: tuple[type[Exception], ...] = (),
     propose: Propose | None = None,
     previous_search: dict[str, object] | None = None,
     previous_exhausted_search: dict[str, object] | None = None,
@@ -606,6 +607,8 @@ def run_chat(
                 list(messages),
                 deepcopy(tools),
             )
+        except provider_control_errors:
+            raise
         except Exception:  # noqa: BLE001
             raw = None
         if raw is None:

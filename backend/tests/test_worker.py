@@ -1285,8 +1285,9 @@ def test_default_runtime_reserves_each_turn_and_preserves_unknown_cost(
 ) -> None:
     settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "unused")
     rates = synthetic_runtime_rates()
+    marker = "synthetic-runtime-provider-id-marker"
     first = _reply(
-        [{"toolUse": {"toolUseId": "budget", "name": BUDGET_TOOL_NAME, "input": {}}}],
+        [{"toolUse": {"toolUseId": marker, "name": BUDGET_TOOL_NAME, "input": {}}}],
         "tool_use",
     )
     second = _reply([{"text": "Done."}], "end_turn")
@@ -1325,6 +1326,11 @@ def test_default_runtime_reserves_each_turn_and_preserves_unknown_cost(
     handler = worker._default_handler(dummy_factory(), "agent")
     result = handler(chat_payload(), JobContext("job", 2, "lease", lambda: None, 3))
     assert result["reply_source"] == "template"
+    assert result.get("reply_check") is None
+    assert marker not in json.dumps(result)
+    trace = result["tool_trace"]
+    assert isinstance(trace, list) and len(trace) == 1
+    assert '"call-1"' in json.dumps(trace)
     assert len(provider.requests) == len(reservations) == len(settlements) == 2
     assert [reservation.turn for reservation in reservations] == [1, 2]
     assert all(cost == (3 if known_usage else None) for _, cost in settlements)

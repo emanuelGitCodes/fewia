@@ -140,6 +140,8 @@ def test_handler_routes_plan_and_chat(
 ) -> None:
     freeze_clocks(monkeypatch)
     seed_user(factory)
+    with factory.begin() as session:
+        session.add(models.User(id=2, display_name="Chat owner"))
     provider = FakeLLM(_planner_then_final())
     handler = make_agent_handler(factory, provider)
     plan_body = payload()
@@ -157,13 +159,14 @@ def test_handler_routes_plan_and_chat(
     assert count_rows(factory) == 1
 
     chat_result = handler(
-        chat_payload(), claim_context(factory, payload=chat_payload())
+        chat_payload(), claim_context(factory, user_id=2, payload=chat_payload())
     )
     assert chat_result["status"] == "planned"
     assert chat_result["plan"] is not None
     chat_revision = chat_result["evidence_revision_id"]
     assert isinstance(chat_revision, str)
-    assert load_evidence(factory, 1, chat_revision) is not None
+    assert load_evidence(factory, 2, chat_revision) is not None
+    assert load_evidence(factory, 1, chat_revision) is None
     assert count_rows(factory) == 2
     assert len(provider.requests) == 1
 
@@ -465,15 +468,25 @@ def test_chat_refuses_unowned_or_mismatched_references_before_provider(
     }
     fields: dict[str, object]
     if reference.startswith("previous"):
-        prior = submit_agent_job(
-            factory, {}, user_id=1 if reference == "previous" else 2
-        )
+        if reference == "previous_sync":
+            with factory.begin() as session:
+                sync_job, created = create_job(
+                    session,
+                    2,
+                    "sync",
+                    str(uuid4()),
+                    {"operation": "plaid_sync", "item_id": "synthetic-item"},
+                )
+                assert created
+                prior = sync_job.id
+        else:
+            prior = submit_agent_job(
+                factory, {}, user_id=1 if reference == "previous" else 2
+            )
         with factory.begin() as session:
             job = session.get(Job, prior)
             assert job is not None
             job.status = "queued" if reference == "previous_running" else "succeeded"
-            if reference == "previous_sync":
-                job.kind = "sync"
             job.result = {}
         fields = {
             "previous_job_id": str(uuid4())
@@ -606,13 +619,37 @@ def test_repeated_chat_effects_use_per_job_ordinals(
     provider = FakeLLM(
         [_reply(calls, "tool_use"), _reply([{"text": "Done."}], "end_turn")]
     )
-    make_agent_handler(factory, provider)(body, context)
+    result = make_agent_handler(factory, provider)(body, context)
     with factory() as session:
         effects = session.scalars(
             select(JobEffect).where(JobEffect.job_id == context.job_id)
         ).all()
-        assert {effect.effect_key for effect in effects} == {f"{kind}:0", f"{kind}:1"}
-        assert len({str(effect.result_reference["id"]) for effect in effects}) == 2
+        expected_count = 1 if kind == "proposal" else 2
+        assert {effect.effect_key for effect in effects} == {
+            f"{kind}:{ordinal}" for ordinal in range(expected_count)
+        }
+        references = {str(effect.result_reference["id"]) for effect in effects}
+        assert len(references) == expected_count
+        if kind == "proposal":
+            proposals = session.scalars(select(PlanProposal)).all()
+            assert len(proposals) == 1
+            assert proposals[0].user_id == context.user_id
+            assert str(proposals[0].id) == result["proposal_id"]
+            assert proposals[0].operations == [
+                {"op": "set_servings", "recipe_id": "bean_tacos", "servings": 2}
+            ]
+        else:
+            assert len(session.scalars(select(GroceryEvidence)).all()) == 2
+    if kind == "proposal":
+        assert len(provider.requests) == 2
+        messages = provider.requests[1]["messages"]
+        assert isinstance(messages, list)
+        blocks = messages[-1]["content"]
+        assert [block["toolResult"]["status"] for block in blocks] == [
+            "success",
+            "error",
+        ]
+        assert "A tool call failed. Check the request." in result["answer"]
 
 
 def test_two_owner_chat_consumer_persists_owned_evidence(

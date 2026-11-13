@@ -226,7 +226,7 @@ def test_new_york_month_and_freshness_use_current_calculation_time(
             "plan_cap_cents": 5000,
         }
     )
-    capped_context = claim_context(effect_factory, payload=capped)
+    capped_context = claim_context(effect_factory, user_id=2, payload=capped)
     clock = NOW
     handler(capped, capped_context)
     clock += timedelta(hours=25)
