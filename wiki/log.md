@@ -5371,3 +5371,7 @@ The owner resumed `codex/security-hardening` with a 36% weekly usage cutoff and 
 ## 2026-11-13 — Final review requests race repairs
 
 Exact source checkpoint `956c0f90` passed all gates, including 20,301 backend tests, 585 tooling tests, 1,906 hosting tests, and frontend checks. Terra returned REQUEST_CHANGES for overlapping OAuth exchanges and reconnects during cart preview lookup. The account meter reached the owner's 36% cutoff, so no repair started. The documentation-only checkpoint records those findings in the [handoff](security-hardening-handoff.md). Graphify matches `956c0f90`; publication still requires the user terminal because the repository hook blocks Codex pushes.
+
+## 2026-11-13 — Scoped publication approval
+
+The owner published [draft PR 494](https://github.com/emanuelGitCodes/fewia/pull/494), then authorized a bounded hook update and another branch push. Hook snapshot `96a53157` passed 220 focused tests, strict checks, and negative command-binding and one-use mutation probes. The hook consumes a private, expiring approval record bound to the exact checkout, commit, branch, destination, configuration, and command. Existing task approval remains valid; the coordinator verifies those bindings without asking the user to approve them again. Main, force, broad pushes, merges, and Gitleaks skips remain blocked. Independent review covers this hook change; the original Kroger races and image findings still block release.

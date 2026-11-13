@@ -108,10 +108,12 @@ runs `.claude/hooks/<script>`. Keep one copy of each script, in
 
 ### Record one approved Codex push
 
-The coordinator MUST obtain explicit approval in the current chat for the
-checkout, remote, push URL, branch, and full SHA. Record approval after the
-final commit. Keep source and reason free of secrets. This command creates
-a local record; it does not push.
+The coordinator MUST have explicit user approval for the intended branch
+publication. Existing approval for the task remains valid. The coordinator
+verifies and binds the checkout, remote, push URL, branch, and final SHA.
+These bindings do not require the user to repeat approval after the final
+commit. Keep source and reason free of secrets. This command creates a
+local record; it does not push.
 
 ```bash
 python3 .claude/hooks/publication-approval.py record \
@@ -168,6 +170,9 @@ recording again. Do not retry an uncertain external action.
 This local check trusts the local user, hooks, and Git executable. It does
 not authenticate chat approval. The operator MUST preserve Git state from
 validation through the push. The hook cannot lock state across that gap.
+The guard recognizes common command forms; it is not a shell sandbox.
+Arbitrary aliases and programs that invoke Git indirectly remain outside
+its text classifier.
 
 ### Test a hook
 

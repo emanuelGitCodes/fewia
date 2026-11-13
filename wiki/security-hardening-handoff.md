@@ -10,9 +10,10 @@ The cutoff is 36%. The meter reached that cutoff after the final review finished
 Implementation stopped. The final documentation commit records the review; it does not change the reviewed source.
 The owner approved the size exception in [decision 0031](decisions/0031-security-hardening-and-hosted-accounts.md).
 
-Publication is pending. The repository hook rejected the push from Codex.
-Its reason was: "Codex hooks cannot ask: give the command to the user to run."
-No pull request or merge exists at this checkpoint. The target is one draft pull request against `main`.
+The owner published the checkpoint through the terminal after the repository hook rejected Codex publication.
+[Pull request 494](https://github.com/emanuelGitCodes/fewia/pull/494) is open as the single draft against `main`.
+The owner then authorized a separate, bounded hook change to recognize explicit approval for a scoped publication command.
+That authorization does not resume the unresolved application-security repairs or authorize a merge.
 The draft MUST remain unmerged until the remaining checks pass.
 The account meter exposes a 10,080-minute weekly window, with no daily window or task-specific usage.
 
