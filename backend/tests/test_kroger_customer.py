@@ -1,9 +1,10 @@
-"""Tests for the Kroger OAuth state and token storage, using invented data."""
+"""Tests for Kroger token storage and query redaction, using invented data."""
 
 import logging
-import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -15,19 +16,19 @@ from sqlalchemy.orm import ORMExecuteState, Session
 
 from app import kroger_customer
 from app.kroger_customer import (
-    STATE_TTL_SECONDS,
+    KrogerConnectionChanged,
     customer_access_token,
+    delete_rejected_access_token,
     delete_tokens,
     is_connected,
-    make_state,
-    new_nonce,
     redact_access_log,
-    state_matches,
     store_tokens,
 )
 from app.kroger_models import KrogerCustomerToken
 from app.providers import kroger
 from app.providers.kroger import CustomerTokens, KrogerClient, KrogerUnavailable
+from app.security_models import KrogerOwner
+from app.services.security_admission import OwnerUnavailableError
 
 ACCESS = "SENTINEL-ACCESS-TOKEN"
 REFRESH = "SENTINEL-REFRESH-TOKEN"
@@ -40,18 +41,6 @@ def _cipher() -> Fernet:
     return Fernet(Fernet.generate_key())
 
 
-def _freeze_clock(monkeypatch: pytest.MonkeyPatch, offset: float) -> None:
-    now = time.time() + offset
-    monkeypatch.setattr(kroger_customer, "_now", lambda: now)
-
-
-@pytest.fixture(autouse=True)
-def _commit_without_ending_the_test_transaction(
-    session: Session, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(session, "commit", session.flush)
-
-
 def _row_count(session: Session) -> int:
     count = session.scalar(select(func.count()).select_from(KrogerCustomerToken))
     assert count is not None
@@ -60,54 +49,6 @@ def _row_count(session: Session) -> int:
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
-def test_state_round_trip() -> None:
-    cipher = _cipher()
-    nonce = new_nonce()
-    state = make_state(cipher, nonce)
-    assert nonce not in state
-    assert state_matches(cipher, state, nonce) is True
-
-
-def test_nonces_are_unique_and_url_safe() -> None:
-    first, second = new_nonce(), new_nonce()
-    assert first != second
-    assert len(first) >= 32
-    assert all(ch.isalnum() or ch in "-_" for ch in first)
-
-
-def test_state_rejects_a_different_cookie() -> None:
-    cipher = _cipher()
-    state = make_state(cipher, new_nonce())
-    assert state_matches(cipher, state, new_nonce()) is False
-
-
-def test_state_rejects_a_missing_cookie() -> None:
-    cipher = _cipher()
-    state = make_state(cipher, new_nonce())
-    assert state_matches(cipher, state, None) is False
-
-
-@pytest.mark.parametrize("state", ["", "not-a-token", "é", "gAAAAA" + "A" * 40])
-def test_state_rejects_garbage(state: str) -> None:
-    assert state_matches(_cipher(), state, "nonce") is False
-
-
-def test_state_rejects_another_key() -> None:
-    nonce = new_nonce()
-    state = make_state(_cipher(), nonce)
-    assert state_matches(_cipher(), state, nonce) is False
-
-
-def test_state_expires_after_the_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
-    cipher = _cipher()
-    nonce = new_nonce()
-    state = make_state(cipher, nonce)
-    _freeze_clock(monkeypatch, STATE_TTL_SECONDS - 5)
-    assert state_matches(cipher, state, nonce) is True
-    _freeze_clock(monkeypatch, STATE_TTL_SECONDS + 5)
-    assert state_matches(cipher, state, nonce) is False
 
 
 def test_store_tokens_inserts_ciphertext(
@@ -348,7 +289,7 @@ def test_a_token_that_no_longer_decrypts_is_not_connected_and_is_deleted(
     assert is_connected(session, USER_ID) is False
 
 
-def test_access_token_lookup_locks_the_row(
+def test_fresh_access_token_lookup_does_not_lock_the_row(
     session: Session, seed_user: UserSeeder
 ) -> None:
     cipher, server = _cipher(), _TokenServer()
@@ -364,7 +305,261 @@ def test_access_token_lookup_locks_the_row(
     assert customer_access_token(session, USER_ID, _kroger(server), cipher) == ACCESS
     assert len(selects) == 1
     assert "kroger_customer_tokens" in selects[0]
-    assert selects[0].rstrip().endswith("FOR UPDATE")
+    assert "FOR UPDATE" not in selects[0]
+
+
+def test_connection_version_changes_on_reconnect_only(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    row = _connected(session, seed_user, cipher, -5)
+    original = row.connection_version
+    assert customer_access_token(session, USER_ID, _kroger(server), cipher) == (
+        NEW_ACCESS
+    )
+    assert row.connection_version == original
+    store_tokens(session, USER_ID, cipher, CustomerTokens(ACCESS, REFRESH, 1800))
+    assert row.connection_version != original
+
+
+class _RacingTokenServer(_TokenServer):
+    def __init__(self, during_refresh: Callable[[], None]) -> None:
+        super().__init__()
+        self.during_refresh = during_refresh
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.during_refresh()
+        return super().__call__(request)
+
+
+@pytest.mark.parametrize("expires_in", [120, -5])
+@pytest.mark.parametrize("change", ["connection", "generation"])
+def test_bound_token_lookup_rejects_changed_identity_before_provider_io(
+    session: Session, seed_user: UserSeeder, expires_in: int, change: str
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    row = _connected(session, seed_user, cipher, expires_in)
+    version, generation = row.connection_version, uuid4()
+    owner = KrogerOwner(user_id=USER_ID, pairing_generation=generation)
+    session.add(owner)
+    if change == "connection":
+        store_tokens(session, USER_ID, cipher, CustomerTokens(ACCESS, REFRESH, 1800))
+    else:
+        owner.pairing_generation = uuid4()
+    session.flush()
+    with pytest.raises(
+        KrogerConnectionChanged, match="^Kroger account is not connected$"
+    ):
+        customer_access_token(
+            session,
+            USER_ID,
+            _kroger(server),
+            cipher,
+            expected_connection_version=version,
+            expected_pairing_generation=generation,
+        )
+    assert server.requests == []
+    assert _stored(row, cipher) == (ACCESS, REFRESH)
+
+
+@pytest.mark.parametrize("expires_in", [120, -5])
+def test_bound_token_lookup_rechecks_the_active_owner(
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    expires_in: int,
+) -> None:
+    cipher, server = _cipher(), _TokenServer()
+    row = _connected(session, seed_user, cipher, expires_in)
+    generation = uuid4()
+    session.add(KrogerOwner(user_id=USER_ID, pairing_generation=generation))
+    session.flush()
+    owners: list[int] = []
+
+    def unavailable(db: Session, user_id: int) -> None:
+        assert db is session
+        owners.append(user_id)
+        raise OwnerUnavailableError()
+
+    monkeypatch.setattr(kroger_customer, "lock_active_owner", unavailable)
+    with pytest.raises(
+        KrogerConnectionChanged, match="^Kroger account is not connected$"
+    ):
+        customer_access_token(
+            session,
+            USER_ID,
+            _kroger(server),
+            cipher,
+            expected_connection_version=row.connection_version,
+            expected_pairing_generation=generation,
+        )
+    assert owners == [USER_ID]
+    assert server.requests == []
+    assert _stored(row, cipher) == (ACCESS, REFRESH)
+
+
+@pytest.mark.parametrize("rejected", [False, True])
+def test_bound_refresh_uses_the_same_connection_winner(
+    session: Session, seed_user: UserSeeder, rejected: bool
+) -> None:
+    cipher = _cipher()
+    row = _connected(session, seed_user, cipher, -5)
+    version, generation = row.connection_version, uuid4()
+    session.add(KrogerOwner(user_id=USER_ID, pairing_generation=generation))
+    session.flush()
+    winner_pair: list[tuple[bytes, bytes]] = []
+
+    def replace() -> None:
+        assert not session.in_transaction()
+        current = session.get(KrogerCustomerToken, USER_ID)
+        assert current is not None
+        current.access_token = cipher.encrypt(b"WINNER")
+        current.refresh_token = cipher.encrypt(b"WINNER-R")
+        current.access_expires_at = datetime.now(UTC) + timedelta(seconds=1800)
+        winner_pair.append((current.access_token, current.refresh_token))
+        session.commit()
+
+    server = _RacingTokenServer(replace)
+    if rejected:
+        server.status = 401
+        server.body = {"error": "invalid_grant"}
+    assert (
+        customer_access_token(
+            session,
+            USER_ID,
+            _kroger(server),
+            cipher,
+            expected_connection_version=version,
+            expected_pairing_generation=generation,
+        )
+        == "WINNER"
+    )
+    assert len(server.requests) == 1
+    assert row.connection_version == version
+    assert (row.access_token, row.refresh_token) == winner_pair[0]
+
+
+@pytest.mark.parametrize("reconnect", [False, True])
+@pytest.mark.parametrize("rejected", [False, True])
+def test_refresh_winner_preserves_replacement(
+    session: Session,
+    seed_user: UserSeeder,
+    reconnect: bool,
+    rejected: bool,
+) -> None:
+    cipher = _cipher()
+    row = _connected(session, seed_user, cipher, -5)
+    original_version = row.connection_version
+    winner_version = original_version
+    locks: list[str] = []
+
+    def capture(state: ORMExecuteState) -> None:
+        if state.is_select:
+            statement = str(state.statement.compile(dialect=postgresql.dialect()))
+            if "FOR UPDATE" in statement:
+                locks.append(statement)
+
+    def replace() -> None:
+        nonlocal winner_version
+        assert locks == []
+        with Session(bind=session.connection()) as winner:
+            if reconnect:
+                store_tokens(
+                    winner, USER_ID, cipher, CustomerTokens("WINNER", "WINNER-R", 1800)
+                )
+            else:
+                current = winner.get(KrogerCustomerToken, USER_ID)
+                assert current is not None
+                current.access_token = cipher.encrypt(b"WINNER")
+                current.refresh_token = cipher.encrypt(b"WINNER-R")
+                current.access_expires_at = datetime.now(UTC) + timedelta(seconds=1800)
+                winner.flush()
+            current = winner.get(KrogerCustomerToken, USER_ID)
+            assert current is not None
+            winner_version = current.connection_version
+
+    event.listen(session, "do_orm_execute", capture)
+    server = _RacingTokenServer(replace)
+    if rejected:
+        server.status = 401
+        server.body = {"error": "invalid_grant"}
+    assert customer_access_token(session, USER_ID, _kroger(server), cipher) == "WINNER"
+    assert len(server.requests) == 1
+    assert len(locks) == 1
+    assert _stored(row, cipher) == ("WINNER", "WINNER-R")
+    assert row.connection_version == winner_version
+    assert (winner_version != original_version) == reconnect
+
+
+@pytest.mark.parametrize("reconnect", [False, True])
+def test_stale_cart_rejection_preserves_replacement(
+    session: Session, seed_user: UserSeeder, reconnect: bool
+) -> None:
+    cipher = _cipher()
+    row = _connected(session, seed_user, cipher, -5)
+    original_version = row.connection_version
+    if reconnect:
+        store_tokens(
+            session, USER_ID, cipher, CustomerTokens(NEW_ACCESS, NEW_REFRESH, 1800)
+        )
+    else:
+        customer_access_token(session, USER_ID, _kroger(_TokenServer()), cipher)
+    assert (
+        delete_rejected_access_token(
+            session,
+            USER_ID,
+            cipher,
+            ACCESS,
+            expected_connection_version=original_version,
+        )
+        is False
+    )
+    assert _stored(row, cipher) == (NEW_ACCESS, NEW_REFRESH)
+    assert (
+        delete_rejected_access_token(
+            session,
+            USER_ID,
+            cipher,
+            NEW_ACCESS,
+            expected_connection_version=row.connection_version,
+        )
+        is True
+    )
+    assert session.get(KrogerCustomerToken, USER_ID) is None
+    assert delete_rejected_access_token(session, USER_ID, cipher, NEW_ACCESS) is False
+
+
+def test_rejected_token_with_a_stale_version_preserves_identical_reconnect(
+    session: Session, seed_user: UserSeeder
+) -> None:
+    cipher = _cipher()
+    row = _connected(session, seed_user, cipher, 1800)
+    original_version = row.connection_version
+    store_tokens(session, USER_ID, cipher, CustomerTokens(ACCESS, REFRESH, 1800))
+    replacement_pair = (row.access_token, row.refresh_token)
+    assert row.connection_version != original_version
+    assert not delete_rejected_access_token(
+        session,
+        USER_ID,
+        cipher,
+        ACCESS,
+        expected_connection_version=original_version,
+    )
+    assert session.get(KrogerCustomerToken, USER_ID) is row
+    assert (row.access_token, row.refresh_token) == replacement_pair
+
+
+def test_token_helpers_leave_commit_to_caller(
+    session: Session, seed_user: UserSeeder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden_commit() -> None:
+        pytest.fail("Token helpers MUST NOT commit.")
+
+    monkeypatch.setattr(session, "commit", forbidden_commit)
+    cipher = _cipher()
+    _connected(session, seed_user, cipher, -5)
+    customer_access_token(session, USER_ID, _kroger(_TokenServer()), cipher)
+    delete_tokens(session, USER_ID)
 
 
 def test_delete_tokens_removes_the_row_and_tolerates_none(
@@ -389,15 +584,26 @@ def _log_access(caplog: pytest.LogCaptureFixture, path: str) -> logging.LogRecor
     return records[0]
 
 
-def test_access_log_drops_the_callback_query(
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize("prefix", ["", "/api"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/grocery/kroger/callback",
+        "/grocery/kroger/connect/start",
+        "/grocery/kroger/%63allback",
+        "/grocery/kroger/fixture/v1/connect/oauth2/authorize",
+    ],
+)
+def test_access_log_drops_sensitive_queries(
+    caplog: pytest.LogCaptureFixture, prefix: str, path: str
 ) -> None:
-    path = f"{kroger_customer.CALLBACK_PATH}?code=SENTINEL-CODE&state=SENTINEL-STATE"
-    record = _log_access(caplog, path)
-    assert record.getMessage() == (
-        '127.0.0.1:5000 - "GET /grocery/kroger/callback HTTP/1.1" 302'
+    target = f"{prefix}{path}"
+    record = _log_access(
+        caplog, target + "?code=SENTINEL&state=SENTINEL&ticket=SENTINEL"
     )
+    assert record.getMessage() == f'127.0.0.1:5000 - "GET {target} HTTP/1.1" 302'
     assert "SENTINEL" not in caplog.text
+    assert "SENTINEL" not in str(record.args)
 
 
 @pytest.mark.parametrize(

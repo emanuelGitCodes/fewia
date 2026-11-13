@@ -21,7 +21,11 @@ from app.auth import (
 )
 from app.db import SessionLocal
 from app.models import User
-from app.provider_runtime import build_kroger, build_kroger_cipher
+from app.provider_runtime import (
+    build_kroger,
+    build_kroger_cipher,
+    build_kroger_pairing_cipher,
+)
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
@@ -179,3 +183,20 @@ def get_kroger_cipher() -> Fernet | None:
 
 
 get_kroger_cipher.cache_clear = _build_kroger_cipher.cache_clear  # type: ignore[attr-defined]
+
+
+@functools.cache
+def _build_kroger_pairing_cipher() -> Fernet | None:
+    try:
+        return build_kroger_pairing_cipher(load_provider_settings())
+    except ProviderConfigurationError:
+        return None
+
+
+def get_kroger_pairing_cipher() -> Fernet | None:
+    """Return the process-wide Kroger confirmation cipher, or None."""
+    with _kroger_lock:
+        return _build_kroger_pairing_cipher()
+
+
+get_kroger_pairing_cipher.cache_clear = _build_kroger_pairing_cipher.cache_clear  # type: ignore[attr-defined]
