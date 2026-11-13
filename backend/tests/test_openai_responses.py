@@ -1031,6 +1031,15 @@ def test_absolute_deadline_cancels_connection_setup(
 ) -> None:
     events: list[str] = []
     sockets: list[socket.socket] = []
+    deadlines: list[asyncio.Timeout] = []
+    timeout_factory = asyncio.timeout
+
+    def timeout(delay: float | None) -> asyncio.Timeout:
+        assert delay is not None
+        assert 0.0 <= delay <= 45.0
+        context = timeout_factory(None)
+        deadlines.append(context)
+        return context
 
     async def connect(
         loop: asyncio.BaseEventLoop, sock: socket.socket, address: object
@@ -1038,6 +1047,8 @@ def test_absolute_deadline_cancels_connection_setup(
         sockets.append(sock)
         events.append("connecting")
         try:
+            assert len(deadlines) == 1
+            deadlines[0].reschedule(loop.time())
             await asyncio.Event().wait()
             raise AssertionError("Connection wait completed")
         finally:
@@ -1050,7 +1061,7 @@ def test_absolute_deadline_cancels_connection_setup(
     monkeypatch.setattr(
         http_client._ResolverEventLoop, "_make_socket_transport", make_transport
     )
-    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.1)
+    monkeypatch.setattr(http_client.asyncio, "timeout", timeout)
     started = time.monotonic()
     with http_client.build_http_client("https://127.0.0.1") as client:
         with pytest.raises(httpx.ReadTimeout):
