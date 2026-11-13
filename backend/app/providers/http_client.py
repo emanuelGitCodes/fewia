@@ -130,6 +130,10 @@ def _decoded_response(response: httpx.Response, body: bytes) -> httpx.Response:
         response.status_code, content=body, request=response.request
     )
     result.headers = response.headers.copy()
+    result.headers.pop("content-encoding", None)
+    result.headers.pop("content-length", None)
+    result.headers.pop("transfer-encoding", None)
+    result.headers["Content-Length"] = str(len(body))
     return result
 
 
@@ -144,12 +148,10 @@ async def _send_async(request: httpx.Request, deadline: float) -> httpx.Response
                 transport=httpx.AsyncHTTPTransport(retries=0, trust_env=False),
             ) as client:
                 _check_deadline(deadline)
-                async with client.stream(
-                    request.method,
-                    request.url,
-                    headers=request.headers,
-                    content=request.content,
-                ) as response:
+                response = await client.send(
+                    request, stream=True, auth=None, follow_redirects=False
+                )
+                try:
                     if response.is_stream_consumed:
                         _check_deadline(deadline)
                         return _decoded_response(response, _body(response))
@@ -159,6 +161,8 @@ async def _send_async(request: httpx.Request, deadline: float) -> httpx.Response
                         body.feed(chunk)
                     _check_deadline(deadline)
                     return _decoded_response(response, body.finish())
+                finally:
+                    await response.aclose()
     except TimeoutError:
         raise httpx.ReadTimeout("Provider request deadline exceeded") from None
 
@@ -239,10 +243,12 @@ def request_bounded(
     try:
         _require_bounded_transports(client)
         _check_deadline()
+        request_headers = httpx.Headers(headers)
+        request_headers.setdefault("Accept-Encoding", "gzip, deflate")
         with client.stream(
             method,
             url,
-            headers={**(headers or {}), "Accept-Encoding": "gzip, deflate"},
+            headers=request_headers,
             auth=auth,
             data=data,
             params=params,
@@ -256,6 +262,36 @@ def request_bounded(
         raise httpx.DecodingError("Invalid compressed provider data") from None
     finally:
         _deadline.reset(token)
+
+
+def send_prepared_bounded(
+    method: str,
+    url: str,
+    *,
+    headers: Mapping[str, str | bytes],
+    body: bytes,
+) -> httpx.Response:
+    if httpx.__version__ != _SUPPORTED_HTTPX_VERSION:
+        raise httpx.ConnectError("Unsupported provider HTTP client")
+    raw_headers = [
+        (
+            name.encode("ascii"),
+            value if isinstance(value, bytes) else value.encode("utf-8"),
+        )
+        for name, value in headers.items()
+    ]
+    request = httpx.Request(method, url, content=body)
+    # Signed requests MUST bypass client defaults and automatic entity headers.
+    prepared_headers = httpx.Headers(raw_headers)
+    if "host" not in prepared_headers:
+        prepared_headers["Host"] = request.headers["Host"]
+    request.headers = prepared_headers
+    if request.method != method or str(request.url) != url:
+        raise httpx.RequestError("Unsupported prepared provider request")
+    try:
+        return _DeadlineTransport().handle_request(request)
+    except zlib.error:
+        raise httpx.DecodingError("Invalid compressed provider data") from None
 
 
 def build_http_client(base_url: str) -> httpx.Client:

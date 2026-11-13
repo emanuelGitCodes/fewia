@@ -138,6 +138,7 @@ def test_full_tool_round_trip_is_stateless_and_preserves_order(tmp_path: Path) -
     schema = cast(dict[str, object], spec["inputSchema"])["json"]
     assert first_request == {
         "model": "gpt-6-luna",
+        "service_tier": "default",
         "instructions": "Use sample values.",
         "input": [{"role": "user", "content": "Find sample prices."}],
         "tools": [
@@ -414,6 +415,64 @@ def test_request_disables_reasoning_and_storage(tmp_path: Path) -> None:
     _run(tmp_path, handle)
     assert bodies[0]["reasoning"] == {"effort": "none"}
     assert bodies[0]["store"] is False
+
+
+@pytest.mark.parametrize(
+    "tier", ["default", "priority", "flex", "scale", "future-tier", "x" * 64, None]
+)
+def test_service_tier_selects_default_and_preserves_reported_value(
+    tmp_path: Path, tier: str | None
+) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content)["service_tier"] == "default"
+        return httpx.Response(200, json={**_response(), "service_tier": tier})
+
+    result = _run(tmp_path, handle)
+    assert "service_tier" not in result
+    assert result["serviceTier"] == tier
+
+
+def test_missing_service_tier_becomes_null(tmp_path: Path) -> None:
+    result = _run(tmp_path, lambda request: httpx.Response(200, json=_response()))
+    assert result["serviceTier"] is None
+
+
+@pytest.mark.parametrize(
+    "tier",
+    [
+        "",
+        "x" * 65,
+        " priority",
+        "priority ",
+        "PRIVATE_MESSAGE\npriority",
+        "priorit\u00e9",
+        1,
+        True,
+        ["PRIVATE_MESSAGE"],
+        {"tier": "PRIVATE_MESSAGE"},
+    ],
+)
+def test_malformed_service_tier_fails_without_logging_body(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], tier: object
+) -> None:
+    with pytest.raises(LLMUnavailable) as raised:
+        _run(
+            tmp_path,
+            lambda request: httpx.Response(
+                200, json={**_response(), "service_tier": tier}
+            ),
+        )
+    assert str(raised.value) == "The language model is unavailable"
+    assert raised.value.__context__ is None
+    assert _failure_line(capsys) == {
+        "event": "openai_responses_failed",
+        "reason": "invalid_response",
+        "http_status": 200,
+        "exception": "_Invalid",
+        "error_type": None,
+        "error_code": None,
+        "item_type": None,
+    }
 
 
 @pytest.mark.parametrize("status", [401, 429, 500])
@@ -796,9 +855,52 @@ def test_shared_transport_caps_decoded_bytes_and_closes_streams(
             assert result.content == b"x" * size
             assert result.status_code == 201
             assert result.headers["cache-control"] == "max-age=1"
-            assert result.headers["content-encoding"] == encoding
+            assert "content-encoding" not in result.headers
+            assert result.headers["content-length"] == str(size)
             assert result.is_closed
     assert stream.closed
+
+
+@pytest.mark.parametrize("header", ["Accept-Encoding", "accept-encoding"])
+def test_shared_transport_retains_caller_accept_encoding(header: str) -> None:
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers["accept-encoding"])
+        return httpx.Response(200, content=b"ok")
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        http_client.request_bounded(
+            client, "GET", "https://fake.invalid", headers={header: "identity"}
+        )
+    assert seen == ["identity"]
+
+
+def test_decoded_response_replaces_compressed_body_metadata() -> None:
+    content = b"decoded response" * 100
+    compressed = gzip.compress(content)
+    stream = _Stream([compressed])
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                stream=stream,
+                headers={
+                    "Content-Encoding": "gzip",
+                    "Content-Length": str(len(compressed)),
+                    "Transfer-Encoding": "chunked",
+                    "X-Request-Id": "fake-request",
+                },
+            )
+        )
+    ) as client:
+        result = http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert stream.closed
+    assert result.content == content
+    assert result.headers["content-length"] == str(len(content))
+    assert "content-encoding" not in result.headers
+    assert "transfer-encoding" not in result.headers
+    assert result.headers["x-request-id"] == "fake-request"
 
 
 @pytest.mark.parametrize(
@@ -868,7 +970,9 @@ def test_serialized_model_input_limit_rejects_before_send(
     with httpx.Client(transport=httpx.MockTransport(handle)) as client:
         provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
         provider.converse(system, messages, tools)
-        base_size = len(sent.pop().content)
+        baseline = sent.pop()
+        assert json.loads(baseline.content)["service_tier"] == "default"
+        base_size = len(baseline.content)
         padding = "x" * (64 * 1024 - base_size)
         if field == "system":
             system += padding
@@ -879,7 +983,9 @@ def test_serialized_model_input_limit_rejects_before_send(
                 "Look up sample prices." + padding
             )
         provider.converse(system, messages, tools)
-        assert len(sent.pop().content) == 64 * 1024
+        bounded = sent.pop()
+        assert json.loads(bounded.content)["service_tier"] == "default"
+        assert len(bounded.content) == 64 * 1024
         with pytest.raises(ValueError, match="^Provider input is invalid$"):
             provider.converse(system + "x", messages, tools)
     assert sent == []

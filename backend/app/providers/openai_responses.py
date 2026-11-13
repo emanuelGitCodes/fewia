@@ -320,6 +320,15 @@ def _usage(value: object) -> dict[str, int] | None:
     return result
 
 
+def _service_tier(value: object) -> str | None:
+    if value is None:
+        return None
+    tier = _label(value)
+    if tier is None:
+        raise _Invalid()
+    return tier
+
+
 def _response(
     value: object, names: set[str], history_ids: set[str]
 ) -> dict[str, object]:
@@ -412,6 +421,7 @@ def _response(
     result: dict[str, object] = {
         "stopReason": stop,
         "output": {"message": {"role": "assistant", "content": content}},
+        "serviceTier": _service_tier(response.get("service_tier")),
     }
     usage = _usage(response.get("usage"))
     if usage is not None:
@@ -451,6 +461,7 @@ class OpenAIResponsesProvider:
             items, history_ids = _messages(messages, names)
             request = {
                 "model": "gpt-6-luna",
+                "service_tier": "default",
                 "instructions": system_prompt,
                 "input": items,
                 "tools": translated,
