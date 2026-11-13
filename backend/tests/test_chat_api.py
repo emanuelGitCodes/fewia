@@ -34,7 +34,7 @@ from app.models import User
 from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import KrogerClient
-from app.services import job_submission, security_admission
+from app.services import job_submission, kroger_security, security_admission
 from app.services.chat_job import ChatJobInput
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
@@ -1196,7 +1196,7 @@ SWAP_RESULT: dict[str, object] = {
 }
 
 
-def kroger_with_calls() -> tuple[KrogerClient, list[str]]:
+def kroger_with_calls(*, fixture: bool = True) -> tuple[KrogerClient, list[str]]:
     terms: list[str] = []
 
     def handler(request: Request) -> Response:
@@ -1217,6 +1217,7 @@ def kroger_with_calls() -> tuple[KrogerClient, list[str]]:
             "invented-secret",
             base_url="https://kroger.test",
             client=http,
+            fixture=fixture,
         ),
         terms,
     )
@@ -1313,3 +1314,93 @@ def test_queued_chat_job_makes_no_kroger_call(
     assert response.status_code == 200
     assert response.json()["result"] == SWAP_RESULT
     assert terms == []
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "off",
+        "fixture",
+        "no_location",
+        "invalid_location",
+        "missing",
+        "foreign",
+        "wrong_kind",
+        "wrong_operation",
+        "queued",
+        "failed",
+        "no_result",
+        "priced",
+        "unknown",
+        "nonqualifying",
+        "malformed_trace",
+    ],
+)
+def test_chat_reads_without_live_lookup_do_not_reserve_quota(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    def forbid_admission(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("This read MUST NOT reserve quota")
+
+    monkeypatch.setattr(security_admission, "reserve_action", forbid_admission)
+    monkeypatch.setattr(kroger_security, "validate_tab_proof", forbid_admission)
+    job = _seed_chat_job(
+        session, key=f"chat:no-admission-{case}", status="succeeded", result=SWAP_RESULT
+    )
+    kroger, terms = kroger_with_calls(fixture=case == "fixture")
+    kroger_override(None if case == "off" else kroger)
+    if case == "foreign":
+        seed_user(2, "Other owner")
+        job.user_id = 2
+    elif case == "wrong_kind":
+        job.kind = "sync"
+        job.request_namespace = "sync"
+    elif case == "wrong_operation":
+        job.payload = {"operation": "other"}
+        job.request_namespace = "plan"
+    elif case in {"queued", "failed"}:
+        job.status = case
+    elif case == "no_result":
+        job.result = None
+    elif case in {"priced", "unknown", "nonqualifying"}:
+        job.result = {
+            "answer": "stored text",
+            "tool_trace": [
+                {
+                    "tool": "what_if_substitute",
+                    "outcome": "success",
+                    "inputs": {
+                        "status": "unchanged" if case == "nonqualifying" else "swapped",
+                        "with_ingredient_id": (
+                            "no_such_food" if case == "unknown" else "chicken_breast"
+                        ),
+                    },
+                }
+            ],
+        }
+    elif case == "malformed_trace":
+        job.result = {"answer": "stored text", "tool_trace": "invalid"}
+    session.flush()
+    result = job.result
+    job_id = str(uuid4()) if case == "missing" else job.id
+    params = {} if case == "no_location" else {"location_id": KROGER_LOCATION}
+    if case == "invalid_location":
+        params["location_id"] = "bad"
+    response = client.get(f"/grocery/chat/jobs/{job_id}", params=params)
+    expected_status = (
+        422
+        if case == "invalid_location"
+        else 404
+        if case in {"missing", "foreign", "wrong_kind", "wrong_operation"}
+        else 200
+    )
+    assert response.status_code == expected_status
+    assert response.headers["cache-control"] == "private, no-store"
+    if expected_status == 200 and case != "fixture":
+        assert response.json()["result"] == result
+    assert terms == (["ground beef 80% lean"] if case == "fixture" else [])

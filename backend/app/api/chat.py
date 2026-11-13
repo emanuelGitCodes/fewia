@@ -5,8 +5,9 @@ from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api import grocery as grocery_api
@@ -26,6 +27,7 @@ from app.plan_models import PlanRevision
 from app.provider_runtime import ProviderCapabilities, capabilities
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import KrogerClient
+from app.services import kroger_security, security_admission
 from app.services.chat_history import (
     ChatContextUnavailable,
     PreviousState,
@@ -160,6 +162,7 @@ def create_chat_job(
 @router.get("/chat/jobs/{job_id}")
 def read_chat_job(
     job_id: UUID,
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     kroger: Annotated[KrogerClient | None, Depends(get_kroger_client)],
     user: Annotated[User, Depends(get_current_user)],
@@ -177,15 +180,40 @@ def read_chat_job(
         or payload.get("operation") != "chat"
     ):
         raise HTTPException(status_code=404, detail=JOB_NOT_FOUND_MESSAGE)
+    response_id, status, error_code = job.id, job.status, job.error_code
     result = job.result
-    if job.status == "succeeded" and isinstance(result, dict):
+    owner_id = user.id
+
+    def before_lookup() -> bool:
+        try:
+            proofs = request.headers.getlist("x-fewia-kroger-owner")
+            if len(proofs) != 1 or len(proofs[0]) != 43 or "," in proofs[0]:
+                raise kroger_security.SecurityIntentError()
+            security_admission.reserve_action(session, owner_id, "retailer")
+            kroger_security.validate_tab_proof(session, owner_id, proofs[0])
+            session.commit()
+        except (
+            kroger_security.SecurityIntentError,
+            security_admission.AdmissionLimitError,
+            security_admission.OwnerUnavailableError,
+            SQLAlchemyError,
+        ):
+            session.rollback()
+            return False
+        return True
+
+    if status == "succeeded" and isinstance(result, dict):
         if location_id is not None and kroger is not None:
             result = attach_kroger_quote(
-                result, kroger, location_id, lambda: datetime.now(UTC)
+                result,
+                kroger,
+                location_id,
+                lambda: datetime.now(UTC),
+                before_lookup=before_lookup,
             )
     return GroceryJobView(
-        id=job.id,
-        status=job.status,
+        id=response_id,
+        status=status,
         result=result,
-        error_code=job.error_code,
+        error_code=error_code,
     )

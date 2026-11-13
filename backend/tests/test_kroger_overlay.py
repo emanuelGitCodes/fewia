@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from app.providers.kroger import KrogerClient
+from app.providers.kroger_fixture import build_fixture_client
 from app.services.kroger_overlay import attach_kroger_quote, kroger_search_term
 
 BASE = "https://kroger.test"
@@ -19,8 +20,10 @@ class Shop:
         self.status = status
         self.data: list[object] = [_product()] if data is None else data
         self.terms: list[str] = []
+        self.requests: list[str] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request.url.path)
         if request.url.path.endswith("/token"):
             return httpx.Response(200, json={"access_token": "t", "expires_in": 1800})
         self.terms.append(request.url.params["filter.term"])
@@ -72,6 +75,10 @@ def _result(*trace: object) -> dict[str, object]:
     }
 
 
+def _forbid_admission() -> bool:
+    raise AssertionError("This lookup MUST NOT reserve quota")
+
+
 def test_search_terms() -> None:
     assert kroger_search_term("ground_beef_80") == "ground beef 80% lean"
     assert kroger_search_term("ground_beef_93") == "ground beef 93% lean"
@@ -114,7 +121,9 @@ def test_retrieved_at_is_utc() -> None:
 def test_priced_food_makes_no_call() -> None:
     shop = Shop()
     result = _result(_swap("chicken_breast"))
-    out = attach_kroger_quote(result, _client(shop), LOCATION, lambda: NOW)
+    out = attach_kroger_quote(
+        result, _client(shop), LOCATION, lambda: NOW, before_lookup=_forbid_admission
+    )
     assert out == result
     assert shop.terms == []
 
@@ -155,7 +164,9 @@ def test_last_target_wins() -> None:
 def test_malformed_or_missing_target_is_unchanged(trace: object) -> None:
     shop = Shop()
     result: dict[str, object] = {"answer": "x", "tool_trace": trace}
-    out = attach_kroger_quote(result, _client(shop), LOCATION, lambda: NOW)
+    out = attach_kroger_quote(
+        result, _client(shop), LOCATION, lambda: NOW, before_lookup=_forbid_admission
+    )
     assert out == result
     assert shop.terms == []
 
@@ -170,7 +181,11 @@ def test_kroger_failure_marks_degraded() -> None:
 def test_bad_location_marks_degraded() -> None:
     shop = Shop()
     out = attach_kroger_quote(
-        _result(_swap("ground_beef_80")), _client(shop), "bad", lambda: NOW
+        _result(_swap("ground_beef_80")),
+        _client(shop),
+        "bad",
+        lambda: NOW,
+        before_lookup=_forbid_admission,
     )
     assert out["kroger_degraded"] is True
     assert shop.terms == []
@@ -202,3 +217,63 @@ def test_input_is_not_mutated() -> None:
     out = attach_kroger_quote(result, _client(Shop()), LOCATION, lambda: NOW)
     assert result == before
     assert out is not result
+
+
+def test_admission_runs_once_before_live_requests() -> None:
+    shop = Shop()
+    calls: list[bool] = []
+
+    def admit() -> bool:
+        assert shop.requests == []
+        calls.append(True)
+        return True
+
+    out = attach_kroger_quote(
+        _result(_swap("ground_beef_80"), _facts("usda_172475")),
+        _client(shop),
+        LOCATION,
+        lambda: NOW,
+        before_lookup=admit,
+    )
+    assert calls == [True]
+    assert shop.terms == ["tofu"]
+    assert "kroger_quote" in out
+
+
+def test_denied_admission_sends_no_request() -> None:
+    shop = Shop()
+    result = _result(_swap("ground_beef_80"))
+    out = attach_kroger_quote(
+        result, _client(shop), LOCATION, lambda: NOW, before_lookup=lambda: False
+    )
+    assert out == {**result, "kroger_degraded": True}
+    assert "kroger_degraded" not in result
+    assert shop.requests == []
+
+
+def test_fixture_quote_skips_admission() -> None:
+    client = build_fixture_client("http://localhost/grocery/kroger/callback")
+    assert client.fixture is True
+    out = attach_kroger_quote(
+        _result(_swap("ground_beef_80")),
+        client,
+        LOCATION,
+        lambda: NOW,
+        before_lookup=_forbid_admission,
+    )
+    quote = out["kroger_quote"]
+    assert isinstance(quote, dict)
+    assert quote["kind"] == "store_fixture"
+
+
+def test_unusable_search_term_skips_admission(monkeypatch: pytest.MonkeyPatch) -> None:
+    shop = Shop()
+    result = _result(_swap("ground_beef_80"))
+    monkeypatch.setattr(
+        "app.services.kroger_overlay.kroger_search_term", lambda _: None
+    )
+    out = attach_kroger_quote(
+        result, _client(shop), LOCATION, lambda: NOW, before_lookup=_forbid_admission
+    )
+    assert out == result
+    assert shop.requests == []

@@ -1,5 +1,6 @@
 """Attach one live Kroger quote to a chat reply at read time. Nothing is stored."""
 
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -7,6 +8,7 @@ from app.domain.curated_foods import ALL_INGREDIENTS, USDA_DEFAULTS
 from app.providers.kroger import KrogerClient, KrogerUnavailable
 
 MAX_TERM = 64
+_LOCATION_ID = re.compile(r"[0-9A-Za-z]{8}")
 _TERMS = {
     "ground_beef_80": "ground beef 80% lean",
     "ground_beef_93": "ground beef 93% lean",
@@ -61,6 +63,8 @@ def attach_kroger_quote(
     client: KrogerClient,
     location_id: str,
     now: Callable[[], datetime],
+    *,
+    before_lookup: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     ingredient_id = _target_id(result)
     ingredient = ALL_INGREDIENTS.get(ingredient_id) if ingredient_id else None
@@ -72,6 +76,12 @@ def attach_kroger_quote(
     if term is None:
         return result
     attached = dict(result)
+    if not isinstance(location_id, str) or not _LOCATION_ID.fullmatch(location_id):
+        attached["kroger_degraded"] = True
+        return attached
+    if not client.fixture and before_lookup is not None and not before_lookup():
+        attached["kroger_degraded"] = True
+        return attached
     try:
         search = client.search_products(term, location_id, limit=5)
     except (KrogerUnavailable, ValueError):
