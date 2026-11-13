@@ -1047,6 +1047,51 @@ def test_no_http_route_mints_pairing_tickets(rig: Rig) -> None:
     assert rig.api.get(CONNECT).status_code == 405
 
 
+@pytest.mark.parametrize(
+    ("host", "accepted"),
+    [
+        ("postgres", True),
+        ("localhost", True),
+        ("127.0.0.1", True),
+        ("[::1]", True),
+        ("postgres.example.test", False),
+        ("db.postgres", False),
+        ("postgres-remote", False),
+        ("postgres.", False),
+        ("POSTGRES", False),
+        ("remote.test", False),
+        ("192.0.2.1", False),
+        ("[2001:db8::1]", False),
+    ],
+)
+def test_operator_cli_database_allowlist(host: str, accepted: bool) -> None:
+    engine = create_engine(f"postgresql+psycopg://synthetic@{host}:5432/fewia")
+    try:
+        assert kroger_pairing_cli._local_database(engine) is accepted
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("host", ["postgres", "localhost", "127.0.0.1", "[::1]"])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "host=remote.test",
+        "hostaddr=192.0.2.1",
+        "service=remote",
+        "host=postgres",
+        "hostaddr=127.0.0.1",
+        "service=local",
+    ],
+)
+def test_operator_cli_database_refuses_dsn_overrides(host: str, query: str) -> None:
+    engine = create_engine(f"postgresql+psycopg://synthetic@{host}:5432/fewia?{query}")
+    try:
+        assert not kroger_pairing_cli._local_database(engine)
+    finally:
+        engine.dispose()
+
+
 def test_operator_cli_prints_only_fragment_and_commits_ticket(
     rig: Rig, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

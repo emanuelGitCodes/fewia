@@ -22,7 +22,7 @@ def _local_database(bind: Engine | Connection) -> bool:
         return True
     return (
         bind.dialect.name == "postgresql"
-        and url.host in {"localhost", "127.0.0.1", "::1"}
+        and url.host in {"localhost", "127.0.0.1", "::1", "postgres"}
         and not {"host", "hostaddr", "service"}.intersection(url.query)
     )
 
