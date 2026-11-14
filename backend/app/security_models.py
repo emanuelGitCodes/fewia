@@ -10,7 +10,7 @@ from app.db import Base
 
 
 class KrogerOwner(Base):
-    """The current pairing generation for one user."""
+    """The current pairing and connection generations for one user."""
 
     __tablename__ = "kroger_owners"
     __table_args__ = (
@@ -22,6 +22,9 @@ class KrogerOwner(Base):
 
     user_id: Mapped[int] = mapped_column(sa.BigInteger, nullable=False)
     pairing_generation: Mapped[UUID] = mapped_column(
+        sa.Uuid, nullable=False, default=uuid4, server_default=sa.func.gen_random_uuid()
+    )
+    connection_generation: Mapped[UUID] = mapped_column(
         sa.Uuid, nullable=False, default=uuid4, server_default=sa.func.gen_random_uuid()
     )
     updated_at: Mapped[datetime] = mapped_column(

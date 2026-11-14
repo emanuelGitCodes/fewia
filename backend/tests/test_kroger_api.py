@@ -17,7 +17,7 @@ import pytest
 from conftest import UserSeeder, require_test_database_url
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, delete, event, select
+from sqlalchemy import create_engine, delete, event, select, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
@@ -36,7 +36,11 @@ from app.deps import (
     get_provider_settings,
     get_session,
 )
-from app.kroger_customer import store_tokens
+from app.kroger_customer import (
+    customer_access_token,
+    delete_rejected_access_token,
+    store_tokens,
+)
 from app.kroger_models import KrogerCustomerToken
 from app.main import app
 from app.models import User
@@ -290,10 +294,12 @@ class Rig:
     session: Session
     cipher: Fernet
     pairing_cipher: Fernet
+    owner_id: int = 1
     headers: dict[str, str] = field(default_factory=dict)
     token_status: int = 200
     cart_status: int = 204
     cart_error: httpx.RequestError | None = None
+    products_empty: bool = False
     calls: list[httpx.Request] = field(default_factory=list)
     hook: Callable[[httpx.Request], None] | None = None
     locks_held: bool = False
@@ -313,6 +319,8 @@ class Rig:
                 raise self.cart_error
             return httpx.Response(self.cart_status)
         if request.url.path == kroger.PRODUCTS_PATH:
+            if self.products_empty:
+                return httpx.Response(200, json={"data": []})
             return httpx.Response(
                 200,
                 json={
@@ -338,15 +346,17 @@ class Rig:
             },
         )
 
-    def proof(self, owner_id: int = 1) -> str:
+    def proof(self, owner_id: int | None = None) -> str:
+        owner_id = owner_id or self.owner_id
         ticket = security.issue_pairing_ticket(self.session, owner_id)
         proof = security.redeem_pairing_ticket(self.session, owner_id, ticket)
         self.session.commit()
         return proof
 
     def connected(
-        self, owner_id: int = 1, expired: bool = False
+        self, owner_id: int | None = None, expired: bool = False
     ) -> KrogerCustomerToken:
+        owner_id = owner_id or self.owner_id
         store_tokens(
             self.session, owner_id, self.cipher, CustomerTokens(ACCESS, REFRESH, 1800)
         )
@@ -357,7 +367,8 @@ class Rig:
         self.session.commit()
         return row
 
-    def plan(self, owner_id: int = 1) -> UUID:
+    def plan(self, owner_id: int | None = None) -> UUID:
+        owner_id = owner_id or self.owner_id
         revision_id = uuid4()
         self.session.add(
             PlanRevision(
@@ -381,7 +392,8 @@ class Rig:
             json={"plan_revision_id": str(revision), "location_id": "01234567"},
         )
 
-    def confirmation(self, owner_id: int = 1, now: int | None = None) -> str:
+    def confirmation(self, owner_id: int | None = None, now: int | None = None) -> str:
+        owner_id = owner_id or self.owner_id
         token = security.issue_cart_confirmation(
             self.session,
             owner_id,
@@ -411,9 +423,9 @@ class Rig:
         state = parse_qs(urlsplit(started.headers["location"]).query)["state"][0]
         return target, state
 
-    def callback(self, state: str) -> httpx.Response:
+    def callback(self, state: str, *, code: str = CODE) -> httpx.Response:
         return self.api.get(
-            CALLBACK, params={"code": CODE, "state": state}, follow_redirects=False
+            CALLBACK, params={"code": code, "state": state}, follow_redirects=False
         )
 
 
@@ -1359,3 +1371,442 @@ def test_uncertain_result_cannot_be_upgraded_to_success(
     assert rig.add(token).status_code == 504
     assert _intent(rig, token).state == "uncertain"
     assert len(rig.calls) == 1
+
+
+@dataclass
+class _RequestTransaction:
+    claimed: bool = False
+    active: bool = False
+    ended: bool = False
+    lock: Lock = field(default_factory=Lock)
+
+    def capture(self, db: Session) -> None:
+        with self.lock:
+            if self.claimed:
+                return
+            self.claimed = True
+            self.active = db.in_transaction()
+
+        def created(database: Session, transaction: object) -> None:
+            with self.lock:
+                self.active = True
+
+        def ended(database: Session, transaction: object) -> None:
+            with self.lock:
+                self.active = database.in_transaction()
+                self.ended = self.ended or not self.active
+
+        event.listen(db, "after_transaction_create", created)
+        event.listen(db, "after_transaction_end", ended)
+
+    def assert_released(self) -> None:
+        with self.lock:
+            assert self.claimed
+            assert self.ended
+            assert not self.active
+
+
+@dataclass
+class _PostgresRig(Rig):
+    request_transaction: _RequestTransaction | None = None
+
+
+@pytest.fixture
+def postgres_rig(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[_PostgresRig]:
+    engine = create_engine(
+        make_url(require_test_database_url()).set(drivername="postgresql+psycopg"),
+        connect_args={"options": "-c statement_timeout=10000 -c lock_timeout=5000"},
+    )
+    user_id = (uuid4().int >> 66) + 1
+    offset_minutes = uuid4().int % 100000000
+    minute = datetime(2100, 1, 1, tzinfo=UTC) + timedelta(minutes=offset_minutes)
+    monkeypatch.setattr(admission, "database_utc_now", lambda db: minute)
+
+    def database() -> Iterator[Session]:
+        with Session(engine, expire_on_commit=False) as db:
+            if rig.request_transaction is not None:
+                rig.request_transaction.capture(db)
+            db.info["retained_rows"] = [
+                db.get(KrogerOwner, user_id),
+                db.get(KrogerCustomerToken, user_id),
+            ]
+            yield db
+
+    with Session(engine, expire_on_commit=False) as db:
+        owner = User(id=user_id, display_name="Synthetic race owner")
+        db.add(owner)
+        db.commit()
+        rig = _PostgresRig(
+            client,
+            db,
+            Fernet(Fernet.generate_key()),
+            Fernet(Fernet.generate_key()),
+            owner_id=user_id,
+        )
+
+        def handle(request: httpx.Request) -> httpx.Response:
+            response = rig.handle(request)
+            code = parse_qs(request.content.decode()).get("code")
+            if response.status_code == 200 and code == ["SYNTHETIC-CODE-B"]:
+                return httpx.Response(
+                    200,
+                    json={
+                        "access_token": ACCESS + "-B",
+                        "refresh_token": REFRESH + "-B",
+                        "expires_in": 1800,
+                    },
+                )
+            return response
+
+        http = httpx.Client(transport=httpx.MockTransport(handle))
+        provider = KrogerClient(
+            "invented-id",
+            "invented-secret",
+            base_url=kroger.HOSTS["certification"],
+            client=http,
+        )
+        for dependency, override in (
+            (get_session, database),
+            (get_current_user, lambda: owner),
+            (get_provider_settings, lambda: rig.settings),
+            (get_kroger_client, lambda: provider),
+            (get_kroger_cipher, lambda: rig.cipher),
+            (get_kroger_pairing_cipher, lambda: rig.pairing_cipher),
+        ):
+            monkeypatch.setitem(app.dependency_overrides, dependency, override)
+        try:
+            rig.headers = {"X-FEWIA-Kroger-Owner": rig.proof()}
+            yield rig
+        finally:
+            db.rollback()
+            for model in (
+                KrogerCustomerToken,
+                SecurityIntent,
+                KrogerOwner,
+            ):
+                db.execute(delete(model).where(model.user_id == user_id))
+            db.execute(delete(QuotaCounter).where(QuotaCounter.minute_start == minute))
+            db.execute(text("SET LOCAL ROLE fewia_maintenance"))
+            db.execute(delete(PlanRevision).where(PlanRevision.user_id == user_id))
+            db.execute(text("RESET ROLE"))
+            db.execute(delete(User).where(User.id == user_id))
+            db.commit()
+            http.close()
+            engine.dispose()
+
+
+def _reject_race_token(
+    rig: Rig, access_token: str = ACCESS, *, refresh: bool = False
+) -> None:
+    with Session(rig.session.get_bind()) as other:
+        row = other.get(KrogerCustomerToken, rig.owner_id)
+        assert row is not None
+        assert rig.cipher.decrypt(row.access_token).decode() == access_token
+        version = row.connection_version
+        if refresh:
+            row.access_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            other.commit()
+            provider = app.dependency_overrides[get_kroger_client]()
+            owner = other.get(KrogerOwner, rig.owner_id)
+            assert owner is not None
+            rig.token_status = 401
+            try:
+                assert (
+                    customer_access_token(
+                        other,
+                        rig.owner_id,
+                        provider,
+                        rig.cipher,
+                        expected_connection_version=version,
+                        expected_pairing_generation=owner.pairing_generation,
+                    )
+                    is None
+                )
+            finally:
+                rig.token_status = 200
+        else:
+            assert delete_rejected_access_token(
+                other,
+                rig.owner_id,
+                rig.cipher,
+                access_token,
+                expected_connection_version=version,
+            )
+        other.commit()
+
+
+@pytest.mark.parametrize(
+    ("connected", "change"),
+    [
+        (False, "connect"),
+        (True, "connect"),
+        (False, "connect_reject"),
+        (True, "reject"),
+        (True, "refresh_reject"),
+        (True, "revoke"),
+        (True, "disconnect"),
+        (False, "failed_competitor"),
+        (True, "failed_competitor"),
+        (False, "failed_store"),
+        (True, "failed_store"),
+    ],
+)
+def test_postgres_callback_fences_unlocked_exchange(
+    postgres_rig: _PostgresRig,
+    monkeypatch: pytest.MonkeyPatch,
+    connected: bool,
+    change: str,
+) -> None:
+    rig = postgres_rig
+    if connected:
+        rig.connected()
+    _, state_a = rig.start()
+    _, state_b = rig.start()
+    entered, release = Event(), Event()
+    observation = _RequestTransaction()
+    rig.request_transaction = observation
+
+    def block_a(request: httpx.Request) -> None:
+        if parse_qs(request.content.decode()).get("code") == [CODE]:
+            observation.assert_released()
+            entered.set()
+            assert release.wait(10)
+
+    rig.hook = block_a
+    winner_version: UUID | None = None
+    competing = change in (
+        "connect",
+        "connect_reject",
+        "failed_competitor",
+        "failed_store",
+    )
+    failed = change in ("failed_competitor", "failed_store")
+
+    def fail_store(*args: object, **kwargs: object) -> None:
+        raise SQLAlchemyError("Synthetic token write failure")
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        first = executor.submit(rig.callback, state_a)
+        try:
+            assert entered.wait(5)
+            if competing:
+                rig.token_status = 500 if change == "failed_competitor" else 200
+                with monkeypatch.context() as patch:
+                    if change == "failed_store":
+                        patch.setattr(routes, "store_tokens", fail_store)
+                    second = rig.callback(state_b, code="SYNTHETIC-CODE-B")
+                rig.token_status = 200
+                expected = "error" if failed else "connected"
+                assert second.headers["location"].endswith("kroger=" + expected)
+                if not failed:
+                    with Session(rig.session.get_bind()) as other:
+                        row = other.get(KrogerCustomerToken, rig.owner_id)
+                        assert row is not None
+                        winner_version = row.connection_version
+                if change == "connect_reject":
+                    _reject_race_token(rig, ACCESS + "-B")
+            elif change in ("reject", "refresh_reject"):
+                _reject_race_token(rig, refresh=change == "refresh_reject")
+            elif change == "disconnect":
+                disconnected = rig.api.delete(CONNECTION, headers=rig.headers)
+                assert disconnected.status_code == 204
+            else:
+                with Session(rig.session.get_bind()) as other:
+                    security.revoke_pairing(other, rig.owner_id)
+                    other.commit()
+        finally:
+            release.set()
+        response = first.result(timeout=5)
+    expected = "connected" if failed else "error"
+    assert response.headers["location"].endswith("kroger=" + expected)
+    with Session(rig.session.get_bind()) as other:
+        row = other.get(KrogerCustomerToken, rig.owner_id)
+        if change == "connect":
+            assert row is not None and row.connection_version == winner_version
+            assert rig.cipher.decrypt(row.access_token).decode() == ACCESS + "-B"
+        elif change in ("connect_reject", "reject", "refresh_reject", "disconnect"):
+            assert row is None
+        else:
+            assert row is not None
+        for state in (state_a, state_b):
+            intent = other.scalar(
+                select(SecurityIntent).where(
+                    SecurityIntent.digest == hashlib.sha256(state.encode()).hexdigest()
+                )
+            )
+            assert intent is not None
+            assert intent.state == (
+                "consumed" if state == state_a or competing else "pending"
+            )
+    expected_calls = (
+        2
+        if change
+        in (
+            "connect",
+            "connect_reject",
+            "failed_competitor",
+            "failed_store",
+            "refresh_reject",
+        )
+        else 1
+    )
+    assert len(rig.calls) == expected_calls
+
+
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "connect",
+        "connect_reject",
+        "reject",
+        "revoke",
+        "disconnect",
+        "unchanged",
+        "refresh",
+    ],
+)
+def test_postgres_preview_fences_unlocked_lookup(
+    postgres_rig: _PostgresRig, empty: bool, change: str
+) -> None:
+    rig = postgres_rig
+    version = rig.connected(expired=change == "refresh").connection_version
+    revision = rig.plan()
+    rig.products_empty = empty
+    entered, release = Event(), Event()
+    products_lock = Lock()
+    observation = _RequestTransaction()
+    rig.request_transaction = observation
+
+    def block_products(request: httpx.Request) -> None:
+        if request.url.path != kroger.PRODUCTS_PATH:
+            return
+        with products_lock:
+            if entered.is_set():
+                return
+            observation.assert_released()
+            entered.set()
+        assert release.wait(10)
+
+    rig.hook = block_products
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        first = executor.submit(rig.preview, revision)
+        try:
+            assert entered.wait(5)
+            if change in ("connect", "connect_reject"):
+                _, state = rig.start()
+                connected = rig.callback(state)
+                assert connected.headers["location"].endswith("kroger=connected")
+                if change == "connect_reject":
+                    _reject_race_token(rig)
+            elif change == "reject":
+                _reject_race_token(rig)
+            elif change == "disconnect":
+                disconnected = rig.api.delete(CONNECTION, headers=rig.headers)
+                assert disconnected.status_code == 204
+            elif change == "revoke":
+                with Session(rig.session.get_bind()) as other:
+                    security.revoke_pairing(other, rig.owner_id)
+                    other.commit()
+            elif change == "refresh":
+                with Session(rig.session.get_bind()) as other:
+                    owner = other.get(KrogerOwner, rig.owner_id)
+                    assert owner is not None
+                    provider = app.dependency_overrides[get_kroger_client]()
+                    assert (
+                        customer_access_token(
+                            other,
+                            rig.owner_id,
+                            provider,
+                            rig.cipher,
+                            expected_connection_version=version,
+                            expected_pairing_generation=owner.pairing_generation,
+                        )
+                        == ACCESS
+                    )
+                    other.commit()
+                    row = other.get(KrogerCustomerToken, rig.owner_id)
+                    assert row is not None and row.connection_version == version
+        finally:
+            release.set()
+        response = first.result(timeout=5)
+    rig.hook = None
+    assert not any(call.url.path == kroger.CART_ADD_PATH for call in rig.calls)
+    valid = change in ("unchanged", "refresh")
+    if valid:
+        assert response.status_code == 200
+        token = response.json()["confirmation_token"]
+        if empty:
+            assert token is None
+        else:
+            payload = json.loads(rig.pairing_cipher.decrypt(token.encode()))
+            assert payload["connection_version"] == str(version)
+    else:
+        expected_status = 403 if change in ("revoke", "disconnect") else 422
+        assert response.status_code == expected_status
+        assert "confirmation_token" not in response.json()
+    with Session(rig.session.get_bind()) as other:
+        intents = other.scalars(
+            select(SecurityIntent).where(
+                SecurityIntent.user_id == rig.owner_id,
+                SecurityIntent.kind == "cart_confirmation",
+            )
+        ).all()
+        assert len(intents) == (1 if valid and not empty else 0)
+    rig.products_empty = False
+    if change in ("revoke", "disconnect"):
+        rig.headers = {"X-FEWIA-Kroger-Owner": rig.proof()}
+    if change in ("connect_reject", "reject", "disconnect"):
+        _, state = rig.start()
+        assert rig.callback(state).headers["location"].endswith("kroger=connected")
+    fresh = rig.preview(revision)
+    assert fresh.status_code == 200
+    token = fresh.json()["confirmation_token"]
+    assert token is not None
+    assert rig.add(token).status_code == 204
+    assert rig.add(token).status_code == 204
+    assert sum(call.url.path == kroger.CART_ADD_PATH for call in rig.calls) == 1
+
+
+def test_preview_without_connection_keeps_entry_conflict(rig: Rig) -> None:
+    assert rig.preview().status_code == 409
+    assert rig.calls == []
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_preview_rejects_reconnect_during_lookup(rig: Rig, empty: bool) -> None:
+    rig.connected()
+    _, state = rig.start()
+    rig.products_empty = empty
+    products_lock = Lock()
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == kroger.PRODUCTS_PATH:
+            with products_lock:
+                return rig.handle(request)
+        return rig.handle(request)
+
+    def reconnect(request: httpx.Request) -> None:
+        if request.url.path == kroger.PRODUCTS_PATH:
+            rig.hook = None
+            assert rig.callback(state).headers["location"].endswith("kroger=connected")
+
+    rig.hook = reconnect
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http:
+        _override(
+            KrogerClient(
+                "invented-id",
+                "invented-secret",
+                base_url=kroger.HOSTS["certification"],
+                client=http,
+            )
+        )
+        assert rig.preview().status_code == 422
+    assert (
+        rig.session.scalar(
+            select(SecurityIntent).where(SecurityIntent.kind == "cart_confirmation")
+        )
+        is None
+    )

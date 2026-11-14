@@ -118,9 +118,12 @@ SELECT NOT EXISTS (
           AND p.prokind = 'f' AND p.provolatile = 'v' AND NOT p.proretset
           AND p.prolang = (SELECT oid FROM pg_language WHERE lanname = 'sql')
           AND p.proconfig = ARRAY['search_path=pg_catalog']
-          AND regexp_replace(p.prosrc, '[[:space:]]', '', 'g') =
+          AND regexp_replace(p.prosrc, '[[:space:]]', '', 'g') IN (
               'LOCKTABLEpublic.alembic_versionINSHAREMODENOWAIT;'
-              'SELECTcount(*)=1ANDmin(version_num)=''0018''FROMpublic.alembic_version'
+              'SELECTcount(*)=1ANDmin(version_num)=''0018''FROMpublic.alembic_version',
+              'LOCKTABLEpublic.alembic_versionINSHAREMODENOWAIT;'
+              'SELECTcount(*)=1ANDmin(version_num)=''0019''FROMpublic.alembic_version'
+          )
           AND NOT EXISTS (
               SELECT 1 FROM aclexplode(COALESCE(
                   p.proacl, acldefault('f', p.proowner)

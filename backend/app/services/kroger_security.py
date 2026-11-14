@@ -84,6 +84,13 @@ class CartOutcome:
     state: TerminalState
 
 
+@dataclass(frozen=True)
+class ConnectionIdentity:
+    pairing_generation: UUID
+    connection_generation: UUID
+    connection_version: UUID | None
+
+
 def _seconds(now_seconds: int | None) -> int:
     value = int(time.time()) if now_seconds is None else now_seconds
     if type(value) is not int or not 0 <= value <= 253402271999:
@@ -304,16 +311,46 @@ def consume_oauth_state(
     return owner.pairing_generation
 
 
-def _connection(session: Session, owner_id: int) -> UUID:
+def _connection_version(session: Session, owner_id: int) -> UUID | None:
     row = session.scalar(
         select(KrogerCustomerToken)
         .where(KrogerCustomerToken.user_id == owner_id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
-    if row is None:
+    return row.connection_version if row is not None else None
+
+
+def connection_identity(session: Session, owner_id: int) -> ConnectionIdentity:
+    """Read current generations under owner and token locks."""
+    owner = _owner(session, owner_id)
+    return ConnectionIdentity(
+        owner.pairing_generation,
+        owner.connection_generation,
+        _connection_version(session, owner_id),
+    )
+
+
+def advance_connection(
+    session: Session, owner_id: int, expected: ConnectionIdentity
+) -> None:
+    """Advance the captured connection.
+
+    The caller MUST commit this generation with its token replacement.
+    """
+    if connection_identity(session, owner_id) != expected:
         raise SecurityIntentError()
-    return row.connection_version
+    owner = _owner(session, owner_id)
+    owner.connection_generation = uuid4()
+    owner.updated_at = _at(_seconds(None))
+    session.flush()
+
+
+def _connection(session: Session, owner_id: int) -> UUID:
+    version = _connection_version(session, owner_id)
+    if version is None:
+        raise SecurityIntentError()
+    return version
 
 
 def _canonical_hash(payload: CartPayload) -> str:

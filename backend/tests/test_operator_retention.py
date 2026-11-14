@@ -18,6 +18,7 @@ import pytest
 import sqlalchemy as sa
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from cryptography.fernet import Fernet
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
@@ -1209,6 +1210,183 @@ def test_postgres_later_schema_version_refuses_retention(database: Database) -> 
     with database.engine.begin() as connection:
         connection.execute(
             sa.text("UPDATE public.alembic_version SET version_num = '0019'")
+        )
+    with pytest.raises(RetentionError):
+        database.service.preview(owner_id=1, before=database.before)
+    assert _count(database, "jobs") == _count(database, "grocery_evidence") == 1
+
+
+def _upgrade_connection_generation(database: Database) -> None:
+    migration = _module(
+        Path(__file__).resolve().parents[1]
+        / "alembic"
+        / "versions"
+        / "0019_kroger_connection_generation.py"
+    )
+    with database.engine.begin() as connection:
+        connection.execute(
+            sa.text(f'SET LOCAL SESSION AUTHORIZATION "{database.dba_role}"')
+        )
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.upgrade()
+        connection.execute(
+            sa.text("UPDATE public.alembic_version SET version_num = '0019'")
+        )
+
+
+def test_postgres_connection_upgrade_preserves_data_and_retention(
+    database: Database,
+) -> None:
+    pairing, version, intent_id = uuid4(), uuid4(), uuid4()
+    cipher = Fernet(Fernet.generate_key())
+    access = cipher.encrypt(b"synthetic-access")
+    refresh = cipher.encrypt(b"synthetic-refresh")
+    guard_sql = sa.text(
+        "SELECT oid, proowner, proacl::text, prosecdef, proconfig, provolatile, "
+        "prolang, obj_description(oid, 'pg_proc') FROM pg_proc "
+        "WHERE oid = 'public.fewia_retention_schema_supported()'::regprocedure"
+    )
+    with database.engine.begin() as connection:
+        driver = cast(PgConnection, connection.connection.driver_connection)
+        provision_runtime_access(driver, PASSWORD)
+        connection.execute(
+            sa.text(
+                "INSERT INTO public.kroger_owners(user_id, pairing_generation) "
+                "VALUES (1, :pairing)"
+            ),
+            {"pairing": pairing},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO public.kroger_customer_tokens "
+                "(user_id, connection_version, access_token, refresh_token, "
+                "access_expires_at) VALUES (1, :version, :access, :refresh, "
+                "clock_timestamp() + interval '30 minutes')"
+            ),
+            {"version": version, "access": access, "refresh": refresh},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO public.security_intents "
+                "(id, user_id, kind, digest, details, state, expires_at) "
+                "VALUES (:id, 1, 'oauth_state', :digest, CAST(:details AS json), "
+                "'consumed', clock_timestamp() + interval '5 minutes')"
+            ),
+            {
+                "id": intent_id,
+                "digest": "b" * 64,
+                "details": json.dumps({"pairing_generation": str(pairing)}),
+            },
+        )
+        owner_before = connection.scalar(
+            sa.text("SELECT to_jsonb(o) FROM public.kroger_owners o WHERE user_id = 1")
+        )
+        tokens_before = connection.scalar(
+            sa.text("SELECT to_jsonb(t) FROM public.kroger_customer_tokens t")
+        )
+        intent_before = connection.scalar(
+            sa.text("SELECT to_jsonb(i) FROM public.security_intents i")
+        )
+        guard_before = connection.execute(guard_sql).one()
+        acl_before = connection.scalar(
+            sa.text(
+                "SELECT relacl::text FROM pg_class "
+                "WHERE oid = 'kroger_owners'::regclass"
+            )
+        )
+    preview_before = database.service.preview(owner_id=1, before=database.before)
+    _upgrade_connection_generation(database)
+    preview_after = database.service.preview(owner_id=1, before=database.before)
+    assert preview_before["target_identity"] == preview_after["target_identity"]
+    assert preview_before["digest"] == preview_after["digest"]
+    with database.engine.begin() as connection:
+        assert connection.execute(guard_sql).one() == guard_before
+        assert (
+            connection.scalar(
+                sa.text(
+                    "SELECT relacl::text FROM pg_class "
+                    "WHERE oid = 'kroger_owners'::regclass"
+                )
+            )
+            == acl_before
+        )
+        assert (
+            connection.scalar(
+                sa.text(
+                    "SELECT to_jsonb(o) - 'connection_generation' "
+                    "FROM public.kroger_owners o WHERE user_id = 1"
+                )
+            )
+            == owner_before
+        )
+        assert (
+            connection.scalar(
+                sa.text("SELECT to_jsonb(t) FROM public.kroger_customer_tokens t")
+            )
+            == tokens_before
+        )
+        assert (
+            connection.scalar(
+                sa.text("SELECT to_jsonb(i) FROM public.security_intents i")
+            )
+            == intent_before
+        )
+        generation = connection.scalar(
+            sa.text(
+                "SELECT connection_generation FROM public.kroger_owners "
+                "WHERE user_id = 1"
+            )
+        )
+        assert isinstance(generation, UUID)
+        connection.execute(sa.text("SET LOCAL ROLE fewia_app"))
+        inserted = connection.scalar(
+            sa.text(
+                "INSERT INTO public.kroger_owners(user_id) VALUES (2) "
+                "RETURNING connection_generation"
+            )
+        )
+        assert isinstance(inserted, UUID) and inserted != generation
+        assert connection.scalar(sa.text(UNSAFE_ACCESS_SQL)) is False
+        connection.execute(sa.text("RESET ROLE"))
+
+
+def test_postgres_upgraded_retention_rejects_unknown_revision(
+    database: Database,
+) -> None:
+    _upgrade_connection_generation(database)
+    preview = database.service.preview(owner_id=1, before=database.before)
+    assert preview["blockers"] == []
+    with database.engine.begin() as connection:
+        connection.execute(
+            sa.text("UPDATE public.alembic_version SET version_num = '0020'")
+        )
+    with pytest.raises(RetentionError):
+        database.service.preview(owner_id=1, before=database.before)
+    assert _count(database, "jobs") == _count(database, "grocery_evidence") == 1
+
+
+def test_postgres_retention_rejects_expanded_schema_guard(database: Database) -> None:
+    _upgrade_connection_generation(database)
+    with database.engine.begin() as connection:
+        connection.execute(
+            sa.text(f'SET LOCAL SESSION AUTHORIZATION "{database.dba_role}"')
+        )
+        connection.execute(
+            sa.text(
+                """
+CREATE OR REPLACE FUNCTION public.fewia_retention_schema_supported() RETURNS boolean
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $$
+LOCK TABLE public.alembic_version IN SHARE MODE NOWAIT;
+SELECT count(*) = 1 AND min(version_num) IN ('0018', '0019') FROM public.alembic_version
+$$
+"""
+            )
+        )
+        assert (
+            connection.scalar(
+                sa.text("SELECT public.fewia_retention_schema_supported()")
+            )
+            is True
         )
     with pytest.raises(RetentionError):
         database.service.preview(owner_id=1, before=database.before)

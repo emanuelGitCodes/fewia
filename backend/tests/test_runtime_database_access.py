@@ -5,7 +5,7 @@ import re
 from collections.abc import Iterator
 from typing import cast
 from unittest.mock import MagicMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -31,7 +31,7 @@ from app.runtime_database_policy import (
     UNSAFE_ROLE_SQL,
     validate_runtime_password,
 )
-from app.security_models import QuotaCounter
+from app.security_models import KrogerOwner, QuotaCounter
 from app.services.job_submission import submit_job
 from app.services.security_admission import (
     OwnerUnavailableError,
@@ -1318,14 +1318,18 @@ def test_postgres_runtime_security_records_support_lifecycle(
         admin.execute("SET LOCAL ROLE fewia_app")
         owner = admin.execute(
             "INSERT INTO kroger_owners (user_id) VALUES (987654321) "
-            "RETURNING pairing_generation"
+            "RETURNING pairing_generation, connection_generation"
         ).fetchone()
         assert owner is not None and isinstance(owner[0], UUID)
+        assert isinstance(owner[1], UUID) and owner[1] != owner[0]
         replacement = admin.execute(
             "UPDATE kroger_owners SET pairing_generation = gen_random_uuid(), "
-            "updated_at = now() WHERE user_id = 987654321 RETURNING pairing_generation"
+            "connection_generation = gen_random_uuid(), updated_at = now() "
+            "WHERE user_id = 987654321 "
+            "RETURNING pairing_generation, connection_generation"
         ).fetchone()
         assert replacement is not None and replacement[0] != owner[0]
+        assert isinstance(replacement[1], UUID) and replacement[1] != owner[1]
         intent = admin.execute(
             "INSERT INTO security_intents (user_id, kind, digest, expires_at) "
             "VALUES (987654321, 'pairing_ticket', %s, now() + interval '1 minute') "
@@ -1343,6 +1347,38 @@ def test_postgres_runtime_security_records_support_lifecycle(
         admin.execute("DELETE FROM security_intents WHERE id = %s", (intent[0],))
         admin.execute("DELETE FROM kroger_owners WHERE user_id = 987654321")
         admin.execute("RESET ROLE")
+    _assert_privileges(admin)
+
+
+def test_postgres_runtime_orm_connection_generation_supports_write(
+    orm_admin: PgConnection, orm_connection: Connection
+) -> None:
+    admin = orm_admin
+    admin.execute(
+        "INSERT INTO users (id, display_name) VALUES (987654321, 'Synthetic owner')"
+    )
+    provision_runtime_access(admin, PASSWORD)
+    orm_connection.exec_driver_sql("SET LOCAL ROLE fewia_app")
+    try:
+        with Session(
+            bind=orm_connection, join_transaction_mode="create_savepoint"
+        ) as session:
+            owner = KrogerOwner(user_id=987654321)
+            session.add(owner)
+            session.flush()
+            assert isinstance(owner.connection_generation, UUID)
+            pairing = owner.pairing_generation
+            original = owner.connection_generation
+            replacement = uuid4()
+            owner.connection_generation = replacement
+            session.flush()
+            session.expire_all()
+            current = session.get(KrogerOwner, 987654321)
+            assert current is not None
+            assert current.pairing_generation == pairing
+            assert current.connection_generation == replacement != original
+    finally:
+        orm_connection.exec_driver_sql("RESET ROLE")
     _assert_privileges(admin)
 
 

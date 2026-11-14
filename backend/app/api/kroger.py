@@ -306,6 +306,9 @@ def kroger_callback(
             raise security.SecurityIntentError()
         admission.reserve_action(session, user_id, "retailer")
         generation = security.consume_oauth_state(session, user_id, state)
+        identity = security.connection_identity(session, user_id)
+        if identity.pairing_generation != generation:
+            raise security.SecurityIntentError()
         session.commit()
     except (admission.AdmissionLimitError, admission.OwnerUnavailableError):
         session.rollback()
@@ -315,15 +318,7 @@ def kroger_callback(
         return _finish(settings, "error")
     try:
         tokens = client.exchange_code(code, settings.kroger_redirect_uri)
-        admission.lock_active_owner(session, user_id)
-        owner = session.scalar(
-            select(KrogerOwner)
-            .where(KrogerOwner.user_id == user_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        if owner is None or owner.pairing_generation != generation:
-            raise security.SecurityIntentError()
+        security.advance_connection(session, user_id, identity)
         store_tokens(session, user_id, cipher, tokens)
         session.commit()
     except (
@@ -400,7 +395,8 @@ def preview_kroger_cart(
             snapshot = load_base_snapshot(revision)
         except ProposalInvalid:
             raise HTTPException(409, REVISION_INVALID_MESSAGE) from None
-        if not is_connected(session, user_id):
+        identity = security.connection_identity(session, user_id)
+        if identity.connection_version is None:
             raise HTTPException(409, NOT_CONNECTED_MESSAGE)
         session.commit()
     try:
@@ -409,6 +405,8 @@ def preview_kroger_cart(
         raise HTTPException(503, UNAVAILABLE_MESSAGE) from None
     with _transaction(session):
         if _generation(request, session, user_id, settings) != generation:
+            raise security.SecurityIntentError()
+        if security.connection_identity(session, user_id) != identity:
             raise security.SecurityIntentError()
         token = None
         if preview.items:
