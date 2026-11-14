@@ -2,14 +2,14 @@
 # PreToolUse hook for Bash.
 # Deny: skipping gitleaks, deleting supervisor checkpoint dirs, force pushes,
 # and pushes to main. Ask: every other external write (push, PR, merge).
-# Codex accepts one exact push with a matching local approval record.
+# Codex accepts one exact publication command with a local approval record.
 set -euo pipefail
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
-# Codex hooks cannot ask. The coordinator records a separately approved push.
+# Codex hooks cannot ask. The coordinator records a separately approved command.
 ask() {
   [ "${FEWIA_HOOK_HOST:-}" = codex ] && deny "$1 Codex hooks cannot ask: give the command to the user to run."
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
@@ -41,15 +41,15 @@ grep -Eq 'SKIP=gitleaks[^|;&]*\bgit\b' <<<"$cmd" \
 grep -Eq 'rm\s+(-[a-zA-Z]+\s+)*[^ ]*\.fewia-supervisor' <<<"$cmd" \
   && deny "Never delete .fewia-supervisor-* dirs. A stale lease blocks the next writer run; clear it through dev_supervisor."
 classification="$(printf '%s' "$input" | python3 "$(dirname "${BASH_SOURCE[0]}")/git-publication-command.py" 2>/dev/null)" \
-  || deny "Git command classification failed."
+  || deny "Publication command classification failed."
 case "$classification" in
   gitleaks) deny "AGENTS.md: agents MUST NOT skip the gitleaks hook." ;;
   force) deny "Force push is blocked. Open a new branch or ask the user." ;;
   broad) deny "Broad and destructive pushes need a separate user action." ;;
   main) deny "AGENTS.md: agents MUST NOT push to main." ;;
-  ambiguous) deny "Git write with an unsupported or ambiguous form needs a separate user action." ;;
+  ambiguous) deny "Publication command with an unsupported or ambiguous form needs a separate user action." ;;
   allow|external) ;;
-  *) deny "Git command classification failed." ;;
+  *) deny "Publication command classification failed." ;;
 esac
 if [ "$classification" = external ] || grep -Eq 'gh\s+pr\s+(create|merge|edit|close|ready)\b|gh\s+api\b.*-X\s*(POST|PATCH|PUT|DELETE)' <<<"$cmd"; then
   if [ "${FEWIA_HOOK_HOST:-}" = codex ] && \

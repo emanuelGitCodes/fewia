@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass
 
@@ -11,23 +12,24 @@ class Word:
     text: str
     literal: bool
     plain: bool
+    single: bool
 
 
 def words(command: str) -> list[Word | str]:
     tokens: list[Word | str] = []
     value: list[str] = []
     active = False
-    literal = plain = True
+    literal = plain = single = True
     quote = ""
     index = 0
 
     def finish() -> None:
-        nonlocal active, literal, plain
+        nonlocal active, literal, plain, single
         if active:
-            tokens.append(Word("".join(value), literal, plain))
+            tokens.append(Word("".join(value), literal, plain, single))
         value.clear()
         active = False
-        literal = plain = True
+        literal = plain = single = True
 
     while index < len(command):
         if len(tokens) > 8192:
@@ -51,6 +53,15 @@ def words(command: str) -> list[Word | str]:
                 value.append(char)
                 if quote == '"' and char in "$`":
                     literal = False
+                    if (
+                        char == "`"
+                        or re.match(
+                            r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})",
+                            command[index:],
+                        )
+                        is None
+                    ):
+                        single = False
         elif char in "'\"":
             quote = char
             active = True
@@ -74,6 +85,7 @@ def words(command: str) -> list[Word | str]:
             value.append(char)
             if char in "$`*?[{}~":
                 literal = False
+                single = False
         index += 1
     if quote:
         raise ValueError
@@ -159,6 +171,155 @@ def git_command(arguments: list[Word]) -> tuple[int, bool]:
     return index, True
 
 
+def gh_command(arguments: list[Word]) -> str:
+    words = arguments[1:]
+    values = [word.text for word in words]
+    index = 0
+    while index < len(values) and values[index].startswith("-"):
+        if not words[index].literal:
+            return "ambiguous"
+        option = values[index]
+        if option in {"--help", "-h", "--version"}:
+            return "allow"
+        elif option in {"--repo", "-R", "--hostname"}:
+            if index + 1 >= len(values) or not words[index + 1].literal:
+                return "ambiguous"
+            index += 2
+        elif option.startswith(("--repo=", "--hostname=", "-R")):
+            index += 1
+        else:
+            return "ambiguous"
+    words = words[index:]
+    values = values[index:]
+    if not values:
+        return "allow"
+    if not words[0].literal:
+        return "ambiguous"
+    if values[0] == "help":
+        return "allow"
+    if values[0] == "pr":
+        index = 1
+        while index < len(values) and values[index].startswith("-"):
+            if not words[index].literal:
+                return "ambiguous"
+            option = values[index]
+            if option in {"--help", "-h"}:
+                return "allow"
+            if option in {"--repo", "-R"} and index + 1 < len(values):
+                if not words[index + 1].literal:
+                    return "ambiguous"
+                index += 2
+            elif option.startswith(("--repo=", "-R")):
+                index += 1
+            else:
+                return "ambiguous"
+        if index >= len(values):
+            return "allow"
+        if not words[index].literal:
+            return "ambiguous"
+        action = values[index]
+        if action in {
+            "create",
+            "edit",
+            "merge",
+            "close",
+            "ready",
+            "reopen",
+            "review",
+            "comment",
+            "lock",
+            "unlock",
+        }:
+            if any(not word.literal for word in words[index + 1 :]):
+                return "ambiguous"
+            return "external"
+        if action in {"view", "list", "status", "checks", "diff", "checkout", "help"}:
+            return "allow"
+        return "ambiguous"
+    if values[0] != "api":
+        return "allow"
+    method: str | None = None
+    inputs = False
+    index = 1
+    while index < len(values):
+        if not words[index].literal:
+            return "ambiguous"
+        option = values[index]
+        if option in {"--help", "-h"}:
+            return "allow"
+        if option in {"-X", "--method"}:
+            index += 1
+            if index >= len(values) or not words[index].literal or method is not None:
+                return "ambiguous"
+            method = values[index]
+        elif option.startswith("--method=") or option.startswith("-X"):
+            if method is not None:
+                return "ambiguous"
+            method = (
+                option.split("=", 1)[1]
+                if option.startswith("--")
+                else option[2:].removeprefix("=")
+            )
+        elif option in {"-f", "-F", "--field", "--raw-field", "--input"}:
+            inputs = True
+            index += 1
+            if index >= len(values) or not words[index].single:
+                return "ambiguous"
+        elif option.startswith(("--field=", "--raw-field=", "--input=", "-f", "-F")):
+            inputs = True
+        elif option in {
+            "-H",
+            "--header",
+            "--hostname",
+            "--cache",
+            "--jq",
+            "-q",
+            "--template",
+            "-t",
+            "--preview",
+            "-p",
+        }:
+            index += 1
+            if index >= len(values) or not words[index].single:
+                return "ambiguous"
+        elif option in {
+            "--paginate",
+            "--slurp",
+            "--silent",
+            "-i",
+            "--include",
+            "--verbose",
+        }:
+            pass
+        elif option.startswith(
+            (
+                "--header=",
+                "-H",
+                "--hostname=",
+                "--cache=",
+                "--jq=",
+                "-q",
+                "--template=",
+                "-t",
+                "--preview=",
+                "-p",
+            )
+        ):
+            pass
+        elif option.startswith("-"):
+            return "ambiguous"
+        elif option == "graphql":
+            inputs = True
+        index += 1
+    if method is not None:
+        if method in {"GET", "HEAD", "OPTIONS"}:
+            return "allow"
+        if method in {"POST", "PATCH", "PUT", "DELETE"}:
+            return "external"
+        return "ambiguous"
+    return "external" if inputs else "allow"
+
+
 def classify_segment(segment: list[Word | str]) -> str:
     arguments: list[Word] = []
     redirected = False
@@ -176,9 +337,11 @@ def classify_segment(segment: list[Word | str]) -> str:
     if (
         not arguments
         or not arguments[0].literal
-        or arguments[0].text.rsplit("/", 1)[-1].casefold() != "git"
+        or arguments[0].text.rsplit("/", 1)[-1].casefold() not in {"git", "gh"}
     ):
         return "allow"
+    if arguments[0].text.rsplit("/", 1)[-1].casefold() == "gh":
+        return gh_command(arguments)
     if skip_gitleaks:
         return "gitleaks"
     index, familiar = git_command(arguments)

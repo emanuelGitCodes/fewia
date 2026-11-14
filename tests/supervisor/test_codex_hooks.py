@@ -1,3 +1,5 @@
+import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -318,9 +320,11 @@ class PublicationRepo:
             timeout=10,
         )
 
-    def record(self, *extra: str) -> subprocess.CompletedProcess[str]:
+    def record(
+        self, *extra: str, action: str = "record"
+    ) -> subprocess.CompletedProcess[str]:
         return self.cli(
-            "record",
+            action,
             "--checkout",
             str(self.project),
             "--remote",
@@ -1413,3 +1417,776 @@ def test_publication_checker_rejects_malformed_context(
     assert repo.consume(payload).returncode == 1
     assert repo.approval.exists()
     assert_permission(repo.hook(command), "allow")
+
+
+@dataclass
+class BodyPublication:
+    repo: PublicationRepo
+    body: Path
+    response: Path
+    calls: Path
+    checksum: str
+    remote_checksum: str
+
+    @property
+    def command(self) -> str:
+        return f"gh pr edit 494 --repo github.com/example/fewia --body-file {self.body}"
+
+    def record(self, *extra: str) -> subprocess.CompletedProcess[str]:
+        return self.repo.record(
+            "--repo",
+            "example/fewia",
+            "--pr",
+            "494",
+            "--body-file",
+            str(self.body),
+            "--body-sha256",
+            self.checksum,
+            "--remote-body-sha256",
+            self.remote_checksum,
+            *extra,
+            action="record-pr-body",
+        )
+
+    def approved(self) -> str:
+        result = self.record()
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == self.command + "\n"
+        return self.command
+
+    def count(self) -> int:
+        return len(self.calls.read_text().splitlines()) if self.calls.exists() else 0
+
+
+@pytest.fixture
+def body_publication(
+    publication_repo: PublicationRepo, tmp_path: Path
+) -> BodyPublication:
+    repo = publication_repo
+    bodies = repo.project / "bodies"
+    bodies.mkdir()
+    body = bodies / "reviewed-body.md"
+    body.write_bytes(b"Reviewed body.\n")
+    body.chmod(0o600)
+    response = tmp_path / "view.json"
+    response.write_text(
+        json.dumps(
+            {
+                "number": 494,
+                "url": "https://github.com/example/fewia/pull/494",
+                "headRefOid": repo.git("rev-parse", "HEAD"),
+                "headRefName": "codex/security-hardening",
+                "isCrossRepository": False,
+                "state": "OPEN",
+                "isDraft": True,
+                "body": "Previous remote body.",
+            }
+        )
+    )
+    calls = tmp_path / "gh-calls"
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    executable = shim / "gh"
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, pathlib, sys, time\n"
+        "expected = ['pr', 'view', '494', '--repo', "
+        "'github.com/' + os.environ.get('FAKE_GH_REPO', 'example/fewia'), "
+        "'--json', 'number,url,headRefOid,headRefName,"
+        "isCrossRepository,state,isDraft,body']\n"
+        "assert sys.argv[1:] == expected\n"
+        f"assert os.getcwd() == {str(repo.project)!r}\n"
+        "assert os.environ['GH_PROMPT_DISABLED'] == '1'\n"
+        "assert os.environ['GH_PAGER'] == 'cat'\n"
+        "assert os.environ['PAGER'] == 'cat'\n"
+        f"with open({str(calls)!r}, 'a') as output:\n"
+        "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "print('private-remote-marker', file=sys.stderr)\n"
+        "mode = os.environ.get('FAKE_GH_MODE')\n"
+        "if mode == 'timeout':\n"
+        "    time.sleep(10)\n"
+        "if mode == 'oversize':\n"
+        "    sys.stdout.write('x' * 262145)\n"
+        "    sys.exit(0)\n"
+        "if mode == 'failure':\n"
+        "    sys.exit(1)\n"
+        "if mode == 'body-change':\n"
+        f"    pathlib.Path({str(body)!r}).write_bytes(b'Unreviewed body.')\n"
+        "if mode == 'config-change':\n"
+        f"    config = pathlib.Path({str(repo.project / '.git/config')!r})\n"
+        "    with config.open('a') as output:\n"
+        "        output.write('\\n[alias]\\n changed = status\\n')\n"
+        f"sys.stdout.buffer.write(pathlib.Path({str(response)!r}).read_bytes())\n"
+    )
+    executable.chmod(0o700)
+    repo.environment["PATH"] = str(shim) + os.pathsep + repo.environment["PATH"]
+    repo.environment["GH_PAGER"] = "inherited-pager"
+    return BodyPublication(
+        repo,
+        body,
+        response,
+        calls,
+        hashlib.sha256(body.read_bytes()).hexdigest(),
+        hashlib.sha256(b"Previous remote body.").hexdigest(),
+    )
+
+
+@pytest.mark.parametrize("remote_body", ["", "Previous remote body.", "Résumé.\n"])
+def test_pr_body_grant_once(
+    body_publication: BodyPublication, remote_body: str
+) -> None:
+    item = body_publication
+    view = json.loads(item.response.read_bytes())
+    view["body"] = remote_body
+    item.response.write_text(json.dumps(view))
+    item.remote_checksum = hashlib.sha256(remote_body.encode()).hexdigest()
+    command = item.approved()
+    record = json.loads(item.repo.approval.read_bytes())
+    assert record["version"] == 2
+    assert record["body_sha256"] == item.checksum
+    assert (
+        record["remote_body_sha256"] == hashlib.sha256(remote_body.encode()).hexdigest()
+    )
+    assert item.count() == 1
+    assert_permission(item.repo.hook(command, host=None), "ask")
+    assert item.count() == 1
+    assert_permission(item.repo.hook(command, wrapper=True), "allow")
+    assert item.count() == 2
+    assert not item.repo.approval.exists()
+    assert_permission(item.repo.hook(command), "deny")
+    assert item.count() == 2
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda command: command + " ",
+        lambda command: command + "\n",
+        lambda command: command + "; true",
+        lambda command: "true && " + command,
+        lambda command: command.replace("gh", "g'h'", 1),
+        lambda command: command.replace("gh", "/usr/bin/gh", 1),
+        lambda command: "command " + command,
+        lambda command: "env GH_HOST=github.com " + command,
+        lambda command: "exec " + command,
+        lambda command: command.replace("pr edit", "p''r e''dit"),
+        lambda command: command.replace("edit", r"e\dit"),
+        lambda command: command.replace("edit", "ed\\\nit"),
+        lambda command: command.replace("494", "495"),
+        lambda command: command.replace("github.com/example/fewia", "example/fewia"),
+        lambda command: command.replace("example/fewia", "example/other"),
+        lambda command: command.replace("--body-file", "--body-file="),
+        lambda command: command + " --title changed",
+        lambda command: command + " --base main",
+        lambda command: command + " --add-label changed",
+        lambda command: command + " --add-reviewer someone",
+        lambda command: command.replace("edit", "ready"),
+        lambda command: command.replace("edit", "merge"),
+    ],
+)
+def test_pr_body_exact_raw_match(
+    body_publication: BodyPublication, change: Callable[[str], str]
+) -> None:
+    item = body_publication
+    command = item.approved()
+    assert_permission(item.repo.hook(change(command)), "deny")
+    assert item.repo.approval.exists()
+    assert item.count() == 1
+    assert_permission(item.repo.hook(command), "allow")
+
+
+@pytest.mark.parametrize("stage", ["record", "consume"])
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "mode",
+        "symlink",
+        "parent-symlink",
+        "hardlink",
+        "fifo",
+        "directory",
+        "oversize",
+        "utf8",
+        "nul",
+        "changed",
+        "replaced",
+    ],
+)
+def test_pr_body_file_boundary(
+    body_publication: BodyPublication, stage: str, damage: str
+) -> None:
+    item = body_publication
+    if stage == "consume":
+        item.approved()
+    path = item.body
+    backup = path.with_suffix(".backup")
+    if damage == "mode":
+        path.chmod(0o640)
+    elif damage in {"symlink", "fifo", "directory", "replaced"}:
+        path.rename(backup)
+        if damage == "symlink":
+            path.symlink_to(backup)
+        elif damage == "fifo":
+            os.mkfifo(path, 0o600)
+        elif damage == "directory":
+            path.mkdir(mode=0o600)
+        else:
+            path.write_bytes(backup.read_bytes())
+            path.chmod(0o600)
+    elif damage == "parent-symlink":
+        path.parent.rename(path.parent.with_name("moved-bodies"))
+        path.parent.symlink_to(path.parent.with_name("moved-bodies"))
+    elif damage == "hardlink":
+        os.link(path, backup)
+    else:
+        content = {
+            "oversize": b"x" * 65537,
+            "utf8": b"\xff",
+            "nul": b"x\0y",
+            "changed": b"Unreviewed body.",
+        }[damage]
+        path.write_bytes(content)
+        if stage == "record":
+            item.checksum = hashlib.sha256(content).hexdigest()
+    if stage == "record" and damage in {"changed", "replaced"}:
+        if damage == "changed":
+            item.checksum = "0" * 64
+        else:
+            assert item.record().returncode == 0
+            return
+    if stage == "record":
+        result = item.record()
+        assert result.returncode == 1
+        assert "Unreviewed" not in result.stderr
+        assert not item.repo.approval.exists()
+    else:
+        assert_permission(item.repo.hook(item.command), "deny")
+        assert item.repo.approval.exists()
+    assert item.count() == (1 if stage == "consume" else 0)
+
+
+def test_pr_body_snapshot_ancestor_replaced(
+    body_publication: BodyPublication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    item = body_publication
+    spec = importlib.util.spec_from_file_location(
+        "publication_approval_snapshot", HOOKS / "publication-approval.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    original = module.canonical_path
+    replaced = False
+
+    def replace_ancestor(value: str) -> Path:
+        nonlocal replaced
+        item.body.parent.rename(item.body.parent.with_name("moved-bodies"))
+        item.body.parent.mkdir()
+        item.body.write_bytes(b"Reviewed body.\n")
+        item.body.chmod(0o600)
+        replaced = True
+        result: Path = original(value)
+        return result
+
+    monkeypatch.setattr(module, "canonical_path", replace_ancestor)
+    with pytest.raises(module.Rejected):
+        module.body_snapshot(str(item.body))
+    assert replaced
+    assert not item.repo.approval.exists()
+    assert item.count() == 0
+
+
+@pytest.mark.parametrize("stage", ["record", "consume"])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("headRefOid", "0" * 40),
+        ("headRefName", "codex/other"),
+        ("headRefName", 12),
+        ("isCrossRepository", True),
+        ("isCrossRepository", 0),
+        ("isDraft", False),
+        ("isDraft", 1),
+        ("state", "CLOSED"),
+        ("state", "MERGED"),
+        ("url", "https://evil.invalid/example/fewia/pull/494"),
+        ("url", "https://github.com/example/other/pull/494"),
+        ("url", "https://github.com/example/fewia/pull/495"),
+        ("number", 495),
+        ("number", "494"),
+        ("number", True),
+        ("body", None),
+        ("body", "bad\0body"),
+    ],
+)
+def test_pr_body_remote_boundary(
+    body_publication: BodyPublication, stage: str, field: str, value: object
+) -> None:
+    item = body_publication
+    if stage == "consume":
+        item.approved()
+    view = json.loads(item.response.read_bytes())
+    view[field] = value
+    item.response.write_text(json.dumps(view))
+    if stage == "record":
+        result = item.record()
+        assert result.returncode == 1
+        assert "private-remote-marker" not in result.stderr
+        assert not item.repo.approval.exists()
+    else:
+        assert_permission(item.repo.hook(item.command), "deny")
+        assert item.repo.approval.exists()
+    assert item.count() == (2 if stage == "consume" else 1)
+
+
+@pytest.mark.parametrize("stage", ["record", "consume"])
+@pytest.mark.parametrize(
+    "failure",
+    ["timeout", "oversize", "failure", "json", "duplicate", "extra", "missing"],
+)
+def test_pr_body_view_failure(
+    body_publication: BodyPublication, stage: str, failure: str
+) -> None:
+    item = body_publication
+    if stage == "consume":
+        item.approved()
+    if failure in {"json", "duplicate"}:
+        item.response.write_text(
+            "{" if failure == "json" else '{"number":494,"number":494}'
+        )
+    elif failure in {"extra", "missing"}:
+        view = json.loads(item.response.read_bytes())
+        if failure == "extra":
+            view["extra"] = True
+        else:
+            del view["body"]
+        item.response.write_text(json.dumps(view))
+    else:
+        item.repo.environment["FAKE_GH_MODE"] = failure
+    started = time.monotonic()
+    if stage == "record":
+        result = item.record()
+        assert result.returncode == 1
+        assert "private-remote-marker" not in result.stderr
+        assert not item.repo.approval.exists()
+    else:
+        assert_permission(item.repo.hook(item.command), "deny")
+        assert item.repo.approval.exists()
+    assert time.monotonic() - started < 4
+    assert item.count() == (2 if stage == "consume" else 1)
+
+
+def test_pr_body_selector_timeout_preserves_record(
+    body_publication: BodyPublication,
+) -> None:
+    item = body_publication
+    command = item.approved()
+    original = item.repo.approval.read_bytes()
+    item.repo.environment["FAKE_GH_MODE"] = "timeout"
+    started = time.monotonic()
+    result = item.repo.hook(command)
+    elapsed = time.monotonic() - started
+    assert_permission(result, "deny")
+    assert elapsed < 5
+    assert item.count() == 2
+    assert item.repo.approval.read_bytes() == original
+    assert "private-remote-marker" not in result.stdout + result.stderr
+
+
+def test_pr_body_remote_body_drift(body_publication: BodyPublication) -> None:
+    item = body_publication
+    command = item.approved()
+    view = json.loads(item.response.read_bytes())
+    view["body"] = "Other user's edit."
+    item.response.write_text(json.dumps(view))
+    assert_permission(item.repo.hook(command), "deny")
+    assert item.repo.approval.exists()
+
+
+@pytest.mark.parametrize("failure", ["body-change", "config-change"])
+def test_pr_body_local_drift_during_view(
+    body_publication: BodyPublication, failure: str
+) -> None:
+    item = body_publication
+    command = item.approved()
+    item.repo.environment["FAKE_GH_MODE"] = failure
+    assert_permission(item.repo.hook(command), "deny")
+    assert item.repo.approval.exists()
+
+
+@pytest.mark.parametrize("field", ["cwd", "config", "sha"])
+def test_pr_body_local_context_before_view(
+    body_publication: BodyPublication, field: str
+) -> None:
+    item = body_publication
+    command = item.approved()
+    location = None
+    if field == "cwd":
+        location = {"cwd": str(item.repo.project / ".claude")}
+    elif field == "config":
+        item.repo.git("config", "alias.changed", "status")
+    else:
+        item.repo.git(
+            "-c",
+            "user.name=Hook",
+            "-c",
+            "user.email=hook@example.invalid",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "Next",
+        )
+    assert_permission(item.repo.hook(command, location=location), "deny")
+    assert item.repo.approval.exists()
+    assert item.count() == 1
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--repo", "example/other"),
+        ("--repo", "example/fewia;true"),
+        ("--repo", "example/fewia..git"),
+        ("--repo", "example/fewia/other"),
+        ("--pr", "0494"),
+        ("--pr", "0"),
+        ("--pr", "-494"),
+        ("--pr", "494;true"),
+        ("--body-sha256", "0" * 64),
+        ("--body-file", "relative.md"),
+        ("--body-file", "/tmp/a b"),
+        ("--body-file", "/tmp/a;true"),
+        ("--body-file", "/tmp/a\\b"),
+        ("--body-file", "/tmp/a*"),
+        ("--body-file", "/tmp/../reviewed.md"),
+    ],
+)
+def test_pr_body_explicit_record_fields(
+    body_publication: BodyPublication, extra: tuple[str, ...]
+) -> None:
+    item = body_publication
+    assert item.record(*extra).returncode == 1
+    assert not item.repo.approval.exists()
+    assert item.count() == 0
+
+
+def test_pr_body_remote_digest_required(body_publication: BodyPublication) -> None:
+    item = body_publication
+    result = item.repo.record(
+        "--repo",
+        "example/fewia",
+        "--pr",
+        "494",
+        "--body-file",
+        str(item.body),
+        "--body-sha256",
+        item.checksum,
+        action="record-pr-body",
+    )
+    assert result.returncode == 2
+    assert "--remote-body-sha256" in result.stderr
+    assert not item.repo.approval.exists()
+    assert item.count() == 0
+
+
+@pytest.mark.parametrize(
+    "expected",
+    ["0" * 64, "A" * 64, "a" * 63, "a" * 65, "g" * 64, "a" * 64 + "\n"],
+)
+def test_pr_body_remote_digest_rejected(
+    body_publication: BodyPublication, expected: str
+) -> None:
+    item = body_publication
+    result = item.record("--remote-body-sha256", expected)
+    assert result.returncode == 1
+    assert not item.repo.approval.exists()
+    assert item.count() == (1 if expected == "0" * 64 else 0)
+    assert "private-remote-marker" not in result.stdout + result.stderr
+
+
+def test_pr_body_remote_changed_before_record(
+    body_publication: BodyPublication,
+) -> None:
+    item = body_publication
+    view = json.loads(item.response.read_bytes())
+    view["body"] = "Other user's edit."
+    item.response.write_text(json.dumps(view))
+    assert item.record().returncode == 1
+    assert not item.repo.approval.exists()
+    assert item.count() == 1
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"GH_HOST": "elsewhere.invalid"},
+        {"GH_REPO": "example/other"},
+        {"GH_CONFIG_DIR": "/missing"},
+        {"GH_DEBUG": "api"},
+        {"DEBUG": "api"},
+        {"GH_PATH": "/missing/gh"},
+    ],
+)
+def test_pr_body_gh_environment(
+    body_publication: BodyPublication, override: dict[str, str]
+) -> None:
+    item = body_publication
+    command = item.approved()
+    assert_permission(item.repo.hook(command, overrides=override), "deny")
+    assert item.count() == 1
+    assert item.repo.approval.exists()
+    item.repo.approval.unlink()
+    item.repo.environment.update(override)
+    assert item.record().returncode == 1
+    assert not item.repo.approval.exists()
+    assert item.count() == 1
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"GH_PAGER": "custom", "PAGER": "custom"},
+        {"GH_FORCE_TTY": "80", "GH_COLOR_LABELS": "1"},
+        {"GH_ACCESSIBLE_COLORS": "1", "NO_COLOR": "1"},
+        {"GH_HOST": "github.com", "GH_DEBUG": "", "DEBUG": ""},
+        {"GH_TOKEN": "", "GITHUB_TOKEN": ""},
+        {"GH_ENTERPRISE_TOKEN": "", "GITHUB_ENTERPRISE_TOKEN": ""},
+    ],
+)
+def test_pr_body_harmless_gh_environment(
+    body_publication: BodyPublication, settings: dict[str, str]
+) -> None:
+    item = body_publication
+    item.repo.environment.update(settings)
+    command = item.approved()
+    assert_permission(item.repo.hook(command, wrapper=True), "allow")
+    assert item.count() == 2
+    assert not item.repo.approval.exists()
+
+
+def test_pr_body_concurrent_consume(body_publication: BodyPublication) -> None:
+    item = body_publication
+    command = item.approved()
+    barrier = Barrier(2)
+
+    def invoke() -> subprocess.CompletedProcess[str]:
+        barrier.wait(timeout=10)
+        return item.repo.hook(command)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(invoke) for _ in range(2)]
+        results = [future.result(timeout=20) for future in futures]
+    assert sum(result.stdout == "" for result in results) == 1
+    for result in results:
+        assert_permission(result, "allow" if result.stdout == "" else "deny")
+    assert item.count() == 2
+    assert not item.repo.approval.exists()
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "g'h' p'r' cr''eate --draft",
+        r"/usr/bin/g\h pr e\dit 494 --title changed",
+        "'/usr/bin/'gh pr me''rge 494",
+        "command gh pr cl''ose 494",
+        "env GH_HOST=github.com gh pr rea\\\ndy 494",
+        "exec gh pr re''open 494",
+        "time gh pr review 494 --approve",
+        "nohup gh pr comment 494 --body changed",
+        "gh -R example/fewia pr edit 494 --body changed",
+        "gh --repo=example/fewia pr edit 494 --body changed",
+        "gh pr --repo example/fewia edit 494 --body changed",
+        "gh api repos/example/fewia -XPOST",
+        "gh api repos/example/fewia -X=PATCH",
+        "gh api repos/example/fewia --method=PUT",
+        "gh api repos/example/fewia --method DELETE",
+        "gh a''pi repos/example/fewia -''X P''OST",
+        "gh api repos/example/fewia -fbody=changed",
+        "gh api repos/example/fewia -F body=changed",
+        "gh api repos/example/fewia --field=body=changed",
+        "gh api repos/example/fewia --raw-field body=changed",
+        "gh api repos/example/fewia --input=/tmp/body.json",
+        "gh api graphql -f query=mutation",
+    ],
+)
+def test_guard_literal_gh_writes(
+    tmp_path: Path, host: str | None, command: str
+) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "deny" if host else "ask")
+
+
+@pytest.mark.parametrize("host", [None, "codex"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "bash -lc 'gh pr edit 494 --title changed'",
+        "git log --grep='gh pr edit 494'",
+        "gh pr view 494 # gh pr edit 494",
+    ],
+)
+def test_guard_legacy_gh_writes(tmp_path: Path, host: str | None, command: str) -> None:
+    result = run_hook(
+        HOOKS / "guard-bash.sh",
+        {"tool_input": {"command": command}},
+        tmp_path,
+        host=host,
+    )
+    assert_permission(result, "deny" if host else "ask")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh --unknown pr edit 494",
+        "gh pr --unknown edit 494",
+        "gh pr future-mutation 494",
+        'gh pr "$ACTION" 494',
+        "gh pr e$'dit' 494",
+        'gh "$COMMAND" view 494',
+        'gh pr edit "$branch" --body changed',
+        'gh api repos/example/fewia --method "$method"',
+        "gh api repos/example/fewia --jq $options",
+        'gh api repos/example/fewia --jq "$@"',
+        'gh api repos/example/fewia --jq "${options[@]}"',
+        'gh api repos/example/fewia --jq "$filter"$options',
+        'gh api "$endpoint"',
+        "gh api repos/example/fewia --method",
+        "gh api repos/example/fewia -X GET -X POST",
+        "gh api repos/example/fewia --method=UNKNOWN",
+        "gh api repos/example/fewia --unknown",
+    ],
+)
+def test_guard_ambiguous_gh(tmp_path: Path, command: str) -> None:
+    assert_permission(
+        run_hook(
+            HOOKS / "guard-bash.sh",
+            {"tool_input": {"command": command}},
+            tmp_path,
+            host="codex",
+        ),
+        "deny",
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "gh pr view 494 --json body",
+        "g'h' p'r' vi''ew 494",
+        "command /usr/bin/gh pr list",
+        'gh pr view "$branch" --json body',
+        'gh pr list --search "$query"',
+        'gh pr checks "$branch"',
+        'gh pr diff "$branch"',
+        'gh pr status --repo "$repo"',
+        'gh pr checkout "$branch"',
+        "gh pr checkout 494",
+        'gh issue view "$number"',
+        'gh run view "$run_id"',
+        "gh --help",
+        "gh -h",
+        "gh --version",
+        "gh help pr",
+        "gh pr",
+        "gh pr --help",
+        "gh pr help",
+        "gh api --help",
+        "gh api -h",
+        "gh api repos/example/fewia",
+        "gh api repos/example/fewia --method GET",
+        "gh api repos/example/fewia -XGET -f page=1",
+        "gh api repos/example/fewia --method=HEAD",
+        "gh api repos/example/fewia -X OPTIONS",
+        "gh api repos/example/fewia --preview example",
+        "gh api repos/example/fewia --preview=example",
+        "gh api repos/example/fewia -p example",
+        "gh api repos/example/fewia -pexample",
+        'gh api repos/example/fewia --jq "$filter"',
+        'gh api repos/example/fewia --jq "${filter}" --method GET',
+        'gh api repos/example/fewia --method GET -f "$field"',
+        "gh api graphql --method GET -f query=example",
+    ],
+)
+def test_guard_literal_gh_reads(tmp_path: Path, command: str) -> None:
+    assert_permission(
+        run_hook(
+            HOOKS / "guard-bash.sh",
+            {"tool_input": {"command": command}},
+            tmp_path,
+            host="codex",
+        ),
+        "allow",
+    )
+
+
+@pytest.mark.parametrize(
+    "damage", ["version", "missing", "extra", "identity", "hash", "argv", "expired"]
+)
+def test_pr_body_strict_record_schema(
+    body_publication: BodyPublication, damage: str
+) -> None:
+    item = body_publication
+    command = item.approved()
+    record = json.loads(item.repo.approval.read_bytes())
+    if damage == "version":
+        record["version"] = 3
+    elif damage == "missing":
+        del record["remote_body_sha256"]
+    elif damage == "extra":
+        record["extra"] = "value"
+    elif damage == "identity":
+        record["body_identity"] = [True] * 5
+    elif damage == "hash":
+        record["body_sha256"] = 42
+    elif damage == "argv":
+        record["argv"] = command.split() + ["--title", "changed"]
+    else:
+        record.update(issued=int(time.time()) - 3601, expires=int(time.time()) - 1)
+    item.repo.approval.write_text(json.dumps(record))
+    assert_permission(item.repo.hook(command), "deny")
+    assert item.repo.approval.exists()
+    assert item.count() == 1
+
+
+def test_pr_body_repo_case_and_host_binding(body_publication: BodyPublication) -> None:
+    item = body_publication
+    item.repo.environment.update(GH_HOST="", FAKE_GH_REPO="Example/FeWiA")
+    result = item.record("--repo", "Example/FeWiA")
+    command = item.command.replace("example/fewia", "Example/FeWiA")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == command + "\n"
+    assert_permission(item.repo.hook(command), "allow")
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        "push",
+        "gh pr create --draft",
+        "gh pr reopen 494",
+        "gh pr review 494 --approve",
+        "gh api repos/example/fewia -X PATCH -f body=unreviewed",
+        "gh api repos/example/fewia --input=/tmp/body.json",
+    ],
+)
+def test_pr_body_grant_cannot_authorize_other_writes(
+    body_publication: BodyPublication, other: str
+) -> None:
+    item = body_publication
+    command = item.approved()
+    assert_permission(
+        item.repo.hook(item.repo.command if other == "push" else other), "deny"
+    )
+    assert item.repo.approval.exists()
+    assert item.count() == 1
+    assert_permission(item.repo.hook(command), "allow")

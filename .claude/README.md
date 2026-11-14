@@ -53,7 +53,7 @@ A hook receives one JSON object on stdin. It answers on stdout.
 | Script | Event | Matcher | Rule it enforces |
 |---|---|---|---|
 | `guard-senior-edits.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit\|NotebookEdit`; Codex `apply_patch` | The senior MUST NOT write code. Every path in a checkout of the repository is denied except prose, `wiki/`, `docs/`, and agent config. A writer with `FEWIA_WRITER=1` is allowed. |
-| `guard-bash.sh` | `PreToolUse` | `Bash` | Deny a gitleaks skip, supervisor dir deletion, force push, push to main. Ask on external writes. Codex denies them unless one exact push has a local approval record. |
+| `guard-bash.sh` | `PreToolUse` | `Bash` | Deny a gitleaks skip, supervisor dir deletion, force push, push to main. Ask on external writes. Codex accepts one exact approved push or PR body edit. |
 | `check-pr-size.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A PR MUST NOT add more than 1000 code lines. |
 | `check-pr-done.sh` | `PreToolUse` | `Bash`, only `gh pr create` | HEAD needs a clean gates record and an `APPROVE` review in `.fewia-supervisor-*`. |
 | `check-agents-pr.sh` | `PreToolUse` | `Bash`, only `gh pr create` | A `.claude/agents/` change ships alone and links a wiki page. |
@@ -75,7 +75,7 @@ leading `cd` to the session cwd from the command before a hook reads it.
 The input `cwd` still names the worktree, so the hooks check the worktree.
 
 `guard-bash.sh` reads the whole command text. Its raw checkpoint deletion
-and `gh` checks can match text inside a heredoc. Write such text with the
+and gitleaks checks can match text inside a heredoc. Write such text with the
 Write tool instead.
 `guard-senior-edits.sh` does not see file writes made with a shell
 command. The rule in `CLAUDE.md` still binds the senior there. A Claude
@@ -103,7 +103,7 @@ runs `.claude/hooks/<script>`. Keep one copy of each script, in
 - In a linked worktree, Codex 0.159 runs the main checkout's
   `.codex/hooks.json`. Keep the main checkout on a branch that has it.
 - Codex hooks cannot ask. `guard-bash.sh` denies an external write under
-  Codex unless the push matches the single-use approval below.
+  Codex unless the command matches a single-use approval below.
 - `dev_supervisor` starts Codex writers and reviews with
   `--ignore-user-config`. Project hooks do not load there.
 
@@ -159,7 +159,7 @@ owned by the current user, with mode `0600` and one link.
 
 The guard calls `consume` after its hard denies. An exclusive lock permits
 one matching attempt and removes the record. Mismatches preserve it. A
-failed push consumes it. PR actions, merges, forced or broad pushes,
+failed push consumes it. Other PR actions, merges, forced or broad pushes,
 pushes to main, and gitleaks skips remain blocked.
 
 For recovery, inspect the record before removing it. Locate its directory
@@ -168,16 +168,110 @@ only `fewia-publication-approval.json`. The helper never overwrites it.
 The coordinator MUST confirm approval covers the next exact push before
 recording again. Do not retry an uncertain external action.
 
-This local check trusts the local user, hooks, and Git executable. It does
+### Record one approved Codex PR body edit
+
+The coordinator MUST have explicit user approval for the intended PR body
+edit. A push grant cannot approve a body edit. A body grant cannot approve
+a push. Only the coordinator performs publication.
+
+Before preparing the replacement, review the current remote body. Compute
+the SHA-256 digest of its exact decoded UTF-8 bytes, including an empty body.
+Do not add a newline during decoding. Keep that reviewed digest for
+`--remote-body-sha256`. The flag MUST contain exactly 64 lowercase hex digits.
+
+Prepare the reviewed body as a UTF-8 file without NUL bytes. The file MUST
+have mode `0600`, one link, and the current user's ownership. It MUST be a
+regular file with at most 65,536 bytes. Its absolute canonical path MUST
+contain only letters, digits, `_`, `-`, `.`, and `/`. No path component
+can be `.` or `..`. Neither the file nor any parent can be a symlink.
+
+Review the exact bytes before recording their SHA-256 digest. This example
+assumes `/absolute/path/to/reviewed-body.md` already contains those bytes.
+`REVIEWED_REMOTE_BODY_SHA256` holds the digest from the remote body review:
+
+```bash
+python3 .claude/hooks/publication-approval.py record-pr-body \
+  --checkout /absolute/path/to/fewia \
+  --remote origin --branch codex/security-hardening \
+  --push-url git@github.com:example/fewia.git \
+  --head 0123456789abcdef0123456789abcdef01234567 \
+  --repo example/fewia --pr 494 \
+  --body-file /absolute/path/to/reviewed-body.md \
+  --body-sha256 "$(shasum -a 256 /absolute/path/to/reviewed-body.md | cut -d ' ' -f 1)" \
+  --remote-body-sha256 "$REVIEWED_REMOTE_BODY_SHA256" \
+  --source 'Current chat: user explicitly approved the PR description edit' \
+  --reason 'Apply the reviewed PR description'
+```
+
+Submit the printed command without edits:
+
+```text
+gh pr edit 494 --repo github.com/example/fewia --body-file /absolute/path/to/reviewed-body.md
+```
+
+Both the read and the write name `github.com` explicitly. A hostless repo
+can select a configured default host even when `GH_HOST` is empty.
+The repo MUST match the effective push URL without case, after removal
+of one trailing `.git`. Owner names use letters, digits, `_`, and `-`.
+Repo names also permit dot-separated segments. The PR number MUST be a
+positive canonical decimal number with at most ten digits.
+
+At record time and consume time, the helper runs one read-only command:
+
+```text
+gh pr view 494 --repo github.com/example/fewia --json number,url,headRefOid,headRefName,isCrossRepository,state,isDraft,body
+```
+
+The PR MUST be open and a draft. It MUST have a same-repo head whose SHA
+and branch match the reviewed checkout. The response MUST name the same
+PR URL and number. The helper binds the current remote body digest,
+including an empty body. At record time, that digest MUST match the supplied
+`--remote-body-sha256`. Consumption compares a second view to the same digest.
+Any remote body, head, branch, or state change
+rejects consumption. The remote response supplies state, never commands.
+
+Body grants use version 2 records. Push grants retain the version 1 schema.
+Both use the same exclusive metadata record, expiry, and nonblocking lock.
+Body grants also bind the repo, PR number, file path, content digest, and
+file identity. Replacing or changing the file after recording rejects
+consumption. Each snapshot checks every component for symlinks. Its final
+absolute path identity MUST match the open file, even after an ancestor rename.
+The helper checks the file again before it removes the grant.
+
+The GitHub read disables prompts, discards stderr, limits stdout to 262,144
+bytes, and has a 1.2-second deadline. The helper limits its total work to
+3.8 seconds plus bounded process cleanup. It rejects conflicting `GH_HOST`,
+`GH_REPO`, `GH_CONFIG_DIR`, `GH_DEBUG`, and deprecated `DEBUG` settings.
+It also rejects `GH_PATH`, which changes executable discovery.
+`GH_HOST` can be empty or `github.com`. The other listed settings MUST be
+empty or absent, except `GH_PATH`, which MUST be absent. Common harmless
+settings and existing auth variables remain available. The probe overrides
+`GH_PAGER` and `PAGER` with `cat`. The helper does not read credential files
+or print body data.
+
+A body grant approves only the printed body edit. It cannot approve title,
+base, label, reviewer, attachment, state, ready, review, merge, or API changes.
+An allowed attempt consumes the grant even if the subsequent edit fails.
+The coordinator MUST verify the result after an attempt. The coordinator
+MUST NOT blindly retry an uncertain edit.
+
+### Publication check limits
+
+This local check trusts the local user, hooks, Git, and GitHub CLI. It does
 not authenticate chat approval. The operator MUST preserve Git state from
-validation through the push. The hook cannot lock state across that gap.
+validation through publication. Local files and Git state can change after
+hook validation, including between the helper's final file check and gh's
+file read. Remote state can change after the snapshot. The body edit
+has no server-side compare-and-swap. The hook cannot lock these gaps.
 The guard uses `git-publication-command.py` to classify literal shell
 words. The bounded lexer decodes adjacent quoted pieces and backslash
 escapes without executing shell code. For example, `pu''sh` and `p\ush`
 both name `push`. Quoted separators remain inside their words. Unquoted
 separators split compound commands for inspection.
+The guard also applies the legacy raw GitHub write regex after hard denials.
+This fallback can match wrapped commands, quoted filters, and comments.
 
-The classifier inspects bare, path, quoted, and concatenated Git executable
+The classifier inspects bare, path, quoted, and concatenated Git and `gh` executable
 names. It compares executable basenames without case for macOS paths.
 It handles common `env`, `command`, `exec`, `time`, and `nohup`
 wrappers. It checks global options before the Git subcommand. Unknown
@@ -191,19 +285,31 @@ Normalized force flags, broad pushes, gitleaks skips, and destinations of
 `main` or `refs/heads/main` remain hard denials. A feature destination such
 as `codex/main` does not name `main`.
 
-The guard denies unsupported or ambiguous direct Git write forms. Simple
-literal pushes and merges use the host's confirmation policy. The lexer
+The classifier routes direct `gh pr create`, `edit`, `merge`, `close`,
+`ready`, `reopen`, `review`, `comment`, `lock`, and `unlock` to confirmation.
+It detects API methods in short, long, equals, and attached forms. API
+inputs and fields imply a write unless an explicit read method overrides
+them. Explicit `GET`, `HEAD`, and `OPTIONS` requests remain usable.
+Known PR reads, help, and local checkout remain usable with dynamic tail
+arguments. Other literal top-level `gh` groups also accept dynamic tail
+arguments. API reads accept preview flags and quoted scalar values for known
+value options, such as `--jq`. These values cannot supply a method option.
+Dynamic methods and unquoted API expansions fail closed. Ambiguous direct
+`gh` publication forms fail closed.
+
+The guard denies unsupported or ambiguous direct publication forms. Simple
+literal writes use the host's confirmation policy. The lexer
 does not grant approval: only the unchanged raw decoded command can match
 the approval record. This match remains case-sensitive. Quoting, escapes,
 wrappers, extra arguments, and compound commands cannot match it through
 normalization.
 
-This guard is not a shell sandbox. Shell aliases, Git aliases, functions,
+This guard is not a shell sandbox. Shell aliases, Git or `gh` aliases, functions,
 indirect programs, and dynamically constructed shell code fall outside
 its supported classification. It does not resolve aliases, evaluate
 expansions, or parse arbitrary shell grammar. ANSI-C fragments and dynamic
-subcommands in direct Git calls are denied without evaluation.
-Direct Git commands with an ambiguous subcommand or dynamic write arguments
+subcommands in direct Git and `gh` calls are denied without evaluation.
+Direct publication commands with an ambiguous subcommand or dynamic write arguments
 are denied. The coordinator MUST use direct literal commands for publication.
 
 ### Test a hook
