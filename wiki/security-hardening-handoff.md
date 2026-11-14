@@ -26,7 +26,7 @@ The account meter exposes a 10,080-minute weekly window, with no daily window or
 - Model concurrency limits, conservative cost reservations, versioned rates, and provider response bounds.
 - Server-rendered factual replies, restricted USDA queries, and synthetic-only detailed evaluation exports.
 - Separate local database credentials, private files, runtime grants, and forward-only migrations.
-- Operator retention controls, dependency upgrades, image context exclusions, and image scan gates.
+- Operator retention controls, dependency upgrades, image context exclusions, and a frontend runtime image scan gate.
 
 This list describes committed code. It does not establish deployed security or final acceptance.
 
@@ -77,7 +77,9 @@ The next repair MUST fence each operation against the connection state captured 
 Regression tests MUST exercise overlapping exchanges and reconnects during preview lookup.
 
 1. Resolve container findings and scan the exact release digests. No clean backend or toolchain release scan exists.
-2. Complete Linux amd64 release-image scans and the GitHub image workflow. Local native-arm64 evidence does not establish hosted-image acceptance.
+2. Complete Linux amd64 release-image scans. Local native-arm64 evidence does not establish hosted-image acceptance.
+   The GitHub image workflow scans the frontend runtime image only. The owner removed the backend runtime, frontend toolchain, and frontend build targets on 2026-11-13.
+   No CI check reports their findings. The release scan in item 1 MUST cover those three images.
 3. Complete live Cognito sign-out and account isolation checks, Floci smoke checks, and deployed browser journeys before hosted activation.
 4. Repair both review findings, repeat their race tests and the gates, and obtain independent approval before marking the draft ready.
 
