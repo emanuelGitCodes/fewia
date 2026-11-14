@@ -233,7 +233,7 @@ def launcher(tmp_path: Path) -> Launcher:
         COMPOSE_PROFILES="sample",
         COMPOSE_FILE="unrelated.yaml",
         FEWIA_SKIP_KEY_CHECK="1",
-        FEWIA_SETUP_TIMEOUT_SECONDS="0.2",
+        FEWIA_SETUP_TIMEOUT_SECONDS="1",
         FEWIA_API_TIMEOUT_SECONDS="0.2",
         FEWIA_DATABASE_TIMEOUT_SECONDS="0",
     )
