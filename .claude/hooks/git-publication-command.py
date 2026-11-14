@@ -6,6 +6,10 @@ import re
 import sys
 from dataclasses import dataclass
 
+SCALAR_VARIABLE: re.Pattern[str] = re.compile(
+    r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})"
+)
+
 
 @dataclass(frozen=True)
 class Word:
@@ -53,14 +57,7 @@ def words(command: str) -> list[Word | str]:
                 value.append(char)
                 if quote == '"' and char in "$`":
                     literal = False
-                    if (
-                        char == "`"
-                        or re.match(
-                            r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})",
-                            command[index:],
-                        )
-                        is None
-                    ):
+                    if char == "`" or SCALAR_VARIABLE.match(command, index) is None:
                         single = False
         elif char in "'\"":
             quote = char
