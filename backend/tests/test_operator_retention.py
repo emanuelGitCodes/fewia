@@ -398,14 +398,262 @@ class Database:
     before: datetime
 
 
-@pytest.fixture()
-def database(request: pytest.FixtureRequest) -> Iterator[Database]:
-    options = _safe_target(require_test_database_url())
-    control = sa.create_engine(
+@dataclass(frozen=True)
+class RetentionTemplate:
+    name: str
+    dba_role: str
+
+
+Target = dict[str, str | int]
+
+
+def _control_engine(options: Target) -> Engine:
+    return sa.create_engine(
         "postgresql+psycopg://",
         connect_args=options,
         isolation_level="AUTOCOMMIT",
     )
+
+
+def _assert_isolated_cluster(connection: sa.Connection) -> None:
+    assert connection.scalar(
+        sa.text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
+    ), "Disposable retention tests need a test-cluster superuser."
+    assert (
+        int(cast(str, connection.scalar(sa.text("SHOW server_version_num")))) >= 160000
+    ), "Retention role tests need PostgreSQL 16 or later."
+    assert all(
+        re.fullmatch(r"fewia_eval(?:_[A-Za-z0-9_]+)?", value)
+        for value in connection.scalars(
+            sa.text(
+                "SELECT datname FROM pg_database "
+                "WHERE datname NOT IN ('postgres', 'template0', 'template1')"
+            )
+        )
+    ), "Retention tests need an isolated test cluster."
+    assert connection.scalar(
+        sa.text(
+            "SELECT NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fewia_app')"
+        )
+    ), "Retention tests need an absent runtime test role."
+
+
+def _maintenance_role_missing(connection: sa.Connection) -> bool:
+    return (
+        connection.scalar(
+            sa.text(
+                "SELECT NOT EXISTS (SELECT 1 FROM pg_roles "
+                "WHERE rolname = 'fewia_maintenance')"
+            )
+        )
+        is True
+    )
+
+
+def _create_role(connection: sa.Connection, role: str, *, createrole: bool) -> None:
+    privilege = "CREATEROLE" if createrole else "NOCREATEROLE"
+    connection.execute(
+        sa.text(
+            f'CREATE ROLE "{role}" NOLOGIN NOINHERIT NOSUPERUSER '
+            f"NOCREATEDB {privilege} NOREPLICATION NOBYPASSRLS"
+        )
+    )
+
+
+def _grant_maintenance_admin(connection: sa.Connection, dba_role: str) -> None:
+    connection.execute(
+        sa.text(
+            f'GRANT fewia_maintenance TO "{dba_role}" '
+            "WITH ADMIN TRUE, INHERIT FALSE, SET FALSE"
+        )
+    )
+
+
+def _revoke_temporary(engine: Engine, name: str) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.text(f'REVOKE TEMPORARY ON DATABASE "{name}" FROM PUBLIC')
+        )
+
+
+def _seed_database(engine: Engine) -> tuple[datetime, UUID]:
+    with Session(engine) as session, session.begin():
+        now = cast(datetime, session.scalar(sa.select(sa.func.clock_timestamp())))
+        workspace = uuid4()
+        session.execute(
+            sa.text(
+                "INSERT INTO public.users(id, display_name, workspace_id) "
+                "VALUES (1, 'Synthetic retention owner', :workspace), "
+                "(2, 'Synthetic retained owner', gen_random_uuid())"
+            ),
+            {"workspace": workspace},
+        )
+        session.execute(
+            sa.text(
+                "INSERT INTO public.jobs "
+                "(id, user_id, kind, request_namespace, request_key, "
+                "status, payload, created_at) "
+                "VALUES (:id, 1, 'agent', 'plan', 'synthetic', "
+                "'succeeded', '{}', :old)"
+            ),
+            {"id": JOB, "old": now - timedelta(days=10)},
+        )
+        session.execute(
+            sa.text(
+                "INSERT INTO public.grocery_evidence("
+                "id, user_id, snapshot, created_at) "
+                "VALUES (:id, 1, CAST(:snapshot AS json), :old)"
+            ),
+            {
+                "id": EVIDENCE,
+                "old": now - timedelta(days=10),
+                "snapshot": json.dumps({"sample": True}),
+            },
+        )
+    return now, workspace
+
+
+def _grant_operator(engine: Engine, dba_role: str, operator_role: str) -> None:
+    with engine.begin() as connection:
+        connection.execute(sa.text(f'SET LOCAL SESSION AUTHORIZATION "{dba_role}"'))
+        connection.execute(
+            sa.text(
+                f'GRANT fewia_maintenance TO "{operator_role}" '
+                "WITH ADMIN FALSE, INHERIT FALSE, SET TRUE"
+            )
+        )
+
+
+def _operator_engine(target: Target, operator_role: str) -> Engine:
+    operator_engine = sa.create_engine("postgresql+psycopg://", connect_args=target)
+
+    @sa.event.listens_for(operator_engine, "connect")
+    def authenticate_operator(
+        dbapi_connection: object, connection_record: object
+    ) -> None:
+        driver = cast(PgConnection, dbapi_connection)
+        driver.execute(f'SET SESSION AUTHORIZATION "{operator_role}"')
+        driver.commit()
+
+    return operator_engine
+
+
+@pytest.fixture(scope="module")
+def retention_template() -> Iterator[RetentionTemplate]:
+    """Migrate one template database through 0018 for the whole module."""
+    options = _safe_target(require_test_database_url())
+    control = _control_engine(options)
+    name = f"fewia_eval_retention_template_{uuid4().hex}"
+    dba_role = f"fewia_eval_retention_dba_{uuid4().hex}"
+    engine: Engine | None = None
+    created_maintenance = False
+    created_dba = False
+    created_database = False
+    try:
+        with control.connect() as connection:
+            _assert_isolated_cluster(connection)
+            created_maintenance = _maintenance_role_missing(connection)
+            _create_role(connection, dba_role, createrole=True)
+            created_dba = True
+            if not created_maintenance:
+                _grant_maintenance_admin(connection, dba_role)
+            connection.execute(sa.text(f'CREATE DATABASE "{name}" OWNER "{dba_role}"'))
+            created_database = True
+        engine = sa.create_engine(
+            "postgresql+psycopg://", connect_args={**options, "dbname": name}
+        )
+        _revoke_temporary(engine, name)
+        _upgrade(engine, through="0018", role=dba_role)
+        engine.dispose()
+        yield RetentionTemplate(name=name, dba_role=dba_role)
+    finally:
+        if engine is not None:
+            engine.dispose()
+        with control.connect() as connection:
+            if created_database:
+                connection.execute(sa.text(f'DROP DATABASE "{name}" WITH (FORCE)'))
+            if created_dba:
+                connection.execute(sa.text(f'DROP ROLE "{dba_role}"'))
+            if created_maintenance:
+                connection.execute(sa.text("DROP ROLE IF EXISTS fewia_maintenance"))
+        control.dispose()
+
+
+@pytest.fixture()
+def database(request: pytest.FixtureRequest) -> Iterator[Database]:
+    """Clone the migrated template, except for the populated 0017 upgrade case."""
+    if getattr(request, "param", None) == "populated_0017":
+        yield from _scratch_database(populated_upgrade=True)
+    else:
+        template = cast(
+            RetentionTemplate, request.getfixturevalue("retention_template")
+        )
+        yield from _cloned_database(template)
+
+
+@pytest.fixture()
+def scratch_database() -> Iterator[Database]:
+    """Build a private database from migration 0001 for schema-changing tests."""
+    yield from _scratch_database(populated_upgrade=False)
+
+
+def _cloned_database(template: RetentionTemplate) -> Iterator[Database]:
+    options = _safe_target(require_test_database_url())
+    control = _control_engine(options)
+    name = f"fewia_eval_retention_{uuid4().hex}"
+    operator_role = f"fewia_eval_retention_operator_{uuid4().hex}"
+    engine: Engine | None = None
+    operator_engine: Engine | None = None
+    owns_runtime_role = False
+    created_operator = False
+    created_database = False
+    try:
+        with control.connect() as connection:
+            _assert_isolated_cluster(connection)
+            owns_runtime_role = True
+            _create_role(connection, operator_role, createrole=False)
+            created_operator = True
+            connection.execute(
+                sa.text(
+                    f'CREATE DATABASE "{name}" OWNER "{template.dba_role}" '
+                    f'TEMPLATE "{template.name}"'
+                )
+            )
+            created_database = True
+        target = {**options, "dbname": name}
+        engine = sa.create_engine("postgresql+psycopg://", connect_args=target)
+        _revoke_temporary(engine, name)
+        now, workspace = _seed_database(engine)
+        _grant_operator(engine, template.dba_role, operator_role)
+        operator_engine = _operator_engine(target, operator_role)
+        yield Database(
+            engine=engine,
+            operator_engine=operator_engine,
+            service=OperatorRetention(operator_engine),
+            dba_role=template.dba_role,
+            operator_role=operator_role,
+            owner=1,
+            workspace=workspace,
+            before=now - timedelta(days=1),
+        )
+    finally:
+        if operator_engine is not None:
+            operator_engine.dispose()
+        if engine is not None:
+            engine.dispose()
+        with control.connect() as connection:
+            if created_database:
+                connection.execute(sa.text(f'DROP DATABASE "{name}" WITH (FORCE)'))
+            if owns_runtime_role:
+                connection.execute(sa.text("DROP ROLE IF EXISTS fewia_app"))
+            if created_operator:
+                connection.execute(sa.text(f'DROP ROLE "{operator_role}"'))
+        control.dispose()
+
+
+def _scratch_database(*, populated_upgrade: bool) -> Iterator[Database]:
+    options = _safe_target(require_test_database_url())
+    control = _control_engine(options)
     name = f"fewia_eval_retention_{uuid4().hex}"
     dba_role = f"fewia_eval_retention_dba_{uuid4().hex}"
     operator_role = f"fewia_eval_retention_operator_{uuid4().hex}"
@@ -418,102 +666,22 @@ def database(request: pytest.FixtureRequest) -> Iterator[Database]:
     created_database = False
     try:
         with control.connect() as connection:
-            assert connection.scalar(
-                sa.text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")
-            ), "Disposable retention tests need a test-cluster superuser."
-            assert (
-                int(cast(str, connection.scalar(sa.text("SHOW server_version_num"))))
-                >= 160000
-            ), "Retention role tests need PostgreSQL 16 or later."
-            assert all(
-                re.fullmatch(r"fewia_eval(?:_[A-Za-z0-9_]+)?", value)
-                for value in connection.scalars(
-                    sa.text(
-                        "SELECT datname FROM pg_database "
-                        "WHERE datname NOT IN ('postgres', 'template0', 'template1')"
-                    )
-                )
-            ), "Retention tests need an isolated test cluster."
-            assert connection.scalar(
-                sa.text(
-                    "SELECT NOT EXISTS (SELECT 1 FROM pg_roles "
-                    "WHERE rolname = 'fewia_app')"
-                )
-            ), "Retention tests need an absent runtime test role."
+            _assert_isolated_cluster(connection)
             owns_runtime_role = True
-            created_role = (
-                connection.scalar(
-                    sa.text(
-                        "SELECT NOT EXISTS (SELECT 1 FROM pg_roles "
-                        "WHERE rolname = 'fewia_maintenance')"
-                    )
-                )
-                is True
-            )
-            connection.execute(
-                sa.text(
-                    f'CREATE ROLE "{dba_role}" NOLOGIN NOINHERIT NOSUPERUSER '
-                    "NOCREATEDB CREATEROLE NOREPLICATION NOBYPASSRLS"
-                )
-            )
+            created_role = _maintenance_role_missing(connection)
+            _create_role(connection, dba_role, createrole=True)
             created_dba = True
-            connection.execute(
-                sa.text(
-                    f'CREATE ROLE "{operator_role}" NOLOGIN NOINHERIT NOSUPERUSER '
-                    "NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
-                )
-            )
+            _create_role(connection, operator_role, createrole=False)
             created_operator = True
             if not created_role:
-                connection.execute(
-                    sa.text(
-                        f'GRANT fewia_maintenance TO "{dba_role}" '
-                        "WITH ADMIN TRUE, INHERIT FALSE, SET FALSE"
-                    )
-                )
+                _grant_maintenance_admin(connection, dba_role)
             connection.execute(sa.text(f'CREATE DATABASE "{name}" OWNER "{dba_role}"'))
             created_database = True
         target = {**options, "dbname": name}
         engine = sa.create_engine("postgresql+psycopg://", connect_args=target)
-        with engine.begin() as connection:
-            connection.execute(
-                sa.text(f'REVOKE TEMPORARY ON DATABASE "{name}" FROM PUBLIC')
-            )
-        populated_upgrade = getattr(request, "param", None) == "populated_0017"
+        _revoke_temporary(engine, name)
         _upgrade(engine, through="0017" if populated_upgrade else "0018", role=dba_role)
-        with Session(engine) as session, session.begin():
-            now = cast(datetime, session.scalar(sa.select(sa.func.clock_timestamp())))
-            workspace = uuid4()
-            session.execute(
-                sa.text(
-                    "INSERT INTO public.users(id, display_name, workspace_id) "
-                    "VALUES (1, 'Synthetic retention owner', :workspace), "
-                    "(2, 'Synthetic retained owner', gen_random_uuid())"
-                ),
-                {"workspace": workspace},
-            )
-            session.execute(
-                sa.text(
-                    "INSERT INTO public.jobs "
-                    "(id, user_id, kind, request_namespace, request_key, "
-                    "status, payload, created_at) "
-                    "VALUES (:id, 1, 'agent', 'plan', 'synthetic', "
-                    "'succeeded', '{}', :old)"
-                ),
-                {"id": JOB, "old": now - timedelta(days=10)},
-            )
-            session.execute(
-                sa.text(
-                    "INSERT INTO public.grocery_evidence("
-                    "id, user_id, snapshot, created_at) "
-                    "VALUES (:id, 1, CAST(:snapshot AS json), :old)"
-                ),
-                {
-                    "id": EVIDENCE,
-                    "old": now - timedelta(days=10),
-                    "snapshot": json.dumps({"sample": True}),
-                },
-            )
+        now, workspace = _seed_database(engine)
         if populated_upgrade:
             migration = _module(
                 Path(__file__).resolve().parents[1]
@@ -530,24 +698,8 @@ def database(request: pytest.FixtureRequest) -> Iterator[Database]:
                 connection.execute(
                     sa.text("UPDATE public.alembic_version SET version_num = '0018'")
                 )
-        with engine.begin() as connection:
-            connection.execute(sa.text(f'SET LOCAL SESSION AUTHORIZATION "{dba_role}"'))
-            connection.execute(
-                sa.text(
-                    f'GRANT fewia_maintenance TO "{operator_role}" '
-                    "WITH ADMIN FALSE, INHERIT FALSE, SET TRUE"
-                )
-            )
-        operator_engine = sa.create_engine("postgresql+psycopg://", connect_args=target)
-
-        @sa.event.listens_for(operator_engine, "connect")
-        def authenticate_operator(
-            dbapi_connection: object, connection_record: object
-        ) -> None:
-            driver = cast(PgConnection, dbapi_connection)
-            driver.execute(f'SET SESSION AUTHORIZATION "{operator_role}"')
-            driver.commit()
-
+        _grant_operator(engine, dba_role, operator_role)
+        operator_engine = _operator_engine(target, operator_role)
         yield Database(
             engine=engine,
             operator_engine=operator_engine,
@@ -1009,17 +1161,20 @@ def test_postgres_immutable_owner_cannot_delete_and_unsafe_acl_refuses(
     ],
 )
 def test_postgres_migration_rejects_unsafe_preexisting_role(
-    database: Database,
+    scratch_database: Database,
     unsafe: str,
 ) -> None:
     path = Path(__file__).resolve().parents[1] / "alembic" / "versions"
     migration = _module(path / "0018_operator_retention.py")
     with pytest.raises(DBAPIError):
-        with database.engine.begin() as connection:
+        with scratch_database.engine.begin() as connection:
             connection.execute(sa.text(unsafe))
             connection.execute(sa.text(cast(str, migration.ROLE_SQL)))
     assert (
-        database.service.preview(owner_id=1, before=database.before)["blockers"] == []
+        scratch_database.service.preview(owner_id=1, before=scratch_database.before)[
+            "blockers"
+        ]
+        == []
     )
 
 
@@ -1206,14 +1361,20 @@ def test_postgres_immutable_triggers_reject_owner_updates(database: Database) ->
         assert getattr(caught.value.orig, "sqlstate", None) != "42501"
 
 
-def test_postgres_later_schema_version_refuses_retention(database: Database) -> None:
-    with database.engine.begin() as connection:
+def test_postgres_later_schema_version_refuses_retention(
+    scratch_database: Database,
+) -> None:
+    with scratch_database.engine.begin() as connection:
         connection.execute(
             sa.text("UPDATE public.alembic_version SET version_num = '0019'")
         )
     with pytest.raises(RetentionError):
-        database.service.preview(owner_id=1, before=database.before)
-    assert _count(database, "jobs") == _count(database, "grocery_evidence") == 1
+        scratch_database.service.preview(owner_id=1, before=scratch_database.before)
+    assert (
+        _count(scratch_database, "jobs")
+        == _count(scratch_database, "grocery_evidence")
+        == 1
+    )
 
 
 def _upgrade_connection_generation(database: Database) -> None:
@@ -1235,8 +1396,9 @@ def _upgrade_connection_generation(database: Database) -> None:
 
 
 def test_postgres_connection_upgrade_preserves_data_and_retention(
-    database: Database,
+    scratch_database: Database,
 ) -> None:
+    database = scratch_database
     pairing, version, intent_id = uuid4(), uuid4(), uuid4()
     cipher = Fernet(Fernet.generate_key())
     access = cipher.encrypt(b"synthetic-access")
@@ -1351,8 +1513,9 @@ def test_postgres_connection_upgrade_preserves_data_and_retention(
 
 
 def test_postgres_upgraded_retention_rejects_unknown_revision(
-    database: Database,
+    scratch_database: Database,
 ) -> None:
+    database = scratch_database
     _upgrade_connection_generation(database)
     preview = database.service.preview(owner_id=1, before=database.before)
     assert preview["blockers"] == []
@@ -1365,7 +1528,10 @@ def test_postgres_upgraded_retention_rejects_unknown_revision(
     assert _count(database, "jobs") == _count(database, "grocery_evidence") == 1
 
 
-def test_postgres_retention_rejects_expanded_schema_guard(database: Database) -> None:
+def test_postgres_retention_rejects_expanded_schema_guard(
+    scratch_database: Database,
+) -> None:
+    database = scratch_database
     _upgrade_connection_generation(database)
     with database.engine.begin() as connection:
         connection.execute(
