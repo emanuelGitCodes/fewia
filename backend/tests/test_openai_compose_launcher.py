@@ -233,8 +233,8 @@ def launcher(tmp_path: Path) -> Launcher:
         COMPOSE_PROFILES="sample",
         COMPOSE_FILE="unrelated.yaml",
         FEWIA_SKIP_KEY_CHECK="1",
-        FEWIA_SETUP_TIMEOUT_SECONDS="1",
-        FEWIA_API_TIMEOUT_SECONDS="1",
+        FEWIA_SETUP_TIMEOUT_SECONDS="0.2",
+        FEWIA_API_TIMEOUT_SECONDS="0.2",
         FEWIA_DATABASE_TIMEOUT_SECONDS="0",
     )
     return Launcher(root, outside, log, environment)
@@ -268,7 +268,11 @@ class _ModelsServer(ThreadingHTTPServer):
 @pytest.fixture
 def models_server() -> Iterator[_ModelsServer]:
     server = _ModelsServer()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever,
+        kwargs={"poll_interval": 0.01},
+        daemon=True,
+    )
     thread.start()
     yield server
     server.shutdown()
