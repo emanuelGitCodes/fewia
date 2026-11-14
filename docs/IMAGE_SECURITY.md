@@ -1,7 +1,7 @@
 # Container image security
 
 The [Image security workflow](../.github/workflows/images.yml) runs on pull
-requests, pushes, and manual dispatch. It builds these Docker targets:
+requests, pushes to `main`, and manual dispatch. It builds these Docker targets:
 
 | Image | Build context | Dockerfile | Target | OS | Language coverage |
 | --- | --- | --- | --- | --- | --- |
