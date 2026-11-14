@@ -77,7 +77,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Cache the mypy results
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: infra/bedrock/.mypy_cache
           key: mypy-bedrock-${{ runner.os }}-${{ hashFiles('infra/bedrock/uv.lock') }}-${{ github.sha }}
@@ -123,7 +123,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Cache the mypy results
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: infra/hosting/.mypy_cache
           key: mypy-hosting-${{ runner.os }}-${{ hashFiles('infra/hosting/uv.lock') }}-${{ github.sha }}
