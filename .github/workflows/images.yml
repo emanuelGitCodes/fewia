@@ -17,24 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: backend-runtime
-            context: .
-            dockerfile: backend/Dockerfile
-            target: runtime
-            os: debian
-            library: python-pkg
-          - name: frontend-toolchain
-            context: frontend
-            dockerfile: frontend/Dockerfile
-            target: toolchain
-            os: debian
-            library: node-pkg
-          - name: frontend-build
-            context: frontend
-            dockerfile: frontend/Dockerfile
-            target: build
-            os: debian
-            library: node-pkg
           - name: frontend-runtime
             context: frontend
             dockerfile: frontend/Dockerfile
