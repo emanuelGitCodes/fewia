@@ -733,6 +733,13 @@ def test_static_authentication_browser_and_validation_failures(matrix: Matrix) -
 
 
 def test_kroger_owners_bind_connection_oauth_preview_and_cart(matrix: Matrix) -> None:
+    def owner_rows(
+        rows: list[tuple[object, ...]],
+    ) -> dict[object, dict[str, object]]:
+        columns = KrogerOwner.__table__.columns.keys()
+        mapped_rows = [dict(zip(columns, row, strict=True)) for row in rows]
+        return {row["user_id"]: row for row in mapped_rows}
+
     first_owner, second_owner = matrix.owners
     for owner, connected in ((first_owner, True), (second_owner, False)):
         connection = matrix.api.get(
@@ -820,8 +827,25 @@ def test_kroger_owners_bind_connection_oauth_preview_and_cart(matrix: Matrix) ->
         assert replay.headers["location"] == "http://localhost/prototype?kroger=error"
         assert matrix.state() == after
         assert len(matrix.calls) == calls_before + 1
-        for table in before.keys() - {"tokens", "intents", "quotas"}:
+        for table in before.keys() - {"tokens", "intents", "quotas", "owners"}:
             assert after[table] == before[table]
+        owners_before = owner_rows(before["owners"])
+        owners_after = owner_rows(after["owners"])
+        assert owners_after.keys() == owners_before.keys() == set(matrix.owners)
+        assert owners_after[other] == owners_before[other]
+        assert (
+            owners_after[owner]["pairing_generation"]
+            == owners_before[owner]["pairing_generation"]
+        )
+        assert (
+            owners_after[owner]["connection_generation"]
+            != owners_before[owner]["connection_generation"]
+        )
+        assert owners_after[owner] == {
+            **owners_before[owner],
+            "connection_generation": owners_after[owner]["connection_generation"],
+            "updated_at": owners_after[owner]["updated_at"],
+        }
         assert [row for row in after["tokens"] if row[0] == other] == [
             row for row in before["tokens"] if row[0] == other
         ]

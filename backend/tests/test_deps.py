@@ -4,7 +4,7 @@ import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import jwt
 import pytest
@@ -132,6 +132,7 @@ def identity_session(tmp_path: Path) -> Iterator[Session]:
             text(
                 "CREATE TABLE kroger_owners (user_id BIGINT PRIMARY KEY, "
                 "pairing_generation CHAR(32) NOT NULL DEFAULT (gen_random_uuid()), "
+                "connection_generation CHAR(32) NOT NULL DEFAULT (gen_random_uuid()), "
                 "updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)"
             )
         )
@@ -283,7 +284,11 @@ def test_first_login_inserts_only_authorized_columns(
     assert user.display_name == "FEWIA user"
     assert user.status == "active"
     assert user.workspace_id is not None
-    assert identity_session.get(KrogerOwner, user.id) is not None
+    owner = identity_session.get(KrogerOwner, user.id)
+    assert owner is not None
+    assert isinstance(owner.connection_generation, UUID)
+    assert owner.connection_generation.version == 4
+    assert owner.connection_generation != owner.pairing_generation
 
 
 @pytest.mark.parametrize("status", ["disabled", "deleting"])
