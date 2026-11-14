@@ -17,6 +17,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: backend-runtime
+            context: .
+            dockerfile: backend/Dockerfile
+            target: runtime
+            os: debian
+            library: python-pkg
+          - name: frontend-toolchain
+            context: frontend
+            dockerfile: frontend/Dockerfile
+            target: toolchain
+            os: debian
+            library: node-pkg
+          - name: frontend-build
+            context: frontend
+            dockerfile: frontend/Dockerfile
+            target: build
+            os: debian
+            library: node-pkg
           - name: frontend-runtime
             context: frontend
             dockerfile: frontend/Dockerfile
@@ -218,56 +236,44 @@ jobs:
             --mount "type=bind,src=$RUNNER_TEMP/trivy-reports,dst=/reports" \
             "$TRIVY_IMAGE" image --cache-dir /cache --skip-db-update \
             --input /image.tar --scanners vuln --pkg-types os,library \
-            --list-all-pkgs --severity HIGH,CRITICAL --exit-code 1 \
-            --exit-on-eol 1 --format json --output /reports/report.json
+            --list-all-pkgs --ignore-unfixed=false --ignorefile /dev/null --exit-code 0 \
+            --exit-on-eol 0 --format json --output /reports/report.json
+          test -s "$RUNNER_TEMP/trivy-reports/report.json"
 
-      - name: Validate image identity and package scan coverage
+      - name: Record scan metadata
+        env:
+          IMAGE_ID: ${{ steps.build.outputs.image_id }}
+          CONFIG_DIGEST: ${{ steps.scan.outputs.config_digest }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/image-scan-policy.py metadata \
+            --db-metadata "$RUNNER_TEMP/trivy-cache/db/metadata.json" \
+            --scanner-image "$TRIVY_IMAGE" \
+            --image-id "$IMAGE_ID" --config-digest "$CONFIG_DIGEST" \
+            --output "$RUNNER_TEMP/trivy-reports/metadata.json"
+
+      - name: Enforce image scan policy and coverage
         env:
           IMAGE_ID: ${{ steps.build.outputs.image_id }}
           CONFIG_DIGEST: ${{ steps.scan.outputs.config_digest }}
           EXPECTED_OS: ${{ matrix.os }}
           EXPECTED_LIBRARY: ${{ matrix.library }}
+          ARTIFACT_NAME: image-scan-${{ matrix.name }}
         run: |
           set -euo pipefail
-          [[ "$CONFIG_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          test -s "$RUNNER_TEMP/trivy-reports/report.json"
-          jq -e -s --arg config_digest "$CONFIG_DIGEST" --arg os "$EXPECTED_OS" \
-            --arg library "$EXPECTED_LIBRARY" '
-            def nonempty_string: type == "string" and length > 0;
-            def complete_packages:
-              type == "array" and length > 0
-              and all(.[];
-                type == "object"
-                and (.Name | nonempty_string)
-                and (.Version | nonempty_string));
-            def complete_vulnerabilities:
-              type == "array"
-              and all(.[];
-                type == "object"
-                and (.VulnerabilityID | nonempty_string)
-                and (.PkgName | nonempty_string)
-                and (.Severity == "UNKNOWN" or .Severity == "LOW"
-                  or .Severity == "MEDIUM"));
-            def complete_result:
-              type == "object"
-              and (.Target | nonempty_string)
-              and (.Class == "os-pkgs" or .Class == "lang-pkgs")
-              and (.Type | nonempty_string)
-              and (.Packages | complete_packages)
-              and ((has("Vulnerabilities") | not)
-                or (.Vulnerabilities | complete_vulnerabilities));
-            length == 1 and (.[0] |
-              .SchemaVersion == 2
-              and .ArtifactType == "container_image"
-              and .Metadata.ImageID == $config_digest
-              and .Metadata.OS.Family == $os
-              and (.Metadata.OS.Name | nonempty_string)
-              and (.Results | type == "array" and length > 0)
-              and all(.Results[]; complete_result)
-              and any(.Results[];
-                .Class == "os-pkgs" and .Type == $os)
-              and ($library == "" or any(.Results[];
-                .Class == "lang-pkgs" and .Type == $library)))
-          ' "$RUNNER_TEMP/trivy-reports/report.json" > /dev/null
-          printf 'Validated %s config=%s: OS=%s language=%s\n' \
-            "$IMAGE_ID" "$CONFIG_DIGEST" "$EXPECTED_OS" "${EXPECTED_LIBRARY:-none expected}"
+          python3 .github/scripts/image-scan-policy.py evaluate \
+            --report "$RUNNER_TEMP/trivy-reports/report.json" \
+            --blocklist .github/image-scan-blocklist.json \
+            --image-id "$IMAGE_ID" --config-digest "$CONFIG_DIGEST" \
+            --expected-os "$EXPECTED_OS" --expected-library "$EXPECTED_LIBRARY" \
+            --summary "$GITHUB_STEP_SUMMARY" --artifact-name "$ARTIFACT_NAME"
+
+      - name: Upload image scan evidence
+        if: ${{ always() && steps.scan.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: image-scan-${{ matrix.name }}
+          path: |
+            ${{ runner.temp }}/trivy-reports/report.json
+            ${{ runner.temp }}/trivy-reports/metadata.json
+          if-no-files-found: error
