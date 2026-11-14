@@ -676,11 +676,17 @@ def test_workflow_keeps_full_scan_and_failure_propagation() -> None:
 def test_scan_step_propagates_scanner_exit_with_partial_report(
     tmp_path: Path, scanner_exit: int
 ) -> None:
-    if any(
-        shutil.which(command, path=os.defpath) is None
-        for command in ("bash", "jq", "sha256sum", "tar")
-    ):
-        pytest.skip("The scan step needs Bash, jq, sha256sum, and tar")
+    executables: dict[str, str] = {}
+    for command in ("bash", "jq", "sha256sum", "tar", "cp", "id", "mktemp", "rm"):
+        executable = shutil.which(command)
+        if executable is None:
+            pytest.skip(f"Install {command} on PATH to run the scan step fixture")
+        executables[command] = str(Path(executable).absolute())
+    subprocess_path = os.pathsep.join(
+        dict.fromkeys(
+            str(Path(executable).parent) for executable in executables.values()
+        )
+    )
     config = b"{}"
     config_hex = hashlib.sha256(config).hexdigest()
     archive_path = tmp_path / "fixture.tar"
@@ -714,9 +720,13 @@ docker() {
 }
 """
     process = subprocess.run(
-        ["bash", "-c", docker_stub + script + "\nprintf 'scan completed\\n'\n"],
+        [
+            executables["bash"],
+            "-c",
+            docker_stub + script + "\nprintf 'scan completed\\n'\n",
+        ],
         env={
-            "PATH": os.defpath,
+            "PATH": subprocess_path,
             "RUNNER_TEMP": str(tmp_path),
             "GITHUB_OUTPUT": str(tmp_path / "output"),
             "IMAGE_ID": DIGEST,
