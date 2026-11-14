@@ -22,7 +22,14 @@ BACKEND_RUFF_CHECK = (*UV_RUN, "ruff", "check", "app", "tests")
 BACKEND_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", "app", "tests")
 CDK_RUFF_FORMAT = (*UV_RUN, "ruff", "format", "--check", ".")
 COMPOSE_CONFIG = ("bash", ".github/scripts/validate-compose.sh")
-TOOLS_PYTEST = UV_RUN_BACKEND + ("pytest", "-q", "tests/supervisor", "tests/infra")
+TOOLS_PYTEST = UV_RUN_BACKEND + (
+    "pytest",
+    "-q",
+    "-n",
+    "auto",
+    "tests/supervisor",
+    "tests/infra",
+)
 TOOLS_RUFF_CHECK = UV_RUN_BACKEND + ("ruff", "check", *TOOLS_TARGETS, *EXCLUDE_BEDROCK)
 TOOLS_RUFF_FORMAT = UV_RUN_BACKEND + (
     "ruff",

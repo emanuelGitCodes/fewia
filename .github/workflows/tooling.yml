@@ -40,7 +40,7 @@ jobs:
         run: uv run --project backend mypy --strict dev_supervisor infra/bedrock_session.py infra/floci_bootstrap.py
 
       - name: Test
-        run: uv run --project backend pytest -q tests/supervisor tests/infra
+        run: uv run --project backend pytest -q -n auto tests/supervisor tests/infra
         env:
           PYTHONPATH: .
 

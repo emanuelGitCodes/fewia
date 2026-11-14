@@ -741,6 +741,13 @@ def test_backend_pytest_runs_on_workers() -> None:
     assert commands[0] == ("uv", "run", "pytest", "-q", "-n", "auto")
 
 
+def test_tools_pytest_runs_on_workers() -> None:
+    commands = [row[3] for row in GATES if row[:2] == ("tools", "pytest")]
+    assert len(commands) == 1
+    index = commands[0].index("-n")
+    assert commands[0][index + 1] == "auto"
+
+
 def test_main_cheap_failure_prints_skip_and_reuse_stays_fail(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
