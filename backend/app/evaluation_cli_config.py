@@ -7,7 +7,9 @@ from typing import NoReturn
 
 from app.evaluation_cost_rates import parse_rates
 from app.evaluation_database import _validated_url
+from app.evaluation_export import export_mode
 from app.evaluation_io import load_json
+from app.evaluation_io_json import load_json_with_bytes, parse_json_bytes
 from app.evaluation_manifest import build_manifest
 from app.evaluation_matrix import prepare_matrix
 from app.providers.local_sqs import ALLOWED_ENDPOINTS
@@ -29,6 +31,10 @@ class EvaluationOptions:
     database_url: str | None = field(repr=False)
     endpoint: str | None = field(repr=False)
     live_bedrock: bool
+    detailed_export: bool
+    recognized_synthetic: bool
+    synthetic_inputs: bool
+    corpus_bytes: bytes = field(repr=False)
 
 
 class _Parser(argparse.ArgumentParser):
@@ -46,7 +52,13 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--rates", metavar="PATH")
     parser.add_argument("--live-bedrock", action="store_true")
     parser.add_argument("--local-services", action="store_true")
+    parser.add_argument("--detailed-export", action="store_true")
+    parser.add_argument("--synthetic-inputs", action="store_true")
     return parser.parse_args(argv)
+
+
+def _parse_corpus(data: bytes) -> dict[str, object]:
+    return parse_json_bytes(data)
 
 
 def load_options(
@@ -73,7 +85,15 @@ def load_options(
             "temperature": 0,
             "reasoning_effort": "low",
         }
-        corpus = load_json(Path(args.corpus))
+        if args.detailed_export != args.synthetic_inputs:
+            raise ValueError(_INVALID)
+        corpus_bytes, corpus = load_json_with_bytes(Path(args.corpus))
+        recognized = export_mode(
+            corpus_bytes,
+            "scenarios",
+            detailed=args.detailed_export,
+            synthetic=args.synthetic_inputs,
+        )
         prepare_matrix(corpus)
         build_manifest(
             corpus,
@@ -104,6 +124,10 @@ def load_options(
             database_url=database_url,
             endpoint=endpoint,
             live_bedrock=args.live_bedrock,
+            detailed_export=args.detailed_export,
+            recognized_synthetic=recognized,
+            synthetic_inputs=args.synthetic_inputs,
+            corpus_bytes=corpus_bytes,
         )
     except Exception:  # noqa: BLE001
         raise ValueError(_INVALID) from None

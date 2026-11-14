@@ -1,6 +1,7 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { clearTestSession, seedTestSession, TEST_SESSION } from "./testSession";
 import { HTTP_ERROR, SAMPLE_ESTIMATE_NOTICE, SHAPE_ERROR } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
 import { fetchChatJob, submitChatJob } from "./chatApi";
@@ -119,9 +120,12 @@ async function expectStaticError(
 }
 
 describe("chatApi", () => {
+  beforeEach(seedTestSession);
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("posts JSON and the Idempotency-Key to the chat jobs path", async () => {
@@ -136,9 +140,10 @@ describe("chatApi", () => {
     const init = lastInit(fetchMock);
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify(body));
-    expect(init.headers).toEqual({
-      "Content-Type": "application/json",
-      "Idempotency-Key": KEY,
+    expect(Object.fromEntries(new Headers(init.headers))).toEqual({
+      "content-type": "application/json",
+      "idempotency-key": KEY,
+      "x-fewia-workspace": TEST_SESSION.workspace_id,
     });
     expect(ack).toEqual({ job_id: "job-1", status: "queued" });
   });

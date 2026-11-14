@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.env0600
+/.fewia-state/
 node_modules/
 backend/artifacts/*
 !backend/artifacts/.gitkeep

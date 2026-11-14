@@ -39,7 +39,7 @@ def _run(source: str, environ: dict[str, str]) -> subprocess.CompletedProcess[st
 @pytest.mark.parametrize("legacy", [None, "sqlite:///legacy%25.db"])
 def test_legacy_settings(mode: str | None, legacy: str | None) -> None:
     environ = {
-        "EXPECTED": legacy or "postgresql+psycopg://fewia:fewia@localhost:5432/fewia",
+        "EXPECTED": legacy or "postgresql+psycopg://fewia_app@localhost:5432/fewia",
     }
     if mode is not None:
         environ["FEWIA_DATABASE_MODE"] = mode

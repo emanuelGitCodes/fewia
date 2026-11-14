@@ -2,6 +2,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from aws_cdk import App, CfnResource, Environment, Stack
@@ -12,6 +13,7 @@ from constructs import IConstruct
 
 from assets import HostingAssets
 from database import HostingDatabase
+from identity import HostingIdentity
 from network import HostingNetwork
 from stack import HostingResources, HostingStack
 from task_settings import (
@@ -19,6 +21,7 @@ from task_settings import (
     application_secrets,
     bootstrap_environment,
     bootstrap_secrets,
+    browser_auth_environment,
     image_from_digest,
 )
 
@@ -111,6 +114,52 @@ def test_bootstrap_environment_has_only_admin_database_values(
         "FEWIA_DATABASE_NAME": "fewia",
         "FEWIA_DATABASE_USER": "fewia_admin",
     }
+
+
+def test_browser_auth_uses_exact_origin_and_fixed_logout(settings_case: _Case) -> None:
+    stack, _, _, _ = settings_case
+    identity = HostingIdentity(
+        stack, "Identity", hostname="demo.example.test", domain_prefix="fewia-test"
+    )
+    environment = browser_auth_environment(identity, signer_arn="synthetic-alb-arn")
+    assert environment == {
+        "FEWIA_AUTH_MODE": "alb",
+        "FEWIA_PUBLIC_ORIGIN": "https://demo.example.test",
+        "FEWIA_ALB_SIGNER_ARN": "synthetic-alb-arn",
+        "FEWIA_AUTH_CLIENT_ID": identity.client.user_pool_client_id,
+        "FEWIA_AUTH_ISSUER": identity.user_pool.user_pool_provider_url,
+        "FEWIA_AUTH_LOGOUT_URL": (
+            f"{identity.domain.base_url()}/logout?client_id="
+            f"{identity.client.user_pool_client_id}"
+            "&logout_uri=https%3A%2F%2Fdemo.example.test%2Fsigned-out"
+        ),
+    }
+    query = parse_qs(environment["FEWIA_AUTH_LOGOUT_URL"].split("?", 1)[1])
+    client = Template.from_stack(stack).find_resources("AWS::Cognito::UserPoolClient")
+    assert len(client) == 1
+    allowed_urls = next(iter(client.values()))["Properties"]["LogoutURLs"]
+    assert query == {
+        "client_id": [identity.client.user_pool_client_id],
+        "logout_uri": allowed_urls,
+    }
+    return_uri = urlsplit(query["logout_uri"][0])
+    assert (return_uri.scheme, return_uri.netloc, return_uri.path) == (
+        "https",
+        "demo.example.test",
+        "/signed-out",
+    )
+    assert not return_uri.query and not return_uri.fragment
+    resolved = stack.resolve(environment["FEWIA_AUTH_LOGOUT_URL"])
+    assert resolved["Fn::Join"][0] == ""
+    assert resolved["Fn::Join"][1][-2:] == [
+        {"Ref": _logical_id(identity.client)},
+        "&logout_uri=https%3A%2F%2Fdemo.example.test%2Fsigned-out",
+    ]
+    next_environment = browser_auth_environment(
+        identity, signer_arn="synthetic-alb-arn"
+    )
+    assert next_environment == environment
+    assert next_environment is not environment
 
 
 def test_secrets_map_only_assigned_arns_and_password_fields(

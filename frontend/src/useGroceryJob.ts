@@ -1,5 +1,6 @@
 import { fetchJob, submitJob } from "./api";
 import type { GroceryJob, GroceryJobCreate } from "./api";
+import { modelJobFailureText } from "./apiTypes";
 import { usePolledJob } from "./usePolledJob";
 import type { PolledJobState } from "./usePolledJob";
 
@@ -13,7 +14,8 @@ export function useGroceryJob(): PolledJobState<GroceryJob, GroceryJobCreate> {
     budgetMs: 6 * 60 * 1000,
     timeoutText:
       "The grocery request is still processing. Retry checks the same request.",
-    failedText: "The grocery request failed. Retry checks the same request.",
+    failedText: (job) =>
+      modelJobFailureText(job) ?? "The grocery request failed. Try again.",
     fallbackText: HTTP_FALLBACK,
     mapError: (caught, fallbackText) =>
       caught instanceof Error ? caught.message : fallbackText,

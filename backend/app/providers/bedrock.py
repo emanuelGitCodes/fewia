@@ -1,14 +1,25 @@
 import json
 import sys
 from collections.abc import Mapping
+from pathlib import Path
 from typing import NotRequired, Protocol, TypedDict, Unpack, cast
 
 import boto3  # type: ignore[import-untyped]
+import botocore  # type: ignore[import-untyped]
+from botocore.awsrequest import (  # type: ignore[import-untyped]
+    AWSPreparedRequest,
+    AWSResponse,
+)
+from botocore.loaders import Loader  # type: ignore[import-untyped]
+from botocore.model import ServiceModel  # type: ignore[import-untyped]
+from botocore.serialize import create_serializer  # type: ignore[import-untyped]
 
 from app.agent.provider import LLMUnavailable
 from app.providers.aws_config import aws_client_config
+from app.providers.http_client import send_prepared_bounded
 
 _ALLOWED_REGIONS = frozenset({"us-east-1", "us-west-2"})
+MAX_INPUT_BYTES = 64 * 1024
 _SUPPORTED_STOP_REASONS = frozenset(
     "end_turn tool_use max_tokens stop_sequence "
     "guardrail_intervened content_filtered model_context_window_exceeded".split()
@@ -30,6 +41,8 @@ class ConverseRequest(TypedDict):
     system: list[dict[str, object]]
     messages: list[dict[str, object]]
     inferenceConfig: dict[str, int | float]
+    performanceConfig: dict[str, str]
+    serviceTier: dict[str, str]
     toolConfig: NotRequired[dict[str, object]]
     additionalModelRequestFields: NotRequired[dict[str, object]]
     guardrailConfig: NotRequired[dict[str, str]]
@@ -37,6 +50,54 @@ class ConverseRequest(TypedDict):
 
 class BedrockClient(Protocol):
     def converse(self, **kwargs: Unpack[ConverseRequest]) -> dict[str, object]: ...
+
+
+class _DecodedBody:
+    def __init__(self, content: bytes) -> None:
+        self._content = content
+
+    def stream(
+        self, amt: int | None = None, decode_content: bool = False
+    ) -> list[bytes]:
+        return [self._content]
+
+
+def _send_prepared(request: AWSPreparedRequest, **kwargs: object) -> AWSResponse:
+    if (
+        not isinstance(request.method, str)
+        or not isinstance(request.url, str)
+        or not isinstance(request.body, bytes)
+        or len(request.body) > MAX_INPUT_BYTES
+        or request.stream_output
+    ):
+        raise LLMUnavailable
+    response = send_prepared_bounded(
+        request.method, request.url, headers=request.headers, body=request.body
+    )
+    try:
+        return AWSResponse(
+            request.url,
+            response.status_code,
+            dict(response.headers),
+            _DecodedBody(response.content),
+        )
+    finally:
+        response.close()
+
+
+def _serialized_input_size(request: ConverseRequest) -> int:
+    # The size check MUST use the same service shapes and serializer as Converse.
+    loader = Loader(
+        extra_search_paths=[str(Path(botocore.__file__).parent / "data")],
+        include_default_search_paths=False,
+    )
+    model = ServiceModel(loader.load_service_model("bedrock-runtime", "service-2"))
+    operation = model.operation_model("Converse")
+    serializer = create_serializer(model.protocol, include_validation=False)
+    body = serializer.serialize_to_request(request, operation)["body"]
+    if not isinstance(body, bytes):
+        raise LLMUnavailable
+    return len(body)
 
 
 def _valid_content(content: object) -> bool:
@@ -180,15 +241,16 @@ class BedrockConverseProvider:
                 if profile_name is not None
                 else boto3.Session()
             )
-            self._client = cast(
-                BedrockClient,
-                session.client(
-                    "bedrock-runtime",
-                    region_name=region,
-                    endpoint_url=f"https://bedrock-runtime.{region}.amazonaws.com",
-                    config=aws_client_config(40, local=False),
-                ),
+            client = session.client(
+                "bedrock-runtime",
+                region_name=region,
+                endpoint_url=f"https://bedrock-runtime.{region}.amazonaws.com",
+                config=aws_client_config(40, local=False),
             )
+            client.meta.events.register_first(
+                "before-send.bedrock-runtime.Converse", _send_prepared
+            )
+            self._client = cast(BedrockClient, client)
         except Exception:  # noqa: BLE001
             raise LLMUnavailable from None
         self._model_id = model_id
@@ -237,6 +299,8 @@ class BedrockConverseProvider:
             "system": system,
             "messages": messages,
             "inferenceConfig": inference,
+            "performanceConfig": {"latency": "standard"},
+            "serviceTier": {"type": "default"},
         }
         if luna:
             request["additionalModelRequestFields"] = {"reasoning_effort": "low"}
@@ -253,6 +317,8 @@ class BedrockConverseProvider:
                 "trace": "disabled",
             }
         try:
+            if _serialized_input_size(request) > MAX_INPUT_BYTES:
+                raise LLMUnavailable
             response = self._client.converse(**request)
         except Exception as exc:  # noqa: BLE001
             _log_failure("client_error", exc=exc)

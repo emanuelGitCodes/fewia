@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import SessionLocal
-from app.demo import DEMO_USER_ID
+from app.deps import get_current_user
+from app.models import User
 from app.services.evidence_store import load_evidence
 
 router = APIRouter(prefix="/grocery", tags=["grocery"])
@@ -39,11 +40,12 @@ def _not_found() -> HTTPException:
 def read_grocery_evidence(
     revision_id: str,
     factory: Annotated[sessionmaker[Session], Depends(get_session_factory)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> GroceryEvidenceView:
     if not _is_revision_id(revision_id):
         raise _not_found()
     try:
-        snapshot = load_evidence(factory, DEMO_USER_ID, revision_id)
+        snapshot = load_evidence(factory, user.id, revision_id)
     except (TypeError, ValueError):
         raise _not_found() from None
     if snapshot is None:

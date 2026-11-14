@@ -504,7 +504,9 @@ def catalog_choices(payload: dict[str, object]) -> list[str]:
     return list(cast(list[str], validated["recipe_ids"]))
 
 
-def catalog_answer(payload: dict[str, object]) -> str:
+def catalog_answer(
+    payload: dict[str, object], *, include_untrusted_names: bool = True
+) -> str:
     validated = _revalidated(payload)
     if validated is None:
         return DISCOVERY_ERROR
@@ -527,7 +529,11 @@ def catalog_answer(payload: dict[str, object]) -> str:
     if "chicken" in applied and all("chicken" in MEAL_TAGS[r] for r in chosen):
         notes.append(CARNIVORE_NOTE)
     if dropped:
-        notes.append(f"No meal with those types also matched: {', '.join(dropped)}.")
+        notes.append(
+            f"No meal with those types also matched: {', '.join(dropped)}."
+            if include_untrusted_names
+            else "Some search terms did not match. Please clarify them."
+        )
     names = []
     for rid in chosen:
         name = rid.replace("_", " ")

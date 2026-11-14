@@ -3,6 +3,10 @@ name: Tooling
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   push:
     branches: [main]
@@ -36,7 +40,7 @@ jobs:
         run: uv run --project backend mypy --strict dev_supervisor infra/bedrock_session.py infra/floci_bootstrap.py
 
       - name: Test
-        run: uv run --project backend pytest -q tests/supervisor tests/infra
+        run: uv run --project backend pytest -q -n auto tests/supervisor tests/infra
         env:
           PYTHONPATH: .
 
@@ -71,6 +75,14 @@ jobs:
 
       - name: Check the format
         run: uv run ruff format --check .
+
+      - name: Cache the mypy results
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: infra/bedrock/.mypy_cache
+          key: mypy-bedrock-${{ runner.os }}-${{ hashFiles('infra/bedrock/uv.lock') }}-${{ github.sha }}
+          restore-keys: |
+            mypy-bedrock-${{ runner.os }}-${{ hashFiles('infra/bedrock/uv.lock') }}-
 
       - name: Type check
         run: uv run mypy --strict .
@@ -109,6 +121,14 @@ jobs:
 
       - name: Check the format
         run: uv run ruff format --check .
+
+      - name: Cache the mypy results
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: infra/hosting/.mypy_cache
+          key: mypy-hosting-${{ runner.os }}-${{ hashFiles('infra/hosting/uv.lock') }}-${{ github.sha }}
+          restore-keys: |
+            mypy-hosting-${{ runner.os }}-${{ hashFiles('infra/hosting/uv.lock') }}-
 
       - name: Type check
         run: uv run mypy --strict .

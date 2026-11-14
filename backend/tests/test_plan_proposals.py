@@ -50,6 +50,8 @@ from app.domain.plan_proposal import (
 from app.domain.plan_revision import PlanSnapshot
 from app.plan_models import PlanProposal, PlanRevision
 from app.provider_settings import GroceryProviderSettings
+from app.security_models import QuotaCounter
+from app.services import security_admission
 from app.services.grocery_planner import plan_groceries
 from app.services.plan_job import SpendingInput
 
@@ -68,6 +70,28 @@ CONSTRAINTS = ApplyConstraints(
     diet="omnivore",
     ingredient_exclusions=[],
 )
+
+
+@pytest.fixture(autouse=True)
+def mutation_admission(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[Session, int, security_admission.Action]]:
+    calls: list[tuple[Session, int, security_admission.Action]] = []
+    real_reserve = security_admission.reserve_action
+
+    def reserve(db: Session, user_id: int, action: security_admission.Action) -> None:
+        if db.get_bind().dialect.name == "sqlite":
+            status = db.scalar(
+                select(models.User.status).where(models.User.id == user_id)
+            )
+            if status != "active":
+                raise security_admission.OwnerUnavailableError()
+        else:
+            real_reserve(db, user_id, action)
+        calls.append((db, user_id, action))
+
+    monkeypatch.setattr(security_admission, "reserve_action", reserve)
+    return calls
 
 
 @pytest.fixture(autouse=True)
@@ -294,7 +318,9 @@ def test_apply_rejects_one_cent_over_the_smaller_cap_without_mutation(
     updated_at = row.updated_at
 
     for _ in range(2):
-        response = client.post(f"/grocery/proposals/{proposal_id}/apply")
+        response = client.post(
+            f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+        )
         assert response.status_code == 409
         assert response.json() == {
             "detail": {
@@ -361,7 +387,7 @@ def test_apply_browser_cap_can_only_tighten_stored_caps(
         assert base.snapshot == original
 
 
-def test_apply_browser_cap_preserves_snapshot_and_applied_retries(
+def test_apply_browser_cap_commits_snapshot_and_applied_retries(
     client: TestClient, session: Session, seed_user: UserSeeder
 ) -> None:
     seed_user()
@@ -371,14 +397,17 @@ def test_apply_browser_cap_preserves_snapshot_and_applied_retries(
         constraints=CONSTRAINTS.model_copy(update={"plan_cap_cents": 5000}),
     )
     preview = client.get(f"/grocery/proposals/{proposal_id}").json()["preview"]
+    preview["plan_cap_cents"] = 1703
     path = f"/grocery/proposals/{proposal_id}/apply"
     response = client.post(path, json={"plan_cap_cents": 1703})
     assert response.status_code == 200
     saved = session.get(PlanRevision, UUID(response.json()["plan_revision_id"]))
     assert saved is not None and saved.snapshot == preview
+    assert response.json()["snapshot"] == saved.snapshot
     replay = client.post(path, json={"plan_cap_cents": 0})
     assert replay.status_code == 200
     assert replay.json() == response.json()
+    assert client.get(f"/grocery/proposals/{proposal_id}").json()["preview"] == preview
     assert revision_count(session) == 2
 
 
@@ -420,12 +449,50 @@ def test_apply_rejects_invalid_browser_caps_without_mutation(
     assert base.snapshot == original
 
 
+@pytest.mark.parametrize("action", ["apply", "discard"])
+@pytest.mark.parametrize("body", [None, "{}", "null", "[]", '{"confirm": false}'])
+def test_proposal_mutations_require_explicit_json_proof(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    action: str,
+    body: str | None,
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/{action}",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 422
+    row = session.get(PlanProposal, proposal_id)
+    assert row is not None and row.status == "pending"
+    assert revision_count(session) == 1
+
+
+@pytest.mark.parametrize("value", [False, 1, "true", None])
+def test_discard_requires_a_strict_true_confirmation(
+    client: TestClient, session: Session, seed_user: UserSeeder, value: object
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/discard", json={"confirm": value}
+    )
+    assert response.status_code == 422
+    row = session.get(PlanProposal, proposal_id)
+    assert row is not None and row.status == "pending"
+
+
 def test_apply_accepts_the_final_pantry_at_the_cap(
     client: TestClient, session: Session, seed_user: UserSeeder
 ) -> None:
     seed_user()
     _, proposal_id = pantry_proposal(session, cap=1104, owned=True)
-    response = client.post(f"/grocery/proposals/{proposal_id}/apply")
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
     assert response.status_code == 200
     saved = session.get(PlanRevision, UUID(response.json()["plan_revision_id"]))
     assert saved is not None
@@ -468,7 +535,9 @@ def test_apply_checks_diet_and_exclusions_even_for_pantry_ingredients(
     row = session.get(PlanProposal, proposal_id)
     assert row is not None
     before = revision_count(session)
-    response = client.post(f"/grocery/proposals/{proposal_id}/apply")
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
     assert response.status_code == 409
     assert response.json() == {
         "detail": {"code": "proposal_constraints", "reason": reason}
@@ -503,7 +572,9 @@ def test_apply_fails_closed_for_missing_or_invalid_metadata(
     row.apply_constraints = metadata
     session.flush()
     before = revision_count(session)
-    response = client.post(f"/grocery/proposals/{proposal_id}/apply")
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
     assert response.status_code == 409
     assert response.json() == {
         "detail": {"code": "proposal_constraints", "reason": "estimate_unavailable"}
@@ -530,8 +601,9 @@ def test_apply_refreshes_spending_before_each_attempt(
     )
     loads: list[str] = []
 
-    def load(db: Session, source: str, clock: datetime) -> SpendingInput:
+    def load(db: Session, source: str, clock: datetime, user_id: int) -> SpendingInput:
         assert db is session and clock == now
+        assert user_id == 1
         loads.append(source)
         return spending
 
@@ -542,18 +614,18 @@ def test_apply_refreshes_spending_before_each_attempt(
         constraints=CONSTRAINTS.model_copy(update={"monthly_limit_cents": 10_000}),
     )
     path = f"/grocery/proposals/{proposal_id}/apply"
-    rejected = client.post(path)
+    rejected = client.post(path, json={"plan_cap_cents": 5000})
     assert rejected.status_code == 409
     assert rejected.json()["detail"]["available_cents"] == 1702
     assert revision_count(session) == 1
     spending = spending.model_copy(update={"posted_cents": 8297})
-    assert client.post(path).status_code == 200
+    assert client.post(path, json={"plan_cap_cents": 5000}).status_code == 200
     assert revision_count(session) == 2
     assert loads == ["manual", "manual"]
 
 
 @pytest.mark.parametrize("unavailable", [False, True])
-def test_apply_preserves_pending_on_unavailable_or_stale_spending(
+def test_apply_requires_spending_and_uses_explicit_cap_when_stale(
     client: TestClient,
     session: Session,
     seed_user: UserSeeder,
@@ -564,7 +636,7 @@ def test_apply_preserves_pending_on_unavailable_or_stale_spending(
     now = datetime(2026, 11, 7, 12, tzinfo=UTC)
     monkeypatch.setattr(proposals_api.grocery_api, "_ny_now", lambda: now)
 
-    def load(db: Session, source: str, clock: datetime) -> SpendingInput:
+    def load(db: Session, source: str, clock: datetime, user_id: int) -> SpendingInput:
         if unavailable:
             raise HTTPException(status_code=503, detail="Spending is unavailable")
         return SpendingInput(
@@ -576,12 +648,15 @@ def test_apply_preserves_pending_on_unavailable_or_stale_spending(
 
     monkeypatch.setattr(proposals_api.grocery_api, "require_spending", load)
     _, proposal_id = pantry_proposal(session, cap=None)
-    response = client.post(f"/grocery/proposals/{proposal_id}/apply")
-    assert response.status_code == (503 if unavailable else 409)
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
+    assert response.status_code == (503 if unavailable else 200)
     row = session.get(PlanProposal, proposal_id)
-    assert row is not None and row.status == "pending"
-    assert row.applied_plan_revision_id is None
-    assert revision_count(session) == 1
+    assert row is not None
+    assert row.status == ("pending" if unavailable else "applied")
+    assert (row.applied_plan_revision_id is None) is unavailable
+    assert revision_count(session) == (1 if unavailable else 2)
 
 
 def test_apply_rejects_missing_purchase_estimate_without_echoing_catalog_data(
@@ -595,7 +670,9 @@ def test_apply_rejects_missing_purchase_estimate_without_echoing_catalog_data(
     monkeypatch.setitem(
         INGREDIENTS, "olive_oil", replace(INGREDIENTS["olive_oil"], price_cents=None)
     )
-    response = client.post(f"/grocery/proposals/{proposal_id}/apply")
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
     assert response.status_code == 409
     assert response.json() == {
         "detail": {"code": "proposal_constraints", "reason": "estimate_unavailable"}
@@ -639,19 +716,29 @@ def test_missing_and_foreign_proposals_are_404(
     ):
         assert client.get(path).status_code == 404
     for action in ("apply", "discard"):
-        response = client.post(f"/grocery/proposals/{foreign_id}/{action}")
+        response = client.post(
+            f"/grocery/proposals/{foreign_id}/{action}",
+            json={"plan_cap_cents": 5000} if action == "apply" else {"confirm": True},
+        )
         assert response.status_code == 404
 
 
 def test_apply_creates_one_revision_and_is_idempotent(
-    client: TestClient, session: Session, seed_user: UserSeeder
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
 ) -> None:
     seed_user()
     proposal_id = make_proposal(session)
     before = revision_count(session)
 
-    first = client.post(f"/grocery/proposals/{proposal_id}/apply")
-    second = client.post(f"/grocery/proposals/{proposal_id}/apply")
+    first = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
+    second = client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
 
     assert first.status_code == 200
     assert second.json() == first.json()
@@ -665,6 +752,7 @@ def test_apply_creates_one_revision_and_is_idempotent(
     detail = client.get(f"/grocery/proposals/{proposal_id}").json()
     assert detail["status"] == "applied"
     assert detail["applied_plan_revision_id"] == first.json()["plan_revision_id"]
+    assert mutation_admission == [(session, 1, "mutation")]
 
 
 def test_applied_replay_needs_no_metadata_or_backend_context(
@@ -676,7 +764,7 @@ def test_applied_replay_needs_no_metadata_or_backend_context(
     seed_user()
     proposal_id = make_proposal(session)
     path = f"/grocery/proposals/{proposal_id}/apply"
-    first = client.post(path)
+    first = client.post(path, json={"plan_cap_cents": 5000})
     assert first.status_code == 200
     row = session.get(PlanProposal, proposal_id)
     assert row is not None
@@ -687,28 +775,34 @@ def test_applied_replay_needs_no_metadata_or_backend_context(
         raise AssertionError("Applied replay MUST NOT load provider settings")
 
     monkeypatch.setattr(proposals_api, "get_provider_settings", unavailable)
-    replay = client.post(path)
+    replay = client.post(path, json={"plan_cap_cents": 5000})
     assert replay.status_code == 200
     assert replay.json() == first.json()
     assert revision_count(session) == 2
 
 
 def test_discard_is_idempotent_and_blocks_apply(
-    client: TestClient, session: Session, seed_user: UserSeeder
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
 ) -> None:
     seed_user()
     proposal_id = make_proposal(session)
     before = revision_count(session)
 
-    assert client.post(f"/grocery/proposals/{proposal_id}/discard").status_code == 200
-    assert client.post(f"/grocery/proposals/{proposal_id}/discard").status_code == 200
-    response = client.post(f"/grocery/proposals/{proposal_id}/apply")
+    path = f"/grocery/proposals/{proposal_id}"
+    assert client.post(f"{path}/discard", json={"confirm": True}).status_code == 200
+    assert client.post(f"{path}/discard", json={"confirm": True}).status_code == 200
+    assert client.post(f"{path}/discard").status_code == 422
+    response = client.post(f"{path}/apply", json={"plan_cap_cents": 5000})
 
     assert response.status_code == 409
     assert revision_count(session) == before
     assert client.get(f"/grocery/proposals/{proposal_id}").json()["status"] == (
         "discarded"
     )
+    assert mutation_admission == [(session, 1, "mutation")]
 
 
 def test_discarding_an_applied_proposal_is_409(
@@ -716,9 +810,13 @@ def test_discarding_an_applied_proposal_is_409(
 ) -> None:
     seed_user()
     proposal_id = make_proposal(session)
-    client.post(f"/grocery/proposals/{proposal_id}/apply")
+    client.post(
+        f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+    )
 
-    response = client.post(f"/grocery/proposals/{proposal_id}/discard")
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/discard", json={"confirm": True}
+    )
 
     assert response.status_code == 409
     assert client.get(f"/grocery/proposals/{proposal_id}").json()["status"] == (
@@ -727,11 +825,12 @@ def test_discarding_an_applied_proposal_is_409(
 
 
 @pytest.mark.parametrize("first", ["get", "apply"])
-def test_stale_pending_proposal_is_409_and_becomes_discarded(
+def test_stale_proposal_reads_preserve_state_and_apply_discards(
     client: TestClient,
     session: Session,
     seed_user: UserSeeder,
     monkeypatch: pytest.MonkeyPatch,
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
     first: str,
 ) -> None:
     seed_user()
@@ -744,7 +843,11 @@ def test_stale_pending_proposal_is_409_and_becomes_discarded(
     )
     path = f"/grocery/proposals/{proposal_id}"
 
-    response = client.get(path) if first == "get" else client.post(f"{path}/apply")
+    response = (
+        client.get(path)
+        if first == "get"
+        else client.post(f"{path}/apply", json={"plan_cap_cents": 5000})
+    )
 
     assert response.status_code == 409
     body = response.json()
@@ -754,14 +857,23 @@ def test_stale_pending_proposal_is_409_and_becomes_discarded(
     assert revision_count(session) == before
     row = session.get(PlanProposal, proposal_id)
     assert row is not None
-    assert row.status == "discarded"
+    assert row.status == ("pending" if first == "get" else "discarded")
+    if first == "get":
+        assert mutation_admission == []
+        assert client.get(path).status_code == 409
+        stale_apply = client.post(f"{path}/apply", json={"plan_cap_cents": 5000})
+        assert stale_apply.status_code == 409
+        session.refresh(row)
+        assert row.status == "discarded"
+    assert mutation_admission == [(session, 1, "mutation")]
 
     again = client.get(path)
 
     assert again.status_code == 200
     assert again.json()["status"] == "discarded"
     assert again.json()["preview"] is None
-    assert client.post(f"{path}/apply").status_code == 409
+    blocked = client.post(f"{path}/apply", json={"plan_cap_cents": 5000})
+    assert blocked.status_code == 409
     assert revision_count(session) == before
 
 
@@ -773,7 +885,12 @@ def test_stale_discard_leaves_an_applied_proposal_alone(
 ) -> None:
     seed_user()
     proposal_id = make_proposal(session)
-    assert client.post(f"/grocery/proposals/{proposal_id}/apply").status_code == 200
+    assert (
+        client.post(
+            f"/grocery/proposals/{proposal_id}/apply", json={"plan_cap_cents": 5000}
+        ).status_code
+        == 200
+    )
     monkeypatch.setattr(
         plan_revision,
         "SUPPORTED_RECIPE_IDS",
@@ -800,7 +917,11 @@ def test_apply_and_discard_change_updated_at(
     row.updated_at = old
     session.flush()
 
-    assert client.post(f"/grocery/proposals/{proposal_id}/{action}").status_code == 200
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/{action}",
+        json={"plan_cap_cents": 5000} if action == "apply" else {"confirm": True},
+    )
+    assert response.status_code == 200
 
     session.refresh(row)
     assert row.updated_at.replace(tzinfo=UTC) > old
@@ -815,6 +936,7 @@ def test_proposal_routes_lock_the_row_for_changes(
     session: Session,
     seed_user: UserSeeder,
     monkeypatch: pytest.MonkeyPatch,
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
     method: str,
     suffix: str,
     locks: bool,
@@ -827,10 +949,11 @@ def test_proposal_routes_lock_the_row_for_changes(
     real_scalars = session.scalars
 
     def record_load(
-        db: Session, requested: UUID, *, lock: bool = False
+        db: Session, requested: UUID, user_id: int, *, lock: bool = False
     ) -> PlanProposal:
+        assert len(mutation_admission) == int(lock)
         flags.append(lock)
-        return real_load(db, requested, lock=lock)
+        return real_load(db, requested, user_id, lock=lock)
 
     def record_scalars(
         statement: Select[Any], *args: object, **kwargs: object
@@ -841,13 +964,73 @@ def test_proposal_routes_lock_the_row_for_changes(
     monkeypatch.setattr(proposals_api, "_load", record_load)
     monkeypatch.setattr(session, "scalars", record_scalars)
 
-    response = getattr(client, method)(f"/grocery/proposals/{proposal_id}{suffix}")
+    path = f"/grocery/proposals/{proposal_id}{suffix}"
+    response = (
+        client.get(path)
+        if method == "get"
+        else client.post(
+            path,
+            json={"plan_cap_cents": 5000} if suffix == "/apply" else {"confirm": True},
+        )
+    )
 
     assert response.status_code == 200
-    assert flags == [locks]
+    assert flags == ([False, True] if locks else [False])
     selects = [sql for sql in statements if "FROM plan_proposals" in sql]
-    assert len(selects) == 1
-    assert ("FOR UPDATE" in selects[0]) is locks
+    assert len(selects) == (2 if locks else 1)
+    assert "FOR UPDATE" not in selects[0]
+    if locks:
+        assert "FOR UPDATE" in selects[1]
+
+
+@pytest.mark.parametrize("action", ["apply", "discard"])
+@pytest.mark.parametrize("status", ["applied", "discarded"])
+def test_proposal_mutations_recheck_state_after_lock(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
+    action: str,
+    status: str,
+) -> None:
+    seed_user()
+    proposal_id = make_proposal(session)
+    row = session.get(PlanProposal, proposal_id)
+    assert row is not None and row.status == "pending"
+    applied_id: UUID | None = None
+    if status == "applied":
+        applied_id = seed_revision(session, base_snapshot())
+    before = revision_count(session)
+    load = proposals_api._load
+
+    def change_at_lock(
+        db: Session, requested: UUID, user_id: int, *, lock: bool = False
+    ) -> PlanProposal:
+        if lock:
+            assert mutation_admission == [(session, 1, "mutation")]
+            db.execute(
+                PlanProposal.__table__.update()
+                .where(PlanProposal.id == requested)
+                .values(status=status, applied_plan_revision_id=applied_id)
+            )
+            assert row.status == "pending"
+        return load(db, requested, user_id, lock=lock)
+
+    monkeypatch.setattr(proposals_api, "_load", change_at_lock)
+    response = client.post(
+        f"/grocery/proposals/{proposal_id}/{action}",
+        json={"plan_cap_cents": 5000} if action == "apply" else {"confirm": True},
+    )
+    matching = (action, status) in (("apply", "applied"), ("discard", "discarded"))
+    assert response.status_code == (200 if matching else 409)
+    if action == "apply" and status == "applied":
+        assert response.status_code == 200
+        assert response.json()["plan_revision_id"] == str(applied_id)
+    assert row.status == status
+    assert row.applied_plan_revision_id == applied_id
+    assert revision_count(session) == before
+    assert mutation_admission == [(session, 1, "mutation")]
 
 
 def test_migration_0009_compiles_and_downgrades() -> None:
@@ -1055,6 +1238,7 @@ def test_postgres_apply_rejection_preserves_the_committed_plan_and_proposal(
                 models.User.__table__,
                 PlanRevision.__table__,
                 PlanProposal.__table__,
+                QuotaCounter.__table__,
             ],
         )
         setup.add(models.User(id=DEMO_USER_ID, display_name="demo"))
@@ -1067,7 +1251,14 @@ def test_postgres_apply_rejection_preserves_the_committed_plan_and_proposal(
 
     for _ in range(2):
         with Session(postgres_engine) as attempt:
-            result = proposals_api.apply_proposal(proposal_id, attempt)
+            user = attempt.get(models.User, 1)
+            assert user is not None
+            result = proposals_api.apply_proposal(
+                proposal_id,
+                proposals_api.ApplyProposalRequest(plan_cap_cents=5000),
+                attempt,
+                user,
+            )
             assert isinstance(result, JSONResponse)
             assert result.status_code == 409
             assert json.loads(bytes(result.body)) == {
@@ -1081,6 +1272,7 @@ def test_postgres_apply_rejection_preserves_the_committed_plan_and_proposal(
 
     with Session(postgres_engine) as check:
         assert revision_count(check) == 1
+        assert check.scalar(select(func.count()).select_from(QuotaCounter)) == 0
         base = check.get(PlanRevision, base_id)
         row = check.get(PlanProposal, proposal_id)
         assert base is not None and base.snapshot == snapshot
@@ -1099,6 +1291,7 @@ def test_a_locked_proposal_row_blocks_apply_on_postgresql(
                 models.User.__table__,
                 PlanRevision.__table__,
                 PlanProposal.__table__,
+                QuotaCounter.__table__,
             ],
         )
         setup.add(models.User(id=DEMO_USER_ID, display_name="demo"))
@@ -1110,12 +1303,19 @@ def test_a_locked_proposal_row_blocks_apply_on_postgresql(
         setup.commit()
 
     with Session(postgres_engine) as holder, Session(postgres_engine) as waiter:
+        user = waiter.get(models.User, 1)
+        assert user is not None
         holder.scalars(
             select(PlanProposal).where(PlanProposal.id == proposal_id).with_for_update()
         ).one()
         waiter.execute(text("SET LOCAL lock_timeout = '200ms'"))
         with pytest.raises(DBAPIError, match="lock timeout"):
-            proposals_api.apply_proposal(proposal_id, waiter)
+            proposals_api.apply_proposal(
+                proposal_id,
+                proposals_api.ApplyProposalRequest(plan_cap_cents=5000),
+                waiter,
+                user,
+            )
         waiter.rollback()
         holder.rollback()
 
@@ -1126,11 +1326,25 @@ def test_a_locked_proposal_row_blocks_apply_on_postgresql(
             assert pending is not None
             assert pending.status == "pending"
 
-        result = proposals_api.apply_proposal(proposal_id, waiter)
+        result = proposals_api.apply_proposal(
+            proposal_id,
+            proposals_api.ApplyProposalRequest(plan_cap_cents=5000),
+            waiter,
+            user,
+        )
 
     with Session(postgres_engine) as check:
         count = check.scalars(select(func.count()).select_from(PlanRevision))
         assert count.one() == 2
+        mutation_count = check.scalar(
+            select(QuotaCounter.count).where(
+                QuotaCounter.action == "mutation",
+                QuotaCounter.scope == "user",
+                QuotaCounter.scope_key == DEMO_USER_ID,
+            )
+        )
+        assert mutation_count == 1
         applied = check.get(PlanProposal, proposal_id)
         assert applied is not None
-        assert str(applied.applied_plan_revision_id) == result["plan_revision_id"]
+        assert isinstance(result, proposals_api.AppliedProposalResponse)
+        assert str(applied.applied_plan_revision_id) == result.plan_revision_id

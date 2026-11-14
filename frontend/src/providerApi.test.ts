@@ -1,6 +1,7 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { clearTestSession, seedTestSession } from "./testSession";
 import { HTTP_ERROR, SHAPE_ERROR } from "./apiTypes";
 import { fetchProviders, parseProviders } from "./providerApi";
 
@@ -82,9 +83,12 @@ describe("parseProviders", () => {
 });
 
 describe("fetchProviders", () => {
+  beforeEach(seedTestSession);
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("gets provider capabilities from GET /api/grocery/providers", async () => {

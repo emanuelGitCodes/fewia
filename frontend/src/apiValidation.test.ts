@@ -8,11 +8,54 @@ import {
   SHAPE_ERROR,
 } from "./apiTypes";
 import { copyMealPlanNutrition, parseConfig, parseJob } from "./apiValidation";
+import { parseChatJob } from "./chatValidation";
 import { budget, config, job, jobResult, line, mealPlanNutrition, plan, sampleNutrition } from "../tests/apiFixtures";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
 const CATALOG = "sample-prices-v1";
 const STAMP = "2026-09-07T16:00:00Z";
+
+describe.each([
+  ["grocery", parseJob],
+  ["chat", parseChatJob],
+] as const)("%s model job errors", (_name, parse) => {
+  it.each(["model_budget_exhausted", "model_capacity_unavailable"])(
+    "copies bounded matching details for %s",
+    (code) => {
+      const detail = { code, retry_guidance: "Server guidance is data only." };
+      const parsed = parse({ id: "job-1", status: "failed", result: null, error_code: code, error_detail: detail });
+      expect(parsed.error_detail).toEqual(detail);
+      expect(parsed.error_detail).not.toBe(detail);
+    },
+  );
+
+  it.each([
+    undefined,
+    null,
+    "model_budget_exhausted",
+    { code: "model_budget_exhausted" },
+    { code: "model_capacity_unavailable", retry_guidance: "Mismatched code" },
+    { code: "model_budget_exhausted", retry_guidance: 1 },
+    { code: "model_budget_exhausted", retry_guidance: "" },
+    { code: "model_budget_exhausted", retry_guidance: "x".repeat(513) },
+    { code: "model_budget_exhausted", retry_guidance: "Extra fields", extra: "forged" },
+    Object.assign(Object.create({ code: "model_budget_exhausted" }), { retry_guidance: "Inherited code" }),
+  ])("drops malformed model detail %#", (error_detail) => {
+    const parsed = parse({
+      id: "job-1", status: "failed", result: null,
+      error_code: "model_budget_exhausted", error_detail,
+    });
+    expect(parsed.error_detail ?? null).toBeNull();
+  });
+
+  it("drops a known detail attached to an unknown error code", () => {
+    const parsed = parse({
+      id: "job-1", status: "failed", result: null, error_code: "unrecognized",
+      error_detail: { code: "model_budget_exhausted", retry_guidance: "Forged guidance" },
+    });
+    expect(parsed.error_detail).toBeNull();
+  });
+});
 
 function groceryConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return config({

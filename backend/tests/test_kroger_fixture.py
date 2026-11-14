@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 
 from app.demo import DEMO_USER_ID
 from app.deps import get_kroger_cipher, get_kroger_client, get_provider_settings
-from app.kroger_customer import STATE_COOKIE
 from app.kroger_models import KrogerCustomerToken
 from app.main import app
 from app.plan_models import PlanRevision
@@ -40,7 +39,9 @@ NOW = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 @pytest.fixture(autouse=True)
-def _clean_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def _clean_env(
+    monkeypatch: pytest.MonkeyPatch, local_demo_owner: None
+) -> Iterator[None]:
     for name in list(os.environ):
         if name.startswith("FEWIA_"):
             monkeypatch.delenv(name, raising=False)
@@ -303,22 +304,27 @@ def flow(
 
 
 def _sign_in(flow: TestClient) -> httpx.Response:
-    connect = flow.get(
+    connect = flow.post(
         "/grocery/kroger/connect",
         headers={"host": "localhost:8010"},
         follow_redirects=False,
     )
-    assert connect.status_code == 302
-    nonce = connect.headers["set-cookie"].split(";", 1)[0].partition("=")[2]
+    assert connect.status_code == 200
+    assert "set-cookie" not in connect.headers
     flow.cookies.clear()
-    authorize = urlsplit(connect.headers["location"])
+    start = flow.get(
+        connect.json()["authorization_url"].removeprefix("/api"),
+        follow_redirects=False,
+    )
+    assert start.status_code == 302
+    assert "set-cookie" not in start.headers
+    authorize = urlsplit(start.headers["location"])
     assert authorize.path == AUTHORIZE
     approved = flow.get(f"{authorize.path}?{authorize.query}", follow_redirects=False)
     assert approved.status_code == 302
     callback = urlsplit(approved.headers["location"])
     return flow.get(
         f"{callback.path}?{callback.query}",
-        headers={"cookie": f"{STATE_COOKIE}={nonce}"},
         follow_redirects=False,
     )
 
@@ -363,8 +369,9 @@ def test_full_fixture_flow(flow: TestClient, session: Session) -> None:
     assert len(body["items"]) == 3
     assert all(i["description"].startswith("FEWIA Fixture") for i in body["items"])
 
-    lines = [{"upc": i["upc"], "quantity": i["quantity"]} for i in body["items"]]
-    added = flow.post("/grocery/kroger/cart/add", json={"items": lines})
+    token = body["confirmation_token"]
+    assert body["expires_in_seconds"] == 300
+    added = flow.post("/grocery/kroger/cart/add", json={"confirmation_token": token})
     assert added.status_code == 204
     assert added.content == b""
 
@@ -372,14 +379,25 @@ def test_full_fixture_flow(flow: TestClient, session: Session) -> None:
     assert row is not None
     row.access_expires_at = datetime.now(UTC) - timedelta(seconds=5)
     session.flush()
-    refreshed = flow.post("/grocery/kroger/cart/add", json={"items": lines})
+    next_preview = flow.post(
+        "/grocery/kroger/cart/preview",
+        json={"plan_revision_id": _plan(session), "location_id": location},
+    )
+    assert next_preview.status_code == 200
+    refreshed = flow.post(
+        "/grocery/kroger/cart/add",
+        json={"confirmation_token": next_preview.json()["confirmation_token"]},
+    )
     assert refreshed.status_code == 204
     assert flow.get("/grocery/kroger/connection").json() == {"connected": True}
 
 
-def test_cart_add_without_sign_in_is_409(flow: TestClient) -> None:
+def test_cart_preview_without_sign_in_is_409(
+    flow: TestClient, session: Session
+) -> None:
     response = flow.post(
-        "/grocery/kroger/cart/add", json={"items": [{"upc": "12345678", "quantity": 1}]}
+        "/grocery/kroger/cart/preview",
+        json={"plan_revision_id": _plan(session), "location_id": "FX123451"},
     )
     assert response.status_code == 409
 

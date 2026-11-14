@@ -35,6 +35,13 @@ _OPTIONS: dict[tuple[str, str], tuple[str, ...]] = {
         r"(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*",
         r"--image-ids=imageDigest=sha256:[0-9a-f]{64}",
     ),
+    ("ecr", "describe-image-scan-findings"): (
+        r"--registry-id=[0-9]{12}",
+        r"--repository-name=(?=.{2,256}$)[a-z0-9]+(?:[._-][a-z0-9]+)*"
+        r"(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*",
+        r"--image-id=imageDigest=sha256:[0-9a-f]{64}",
+        "--no-paginate",
+    ),
     ("ecs", "describe-tasks"): (
         rf"--cluster={_ECS}cluster/{_NAME}",
         rf"--tasks={_ECS}task/{_NAME}/[0-9a-f]{{32}}",
@@ -58,6 +65,12 @@ def _invoke_aws(command: list[str], *, profile: str) -> object:
         ):
             raise PreflightError(_ERROR)
         patterns = _OPTIONS.get((command[1], command[2]))
+        if (
+            patterns is not None
+            and command[1:3] == ["ecr", "describe-image-scan-findings"]
+            and len(command) == 7 + len(patterns)
+        ):
+            patterns = (*patterns, r"--next-token=[!-~]{1,2048}")
         if patterns is None or len(command) != 6 + len(patterns):
             raise PreflightError(_ERROR)
         if any(

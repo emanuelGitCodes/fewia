@@ -1,5 +1,6 @@
 import sqlite3
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -7,13 +8,17 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import Connection, Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
+from test_job_effects import claim_context
 from test_plaid_sync import ScriptedProvider, load_item, load_txn, page, txn
+from test_plan_job import pure_context
 
 from app import models
 from app.db import Base
+from app.job_effect_models import JobEffect
+from app.job_models import Job, JobOutbox
 from app.plaid_models import PlaidItem, PlaidTransaction
 from app.providers.plaid import PlaidNotReady, PlaidSyncMutation, PlaidUnavailable
-from app.services.job_delivery import LeaseLost, RetryableJobError
+from app.services.job_delivery import JobContext, LeaseLost, RetryableJobError
 from app.services.sync_job import SyncJobInput, make_sync_handler
 
 ITEM_ID = "item-1"
@@ -48,6 +53,9 @@ def sync_engine(tmp_path: Path) -> Iterator[Engine]:
         models.User.__table__,
         PlaidItem.__table__,
         PlaidTransaction.__table__,
+        Job.__table__,
+        JobOutbox.__table__,
+        JobEffect.__table__,
     ]
     Base.metadata.create_all(test_engine, tables=tables)
     try:
@@ -81,6 +89,12 @@ def dummy_factory() -> sessionmaker[Session]:
     return cast(sessionmaker[Session], object())
 
 
+@pytest.fixture()
+def context(factory: sessionmaker[Session], owned_item: str) -> JobContext:
+    del owned_item
+    return claim_context(factory, kind="sync", payload=payload())
+
+
 def payload(**overrides: object) -> dict[str, object]:
     body: dict[str, object] = {"operation": "plaid_sync", "item_id": ITEM_ID}
     body.update(overrides)
@@ -108,9 +122,9 @@ def test_input_forbids_cursor_token_and_owner() -> None:
 def test_missing_provider_fails_after_validation() -> None:
     handler = make_sync_handler(dummy_factory(), None)
     with pytest.raises(ValidationError):
-        handler(payload(cursor="c1"), lambda: None)
+        handler(payload(cursor="c1"), pure_context())
     with pytest.raises(ValueError, match="unavailable") as caught:
-        handler(payload(), lambda: None)
+        handler(payload(), pure_context())
     assert str(caught.value) == UNAVAILABLE
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
@@ -118,13 +132,13 @@ def test_missing_provider_fails_after_validation() -> None:
 
 
 def test_success_returns_source_and_count_only(
-    factory: sessionmaker[Session], owned_item: str
+    factory: sessionmaker[Session], owned_item: str, context: JobContext
 ) -> None:
     provider = ScriptedProvider(
         [page(added=(txn("txn-1"),), next_cursor="c1", has_more=False)]
     )
     handler = make_sync_handler(factory, provider)
-    result = handler(payload(), lambda: None)
+    result = handler(payload(), context)
     assert result == {"source": "plaid_sandbox", "changed_count": 1}
     assert "cursor" not in result
     assert "token" not in result
@@ -134,7 +148,7 @@ def test_success_returns_source_and_count_only(
 
 
 def test_retryable_errors_are_static_and_roll_back(
-    factory: sessionmaker[Session], owned_item: str
+    factory: sessionmaker[Session], owned_item: str, context: JobContext
 ) -> None:
     provider = ScriptedProvider(
         [
@@ -144,7 +158,7 @@ def test_retryable_errors_are_static_and_roll_back(
     )
     handler = make_sync_handler(factory, provider)
     with pytest.raises(RetryableJobError) as caught:
-        handler(payload(), lambda: None)
+        handler(payload(), context)
     assert str(caught.value) == RETRY
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
@@ -154,7 +168,7 @@ def test_retryable_errors_are_static_and_roll_back(
     for error in (PlaidNotReady(), PlaidUnavailable()):
         retry_handler = make_sync_handler(factory, ScriptedProvider([error]))
         with pytest.raises(RetryableJobError) as raised:
-            retry_handler(payload(), lambda: None)
+            retry_handler(payload(), context)
         assert str(raised.value) == RETRY
         assert raised.value.__cause__ is None
         assert raised.value.__context__ is None
@@ -165,14 +179,14 @@ def test_retryable_errors_are_static_and_roll_back(
         ),
     )
     with pytest.raises(RetryableJobError) as raised:
-        exhausted(payload(), lambda: None)
+        exhausted(payload(), context)
     assert str(raised.value) == RETRY
     assert raised.value.__cause__ is None
     assert raised.value.__context__ is None
 
 
 def test_lease_lost_is_preserved(
-    factory: sessionmaker[Session], owned_item: str
+    factory: sessionmaker[Session], owned_item: str, context: JobContext
 ) -> None:
     provider = ScriptedProvider(
         [page(added=(txn("txn-1"),), next_cursor="c1", has_more=False)]
@@ -183,7 +197,7 @@ def test_lease_lost_is_preserved(
         raise LeaseLost
 
     with pytest.raises(LeaseLost) as caught:
-        handler(payload(), heartbeat)
+        handler(payload(), replace(context, heartbeat=heartbeat))
     assert caught.value.__cause__ is None
     assert load_txn(factory, ITEM_ID, "txn-1") is None
 
@@ -194,5 +208,5 @@ def test_invalid_payload_does_not_call_provider(
     provider = ScriptedProvider([])
     handler = make_sync_handler(factory, provider)
     with pytest.raises(ValidationError):
-        handler(payload(token=SECRET), lambda: None)
+        handler(payload(token=SECRET), pure_context())
     assert provider.calls == []

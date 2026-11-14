@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -8,10 +9,22 @@ from app.agent.planning_tool import PlanningToolError, execute_plan
 from app.domain.budget import SpendingSnapshot, calculate_budget
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.services import plan_job as plan_job_module
-from app.services.job_delivery import JobFailure
+from app.services.job_delivery import JobContext, JobFailure
 
 NOW = datetime(2026, 9, 2, 12, 0, tzinfo=UTC)
 _REV = "ab" * 32
+
+
+def pure_context(
+    heartbeat: Callable[[], None] | None = None, *, user_id: int = 1
+) -> JobContext:
+    return JobContext(
+        job_id="00000000-0000-0000-0000-000000000001",
+        user_id=user_id,
+        lease_token="synthetic-pure-function-token",
+        heartbeat=heartbeat or (lambda: None),
+        attempt=1,
+    )
 
 
 def payload(**overrides: object) -> dict[str, object]:
@@ -64,7 +77,9 @@ def test_plan_job_returns_json_plan_and_calls_heartbeats(
     body = payload()
     expected = expected_plan(body)
 
-    result = plan_job_module.plan_job(body, lambda: heartbeats.append("beat"))
+    result = plan_job_module.plan_job(
+        body, pure_context(lambda: heartbeats.append("beat"))
+    )
 
     assert heartbeats == ["beat", "beat"]
     assert result["spending_source"] == "fixture"
@@ -100,7 +115,7 @@ def test_plan_job_records_catalog_evidence(
 
     result = plan_job_module.plan_job(
         body,
-        lambda: None,
+        pure_context(),
         record_evidence=record,
     )
 
@@ -132,7 +147,7 @@ def test_plan_job_preserves_budget_warnings_and_source(
     )
     expected = expected_plan(stale_payload)
 
-    result = plan_job_module.plan_job(stale_payload, lambda: None)
+    result = plan_job_module.plan_job(stale_payload, pure_context())
 
     assert result["spending_source"] == "plaid_sandbox"
     budget = result["budget"]
@@ -161,7 +176,7 @@ def test_plan_job_manual_source_uses_full_monthly_limit(
         },
         spending_source="manual",
     )
-    result = plan_job_module.plan_job(body, lambda: None)
+    result = plan_job_module.plan_job(body, pure_context())
     budget = result["budget"]
 
     assert result["spending_source"] == "manual"
@@ -182,7 +197,7 @@ def test_plan_job_exclusion_raises_job_failure(
                     "ingredient_exclusions": ["onion"],
                 }
             ),
-            lambda: None,
+            pure_context(),
         )
     assert str(caught.value) == caught.value.error_code == "exclusion_reject"
     assert caught.value.__cause__ is None and caught.value.__suppress_context__ is True
@@ -205,7 +220,7 @@ def test_plan_job_diet_conflict_raises_job_failure(
                     "diet": "vegan",
                 }
             ),
-            lambda: None,
+            pure_context(),
         )
     assert str(caught.value) == caught.value.error_code == "diet_conflict"
     assert caught.value.__cause__ is None and caught.value.__suppress_context__ is True
@@ -226,7 +241,7 @@ def test_plan_job_preserves_untyped_planning_error(
 
     monkeypatch.setattr(plan_job_module, "execute_plan", fail)
     with pytest.raises(PlanningToolError) as caught:
-        plan_job_module.plan_job(payload(), lambda: None)
+        plan_job_module.plan_job(payload(), pure_context())
     assert caught.value.error_code is None
     assert str(caught.value) == "catalog constraint is invalid"
 
@@ -240,14 +255,14 @@ def test_plan_job_rejects_period_mismatch() -> None:
                     "budget_period": date(2026, 8, 1),
                 }
             ),
-            lambda: None,
+            pure_context(),
         )
 
 
 @pytest.mark.parametrize("value", [-1, True, 1.5, "100"])
 def test_plan_job_requires_strict_nonnegative_monthly_limit(value: object) -> None:
     with pytest.raises(ValidationError):
-        plan_job_module.plan_job(payload(monthly_limit_cents=value), lambda: None)
+        plan_job_module.plan_job(payload(monthly_limit_cents=value), pure_context())
 
 
 @pytest.mark.parametrize("field", ["posted_cents", "pending_cents"])
@@ -262,7 +277,7 @@ def test_plan_job_requires_strict_spending_cents(field: str, value: object) -> N
     spending[field] = value
 
     with pytest.raises(ValidationError):
-        plan_job_module.plan_job(payload(spending=spending), lambda: None)
+        plan_job_module.plan_job(payload(spending=spending), pure_context())
 
 
 def test_plan_job_rejects_invalid_diet_and_extra_fields() -> None:
@@ -275,10 +290,10 @@ def test_plan_job_rejects_invalid_diet_and_extra_fields() -> None:
                     "diet": "pescatarian",
                 }
             ),
-            lambda: None,
+            pure_context(),
         )
     with pytest.raises(ValidationError):
-        plan_job_module.plan_job(payload(unexpected="value"), lambda: None)
+        plan_job_module.plan_job(payload(unexpected="value"), pure_context())
 
 
 def test_plan_job_passes_frozen_clock_and_parsed_input(
@@ -306,7 +321,7 @@ def test_plan_job_passes_frozen_clock_and_parsed_input(
         assert "evidence_revision_id" not in planning
         return _REV
 
-    result = plan_job_module.plan_job(body, lambda: None, record_evidence=record)
+    result = plan_job_module.plan_job(body, pure_context(), record_evidence=record)
 
     assert now_calls == [NOW]
     assert len(captured) == 1
@@ -333,7 +348,7 @@ def test_plan_job_callback_failure_does_not_return(
         raise RuntimeError("store-failed")
 
     with pytest.raises(RuntimeError, match="store-failed") as caught:
-        plan_job_module.plan_job(payload(), lambda: None, record_evidence=record)
+        plan_job_module.plan_job(payload(), pure_context(), record_evidence=record)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
 
@@ -353,7 +368,7 @@ def test_plan_job_malformed_revision_id_fails_closed(
         return value
 
     with pytest.raises(ValueError, match="evidence revision id is invalid") as caught:
-        plan_job_module.plan_job(payload(), lambda: None, record_evidence=record)
+        plan_job_module.plan_job(payload(), pure_context(), record_evidence=record)
     assert value not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None

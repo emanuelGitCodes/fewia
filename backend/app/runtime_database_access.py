@@ -5,11 +5,35 @@ from psycopg import sql
 
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
+    RUNTIME_MODEL_UPDATE_COLUMNS,
     RUNTIME_ROLE,
+    RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
     UNSAFE_ROLE_SQL,
     validate_runtime_password,
 )
+
+ADVANCE_USER_IDENTITY_SQL: str = """
+DO $$
+DECLARE
+    user_sequence regclass;
+    sequence_value bigint;
+BEGIN
+    LOCK TABLE public.users IN SHARE ROW EXCLUSIVE MODE;
+    user_sequence := pg_get_serial_sequence('public.users', 'id')::regclass;
+    IF user_sequence IS NULL THEN
+        RAISE EXCEPTION 'users identity sequence is missing';
+    END IF;
+    EXECUTE format('SELECT last_value FROM %s', user_sequence)
+        INTO sequence_value;
+    PERFORM setval(
+        user_sequence,
+        GREATEST(1, (SELECT MAX(id) FROM public.users), sequence_value),
+        true
+    );
+END;
+$$;
+"""
 
 
 class RuntimeDatabaseAccessError(RuntimeError):
@@ -78,6 +102,7 @@ def provision_runtime_access(
                 )
             if connection.execute(UNSAFE_ACCESS_SQL).fetchone() != (False,):
                 raise RuntimeDatabaseAccessError("runtime database access is unsafe")
+            connection.execute(ADVANCE_USER_IDENTITY_SQL)
             connection.execute(
                 sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(database, role)
             )
@@ -90,6 +115,27 @@ def provision_runtime_access(
                         sql.SQL(privileges), sql.Identifier("public", table), role
                     )
                 )
+            connection.execute(
+                sql.SQL("GRANT UPDATE ({}) ON TABLE {} TO {}").format(
+                    sql.SQL(", ").join(
+                        sql.Identifier(column)
+                        for column in RUNTIME_MODEL_UPDATE_COLUMNS
+                    ),
+                    sql.Identifier("public", "model_call_reservations"),
+                    role,
+                )
+            )
+            connection.execute(
+                sql.SQL("GRANT INSERT ({}) ON TABLE {} TO {}").format(
+                    sql.SQL(", ").join(
+                        sql.Identifier(column) for column in RUNTIME_USER_INSERT_COLUMNS
+                    ),
+                    sql.Identifier("public", "users"),
+                    role,
+                )
+            )
+            if connection.execute(UNSAFE_ACCESS_SQL).fetchone() != (False,):
+                raise RuntimeDatabaseAccessError("runtime database access is unsafe")
     except Exception:  # noqa: BLE001
         failed = True
     if failed:

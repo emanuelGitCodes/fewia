@@ -6,8 +6,7 @@
 # for the one-shot setup service, waits for the API, and prints the app URL.
 # Extra arguments go to "docker compose up -d". Skip the key check with
 # FEWIA_SKIP_KEY_CHECK=1.
-# Start with --kroger-live as the first argument to add compose.kroger.yaml
-# (live Kroger); the remaining arguments then go to Compose up.
+# Use leading --kroger-live and --tools flags to select local overlays.
 # Compose project names and profiles use the caller's environment.
 # Put FEWIA_OPENAI_API_KEY=<key> in .env. Compose mounts it as a secret in the worker only.
 # The launcher reads .env as text, never evaluates it, and never prints the key.
@@ -45,6 +44,10 @@ import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
+
+if __name__ == "__main__":
+    sys.path.insert(0, str(Path(sys.argv[1]) / "backend"))
+from app.local_secret_state import prepare_local_state, read_password, read_private_file
 
 
 class LaunchError(Exception):
@@ -98,7 +101,7 @@ def parse_env_value(raw: str) -> str:
 def env_file_value(path: Path, name: str) -> str:
     pattern = re.compile(rf"^(?:export\s+)?{re.escape(name)}\s*=\s*(.*)$")
     found = ""
-    for line in path.read_text(errors="replace").splitlines():
+    for line in read_private_file(path).splitlines():
         match = pattern.match(line.strip())
         if match is not None:
             found = parse_env_value(match.group(1))
@@ -310,6 +313,38 @@ def wait_for_api(compose: list[str], root: Path, environment: dict[str, str]) ->
         raise LaunchError(API_FAILED)
 
 
+def wait_for_database(compose: list[str], root: Path, environment: dict[str, str]) -> None:
+    def probe() -> bool | None:
+        entry = service_entry(compose, "postgres", root, environment, all_states=False)
+        return True if entry is not None and entry.get("Health") == "healthy" else None
+
+    if poll(probe, seconds("FEWIA_DATABASE_TIMEOUT_SECONDS", 180)) is not True:
+        raise LaunchError("The internal database did not become healthy.")
+
+
+def rotate_database_password(
+    compose: list[str], root: Path, environment: dict[str, str], password_file: Path
+) -> None:
+    password = read_password(password_file)
+    command = [
+        *compose, "exec", "-T", "--user", "postgres", "postgres",
+        "psql", "-X", "--no-password", "--host", "/var/run/postgresql",
+        "--username", "fewia", "--dbname", "fewia", "--set", "ON_ERROR_STOP=1",
+    ]
+    try:
+        subprocess.run(
+            command, cwd=root, env=environment, check=True, capture_output=True,
+            text=True, timeout=30,
+            input=(
+                "SET password_encryption = 'scram-sha-256';\n"
+                "\\password fewia\n"
+                f"{password}\n{password}\n"
+            ),
+        )
+    except Exception:
+        raise LaunchError("Internal database credential rotation failed.") from None
+
+
 def report_failure(detail: str) -> int:
     print("OpenAI Compose launch failed.", file=sys.stderr)
     print(detail, file=sys.stderr)
@@ -320,23 +355,40 @@ def main() -> int:
     root = Path(sys.argv[1]).resolve(strict=True)
     environment = os.environ.copy()
     arguments = sys.argv[2:]
-    kroger_live = arguments[:1] == [KROGER_LIVE_FLAG]
-    if kroger_live:
+    kroger_live = False
+    tools = False
+    while arguments[:1] in ([KROGER_LIVE_FLAG], ["--tools"]):
+        kroger_live = kroger_live or arguments[0] == KROGER_LIVE_FLAG
+        tools = tools or arguments[0] == "--tools"
         arguments = arguments[1:]
     mode = "live" if kroger_live else "fixture"
     files = ["-f", "compose.yaml"]
     if kroger_live:
         files += ["-f", "compose.kroger.yaml"]
+    if tools:
+        files += ["-f", "compose.tools.yaml"]
     compose = [
-        "docker", "compose", "--env-file", ".env",
+        "docker", "compose", "--env-file", ".env", "--env-file", ".env0600",
         *files,
         "--project-directory", str(root),
     ]
-    detail = KEY_MISSING
+    detail = "The .env file MUST be a regular private file with mode 0600."
     try:
+        read_private_file(root / ".env")
+        detail = KEY_MISSING
         if not key_is_set(root):
             raise LaunchError(KEY_MISSING)
         check_openai_key(root)
+        stage("Preparing private local state.")
+        detail = "Private local state is unsafe or invalid. Run as a nonroot host user."
+        state = prepare_local_state(root)
+        environment.update({
+            "FEWIA_LOCAL_ADMIN_PASSWORD_FILE": str(state.admin),
+            "FEWIA_LOCAL_RUNTIME_PASSWORD_FILE": str(state.runtime),
+            "FEWIA_LOCAL_PAIRING_KEY_FILE": str(state.pairing),
+            "FEWIA_HOST_UID": str(state.uid),
+            "FEWIA_HOST_GID": str(state.gid),
+        })
         stage("Checking the Compose configuration.")
         try:
             result = subprocess.run(
@@ -361,10 +413,28 @@ def main() -> int:
         run_visible([*compose, "pull", "--ignore-buildable"], root, environment, PULL_FAILED)
         stage("Building images. The first run takes several minutes.")
         run_visible([*compose, "build"], root, environment, BUILD_FAILED)
+        stage("Stopping application services.")
+        run_visible(
+            [*compose, "stop", "api", "worker", "sync-worker", "bootstrap"],
+            root, environment, "Could not stop application services.",
+        )
+        stage("Starting the internal database.")
+        run_visible(
+            [*compose, "up", "-d", "--no-deps", "postgres"],
+            root, environment, UP_FAILED,
+        )
+        wait_for_database(compose, root, environment)
+        stage("Rotating the internal database credential.")
+        rotate_database_password(compose, root, environment, state.admin)
+        stage("Setting up the database and demo user.")
+        run_visible(
+            [*compose, "up", "-d", "--force-recreate", "bootstrap"],
+            root, environment, UP_FAILED,
+        )
+        wait_for_setup(compose, root, environment)
         stage("Starting services.")
         run_visible([*compose, "up", "-d", *arguments], root, environment, UP_FAILED)
         stage("OpenAI Compose services started.")
-        stage("Setting up the database and demo user.")
         wait_for_setup(compose, root, environment)
         stage("Waiting for the API.")
         wait_for_api(compose, root, environment)

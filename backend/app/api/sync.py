@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.api.grocery_models import GroceryJobAccepted, GroceryJobView
 from app.api.sync_models import CreateSyncJobBody
-from app.demo import DEMO_USER_ID
-from app.deps import get_session
+from app.deps import get_current_user, get_session
 from app.job_models import Job
+from app.models import User
 from app.plaid_models import PlaidItem
 from app.provider_runtime import capabilities
 from app.provider_settings import (
@@ -42,11 +42,11 @@ def get_provider_settings() -> GroceryProviderSettings:
     return load_provider_settings()
 
 
-def _owned_item(session: Session, item_id: str) -> PlaidItem | None:
+def _owned_item(session: Session, item_id: str, user_id: int) -> PlaidItem | None:
     return session.scalar(
         select(PlaidItem).where(
             PlaidItem.id == item_id,
-            PlaidItem.user_id == DEMO_USER_ID,
+            PlaidItem.user_id == user_id,
         )
     )
 
@@ -71,20 +71,21 @@ def create_sync_job(
     idempotency_key: Annotated[
         str, Header(min_length=1, max_length=120, pattern=r"^\S+$")
     ],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> GroceryJobAccepted:
     request_key = f"{REQUEST_KEY_PREFIX}{idempotency_key}"
     matches = body.matches_stored_caller_fields
     existing: Job | None = None
     conflict = False
     try:
-        existing = reuse_job(session, DEMO_USER_ID, "sync", request_key, matches)
+        existing = reuse_job(session, user.id, "sync", request_key, matches)
     except JobConflict:
         conflict = True
     if conflict:
         raise HTTPException(status_code=409, detail=CONFLICT_MESSAGE)
     if existing is not None:
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
-    if _owned_item(session, body.item_id) is None:
+    if _owned_item(session, body.item_id, user.id) is None:
         raise HTTPException(status_code=404, detail=ITEM_NOT_FOUND_MESSAGE)
     if not _plaid_is_configured():
         raise HTTPException(status_code=503, detail=CONFIG_UNAVAILABLE_MESSAGE)
@@ -95,7 +96,7 @@ def create_sync_job(
     job: Job | None = None
     failure: tuple[int, str] | None = None
     try:
-        job = submit_job(session, DEMO_USER_ID, "sync", request_key, payload, matches)
+        job = submit_job(session, user.id, "sync", request_key, payload, matches)
     except JobConflict:
         failure = (409, CONFLICT_MESSAGE)
     except JobUnavailable:
@@ -110,12 +111,14 @@ def create_sync_job(
 
 @router.get("/jobs/{job_id}")
 def read_sync_job(
-    job_id: UUID, session: Annotated[Session, Depends(get_session)]
+    job_id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> GroceryJobView:
     job = session.get(Job, str(job_id))
     if (
         job is None
-        or job.user_id != DEMO_USER_ID
+        or job.user_id != user.id
         or job.kind != "sync"
         or not _is_plaid_sync_payload(job.payload)
     ):

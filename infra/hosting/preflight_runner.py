@@ -102,7 +102,49 @@ def _run(
             f"--image-ids=imageDigest={digest}",
         )
         checks.check_image(config, image, repository_name=name, digest=digest)
-    done = ["caller_account", "certificate", "stack", "backend_image", "frontend_image"]
+        seen: set[str] = set()
+        totals: dict[str, int] = {}
+        summary: dict[str, int] | None = None
+        token: str | None = None
+        for _ in range(1000):
+            arguments = [] if token is None else [f"--next-token={token}"]
+            scan = request(
+                "ecr",
+                "describe-image-scan-findings",
+                f"--registry-id={config.account}",
+                f"--repository-name={name}",
+                f"--image-id=imageDigest={digest}",
+                "--no-paginate",
+                *arguments,
+            )
+            counts, page_summary, token = checks.check_image_scan_page(
+                config, scan, repository_name=name, digest=digest
+            )
+            if summary is not None and page_summary != summary:
+                raise PreflightError(_ERROR)
+            summary = page_summary
+            for severity, count in counts.items():
+                totals[severity] = totals.get(severity, 0) + count
+            if totals.get("HIGH", 0) or totals.get("CRITICAL", 0):
+                raise PreflightError(_ERROR)
+            if token is None:
+                if totals != summary:
+                    raise PreflightError(_ERROR)
+                break
+            if token in seen:
+                raise PreflightError(_ERROR)
+            seen.add(token)
+        else:
+            raise PreflightError(_ERROR)
+    done = [
+        "caller_account",
+        "certificate",
+        "stack",
+        "backend_image",
+        "frontend_image",
+        "backend_scan",
+        "frontend_scan",
+    ]
     if config.phase == "active":
         assert task_arn is not None
         task = request(

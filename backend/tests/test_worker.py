@@ -11,12 +11,22 @@ from typing import cast
 
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
-from test_chat_job import chat_payload
+from test_chat_job import FakeLLM, _reply, chat_payload
 
 from app import worker
+from app.agent.chat_loop import BUDGET_TOOL_NAME, ChatUnavailable
+from app.evaluation_cost_rates import EvaluationRates
 from app.job_models import Job
 from app.provider_settings import GroceryProviderSettings, ProviderConfigurationError
-from app.services.job_delivery import JobHandler, JobQueue
+from app.services import chat_job as chat_job_module
+from app.services.job_delivery import JobContext, JobFailure, JobHandler, JobQueue
+from app.services.model_cost import (
+    ModelBudgetExhausted,
+    ModelCapacityUnavailable,
+    ModelCostLedger,
+    Reservation,
+)
+from app.services.model_cost_rates import ModelRatesUnavailable, RuntimeRates
 from app.services.outbox_publisher import JobSender, PublicationError
 
 ENDPOINT = "http://127.0.0.1:4566"
@@ -66,15 +76,33 @@ def dummy_queue() -> JobQueue:
     return cast(JobQueue, object())
 
 
-def dummy_handler(
-    payload: dict[str, object], heartbeat: Callable[[], None]
-) -> dict[str, object]:
-    del payload, heartbeat
+def dummy_handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+    del payload, context
     return {}
 
 
 def frozen_now() -> datetime:
     return NOW
+
+
+def synthetic_runtime_rates() -> RuntimeRates:
+    record = EvaluationRates.model_validate(
+        {
+            "model_id": "gpt-6-luna",
+            "region": "global",
+            "currency": "USD",
+            "input_usd_per_1000": "0.001",
+            "output_usd_per_1000": "0.002",
+            "cached_input_usd_per_1000": "0.001",
+            "cache_write_30m_usd_per_1000": "0.001",
+            "cache_write_12h_usd_per_1000": "0.001",
+            "source_url": "https://example.com/synthetic-rates",
+            "source_version": "synthetic",
+            "date_as_of": NOW.date().isoformat(),
+            "retrieved_at": NOW.date().isoformat(),
+        }
+    )
+    return RuntimeRates(record, "sha256:" + "a" * 64)
 
 
 def make_job(*, kind: str, payload: dict[str, object]) -> Job:
@@ -748,6 +776,8 @@ def test_standalone_worker_import_registers_user() -> None:
         "assert 'users' in Base.metadata.tables\n"
         "from app.models import User\n"
         "assert Base.metadata.tables['users'] is User.__table__\n"
+        "assert 'job_effects' in Base.metadata.tables\n"
+        "assert any(c.name == 'uq_jobs_id_user' for c in Job.__table__.constraints)\n"
         "engine = create_engine('sqlite://')\n"
         "Base.metadata.create_all(engine, tables=[User.__table__, Job.__table__])\n"
         "try:\n"
@@ -852,9 +882,9 @@ def test_default_agent_routes_plan_and_chat_handlers(
         del factory, provider, kwargs
 
         def handle(
-            payload: dict[str, object], heartbeat: Callable[[], None]
+            payload: dict[str, object], context: JobContext
         ) -> dict[str, object]:
-            del heartbeat
+            del context
             if payload.get("operation") == "chat":
                 seen.append("chat")
             elif "operation" in payload:
@@ -877,8 +907,8 @@ def test_default_agent_routes_plan_and_chat_handlers(
     ) -> str:
         del factory, queue
         assert kind == "agent"
-        handler(VALID_PAYLOAD, lambda: None)
-        handler(chat_payload(), lambda: None)
+        handler(VALID_PAYLOAD, JobContext("job", 1, "lease", lambda: None, 1))
+        handler(chat_payload(), JobContext("job", 1, "lease", lambda: None, 1))
         routed.extend(seen)
         stop.set()
         return "succeeded"
@@ -959,12 +989,13 @@ def test_bedrock_constructor_failure_degrades_without_fake(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     settings = GroceryProviderSettings(bedrock_model_id="anthropic.model")
+    builds: list[GroceryProviderSettings] = []
 
     def loaded() -> GroceryProviderSettings:
         return settings
 
     def fail_build(loaded_settings: GroceryProviderSettings) -> None:
-        del loaded_settings
+        builds.append(loaded_settings)
         raise ProviderConfigurationError()
 
     def forbid_plaid(loaded_settings: GroceryProviderSettings) -> None:
@@ -972,6 +1003,9 @@ def test_bedrock_constructor_failure_degrades_without_fake(
         raise AssertionError("plaid")
 
     monkeypatch.setattr(worker, "load_provider_settings", loaded)
+    monkeypatch.setattr(
+        worker, "load_runtime_rates", lambda **_: synthetic_runtime_rates()
+    )
     monkeypatch.setattr(worker, "build_llm", fail_build)
     monkeypatch.setattr(worker, "build_plaid", forbid_plaid)
     captured: list[object] = []
@@ -1009,6 +1043,7 @@ def test_bedrock_constructor_failure_degrades_without_fake(
     assert code == 0
     assert captured == [None]
     assert notice == {"status": "bedrock_unavailable"}
+    assert builds == [settings]
     assert result["status"] == "stopped"
     assert SECRET not in output.out
     assert SECRET not in output.err
@@ -1094,23 +1129,212 @@ def test_openai_worker_uses_common_provider_selection(
     settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "key")
     selected = object()
     seen: list[object] = []
+    rates = synthetic_runtime_rates()
+    rate_requests: list[tuple[str, str]] = []
+
+    def load_rates(*, model_id: str, region: str) -> RuntimeRates:
+        rate_requests.append((model_id, region))
+        return rates
 
     def load() -> GroceryProviderSettings:
         return settings
 
     def build(loaded: GroceryProviderSettings) -> object:
         assert loaded is settings
+        assert rate_requests == [("gpt-6-luna", "global")]
         return selected
 
-    def make_agent(factory: sessionmaker[Session], provider: object) -> JobHandler:
+    def make_agent(
+        factory: sessionmaker[Session], provider: object, **kwargs: object
+    ) -> JobHandler:
+        assert kwargs == {"rates": rates}
         seen.append(provider)
         return dummy_handler
 
     monkeypatch.setattr(worker, "load_provider_settings", load)
     monkeypatch.setattr(worker, "build_llm", build)
+    monkeypatch.setattr(worker, "load_runtime_rates", load_rates)
     monkeypatch.setattr(worker, "make_agent_handler", make_agent)
     assert worker._default_handler(dummy_factory(), "agent") is dummy_handler
     assert seen == [selected]
+
+
+@pytest.mark.parametrize("injected", [False, True])
+def test_worker_default_processor_preserves_clock_dependency(
+    monkeypatch: pytest.MonkeyPatch, injected: bool
+) -> None:
+    stop = threading.Event()
+    seen: list[object] = []
+
+    def process(
+        factory: sessionmaker[Session],
+        queue: JobQueue,
+        kind: str,
+        handler: JobHandler,
+        *,
+        now: worker.NowFn | None = None,
+    ) -> str:
+        seen.append(now)
+        stop.set()
+        return "succeeded"
+
+    stub_cycle(monkeypatch)
+    monkeypatch.setattr(worker, "process_one", process)
+    clock = frozen_now if injected else None
+    counts = worker.run_worker(
+        dummy_factory(), dummy_queue(), DummySender(), dummy_handler, stop, now=clock
+    )
+    assert seen == [clock]
+    assert counts["succeeded"] == 1
+
+
+def test_worker_missing_rates_denies_chat_before_provider_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "unused")
+    monkeypatch.setattr(worker, "load_provider_settings", lambda: settings)
+
+    def no_rates(*, model_id: str, region: str) -> RuntimeRates:
+        raise ModelRatesUnavailable()
+
+    def forbid_build(settings: GroceryProviderSettings) -> FakeLLM:
+        raise AssertionError("Missing rates cannot build a provider.")
+
+    monkeypatch.setattr(worker, "load_runtime_rates", no_rates)
+    monkeypatch.setattr(worker, "build_llm", forbid_build)
+    handler = worker._default_handler(dummy_factory(), "agent")
+    with pytest.raises(ChatUnavailable):
+        handler(chat_payload(), JobContext("job", 1, "lease", lambda: None, 1))
+    assert capsys.readouterr().err == '{"status": "openai_unavailable"}\n'
+
+
+@pytest.mark.parametrize(
+    ("model_id", "region"),
+    [
+        ("gpt-6-luna", "us"),
+        ("us.amazon.nova-2-lite-v1:0", "us-east-1"),
+        ("us.amazon.nova-2-pro-v1:0", "us-west-2"),
+    ],
+)
+def test_worker_loads_rates_for_exact_configured_model_and_region(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    model_id: str,
+    region: str,
+) -> None:
+    settings = GroceryProviderSettings.model_validate(
+        {"openai_api_key_file": tmp_path / "unused", "openai_region": region}
+        if model_id == "gpt-6-luna"
+        else {"bedrock_model_id": model_id, "bedrock_region": region}
+    )
+    seen: list[tuple[str, str]] = []
+
+    def load_rates(*, model_id: str, region: str) -> RuntimeRates:
+        seen.append((model_id, region))
+        raise ModelRatesUnavailable()
+
+    def forbid_build(settings: GroceryProviderSettings) -> FakeLLM:
+        raise AssertionError("Unavailable rates cannot build a provider.")
+
+    monkeypatch.setattr(worker, "load_provider_settings", lambda: settings)
+    monkeypatch.setattr(worker, "load_runtime_rates", load_rates)
+    monkeypatch.setattr(worker, "build_llm", forbid_build)
+    worker._default_handler(dummy_factory(), "agent")
+    assert seen == [(model_id, region)]
+
+
+@pytest.mark.parametrize("denial", [ModelBudgetExhausted, ModelCapacityUnavailable])
+def test_default_runtime_cost_denial_makes_zero_provider_calls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    denial: type[ModelBudgetExhausted | ModelCapacityUnavailable],
+) -> None:
+    settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "unused")
+    rates = synthetic_runtime_rates()
+    provider = FakeLLM([])
+    reservations: list[dict[str, object]] = []
+
+    def reserve(self: ModelCostLedger, **kwargs: object) -> Reservation:
+        reservations.append(kwargs)
+        raise denial()
+
+    monkeypatch.setattr(worker, "load_provider_settings", lambda: settings)
+    monkeypatch.setattr(worker, "load_runtime_rates", lambda **_: rates)
+    monkeypatch.setattr(worker, "build_llm", lambda _: provider)
+    monkeypatch.setattr(chat_job_module, "_utc_now", frozen_now)
+    monkeypatch.setattr(ModelCostLedger, "reserve", reserve)
+    handler = worker._default_handler(dummy_factory(), "agent")
+    context = JobContext("job", 2, "lease", lambda: None, 3)
+    with pytest.raises(JobFailure) as caught:
+        handler(chat_payload(), context)
+    assert caught.value.error_code == denial.code
+    assert caught.value.detail == {
+        "code": denial.code,
+        "retry_guidance": denial.retry_guidance,
+    }
+    assert provider.requests == []
+    assert len(reservations) == 1
+    assert reservations[0]["user_id"] == 2
+    assert reservations[0]["job_id"] == "job"
+    assert reservations[0]["rates"] is rates
+
+
+@pytest.mark.parametrize("known_usage", [False, True])
+def test_default_runtime_reserves_each_turn_and_preserves_unknown_cost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, known_usage: bool
+) -> None:
+    settings = GroceryProviderSettings(openai_api_key_file=tmp_path / "unused")
+    rates = synthetic_runtime_rates()
+    marker = "synthetic-runtime-provider-id-marker"
+    first = _reply(
+        [{"toolUse": {"toolUseId": marker, "name": BUDGET_TOOL_NAME, "input": {}}}],
+        "tool_use",
+    )
+    second = _reply([{"text": "Done."}], "end_turn")
+    if known_usage:
+        first["serviceTier"] = second["serviceTier"] = "default"
+    provider = FakeLLM([first, second])
+    reservations: list[Reservation] = []
+    settlements: list[tuple[str, int | None]] = []
+
+    def reserve(self: ModelCostLedger, **kwargs: object) -> Reservation:
+        reservation = Reservation(
+            id=str(len(reservations) + 1),
+            job_id=str(kwargs["job_id"]),
+            user_id=2,
+            attempt=3,
+            turn=cast(int, kwargs["turn"]),
+            model_id=rates.record.model_id,
+            region=rates.record.region,
+            rate_version=rates.version,
+            reserved_microdollars=rates.reservation_microdollars,
+        )
+        reservations.append(reservation)
+        return reservation
+
+    def settle(
+        self: ModelCostLedger, reservation: Reservation, cost: int | None
+    ) -> None:
+        settlements.append((reservation.id, cost))
+
+    monkeypatch.setattr(worker, "load_provider_settings", lambda: settings)
+    monkeypatch.setattr(worker, "load_runtime_rates", lambda **_: rates)
+    monkeypatch.setattr(worker, "build_llm", lambda _: provider)
+    monkeypatch.setattr(chat_job_module, "_utc_now", frozen_now)
+    monkeypatch.setattr(ModelCostLedger, "reserve", reserve)
+    monkeypatch.setattr(ModelCostLedger, "settle", settle)
+    handler = worker._default_handler(dummy_factory(), "agent")
+    result = handler(chat_payload(), JobContext("job", 2, "lease", lambda: None, 3))
+    assert result["reply_source"] == "template"
+    assert result.get("reply_check") is None
+    assert marker not in json.dumps(result)
+    trace = result["tool_trace"]
+    assert isinstance(trace, list) and len(trace) == 1
+    assert '"call-1"' in json.dumps(trace)
+    assert len(provider.requests) == len(reservations) == len(settlements) == 2
+    assert [reservation.turn for reservation in reservations] == [1, 2]
+    assert all(cost == (3 if known_usage else None) for _, cost in settlements)
+    assert all(reservation.reserved_microdollars > 3 for reservation in reservations)
 
 
 def test_openai_worker_failure_has_static_notice(

@@ -25,7 +25,7 @@ type PolledJobOptions<Job, Body> = {
   fetchRequest: (jobId: string, signal: AbortSignal) => Promise<Job>;
   budgetMs: number;
   timeoutText: string;
-  failedText: string;
+  failedText: string | ((job: Job) => string);
   fallbackText: string;
   mapError: (caught: unknown, fallbackText: string) => string;
 };
@@ -118,7 +118,17 @@ export function usePolledJob<Job extends PolledJob, Body>(
           }
         }
         if (!live()) return;
-        setError(current.status === "failed" ? options.failedText : null);
+        const failed = current.status === "failed" || current.status === "rejected";
+        if (failed) {
+          keyRef.current = null;
+        }
+        setError(
+          failed
+            ? typeof options.failedText === "function"
+              ? options.failedText(current)
+              : options.failedText
+            : null,
+        );
         setPending(false);
       } catch (caught) {
         if (!live()) return;

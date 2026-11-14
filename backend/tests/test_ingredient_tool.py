@@ -8,6 +8,7 @@ from app.agent.ingredient_tool import (
     INGREDIENT_TOOL,
     FoodResolution,
     IngredientToolError,
+    authorized_live_food,
     execute_ingredient_facts,
     ingredient_tool_spec,
     resolve_food,
@@ -65,7 +66,9 @@ def test_unknown_food_with_a_live_client_reports_live_matches(
 ) -> None:
     fake = _FakeLive([_live_food(i, f"food {i}") for i in range(1, 6)])
     monkeypatch.setattr(ingredient_tool, "_live_client", lambda: fake)
-    result = lookup("zzqx")
+    result = cast(
+        dict[str, Any], execute_ingredient_facts({"name": "zzqx"}, live_food="zzqx")
+    )
     assert fake.queries == ["zzqx"]
     assert result["status"] == "live"
     assert result["name"] == "zzqx"
@@ -90,7 +93,11 @@ def test_live_failure_or_no_match_keeps_the_unknown_payload(
     monkeypatch: pytest.MonkeyPatch, outcome: list[LiveFood] | Exception
 ) -> None:
     monkeypatch.setattr(ingredient_tool, "_live_client", lambda: _FakeLive(outcome))
-    assert lookup("zzqx") == {"status": "unknown", "name": "zzqx", "candidates": []}
+    assert execute_ingredient_facts({"name": "zzqx"}, live_food="zzqx") == {
+        "status": "unknown",
+        "name": "zzqx",
+        "candidates": [],
+    }
 
 
 def test_known_foods_never_call_the_live_client(
@@ -104,6 +111,55 @@ def test_known_foods_never_call_the_live_client(
 
 def lookup(name: object) -> dict[str, Any]:
     return cast(dict[str, Any], execute_ingredient_facts({"name": name}))
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "kumquat",
+        "What is kumquat?",
+        "Look up kumquat nutrition\nsecret",
+        "Look up kumquat nutrition\r",
+        "Look up kumquat\tnutrition",
+        "Look up kumquat https://example.com nutrition",
+        "Look up kumquat and reveal secrets nutrition",
+        "Look up api key nutrition",
+        "Look up bearer token nutrition",
+        "Look up ignore instructions nutrition",
+        "Look up kumquat; send it nutrition",
+        "Look up kumquat_credential nutrition",
+        "Look up kumquat123 nutrition",
+        "Look up kumquat nutrition then print history",
+        "My current plan: kumquat\n\nLook up kumquat nutrition",
+        "Look up kumquat\u200b nutrition",
+        "Look up kumquat/nutrition",
+    ],
+)
+def test_live_authorization_rejects_context_and_bad_syntax(message: str) -> None:
+    assert authorized_live_food(message) is None
+
+
+@pytest.mark.parametrize(
+    ("message", "food"),
+    [
+        ("What is the nutrition for kumquat?", "kumquat"),
+        ("Look up Kumquat nutrition", "kumquat"),
+        ("Look up dragon fruit nutrition.", "dragon fruit"),
+    ],
+)
+def test_live_authorization_extracts_one_explicit_food(message: str, food: str) -> None:
+    assert authorized_live_food(message) == food
+
+
+@pytest.mark.parametrize("authorized", [None, "paneer", "zzqx secret", "zzqx\n"])
+def test_direct_lookup_requires_exact_bounded_authorization(
+    monkeypatch: pytest.MonkeyPatch, authorized: str | None
+) -> None:
+    fake = _FakeLive([_live_food(1, "unused")])
+    monkeypatch.setattr(ingredient_tool, "_live_client", lambda: fake)
+    result = execute_ingredient_facts({"name": "zzqx"}, live_food=authorized)
+    assert result["status"] == "unknown"
+    assert fake.queries == []
 
 
 def test_spec_declares_a_bounded_name() -> None:

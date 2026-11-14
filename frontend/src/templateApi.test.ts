@@ -1,6 +1,7 @@
-/** @vitest-environment node */
+/** @vitest-environment jsdom */
 
-import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { clearTestSession, seedTestSession, TEST_SESSION } from "./testSession";
 import { HTTP_ERROR, SAMPLE_ESTIMATE_NOTICE, SHAPE_ERROR, type GroceryConfig } from "./apiTypes";
 import {
   fetchTemplates,
@@ -258,9 +259,12 @@ describe("parseTemplateSuggestions", () => {
 });
 
 describe("fetchTemplates", () => {
+  beforeEach(seedTestSession);
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("posts JSON to /api/grocery/templates with Content-Type and the abort signal", async () => {
@@ -274,7 +278,10 @@ describe("fetchTemplates", () => {
     const init = lastInit(fetchMock);
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify(request));
-    expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    expect(Object.fromEntries(new Headers(init.headers))).toEqual({
+      "content-type": "application/json",
+      "x-fewia-workspace": TEST_SESSION.workspace_id,
+    });
     expect(init.signal).toBe(signal);
   });
 

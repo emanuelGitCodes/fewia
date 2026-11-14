@@ -6,6 +6,7 @@ import type { RenderResult } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SAMPLE_ESTIMATE_NOTICE, type CatalogItem, type GroceryJob } from "./apiTypes";
 import { sampleNutrition } from "../tests/apiFixtures";
+import { parseJob } from "./apiValidation";
 import { Conversation, type ExampleKind } from "./Conversation";
 
 const NOTICE = SAMPLE_ESTIMATE_NOTICE;
@@ -94,6 +95,43 @@ function mount(
 afterEach(cleanup);
 
 describe("Conversation", () => {
+  it.each([
+    ["model_budget_exhausted", "The daily chat limit has been reached. Try again after the limit resets."],
+    ["model_capacity_unavailable", "Chat is busy. Wait a moment, then try again."],
+  ])("shows fixed text for %s without server guidance or automatic actions", (code, message) => {
+    const guidance = "Server guidance MUST NOT appear";
+    const parsed = parseJob({
+      id: "job-model", status: "failed", result: null, error_code: code,
+      error_detail: { code, retry_guidance: guidance },
+    });
+    const { rendered, onRetry, onNewRequest, onExample } = mount({ job: parsed, error: "Generic failure" });
+    expect(screen.getByRole("status").textContent).toBe(message);
+    expect(renderedText(rendered.container)).not.toContain(guidance);
+    expect(renderedText(rendered.container)).not.toContain(code);
+    expect(onRetry).not.toHaveBeenCalled();
+    expect(onNewRequest).not.toHaveBeenCalled();
+    expect(onExample).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Start a new request" }));
+    expect(onNewRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["unknown", { code: "model_budget_exhausted", retry_guidance: "Server guidance" }],
+    ["model_budget_exhausted", { code: "model_capacity_unavailable", retry_guidance: "Server guidance" }],
+    ["model_budget_exhausted", { code: "model_budget_exhausted", retry_guidance: "Server guidance", forged: true }],
+  ] as const)("keeps unknown or malformed %s failures generic", (code, detail) => {
+    const parsed = parseJob({
+      id: "job-model", status: "failed", result: null, error_code: code, error_detail: detail,
+    });
+    const { rendered } = mount({ job: parsed });
+    expect(renderedText(rendered.container)).toContain(
+      "The grocery request failed. Check meals, servings, and budget, then retry.",
+    );
+    expect(renderedText(rendered.container)).not.toContain("Server guidance");
+    expect(renderedText(rendered.container)).not.toContain("The daily chat limit");
+    expect(renderedText(rendered.container)).not.toContain("Chat is busy");
+  });
+
   it("renders the welcome, example labels, and no fake send control", () => {
     const { rendered, onExample } = mount();
     expect(renderedText(rendered.container)).toContain("Your conversation");

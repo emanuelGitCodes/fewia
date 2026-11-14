@@ -2,6 +2,7 @@ import {
   KROGER_LOCATION_ID,
   SHAPE_ERROR,
   UUID,
+  copyModelJobErrorDetail,
   hasExactKeys,
   isNonemptyString,
   isRecord,
@@ -317,5 +318,8 @@ export function parseChatJob(value: unknown): ChatJob {
     status: value.status,
     result: value.result === null ? null : parseChatResult(value.result),
     error_code: value.error_code as string | null,
+    ...(value.error_detail === undefined
+      ? {}
+      : { error_detail: copyModelJobErrorDetail(value.error_detail, value.error_code) }),
   };
 }

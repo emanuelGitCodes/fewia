@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ProposalConflict, type Proposal, type ProposalPreview } from "../proposalApi";
+import { ProposalConflict, type AppliedProposal, type Proposal, type ProposalPreview } from "../proposalApi";
 import * as api from "../proposalApi";
+import { clearTestSession, seedTestSession, TEST_SESSION } from "../testSession";
 import {
   ACTION_ERROR_LINE,
   APPLIED_LINE,
@@ -50,14 +51,19 @@ const first = state.meals[0];
 const other = RECIPE_ORDER.find((id) => id !== first.recipeId) ?? "";
 
 beforeEach(() => {
-  vi.spyOn(Storage.prototype, "setItem");
-  vi.spyOn(Storage.prototype, "getItem");
-  vi.spyOn(Storage.prototype, "removeItem");
-  vi.spyOn(Storage.prototype, "clear");
+  seedTestSession();
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    vi.spyOn(storage, "setItem");
+    vi.spyOn(storage, "getItem");
+    vi.spyOn(storage, "removeItem");
+    vi.spyOn(storage, "clear");
+  }
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
   cleanup();
+  clearTestSession();
   vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -110,9 +116,10 @@ describe("ProposalCard", () => {
     const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
     vi.mocked(api.fetchProposal).mockImplementation(actual.fetchProposal);
     vi.mocked(api.applyProposal).mockImplementation(actual.applyProposal);
+    const committed = previewOf(state, { meals: [{ recipe_id: other, servings: 2 }], plan_cap_cents: 1702 });
     const request = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(proposal(changed)), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ plan_revision_id: REVISION }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ plan_revision_id: REVISION, snapshot: committed }), { status: 200 }));
     vi.stubGlobal("fetch", request);
     const { rerender } = render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     await screen.findByRole("button", { name: "Apply" });
@@ -120,13 +127,48 @@ describe("ProposalCard", () => {
     rerender(<ProposalCard proposalId={ID} state={edited} onApplied={onApplied} />);
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await screen.findByText(APPLIED_LINE);
+    expect(request).toHaveBeenNthCalledWith(1, `/api/grocery/proposals/${ID}`, {
+      method: "GET",
+      signal: expect.any(AbortSignal),
+      headers: new Headers({ "X-FEWIA-Workspace": TEST_SESSION.workspace_id }),
+      credentials: "same-origin",
+      redirect: "error",
+    });
     expect(request).toHaveBeenNthCalledWith(2, `/api/grocery/proposals/${ID}/apply`, {
       method: "POST",
       signal: expect.any(AbortSignal),
-      headers: { "Content-Type": "application/json" },
+      headers: new Headers({
+        "Content-Type": "application/json",
+        "X-FEWIA-Workspace": TEST_SESSION.workspace_id,
+      }),
       body: JSON.stringify({ plan_cap_cents: 1702 }),
+      credentials: "same-origin",
+      redirect: "error",
     });
-    expect(onApplied).toHaveBeenCalledWith(changed);
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(onApplied).toHaveBeenCalledWith(committed);
+  });
+
+  it("does not read back or apply a snapshot after Apply returns 401", async () => {
+    const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
+    vi.mocked(api.fetchProposal).mockImplementation(actual.fetchProposal);
+    vi.mocked(api.applyProposal).mockImplementation(actual.applyProposal);
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(proposal(changed)), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockRejectedValue(new Error("Unexpected readback"));
+    vi.stubGlobal("fetch", request);
+    render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    const apply = await screen.findByRole("button", { name: "Apply" });
+    await act(async () => {
+      fireEvent.click(apply);
+      await expect(vi.mocked(api.applyProposal).mock.results[0].value).rejects.toThrow();
+    });
+    expect(api.applyProposal).toHaveBeenCalledTimes(1);
+    expect(api.fetchProposal).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(onApplied).not.toHaveBeenCalled();
+    expect(screen.queryByText(APPLIED_LINE)).toBeNull();
   });
 
   it("blocks Apply for an invalid budget draft and keeps Discard available", async () => {
@@ -216,36 +258,50 @@ describe("ProposalCard", () => {
     expect(screen.getByText(/to 4 servings/)).toBeTruthy();
   });
 
-  it("Apply calls onApplied with the preview and says so", async () => {
+  it("Apply calls onApplied with the committed server snapshot", async () => {
+    const committed = previewOf(state, {
+      meals: [{ recipe_id: other, servings: 3 }],
+      pantry_ingredient_ids: [],
+      plan_cap_cents: 1702,
+    });
     vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
-    vi.mocked(api.applyProposal).mockResolvedValue(REVISION);
+    vi.mocked(api.applyProposal).mockResolvedValue({ plan_revision_id: REVISION, snapshot: committed });
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
     await screen.findByText(APPLIED_LINE);
-    expect(onApplied).toHaveBeenCalledWith(changed);
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(onApplied).toHaveBeenCalledWith(committed);
+    expect(onApplied).not.toHaveBeenCalledWith(changed);
+    expect(api.applyProposal).toHaveBeenCalledWith(ID, expect.any(AbortSignal), state.budgetCents);
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
   });
 
   it("treats a lost response as applied when the refetch says applied", async () => {
+    const committed = previewOf(state, { meals: [{ recipe_id: other, servings: 2 }], plan_cap_cents: 1702 });
     vi.mocked(api.fetchProposal)
       .mockResolvedValueOnce(proposal(changed))
-      .mockResolvedValueOnce(proposal(changed, "applied"));
+      .mockResolvedValueOnce(proposal(committed, "applied"));
     vi.mocked(api.applyProposal).mockRejectedValue(new Error("network"));
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
     await screen.findByText(APPLIED_LINE);
-    expect(onApplied).toHaveBeenCalledWith(changed);
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(onApplied).toHaveBeenCalledWith(committed);
+    expect(onApplied).not.toHaveBeenCalledWith(changed);
   });
 
   it("treats a 409 on an already-applied proposal as applied", async () => {
+    const committed = previewOf(state, { meals: [{ recipe_id: other, servings: 1 }], pantry_ingredient_ids: [] });
     vi.mocked(api.fetchProposal)
       .mockResolvedValueOnce(proposal(changed))
-      .mockResolvedValueOnce(proposal(changed, "applied"));
+      .mockResolvedValueOnce(proposal(committed, "applied"));
     vi.mocked(api.applyProposal).mockRejectedValue(new ProposalConflict());
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
     await screen.findByText(APPLIED_LINE);
     expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(onApplied).toHaveBeenCalledWith(committed);
+    expect(onApplied).not.toHaveBeenCalledWith(changed);
   });
 
   it("offers a retry when the refetch says pending", async () => {
@@ -256,6 +312,22 @@ describe("ProposalCard", () => {
     await screen.findByText(ACTION_ERROR_LINE);
     expect((screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(false);
     expect(onApplied).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, { meals: [] }])("keeps the plan when Apply returns an invalid snapshot: %j", async (snapshot) => {
+    const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
+    vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
+    vi.mocked(api.applyProposal).mockImplementation(actual.applyProposal);
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      plan_revision_id: REVISION, snapshot,
+    }), { status: 200 }))));
+    const original = structuredClone(state);
+    render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
+    await screen.findByText(ACTION_ERROR_LINE);
+    expect(api.fetchProposal).toHaveBeenCalledTimes(2);
+    expect(onApplied).not.toHaveBeenCalled();
+    expect(state).toEqual(original);
   });
 
   it("says it cannot confirm when the refetch fails or says discarded", async () => {
@@ -279,11 +351,11 @@ describe("ProposalCard", () => {
 
   it("does not abort an in-flight Apply on unmount and ignores its result", async () => {
     let seen: AbortSignal | undefined;
-    let finish: (id: string) => void = () => undefined;
+    let finish: (result: AppliedProposal) => void = () => undefined;
     vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
     vi.mocked(api.applyProposal).mockImplementation((_id, signal) => {
       seen = signal;
-      return new Promise<string>((resolve) => {
+      return new Promise<AppliedProposal>((resolve) => {
         finish = resolve;
       });
     });
@@ -291,17 +363,32 @@ describe("ProposalCard", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
     unmount();
     expect(seen?.aborted).toBe(false);
-    finish(REVISION);
+    finish({ plan_revision_id: REVISION, snapshot: changed });
     await Promise.resolve();
     expect(onApplied).not.toHaveBeenCalled();
   });
 
   it("Discard says Discarded and does not change the plan", async () => {
+    const actual = await vi.importActual<typeof import("../proposalApi")>("../proposalApi");
     vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
-    vi.mocked(api.discardProposal).mockResolvedValue(undefined);
+    vi.mocked(api.discardProposal).mockImplementation(actual.discardProposal);
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "discarded" }), { status: 200 }));
+    vi.stubGlobal("fetch", request);
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
     await screen.findByText(DISCARDED_LINE);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith(`/api/grocery/proposals/${ID}/discard`, {
+      method: "POST",
+      signal: expect.any(AbortSignal),
+      headers: new Headers({
+        "Content-Type": "application/json",
+        "X-FEWIA-Workspace": TEST_SESSION.workspace_id,
+      }),
+      body: JSON.stringify({ confirm: true }),
+      credentials: "same-origin",
+      redirect: "error",
+    });
     expect(onApplied).not.toHaveBeenCalled();
     expect(screen.queryByRole("button")).toBeNull();
   });
@@ -340,14 +427,16 @@ describe("ProposalCard", () => {
 
   it("does not touch browser storage", async () => {
     vi.mocked(api.fetchProposal).mockResolvedValue(proposal(changed));
-    vi.mocked(api.applyProposal).mockResolvedValue(REVISION);
+    vi.mocked(api.applyProposal).mockResolvedValue({ plan_revision_id: REVISION, snapshot: changed });
     render(<ProposalCard proposalId={ID} state={state} onApplied={onApplied} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
     await screen.findByText(APPLIED_LINE);
-    expect(Storage.prototype.setItem).not.toHaveBeenCalled();
-    expect(Storage.prototype.getItem).not.toHaveBeenCalled();
-    expect(Storage.prototype.removeItem).not.toHaveBeenCalled();
-    expect(Storage.prototype.clear).not.toHaveBeenCalled();
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      expect(storage.setItem).not.toHaveBeenCalled();
+      expect(storage.getItem).not.toHaveBeenCalled();
+      expect(storage.removeItem).not.toHaveBeenCalled();
+      expect(storage.clear).not.toHaveBeenCalled();
+    }
   });
 
   it("uses the current plan for the diff", async () => {

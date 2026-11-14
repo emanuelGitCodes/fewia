@@ -1,8 +1,16 @@
+import asyncio
+import gzip
 import json
-from collections.abc import Callable
+import socket
+import time
+import zlib
+from collections.abc import AsyncIterator, Callable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
-from typing import Literal, cast
+from threading import Event, Lock, Thread, current_thread
+from threading import enumerate as enumerate_threads
+from typing import Literal, NoReturn, cast
 
 import httpx
 import pytest
@@ -10,6 +18,7 @@ import pytest
 from app.agent.chat_messages import parse_provider_response, tool_result_block
 from app.agent.provider import LLMUnavailable
 from app.provider_settings import ProviderConfigurationError
+from app.providers import http_client
 from app.providers.openai_responses import OpenAIResponsesProvider
 
 _KEY = "TEST_ONLY_OPENAI_KEY_MARKER"
@@ -129,6 +138,7 @@ def test_full_tool_round_trip_is_stateless_and_preserves_order(tmp_path: Path) -
     schema = cast(dict[str, object], spec["inputSchema"])["json"]
     assert first_request == {
         "model": "gpt-6-luna",
+        "service_tier": "default",
         "instructions": "Use sample values.",
         "input": [{"role": "user", "content": "Find sample prices."}],
         "tools": [
@@ -407,6 +417,64 @@ def test_request_disables_reasoning_and_storage(tmp_path: Path) -> None:
     assert bodies[0]["store"] is False
 
 
+@pytest.mark.parametrize(
+    "tier", ["default", "priority", "flex", "scale", "future-tier", "x" * 64, None]
+)
+def test_service_tier_selects_default_and_preserves_reported_value(
+    tmp_path: Path, tier: str | None
+) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert json.loads(request.content)["service_tier"] == "default"
+        return httpx.Response(200, json={**_response(), "service_tier": tier})
+
+    result = _run(tmp_path, handle)
+    assert "service_tier" not in result
+    assert result["serviceTier"] == tier
+
+
+def test_missing_service_tier_becomes_null(tmp_path: Path) -> None:
+    result = _run(tmp_path, lambda request: httpx.Response(200, json=_response()))
+    assert result["serviceTier"] is None
+
+
+@pytest.mark.parametrize(
+    "tier",
+    [
+        "",
+        "x" * 65,
+        " priority",
+        "priority ",
+        "PRIVATE_MESSAGE\npriority",
+        "priorit\u00e9",
+        1,
+        True,
+        ["PRIVATE_MESSAGE"],
+        {"tier": "PRIVATE_MESSAGE"},
+    ],
+)
+def test_malformed_service_tier_fails_without_logging_body(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], tier: object
+) -> None:
+    with pytest.raises(LLMUnavailable) as raised:
+        _run(
+            tmp_path,
+            lambda request: httpx.Response(
+                200, json={**_response(), "service_tier": tier}
+            ),
+        )
+    assert str(raised.value) == "The language model is unavailable"
+    assert raised.value.__context__ is None
+    assert _failure_line(capsys) == {
+        "event": "openai_responses_failed",
+        "reason": "invalid_response",
+        "http_status": 200,
+        "exception": "_Invalid",
+        "error_type": None,
+        "error_code": None,
+        "item_type": None,
+    }
+
+
 @pytest.mark.parametrize("status", [401, 429, 500])
 def test_http_errors_log_bounded_error_fields(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], status: int
@@ -479,7 +547,8 @@ def test_invalid_input_is_logged(
 def test_default_client_timeout(tmp_path: Path) -> None:
     provider = OpenAIResponsesProvider(_key_file(tmp_path))
     timeout = provider._client.timeout  # noqa: SLF001
-    assert (timeout.connect, timeout.read) == (3, 40)
+    assert (timeout.connect, timeout.read) == (5, 45)
+    provider._client.close()  # noqa: SLF001
 
 
 @pytest.mark.parametrize("reason", ["max_output_tokens", "content_filter"])
@@ -736,6 +805,847 @@ def test_invalid_key_files_are_generic(tmp_path: Path, content: bytes) -> None:
     assert str(raised.value) == "Provider configuration is invalid"
     assert raised.value.__context__ is None
     assert str(path) not in repr(raised.value)
+
+
+class _Stream(httpx.SyncByteStream):
+    def __init__(self, chunks: list[bytes], *, fail: bool = False) -> None:
+        self.chunks = chunks
+        self.fail = fail
+        self.closed = False
+        self.reads = 0
+
+    def __iter__(self) -> Iterator[bytes]:
+        for chunk in self.chunks:
+            self.reads += 1
+            yield chunk
+        if self.fail:
+            raise httpx.ReadTimeout("TEST_ONLY_BODY_MARKER")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate"])
+@pytest.mark.parametrize("size", [1024 * 1024, 1024 * 1024 + 1])
+def test_shared_transport_caps_decoded_bytes_and_closes_streams(
+    encoding: str, size: int
+) -> None:
+    content = b"x" * size
+    if encoding == "gzip":
+        content = gzip.compress(content)
+    elif encoding == "deflate":
+        content = zlib.compress(content)
+    stream = _Stream([content])
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.extensions["timeout"]["connect"] == 5.0
+        assert request.headers["accept-encoding"] == "gzip, deflate"
+        return httpx.Response(
+            201,
+            stream=stream,
+            headers={"Content-Encoding": encoding, "Cache-Control": "max-age=1"},
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        if size > http_client.MAX_RESPONSE_BYTES:
+            with pytest.raises(http_client.ResponseTooLarge):
+                http_client.request_bounded(client, "GET", "https://fake.invalid")
+        else:
+            result = http_client.request_bounded(client, "GET", "https://fake.invalid")
+            assert result.content == b"x" * size
+            assert result.status_code == 201
+            assert result.headers["cache-control"] == "max-age=1"
+            assert "content-encoding" not in result.headers
+            assert result.headers["content-length"] == str(size)
+            assert result.is_closed
+    assert stream.closed
+
+
+@pytest.mark.parametrize("header", ["Accept-Encoding", "accept-encoding"])
+def test_shared_transport_retains_caller_accept_encoding(header: str) -> None:
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers["accept-encoding"])
+        return httpx.Response(200, content=b"ok")
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        http_client.request_bounded(
+            client, "GET", "https://fake.invalid", headers={header: "identity"}
+        )
+    assert seen == ["identity"]
+
+
+def test_decoded_response_replaces_compressed_body_metadata() -> None:
+    content = b"decoded response" * 100
+    compressed = gzip.compress(content)
+    stream = _Stream([compressed])
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                stream=stream,
+                headers={
+                    "Content-Encoding": "gzip",
+                    "Content-Length": str(len(compressed)),
+                    "Transfer-Encoding": "chunked",
+                    "X-Request-Id": "fake-request",
+                },
+            )
+        )
+    ) as client:
+        result = http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert stream.closed
+    assert result.content == content
+    assert result.headers["content-length"] == str(len(content))
+    assert "content-encoding" not in result.headers
+    assert "transfer-encoding" not in result.headers
+    assert result.headers["x-request-id"] == "fake-request"
+
+
+@pytest.mark.parametrize(
+    ("encoding", "content", "fail"),
+    [
+        ("identity", b"partial", True),
+        ("gzip", b"bad gzip", False),
+        ("gzip", gzip.compress(b"text")[:-1], False),
+        ("br", b"unsupported", False),
+    ],
+    ids=["read-error", "invalid-gzip", "truncated-gzip", "unsupported-encoding"],
+)
+def test_shared_transport_closes_streams_on_read_and_decode_errors(
+    encoding: str, content: bytes, fail: bool
+) -> None:
+    stream = _Stream([content], fail=fail)
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200, stream=stream, headers={"Content-Encoding": encoding}
+            )
+        )
+    ) as client:
+        with pytest.raises(httpx.RequestError):
+            http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert stream.closed
+
+
+@pytest.mark.parametrize("gzip_body", [False, True])
+def test_oversized_model_response_is_static_and_never_retried(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], gzip_body: bool
+) -> None:
+    content = b"x" * (http_client.MAX_RESPONSE_BYTES + 1)
+    stream = _Stream([gzip.compress(content) if gzip_body else content, b"unread"])
+    calls = 0
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            stream=stream,
+            headers={"Content-Encoding": "gzip" if gzip_body else "identity"},
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
+        with pytest.raises(LLMUnavailable) as raised:
+            provider.converse("System", _messages(), [])
+    assert raised.value.__context__ is None
+    assert stream.closed and stream.reads == 1 and calls == 1
+    line = _failure_line(capsys)
+    assert line["exception"] == "ResponseTooLarge"
+
+
+@pytest.mark.parametrize("field", ["system", "message", "tool"])
+def test_serialized_model_input_limit_rejects_before_send(
+    tmp_path: Path, field: str
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json=_response())
+
+    system, messages, tools = "System", _messages(), _tools()
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
+        provider.converse(system, messages, tools)
+        baseline = sent.pop()
+        assert json.loads(baseline.content)["service_tier"] == "default"
+        base_size = len(baseline.content)
+        padding = "x" * (64 * 1024 - base_size)
+        if field == "system":
+            system += padding
+        elif field == "message":
+            messages[0]["content"] = [{"text": "Find sample prices." + padding}]
+        else:
+            cast(dict[str, object], tools[0]["toolSpec"])["description"] = (
+                "Look up sample prices." + padding
+            )
+        provider.converse(system, messages, tools)
+        bounded = sent.pop()
+        assert json.loads(bounded.content)["service_tier"] == "default"
+        assert len(bounded.content) == 64 * 1024
+        with pytest.raises(ValueError, match="^Provider input is invalid$"):
+            provider.converse(system + "x", messages, tools)
+    assert sent == []
+
+
+def test_serialized_model_input_counts_json_escaping(tmp_path: Path) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        pytest.fail("request sent")
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
+        with pytest.raises(ValueError, match="^Provider input is invalid$"):
+            provider.converse("\U0001f600" * 6000, _messages(), [])
+
+
+@pytest.mark.parametrize("collection", ["output", "blocks"])
+def test_model_response_collections_are_bounded(
+    tmp_path: Path, collection: str
+) -> None:
+    response = _response([_text()] * 129)
+    if collection == "blocks":
+        response = _response(
+            [{**_text(), "content": [{"type": "output_text", "text": "x"}] * 129}]
+        )
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=response)
+        )
+    ) as client:
+        provider = OpenAIResponsesProvider(_key_file(tmp_path), client=client)
+        with pytest.raises(LLMUnavailable):
+            provider.converse("System", _messages(), [])
+
+
+@pytest.mark.parametrize("phase", ["headers", "drip", "stalled_body"])
+def test_absolute_deadline_cancels_owned_transport_and_closes_stream(
+    monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    events: list[str] = []
+    transport_options: dict[str, object] = {}
+
+    class SlowStream(httpx.AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            try:
+                while True:
+                    if phase == "stalled_body":
+                        await asyncio.Event().wait()
+                    await asyncio.sleep(0.005)
+                    events.append("chunk")
+                    yield b"x"
+            finally:
+                events.append("cancelled")
+
+        async def aclose(self) -> None:
+            events.append("closed")
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        assert request.extensions["timeout"]["connect"] == 5.0
+        events.append("sent")
+        if phase == "headers":
+            try:
+                await asyncio.Event().wait()
+            finally:
+                events.append("cancelled")
+        return httpx.Response(200, stream=SlowStream())
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        transport_options.update(kwargs)
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.05)
+    monkeypatch.setenv("HTTPS_PROXY", "http://ambient-proxy.invalid")
+    started = time.monotonic()
+    with http_client.build_http_client("https://fake.invalid") as client:
+        with pytest.raises(httpx.ReadTimeout):
+            http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert time.monotonic() - started < 2.0
+    assert events.count("sent") == 1
+    assert events.count("cancelled") == 1
+    assert ("closed" in events) == (phase != "headers")
+    if phase == "drip":
+        assert "chunk" in events
+    assert transport_options == {"retries": 0, "trust_env": False}
+
+
+@pytest.mark.parametrize("phase", ["headers", "stalled_body", "drip"])
+def test_network_deadline_closes_the_peer_socket(
+    monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    request_received = Event()
+    peer_closed = Event()
+    chunks: list[bool] = []
+    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.5)
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(2.0)
+        port = listener.getsockname()[1]
+
+        def serve() -> None:
+            connection, _ = listener.accept()
+            with connection:
+                connection.settimeout(2.0)
+                request = b""
+                while b"\r\n\r\n" not in request:
+                    chunk = connection.recv(65536)
+                    assert chunk
+                    request += chunk
+                assert request.startswith(b"GET / HTTP/1.1\r\n")
+                request_received.set()
+                if phase != "headers":
+                    connection.sendall(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\n\r\n"
+                    )
+                connection.settimeout(0.02)
+                deadline = time.monotonic() + 2.0
+                while time.monotonic() < deadline:
+                    try:
+                        data = connection.recv(65536)
+                    except TimeoutError:
+                        if phase == "drip":
+                            connection.sendall(b"x")
+                            chunks.append(True)
+                        continue
+                    assert data == b""
+                    peer_closed.set()
+                    return
+                raise AssertionError("The provider did not close the peer socket")
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            server = executor.submit(serve)
+            started = time.monotonic()
+            with http_client.build_http_client(f"http://127.0.0.1:{port}") as client:
+                with pytest.raises(httpx.ReadTimeout):
+                    http_client.request_bounded(client, "GET", "/")
+            assert time.monotonic() - started < 2.0
+            server.result(timeout=2.0)
+    assert request_received.is_set()
+    assert peer_closed.is_set()
+    assert bool(chunks) == (phase == "drip")
+    assert not any(
+        thread.name.startswith("provider-request") for thread in enumerate_threads()
+    )
+
+
+def test_absolute_deadline_cancels_connection_setup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    sockets: list[socket.socket] = []
+    deadlines: list[asyncio.Timeout] = []
+    timeout_factory = asyncio.timeout
+
+    def timeout(delay: float | None) -> asyncio.Timeout:
+        assert delay is not None
+        assert 0.0 <= delay <= 45.0
+        context = timeout_factory(None)
+        deadlines.append(context)
+        return context
+
+    async def connect(
+        loop: asyncio.BaseEventLoop, sock: socket.socket, address: object
+    ) -> NoReturn:
+        sockets.append(sock)
+        events.append("connecting")
+        try:
+            assert len(deadlines) == 1
+            deadlines[0].reschedule(loop.time())
+            await asyncio.Event().wait()
+            raise AssertionError("Connection wait completed")
+        finally:
+            events.append("cancelled")
+
+    def make_transport(*args: object, **kwargs: object) -> NoReturn:
+        pytest.fail("A cancelled connection created a transport to send a request")
+
+    monkeypatch.setattr(http_client._ResolverEventLoop, "sock_connect", connect)
+    monkeypatch.setattr(
+        http_client._ResolverEventLoop, "_make_socket_transport", make_transport
+    )
+    monkeypatch.setattr(http_client.asyncio, "timeout", timeout)
+    started = time.monotonic()
+    with http_client.build_http_client("https://127.0.0.1") as client:
+        with pytest.raises(httpx.ReadTimeout):
+            http_client.request_bounded(client, "GET", "/")
+    assert time.monotonic() - started < 2.0
+    assert events == ["connecting", "cancelled"]
+    assert len(sockets) == 1
+    assert sockets[0].fileno() == -1
+    assert not any(
+        thread.name.startswith("provider-request") for thread in enumerate_threads()
+    )
+
+
+def test_absolute_deadline_cancels_tls_handshake(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handshake_started = Event()
+    peer_closed = Event()
+    transports: list[asyncio.Transport] = []
+    closed_before_loop_close: list[bool] = []
+    make_transport = http_client._ResolverEventLoop._make_socket_transport  # type: ignore[attr-defined]  # noqa: SLF001
+    close_loop = http_client._ResolverEventLoop.close
+
+    def track_transport(*args: object, **kwargs: object) -> asyncio.Transport:
+        transport = cast(asyncio.Transport, make_transport(*args, **kwargs))
+        transports.append(transport)
+        return transport
+
+    def close(loop: http_client._ResolverEventLoop) -> None:
+        closed_before_loop_close.extend(
+            transport.get_extra_info("socket").fileno() == -1
+            for transport in transports
+        )
+        close_loop(loop)
+
+    monkeypatch.setattr(
+        http_client._ResolverEventLoop, "_make_socket_transport", track_transport
+    )
+    monkeypatch.setattr(http_client._ResolverEventLoop, "close", close)
+    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.5)
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        listener.settimeout(2.0)
+        port = listener.getsockname()[1]
+
+        def serve() -> None:
+            connection, _ = listener.accept()
+            with connection:
+                connection.settimeout(2.0)
+                hello = connection.recv(65536)
+                assert hello.startswith(b"\x16")
+                handshake_started.set()
+                while connection.recv(65536):
+                    pass
+                peer_closed.set()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            server = executor.submit(serve)
+            started = time.monotonic()
+            with http_client.build_http_client(f"https://127.0.0.1:{port}") as client:
+                with pytest.raises(httpx.ReadTimeout):
+                    http_client.request_bounded(client, "GET", "/")
+            assert time.monotonic() - started < 2.0
+            server.result(timeout=2.0)
+    assert handshake_started.is_set()
+    assert peer_closed.is_set()
+    assert len(transports) == 1
+    assert closed_before_loop_close == [True]
+    assert not any(
+        thread.name.startswith("provider-request") for thread in enumerate_threads()
+    )
+
+
+def test_absolute_deadline_cancels_pool_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport_type = httpx.AsyncHTTPTransport
+
+    def make_transport(**kwargs: object) -> httpx.AsyncHTTPTransport:
+        assert kwargs == {"retries": 0, "trust_env": False}
+        return transport_type(
+            limits=httpx.Limits(max_connections=0), retries=0, trust_env=False
+        )
+
+    async def connect(
+        loop: asyncio.BaseEventLoop, sock: socket.socket, address: object
+    ) -> NoReturn:
+        pytest.fail("Pool wait opened a connection")
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    monkeypatch.setattr(http_client._ResolverEventLoop, "sock_connect", connect)
+    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.1)
+    started = time.monotonic()
+    with http_client.build_http_client("https://127.0.0.1") as client:
+        with pytest.raises(httpx.ReadTimeout):
+            http_client.request_bounded(client, "GET", "/")
+    assert time.monotonic() - started < 2.0
+    assert not any(
+        thread.name.startswith("provider-request") for thread in enumerate_threads()
+    )
+
+
+def test_timed_out_dns_calls_share_a_fixed_worker_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = Event()
+    saturated = Event()
+    resolved = Event()
+    recovering = Event()
+    lock = Lock()
+    resolver_threads: list[Thread] = []
+    deadlines: dict[asyncio.AbstractEventLoop, asyncio.Timeout] = {}
+    connections: list[bool] = []
+    submissions: list[Future[object]] = []
+    completed = 0
+    workers = http_client.DNS_WORKERS
+    existing_threads = set(enumerate_threads())
+    assert http_client._resolver_executor._max_workers == workers  # noqa: SLF001
+    resolver_pool = ThreadPoolExecutor(
+        max_workers=workers, thread_name_prefix="provider-dns-test"
+    )
+    callers = ThreadPoolExecutor(max_workers=workers * 2)
+    submit_resolver = resolver_pool.submit
+    timeout_factory = asyncio.timeout
+    connect_socket = http_client._ResolverEventLoop.sock_connect
+
+    def timeout(delay: float | None) -> asyncio.Timeout:
+        context = timeout_factory(delay)
+        with lock:
+            deadlines[asyncio.get_running_loop()] = context
+        return context
+
+    def submit(
+        function: Callable[..., object], /, *args: object, **kwargs: object
+    ) -> Future[object]:
+        with lock:
+            future = submit_resolver(function, *args, **kwargs)
+            submissions.append(future)
+        return future
+
+    def resolver_done(future: Future[object]) -> None:
+        nonlocal completed
+        with lock:
+            completed += 1
+            if completed == workers:
+                resolved.set()
+
+    def resolve(
+        host: object, port: object, *args: object, **kwargs: object
+    ) -> list[tuple[int, int, int, str, tuple[str, int]]]:
+        assert host in ("blocked.invalid", b"blocked.invalid")
+        assert isinstance(port, int)
+        with lock:
+            resolver_threads.append(current_thread())
+            if len(resolver_threads) == workers:
+                saturated.set()
+        if not release.wait(10.0):
+            raise AssertionError("Resolver was not released")
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+
+    async def connect(
+        loop: asyncio.BaseEventLoop, sock: socket.socket, address: tuple[str, int]
+    ) -> None:
+        connections.append(True)
+        assert recovering.is_set(), "A timed-out resolver resumed a provider request"
+        await connect_socket(loop, sock, address)
+
+    def invoke(error: type[httpx.RequestError] = httpx.ReadTimeout) -> None:
+        with http_client.build_http_client("https://blocked.invalid") as client:
+            with pytest.raises(error):
+                http_client.request_bounded(client, "GET", "/")
+
+    def assert_worker_bound() -> None:
+        with lock:
+            assert len(resolver_threads) == workers
+            assert len(set(resolver_threads)) == workers
+            assert all(thread.is_alive() for thread in resolver_threads)
+            assert len(submissions) == workers
+            assert all(future.running() for future in submissions)
+        assert resolver_pool._work_queue.qsize() == 0  # noqa: SLF001
+        assert (
+            sum(
+                (
+                    thread.name.startswith("provider-dns")
+                    or thread.name.startswith("asyncio_")
+                )
+                for thread in enumerate_threads()
+                if thread not in existing_threads
+            )
+            == workers
+        )
+
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
+    monkeypatch.setattr(http_client.asyncio, "timeout", timeout)
+    monkeypatch.setattr(http_client, "_resolver_executor", resolver_pool)
+    monkeypatch.setattr(resolver_pool, "submit", submit)
+    monkeypatch.setattr(http_client._ResolverEventLoop, "sock_connect", connect)
+    try:
+        initial = [callers.submit(invoke) for _ in range(workers)]
+        assert saturated.wait(5.0)
+        assert_worker_bound()
+        with lock:
+            initial_deadlines = list(deadlines.items())
+        for loop, context in initial_deadlines:
+            loop.call_soon_threadsafe(context.reschedule, loop.time())
+        for call in initial:
+            call.result(timeout=2.0)
+
+        concurrent = [
+            callers.submit(invoke, httpx.ConnectError) for _ in range(workers * 2)
+        ]
+        for call in concurrent:
+            call.result(timeout=2.0)
+        assert_worker_bound()
+        for _ in range(workers * 2):
+            started = time.monotonic()
+            invoke(httpx.ConnectError)
+            assert time.monotonic() - started < 2.0
+            assert_worker_bound()
+        assert not any(
+            thread.name.startswith("provider-request") for thread in enumerate_threads()
+        )
+        for future in submissions:
+            future.add_done_callback(resolver_done)
+        release.set()
+        assert resolved.wait(2.0)
+        assert connections == []
+        recovering.set()
+        monkeypatch.setattr(http_client, "REQUEST_SECONDS", 1.0)
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            listener.settimeout(2.0)
+            port = listener.getsockname()[1]
+
+            def serve() -> bytes:
+                connection, _ = listener.accept()
+                with connection:
+                    connection.settimeout(2.0)
+                    request = b""
+                    while b"\r\n\r\n" not in request:
+                        chunk = connection.recv(65536)
+                        assert chunk
+                        request += chunk
+                    connection.sendall(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+                    )
+                    assert connection.recv(1) == b""
+                    return request
+
+            server = callers.submit(serve)
+            with http_client.build_http_client(
+                f"http://blocked.invalid:{port}"
+            ) as client:
+                assert http_client.request_bounded(client, "GET", "/").content == b"ok"
+            assert server.result(timeout=2.0).startswith(b"GET / HTTP/1.1\r\n")
+        assert len(connections) == 1
+        assert len(submissions) == workers + 1
+    finally:
+        release.set()
+        callers.shutdown(wait=True, cancel_futures=True)
+        resolver_pool.shutdown(wait=True, cancel_futures=True)
+        for thread in resolver_threads:
+            thread.join(timeout=2.0)
+            assert not thread.is_alive()
+    assert len(resolver_threads) == workers + 1
+    assert len(set(resolver_threads)) == workers
+    assert not any(
+        thread.name.startswith("provider-request") for thread in enumerate_threads()
+    )
+
+
+def test_fake_slow_drip_obeys_the_absolute_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [0.0]
+    closed: list[bool] = []
+
+    class Drip(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            for _ in range(100):
+                now[0] += 1.0
+                yield b"x"
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(http_client.time, "monotonic", lambda: now[0])
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, stream=Drip())
+        )
+    ) as client:
+        with pytest.raises(httpx.ReadTimeout):
+            http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert now[0] == 45.0
+    assert closed == [True]
+
+
+@pytest.mark.parametrize("oversize", [False, True])
+def test_owned_transport_bounds_compressed_bodies_and_closes_async_streams(
+    monkeypatch: pytest.MonkeyPatch, oversize: bool
+) -> None:
+    closed: list[bool] = []
+    size = http_client.MAX_RESPONSE_BYTES + int(oversize)
+    compressed = gzip.compress(b"x" * size)
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            for start in range(0, len(compressed), 17):
+                yield compressed[start : start + 17]
+
+        async def aclose(self) -> None:
+            closed.append(True)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, stream=Stream(), headers={"Content-Encoding": "gzip"}
+        )
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(
+        http_client.httpx,
+        "AsyncHTTPTransport",
+        make_transport,
+    )
+
+    async def invoke() -> None:
+        with http_client.build_http_client("https://fake.invalid") as client:
+            if oversize:
+                with pytest.raises(http_client.ResponseTooLarge):
+                    http_client.request_bounded(client, "GET", "https://fake.invalid")
+            else:
+                result = http_client.request_bounded(
+                    client, "GET", "https://fake.invalid"
+                )
+                assert result.content == b"x" * size
+
+    asyncio.run(invoke())
+    assert closed == [True]
+
+
+def test_owned_transport_does_not_follow_redirects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        return httpx.Response(307, headers={"Location": "https://other.invalid"})
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(
+        http_client.httpx,
+        "AsyncHTTPTransport",
+        make_transport,
+    )
+    with http_client.build_http_client("https://fake.invalid") as client:
+        client.follow_redirects = True
+        result = http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert result.status_code == 307
+    assert seen == ["fake.invalid"]
+
+
+@pytest.mark.parametrize("kind", ["custom", "network", "fake_subclass"])
+def test_unsupported_injected_transport_is_rejected_before_send(kind: str) -> None:
+    seen: list[httpx.Request] = []
+
+    class Transport(httpx.BaseTransport):
+        def handle_request(self, request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200)
+
+    class FakeSubclass(httpx.MockTransport):
+        def handle_request(self, request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200)
+
+    transport: httpx.BaseTransport
+    if kind == "custom":
+        transport = Transport()
+    elif kind == "network":
+        transport = httpx.HTTPTransport()
+    else:
+        transport = FakeSubclass(lambda request: httpx.Response(200))
+    with httpx.Client(transport=transport) as client:
+        with pytest.raises(httpx.ConnectError):
+            http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert seen == []
+
+
+@pytest.mark.parametrize("mount_kind", ["none", "fake", "network"])
+def test_transport_contract_checks_every_mount(mount_kind: str) -> None:
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        return httpx.Response(200, content=b"ok")
+
+    mount: httpx.BaseTransport | None = None
+    if mount_kind == "network":
+        mount = httpx.HTTPTransport()
+    elif mount_kind == "fake":
+        mount = httpx.MockTransport(handle)
+    with httpx.Client(
+        base_url="https://fake.invalid",
+        transport=httpx.MockTransport(handle),
+        mounts={"https://mounted.invalid": mount},
+    ) as client:
+        if mount_kind == "network":
+            with pytest.raises(httpx.ConnectError):
+                http_client.request_bounded(client, "GET", "/")
+            with pytest.raises(httpx.ConnectError):
+                http_client.request_bounded(client, "GET", "https://mounted.invalid")
+        else:
+            assert http_client.request_bounded(client, "GET", "/").content == b"ok"
+            assert (
+                http_client.request_bounded(
+                    client, "GET", "https://mounted.invalid"
+                ).content
+                == b"ok"
+            )
+    assert seen == (
+        [] if mount_kind == "network" else ["fake.invalid", "mounted.invalid"]
+    )
+
+
+def test_httpx_private_transport_contract_version() -> None:
+    assert httpx.__version__ == "0.28.1"
+    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    with httpx.Client(
+        transport=transport,
+        mounts={"https://mounted.invalid": None},
+        trust_env=False,
+    ) as client:
+        assert client._transport is transport  # noqa: SLF001
+        assert type(client._mounts) is dict  # noqa: SLF001
+        assert list(client._mounts.values()) == [None]  # noqa: SLF001
+
+
+def test_unsupported_httpx_version_is_rejected_before_send(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200)
+
+    monkeypatch.setattr(http_client.httpx, "__version__", "unsupported")
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(httpx.ConnectError):
+            http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert seen == []
+
+
+def test_client_subclass_is_rejected_before_send() -> None:
+    seen: list[httpx.Request] = []
+
+    class Client(httpx.Client):
+        def send(
+            self, request: httpx.Request, *args: object, **kwargs: object
+        ) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200)
+
+    with Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200))
+    ) as client:
+        with pytest.raises(httpx.ConnectError):
+            http_client.request_bounded(client, "GET", "https://fake.invalid")
+    assert seen == []
 
 
 def test_key_file_must_be_a_scoped_regular_file(tmp_path: Path) -> None:

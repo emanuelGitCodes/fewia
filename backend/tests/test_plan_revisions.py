@@ -17,8 +17,8 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app import models
-from app.api.grocery import DEMO_NOT_READY_MESSAGE
 from app.db import Base
+from app.deps import AUTH_UNAVAILABLE_MESSAGE
 from app.domain.catalog import INGREDIENTS
 from app.domain.grocery import SUPPORTED_RECIPE_IDS
 from app.plan_models import PlanRevision
@@ -64,11 +64,14 @@ def test_post_plan_stores_one_revision(
     assert rows[0].snapshot == snapshot()
 
 
-def test_post_plan_requires_the_demo_user(client: TestClient) -> None:
+def test_post_plan_requires_the_demo_user(client: TestClient, session: Session) -> None:
     response = client.post("/grocery/plans", json=snapshot())
 
     assert response.status_code == 503
-    assert response.json()["error"]["message"] == DEMO_NOT_READY_MESSAGE
+    assert response.json() == {
+        "error": {"code": "service_unavailable", "message": AUTH_UNAVAILABLE_MESSAGE}
+    }
+    assert session.scalars(select(PlanRevision)).all() == []
 
 
 @pytest.mark.parametrize(

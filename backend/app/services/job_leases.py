@@ -3,10 +3,15 @@
 from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
 
-from sqlalchemy import and_, case, or_, update
+from sqlalchemy import and_, case, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.job_models import Job
+from app.services.security_admission import (
+    OwnerUnavailableError,
+    database_utc_now,
+    require_active_owner,
+)
 
 _LEASE_MAX = 3600
 _ATTEMPTS_MAX = 100
@@ -29,22 +34,71 @@ def _bound_int(value: object, name: str, maximum: int) -> int:
     return value
 
 
+def owner_has_live_lease(
+    session: Session, user_id: int, *, now: datetime, except_job_id: str
+) -> bool:
+    return (
+        session.scalar(
+            select(Job.id)
+            .where(
+                Job.user_id == user_id,
+                Job.id != except_job_id,
+                Job.status == "running",
+                Job.lease_expires_at > now,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def _active_job_owner(session: Session, job_id: str) -> int | None:
+    user_id = session.scalar(select(Job.user_id).where(Job.id == job_id))
+    if user_id is None:
+        return None
+    try:
+        require_active_owner(session, user_id)
+    except OwnerUnavailableError:
+        return None
+    return user_id
+
+
 def claim_job(
     session: Session,
     job_id: str,
     *,
-    now: datetime,
+    now: datetime | None = None,
     lease_seconds: int = 60,
     max_attempts: int = 3,
 ) -> str | None:
     """Return a fresh lease token, or None when the job is not claimable."""
-    now = _aware_utc(now)
+    now = _aware_utc(now) if now is not None else None
     lease_seconds = _bound_int(lease_seconds, "lease_seconds", _LEASE_MAX)
     max_attempts = _bound_int(max_attempts, "max_attempts", _ATTEMPTS_MAX)
+    user_id = _active_job_owner(session, job_id)
+    if user_id is None:
+        return None
+    now = now if now is not None else database_utc_now(session)
     eligible = or_(
         Job.status == "queued",
         and_(Job.status == "running", Job.lease_expires_at <= now),
     )
+    exhausted = session.scalar(
+        update(Job)
+        .where(Job.id == job_id, eligible, Job.attempts >= max_attempts)
+        .values(
+            status="failed",
+            error_code=_EXHAUSTED,
+            lease_token=None,
+            lease_expires_at=None,
+        )
+        .execution_options(synchronize_session=False)
+        .returning(Job.id)
+    )
+    if exhausted is not None or owner_has_live_lease(
+        session, user_id, now=now, except_job_id=job_id
+    ):
+        return None
     token = token_urlsafe(32)
     claimed = session.scalar(
         update(Job)
@@ -58,20 +112,7 @@ def claim_job(
         .execution_options(synchronize_session=False)
         .returning(Job.lease_token)
     )
-    if claimed is not None:
-        return claimed
-    session.execute(
-        update(Job)
-        .where(Job.id == job_id, eligible, Job.attempts >= max_attempts)
-        .values(
-            status="failed",
-            error_code=_EXHAUSTED,
-            lease_token=None,
-            lease_expires_at=None,
-        )
-        .execution_options(synchronize_session=False)
-    )
-    return None
+    return claimed
 
 
 def renew_lease(
@@ -79,12 +120,18 @@ def renew_lease(
     job_id: str,
     token: str,
     *,
-    now: datetime,
+    now: datetime | None = None,
     lease_seconds: int = 60,
 ) -> bool:
     """Extend an unexpired running lease when the token matches."""
-    now = _aware_utc(now)
+    now = _aware_utc(now) if now is not None else None
     lease_seconds = _bound_int(lease_seconds, "lease_seconds", _LEASE_MAX)
+    user_id = _active_job_owner(session, job_id)
+    if user_id is None:
+        return False
+    now = now if now is not None else database_utc_now(session)
+    if owner_has_live_lease(session, user_id, now=now, except_job_id=job_id):
+        return False
     candidate_expiry = now + timedelta(seconds=lease_seconds)
     renewed = session.scalar(
         update(Job)
@@ -111,12 +158,15 @@ def finish_job(
     job_id: str,
     token: str,
     *,
-    now: datetime,
+    now: datetime | None = None,
     result: dict[str, object] | None = None,
     error_code: str | None = None,
 ) -> bool:
     """Mark a held job terminal and clear its lease fields."""
-    now = _aware_utc(now)
+    now = _aware_utc(now) if now is not None else None
+    if _active_job_owner(session, job_id) is None:
+        return False
+    now = now if now is not None else database_utc_now(session)
     values: dict[str, object] = {
         "status": "failed" if error_code is not None else "succeeded",
         "error_code": error_code,

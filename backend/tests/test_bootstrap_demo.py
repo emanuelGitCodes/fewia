@@ -1,13 +1,17 @@
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import MagicMock
 
+import psycopg
 import pytest
 from sqlalchemy import create_engine, func, select
+from sqlalchemy.engine import URL, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,6 +22,17 @@ ENDPOINT = "http://floci:4566"
 SECRET = "AKIASECRETVALUE"
 TRUSTED = Path("/trusted/infra/floci_bootstrap.py")
 SessionFactory = bootstrap_demo.SessionFactory
+
+
+@pytest.fixture(autouse=True)
+def isolated_local_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "FEWIA_LOCAL_ADMIN_PASSWORD_FILE",
+        "FEWIA_LOCAL_DATABASE_PASSWORD_FILE",
+        "FEWIA_LOCAL_BOOTSTRAP_DATABASE",
+        "DATABASE_URL",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 class Recorder:
@@ -273,3 +288,114 @@ def test_timeout_becomes_static_failure(
     assert code == 1
     assert last_status(captured.out) == {"status": "failed", "stage": "migrate"}
     assert "TimeoutExpired" not in captured.out
+
+
+@pytest.mark.parametrize("failure_stage", [None, "connect", "provision"])
+def test_admin_bootstrap_orders_seed_and_runtime_provision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure_stage: str | None,
+) -> None:
+    from app import runtime_database_access
+
+    admin, runtime = tmp_path / "admin", tmp_path / "runtime"
+    admin.write_text("A" * 32)
+    runtime.write_text("R" * 32)
+    for path in (admin, runtime):
+        path.chmod(0o600)
+    monkeypatch.setenv("FEWIA_LOCAL_ADMIN_PASSWORD_FILE", str(admin))
+    monkeypatch.setenv("FEWIA_LOCAL_DATABASE_PASSWORD_FILE", str(runtime))
+    engine = create_engine("sqlite://", poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    events: list[str] = []
+    admin_urls: list[URL] = []
+    connection = MagicMock(spec=psycopg.Connection)
+    connection.__enter__.return_value = connection
+    dispose = MagicMock(wraps=engine.dispose)
+
+    def engine_factory(url: URL, *, hide_parameters: bool) -> Engine:
+        assert url.username == "fewia"
+        assert url.password == "A" * 32
+        assert hide_parameters is True
+        admin_urls.append(url)
+        return engine
+
+    def connect(
+        conninfo: str, *, autocommit: bool
+    ) -> psycopg.Connection[tuple[object, ...]]:
+        events.append("connect")
+        assert conninfo == admin_urls[0].set(drivername="postgresql").render_as_string(
+            hide_password=False
+        )
+        assert autocommit is True
+        with Session(engine) as session:
+            assert session.scalar(select(models.User.id)) == 1
+        if failure_stage == "connect":
+            raise psycopg.OperationalError(SECRET)
+        return cast(psycopg.Connection[tuple[object, ...]], connection)
+
+    def provision(
+        runtime_connection: psycopg.Connection[tuple[object, ...]], password: str
+    ) -> None:
+        events.append("provision")
+        assert runtime_connection is connection
+        assert password == "R" * 32
+        if failure_stage == "provision":
+            raise ValueError(SECRET)
+
+    def runner(
+        argv: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        timeout: int = 30,
+        env: dict[str, str] | None = None,
+    ) -> SimpleNamespace:
+        del cwd, timeout
+        if "alembic" in argv:
+            events.append("migrate")
+            assert env is not None
+            assert env["FEWIA_LOCAL_BOOTSTRAP_DATABASE"] == "1"
+            assert "A" * 32 not in repr(env)
+            assert "R" * 32 not in repr(env)
+        else:
+            events.append("floci")
+            assert env is None
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(bootstrap_demo, "create_engine", engine_factory)
+    monkeypatch.setattr(bootstrap_demo.psycopg, "connect", connect)
+    monkeypatch.setattr(engine, "dispose", dispose)
+    monkeypatch.setattr(runtime_database_access, "provision_runtime_access", provision)
+    assert bootstrap_demo.main(
+        ["--endpoint", ENDPOINT], runner=runner, wait=noop_wait, infra_path=TRUSTED
+    ) == int(failure_stage is not None)
+    expected = ["migrate", "connect"]
+    if failure_stage != "connect":
+        expected.append("provision")
+        connection.__exit__.assert_called_once()
+    else:
+        connection.__enter__.assert_not_called()
+    if failure_stage is None:
+        expected.append("floci")
+    assert events == expected
+    dispose.assert_called_once_with()
+    assert "FEWIA_LOCAL_BOOTSTRAP_DATABASE" not in os.environ
+    captured = capsys.readouterr()
+    assert last_status(captured.out) == {
+        "status": "ok" if failure_stage is None else "failed",
+        "stage": "complete" if failure_stage is None else "runtime-access",
+    }
+    assert SECRET not in captured.out + captured.err
+    assert "A" * 32 not in captured.out + captured.err
+    assert "R" * 32 not in captured.out + captured.err
+    assert "Traceback" not in captured.out + captured.err
+
+
+def test_missing_admin_file_fails_before_migration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FEWIA_LOCAL_ADMIN_PASSWORD_FILE", str(tmp_path / "absent"))
+    recorder = Recorder()
+    assert invoke(recorder, sqlite_factory()) == 1
+    assert recorder.calls == []

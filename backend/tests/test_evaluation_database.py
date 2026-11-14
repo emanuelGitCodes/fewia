@@ -37,6 +37,7 @@ _TABLE_NAMES = {
     "predictions",
     "jobs",
     "job_outbox",
+    "job_effects",
     "grocery_evidence",
     "shopping_handoffs",
     "plaid_items",

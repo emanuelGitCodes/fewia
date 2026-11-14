@@ -4,6 +4,7 @@ import type {
   GroceryRequest,
   JobStatus,
   MealPlanNutrition,
+  ModelJobErrorDetail,
   SpendingSource,
 } from "./apiTypes";
 
@@ -85,4 +86,5 @@ export type ChatJob = {
   status: JobStatus;
   result: ChatResult | null;
   error_code: string | null;
+  error_detail?: ModelJobErrorDetail | null;
 };

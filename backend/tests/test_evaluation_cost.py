@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 
 from app.evaluation_cost import _count, estimate_cost
+from app.evaluation_cost_rates import parse_rates
 from app.evaluation_telemetry import summarize_telemetry
 
 MODEL = "us.amazon.nova-2-lite-v1:0"
@@ -475,3 +476,51 @@ def test_inputs_are_unchanged_on_success_and_failure() -> None:
         estimate_cost(telemetry, pricing, model_id=MODEL, region=REGION)
     assert telemetry == original_telemetry
     assert pricing == original_pricing
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "cache_write_usd_per_1000",
+        "cache_write_30m_usd_per_1000",
+        "cache_write_12h_usd_per_1000",
+    ],
+)
+@pytest.mark.parametrize("value", ["0", "0.0001375", ".5", "1e-3"])
+def test_cache_write_rates_use_strict_decimal_parser(field: str, value: str) -> None:
+    pricing = {**rates(), field: value}
+    parsed = parse_rates(pricing, model_id=MODEL, region=REGION)
+    serialized = parsed.model_dump(mode="json")
+    assert Decimal(str(serialized[field])) == Decimal(value)
+    assert parse_rates(serialized, model_id=MODEL, region=REGION) == parsed
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "cache_write_usd_per_1000",
+        "cache_write_30m_usd_per_1000",
+        "cache_write_12h_usd_per_1000",
+    ],
+)
+@pytest.mark.parametrize(
+    "value", [True, False, 0, 0.1, "", "NaN", "Infinity", "-1", " 1", [], {}]
+)
+def test_cache_write_rates_reject_invalid_values(field: str, value: object) -> None:
+    with pytest.raises(ValueError, match="^Invalid evaluation rates.$"):
+        parse_rates({**rates(), field: value}, model_id=MODEL, region=REGION)
+
+
+def test_optional_cache_fields_preserve_older_serialized_records() -> None:
+    fields = (
+        "cached_input_usd_per_1000",
+        "cache_write_usd_per_1000",
+        "cache_write_30m_usd_per_1000",
+        "cache_write_12h_usd_per_1000",
+    )
+    original = parse_rates(rates(), model_id=MODEL, region=REGION)
+    explicit_none = parse_rates(
+        {**rates(), **dict.fromkeys(fields)}, model_id=MODEL, region=REGION
+    )
+    assert original.model_dump(mode="json") == rates()
+    assert explicit_none.model_dump(mode="json") == rates()

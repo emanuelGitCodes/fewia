@@ -94,10 +94,7 @@ def _read(path: Path, max_bytes: int) -> bytes:
         _invalid()
 
 
-def load_json(path: Path, *, max_bytes: int = 16_777_216) -> dict[str, object]:
-    if type(max_bytes) is not int or max_bytes <= 0:
-        _invalid()
-    raw = _read(path, max_bytes)
+def parse_json_bytes(raw: bytes) -> dict[str, object]:
     try:
         payload: object = json.loads(
             raw.decode("utf-8"), object_pairs_hook=_pairs, parse_constant=_constant
@@ -105,3 +102,16 @@ def load_json(path: Path, *, max_bytes: int = 16_777_216) -> dict[str, object]:
         return _object(payload)
     except (TypeError, ValueError, RecursionError):
         _invalid()
+
+
+def load_json_with_bytes(
+    path: Path, *, max_bytes: int = 16_777_216
+) -> tuple[bytes, dict[str, object]]:
+    if type(max_bytes) is not int or max_bytes <= 0:
+        _invalid()
+    raw = _read(path, max_bytes)
+    return raw, parse_json_bytes(raw)
+
+
+def load_json(path: Path, *, max_bytes: int = 16_777_216) -> dict[str, object]:
+    return load_json_with_bytes(path, max_bytes=max_bytes)[1]

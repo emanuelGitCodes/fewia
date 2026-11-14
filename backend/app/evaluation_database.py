@@ -15,7 +15,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app import evidence_models, handoff_models, job_models, models, plaid_models
+from app import (
+    evidence_models,
+    handoff_models,
+    job_effect_models,
+    job_models,
+    models,
+    plaid_models,
+)
 from app.db import Base
 
 _TABLES: list[Table] = [
@@ -27,6 +34,7 @@ _TABLES: list[Table] = [
     cast(Table, models.Prediction.__table__),
     cast(Table, job_models.Job.__table__),
     cast(Table, job_models.JobOutbox.__table__),
+    cast(Table, job_effect_models.JobEffect.__table__),
     cast(Table, evidence_models.GroceryEvidence.__table__),
     cast(Table, handoff_models.ShoppingHandoff.__table__),
     cast(Table, plaid_models.PlaidItem.__table__),

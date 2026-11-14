@@ -1,5 +1,10 @@
 export type Diet = "omnivore" | "vegetarian" | "vegan";
 
+export type GrocerySession = {
+  auth_mode: "local_demo" | "alb";
+  workspace_id: string;
+};
+
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
 export type SpendingSource = "manual" | "fixture" | "plaid_sandbox";
@@ -90,7 +95,52 @@ export type GroceryJobResult = {
 export type JobErrorDetail = {
   recipe_id: string;
   ingredient_id: string;
+  code?: never;
+  retry_guidance?: never;
+} | ModelJobErrorDetail;
+
+export type ModelJobErrorCode = "model_budget_exhausted" | "model_capacity_unavailable";
+
+export type ModelJobErrorDetail = {
+  code: ModelJobErrorCode;
+  retry_guidance: string;
+  recipe_id?: never;
+  ingredient_id?: never;
 };
+
+export const MODEL_BUDGET_ERROR =
+  "The daily chat limit has been reached. Try again after the limit resets.";
+export const MODEL_CAPACITY_ERROR = "Chat is busy. Wait a moment, then try again.";
+
+export function copyModelJobErrorDetail(
+  value: unknown,
+  errorCode: unknown,
+): ModelJobErrorDetail | null {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["code", "retry_guidance"]) ||
+    (value.code !== "model_budget_exhausted" && value.code !== "model_capacity_unavailable") ||
+    value.code !== errorCode ||
+    !isNonemptyString(value.retry_guidance) ||
+    value.retry_guidance.length > 512
+  ) {
+    return null;
+  }
+  return { code: value.code, retry_guidance: value.retry_guidance };
+}
+
+export function modelJobFailureText(
+  job: { status: string; error_code: string | null; error_detail?: unknown } | null,
+): string | null {
+  if (job?.status !== "failed") {
+    return null;
+  }
+  const detail = copyModelJobErrorDetail(job.error_detail, job.error_code);
+  if (detail === null) {
+    return null;
+  }
+  return detail.code === "model_budget_exhausted" ? MODEL_BUDGET_ERROR : MODEL_CAPACITY_ERROR;
+}
 
 export type GroceryConfig = {
   budget_period: string;

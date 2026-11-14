@@ -20,6 +20,7 @@ from app.api.evidence import (
     router,
 )
 from app.db import Base
+from app.deps import get_session
 from app.evidence_models import GroceryEvidence
 from app.services.evidence_contract import normalize_snapshot
 from app.services.evidence_store import load_evidence, save_plan_evidence
@@ -81,6 +82,12 @@ def client(factory: sessionmaker[Session]) -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_session_factory] = lambda: factory
+
+    def auth_session() -> Iterator[Session]:
+        with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = auth_session
     with TestClient(app, base_url="http://localhost") as test_client:
         yield test_client
 

@@ -59,6 +59,7 @@ def test_defaults_from_env_prefix() -> None:
     assert settings.kroger_secret_file is None
     assert settings.kroger_environment == "certification"
     assert settings.kroger_token_key_file is None
+    assert settings.kroger_pairing_key_file is None
     assert (
         settings.kroger_redirect_uri == "http://localhost:8010/grocery/kroger/callback"
     )
@@ -101,6 +102,32 @@ def test_load_rejects_blank_kroger_token_key_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("FEWIA_KROGER_TOKEN_KEY_FILE", "   ")
+    with pytest.raises(ProviderConfigurationError) as exc_info:
+        load_provider_settings()
+    _static(exc_info.value)
+
+
+def test_kroger_pairing_key_path_loads_without_reading_and_stays_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "not-created-pairing-key"
+    monkeypatch.setenv("FEWIA_KROGER_PAIRING_KEY_FILE", f" {path} ")
+    settings = load_provider_settings()
+    assert settings.kroger_pairing_key_file == path
+    assert str(path) not in repr(settings)
+    assert str(path) not in str(settings)
+    assert "kroger_pairing_key_file" not in settings.model_dump()
+    assert "kroger_pairing_key_file" not in settings.model_dump(mode="json")
+    assert "kroger_pairing_key_file" not in settings.model_dump_json()
+    assert str(path) not in settings.model_dump_json()
+    assert settings.model_dump(include={"kroger_pairing_key_file"}) == {}
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_load_rejects_blank_kroger_pairing_key_path(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("FEWIA_KROGER_PAIRING_KEY_FILE", value)
     with pytest.raises(ProviderConfigurationError) as exc_info:
         load_provider_settings()
     _static(exc_info.value)

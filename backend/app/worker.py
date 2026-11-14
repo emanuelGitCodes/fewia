@@ -28,6 +28,7 @@ from app.services.chat_job import ChatJobInput
 from app.services.job_consumer import process_one
 from app.services.job_delivery import JobHandler, JobQueue
 from app.services.job_recovery import recover_jobs
+from app.services.model_cost_rates import ModelRatesUnavailable, load_runtime_rates
 from app.services.outbox_publisher import JobSender, PublicationError, publish_pending
 from app.services.plan_job import PlanJobInput
 from app.services.sync_job import SyncJobInput, make_sync_handler
@@ -95,7 +96,33 @@ def _default_handler(factory: sessionmaker[Session], kind: str) -> JobHandler:
     settings = load_provider_settings()
     if kind == "sync":
         return make_sync_handler(factory, build_plaid(settings))
-    return make_agent_handler(factory, _llm_provider(settings))
+    if settings.openai_api_key_file is None and settings.bedrock_model_id is None:
+        return make_agent_handler(factory, None)
+    model_id = (
+        "gpt-6-luna"
+        if settings.openai_api_key_file is not None
+        else settings.bedrock_model_id
+    )
+    region = (
+        settings.openai_region
+        if settings.openai_api_key_file is not None
+        else settings.bedrock_region
+    )
+    assert model_id is not None
+    try:
+        rates = load_runtime_rates(model_id=model_id, region=region)
+    except ModelRatesUnavailable:
+        status = (
+            _OPENAI_UNAVAILABLE
+            if settings.openai_api_key_file is not None
+            else _BEDROCK_UNAVAILABLE
+        )
+        print(json.dumps({"status": status}), file=sys.stderr)
+        return make_agent_handler(factory, None)
+    provider = _llm_provider(settings)
+    if provider is None:
+        return make_agent_handler(factory, None)
+    return make_agent_handler(factory, provider, rates=rates)
 
 
 def run_publisher(
@@ -128,7 +155,6 @@ def run_worker(
     counts: dict[str, int] | None = None,
     kind: str = "agent",
 ) -> dict[str, int]:
-    selected_processor = process_one if processor is None else processor
     selected_now = _utc_now if now is None else now
     selected_wait: WaitFn = stop.wait if wait is None else wait
     if counts is None:
@@ -153,7 +179,14 @@ def run_worker(
             recover_jobs(factory, job_replay_safe, now=selected_now())
             if stop.is_set():
                 break
-            outcome = selected_processor(factory, queue, kind, handler)
+            if processor is None:
+                outcome = (
+                    process_one(factory, queue, kind, handler)
+                    if now is None
+                    else process_one(factory, queue, kind, handler, now=now)
+                )
+            else:
+                outcome = processor(factory, queue, kind, handler)
             if outcome not in counts:
                 raise RuntimeError("unsupported worker outcome")
             counts[outcome] += 1

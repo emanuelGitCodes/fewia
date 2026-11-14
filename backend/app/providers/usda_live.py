@@ -14,13 +14,13 @@ import httpx
 
 from app.domain.nutrition import NutritionFacts
 from app.domain.usda_foods import display_name
-from app.providers.http_client import build_http_client
+from app.providers.http_client import build_http_client, request_bounded
 from app.usda_refresh import load_usda_api_key
 
 SEARCH_URL = "https://api.nal.usda.gov/fdc/v1/foods/search"
 DATA_TYPES = "Foundation,SR Legacy,Branded"
 PAGE_SIZE = 5
-TIMEOUT = httpx.Timeout(5.0, connect=3.0, read=5.0)
+MAX_NUTRIENTS = 256
 COOLDOWN_SECONDS = 600
 HOURLY_LIMIT = 900
 MAX_TEXT = 160
@@ -72,7 +72,7 @@ def _plain_text(value: object) -> str | None:
 
 
 def _facts(fdc_id: int, nutrients: object) -> NutritionFacts | None:
-    if not isinstance(nutrients, list):
+    if not isinstance(nutrients, list) or len(nutrients) > MAX_NUTRIENTS:
         return None
     values: dict[str, int] = {}
     for item in nutrients:
@@ -173,7 +173,9 @@ class UsdaLiveClient:
         self._spend()
         response: httpx.Response | None = None
         try:
-            response = self._client.get(
+            response = request_bounded(
+                self._client,
+                "GET",
                 SEARCH_URL,
                 params={
                     "query": query,
@@ -181,8 +183,6 @@ class UsdaLiveClient:
                     "pageSize": str(PAGE_SIZE),
                 },
                 headers={"Accept": "application/json", "X-Api-Key": self._api_key},
-                follow_redirects=False,
-                timeout=TIMEOUT,
             )
         except (httpx.RequestError, httpx.InvalidURL, TypeError, ValueError):
             pass
@@ -204,7 +204,7 @@ class UsdaLiveClient:
         foods = payload.get("foods")
         if not isinstance(foods, list):
             raise UsdaUnavailable()
-        parsed = (_parse_food(entry) for entry in foods)
+        parsed = (_parse_food(entry) for entry in foods[:PAGE_SIZE])
         return [food for food in parsed if food is not None]
 
 

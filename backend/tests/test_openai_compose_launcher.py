@@ -2,11 +2,13 @@
 
 import json
 import os
+import secrets
 import shutil
 import socket
 import subprocess
 import sys
 import threading
+import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,7 +49,11 @@ CHECK_KEY = "Checking the OpenAI key."
 CHECK_CONFIG = "Checking the Compose configuration."
 SETUP_STAGE = "Setting up the database and demo user."
 API_STAGE = "Waiting for the API."
-VISIBLE_STDERR = "COMPOSE_PULL_STDERR\nCOMPOSE_BUILD_STDERR\nCOMPOSE_UP_STDERR\n"
+VISIBLE_STDERR = (
+    "COMPOSE_PULL_STDERR\nCOMPOSE_BUILD_STDERR\nCOMPOSE_STOP_STDERR\n"
+    "COMPOSE_UP_STDERR\nCOMPOSE_UP_STDERR\nCOMPOSE_UP_STDERR\n"
+)
+BOOTSTRAP_STDERR = VISIBLE_STDERR.removesuffix("COMPOSE_UP_STDERR\n")
 FAKE_DOCKER = """\
 import json
 import os
@@ -67,6 +73,18 @@ if sub == "config":
     print("PRIVATE_ERROR_SENTINEL", file=sys.stderr)
     print(os.environ["FAKE_CONFIG"])
     sys.exit(int(os.environ["FAKE_CONFIG_STATUS"]))
+if sub == "exec":
+    print("PRIVATE_ROTATION_SENTINEL")
+    print("PRIVATE_ROTATION_SENTINEL", file=sys.stderr)
+    password_input = sys.stdin.read()
+    expected = (Path.cwd() / ".fewia-state/database-admin-password").read_text()
+    assert expected not in repr(args)
+    assert password_input == (
+        "SET password_encryption = 'scram-sha-256';\\n"
+        "\\\\password fewia\\n"
+        f"{expected}\\n{expected}\\n"
+    )
+    sys.exit(int(os.environ.get("FAKE_ROTATION_STATUS", "0")))
 if sub == "ps":
     print("PRIVATE_ERROR_SENTINEL", file=sys.stderr)
     if args[-1] == "bootstrap":
@@ -80,7 +98,10 @@ if sub == "ps":
         entry = {
             "Service": "api",
             "State": "running",
-            "Health": os.environ.get("FAKE_API_HEALTH", "healthy"),
+            "Health": os.environ.get(
+                "FAKE_DATABASE_HEALTH" if args[-1] == "postgres" else "FAKE_API_HEALTH",
+                "healthy",
+            ),
         }
     if os.environ.get("FAKE_PS_STYLE", "array") == "array":
         print(json.dumps([entry]))
@@ -99,15 +120,22 @@ def _stages(key_line: str = SKIPPED, port: str = "5173") -> list[str]:
         CHECK_ENV,
         CHECK_KEY,
         key_line,
+        "Preparing private local state.",
         CHECK_CONFIG,
         "Downloading images.",
         "COMPOSE_PULL_STDOUT",
         "Building images. The first run takes several minutes.",
         "COMPOSE_BUILD_STDOUT",
+        "Stopping application services.",
+        "COMPOSE_STOP_STDOUT",
+        "Starting the internal database.",
+        "COMPOSE_UP_STDOUT",
+        "Rotating the internal database credential.",
+        SETUP_STAGE,
+        "COMPOSE_UP_STDOUT",
         "Starting services.",
         "COMPOSE_UP_STDOUT",
         "OpenAI Compose services started.",
-        SETUP_STAGE,
         API_STAGE,
         f"FEWIA is ready at http://127.0.0.1:{port}/prototype",
     ]
@@ -165,15 +193,23 @@ class Launcher:
 
 @pytest.fixture
 def launcher(tmp_path: Path) -> Launcher:
+    if os.getuid() == 0:
+        pytest.skip("The launcher requires a nonroot host user.")
     root = tmp_path / "extracted source"
     scripts = root / "infra/openai"
     scripts.mkdir(parents=True)
     (scripts / "compose-up.sh").write_text(LAUNCHER.read_text())
+    app = root / "backend/app"
+    app.mkdir(parents=True)
+    (app / "local_secret_state.py").write_text(
+        (ROOT / "backend/app/local_secret_state.py").read_text()
+    )
     (root / "compose.yaml").write_text("services: {}\n")
     (root / "compose.kroger.yaml").write_text("services: {}\n")
     (root / ".env").write_text(
         f"touch SHELL_EVALUATION_MARKER\nFEWIA_OPENAI_API_KEY={KEY_VALUE}\n"
     )
+    (root / ".env").chmod(0o600)
     outside = tmp_path / "outside"
     outside.mkdir()
     binaries = tmp_path / "bin"
@@ -198,7 +234,8 @@ def launcher(tmp_path: Path) -> Launcher:
         COMPOSE_FILE="unrelated.yaml",
         FEWIA_SKIP_KEY_CHECK="1",
         FEWIA_SETUP_TIMEOUT_SECONDS="1",
-        FEWIA_API_TIMEOUT_SECONDS="1",
+        FEWIA_API_TIMEOUT_SECONDS="0.2",
+        FEWIA_DATABASE_TIMEOUT_SECONDS="0",
     )
     return Launcher(root, outside, log, environment)
 
@@ -231,7 +268,11 @@ class _ModelsServer(ThreadingHTTPServer):
 @pytest.fixture
 def models_server() -> Iterator[_ModelsServer]:
     server = _ModelsServer()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(
+        target=server.serve_forever,
+        kwargs={"poll_interval": 0.01},
+        daemon=True,
+    )
     thread.start()
     yield server
     server.shutdown()
@@ -292,7 +333,7 @@ def _assert_rejected(
     detail: str = SECRET,
 ) -> None:
     assert result.returncode != 0
-    assert result.stdout == _text(_stages()[:4])
+    assert result.stdout == _text(_stages()[:5])
     assert result.stderr == f"{ERROR}{detail}\n"
     _assert_no_leak(launcher, result)
     calls = launcher.calls()
@@ -315,6 +356,8 @@ def _compose_prefix(launcher: Launcher, files: tuple[str, ...]) -> list[str]:
         "compose",
         "--env-file",
         ".env",
+        "--env-file",
+        ".env0600",
         *[part for name in files for part in ("-f", name)],
         "--project-directory",
         str(launcher.root),
@@ -343,6 +386,30 @@ def test_valid_config_starts_with_the_validated_inputs(
         [*common, "config", "--no-path-resolution", "--format", "json"],
         [*common, "pull", "--ignore-buildable"],
         [*common, "build"],
+        [*common, "stop", "api", "worker", "sync-worker", "bootstrap"],
+        [*common, "up", "-d", "--no-deps", "postgres"],
+        [*common, "ps", "--format", "json", "postgres"],
+        [
+            *common,
+            "exec",
+            "-T",
+            "--user",
+            "postgres",
+            "postgres",
+            "psql",
+            "-X",
+            "--no-password",
+            "--host",
+            "/var/run/postgresql",
+            "--username",
+            "fewia",
+            "--dbname",
+            "fewia",
+            "--set",
+            "ON_ERROR_STOP=1",
+        ],
+        [*common, "up", "-d", "--force-recreate", "bootstrap"],
+        [*common, "ps", "-a", "--format", "json", "bootstrap"],
         [*common, "up", "-d", *arguments],
         [*common, "ps", "-a", "--format", "json", "bootstrap"],
         [*common, "ps", "--format", "json", "api"],
@@ -363,19 +430,7 @@ def test_stage_lines_keep_their_order_around_compose_output(
     stages = [
         line for line in result.stdout.splitlines() if not line.startswith("COMPOSE_")
     ]
-    assert stages == [
-        CHECK_ENV,
-        CHECK_KEY,
-        SKIPPED,
-        CHECK_CONFIG,
-        "Downloading images.",
-        "Building images. The first run takes several minutes.",
-        "Starting services.",
-        "OpenAI Compose services started.",
-        SETUP_STAGE,
-        API_STAGE,
-        "FEWIA is ready at http://127.0.0.1:5173/prototype",
-    ]
+    assert stages == [line for line in _stages() if not line.startswith("COMPOSE_")]
 
 
 def test_ndjson_ps_output_is_understood(launcher: Launcher) -> None:
@@ -451,7 +506,7 @@ def test_accepted_env_file_key_forms_start(launcher: Launcher, line: str) -> Non
     assert result.returncode == 0
     assert result.stdout == _text(_stages())
     assert result.stderr == VISIBLE_STDERR
-    assert len(launcher.calls()) == 6
+    assert len(launcher.calls()) == 12
     assert not (launcher.root / "SHELL_EVALUATION_MARKER").exists()
 
 
@@ -466,7 +521,7 @@ def test_key_only_in_process_environment_starts(launcher: Launcher) -> None:
     result = launcher.run(_config())
     assert result.returncode == 0
     assert result.stderr == VISIBLE_STDERR
-    assert len(launcher.calls()) == 6
+    assert len(launcher.calls()) == 12
 
 
 @pytest.mark.parametrize(
@@ -539,7 +594,7 @@ def test_kroger_live_flag_only_counts_as_the_first_argument(
 ) -> None:
     result = launcher.run(_config(), arguments=("--build", "--kroger-live"))
     assert result.returncode == 0
-    up = launcher.calls()[3]["args"]
+    up = launcher.calls()[9]["args"]
     assert "compose.kroger.yaml" not in up
     assert up[-3:] == ["-d", "--build", "--kroger-live"]
 
@@ -581,13 +636,14 @@ def test_config_failure_does_not_start_services(launcher: Launcher) -> None:
 def test_up_failure_reports_the_exit_code(launcher: Launcher, status: int) -> None:
     result = launcher.run(_config(), up_status=status)
     assert result.returncode != 0
-    assert result.stdout == _text(_stages()[:10])
+    assert result.stdout == _text(_stages()[:13])
     assert result.stderr == (
-        f"{VISIBLE_STDERR}{ERROR}Docker Compose up failed with exit code {status}. "
+        "COMPOSE_PULL_STDERR\nCOMPOSE_BUILD_STDERR\nCOMPOSE_STOP_STDERR\n"
+        f"COMPOSE_UP_STDERR\n{ERROR}Docker Compose up failed with exit code {status}. "
         "Run the same command without the launcher to see the Compose output.\n"
     )
     _assert_no_leak(launcher, result)
-    assert len(launcher.calls()) == 4
+    assert len(launcher.calls()) == 5
 
 
 @pytest.mark.parametrize(("name", "calls"), [("PULL", 2), ("BUILD", 3)])
@@ -608,10 +664,10 @@ def test_pull_or_build_failure_stops_before_up(
 def test_failed_setup_stops_before_the_api_wait(launcher: Launcher) -> None:
     result = launcher.run(_config(), extra={"FAKE_BOOTSTRAP": "exited:3"})
     assert result.returncode == 1
-    assert result.stdout == _text(_stages()[:12])
-    assert result.stderr == f"{VISIBLE_STDERR}{ERROR}{SETUP_FAILED}\n"
+    assert result.stdout == _text(_stages()[:16])
+    assert result.stderr == f"{BOOTSTRAP_STDERR}{ERROR}{SETUP_FAILED}\n"
     assert API_STAGE not in result.stdout
-    assert len(launcher.calls()) == 5
+    assert len(launcher.calls()) == 9
     _assert_no_leak(launcher, result)
 
 
@@ -619,8 +675,8 @@ def test_failed_setup_stops_before_the_api_wait(launcher: Launcher) -> None:
 def test_setup_timeout_stops_the_launch(launcher: Launcher, state: str) -> None:
     result = launcher.run(_config(), extra={"FAKE_BOOTSTRAP": state})
     assert result.returncode == 1
-    assert result.stdout == _text(_stages()[:12])
-    assert result.stderr == f"{VISIBLE_STDERR}{ERROR}{SETUP_FAILED}\n"
+    assert result.stdout == _text(_stages()[:16])
+    assert result.stderr == f"{BOOTSTRAP_STDERR}{ERROR}{SETUP_FAILED}\n"
     polls = [call for call in launcher.calls() if "ps" in call["args"]]
     assert len(polls) >= 2
     _assert_no_leak(launcher, result)
@@ -630,7 +686,7 @@ def test_setup_timeout_stops_the_launch(launcher: Launcher, state: str) -> None:
 def test_api_health_timeout_stops_the_launch(launcher: Launcher, health: str) -> None:
     result = launcher.run(_config(), extra={"FAKE_API_HEALTH": health})
     assert result.returncode == 1
-    assert result.stdout == _text(_stages()[:13])
+    assert result.stdout == _text(_stages()[:20])
     assert result.stderr == f"{VISIBLE_STDERR}{ERROR}{API_FAILED}\n"
     assert "FEWIA is ready" not in result.stdout
     _assert_no_leak(launcher, result)
@@ -842,6 +898,7 @@ def test_models_url_follows_the_openai_region(
     if environment is not None:
         monkeypatch.setenv("FEWIA_OPENAI_REGION", environment)
     (tmp_path / ".env").write_text("".join(f"{line}\n" for line in lines))
+    (tmp_path / ".env").chmod(0o600)
     assert _load_launcher()["models_url"](tmp_path) == expected
 
 
@@ -878,3 +935,382 @@ def test_real_compose_file_has_no_bedrock_or_global_endpoint() -> None:
     text = COMPOSE.read_text().lower()
     assert "bedrock" not in text
     assert "aws_endpoint_url:" not in text
+
+
+def test_internal_services_have_no_default_host_ports() -> None:
+    yaml = pytest.importorskip("yaml")
+    services = yaml.safe_load(COMPOSE.read_text())["services"]
+    for name in ("postgres", "floci"):
+        assert "ports" not in services[name]
+    assert "healthcheck" not in services["floci"]
+    assert services["floci"]["image"].endswith(
+        "@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb"
+    )
+    assert services["api"]["ports"] == ["127.0.0.1:${API_HOST_PORT:-8010}:8000"]
+    assert services["web"]["ports"] == ["127.0.0.1:${WEB_HOST_PORT:-5173}:8080"]
+    assert services["api"]["command"][-4:] == ["--host", "0.0.0.0", "--port", "8000"]
+    tools = yaml.safe_load((ROOT / "compose.tools.yaml").read_text())
+    assert tools == {"services": {"floci": {"ports": ["127.0.0.1:4566:4566"]}}}
+
+
+def test_admin_credentials_mount_only_into_postgres_and_bootstrap() -> None:
+    yaml = pytest.importorskip("yaml")
+    services = yaml.safe_load(COMPOSE.read_text())["services"]
+    for name in ("api", "worker", "sync-worker"):
+        service = services[name]
+        assert service["user"] == (
+            "${FEWIA_HOST_UID:?Run make up}:${FEWIA_HOST_GID:?Run make up}"
+        )
+        assert service["environment"]["DATABASE_URL"] == (
+            "postgresql+psycopg://fewia_app@postgres:5432/fewia"
+        )
+        assert "ADMIN" not in json.dumps(service)
+        assert service["volumes"] == [
+            {
+                "type": "bind",
+                "source": "${FEWIA_LOCAL_RUNTIME_PASSWORD_FILE:?Run make up}",
+                "target": "/run/fewia/database-runtime-password",
+                "read_only": True,
+                "bind": {"create_host_path": False},
+            }
+        ]
+        assert service["depends_on"]["bootstrap"]["condition"] == (
+            "service_completed_successfully"
+        )
+    postgres = services["postgres"]
+    assert "POSTGRES_PASSWORD" not in postgres["environment"]
+    assert postgres["environment"]["POSTGRES_USER"] == "fewia"
+    assert postgres["volumes"][0] == "postgres-data:/var/lib/postgresql/data"
+    assert services["bootstrap"]["volumes"][1] == postgres["volumes"][1]
+    assert "http://floci:4566" in json.dumps(services["bootstrap"]["command"])
+
+
+def test_live_pairing_mount_is_api_only_and_fixture_needs_none() -> None:
+    yaml = pytest.importorskip("yaml")
+    base = yaml.safe_load(COMPOSE.read_text())["services"]
+    overlay = yaml.safe_load(COMPOSE_KROGER.read_text())["services"]
+    assert "pairing" not in json.dumps(base)
+    assert "pairing" not in json.dumps(overlay["worker"])
+    api = overlay["api"]
+    assert api["environment"]["FEWIA_KROGER_PAIRING_KEY_FILE"] == (
+        "/run/fewia/kroger-pairing-key"
+    )
+    assert (
+        "localhost:8010/grocery/kroger/callback"
+        in (api["environment"]["FEWIA_KROGER_REDIRECT_URI"])
+    )
+    for service in overlay.values():
+        for mount in service["volumes"]:
+            assert mount["read_only"] is True
+            assert mount["bind"]["create_host_path"] is False
+
+
+def test_rotation_failure_stops_before_bootstrap_and_hides_output(
+    launcher: Launcher,
+) -> None:
+    result = launcher.run(_config(), extra={"FAKE_ROTATION_STATUS": "1"})
+    assert result.returncode == 1
+    assert result.stderr.endswith(
+        f"{ERROR}Internal database credential rotation failed.\n"
+    )
+    password = (launcher.root / ".fewia-state/database-admin-password").read_text()
+    for output in (result.stdout, result.stderr):
+        assert "PRIVATE_ROTATION_SENTINEL" not in output
+        assert password not in output
+    assert password not in launcher.log.read_text()
+    assert SETUP_STAGE not in result.stdout
+    calls = launcher.calls()
+    assert len(calls) == 7
+    assert "exec" in calls[-1]["args"]
+    for call in calls:
+        assert "down" not in call["args"]
+        assert "--volumes" not in call["args"]
+    _assert_no_leak(launcher, result)
+
+
+def test_database_health_failure_stops_before_rotation(launcher: Launcher) -> None:
+    result = launcher.run(_config(), extra={"FAKE_DATABASE_HEALTH": "unhealthy"})
+    assert result.returncode == 1
+    assert result.stderr.endswith(
+        f"{ERROR}The internal database did not become healthy.\n"
+    )
+    assert not any("exec" in call["args"] for call in launcher.calls())
+
+
+@pytest.mark.parametrize("kind", ["symlink", "public"])
+def test_unsafe_env_fails_without_reading_key(launcher: Launcher, kind: str) -> None:
+    path = launcher.root / ".env"
+    if kind == "symlink":
+        target = launcher.root / "synthetic-env"
+        path.rename(target)
+        path.symlink_to(target)
+    else:
+        path.chmod(0o644)
+    result = launcher.run(_config())
+    assert result.returncode == 1
+    assert not launcher.log.exists()
+    _assert_no_leak(launcher, result)
+
+
+def test_rotation_does_not_pass_password_in_arguments_or_env(
+    launcher: Launcher,
+) -> None:
+    result = launcher.run(_config())
+    assert result.returncode == 0
+    state = launcher.root / ".fewia-state"
+    generated = (launcher.root / ".env0600").read_text()
+    for name in (
+        "database-admin-password",
+        "database-runtime-password",
+        "kroger-pairing-key",
+    ):
+        secret = (state / name).read_text()
+        assert secret not in generated
+        assert secret not in launcher.log.read_text()
+        assert secret not in result.stdout + result.stderr
+    assert not any("down" in call["args"] for call in launcher.calls())
+
+
+def test_rotation_command_has_a_fixed_socket_and_role(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    password_file = tmp_path / "admin"
+    password_file.write_text("A" * 32)
+    password_file.chmod(0o600)
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def run(command: list[str], **kwargs: object) -> None:
+        calls.append((command, kwargs))
+
+    monkeypatch.setattr(subprocess, "run", run)
+    namespace = _load_launcher()
+    namespace["rotate_database_password"](
+        ["docker", "compose"], tmp_path, {"TEST": "local"}, password_file
+    )
+    command, options = calls[0]
+    assert command == [
+        "docker",
+        "compose",
+        "exec",
+        "-T",
+        "--user",
+        "postgres",
+        "postgres",
+        "psql",
+        "-X",
+        "--no-password",
+        "--host",
+        "/var/run/postgresql",
+        "--username",
+        "fewia",
+        "--dbname",
+        "fewia",
+        "--set",
+        "ON_ERROR_STOP=1",
+    ]
+    assert options["input"] == (
+        "SET password_encryption = 'scram-sha-256';\n"
+        "\\password fewia\n"
+        f"{'A' * 32}\n{'A' * 32}\n"
+    )
+    assert options["env"] == {"TEST": "local"}
+    assert options["capture_output"] is True
+    assert options["timeout"] == 30
+    assert "A" * 32 not in repr(command)
+
+
+@pytest.mark.skipif(
+    os.environ.get("FEWIA_LOCAL_DATABASE_INTEGRATION") != "1",
+    reason="Set FEWIA_LOCAL_DATABASE_INTEGRATION=1 for an isolated Docker volume.",
+)
+def test_rotation_preserves_data_in_a_temporary_compose_volume(tmp_path: Path) -> None:
+    from app.local_secret_state import prepare_local_state
+
+    if os.getuid() == 0:
+        pytest.skip("The local state requires a nonroot host user.")
+    yaml = pytest.importorskip("yaml")
+    state = prepare_local_state(tmp_path)
+    old_password = secrets.token_hex(16)
+    new_password = secrets.token_hex(16)
+    while new_password == old_password:
+        new_password = secrets.token_hex(16)
+    state.admin.write_text(old_password)
+    state.admin.chmod(0o600)
+    passfiles = {"old": tmp_path / "old.pgpass", "new": tmp_path / "new.pgpass"}
+    for name, password in (("old", old_password), ("new", new_password)):
+        passfiles[name].touch(mode=0o600)
+        passfiles[name].write_text(f"127.0.0.1:5432:fewia:fewia:{password}\n")
+        passfiles[name].chmod(0o600)
+    image = yaml.safe_load(COMPOSE.read_text())["services"]["postgres"]["image"]
+    document = {
+        "services": {
+            "postgres": {
+                "image": image,
+                "environment": {
+                    "POSTGRES_USER": "fewia",
+                    "POSTGRES_DB": "fewia",
+                    "POSTGRES_PASSWORD_FILE": "/run/fewia/database-admin-password",
+                    "POSTGRES_HOST_AUTH_METHOD": "scram-sha-256",
+                    "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+                },
+                "volumes": [
+                    "test-data:/var/lib/postgresql/data",
+                    {
+                        "type": "bind",
+                        "source": str(state.admin),
+                        "target": "/run/fewia/database-admin-password",
+                        "read_only": True,
+                    },
+                    *(
+                        {
+                            "type": "bind",
+                            "source": str(path),
+                            "target": f"/run/fewia/{name}.pgpass",
+                            "read_only": True,
+                        }
+                        for name, path in passfiles.items()
+                    ),
+                ],
+                "healthcheck": {
+                    "test": ["CMD", "pg_isready", "-U", "fewia", "-d", "fewia"],
+                    "interval": "1s",
+                    "timeout": "5s",
+                    "retries": 60,
+                },
+            }
+        },
+        "volumes": {"test-data": {}},
+    }
+    config = tmp_path / "compose-test.yaml"
+    config.write_text(yaml.safe_dump(document))
+    project = f"fewia-password-test-{uuid.uuid4().hex}"
+    compose = [
+        "docker",
+        "compose",
+        "-p",
+        project,
+        "-f",
+        str(config),
+        "--project-directory",
+        str(tmp_path),
+    ]
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("FEWIA_", "COMPOSE_", "PG"))
+    }
+
+    def execute(
+        arguments: list[str],
+        *,
+        input_text: str | None = None,
+        check: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [*compose, *arguments],
+            cwd=tmp_path,
+            env=environment,
+            capture_output=True,
+            text=True,
+            input=input_text,
+            check=check,
+            timeout=120,
+        )
+
+    def psql(name: str) -> list[str]:
+        return [
+            "exec",
+            "-T",
+            "--user",
+            "0",
+            "--env",
+            f"PGPASSFILE=/run/fewia/{name}.pgpass",
+            "postgres",
+            "psql",
+            "-X",
+            "--no-password",
+            "--host",
+            "127.0.0.1",
+            "--username",
+            "fewia",
+            "--dbname",
+            "fewia",
+            "--set",
+            "ON_ERROR_STOP=1",
+        ]
+
+    def assert_authentication(name: str, *, succeeds: bool) -> None:
+        result = execute(
+            [*psql(name), "-Atc", "SELECT current_user"],
+            check=False,
+        )
+        if succeeds:
+            assert result.returncode == 0
+            assert result.stdout.strip() == "fewia"
+        else:
+            assert result.returncode != 0
+            assert "password authentication failed" in result.stderr
+
+    def assert_server_uid() -> None:
+        result = execute(
+            ["exec", "-T", "--user", "postgres", "postgres", "cat", "/proc/1/status"]
+        )
+        uid = next(
+            line.split()[1:]
+            for line in result.stdout.splitlines()
+            if line.startswith("Uid:")
+        )
+        assert uid == ["999"] * 4
+
+    try:
+        execute(["up", "-d", "--wait", "postgres"])
+        assert_server_uid()
+        assert_authentication("old", succeeds=True)
+        assert_authentication("new", succeeds=False)
+        execute(
+            [
+                *psql("old"),
+                "-c",
+                "CREATE TABLE local_marker (value text); "
+                "INSERT INTO local_marker VALUES ('kept');",
+            ]
+        )
+        state.admin.write_text(new_password)
+        execute(["up", "-d", "--force-recreate", "--wait", "postgres"])
+        assert_server_uid()
+        assert_authentication("old", succeeds=True)
+        assert_authentication("new", succeeds=False)
+        _load_launcher()["rotate_database_password"](
+            compose, tmp_path, environment, state.admin
+        )
+        assert_authentication("old", succeeds=False)
+        assert_authentication("new", succeeds=True)
+        result = execute([*psql("new"), "-Atc", "SELECT value FROM local_marker"])
+        assert result.stdout.strip() == "kept"
+        sentinel = f"SyntheticRotation{uuid.uuid4().hex}"
+        result = execute(
+            psql("new"),
+            input_text=(
+                "SET password_encryption = 'scram-sha-256';\n"
+                "\\password missing_role\n"
+                f"{sentinel}\n{sentinel}\n"
+            ),
+            check=False,
+        )
+        assert result.returncode != 0
+        assert 'role "missing_role" does not exist' in result.stderr
+        assert sentinel not in result.stdout + result.stderr
+        container = execute(["ps", "-q", "postgres"]).stdout.strip()
+        assert container
+        logs = subprocess.run(
+            ["docker", "logs", container],
+            cwd=tmp_path,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=120,
+        )
+        assert sentinel not in logs.stdout + logs.stderr
+    finally:
+        execute(["down", "--volumes"])

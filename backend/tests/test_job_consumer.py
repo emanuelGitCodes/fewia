@@ -14,14 +14,15 @@ from sqlalchemy.orm import Session, sessionmaker
 from app import models
 from app.job_models import Job
 from app.providers.local_sqs_consumer import QueueMessage
-from app.services import job_consumer
+from app.services import job_consumer, job_leases
 from app.services.heartbeat import Heartbeat
 from app.services.job_consumer import (
     LeaseLost,
     RetryableJobError,
     process_one,
 )
-from app.services.job_delivery import JobFailure
+from app.services.job_delivery import JobContext, JobFailure
+from app.services.job_effects import apply_effect
 from app.services.job_leases import claim_job
 from app.services.job_submission import create_job
 from app.services.plan_job import plan_job
@@ -99,10 +100,8 @@ def test_success_claims_before_handler_and_acknowledges_after_finish(
     queue = FakeQueue(body(job_id))
     observed: dict[str, object] = {}
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
-        heartbeat()
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        context.heartbeat()
         observed.update(payload)
         running = stored_job(factory, job_id)
         assert running.status == "running"
@@ -116,6 +115,83 @@ def test_success_claims_before_handler_and_acknowledges_after_finish(
     assert queue.events == ["receive", "extend", "extend", "extend", "ack"]
 
 
+@pytest.mark.parametrize("forged", [False, True])
+def test_claim_context_uses_authoritative_owner_token_and_incremented_attempt(
+    factory: sessionmaker[Session], forged: bool
+) -> None:
+    payload: dict[str, object] = {"value": "safe"}
+    if forged:
+        payload.update(user_id=1, lease_token="forged", attempt=99, job_id=str(uuid4()))
+    job_id = seed_job(factory, payload=payload)
+    with factory.begin() as session:
+        session.add(models.User(id=2, display_name="Actual owner"))
+        session.flush()
+        job = session.get(Job, job_id)
+        assert job is not None
+        job.user_id = 2
+        job.status = "running"
+        job.attempts = 1
+        job.lease_token = "expired"
+        job.lease_expires_at = T0 - timedelta(seconds=1)
+    seen: list[JobContext] = []
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        running = stored_job(factory, job_id)
+        assert context.job_id == running.id == job_id
+        assert context.user_id == running.user_id == 2
+        assert context.attempt == running.attempts == 2
+        assert context.lease_token == running.lease_token
+        assert context.lease_token not in {"expired", "forged"}
+        assert payload.get("user_id") == (1 if forged else None)
+        context.heartbeat()
+        seen.append(context)
+        return {"answer": "safe"}
+
+    queue = FakeQueue(body(job_id))
+    assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "succeeded"
+    assert len(seen) == 1 and queue.acknowledgments == 1
+
+
+@pytest.mark.parametrize("field", ["user_id", "lease_token", "attempt"])
+def test_claim_envelope_rejects_authority_fields(
+    factory: sessionmaker[Session], field: str
+) -> None:
+    job_id = seed_job(factory)
+    queue = FakeQueue(json.dumps({"job_id": job_id, field: "forged"}))
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        raise AssertionError("Invalid envelopes cannot invoke a handler.")
+
+    assert process_one(factory, queue, "agent", handler) == "invalid"
+    assert stored_job(factory, job_id).attempts == 0
+    assert queue.acknowledgments == queue.extensions == 0
+
+
+def test_stale_effect_cannot_write_finalize_or_acknowledge(
+    factory: sessionmaker[Session],
+) -> None:
+    job_id = seed_job(factory)
+    queue = FakeQueue(body(job_id))
+    writes: list[str] = []
+
+    def write(session: Session) -> dict[str, object]:
+        writes.append("write")
+        return {"kind": "sync", "changed_count": 0}
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        with factory.begin() as session:
+            job = session.get(Job, job_id)
+            assert job is not None
+            job.lease_token = "replacement"
+        return apply_effect(factory, context, "sync:0", {}, write)
+
+    assert process_one(factory, queue, "agent", handler) == "lease_lost"
+    assert writes == []
+    held = stored_job(factory, job_id)
+    assert held.status == "running" and held.result is None
+    assert queue.acknowledgments == 0
+
+
 def test_terminal_duplicate_acknowledges_without_handler(
     factory: sessionmaker[Session],
 ) -> None:
@@ -125,9 +201,7 @@ def test_terminal_duplicate_acknowledges_without_handler(
         assert job is not None
         job.status = "succeeded"
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         raise AssertionError("terminal jobs do not invoke handlers")
 
     queue = FakeQueue(body(job_id))
@@ -146,9 +220,7 @@ def test_active_duplicate_extends_without_acknowledgment(
 
     called = False
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         nonlocal called
         called = True
         return {}
@@ -178,9 +250,7 @@ def test_running_without_lease_expiry_is_busy_without_acknowledgment(
 
     queue = FakeQueue(body(job_id))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         raise AssertionError("unclaimed running jobs do not invoke handlers")
 
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "busy"
@@ -205,9 +275,7 @@ def test_raced_queued_job_is_invalid_without_acknowledgment(
     monkeypatch.setattr(job_consumer, "claim_job", raced_claim)
     queue = FakeQueue(body(job_id))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         raise AssertionError("unclaimed jobs do not invoke handlers")
 
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "invalid"
@@ -227,9 +295,7 @@ def test_malformed_envelopes_are_not_deleted(
 ) -> None:
     queue = FakeQueue(message_body)
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         return {}
 
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "invalid"
@@ -247,9 +313,7 @@ def test_duplicate_envelopes_are_rejected_without_handler_or_mutation(
     queue = FakeQueue(duplicate_body)
     called = False
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         nonlocal called
         called = True
         return {}
@@ -273,9 +337,7 @@ def test_oversized_and_deep_envelopes_are_rejected_before_mutation(
     queue = FakeQueue(oversized_body)
     called = False
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         nonlocal called
         called = True
         return {}
@@ -294,9 +356,7 @@ def test_missing_job_and_wrong_kind_are_invalid(factory: sessionmaker[Session]) 
     missing = FakeQueue(body(str(uuid4())))
     wrong_kind_id = seed_job(factory, kind="sync")
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         return {}
 
     assert process_one(factory, missing, "agent", handler, now=lambda: T0) == "invalid"
@@ -310,9 +370,7 @@ def test_missing_job_and_wrong_kind_are_invalid(factory: sessionmaker[Session]) 
 def test_kind_is_validated_before_receive(factory: sessionmaker[Session]) -> None:
     queue = FakeQueue(body(str(uuid4())))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         return {}
 
     with pytest.raises(ValueError):
@@ -334,9 +392,7 @@ def test_exhausted_eligible_claim_is_failed_then_acknowledged(
 
     queue = FakeQueue(body(job_id))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         return {}
 
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "exhausted"
@@ -350,10 +406,8 @@ def test_retry_extends_without_finishing(factory: sessionmaker[Session]) -> None
     job_id = seed_job(factory)
     queue = FakeQueue(body(job_id))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
-        heartbeat()
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        context.heartbeat()
         raise RetryableJobError("provider payload must not persist")
 
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "retry"
@@ -373,10 +427,8 @@ def test_handler_exception_persists_static_error_code(
     job_id = seed_job(factory)
     queue = FakeQueue(body(job_id))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
-        heartbeat()
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        context.heartbeat()
         raise RuntimeError("Authorization: Bearer secret-token")
 
     assert (
@@ -412,10 +464,8 @@ def test_job_failure_persists_detail_and_logs_once(
     queue = FakeQueue(body(job_id))
     detail = {"recipe_id": "vegetable_pasta", "ingredient_id": "onion"}
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
-        heartbeat()
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        context.heartbeat()
         raise JobFailure("exclusion_reject", detail)
 
     assert (
@@ -492,10 +542,8 @@ def test_heartbeat_loss_prevents_completion_and_acknowledgment(
     queue = FakeQueue(body(job_id))
     queue.fail_extension_on = 2
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
-        heartbeat()
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        context.heartbeat()
         return {"answer": "safe"}
 
     assert process_one(factory, queue, "agent", handler, now=lambda: T0) == "lease_lost"
@@ -512,11 +560,9 @@ def test_swallowed_lease_loss_stays_sticky_for_retry(
     queue = FakeQueue(body(job_id))
     queue.fail_extension_on = 2
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         try:
-            heartbeat()
+            context.heartbeat()
         except LeaseLost:
             pass
         raise RetryableJobError("do not retry after lease loss")
@@ -533,9 +579,7 @@ def test_stale_token_cannot_finish_with_deterministic_clock(
     queue = FakeQueue(body(job_id))
     clock_values: Iterator[datetime] = iter((T0, T0, T0 + timedelta(seconds=61)))
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         return {"answer": "safe"}
 
     assert (
@@ -556,9 +600,7 @@ def test_ack_failure_leaves_terminal_state_for_safe_replay(
     queue.fail_ack = True
     calls = 0
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         nonlocal calls
         calls += 1
         return {"answer": "safe"}
@@ -595,9 +637,7 @@ def test_late_background_failure_prevents_completion_and_ack(
 
     monkeypatch.setattr(job_consumer, "Heartbeat", fast_heartbeat)
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         assert in_second.wait(timeout=2)
         handler_done.set()
         return {"answer": "safe"}
@@ -630,9 +670,7 @@ def test_retryable_error_with_background_loss_is_lease_lost(
 
     monkeypatch.setattr(job_consumer, "Heartbeat", fast_heartbeat)
 
-    def handler(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         assert lost.wait(timeout=2)
         raise RetryableJobError("do not retry after lease loss")
 
@@ -642,3 +680,100 @@ def test_retryable_error_with_background_loss_is_lease_lost(
     assert held.result is None
     assert queue.acknowledgments == 0
     assert queue.events == ["receive"]
+
+
+@pytest.mark.parametrize("live_other", [False, True])
+def test_default_consumer_clock_uses_database_time_for_claim_and_busy(
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    live_other: bool,
+) -> None:
+    job_id = seed_job(factory)
+    monkeypatch.setattr(job_leases, "database_utc_now", lambda _: T0)
+    monkeypatch.setattr(job_consumer, "database_utc_now", lambda _: T0)
+    if live_other:
+        with factory.begin() as session:
+            other, _ = create_job(session, 1, "sync", "other-lease", {})
+            assert claim_job(session, other.id, now=T0) is not None
+    queue = FakeQueue(body(job_id))
+    called = False
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        nonlocal called
+        called = True
+        running = stored_job(factory, job_id)
+        assert running.lease_expires_at is not None
+        expiry = running.lease_expires_at.replace(tzinfo=UTC)
+        assert expiry == T0 + timedelta(seconds=60)
+        context.heartbeat()
+        return {"answer": "safe"}
+
+    assert process_one(factory, queue, "agent", handler) == (
+        "busy" if live_other else "succeeded"
+    )
+    assert called is not live_other
+    assert queue.acknowledgments == (0 if live_other else 1)
+    assert stored_job(factory, job_id).status == (
+        "queued" if live_other else "succeeded"
+    )
+
+
+@pytest.mark.parametrize("disable_owner", [False, True])
+def test_default_consumer_clock_fences_expiry_and_disabled_owner(
+    factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    disable_owner: bool,
+) -> None:
+    job_id = seed_job(factory)
+    current = T0
+    monkeypatch.setattr(job_leases, "database_utc_now", lambda _: current)
+    monkeypatch.setattr(job_consumer, "database_utc_now", lambda _: current)
+    queue = FakeQueue(body(job_id))
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        nonlocal current
+        if disable_owner:
+            with factory.begin() as session:
+                owner = session.get(models.User, 1)
+                assert owner is not None
+                owner.status = "disabled"
+        else:
+            current = T0 + timedelta(seconds=61)
+        return {"answer": "uncommitted"}
+
+    assert process_one(factory, queue, "agent", handler) == "lease_lost"
+    held = stored_job(factory, job_id)
+    assert held.status == "running" and held.result is None
+    assert queue.acknowledgments == 0
+    assert queue.extensions == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "error_code", "expected"),
+    [
+        ("queued", None, "invalid"),
+        ("running", None, "invalid"),
+        ("succeeded", None, "terminal"),
+        ("failed", "attempts_exhausted", "exhausted"),
+    ],
+)
+def test_disabled_owner_preserves_terminal_labels_without_handler(
+    factory: sessionmaker[Session], status: str, error_code: str | None, expected: str
+) -> None:
+    job_id = seed_job(factory)
+    with factory.begin() as session:
+        owner = session.get(models.User, 1)
+        job = session.get(Job, job_id)
+        assert owner is not None and job is not None
+        owner.status = "disabled"
+        job.status = status
+        job.error_code = error_code
+    queue = FakeQueue(body(job_id))
+
+    def handler(payload: dict[str, object], context: JobContext) -> dict[str, object]:
+        raise AssertionError("An inactive owner cannot invoke the handler.")
+
+    assert process_one(factory, queue, "agent", handler, now=lambda: T0) == expected
+    assert queue.extensions == 0
+    assert queue.acknowledgments == (1 if expected in {"terminal", "exhausted"} else 0)
+    assert stored_job(factory, job_id).attempts == 0

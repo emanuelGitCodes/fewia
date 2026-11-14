@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from copy import deepcopy
 from datetime import date
+from typing import TypedDict
 
 from app.agent import chat_messages as msgs
 from app.agent import grounding
@@ -13,6 +14,7 @@ from app.agent.budget_tool import (
 )
 from app.agent.catalog_tool import (
     DISCOVERY_ERROR,
+    catalog_answer,
     catalog_choices,
     catalog_tool_spec,
     exhausted_search_arguments,
@@ -34,10 +36,14 @@ from app.agent.chat_context import (
     sum_usage,
     validated_previous_search_state,
 )
-from app.agent.chat_dispatch import EvidenceRecorder, dispatch
+from app.agent.chat_dispatch import EvidenceRecorder, dispatch, runtime_tool_trace
 from app.agent.chat_refusal import GUARDRAIL_DECLINE, parse_refusal
 from app.agent.current_plan_answer import current_plan_answer
-from app.agent.ingredient_tool import INGREDIENT_TOOL, ingredient_tool_spec
+from app.agent.ingredient_tool import (
+    INGREDIENT_TOOL,
+    authorized_live_food,
+    ingredient_tool_spec,
+)
 from app.agent.plan_tools import (
     GET_MEAL_TOOL,
     GET_PLAN_TOOL,
@@ -178,6 +184,10 @@ _NO_MORE = "There are no more matching meals."
 _TOOL_FAILURE = "A tool call failed. Check the request."
 
 
+class _DispatchExtra(TypedDict, total=False):
+    propose: Propose
+
+
 class ChatUnavailable(Exception):
     pass
 
@@ -284,6 +294,8 @@ def run_chat(
     observe_terminal_tool_results: Callable[[list[dict[str, object]]], None]
     | None = None,
     model_prose: bool = False,
+    sanitize_trace: bool = False,
+    provider_control_errors: tuple[type[Exception], ...] = (),
     propose: Propose | None = None,
     previous_search: dict[str, object] | None = None,
     previous_exhausted_search: dict[str, object] | None = None,
@@ -398,6 +410,8 @@ def run_chat(
     what_if_failed = False
     proposal_read: list[tuple[str, dict[str, object]]] = []
     run_payloads: list[tuple[str, dict[str, object]]] = []
+    live_food = authorized_live_food(message)
+    live_lookup_used = False
 
     def answer() -> str:
         proposed = (
@@ -411,23 +425,39 @@ def run_chat(
             candidate is not None
             or last_error is not None
             or (catalog_batch and (discovery is not None or discovery_failed))
+            or (
+                sanitize_trace
+                and (
+                    summary_ok or any(name != PROPOSAL_TOOL for name, _ in read_results)
+                )
+            )
         )
         if not more and other_failed:
             return f"{proposed} {_TOOL_FAILURE}"
         return f"{proposed} {rest()}" if more else proposed
 
     def rest() -> str:
+        available_reads = read_results or (earlier_reads if other_failed else [])
+        reads = [
+            (name, payload)
+            for name, payload in available_reads
+            if name != PROPOSAL_TOOL
+        ]
+        read = read_tool_answer(
+            reads,
+            stale=budget.stale,
+            failed=other_failed,
+            all_results=sanitize_trace,
+            sanitize_trace=sanitize_trace,
+            live_food=live_food,
+        )
         if not catalog_batch:
             if candidate is None and last_error is None:
-                read = read_tool_answer(
-                    [
-                        *(read_results or (earlier_reads if other_failed else [])),
-                        *proposal_read,
-                    ],
-                    stale=budget.stale,
-                    failed=other_failed,
-                )
                 if read is not None:
+                    if summary_ok and sanitize_trace:
+                        read += " " + budget_summary_answer(
+                            budget, period, spending_source=spending_source
+                        )
                     return read
             if candidate is None and last_error is None and summary_ok:
                 return budget_summary_answer(
@@ -445,12 +475,23 @@ def run_chat(
             parts.append(DISCOVERY_ERROR)
         elif discovery is not None:
             parts.append(
-                render_public_answer(None, discovery=discovery, meal_type=meal_type)
+                catalog_answer(discovery, include_untrusted_names=False)
+                if sanitize_trace
+                else render_public_answer(
+                    None, discovery=discovery, meal_type=meal_type
+                )
             )
         if summary_ok:
             parts.append(
                 budget_summary_answer(budget, period, spending_source=spending_source)
             )
+        if (
+            read is not None
+            and sanitize_trace
+            and candidate is None
+            and last_error is None
+        ):
+            parts.append(read)
         if other_failed and parts:
             parts.append(_TOOL_FAILURE)
         return (
@@ -500,7 +541,7 @@ def run_chat(
             answer,
             plan,
             spending_source,
-            trace,
+            runtime_tool_trace(trace) if sanitize_trace else trace,
             turns,
             revisions,
             reply_source=reply_source,
@@ -571,6 +612,8 @@ def run_chat(
                 list(messages),
                 deepcopy(tools),
             )
+        except provider_control_errors:
+            raise
         except Exception:  # noqa: BLE001
             raw = None
         if raw is None:
@@ -628,7 +671,7 @@ def run_chat(
                     p.get("status", "ok") not in _FINAL_STATUS for _, p in run_payloads
                 ):
                     gate = "not_final"
-                if not model_prose:
+                if not model_prose or sanitize_trace:
                     return out(status, answer(), candidate, public=True)
                 if gate is not None:
                     shown_gate: dict[str, object] = {"gate": gate}
@@ -729,18 +772,40 @@ def run_chat(
                     )
                     continue
                 revisions += 1
-            extra: dict[str, Propose] = {} if propose is None else {"propose": propose}
-            payload, block = dispatch(
-                call,
-                budget,
-                period,
-                user_id,
-                spending_source,
-                trace,
-                record_evidence=record_evidence,
-                plan=plan_revision,
-                **extra,
-            )
+            extra: _DispatchExtra = {} if propose is None else {"propose": propose}
+            if call.name == INGREDIENT_TOOL and live_food is not None:
+                payload, block = dispatch(
+                    call,
+                    budget,
+                    period,
+                    user_id,
+                    spending_source,
+                    trace,
+                    record_evidence=record_evidence,
+                    plan=plan_revision,
+                    live_food=None if live_lookup_used else live_food,
+                    **extra,
+                )
+            else:
+                payload, block = dispatch(
+                    call,
+                    budget,
+                    period,
+                    user_id,
+                    spending_source,
+                    trace,
+                    record_evidence=record_evidence,
+                    plan=plan_revision,
+                    **extra,
+                )
+            if (
+                call.name == INGREDIENT_TOOL
+                and live_food is not None
+                and payload is not None
+                and payload.get("name") == live_food
+                and payload.get("status") in ("unknown", "live")
+            ):
+                live_lookup_used = True
             error = _tool_error_payload(block)
             tool_result = block.get("toolResult")
             success = (

@@ -20,6 +20,7 @@ from preflight_checks import (
     check_caller,
     check_certificate,
     check_image,
+    check_image_scan_page,
 )
 
 _ACCOUNT = "111122223333"
@@ -84,7 +85,125 @@ def _check_image(response: object) -> None:
     check_image(_config(), response, repository_name=_REPOSITORY, digest=_DIGEST)
 
 
-def _assert_invalid(call: Callable[[], None]) -> None:
+def _scan() -> dict[str, object]:
+    return {
+        "registryId": _ACCOUNT,
+        "repositoryName": _REPOSITORY,
+        "imageId": {"imageDigest": _DIGEST},
+        "imageScanStatus": {"status": "COMPLETE"},
+        "imageScanFindings": {
+            "findingSeverityCounts": {"LOW": 2, "HIGH": 0, "CRITICAL": 0},
+            "findings": [{"severity": "LOW"}, {"severity": "LOW"}],
+        },
+    }
+
+
+def _check_scan(response: object) -> tuple[dict[str, int], dict[str, int], str | None]:
+    return check_image_scan_page(
+        _config(), response, repository_name=_REPOSITORY, digest=_DIGEST
+    )
+
+
+def test_complete_scan_returns_page_counts_without_summing_summary() -> None:
+    response = _scan()
+    response["nextToken"] = "page+/=2"
+    expected = deepcopy(response)
+    counts, summary, token = _check_scan(response)
+    assert counts["LOW"] == 2
+    assert summary == counts
+    assert counts["HIGH"] == counts["CRITICAL"] == 0
+    assert token == "page+/=2"
+    assert response == expected
+
+
+@pytest.mark.parametrize("field", list(_scan()))
+def test_scan_requires_all_metadata_fields(field: str) -> None:
+    response = _scan()
+    del response[field]
+    _assert_invalid(lambda: _check_scan(response))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("registryId", "999900001111"),
+        ("repositoryName", "fewia/frontend"),
+        ("imageId", {"imageDigest": "sha256:" + "b" * 64}),
+        ("imageId", {}),
+        ("imageScanStatus", {}),
+        *[
+            ("imageScanStatus", {"status": status})
+            for status in (
+                "FAILED",
+                "IN_PROGRESS",
+                "PENDING",
+                "ACTIVE",
+                "UNSUPPORTED_IMAGE",
+                "SCAN_ELIGIBILITY_EXPIRED",
+                "FINDINGS_UNAVAILABLE",
+                "complete",
+                "",
+            )
+        ],
+        ("imageScanFindings", {}),
+        ("imageScanFindings", None),
+        ("nextToken", None),
+        ("nextToken", ""),
+        ("nextToken", "page\n"),
+        ("nextToken", "page 2"),
+        ("nextToken", "a" * 2049),
+    ],
+)
+def test_scan_rejects_mismatched_incomplete_and_malformed_metadata(
+    field: str, value: object
+) -> None:
+    response = _scan()
+    response[field] = value
+    _assert_invalid(lambda: _check_scan(response))
+
+
+@pytest.mark.parametrize(
+    "counts",
+    [
+        None,
+        [],
+        True,
+        {"HIGH": True},
+        {"HIGH": "0"},
+        {"LOW": -1},
+        {"LOW": 0.5},
+        {"UNKNOWN": 0},
+        {"HIGH": 1},
+        {"CRITICAL": 1},
+    ],
+)
+def test_scan_rejects_malformed_counts_and_severe_summaries(counts: object) -> None:
+    response = _scan()
+    scan = cast(dict[str, object], response["imageScanFindings"])
+    scan["findingSeverityCounts"] = counts
+    _assert_invalid(lambda: _check_scan(response))
+
+
+@pytest.mark.parametrize(
+    "findings",
+    [
+        None,
+        {},
+        [None],
+        [{}],
+        [{"severity": None}],
+        [{"severity": "UNKNOWN"}],
+        [{"severity": "HIGH"}],
+        [{"severity": "CRITICAL"}],
+    ],
+)
+def test_scan_rejects_malformed_or_severe_findings(findings: object) -> None:
+    response = _scan()
+    cast(dict[str, object], response["imageScanFindings"])["findings"] = findings
+    _assert_invalid(lambda: _check_scan(response))
+
+
+def _assert_invalid(call: Callable[[], object]) -> None:
     with pytest.raises(PreflightError) as error:
         call()
     assert type(error.value) is PreflightError
@@ -135,6 +254,7 @@ def test_each_check_rejects_nonexact_response_objects(response: object) -> None:
     _assert_invalid(lambda: check_caller(_config(), response))
     _assert_invalid(lambda: check_certificate(_config(), response, now=_NOW))
     _assert_invalid(lambda: _check_image(response))
+    _assert_invalid(lambda: _check_scan(response))
 
 
 @pytest.mark.parametrize(

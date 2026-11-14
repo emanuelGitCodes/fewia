@@ -2,6 +2,7 @@
 
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearTestSession, seedTestSession } from "./testSession";
 import { HTTP_ERROR, type ProviderCapabilities } from "./apiTypes";
 import { useProviderCapabilities } from "./useProviderCapabilities";
 
@@ -57,6 +58,7 @@ function hungJson(init?: RequestInit): Promise<Response> {
 
 describe("useProviderCapabilities", () => {
   beforeEach(() => {
+    seedTestSession();
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
@@ -71,6 +73,7 @@ describe("useProviderCapabilities", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    clearTestSession();
   });
 
   it("loads configured flags from GET /api/grocery/providers", async () => {

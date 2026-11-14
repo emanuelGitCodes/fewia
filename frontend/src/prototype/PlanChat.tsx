@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type JSX, type KeyboardEvent } from "react";
-import { SAMPLE_ESTIMATE_NOTICE } from "../apiTypes";
+import { SAMPLE_ESTIMATE_NOTICE, modelJobFailureText } from "../apiTypes";
 import { BUDGET_ERROR, MAX_MESSAGE_LENGTH, TEXT_ERROR } from "../chatConversationModel";
 import { useChatConversation } from "../useChatConversation";
 import { useProviderCapabilities } from "../useProviderCapabilities";
@@ -197,7 +197,7 @@ export function PlanChat(props: {
   } else if (validation && chat.error !== null) {
     status = chat.error;
   } else if (failed) {
-    status = FAILED_LINE;
+    status = modelJobFailureText(job) ?? FAILED_LINE;
   } else if (current?.answered === true) {
     status = replyLine(current.ideas.length);
   }
@@ -316,7 +316,7 @@ export function PlanChat(props: {
       ) : null}
       {failed && !unanswered ? (
         <button type="button" className="tonight-ask-btn" disabled={!chat.hasRequest} onClick={retry}>
-          Retry
+          {job?.status === "failed" ? "Retry request" : "Retry"}
         </button>
       ) : null}
       {!providers.pending && !on ? <p className="tonight-ask-off">{OFF_LINE}</p> : null}

@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Protocol, cast
 from uuid import UUID
 
@@ -12,9 +13,24 @@ class JobQueue(Protocol):
     def extend(self, message: QueueMessage, seconds: int) -> None: ...
 
 
+@dataclass(frozen=True)
+class JobContext:
+    """Carry the database claim to a handler.
+
+    Consumers MUST use the claimed row and returned token to construct this context.
+    Consumers MUST NOT derive these fields from a message or request payload.
+    """
+
+    job_id: str
+    user_id: int
+    lease_token: str = field(repr=False)
+    heartbeat: Callable[[], None] = field(repr=False)
+    attempt: int
+
+
 class JobHandler(Protocol):
     def __call__(
-        self, payload: dict[str, object], heartbeat: Callable[[], None]
+        self, payload: dict[str, object], context: JobContext
     ) -> dict[str, object]: ...
 
 

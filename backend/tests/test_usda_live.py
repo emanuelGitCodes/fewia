@@ -1,12 +1,13 @@
 """Tests for the live USDA FoodData Central search client."""
 
-from collections.abc import Callable
+import gzip
+from collections.abc import Callable, Iterator
 
 import httpx
 import pytest
 
 from app.domain.nutrition import NutritionFacts
-from app.providers import usda_live
+from app.providers import http_client, usda_live
 from app.providers.usda_live import (
     COOLDOWN_SECONDS,
     HOURLY_LIMIT,
@@ -293,3 +294,60 @@ def test_builder_builds_one_client_from_the_key(
         assert get_usda_live_client() is first
     finally:
         get_usda_live_client.cache_clear()  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    "case", ["success", "oversize", "gzip", "read_error", "bad_json", "cooldown"]
+)
+def test_usda_stream_bounds_and_status_mapping_close_the_stream(case: str) -> None:
+    closed: list[bool] = []
+    calls: list[httpx.Request] = []
+    content = b'{"foods":[]}'
+    if case in ("oversize", "gzip"):
+        content = b"x" * (http_client.MAX_RESPONSE_BYTES + 1)
+    elif case == "bad_json":
+        content = b"not JSON"
+    if case == "gzip":
+        content = gzip.compress(content)
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield content
+            if case == "read_error":
+                raise httpx.ReadTimeout(KEY)
+
+        def close(self) -> None:
+            closed.append(True)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(
+            429 if case == "cooldown" else 200,
+            stream=Stream(),
+            headers={"Content-Encoding": "gzip" if case == "gzip" else "identity"},
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as http:
+        client = UsdaLiveClient(KEY, client=http, clock=lambda: 0.0)
+        if case == "success":
+            assert client.search("x") == []
+        else:
+            with pytest.raises(UsdaUnavailable) as raised:
+                client.search("x")
+            assert str(raised.value) == "USDA FoodData Central is unavailable"
+            assert raised.value.__context__ is None
+            if case == "cooldown":
+                with pytest.raises(UsdaUnavailable):
+                    client.search("x")
+    assert len(calls) == 1
+    assert closed == [True]
+
+
+def test_usda_food_collection_is_bounded_to_the_page_size() -> None:
+    foods = _client(_ok([_food(fdc_id=i + 1) for i in range(100)])).search("x")
+    assert [food.fdc_id for food in foods] == [1, 2, 3, 4, 5]
+
+
+def test_usda_skips_foods_with_excess_nutrient_collections() -> None:
+    entry = _food(foodNutrients=_nutrients() + [{}] * usda_live.MAX_NUTRIENTS)
+    assert _client(_ok([entry])).search("x") == []

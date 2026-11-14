@@ -1,16 +1,34 @@
+import asyncio
+import gzip
 import json
+import time
+from collections.abc import AsyncIterator, Callable
+from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
+import httpx
 import pytest
+from botocore.awsrequest import AWSPreparedRequest
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from botocore.httpsession import URLLib3Session
 
 from app.agent.provider import LLMUnavailable
-from app.providers import bedrock
+from app.providers import bedrock, http_client
+
+
+class FakeEvents:
+    def __init__(self) -> None:
+        self.handlers: dict[str, Callable[..., object]] = {}
+
+    def register_first(self, event: str, handler: Callable[..., object]) -> None:
+        self.handlers[event] = handler
 
 
 class FakeClient:
     def __init__(self, response: object) -> None:
+        self.meta = SimpleNamespace(events=FakeEvents())
         self.response = response
         self.requests: list[dict[str, object]] = []
 
@@ -118,8 +136,32 @@ def test_forwards_shape_and_omits_empty_tools(
             "system": [{"text": "system"}],
             "messages": messages,
             "inferenceConfig": {"maxTokens": 1024, "temperature": 0},
+            "performanceConfig": {"latency": "standard"},
+            "serviceTier": {"type": "default"},
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("latency", "tier"), [("standard", "default"), ("optimized", "priority")]
+)
+def test_selects_standard_default_and_preserves_reported_tiers(
+    monkeypatch: pytest.MonkeyPatch, latency: str, tier: str
+) -> None:
+    reply = {
+        **response(),
+        "performanceConfig": {"latency": latency},
+        "serviceTier": {"type": tier},
+    }
+    instance, _, client = provider(monkeypatch, reply, model_id=_NOVA2_US_ID)
+
+    result = instance.converse("system", _USER_MESSAGES, [])
+
+    assert client.requests[0]["performanceConfig"] == {"latency": "standard"}
+    assert client.requests[0]["serviceTier"] == {"type": "default"}
+    assert result is reply
+    assert result["performanceConfig"] == {"latency": latency}
+    assert result["serviceTier"] == {"type": tier}
 
 
 def test_includes_nonempty_tools(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -412,7 +454,7 @@ def test_preserves_tool_result_and_extra_content_blocks(
             "role": "user",
             "content": [
                 {"toolResult": {"toolUseId": "call-1", "content": [{"text": "ok"}]}},
-                {"guardContent": {"text": "safe"}},
+                {"guardContent": {"text": {"text": "safe"}}},
             ],
         },
     ]
@@ -855,3 +897,471 @@ def test_rejects_invalid_model_region_and_messages(
         instance.converse("system", [], [])
     with pytest.raises(ValueError):
         instance.converse(" ", [{"role": "user", "content": [{"text": "ok"}]}], [])
+
+
+def _prepared() -> AWSPreparedRequest:
+    body = b'{"text": "\\u00e9", "value": 1}\n'
+    return AWSPreparedRequest(
+        method="POST",
+        url="https://bedrock-runtime.us-east-1.amazonaws.com/model/a%2Fb/converse?q=%2F",
+        headers={
+            "Host": b"bedrock-runtime.us-east-1.amazonaws.com",
+            "Content-Type": b"application/json",
+            "Content-Length": str(len(body)).encode("ascii"),
+            "Accept-Encoding": b"identity",
+            "Authorization": b"TEST_ONLY_SIGNATURE_MARKER",
+            "X-Amz-Date": b"20260101T000000Z",
+            "X-Amz-Security-Token": b"TEST_ONLY_SESSION_MARKER",
+        },
+        body=body,
+        stream_output=False,
+    )
+
+
+class _AsyncBody(httpx.AsyncByteStream):
+    def __init__(self, content: bytes) -> None:
+        self.content = content
+        self.closed = False
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for offset in range(0, len(self.content), 31):
+            yield self.content[offset : offset + 31]
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+def test_prepared_request_retains_signed_bytes_and_decodes_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepared = _prepared()
+    content = json.dumps(response()).encode("utf-8")
+    compressed = gzip.compress(content)
+    stream = _AsyncBody(compressed)
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        assert request.method == prepared.method
+        assert str(request.url) == prepared.url
+        assert request.content == prepared.body
+        assert request.headers.raw == [
+            (name.encode("ascii"), value) for name, value in prepared.headers.items()
+        ]
+        assert request.extensions["timeout"]["connect"] == 5.0
+        return httpx.Response(
+            200,
+            stream=stream,
+            headers={
+                "Content-Encoding": "gzip",
+                "Content-Length": str(len(compressed)),
+                "X-Amzn-Requestid": "fake-request",
+            },
+        )
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        assert kwargs == {"retries": 0, "trust_env": False}
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    result = bedrock._send_prepared(prepared)  # noqa: SLF001
+    assert result.content == content
+    assert result.status_code == 200
+    assert result.headers["content-length"] == str(len(content))
+    assert "content-encoding" not in result.headers
+    assert result.headers["x-amzn-requestid"] == "fake-request"
+    assert stream.closed
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("mapping_failure", [False, True])
+def test_prepared_response_closes_after_mapping(
+    monkeypatch: pytest.MonkeyPatch, mapping_failure: bool
+) -> None:
+    bounded = httpx.Response(200, content=b"bounded")
+    close_calls: list[bool] = []
+    close = bounded.close
+
+    def close_response() -> None:
+        close_calls.append(True)
+        close()
+
+    def send(*args: object, **kwargs: object) -> httpx.Response:
+        return bounded
+
+    def fail_mapping(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("TEST_ONLY_MAPPING_ERROR")
+
+    monkeypatch.setattr(bounded, "close", close_response)
+    monkeypatch.setattr(bedrock, "send_prepared_bounded", send)
+    if mapping_failure:
+        monkeypatch.setattr(bedrock, "AWSResponse", fail_mapping)
+        with pytest.raises(RuntimeError, match="TEST_ONLY_MAPPING_ERROR"):
+            bedrock._send_prepared(_prepared())  # noqa: SLF001
+    else:
+        result = bedrock._send_prepared(_prepared())  # noqa: SLF001
+        assert result.content == b"bounded"
+    assert close_calls == [True]
+    assert bounded.is_closed
+
+
+@pytest.mark.parametrize(
+    ("encoding", "content", "error"),
+    [
+        ("identity", b"x" * (1024 * 1024 + 1), http_client.ResponseTooLarge),
+        (
+            "gzip",
+            gzip.compress(b"x" * (1024 * 1024 + 1), mtime=0),
+            http_client.ResponseTooLarge,
+        ),
+        ("gzip", b"invalid gzip", httpx.DecodingError),
+        ("gzip", gzip.compress(b"ok", mtime=0)[:-1], httpx.DecodingError),
+        ("br", b"unsupported", httpx.DecodingError),
+    ],
+    ids=[
+        "identity-oversize",
+        "gzip-oversize",
+        "invalid-gzip",
+        "truncated-gzip",
+        "unsupported-encoding",
+    ],
+)
+def test_prepared_response_failures_close_streams(
+    monkeypatch: pytest.MonkeyPatch,
+    encoding: str,
+    content: bytes,
+    error: type[httpx.RequestError],
+) -> None:
+    stream = _AsyncBody(content)
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200, stream=stream, headers={"Content-Encoding": encoding}
+        )
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    with pytest.raises(error):
+        bedrock._send_prepared(_prepared())  # noqa: SLF001
+    assert stream.closed
+    assert len(seen) == 1
+
+
+def test_oversized_prepared_body_rejects_before_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepared = _prepared()
+    prepared.body = b"x" * (bedrock.MAX_INPUT_BYTES + 1)
+
+    def deny_send(*args: object, **kwargs: object) -> httpx.Response:
+        raise AssertionError("Oversized prepared input MUST NOT reach the transport")
+
+    monkeypatch.setattr(bedrock, "send_prepared_bounded", deny_send)
+    with pytest.raises(LLMUnavailable):
+        bedrock._send_prepared(prepared)  # noqa: SLF001
+
+
+@pytest.mark.parametrize("phase", ["headers", "body", "drip"])
+def test_prepared_deadline_cancels_pending_io(
+    monkeypatch: pytest.MonkeyPatch, phase: str
+) -> None:
+    events: list[str] = []
+
+    class SlowBody(httpx.AsyncByteStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            try:
+                while True:
+                    if phase == "body":
+                        await asyncio.Event().wait()
+                    await asyncio.sleep(0.005)
+                    events.append("chunk")
+                    yield b"x"
+            finally:
+                events.append("cancelled")
+
+        async def aclose(self) -> None:
+            events.append("closed")
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        events.append("sent")
+        if phase == "headers":
+            try:
+                await asyncio.Event().wait()
+            finally:
+                events.append("cancelled")
+        return httpx.Response(200, stream=SlowBody())
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    monkeypatch.setattr(http_client, "REQUEST_SECONDS", 0.05)
+    started = time.monotonic()
+    with pytest.raises(httpx.ReadTimeout):
+        bedrock._send_prepared(_prepared())  # noqa: SLF001
+    assert time.monotonic() - started < 2.0
+    assert events.count("sent") == events.count("cancelled") == 1
+    assert events.count("closed") == int(phase != "headers")
+    if phase == "drip":
+        assert "chunk" in events
+
+
+@pytest.mark.parametrize("field", ["system", "messages", "tools"])
+def test_oversized_serialized_input_rejects_before_client(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    instance, _, client = provider(monkeypatch, response())
+    expanded = "\u00e9" * (12 * 1024)
+    system = expanded if field == "system" else "system"
+    messages = [
+        {
+            "role": "user",
+            "content": [{"text": expanded if field == "messages" else "ok"}],
+        }
+    ]
+    tools = (
+        [{"toolSpec": {"name": "tool", "description": expanded}}]
+        if field == "tools"
+        else []
+    )
+    with pytest.raises(LLMUnavailable):
+        instance.converse(system, messages, tools)
+    assert client.requests == []
+
+
+def test_serialized_input_limit_accepts_exactly_64_kib(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, _, client = provider(monkeypatch, response())
+    request: bedrock.ConverseRequest = {
+        "modelId": "model-id",
+        "system": [{"text": "s"}],
+        "messages": _USER_MESSAGES,
+        "inferenceConfig": {"maxTokens": 1024, "temperature": 0},
+        "performanceConfig": {"latency": "standard"},
+        "serviceTier": {"type": "default"},
+    }
+    baseline = bedrock._serialized_input_size(request)  # noqa: SLF001
+    system = "s" * (bedrock.MAX_INPUT_BYTES - baseline + 1)
+    assert instance.converse(system, _USER_MESSAGES, []) == response()
+    assert len(client.requests) == 1
+    with pytest.raises(LLMUnavailable):
+        instance.converse(system + "s", _USER_MESSAGES, [])
+    assert len(client.requests) == 1
+
+
+def test_blob_expansion_counts_toward_serialized_input_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance, _, client = provider(monkeypatch, response())
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"image": {"format": "png", "source": {"bytes": b"x" * (49 * 1024)}}}
+            ],
+        }
+    ]
+    with pytest.raises(LLMUnavailable):
+        instance.converse("system", messages, [])
+    assert client.requests == []
+
+
+def _sdk_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> bedrock.BedrockConverseProvider:
+    for name in ("AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE", "BOTO_CONFIG"):
+        monkeypatch.setenv(name, str(tmp_path / "absent"))
+    for name in ("AWS_PROFILE", "AWS_DEFAULT_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+    session = bedrock.boto3.Session(
+        aws_access_key_id="TEST_ONLY_ACCESS_MARKER",
+        aws_secret_access_key="TEST_ONLY_SECRET_MARKER",
+        aws_session_token="TEST_ONLY_SESSION_MARKER",
+    )
+
+    def factory(**kwargs: object) -> object:
+        assert kwargs == {}
+        return session
+
+    def deny_network(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Botocore MUST use the bounded transport")
+
+    monkeypatch.setattr(bedrock.boto3, "Session", factory)
+    monkeypatch.setattr(URLLib3Session, "send", deny_network)
+    return bedrock.BedrockConverseProvider("model-id")
+
+
+@pytest.mark.parametrize(
+    ("latency", "tier"), [("standard", "default"), ("optimized", "priority")]
+)
+def test_sdk_signs_and_parses_through_the_bounded_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, latency: str, tier: str
+) -> None:
+    prepared_requests: list[AWSPreparedRequest] = []
+    sender = bedrock._send_prepared  # noqa: SLF001
+    reply = {
+        **response(),
+        "performanceConfig": {"latency": latency},
+        "serviceTier": {"type": tier},
+    }
+    stream = _AsyncBody(json.dumps(reply).encode())
+
+    def send(request: AWSPreparedRequest, **kwargs: object) -> object:
+        prepared_requests.append(request)
+        return sender(request, **kwargs)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        prepared = prepared_requests[-1]
+        assert request.method == prepared.method
+        assert str(request.url) == prepared.url
+        assert request.content == prepared.body
+        for name, value in prepared.headers.items():
+            expected_value = value.encode("utf-8") if isinstance(value, str) else value
+            assert request.headers[name].encode("utf-8") == expected_value
+        assert request.headers["authorization"].startswith("AWS4-HMAC-SHA256 ")
+        assert request.headers["x-amz-security-token"] == "TEST_ONLY_SESSION_MARKER"
+        assert request.url.host == "bedrock-runtime.us-east-1.amazonaws.com"
+        body = json.loads(request.content)
+        assert body["performanceConfig"] == {"latency": "standard"}
+        assert body["serviceTier"] == {"type": "default"}
+        expected: bedrock.ConverseRequest = {
+            "modelId": "model-id",
+            "system": [{"text": "system"}],
+            "messages": _USER_MESSAGES,
+            "inferenceConfig": {"maxTokens": 1024, "temperature": 0},
+            "performanceConfig": {"latency": "standard"},
+            "serviceTier": {"type": "default"},
+        }
+        expected_size = bedrock._serialized_input_size(expected)  # noqa: SLF001
+        assert len(prepared.body) == expected_size
+        return httpx.Response(200, stream=stream)
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://floci:4566")
+    monkeypatch.setattr(bedrock, "_send_prepared", send)
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    instance = _sdk_provider(monkeypatch, tmp_path)
+    result = instance.converse("system", _USER_MESSAGES, [])
+    assert result["output"] == response()["output"]
+    assert result["stopReason"] == "end_turn"
+    assert result["performanceConfig"] == {"latency": latency}
+    assert result["serviceTier"] == {"type": tier}
+    metadata = cast(dict[str, object], result["ResponseMetadata"])
+    assert metadata["RetryAttempts"] == 0
+    assert len(prepared_requests) == 1
+    assert stream.closed
+
+
+@pytest.mark.parametrize("status", [403, 429, 503])
+def test_sdk_errors_remain_static_without_retries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    status: int,
+) -> None:
+    calls: list[httpx.Request] = []
+    stream = _AsyncBody(b'{"message":"TEST_ONLY_PRIVATE_ERROR"}')
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(
+            status,
+            stream=stream,
+            headers={"X-Amzn-Errortype": "AccessDeniedException"},
+        )
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    instance = _sdk_provider(monkeypatch, tmp_path)
+    with pytest.raises(LLMUnavailable) as raised:
+        instance.converse("system", _USER_MESSAGES, [])
+    assert str(raised.value) == ""
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__ is True
+    assert len(calls) == 1
+    assert stream.closed
+    logged = capsys.readouterr().err
+    assert "TEST_ONLY_PRIVATE_ERROR" not in logged
+    assert json.loads(logged) == {
+        "event": "bedrock_converse_failed",
+        "reason": "client_error",
+        "exception": "AccessDeniedException",
+        "error_code": "AccessDeniedException",
+        "http_status": status,
+        "stop_reason": None,
+    }
+    for marker in (
+        "TEST_ONLY_ACCESS_MARKER",
+        "TEST_ONLY_SECRET_MARKER",
+        "TEST_ONLY_SESSION_MARKER",
+    ):
+        assert marker not in logged
+
+
+@pytest.mark.parametrize("failure", ["connect", "deadline", "decode", "oversize"])
+def test_sdk_transport_failures_are_static_and_never_retried(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    calls: list[httpx.Request] = []
+    content = (
+        gzip.compress(b"x" * (http_client.MAX_RESPONSE_BYTES + 1))
+        if failure == "oversize"
+        else b"TEST_ONLY_INVALID_GZIP"
+    )
+    stream = _AsyncBody(content)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if failure == "connect":
+            raise httpx.ConnectTimeout("TEST_ONLY_PRIVATE_ERROR")
+        if failure == "deadline":
+            raise httpx.ReadTimeout("TEST_ONLY_PRIVATE_ERROR")
+        return httpx.Response(200, stream=stream, headers={"Content-Encoding": "gzip"})
+
+    def make_transport(**kwargs: object) -> httpx.MockTransport:
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(http_client.httpx, "AsyncHTTPTransport", make_transport)
+    instance = _sdk_provider(monkeypatch, tmp_path)
+    with pytest.raises(LLMUnavailable) as raised:
+        instance.converse("system", _USER_MESSAGES, [])
+    assert str(raised.value) == ""
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__ is True
+    assert len(calls) == 1
+    assert stream.closed == (failure in ("decode", "oversize"))
+    logged = capsys.readouterr().err
+    assert "TEST_ONLY_PRIVATE_ERROR" not in logged
+    assert "TEST_ONLY_INVALID_GZIP" not in logged
+    assert json.loads(logged) == {
+        "event": "bedrock_converse_failed",
+        "reason": "client_error",
+        "exception": {
+            "connect": "ConnectTimeout",
+            "deadline": "ReadTimeout",
+            "decode": "DecodingError",
+            "oversize": "ResponseTooLarge",
+        }[failure],
+        "error_code": None,
+        "http_status": None,
+        "stop_reason": None,
+    }
+    for marker in (
+        "TEST_ONLY_ACCESS_MARKER",
+        "TEST_ONLY_SECRET_MARKER",
+        "TEST_ONLY_SESSION_MARKER",
+    ):
+        assert marker not in logged

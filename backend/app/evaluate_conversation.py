@@ -20,8 +20,10 @@ from app.evaluation_conversation import (
     run_conversation_suite,
 )
 from app.evaluation_conversation_corpus import ConversationCorpus, Scenario, Turn
-from app.evaluation_conversation_score import build_report, render_markdown
+from app.evaluation_conversation_score import build_report
+from app.evaluation_export import export_mode, export_record, render_export_markdown
 from app.evaluation_io import EvaluationOutput
+from app.evaluation_io_json import load_json, load_json_with_bytes
 from app.evaluation_manifest import _hash, catalog_snapshot
 from app.evaluation_profiles import ModelProfile, rates_for, resolve_profile
 
@@ -91,6 +93,8 @@ def _arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--rates")
     parser.add_argument("--selection-file")
     parser.add_argument("--max-chat-turns")
+    parser.add_argument("--detailed-export", action="store_true")
+    parser.add_argument("--synthetic-inputs", action="store_true")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--live-bedrock", action="store_true")
     mode.add_argument("--live-openai", action="store_true")
@@ -173,15 +177,22 @@ def main(
             raise ValueError(_INVALID)
         if args.live_openai and (not args.rates or args.max_chat_turns is None):
             raise ValueError(_INVALID)
-        # One read: the bytes that are hashed are the bytes that are parsed.
-        corpus_bytes = Path(args.corpus).read_bytes()
-        corpus = ConversationCorpus.model_validate_json(corpus_bytes)
+        if args.detailed_export != args.synthetic_inputs:
+            raise ValueError(_INVALID)
+        corpus_bytes, corpus_data = load_json_with_bytes(Path(args.corpus))
+        recognized = export_mode(
+            corpus_bytes,
+            "conversation",
+            detailed=args.detailed_export,
+            synthetic=args.synthetic_inputs,
+        )
+        corpus = ConversationCorpus.model_validate(corpus_data)
         selection: ConversationSelection | None = None
         if args.selection_file is not None:
             if args.max_chat_turns is None:
                 raise ValueError(_INVALID)
-            raw_selection = ConversationSelection.model_validate_json(
-                Path(args.selection_file).read_bytes()
+            raw_selection = ConversationSelection.model_validate(
+                load_json(Path(args.selection_file))
             )
             selection = normalize_selection(corpus, raw_selection)
         turn_count = logical_chat_turn_count(corpus, selection)
@@ -236,11 +247,29 @@ def main(
             for record in run_conversation_suite(
                 corpus, profile.name, provider_for, selection=selection
             ):
-                output.append_slot(record)
+                output.append_slot(
+                    export_record(
+                        record,
+                        recognized=recognized,
+                        detailed=args.detailed_export,
+                        synthetic=args.synthetic_inputs,
+                        corpus_bytes=corpus_bytes,
+                        suite="conversation",
+                    )
+                )
                 records.append(record)
             report = build_report(corpus, records, manifest, rates, selection=selection)
             paths = output.finish(
-                report, render_markdown(report), include_slots_hash=True
+                export_record(
+                    report,
+                    recognized=recognized,
+                    detailed=args.detailed_export,
+                    synthetic=args.synthetic_inputs,
+                    corpus_bytes=corpus_bytes,
+                    suite="conversation",
+                ),
+                render_export_markdown(export_record(report, recognized=recognized)),
+                include_slots_hash=True,
             )
         for path in paths:
             print(path)

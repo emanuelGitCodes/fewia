@@ -334,11 +334,17 @@ def seed_user(session: Session) -> UserSeeder:
     """Give tests a user factory."""
 
     def seed(user_id: int = 1, display_name: str = "Test user") -> int:
-        session.add(models.User(id=user_id, display_name=display_name))
-        session.flush()
+        if session.get(models.User, user_id) is None:
+            session.add(models.User(id=user_id, display_name=display_name))
+            session.flush()
         return user_id
 
     return seed
+
+
+@pytest.fixture()
+def local_demo_owner(seed_user: UserSeeder) -> None:
+    seed_user()
 
 
 @pytest.fixture()

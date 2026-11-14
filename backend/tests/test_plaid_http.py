@@ -1,13 +1,15 @@
 """Test the Plaid Sandbox HTTP sync adapter."""
 
+import gzip
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import asdict
 from datetime import date
 
 import httpx
 import pytest
 
+from app.providers import http_client
 from app.providers.plaid import (
     PlaidNotReady,
     PlaidSandboxProvider,
@@ -329,12 +331,7 @@ def test_owned_client_uses_fixed_sandbox_http_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
-    transport_kwargs: dict[str, object] = {}
     closed = {"value": False}
-
-    class FakeTransport:
-        def __init__(self, **kwargs: object) -> None:
-            transport_kwargs.update(kwargs)
 
     class FakeClient:
         def __init__(self, **kwargs: object) -> None:
@@ -343,7 +340,6 @@ def test_owned_client_uses_fixed_sandbox_http_settings(
         def close(self) -> None:
             closed["value"] = True
 
-    monkeypatch.setattr("app.providers.plaid.httpx.HTTPTransport", FakeTransport)
     monkeypatch.setattr("app.providers.plaid.httpx.Client", FakeClient)
     provider = PlaidSandboxProvider(CLIENT_ID, SECRET, resolve)
     provider.close()
@@ -353,13 +349,12 @@ def test_owned_client_uses_fixed_sandbox_http_settings(
     assert captured["trust_env"] is False
     timeout = captured["timeout"]
     assert isinstance(timeout, httpx.Timeout)
-    assert timeout.connect == 3.0
-    assert timeout.read == 20.0
-    assert timeout.write == 20.0
-    assert timeout.pool == 3.0
+    assert timeout.connect == 5.0
+    assert timeout.read == 45.0
+    assert timeout.write == 45.0
+    assert timeout.pool == 45.0
     transport = captured["transport"]
-    assert isinstance(transport, FakeTransport)
-    assert transport_kwargs == {"retries": 0, "trust_env": False}
+    assert isinstance(transport, httpx.BaseTransport)
     assert closed["value"] is True
 
 
@@ -451,19 +446,14 @@ def test_token_resolver_error_is_static() -> None:
     assert_static_error(raised.value, "access_token MUST be a nonblank string")
 
 
-def test_each_post_sets_timeout_and_disables_redirects() -> None:
-    posts: list[dict[str, object]] = []
-
-    class RecordingClient(httpx.Client):
-        def post(self, url: str | httpx.URL, **kwargs: object) -> httpx.Response:
-            posts.append({"url": str(url), **kwargs})
-            return super().post(url, **kwargs)
+def test_each_sync_request_sets_transport_limits() -> None:
+    requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        del request
+        requests.append(request)
         return httpx.Response(200, content=SUCCESS_BODY.encode())
 
-    client = RecordingClient(
+    client = httpx.Client(
         transport=httpx.MockTransport(handler),
         follow_redirects=True,
         trust_env=False,
@@ -475,15 +465,14 @@ def test_each_post_sets_timeout_and_disables_redirects() -> None:
         provider.close()
         client.close()
 
-    assert len(posts) == 1
-    assert posts[0]["url"] == SYNC_URL
-    assert posts[0]["follow_redirects"] is False
-    timeout = posts[0]["timeout"]
-    assert isinstance(timeout, httpx.Timeout)
-    assert timeout.connect == 3.0
-    assert timeout.read == 20.0
-    assert timeout.write == 20.0
-    assert timeout.pool == 3.0
+    assert len(requests) == 1
+    assert str(requests[0].url) == SYNC_URL
+    assert requests[0].extensions["timeout"] == {
+        "connect": 5.0,
+        "read": 45.0,
+        "write": 45.0,
+        "pool": 45.0,
+    }
 
 
 @pytest.mark.parametrize("empty", [False, True])
@@ -527,3 +516,76 @@ def test_empty_historical_complete_page_is_returned() -> None:
     assert page.removed_ids == ()
     assert page.next_cursor == "cursor-empty"
     assert page.has_more is False
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["success", "oversize", "compressed_oversize", "read_error", "mutation", "invalid"],
+)
+def test_stream_limits_keep_plaid_failure_mapping_and_close(case: str) -> None:
+    closed: list[bool] = []
+    requests: list[httpx.Request] = []
+    content = SUCCESS_BODY.encode()
+    status = 200
+    if "oversize" in case:
+        content = b"x" * (http_client.MAX_RESPONSE_BYTES + 1)
+    elif case == "mutation":
+        status = 400
+        content = b'{"error_code":"TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION"}'
+    elif case == "invalid":
+        content = b"not JSON"
+    if case == "compressed_oversize":
+        content = gzip.compress(content)
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            yield content
+            if case == "read_error":
+                raise httpx.ReadTimeout("SECRET_TRANSPORT_MARKER")
+
+        def close(self) -> None:
+            closed.append(True)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        encoding = "gzip" if case == "compressed_oversize" else "identity"
+        return httpx.Response(
+            status,
+            stream=Stream(),
+            headers={"Content-Encoding": encoding},
+        )
+
+    provider, client = make_provider(handle)
+    try:
+        if case == "success":
+            assert provider.sync_page(CREDENTIAL_REF, None).next_cursor == "cursor-2"
+        else:
+            expected = (
+                PlaidSyncMutation
+                if case == "mutation"
+                else InvalidPlaidResponse
+                if case == "invalid"
+                else PlaidUnavailable
+            )
+            with pytest.raises(expected) as raised:
+                provider.sync_page(CREDENTIAL_REF, None)
+            assert raised.value.__context__ is None
+            assert not any(marker in str(raised.value) for marker in LEAK_MARKERS)
+    finally:
+        provider.close()
+        client.close()
+    assert len(requests) == 1
+    assert closed == [True]
+
+
+def test_combined_sync_collection_bound_rejects_instead_of_dropping_entries() -> None:
+    payload = json.loads(SUCCESS_BODY)
+    payload["removed"] = [{"transaction_id": f"removed-{i}"} for i in range(499)]
+    provider, client = make_provider(lambda request: httpx.Response(200, json=payload))
+    try:
+        with pytest.raises(InvalidPlaidResponse) as raised:
+            provider.sync_page(CREDENTIAL_REF, None)
+        assert_static_error(raised.value, "Invalid Plaid sync response")
+    finally:
+        provider.close()
+        client.close()

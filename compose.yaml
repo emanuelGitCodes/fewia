@@ -2,13 +2,22 @@ x-backend: &backend
   build:
     context: .
     dockerfile: backend/Dockerfile
-  user: "1000:1000"
+  user: "${FEWIA_HOST_UID:?Run make up}:${FEWIA_HOST_GID:?Run make up}"
   read_only: true
   cap_drop: [ALL]
   security_opt: ["no-new-privileges:true"]
   tmpfs: ["/tmp"]
   environment: &backend-environment
-    DATABASE_URL: postgresql+psycopg://fewia:fewia@postgres:5432/fewia
+    DATABASE_URL: postgresql+psycopg://fewia_app@postgres:5432/fewia
+    FEWIA_LOCAL_DATABASE_PASSWORD_FILE: /run/fewia/database-runtime-password
+  volumes:
+    - &runtime-password
+      type: bind
+      source: "${FEWIA_LOCAL_RUNTIME_PASSWORD_FILE:?Run make up}"
+      target: /run/fewia/database-runtime-password
+      read_only: true
+      bind:
+        create_host_path: false
 
 # GPT-6 Luna is the chat model. Without FEWIA_OPENAI_API_KEY, `make up` fails.
 # Only the worker mounts the key. Kroger runs in fixture mode with invented
@@ -24,12 +33,17 @@ services:
     image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
     environment:
       POSTGRES_USER: fewia
-      POSTGRES_PASSWORD: fewia
+      POSTGRES_PASSWORD_FILE: /run/fewia/database-admin-password
       POSTGRES_DB: fewia
-    ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-55435}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - &admin-password
+        type: bind
+        source: "${FEWIA_LOCAL_ADMIN_PASSWORD_FILE:?Run make up}"
+        target: /run/fewia/database-admin-password
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fewia -d fewia"]
       interval: 5s
@@ -42,13 +56,17 @@ services:
       FLOCI_HOSTNAME: floci
       FLOCI_STORAGE_MODE: persistent
       FLOCI_STORAGE_PERSISTENT_PATH: /app/data
-    ports:
-      - "127.0.0.1:${FLOCI_HOST_PORT:-4567}:4566"
     volumes:
       - floci-data:/app/data
 
   bootstrap:
     <<: *backend
+    environment:
+      <<: *backend-environment
+      FEWIA_LOCAL_ADMIN_PASSWORD_FILE: /run/fewia/database-admin-password
+    volumes:
+      - *runtime-password
+      - *admin-password
     command:
       [
         "python",

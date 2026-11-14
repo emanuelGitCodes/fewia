@@ -21,11 +21,12 @@ from app.domain.budget import NEW_YORK, SpendingSnapshot, calculate_budget
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
 from app.job_models import Job, JobOutbox
+from app.models import User
 from app.provider_settings import (
     GroceryProviderSettings,
     ProviderConfigurationError,
 )
-from app.services import job_submission
+from app.services import job_submission, security_admission
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
     FIXTURE_POSTED_CENTS,
@@ -33,6 +34,8 @@ from app.services.grocery_context import (
 )
 from app.services.job_submission import create_job
 from app.services.plan_job import PlanJobInput
+
+pytestmark = pytest.mark.usefixtures("local_demo_owner")
 
 FIXED_NY = datetime(2026, 9, 6, 12, 0, tzinfo=NEW_YORK)
 NEXT_NY_DAY = datetime(2026, 9, 7, 9, 0, tzinfo=NEW_YORK)
@@ -48,6 +51,33 @@ INTERNAL_JOB_FIELDS = (
     "attempts",
     "kind",
 )
+
+
+@pytest.fixture(autouse=True)
+def mutation_admission(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[Session, int, security_admission.Action]]:
+    calls: list[tuple[Session, int, security_admission.Action]] = []
+    real_reserve = security_admission.reserve_action
+
+    def reserve(
+        db: Session,
+        user_id: int,
+        action: security_admission.Action,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        if db.get_bind().dialect.name == "sqlite":
+            status = db.scalar(select(User.status).where(User.id == user_id))
+            if status != "active":
+                raise security_admission.OwnerUnavailableError()
+        else:
+            real_reserve(db, user_id, action, now=now)
+        calls.append((db, user_id, action))
+
+    monkeypatch.setattr(security_admission, "reserve_action", reserve)
+    monkeypatch.setattr(job_submission, "reserve_action", reserve)
+    return calls
 
 
 @pytest.fixture(autouse=True)
@@ -125,12 +155,19 @@ def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     real = job_submission.find_job
 
     def lookup(
-        session: Session, user_id: int, kind: Literal["sync", "agent"], request_key: str
+        session: Session,
+        user_id: int,
+        kind: Literal["sync", "agent"],
+        request_key: str,
+        *,
+        request_namespace: str | None = None,
     ) -> Job | None:
         lookups["count"] += 1
         if lookups["count"] == 1:
             return None
-        return real(session, user_id, kind, request_key)
+        return real(
+            session, user_id, kind, request_key, request_namespace=request_namespace
+        )
 
     monkeypatch.setattr(job_submission, "find_job", lookup)
 
@@ -212,9 +249,11 @@ def test_repeated_identical_request_reuses_job_and_outbox(
     session: Session,
     seed_user: UserSeeder,
     commit_without_ending_the_test_transaction: list[str],
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
 ) -> None:
     seed_user()
     first = post_job(client)
+    assert mutation_admission == [(session, 1, "mutation")]
     second = post_job(client)
 
     assert first.status_code == 202
@@ -227,8 +266,11 @@ def test_repeated_identical_request_reuses_job_and_outbox(
         select(JobOutbox).where(JobOutbox.job_id == job_id)
     ).all()
     assert len(jobs) == 1
+    assert jobs[0].request_namespace == "plan"
+    assert jobs[0].request_key == "plan-1"
     assert len(outboxes) == 1
     assert outboxes[0].published_at is None
+    assert mutation_admission == [(session, 1, "mutation")]
     assert commit_without_ending_the_test_transaction
 
 
@@ -448,7 +490,9 @@ def test_integrity_error_route_exception_has_no_context(
     monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateGroceryJobBody.model_validate(job_body())
     with pytest.raises(HTTPException) as caught:
-        grocery_api.create_grocery_job(body, session, "no-winner-direct")
+        user = session.get(User, 1)
+        assert user is not None
+        grocery_api.create_grocery_job(body, session, "no-winner-direct", user)
     error = caught.value
     rendered = str(error) + repr(error)
 
@@ -472,7 +516,9 @@ def test_value_error_route_exception_has_no_context(
     monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateGroceryJobBody.model_validate(job_body())
     with pytest.raises(HTTPException) as caught:
-        grocery_api.create_grocery_job(body, session, "value-error-direct")
+        user = session.get(User, 1)
+        assert user is not None
+        grocery_api.create_grocery_job(body, session, "value-error-direct", user)
     error = caught.value
     rendered = str(error) + repr(error)
 
@@ -629,17 +675,23 @@ def test_invalid_idempotency_key_is_rejected(
     assert "request_key" not in str(blank.json())
 
 
-def test_missing_demo_user_returns_static_service_error(client: TestClient) -> None:
+def test_missing_demo_user_returns_static_service_error(
+    client: TestClient, session: Session
+) -> None:
+    user = session.get(User, 1)
+    assert user is not None
+    session.delete(user)
+    session.flush()
     response = post_job(client)
 
     assert response.status_code == 503
     assert response.json() == {
         "error": {
             "code": "service_unavailable",
-            "message": "Demo workspace is not ready.",
+            "message": "Authentication service is unavailable.",
         }
     }
-    assert client.get("/grocery/config").status_code == 200
+    assert client.get("/grocery/config").status_code == 503
 
 
 def test_commit_runs_before_accepted_response(
@@ -913,9 +965,11 @@ def test_failed_job_ignores_invalid_error_detail(
     session: Session, seed_user: UserSeeder, detail: object
 ) -> None:
     seed_user()
+    user = session.get(User, 1)
+    assert user is not None
     job = _seed_grocery_job(session, key="invalid-detail", status="failed", result=None)
     job.result = {"error_detail": detail}
-    view = grocery_api.read_grocery_job(UUID(job.id), session)
+    view = grocery_api.read_grocery_job(UUID(job.id), session, user)
     assert isinstance(view, PlanJobView)
     assert view.result is None
     assert view.error_detail is None

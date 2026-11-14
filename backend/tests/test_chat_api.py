@@ -23,7 +23,6 @@ from app.api import chat as chat_api
 from app.api.chat_models import CreateChatJobBody
 from app.api.grocery import (
     CONFLICT_MESSAGE,
-    DEMO_NOT_READY_MESSAGE,
     INPUT_INVALID_MESSAGE,
     JOB_UNAVAILABLE_MESSAGE,
 )
@@ -31,10 +30,11 @@ from app.deps import get_kroger_client
 from app.domain.budget import NEW_YORK, SpendingSnapshot
 from app.job_models import Job
 from app.main import app
+from app.models import User
 from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import KrogerClient
-from app.services import job_submission
+from app.services import job_submission, kroger_security, security_admission
 from app.services.chat_job import ChatJobInput
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
@@ -43,6 +43,8 @@ from app.services.grocery_context import (
 )
 from app.services.job_submission import create_job
 from tests.test_search_recovery import terminal_search
+
+pytestmark = pytest.mark.usefixtures("local_demo_owner")
 
 FIXED_NY = datetime(2026, 9, 6, 12, 0, tzinfo=NEW_YORK)
 NEXT_NY_DAY = datetime(2026, 9, 7, 9, 0, tzinfo=NEW_YORK)
@@ -60,6 +62,33 @@ CHAT_BODY: dict[str, object] = {
     "message": "plan chicken tacos",
     "monthly_limit_cents": 40000,
 }
+
+
+@pytest.fixture(autouse=True)
+def mutation_admission(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[Session, int, security_admission.Action]]:
+    calls: list[tuple[Session, int, security_admission.Action]] = []
+    real_reserve = security_admission.reserve_action
+
+    def reserve(
+        db: Session,
+        user_id: int,
+        action: security_admission.Action,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        if db.get_bind().dialect.name == "sqlite":
+            status = db.scalar(select(User.status).where(User.id == user_id))
+            if status != "active":
+                raise security_admission.OwnerUnavailableError()
+        else:
+            real_reserve(db, user_id, action, now=now)
+        calls.append((db, user_id, action))
+
+    monkeypatch.setattr(security_admission, "reserve_action", reserve)
+    monkeypatch.setattr(job_submission, "reserve_action", reserve)
+    return calls
 
 
 @pytest.fixture(autouse=True)
@@ -161,12 +190,19 @@ def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     real = job_submission.find_job
 
     def lookup(
-        session: Session, user_id: int, kind: Literal["sync", "agent"], request_key: str
+        session: Session,
+        user_id: int,
+        kind: Literal["sync", "agent"],
+        request_key: str,
+        *,
+        request_namespace: str | None = None,
     ) -> Job | None:
         lookups["count"] += 1
         if lookups["count"] == 1:
             return None
-        return real(session, user_id, kind, request_key)
+        return real(
+            session, user_id, kind, request_key, request_namespace=request_namespace
+        )
 
     monkeypatch.setattr(job_submission, "find_job", lookup)
 
@@ -293,6 +329,7 @@ def test_post_chat_stores_fixture_context(
     assert response.json()["status"] == "queued"
     assert job is not None
     assert job.request_key == "chat:chat-1"
+    assert job.request_namespace == "chat"
     assert job.user_id == 1
     assert job.kind == "agent"
     payload = job.payload
@@ -409,10 +446,12 @@ def test_duplicate_key_reuses_job_on_next_day(
     session: Session,
     seed_user: UserSeeder,
     monkeypatch: pytest.MonkeyPatch,
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
 ) -> None:
     seed_user()
     enable_chat(monkeypatch)
     first = post_chat(client)
+    assert mutation_admission == [(session, 1, "mutation")]
     job_id = first.json()["job_id"]
     original = session.get(Job, job_id)
     assert original is not None
@@ -430,6 +469,7 @@ def test_duplicate_key_reuses_job_on_next_day(
     assert second.json() == first.json()
     assert stored is not None
     assert stored.payload == snapshot
+    assert mutation_admission == [(session, 1, "mutation")]
 
 
 def test_changed_body_conflicts(
@@ -484,7 +524,7 @@ def test_post_chat_embeds_plan_revision(
 
 
 @pytest.mark.parametrize("owner", [None, 2])
-def test_unknown_or_foreign_plan_revision_conflicts(
+def test_unknown_or_foreign_plan_revision_is_not_found(
     client: TestClient,
     session: Session,
     seed_user: UserSeeder,
@@ -499,7 +539,7 @@ def test_unknown_or_foreign_plan_revision_conflicts(
         revision_id = add_revision(session, user_id=owner)
     response = post_chat(client, body=chat_body(plan_revision_id=str(revision_id)))
 
-    assert response.status_code == 409
+    assert response.status_code == 404
     assert response.json()["error"]["message"] == chat_api.PLAN_REVISION_MESSAGE
     assert session.scalars(select(Job)).all() == []
 
@@ -652,7 +692,9 @@ def test_integrity_error_route_exception_has_no_context(
     monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateChatJobBody.model_validate(chat_body())
     with pytest.raises(HTTPException) as caught:
-        chat_api.create_chat_job(body, session, "no-winner-direct")
+        user = session.get(User, 1)
+        assert user is not None
+        chat_api.create_chat_job(body, session, "no-winner-direct", user)
     error = caught.value
     rendered = str(error) + repr(error)
 
@@ -677,7 +719,9 @@ def test_value_error_route_exception_has_no_context(
     monkeypatch.setattr(job_submission, "create_job", boom)
     body = CreateChatJobBody.model_validate(chat_body())
     with pytest.raises(HTTPException) as caught:
-        chat_api.create_chat_job(body, session, "value-error-direct")
+        user = session.get(User, 1)
+        assert user is not None
+        chat_api.create_chat_job(body, session, "value-error-direct", user)
     error = caught.value
     rendered = str(error) + repr(error)
 
@@ -950,7 +994,7 @@ def test_http_caller_cannot_supply_search_state(
     assert response.status_code == 422
 
 
-def test_foreign_parent_returns_static_conflict(
+def test_foreign_parent_returns_static_not_found(
     client: TestClient,
     session: Session,
     seed_user: UserSeeder,
@@ -966,11 +1010,11 @@ def test_foreign_parent_returns_static_conflict(
         body=chat_body(previous_job_id=str(PARENT_ID)),
     )
 
-    assert response.status_code == 409
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "conflict",
-            "message": chat_api.CHAT_CONTEXT_MESSAGE,
+            "code": "not_found",
+            "message": chat_api.JOB_NOT_FOUND_MESSAGE,
         }
     }
     stored = session.scalars(
@@ -979,7 +1023,7 @@ def test_foreign_parent_returns_static_conflict(
     assert stored == []
 
 
-def test_invalid_parent_returns_static_conflict(
+def test_missing_parent_returns_static_not_found(
     client: TestClient, seed_user: UserSeeder, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     seed_user()
@@ -990,11 +1034,11 @@ def test_invalid_parent_returns_static_conflict(
         body=chat_body(previous_job_id=str(uuid4())),
     )
 
-    assert response.status_code == 409
+    assert response.status_code == 404
     assert response.json() == {
         "error": {
-            "code": "conflict",
-            "message": chat_api.CHAT_CONTEXT_MESSAGE,
+            "code": "not_found",
+            "message": chat_api.JOB_NOT_FOUND_MESSAGE,
         }
     }
 
@@ -1024,8 +1068,12 @@ def test_forbidden_body_fields_are_rejected(
 
 
 def test_missing_demo_user_returns_static_service_error(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    user = session.get(User, 1)
+    assert user is not None
+    session.delete(user)
+    session.flush()
     enable_chat(monkeypatch)
     response = post_chat(client)
 
@@ -1033,7 +1081,7 @@ def test_missing_demo_user_returns_static_service_error(
     assert response.json() == {
         "error": {
             "code": "service_unavailable",
-            "message": DEMO_NOT_READY_MESSAGE,
+            "message": "Authentication service is unavailable.",
         }
     }
 
@@ -1108,7 +1156,7 @@ def test_chat_and_plan_keys_do_not_collide(
     seed_user()
     enable_chat(monkeypatch)
     plan, _created = create_job(
-        session, 1, "agent", "shared", {"marker": True, "monthly_limit_cents": 1}
+        session, 1, "agent", "chat:shared", {"marker": True, "monthly_limit_cents": 1}
     )
     session.flush()
     response = post_chat(client, key="shared")
@@ -1117,7 +1165,12 @@ def test_chat_and_plan_keys_do_not_collide(
     assert response.status_code == 202
     assert chat_job is not None
     assert chat_job.id != plan.id
-    assert chat_job.request_key == "chat:shared"
+    assert chat_job.request_key == plan.request_key == "chat:shared"
+    assert chat_job.request_namespace == "chat"
+    assert plan.request_namespace == "plan"
+    replay = post_chat(client, key="shared")
+    assert replay.status_code == 202
+    assert replay.json() == response.json()
 
 
 def _seed_chat_job(
@@ -1143,7 +1196,7 @@ SWAP_RESULT: dict[str, object] = {
 }
 
 
-def kroger_with_calls() -> tuple[KrogerClient, list[str]]:
+def kroger_with_calls(*, fixture: bool = True) -> tuple[KrogerClient, list[str]]:
     terms: list[str] = []
 
     def handler(request: Request) -> Response:
@@ -1164,6 +1217,7 @@ def kroger_with_calls() -> tuple[KrogerClient, list[str]]:
             "invented-secret",
             base_url="https://kroger.test",
             client=http,
+            fixture=fixture,
         ),
         terms,
     )
@@ -1260,3 +1314,93 @@ def test_queued_chat_job_makes_no_kroger_call(
     assert response.status_code == 200
     assert response.json()["result"] == SWAP_RESULT
     assert terms == []
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "off",
+        "fixture",
+        "no_location",
+        "invalid_location",
+        "missing",
+        "foreign",
+        "wrong_kind",
+        "wrong_operation",
+        "queued",
+        "failed",
+        "no_result",
+        "priced",
+        "unknown",
+        "nonqualifying",
+        "malformed_trace",
+    ],
+)
+def test_chat_reads_without_live_lookup_do_not_reserve_quota(
+    client: TestClient,
+    session: Session,
+    seed_user: UserSeeder,
+    kroger_override: Callable[[KrogerClient | None], None],
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    def forbid_admission(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("This read MUST NOT reserve quota")
+
+    monkeypatch.setattr(security_admission, "reserve_action", forbid_admission)
+    monkeypatch.setattr(kroger_security, "validate_tab_proof", forbid_admission)
+    job = _seed_chat_job(
+        session, key=f"chat:no-admission-{case}", status="succeeded", result=SWAP_RESULT
+    )
+    kroger, terms = kroger_with_calls(fixture=case == "fixture")
+    kroger_override(None if case == "off" else kroger)
+    if case == "foreign":
+        seed_user(2, "Other owner")
+        job.user_id = 2
+    elif case == "wrong_kind":
+        job.kind = "sync"
+        job.request_namespace = "sync"
+    elif case == "wrong_operation":
+        job.payload = {"operation": "other"}
+        job.request_namespace = "plan"
+    elif case in {"queued", "failed"}:
+        job.status = case
+    elif case == "no_result":
+        job.result = None
+    elif case in {"priced", "unknown", "nonqualifying"}:
+        job.result = {
+            "answer": "stored text",
+            "tool_trace": [
+                {
+                    "tool": "what_if_substitute",
+                    "outcome": "success",
+                    "inputs": {
+                        "status": "unchanged" if case == "nonqualifying" else "swapped",
+                        "with_ingredient_id": (
+                            "no_such_food" if case == "unknown" else "chicken_breast"
+                        ),
+                    },
+                }
+            ],
+        }
+    elif case == "malformed_trace":
+        job.result = {"answer": "stored text", "tool_trace": "invalid"}
+    session.flush()
+    result = job.result
+    job_id = str(uuid4()) if case == "missing" else job.id
+    params = {} if case == "no_location" else {"location_id": KROGER_LOCATION}
+    if case == "invalid_location":
+        params["location_id"] = "bad"
+    response = client.get(f"/grocery/chat/jobs/{job_id}", params=params)
+    expected_status = (
+        422
+        if case == "invalid_location"
+        else 404
+        if case in {"missing", "foreign", "wrong_kind", "wrong_operation"}
+        else 200
+    )
+    assert response.status_code == expected_status
+    assert response.headers["cache-control"] == "private, no-store"
+    if expected_status == 200 and case != "fixture":
+        assert response.json()["result"] == result
+    assert terms == (["ground beef 80% lean"] if case == "fixture" else [])

@@ -1,51 +1,41 @@
-"""HTTP routes for Kroger store lookup, customer sign-in, and the cart.
+"""Bind Kroger operations to the authenticated owner and one-use intents."""
 
-Store lookup and the cart preview store nothing. Sign-in stores only the
-encrypted customer tokens; disconnect deletes them. The cart add sends the
-posted items to Kroger once and keeps nothing.
-"""
-
+import hashlib
 import re
-from typing import Annotated
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Annotated, Literal
 from urllib.parse import urlencode, urlsplit, urlunsplit
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    StrictInt,
-    StrictStr,
-    field_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.demo import DEMO_USER_ID
 from app.deps import (
+    get_current_user,
     get_kroger_cipher,
     get_kroger_client,
+    get_kroger_pairing_cipher,
     get_provider_settings,
     get_session,
 )
 from app.domain.plan_proposal import ProposalInvalid, load_base_snapshot
 from app.kroger_cart import CartPreview, build_preview
 from app.kroger_customer import (
-    COOKIE_PATH,
-    STATE_COOKIE,
-    STATE_TTL_SECONDS,
+    KrogerConnectionChanged,
     customer_access_token,
+    delete_rejected_access_token,
     delete_tokens,
     is_connected,
-    make_state,
-    new_nonce,
     redact_access_log,
-    state_matches,
     store_tokens,
 )
+from app.models import User
 from app.plan_models import PlanRevision
 from app.provider_settings import GroceryProviderSettings
 from app.providers.kroger import (
@@ -54,11 +44,13 @@ from app.providers.kroger import (
     KrogerAuthRejected,
     KrogerCartUnknown,
     KrogerClient,
-    KrogerStore,
     KrogerUnavailable,
     Source,
 )
 from app.providers.kroger_fixture import FIXTURE_CODE
+from app.security_models import KrogerOwner, SecurityIntent
+from app.services import kroger_security as security
+from app.services import security_admission as admission
 
 router = APIRouter(prefix="/grocery/kroger", tags=["kroger"])
 redact_access_log()
@@ -69,8 +61,8 @@ NOT_CONNECTED_MESSAGE = "Kroger account is not connected"
 CART_UNCONFIRMED_MESSAGE = "Kroger did not confirm the cart add"
 REVISION_NOT_FOUND_MESSAGE = "The plan revision was not found."
 REVISION_INVALID_MESSAGE = "The plan revision can no longer be used."
-NOT_FOUND_MESSAGE = "Not found"
-INVALID_STATE_MESSAGE = "state MUST be 1 to 512 characters"
+INVALID_ACTION_MESSAGE = "Kroger action is invalid or expired."
+PROOF_REQUIRED_MESSAGE = "Kroger owner proof is required."
 MAX_STATE_LENGTH = 512
 _ZIP_CODE = re.compile(r"[0-9]{5}")
 
@@ -98,96 +90,192 @@ class ConnectionResponse(BaseModel):
     connected: bool
 
 
+class PairingBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    ticket: StrictStr = Field(min_length=43, max_length=43)
+
+
+class PairingResponse(BaseModel):
+    proof: str
+    expires_in_seconds: Literal[28800] = 28800
+
+
+class ConnectResponse(BaseModel):
+    authorization_url: str
+
+
 class CartPreviewBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     plan_revision_id: UUID
     location_id: StrictStr = Field(pattern=r"^[0-9A-Za-z]{8}$")
 
 
-class CartLine(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    upc: StrictStr = Field(pattern=r"^[0-9]{8,14}$")
-    quantity: StrictInt = Field(ge=1, le=10)
+class ConfirmedCartPreview(CartPreview):
+    confirmation_token: str | None
+    expires_in_seconds: Literal[300] = 300
 
 
 class CartAddBody(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
-    items: list[CartLine] = Field(min_length=1, max_length=30)
-
-    @field_validator("items")
-    @classmethod
-    def validate_unique_upcs(cls, value: list[CartLine]) -> list[CartLine]:
-        if len({line.upc for line in value}) != len(value):
-            raise ValueError("items must not repeat a upc")
-        return value
+    confirmation_token: StrictStr = Field(
+        min_length=1, max_length=security.MAX_CART_TOKEN_LENGTH
+    )
 
 
 Settings = Annotated[GroceryProviderSettings, Depends(get_provider_settings)]
+Database = Annotated[Session, Depends(get_session)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
+Client = Annotated[KrogerClient | None, Depends(get_kroger_client)]
+TokenCipher = Annotated[Fernet | None, Depends(get_kroger_cipher)]
+PairingCipher = Annotated[Fernet | None, Depends(get_kroger_pairing_cipher)]
 
 
-def _host_key(netloc: str, scheme: str) -> tuple[str | None, int | None]:
+@contextmanager
+def _transaction(session: Session) -> Iterator[None]:
     try:
-        parts = urlsplit(f"//{netloc}")
-        return parts.hostname, parts.port or (443 if scheme == "https" else 80)
-    except ValueError:
-        return None, None
+        yield
+    except security.CartOutcomeUnknown:
+        session.rollback()
+        raise HTTPException(504, CART_UNCONFIRMED_MESSAGE) from None
+    except security.SecurityIntentError:
+        session.rollback()
+        raise HTTPException(422, INVALID_ACTION_MESSAGE) from None
+    except SQLAlchemyError:
+        session.rollback()
+        raise HTTPException(503, UNAVAILABLE_MESSAGE) from None
+    except (
+        HTTPException,
+        admission.AdmissionLimitError,
+        admission.OwnerUnavailableError,
+    ):
+        session.rollback()
+        raise
+
+
+def _configured(
+    settings: GroceryProviderSettings,
+    client: KrogerClient | None,
+    cipher: Fernet | None,
+    pairing_cipher: Fernet | None,
+) -> tuple[KrogerClient, Fernet, Fernet]:
+    confirmation = cipher if settings.kroger_mode == "fixture" else pairing_cipher
+    if client is None or cipher is None or confirmation is None:
+        raise HTTPException(503, NOT_CONFIGURED_MESSAGE)
+    return client, cipher, confirmation
+
+
+def _generation(
+    request: Request, session: Session, user_id: int, settings: GroceryProviderSettings
+) -> UUID:
+    if settings.kroger_mode != "fixture":
+        values = request.headers.getlist("x-fewia-kroger-owner")
+        if len(values) != 1 or len(values[0]) != 43:
+            raise HTTPException(403, PROOF_REQUIRED_MESSAGE)
+        try:
+            return security.validate_tab_proof(session, user_id, values[0])
+        except security.SecurityIntentError:
+            raise HTTPException(403, PROOF_REQUIRED_MESSAGE) from None
+    admission.lock_active_owner(session, user_id)
+    owner = session.scalar(
+        select(KrogerOwner)
+        .where(KrogerOwner.user_id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if owner is None:
+        owner = KrogerOwner(user_id=user_id, pairing_generation=uuid4())
+        session.add(owner)
+        session.flush()
+    return owner.pairing_generation
+
+
+def _query(request: Request, name: str, maximum: int) -> str:
+    values = request.query_params.getlist(name)
+    if len(values) != 1 or not 1 <= len(values[0]) <= maximum:
+        raise security.SecurityIntentError()
+    return values[0]
 
 
 def _finish(settings: GroceryProviderSettings, outcome: str) -> RedirectResponse:
-    response = RedirectResponse(f"{settings.kroger_return_url}?kroger={outcome}", 302)
-    response.delete_cookie(STATE_COOKIE, path=COOKIE_PATH)
-    return response
+    return RedirectResponse(f"{settings.kroger_return_url}?kroger={outcome}", 302)
 
 
-@router.get("/connect")
+@router.post("/pairing/redeem", response_model=PairingResponse)
+def redeem_pairing(
+    body: PairingBody,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    pairing_cipher: PairingCipher,
+) -> PairingResponse:
+    with _transaction(session):
+        if settings.kroger_mode != "live" or pairing_cipher is None:
+            raise HTTPException(503, NOT_CONFIGURED_MESSAGE)
+        admission.reserve_action(session, user.id, "mutation")
+        proof = security.redeem_pairing_ticket(session, user.id, body.ticket)
+        session.commit()
+    return PairingResponse(proof=proof)
+
+
+@router.post("/connect", response_model=ConnectResponse)
 def connect_kroger(
     request: Request,
     settings: Settings,
-    client: Annotated[KrogerClient | None, Depends(get_kroger_client)],
-    cipher: Annotated[Fernet | None, Depends(get_kroger_cipher)],
-) -> RedirectResponse:
-    """Send the browser to Kroger sign-in with a single-use signed state."""
-    if client is None or cipher is None:
-        raise HTTPException(status_code=503, detail=NOT_CONFIGURED_MESSAGE)
-    redirect = urlsplit(settings.kroger_redirect_uri)
-    wanted = _host_key(redirect.netloc, redirect.scheme)
-    if _host_key(request.headers.get("host", ""), request.url.scheme) != wanted:
-        origin = f"{redirect.scheme}://{redirect.netloc}"
-        return RedirectResponse(f"{origin}{COOKIE_PATH}/connect", 302)
-    nonce = new_nonce()
-    url: str | None = None
-    try:
-        url = client.authorize_url(
-            settings.kroger_redirect_uri, make_state(cipher, nonce)
-        )
-    except ValueError:
-        pass
-    if url is None:
-        raise HTTPException(status_code=503, detail=NOT_CONFIGURED_MESSAGE)
-    response = RedirectResponse(url, 302)
-    response.set_cookie(
-        STATE_COOKIE,
-        nonce,
-        max_age=STATE_TTL_SECONDS,
-        path=COOKIE_PATH,
-        httponly=True,
-        samesite="lax",
-        secure=redirect.scheme == "https",
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
+) -> ConnectResponse:
+    with _transaction(session):
+        _configured(settings, client, cipher, pairing_cipher)
+        admission.reserve_action(session, user.id, "mutation")
+        _generation(request, session, user.id, settings)
+        ticket = security.issue_oauth_start_ticket(session, user.id)
+        session.commit()
+    return ConnectResponse(
+        authorization_url="/api/grocery/kroger/connect/start?"
+        + urlencode({"ticket": ticket})
     )
-    return response
+
+
+@router.get("/connect/start")
+def start_kroger_connect(
+    request: Request,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
+) -> RedirectResponse:
+    with _transaction(session):
+        client, _, _ = _configured(settings, client, cipher, pairing_cipher)
+        ticket = _query(request, "ticket", 43)
+        admission.reserve_action(session, user.id, "mutation")
+        security.consume_oauth_start_ticket(session, user.id, ticket)
+        state = security.issue_oauth_state(session, user.id)
+        session.commit()
+    try:
+        target = client.authorize_url(settings.kroger_redirect_uri, state)
+    except ValueError:
+        raise HTTPException(503, NOT_CONFIGURED_MESSAGE) from None
+    return RedirectResponse(target, 302)
 
 
 @router.get(f"/fixture{AUTHORIZE_PATH}")
-def kroger_fixture_authorize(request: Request, settings: Settings) -> RedirectResponse:
-    """Stand in for Kroger sign-in in fixture mode. Only `state` is read."""
+def kroger_fixture_authorize(
+    request: Request, settings: Settings, user: CurrentUser
+) -> RedirectResponse:
     if settings.kroger_mode != "fixture":
-        raise HTTPException(status_code=404, detail=NOT_FOUND_MESSAGE)
-    state = request.query_params.get("state")
-    if not state or len(state) > MAX_STATE_LENGTH:
-        raise HTTPException(status_code=400, detail=INVALID_STATE_MESSAGE)
+        raise HTTPException(404, "Not found")
+    try:
+        state = _query(request, "state", MAX_STATE_LENGTH)
+    except security.SecurityIntentError:
+        raise HTTPException(400, INVALID_ACTION_MESSAGE) from None
     target = urlsplit(settings.kroger_redirect_uri)
     query = urlencode({"code": FIXTURE_CODE, "state": state})
     joined = f"{target.query}&{query}" if target.query else query
@@ -198,118 +286,306 @@ def kroger_fixture_authorize(request: Request, settings: Settings) -> RedirectRe
 def kroger_callback(
     request: Request,
     settings: Settings,
-    session: Annotated[Session, Depends(get_session)],
-    client: Annotated[KrogerClient | None, Depends(get_kroger_client)],
-    cipher: Annotated[Fernet | None, Depends(get_kroger_cipher)],
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
 ) -> RedirectResponse:
-    """Finish sign-in; never echo the code, the state, or Kroger's error."""
-    params = request.query_params
-    code = params.get("code")
-    state = params.get("state")
-    stored = False
-    if (
-        client is not None
-        and cipher is not None
-        and code
-        and state
-        and "error" not in params
-        and state_matches(cipher, state, request.cookies.get(STATE_COOKIE))
+    user_id = user.id
+    try:
+        client, cipher, _ = _configured(settings, client, cipher, pairing_cipher)
+        code = _query(request, "code", 4096)
+        state = _query(request, "state", 43)
+        params = request.query_params
+        if (
+            "error" in params
+            or any(len(params.getlist(key)) != 1 for key in params)
+            or any(len(value) > 4096 for value in params.values())
+        ):
+            raise security.SecurityIntentError()
+        admission.reserve_action(session, user_id, "retailer")
+        generation = security.consume_oauth_state(session, user_id, state)
+        identity = security.connection_identity(session, user_id)
+        if identity.pairing_generation != generation:
+            raise security.SecurityIntentError()
+        session.commit()
+    except (admission.AdmissionLimitError, admission.OwnerUnavailableError):
+        session.rollback()
+        raise
+    except (HTTPException, security.SecurityIntentError, SQLAlchemyError):
+        session.rollback()
+        return _finish(settings, "error")
+    try:
+        tokens = client.exchange_code(code, settings.kroger_redirect_uri)
+        security.advance_connection(session, user_id, identity)
+        store_tokens(session, user_id, cipher, tokens)
+        session.commit()
+    except (
+        KrogerUnavailable,
+        KrogerAuthRejected,
+        admission.OwnerUnavailableError,
+        security.SecurityIntentError,
+        SQLAlchemyError,
     ):
-        try:
-            tokens = client.exchange_code(code, settings.kroger_redirect_uri)
-            store_tokens(session, DEMO_USER_ID, cipher, tokens)
-            stored = True
-        except (KrogerUnavailable, SQLAlchemyError):
-            pass
-    return _finish(settings, "connected" if stored else "error")
+        session.rollback()
+        return _finish(settings, "error")
+    return _finish(settings, "connected")
 
 
 @router.get("/connection", response_model=ConnectionResponse)
 def kroger_connection(
-    session: Annotated[Session, Depends(get_session)],
+    request: Request,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
 ) -> ConnectionResponse:
-    """Say whether the demo user has connected a Kroger account."""
-    return ConnectionResponse(connected=is_connected(session, DEMO_USER_ID))
+    with _transaction(session):
+        _configured(settings, client, cipher, pairing_cipher)
+        _generation(request, session, user.id, settings)
+        connected = is_connected(session, user.id)
+        session.commit()
+    return ConnectionResponse(connected=connected)
 
 
 @router.delete("/connection", status_code=204)
-def kroger_disconnect(session: Annotated[Session, Depends(get_session)]) -> Response:
-    """Delete the stored Kroger tokens. Succeeds when there are none."""
-    delete_tokens(session, DEMO_USER_ID)
+def kroger_disconnect(
+    request: Request,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
+) -> Response:
+    with _transaction(session):
+        _configured(settings, client, cipher, pairing_cipher)
+        admission.reserve_action(session, user.id, "mutation")
+        _generation(request, session, user.id, settings)
+        admission.lock_active_owner(session, user.id)
+        delete_tokens(session, user.id)
+        security.revoke_pairing(session, user.id)
+        session.commit()
     return Response(status_code=204)
 
 
-@router.post("/cart/preview", response_model=CartPreview)
+@router.post("/cart/preview", response_model=ConfirmedCartPreview)
 def preview_kroger_cart(
     body: CartPreviewBody,
-    session: Annotated[Session, Depends(get_session)],
-    client: Annotated[KrogerClient | None, Depends(get_kroger_client)],
-) -> CartPreview:
-    """Match the plan's grocery lines to Kroger products. Writes nothing."""
-    if client is None:
-        raise HTTPException(status_code=503, detail=NOT_CONFIGURED_MESSAGE)
-    revision = session.get(PlanRevision, body.plan_revision_id)
-    if revision is None or revision.user_id != DEMO_USER_ID:
-        raise HTTPException(status_code=404, detail=REVISION_NOT_FOUND_MESSAGE)
+    request: Request,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
+) -> ConfirmedCartPreview:
+    user_id = user.id
+    with _transaction(session):
+        client, _, confirmation = _configured(settings, client, cipher, pairing_cipher)
+        admission.reserve_action(session, user_id, "retailer")
+        generation = _generation(request, session, user_id, settings)
+        revision = session.get(PlanRevision, body.plan_revision_id)
+        if revision is None or revision.user_id != user_id:
+            raise HTTPException(404, REVISION_NOT_FOUND_MESSAGE)
+        try:
+            snapshot = load_base_snapshot(revision)
+        except ProposalInvalid:
+            raise HTTPException(409, REVISION_INVALID_MESSAGE) from None
+        identity = security.connection_identity(session, user_id)
+        if identity.connection_version is None:
+            raise HTTPException(409, NOT_CONNECTED_MESSAGE)
+        session.commit()
     try:
-        snapshot = load_base_snapshot(revision)
-        return build_preview(snapshot, client, body.location_id)
-    except ProposalInvalid:
-        raise HTTPException(409, REVISION_INVALID_MESSAGE) from None
+        preview = build_preview(snapshot, client, body.location_id)
     except KrogerUnavailable:
         raise HTTPException(503, UNAVAILABLE_MESSAGE) from None
+    with _transaction(session):
+        if _generation(request, session, user_id, settings) != generation:
+            raise security.SecurityIntentError()
+        if security.connection_identity(session, user_id) != identity:
+            raise security.SecurityIntentError()
+        token = None
+        if preview.items:
+            token = security.issue_cart_confirmation(
+                session,
+                user_id,
+                confirmation,
+                body.plan_revision_id,
+                [
+                    security.CartLine(upc=i.upc, quantity=i.quantity)
+                    for i in preview.items
+                ],
+            )
+        session.commit()
+    return ConfirmedCartPreview(**preview.model_dump(), confirmation_token=token)
+
+
+def _cart_response(code: object) -> Response:
+    if code == "added":
+        return Response(status_code=204)
+    status, message = {
+        "not_connected": (409, NOT_CONNECTED_MESSAGE),
+        "rejected": (422, INVALID_ACTION_MESSAGE),
+        "unavailable": (503, UNAVAILABLE_MESSAGE),
+    }.get(str(code), (504, CART_UNCONFIRMED_MESSAGE))
+    raise HTTPException(status, message)
+
+
+def _cart_row(session: Session, user_id: int, token: str) -> SecurityIntent | None:
+    if not token.isascii():
+        raise security.SecurityIntentError()
+    return session.scalar(
+        select(SecurityIntent)
+        .where(
+            SecurityIntent.user_id == user_id,
+            SecurityIntent.kind == "cart_confirmation",
+            SecurityIntent.digest == hashlib.sha256(token.encode("ascii")).hexdigest(),
+        )
+        .execution_options(populate_existing=True)
+    )
 
 
 @router.post("/cart/add", status_code=204)
 def add_to_kroger_cart(
     body: CartAddBody,
-    session: Annotated[Session, Depends(get_session)],
-    client: Annotated[KrogerClient | None, Depends(get_kroger_client)],
-    cipher: Annotated[Fernet | None, Depends(get_kroger_cipher)],
+    request: Request,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
 ) -> Response:
-    """Send the posted items to the connected Kroger cart once."""
-    if client is None or cipher is None:
-        raise HTTPException(status_code=503, detail=NOT_CONFIGURED_MESSAGE)
+    user_id = user.id
+    with _transaction(session):
+        client, cipher, confirmation = _configured(
+            settings, client, cipher, pairing_cipher
+        )
+        row = _cart_row(session, user_id, body.confirmation_token)
+        if row is None:
+            _generation(request, session, user_id, settings)
+            raise security.SecurityIntentError()
+        if row.state != "pending":
+            _generation(request, session, user_id, settings)
+            outcome = security.get_cart_outcome(
+                session, user_id, body.confirmation_token
+            )
+            code = (
+                row.details.get("outcome")
+                if outcome.state != "uncertain"
+                else "unknown"
+            )
+            session.commit()
+            return _cart_response(code)
+        admission.reserve_action(session, user_id, "retailer")
+        _generation(request, session, user_id, settings)
+        claim = security.claim_cart_confirmation(
+            session, user_id, confirmation, body.confirmation_token
+        )
+        if isinstance(claim, security.CartOutcome):
+            row = _cart_row(session, user_id, body.confirmation_token)
+            code = row.details.get("outcome") if row is not None else "unknown"
+            session.rollback()
+            return _cart_response(code)
+        session.commit()
+    code = "unknown"
+    access_token: str | None = None
     try:
-        token = customer_access_token(session, DEMO_USER_ID, client, cipher)
-        if token is None:
-            raise HTTPException(409, NOT_CONNECTED_MESSAGE)
-        lines = [CartItem(line.upc, line.quantity) for line in body.items]
-        client.add_to_cart(token, lines)
+        access_token = customer_access_token(
+            session,
+            user_id,
+            client,
+            cipher,
+            expected_connection_version=claim.connection_version,
+            expected_pairing_generation=claim.pairing_generation,
+        )
+        session.commit()
+        if access_token is None:
+            code = "not_connected"
+        else:
+            client.add_to_cart(
+                access_token, [CartItem(i.upc, i.quantity) for i in claim.items]
+            )
+            code = "added"
+    except KrogerConnectionChanged:
+        session.rollback()
+        code = "not_connected"
     except KrogerAuthRejected:
-        delete_tokens(session, DEMO_USER_ID)
-        raise HTTPException(409, NOT_CONNECTED_MESSAGE) from None
+        if access_token is not None:
+            with _transaction(session):
+                delete_rejected_access_token(
+                    session,
+                    user_id,
+                    cipher,
+                    access_token,
+                    expected_connection_version=claim.connection_version,
+                )
+                session.commit()
+        code = "not_connected"
     except KrogerUnavailable:
-        raise HTTPException(503, UNAVAILABLE_MESSAGE) from None
-    except KrogerCartUnknown:
+        session.rollback()
+        code = "unavailable"
+    except ValueError:
+        session.rollback()
+        code = "rejected"
+    except (KrogerCartUnknown, SQLAlchemyError):
+        session.rollback()
+        code = "unknown"
+    try:
+        state: security.TerminalState = (
+            "succeeded"
+            if code == "added"
+            else "uncertain"
+            if code == "unknown"
+            else "failed"
+        )
+        outcome = security.record_cart_outcome(session, user_id, claim.intent_id, state)
+        if outcome.state == "uncertain":
+            code = "unknown"
+        row = session.get(SecurityIntent, claim.intent_id)
+        if row is not None:
+            row.details = {**row.details, "outcome": code}
+        session.commit()
+    except (
+        SQLAlchemyError,
+        security.SecurityIntentError,
+        admission.OwnerUnavailableError,
+    ):
+        session.rollback()
         raise HTTPException(504, CART_UNCONFIRMED_MESSAGE) from None
-    return Response(status_code=204)
+    return _cart_response(code)
 
 
 @router.post("/stores", response_model=StoreSearchResponse)
 def find_kroger_stores(
     body: StoreSearchBody,
-    client: Annotated[KrogerClient | None, Depends(get_kroger_client)],
+    request: Request,
+    settings: Settings,
+    session: Database,
+    user: CurrentUser,
+    client: Client,
+    cipher: TokenCipher,
+    pairing_cipher: PairingCipher,
 ) -> StoreSearchResponse:
-    """Return Kroger stores near a ZIP posted in the body."""
-    if not _ZIP_CODE.fullmatch(body.zip_code):
-        raise HTTPException(status_code=422, detail=INVALID_ZIP_MESSAGE)
-    if client is None:
-        raise HTTPException(status_code=503, detail=NOT_CONFIGURED_MESSAGE)
-    failure: int | None = None
-    stores: list[KrogerStore] = []
+    with _transaction(session):
+        if not _ZIP_CODE.fullmatch(body.zip_code):
+            raise HTTPException(422, INVALID_ZIP_MESSAGE)
+        client, _, _ = _configured(settings, client, cipher, pairing_cipher)
+        admission.reserve_action(session, user.id, "retailer")
+        _generation(request, session, user.id, settings)
+        session.commit()
     try:
         stores = client.find_stores(body.zip_code, limit=5)
         if not stores:
             stores = client.find_stores(body.zip_code, limit=5, radius_miles=50)
     except ValueError:
-        failure = 422
+        raise HTTPException(422, INVALID_ZIP_MESSAGE) from None
     except KrogerUnavailable:
-        failure = 503
-    if failure == 422:
-        raise HTTPException(status_code=422, detail=INVALID_ZIP_MESSAGE)
-    if failure == 503:
-        raise HTTPException(status_code=503, detail=UNAVAILABLE_MESSAGE)
+        raise HTTPException(503, UNAVAILABLE_MESSAGE) from None
     return StoreSearchResponse(
         stores=[
             StoreView(

@@ -7,6 +7,7 @@ from types import ModuleType
 import pytest
 
 from app import evaluate_conversation as cli
+from app import evaluation_io_json
 from app.agent import chat_loop
 from app.agent.provider import LLMProvider
 from app.evaluation_conversation_corpus import Scenario, load_conversation_corpus
@@ -121,6 +122,91 @@ def test_output_finish_keeps_the_default_marker_shape(tmp_path: Path) -> None:
     assert set(marker) == {"sha256", "slot_count"}
     assert set(marker["sha256"]) == {"report.json", "report.md"}
     assert marker["slot_count"] == 1
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--detailed-export"],
+        ["--synthetic-inputs"],
+        ["--detailed-export", "--synthetic-inputs"],
+    ],
+)
+def test_detailed_export_rejects_arbitrary_corpus_before_output_or_provider(
+    tmp_path: Path, flags: list[str]
+) -> None:
+    corpus = tmp_path / "conversation.json"
+    corpus.write_bytes(_CORPUS.read_bytes() + b" ")
+    out = tmp_path / "out"
+    calls: list[str] = []
+
+    def provider_for(scenario: Scenario, repeat: int, index: int) -> LLMProvider:
+        calls.append(scenario.id)
+        pytest.fail("The provider MUST NOT run.")
+
+    assert (
+        cli.main(
+            [*_argv(out, **{"--corpus": str(corpus)}), *flags],
+            fixture_provider_for=provider_for,
+        )
+        == 2
+    )
+    assert calls == []
+    assert not out.exists()
+
+
+def test_verified_synthetic_conversation_allows_bounded_detailed_json(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "detailed"
+    assert cli.main([*_argv(out), "--detailed-export", "--synthetic-inputs"]) == 0
+    records = [
+        json.loads(line) for line in (out / "slots.jsonl").read_bytes().splitlines()
+    ]
+    assert len(records) == 123
+    assert any(record.get("reply_sha256") for record in records)
+    assert all("reasoningContent" not in json.dumps(record) for record in records)
+
+
+def test_default_conversation_artifacts_remove_nested_private_markers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from collections.abc import Iterator
+
+    from app.evaluation_conversation import ConversationCorpus, ConversationSelection
+
+    marker = "ARBITRARY_CONVERSATION_PRIVATE_MARKER"
+    original = cli.run_conversation_suite
+    in_memory: list[dict[str, object]] = []
+
+    def injected(
+        corpus: ConversationCorpus,
+        profile: str,
+        provider_for: cli.ProviderFor,
+        *,
+        selection: ConversationSelection | None = None,
+    ) -> Iterator[dict[str, object]]:
+        for record in original(corpus, profile, provider_for, selection=selection):
+            record["private"] = {"result": marker}
+            tools = record.get("tools")
+            if isinstance(tools, list):
+                for tool in tools:
+                    if isinstance(tool, dict):
+                        tool["inputs"] = {"raw": marker}
+            in_memory.append(record)
+            yield record
+
+    monkeypatch.setattr(cli, "run_conversation_suite", injected)
+    out = tmp_path / "out"
+    assert cli.main(_argv(out)) == 0
+    assert in_memory and marker in json.dumps(in_memory)
+    for artifact in out.iterdir():
+        if artifact.is_file():
+            assert marker.encode() not in artifact.read_bytes()
+    rows = [
+        json.loads(line) for line in (out / "slots.jsonl").read_bytes().splitlines()
+    ]
+    assert all("inputs" not in json.dumps(row) for row in rows)
 
 
 def test_a_fixture_run_reports_the_purchase_refusal_rate(tmp_path: Path) -> None:
@@ -242,19 +328,26 @@ def test_a_selected_fixture_run_emits_only_the_selected_turns(
 def test_the_manifest_hashes_the_bytes_that_were_parsed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    corpus_path = tmp_path / "corpus.json"
+    corpus_bytes = _CORPUS.read_bytes()
+    corpus_path.write_bytes(corpus_bytes)
     reads: list[Path] = []
-    original = Path.read_bytes
+    original = evaluation_io_json._read
 
-    def counting(self: Path) -> bytes:
-        reads.append(self)
-        return original(self)
+    def counting(path: Path, max_bytes: int) -> bytes:
+        reads.append(path)
+        raw = original(path, max_bytes)
+        if path == corpus_path:
+            path.write_bytes(b"{}")
+        return raw
 
-    monkeypatch.setattr(Path, "read_bytes", counting)
+    monkeypatch.setattr(evaluation_io_json, "_read", counting)
     out = tmp_path / "out"
-    assert cli.main(_argv(out)) == 0
-    assert reads.count(_CORPUS) == 1
+    assert cli.main(_argv(out, **{"--corpus": str(corpus_path)})) == 0
+    assert reads.count(corpus_path) == 1
+    assert corpus_path.read_bytes() == b"{}"
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
-    digest = hashlib.sha256(_CORPUS.read_bytes()).hexdigest()
+    digest = hashlib.sha256(corpus_bytes).hexdigest()
     assert report["manifest"]["corpus_sha256"] == digest
 
 

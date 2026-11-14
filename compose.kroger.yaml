@@ -1,4 +1,4 @@
-# The only overlay on compose.yaml. It switches api and worker from Kroger
+# This overlay switches api and worker from Kroger
 # fixture mode to live mode and needs credential files outside the repository.
 # Start it with `make up-kroger-live`.
 x-kroger: &kroger
@@ -29,11 +29,18 @@ services:
     environment:
       <<: *kroger-environment
       FEWIA_KROGER_TOKEN_KEY_FILE: /run/fewia/kroger-token-key
+      FEWIA_KROGER_PAIRING_KEY_FILE: /run/fewia/kroger-pairing-key
       FEWIA_KROGER_REDIRECT_URI: "${FEWIA_KROGER_REDIRECT_URI:-http://localhost:8010/grocery/kroger/callback}"
       FEWIA_KROGER_RETURN_URL: "${FEWIA_KROGER_RETURN_URL:-http://127.0.0.1:5173/prototype}"
     volumes:
       - *kroger-client-id-volume
       - *kroger-secret-volume
+      - type: bind
+        source: "${FEWIA_LOCAL_PAIRING_KEY_FILE:?Run make up-kroger-live}"
+        target: /run/fewia/kroger-pairing-key
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: "${FEWIA_KROGER_TOKEN_KEY_FILE:?FEWIA_KROGER_TOKEN_KEY_FILE MUST be an absolute path}"
         target: /run/fewia/kroger-token-key

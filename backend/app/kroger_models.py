@@ -1,6 +1,7 @@
 """SQLAlchemy model for the encrypted Kroger customer tokens."""
 
 from datetime import datetime
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
@@ -15,6 +16,9 @@ class KrogerCustomerToken(Base):
 
     user_id: Mapped[int] = mapped_column(
         sa.BigInteger, sa.ForeignKey("users.id"), primary_key=True
+    )
+    connection_version: Mapped[UUID] = mapped_column(
+        sa.Uuid, nullable=False, default=uuid4, server_default=sa.func.gen_random_uuid()
     )
     access_token: Mapped[bytes] = mapped_column(sa.LargeBinary, nullable=False)
     refresh_token: Mapped[bytes] = mapped_column(sa.LargeBinary, nullable=False)

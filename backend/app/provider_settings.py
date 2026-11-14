@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal, NoReturn, Self
 from urllib.parse import urlsplit
 
-from pydantic import SecretStr, ValidationError, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.domain.budget import SpendingSource
@@ -55,6 +55,7 @@ class GroceryProviderSettings(BaseSettings):
     kroger_environment: Literal["certification", "production"] = "certification"
     kroger_mode: Literal["live", "fixture"] = "live"
     kroger_token_key_file: Path | None = None
+    kroger_pairing_key_file: Path | None = Field(default=None, repr=False, exclude=True)
     kroger_redirect_uri: str = "http://localhost:8010/grocery/kroger/callback"
     kroger_return_url: str = "http://127.0.0.1:5173/prototype"
 
@@ -145,6 +146,7 @@ class GroceryProviderSettings(BaseSettings):
         "kroger_client_id_file",
         "kroger_secret_file",
         "kroger_token_key_file",
+        "kroger_pairing_key_file",
         mode="before",
     )
     @classmethod

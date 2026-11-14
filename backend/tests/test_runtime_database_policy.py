@@ -12,7 +12,9 @@ from sqlalchemy.exc import ArgumentError
 
 from app.runtime_database_policy import (
     RUNTIME_GRANTS,
+    RUNTIME_MODEL_UPDATE_COLUMNS,
     RUNTIME_ROLE,
+    RUNTIME_USER_INSERT_COLUMNS,
     UNSAFE_ACCESS_SQL,
     UNSAFE_ROLE_SQL,
     validate_runtime_password,
@@ -25,11 +27,16 @@ _TABLE_GRANTS: dict[str, frozenset[str]] = {
     "users": frozenset({"SELECT"}),
     "jobs": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "job_outbox": frozenset({"SELECT", "INSERT", "UPDATE"}),
+    "job_effects": frozenset({"SELECT", "INSERT"}),
+    "model_call_reservations": frozenset({"SELECT", "INSERT"}),
     "shopping_handoffs": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "grocery_evidence": frozenset({"SELECT", "INSERT"}),
     "plan_revisions": frozenset({"SELECT", "INSERT"}),
     "plan_proposals": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "kroger_customer_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "kroger_owners": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "security_intents": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    "quota_counters": frozenset({"SELECT", "INSERT", "UPDATE"}),
     "plaid_items": frozenset({"SELECT"}),
     "plaid_transactions": frozenset({"SELECT"}),
     "daily_finance": frozenset(),
@@ -99,16 +106,31 @@ def test_runtime_grants_are_exact_and_immutable() -> None:
         "users": "SELECT",
         "jobs": "SELECT, INSERT, UPDATE",
         "job_outbox": "SELECT, INSERT, UPDATE",
+        "job_effects": "SELECT, INSERT",
+        "model_call_reservations": "SELECT, INSERT",
         "shopping_handoffs": "SELECT, INSERT, UPDATE",
         "grocery_evidence": "SELECT, INSERT",
         "plan_revisions": "SELECT, INSERT",
         "plan_proposals": "SELECT, INSERT, UPDATE",
         "kroger_customer_tokens": "SELECT, INSERT, UPDATE, DELETE",
+        "kroger_owners": "SELECT, INSERT, UPDATE, DELETE",
+        "security_intents": "SELECT, INSERT, UPDATE, DELETE",
+        "quota_counters": "SELECT, INSERT, UPDATE",
         "plaid_items": "SELECT",
         "plaid_transactions": "SELECT",
     }
     with pytest.raises(TypeError):
         cast(MutableMapping[str, str], RUNTIME_GRANTS)["users"] = "ALL"
+    assert RUNTIME_USER_INSERT_COLUMNS == (
+        "display_name",
+        "auth_issuer",
+        "auth_subject",
+    )
+    assert RUNTIME_MODEL_UPDATE_COLUMNS == (
+        "status",
+        "charged_microdollars",
+        "finished_at",
+    )
 
 
 def _is_test_database(database: str) -> bool:
@@ -268,6 +290,14 @@ def _grant_exact(connection: PgConnection) -> None:
                     sql.Identifier("public", table),
                 )
             )
+    connection.execute(
+        "GRANT INSERT (display_name, auth_issuer, auth_subject) "
+        "ON TABLE public.users TO fewia_app"
+    )
+    connection.execute(
+        "GRANT UPDATE (status, charged_microdollars, finished_at) "
+        "ON TABLE public.model_call_reservations TO fewia_app"
+    )
 
 
 @pytest.fixture()
@@ -322,6 +352,11 @@ def test_postgres_exact_grants_and_catalog_visibility_are_safe(
                 ),
             ).fetchone() == (privilege in allowed, False)
             if privilege in _COLUMN_PRIVILEGES:
+                column_allowed = (
+                    privilege in allowed
+                    or (table == "users" and privilege == "INSERT")
+                    or (table == "model_call_reservations" and privilege == "UPDATE")
+                )
                 assert runtime.execute(
                     "SELECT has_any_column_privilege('fewia_app', %s, %s), "
                     "has_any_column_privilege('fewia_app', %s, %s)",
@@ -331,7 +366,20 @@ def test_postgres_exact_grants_and_catalog_visibility_are_safe(
                         "public." + table,
                         privilege + " WITH GRANT OPTION",
                     ),
-                ).fetchone() == (privilege in allowed, False)
+                ).fetchone() == (column_allowed, False)
+    model_columns = runtime.execute(
+        "SELECT attname, "
+        "has_column_privilege('fewia_app', attrelid, attnum, 'UPDATE'), "
+        "has_column_privilege('fewia_app', attrelid, attnum, "
+        "'UPDATE WITH GRANT OPTION') "
+        "FROM pg_attribute "
+        "WHERE attrelid = 'public.model_call_reservations'::regclass "
+        "AND attnum > 0 AND NOT attisdropped"
+    ).fetchall()
+    assert {name for name, allowed, _ in model_columns if allowed} == set(
+        RUNTIME_MODEL_UPDATE_COLUMNS
+    )
+    assert all(not grantable for _, _, grantable in model_columns)
     with runtime.transaction():
         runtime.execute("SET LOCAL ROLE fewia_app")
         assert runtime.execute("SELECT count(*) FROM pg_catalog.pg_class").fetchone()
@@ -351,6 +399,18 @@ def test_postgres_policy_queries_do_not_change_role_or_acls(
     assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (False,)
     assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (False,)
     assert _snapshot(runtime) == before
+
+
+@pytest.mark.parametrize("recipient", ["fewia_app", "PUBLIC"])
+def test_postgres_quota_delete_privilege_is_unsafe(
+    runtime: PgConnection, recipient: str
+) -> None:
+    runtime.execute(
+        sql.SQL("GRANT DELETE ON public.quota_counters TO {}").format(
+            sql.SQL(recipient)
+        )
+    )
+    assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (True,)
 
 
 @pytest.mark.parametrize("privilege", ["CREATE", "TEMPORARY"])
@@ -438,6 +498,32 @@ def test_postgres_sequence_access_is_unsafe(
     assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (True,)
 
 
+@pytest.mark.parametrize("privilege", ["USAGE", "SELECT", "UPDATE"])
+@pytest.mark.parametrize("recipient", ["PUBLIC", "fewia_app"])
+def test_postgres_users_identity_sequence_access_is_unsafe(
+    runtime: PgConnection, privilege: str, recipient: str
+) -> None:
+    sequence = runtime.execute(
+        "SELECT n.nspname, c.relname FROM pg_class c "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE c.oid = pg_get_serial_sequence('public.users', 'id')::regclass"
+    ).fetchone()
+    assert sequence is not None
+    assert isinstance(sequence[0], str) and isinstance(sequence[1], str)
+    assert runtime.execute(
+        "SELECT has_sequence_privilege('fewia_app', "
+        "pg_get_serial_sequence('public.users', 'id'), 'USAGE, SELECT, UPDATE')"
+    ).fetchone() == (False,)
+    runtime.execute(
+        sql.SQL("GRANT {} ON SEQUENCE {} TO {}").format(
+            sql.SQL(privilege),
+            sql.Identifier(sequence[0], sequence[1]),
+            sql.SQL(recipient),
+        )
+    )
+    assert runtime.execute(UNSAFE_ACCESS_SQL).fetchone() == (True,)
+
+
 @pytest.mark.parametrize(
     "grant",
     [
@@ -448,6 +534,12 @@ def test_postgres_sequence_access_is_unsafe(
         "GRANT UPDATE ON public.plaid_transactions TO fewia_app",
         "GRANT DELETE ON public.jobs TO PUBLIC",
         "GRANT TRUNCATE ON public.users TO fewia_app",
+        "GRANT INSERT ON public.users TO fewia_app",
+        "GRANT INSERT ON public.users TO PUBLIC",
+        "GRANT UPDATE ON public.users TO PUBLIC",
+        "GRANT DELETE ON public.users TO fewia_app",
+        "GRANT TRUNCATE ON public.security_intents TO PUBLIC",
+        "GRANT REFERENCES ON public.kroger_owners TO fewia_app",
         "GRANT REFERENCES ON public.job_outbox TO PUBLIC",
         "GRANT TRIGGER ON public.shopping_handoffs TO fewia_app",
     ],
@@ -491,6 +583,18 @@ def test_postgres_allowed_table_grant_options_are_unsafe(
     ("grant", "unsafe"),
     [
         ("GRANT UPDATE (display_name) ON public.users TO fewia_app", True),
+        ("GRANT INSERT (display_name) ON public.users TO fewia_app", False),
+        ("GRANT INSERT (auth_issuer, auth_subject) ON public.users TO PUBLIC", False),
+        ("GRANT INSERT (id) ON public.users TO fewia_app", True),
+        ("GRANT INSERT (id) ON public.users TO PUBLIC", True),
+        ("GRANT INSERT (workspace_id) ON public.users TO fewia_app", True),
+        ("GRANT INSERT (status) ON public.users TO PUBLIC", True),
+        ("GRANT INSERT (created_at) ON public.users TO fewia_app", True),
+        (
+            "GRANT INSERT (auth_subject) ON public.users TO fewia_app "
+            "WITH GRANT OPTION",
+            True,
+        ),
         ("GRANT UPDATE (display_name) ON public.users TO PUBLIC", True),
         ("GRANT SELECT (display_name) ON public.users TO PUBLIC", False),
         (

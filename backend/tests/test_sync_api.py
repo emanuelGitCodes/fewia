@@ -1,6 +1,7 @@
 """Tests for the Plaid sync HTTP routes."""
 
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from uuid import uuid4
@@ -19,12 +20,14 @@ from app.api.sync_models import CreateSyncJobBody
 from app.deps import get_session
 from app.job_models import Job, JobOutbox
 from app.main import app as main_app
+from app.models import User
 from app.plaid_models import PlaidItem
 from app.provider_settings import GroceryProviderSettings
-from app.services import job_submission
+from app.services import job_submission, security_admission
 from app.services.job_submission import create_job
 
 ITEM_ID = "item-1"
+pytestmark = pytest.mark.usefixtures("local_demo_owner")
 OTHER_ITEM_ID = "item-2"
 JOBS_PATH = "/grocery/sync/jobs"
 SENTINEL = "SECRET_DB_TOKEN"
@@ -38,6 +41,33 @@ INTERNAL_JOB_FIELDS = (
     "attempts",
     "kind",
 )
+
+
+@pytest.fixture(autouse=True)
+def mutation_admission(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[Session, int, security_admission.Action]]:
+    calls: list[tuple[Session, int, security_admission.Action]] = []
+    real_reserve = security_admission.reserve_action
+
+    def reserve(
+        db: Session,
+        user_id: int,
+        action: security_admission.Action,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        if db.get_bind().dialect.name == "sqlite":
+            status = db.scalar(select(User.status).where(User.id == user_id))
+            if status != "active":
+                raise security_admission.OwnerUnavailableError()
+        else:
+            real_reserve(db, user_id, action, now=now)
+        calls.append((db, user_id, action))
+
+    monkeypatch.setattr(security_admission, "reserve_action", reserve)
+    monkeypatch.setattr(job_submission, "reserve_action", reserve)
+    return calls
 
 
 @pytest.fixture()
@@ -130,12 +160,19 @@ def miss_first_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     real = job_submission.find_job
 
     def lookup(
-        session: Session, user_id: int, kind: Literal["sync", "agent"], request_key: str
+        session: Session,
+        user_id: int,
+        kind: Literal["sync", "agent"],
+        request_key: str,
+        *,
+        request_namespace: str | None = None,
     ) -> Job | None:
         lookups["count"] += 1
         if lookups["count"] == 1:
             return None
-        return real(session, user_id, kind, request_key)
+        return real(
+            session, user_id, kind, request_key, request_namespace=request_namespace
+        )
 
     monkeypatch.setattr(job_submission, "find_job", lookup)
 
@@ -181,10 +218,12 @@ def test_repeated_identical_request_reuses_job_and_outbox(
     session: Session,
     seed_user: UserSeeder,
     commit_without_ending_the_test_transaction: list[str],
+    mutation_admission: list[tuple[Session, int, security_admission.Action]],
 ) -> None:
     seed_user()
     seed_item(session)
     first = post_job(client)
+    assert mutation_admission == [(session, 1, "mutation")]
     second = post_job(client)
     job_id = first.json()["job_id"]
     jobs = session.scalars(select(Job).where(Job.id == job_id)).all()
@@ -204,7 +243,9 @@ def test_repeated_identical_request_reuses_job_and_outbox(
     assert stored.kind == "sync"
     assert stored.user_id == 1
     assert stored.request_key == "sync:sync-1"
+    assert stored.request_namespace == "sync"
     assert stored.payload == {"operation": "plaid_sync", "item_id": ITEM_ID}
+    assert mutation_admission == [(session, 1, "mutation")]
     for field in FORBIDDEN_FIELDS:
         assert field not in stored.payload
     assert commit_without_ending_the_test_transaction
@@ -481,7 +522,11 @@ def test_integrity_error_without_winner_has_no_chain(
     seed_item(session)
     monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     with pytest.raises(HTTPException) as raised:
-        sync_api.create_sync_job(CreateSyncJobBody(item_id=ITEM_ID), session, "bare")
+        user = session.get(User, 1)
+        assert user is not None
+        sync_api.create_sync_job(
+            CreateSyncJobBody(item_id=ITEM_ID), session, "bare", user
+        )
     assert_static_http_error(raised.value, 503, sync_api.JOB_UNAVAILABLE_MESSAGE)
 
 
@@ -497,8 +542,10 @@ def test_integrity_error_same_body_replays_winner(
     session.flush()
     miss_first_lookup(monkeypatch)
     monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
+    user = session.get(User, 1)
+    assert user is not None
     accepted = sync_api.create_sync_job(
-        CreateSyncJobBody(item_id=ITEM_ID), session, "replay"
+        CreateSyncJobBody(item_id=ITEM_ID), session, "replay", user
     )
     stored = session.get(Job, winner.id)
 
@@ -524,7 +571,11 @@ def test_integrity_error_changed_body_has_no_chain(
     miss_first_lookup(monkeypatch)
     monkeypatch.setattr(job_submission, "create_job", raise_secret_integrity)
     with pytest.raises(HTTPException) as raised:
-        sync_api.create_sync_job(CreateSyncJobBody(item_id=ITEM_ID), session, "changed")
+        user = session.get(User, 1)
+        assert user is not None
+        sync_api.create_sync_job(
+            CreateSyncJobBody(item_id=ITEM_ID), session, "changed", user
+        )
     stored = session.get(Job, winner.id)
     assert_static_http_error(raised.value, 409, sync_api.CONFLICT_MESSAGE)
     assert stored is not None
@@ -540,7 +591,11 @@ def test_create_job_value_error_has_no_chain(
     seed_item(session)
     monkeypatch.setattr(job_submission, "create_job", raise_secret_value)
     with pytest.raises(HTTPException) as raised:
-        sync_api.create_sync_job(CreateSyncJobBody(item_id=ITEM_ID), session, "invalid")
+        user = session.get(User, 1)
+        assert user is not None
+        sync_api.create_sync_job(
+            CreateSyncJobBody(item_id=ITEM_ID), session, "invalid", user
+        )
     assert_static_http_error(raised.value, 422, sync_api.INVALID_JOB_MESSAGE)
 
 

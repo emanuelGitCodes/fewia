@@ -9,7 +9,7 @@ import { ChatPanel, type ChatPanelMessage, type ChatPanelProps } from "./ChatPan
 
 const TIMEOUT =
   "The chat request is still processing and may continue. Retry checks the same request.";
-const FAIL = "The chat request failed. Retry checks the same request.";
+const FAIL = "The chat request failed. Try again.";
 const HTTP_FALLBACK =
   "The chat request failed. Check the message and budget, then retry.";
 const SECRET = "error_code: ACCESS_KEY tool_args";
@@ -79,6 +79,33 @@ const messages: ChatPanelMessage[] = [
 afterEach(cleanup);
 
 describe("ChatPanel", () => {
+  it.each([
+    "The daily chat limit has been reached. Try again after the limit resets.",
+    "Chat is busy. Wait a moment, then try again.",
+  ])("shows and announces the fixed error %s without submitting", (error) => {
+    const { rendered, onSend, onRetry } = mount({ error, hasRequest: true });
+    expect(screen.getByRole("status").textContent).toBe(error);
+    expect(rendered.container.querySelector(".conversation-error")?.textContent).toBe(error);
+    expect(onSend).not.toHaveBeenCalled();
+    expect(onRetry).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry chat request" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps forged model details and guidance generic", () => {
+    const guidance = "Untrusted server retry guidance";
+    const { rendered, onSend, onRetry } = mount({
+      hasRequest: true,
+      error: JSON.stringify({ code: "model_budget_exhausted", retry_guidance: guidance }),
+    });
+    expect(screen.getByRole("status").textContent).toBe(FAIL);
+    expect(renderedText(rendered.container)).not.toContain(guidance);
+    expect(renderedText(rendered.container)).not.toContain("model_budget_exhausted");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
   it("keeps a named polite log mounted from empty through appended replies and reset", () => {
     const props: ChatPanelProps = {
       messages: [], text: "", onChange: vi.fn(), onSend: vi.fn(), onRetry: vi.fn(),
@@ -136,7 +163,7 @@ describe("ChatPanel", () => {
     const blocked = mount({ text: "Bean tacos for two", disabled: true });
     expect(messageInput(blocked.rendered.container).disabled).toBe(true);
     expect(buttonNamed(blocked.rendered.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(blocked.rendered.container, "Retry the same request").disabled).toBe(true);
+    expect(buttonNamed(blocked.rendered.container, "Retry chat request").disabled).toBe(true);
     expect(buttonNamed(blocked.rendered.container, "Start a new conversation").disabled).toBe(true);
     submit(blocked.rendered.container);
     expect(blocked.onSend).not.toHaveBeenCalled();
@@ -160,7 +187,7 @@ describe("ChatPanel", () => {
     expect(messageInput(rendered.container).disabled).toBe(false);
     expect(messageInput(rendered.container).readOnly).toBe(true);
     expect(buttonNamed(rendered.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(rendered.container, "Retry the same request").disabled).toBe(true);
+    expect(buttonNamed(rendered.container, "Retry chat request").disabled).toBe(true);
     expect(buttonNamed(rendered.container, "Start a new conversation").disabled).toBe(true);
     const live = within(rendered.container).getAllByRole("status");
     expect(live).toHaveLength(1);
@@ -248,7 +275,7 @@ describe("ChatPanel", () => {
     expect(renderedText(rendered.container)).not.toContain("error_code");
     expect(renderedText(rendered.container)).not.toContain("ACCESS_KEY");
     expect(renderedText(rendered.container)).not.toContain("tool_args");
-    fireEvent.click(buttonNamed(rendered.container, "Retry the same request"));
+    fireEvent.click(buttonNamed(rendered.container, "Retry chat request"));
     fireEvent.click(buttonNamed(rendered.container, "Start a new conversation"));
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onNewConversation).toHaveBeenCalledTimes(1);
@@ -320,14 +347,14 @@ describe("ChatPanel", () => {
 
   it("disables retry with no request and enables retry when a request exists", () => {
     const empty = mount({ text: "Bean tacos for two", hasRequest: false });
-    expect(buttonNamed(empty.rendered.container, "Retry the same request").disabled).toBe(true);
+    expect(buttonNamed(empty.rendered.container, "Retry chat request").disabled).toBe(true);
     empty.rendered.unmount();
     const unconfigured = mount({
       text: "Bean tacos for two",
       hasRequest: true,
       configured: false,
     });
-    expect(buttonNamed(unconfigured.rendered.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(unconfigured.rendered.container, "Retry chat request").disabled).toBe(false);
     expect(messageInput(unconfigured.rendered.container).disabled).toBe(true);
     expect(buttonNamed(unconfigured.rendered.container, "Send").disabled).toBe(true);
     unconfigured.rendered.unmount();
@@ -336,7 +363,7 @@ describe("ChatPanel", () => {
       hasRequest: true,
       configurationPending: true,
     });
-    expect(buttonNamed(waiting.rendered.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(waiting.rendered.container, "Retry chat request").disabled).toBe(false);
     expect(messageInput(waiting.rendered.container).disabled).toBe(true);
     expect(buttonNamed(waiting.rendered.container, "Send").disabled).toBe(true);
     waiting.rendered.unmount();
@@ -350,11 +377,11 @@ describe("ChatPanel", () => {
     });
     expect(messageInput(rendered.container).disabled).toBe(false);
     expect(buttonNamed(rendered.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(rendered.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(rendered.container, "Retry chat request").disabled).toBe(false);
     expect(buttonNamed(rendered.container, "Start a new conversation").disabled).toBe(false);
     submit(rendered.container);
     expect(onSend).not.toHaveBeenCalled();
-    fireEvent.click(buttonNamed(rendered.container, "Retry the same request"));
+    fireEvent.click(buttonNamed(rendered.container, "Retry chat request"));
     fireEvent.click(buttonNamed(rendered.container, "Start a new conversation"));
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onNewConversation).toHaveBeenCalledTimes(1);
@@ -366,7 +393,7 @@ describe("ChatPanel", () => {
     expect(renderedText(rendered.container)).toContain("No messages yet");
     expect(renderedText(rendered.container)).toContain("Send a meal request to start a conversation.");
     expect(buttonNamed(rendered.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(rendered.container, "Retry the same request").disabled).toBe(true);
+    expect(buttonNamed(rendered.container, "Retry chat request").disabled).toBe(true);
     expect(renderedText(rendered.container)).not.toContain("verified");
     expect(renderedText(rendered.container)).not.toContain("Bedrock");
     expect(renderedText(rendered.container)).not.toContain("secret");

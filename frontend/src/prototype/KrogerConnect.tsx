@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react";
-import { isAbortError } from "../api";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type JSX } from "react";
+import { currentSession, hasKrogerOwnerProof, isAbortError } from "../api";
 import { KROGER_FIXTURE_LABEL, type KrogerMode } from "../apiTypes";
-import { disconnectKroger, readKrogerConnection } from "../krogerApi";
+import { connectKroger, disconnectKroger, readKrogerConnection } from "../krogerApi";
 import { KrogerCart } from "./KrogerCart";
 import type { PlanState } from "./planModel";
 import { PLAN_SAVE_WARNING, savePlanCheckpoint, type KrogerReturn } from "./planCheckpoint";
@@ -29,6 +29,7 @@ export function KrogerConnect(props: {
   onReturnShown?: () => void;
   krogerMode?: KrogerMode;
 }): JSX.Element | null {
+  const { krogerMode } = props;
   const fixture = props.krogerMode === "fixture";
   // The connection state lives only in component state.
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -41,6 +42,7 @@ export function KrogerConnect(props: {
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const disconnecting = useRef(false);
+  const connecting = useRef(false);
   const account = useRef<HTMLDivElement | null>(null);
   const disconnectButton = useRef<HTMLButtonElement | null>(null);
   const connectLink = useRef<HTMLAnchorElement | null>(null);
@@ -55,11 +57,11 @@ export function KrogerConnect(props: {
     focusConnect.current = false;
   }, [connected]);
 
-  const refresh = (confirmDisconnect = false): void => {
+  const refresh = useCallback((confirmDisconnect = false): void => {
     controller.current?.abort();
     const current = new AbortController();
     controller.current = current;
-    readKrogerConnection(current.signal).then(
+    readKrogerConnection(current.signal, krogerMode).then(
       (value) => {
         if (controller.current === current) {
           if (confirmDisconnect) {
@@ -95,20 +97,23 @@ export function KrogerConnect(props: {
         }
       },
     );
-  };
+  }, [krogerMode]);
 
   useEffect(() => {
-    mounted.current = true;
     setMessage(returned);
     if (returned !== "") {
       onReturnShown.current?.();
     }
+  }, [returned]);
+
+  useEffect(() => {
+    mounted.current = true;
     refresh();
     return () => {
       mounted.current = false;
       controller.current?.abort();
     };
-  }, [returned]);
+  }, [refresh]);
 
   const disconnect = (): void => {
     if (disconnecting.current) {
@@ -118,7 +123,7 @@ export function KrogerConnect(props: {
     setMessage("Disconnecting Kroger account.");
     setFailed(false);
     setBusy(true);
-    disconnectKroger().then(
+    disconnectKroger(props.krogerMode).then(
       () => {
         if (mounted.current) {
           refresh(true);
@@ -135,6 +140,9 @@ export function KrogerConnect(props: {
     );
   };
 
+  if (props.krogerMode === "live" && currentSession()?.auth_mode === "local_demo" && !hasKrogerOwnerProof()) {
+    return <p role="status" aria-live="polite">Open the operator pairing link to use live Kroger.</p>;
+  }
   if (connected === null && returned === "" && message === "" && !fixture) {
     return null;
   }
@@ -145,16 +153,35 @@ export function KrogerConnect(props: {
         <a
           ref={connectLink}
           className="tonight-ask-btn"
-          href={KROGER_CONNECT_PATH}
+          href="#"
+          aria-disabled={busy}
           onClick={(event) => {
-            // Every click tries the save. The first failure warns; a later failure signs in
-            // with a reset plan, and a success clears the warning.
+            event.preventDefault();
+            if (connecting.current || disconnecting.current) return;
             if (savePlanCheckpoint(props.plan)) {
               setWarned(false);
             } else if (!warned) {
               setWarned(true);
-              event.preventDefault();
+              return;
             }
+            connecting.current = true;
+            const workspace = currentSession();
+            setBusy(true);
+            setMessage("Opening Kroger sign-in.");
+            void connectKroger(props.krogerMode).then(
+              (url) => {
+                const active = currentSession();
+                if (mounted.current && active !== null && workspace !== null && active.workspace_id === workspace.workspace_id &&
+                    active.auth_mode === workspace.auth_mode) window.location.assign(url);
+              },
+              () => {
+                if (mounted.current) {
+                  connecting.current = false;
+                  setBusy(false);
+                  setMessage(KROGER_SIGN_IN_FAILED_LINE);
+                }
+              },
+            );
           }}
         >
           Connect Kroger

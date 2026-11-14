@@ -40,6 +40,7 @@ def main(
 ) -> int:
     try:
         from app.evaluation_cli_config import load_options
+        from app.evaluation_export import export_record, render_export_markdown
         from app.evaluation_io import EvaluationOutput
 
         options = load_options(argv, fixture=provider_factory is not None)
@@ -47,6 +48,7 @@ def main(
             from app.evaluation_batch import run_evaluation_batch
             from app.evaluation_markdown import render_report
             from app.evaluation_runtime import EvaluationRuntime
+            from app.evaluation_summary import summarize_evaluation
 
             def live_factory() -> LLMProvider:
                 from app.providers.bedrock import BedrockConverseProvider
@@ -72,8 +74,16 @@ def main(
             )
 
             def on_slot(slot: dict[str, object]) -> None:
-                output.append_slot(slot)
-                _print_progress(slot)
+                public = export_record(
+                    slot,
+                    recognized=options.recognized_synthetic,
+                    detailed=options.detailed_export,
+                    synthetic=options.synthetic_inputs,
+                    corpus_bytes=options.corpus_bytes,
+                    suite="scenarios",
+                )
+                output.append_slot(public)
+                _print_progress(public)
 
             report = run_evaluation_batch(
                 options.corpus,
@@ -83,8 +93,25 @@ def main(
                 revision=options.revision,
                 on_slot=on_slot,
             )
-            markdown = render_report(report, rates=options.rates)
-            paths = output.finish(report, markdown)
+            render_report(report, rates=options.rates)
+            report_slots = report.get("slots")
+            baseline_slots = report.get("baseline_slots")
+            if isinstance(report_slots, list) and isinstance(baseline_slots, list):
+                report["summary"] = summarize_evaluation(
+                    [*report_slots, *baseline_slots]
+                )
+            public_report = export_record(
+                report,
+                recognized=options.recognized_synthetic,
+                detailed=options.detailed_export,
+                synthetic=options.synthetic_inputs,
+                corpus_bytes=options.corpus_bytes,
+                suite="scenarios",
+            )
+            public_metrics = export_record(
+                report, recognized=options.recognized_synthetic
+            )
+            paths = output.finish(public_report, render_export_markdown(public_metrics))
         for path in paths:
             print(path)
         return 0

@@ -22,6 +22,7 @@ from app.domain.budget import (
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE
 from app.job_models import Job, JobOutbox
+from app.models import User
 from app.provider_settings import GroceryProviderSettings
 from app.services.grocery_context import (
     FIXTURE_PENDING_CENTS,
@@ -29,6 +30,8 @@ from app.services.grocery_context import (
     SpendingUnavailable,
 )
 from app.services.plan_job import SpendingInput
+
+pytestmark = pytest.mark.usefixtures("local_demo_owner")
 
 FIXED_NY = datetime(2026, 9, 6, 12, 0, tzinfo=NEW_YORK)
 OCTOBER_NY = datetime(2026, 10, 2, 12, 0, tzinfo=NEW_YORK)
@@ -397,14 +400,20 @@ def test_unrelated_route_keeps_validation_detail(client: TestClient) -> None:
     assert detail[0]["input"] == sentinel
 
 
-def test_missing_demo_user_returns_static_service_error(client: TestClient) -> None:
+def test_missing_demo_user_returns_static_service_error(
+    client: TestClient, session: Session
+) -> None:
+    user = session.get(User, 1)
+    assert user is not None
+    session.delete(user)
+    session.flush()
     response = post_templates(client)
 
     assert response.status_code == 503
     assert response.json() == {
         "error": {
             "code": "service_unavailable",
-            "message": grocery_api.DEMO_NOT_READY_MESSAGE,
+            "message": "Authentication service is unavailable.",
         }
     }
 

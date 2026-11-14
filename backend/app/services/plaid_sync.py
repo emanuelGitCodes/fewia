@@ -1,8 +1,9 @@
 """Apply Plaid Sandbox sync pages to one owned Item."""
 
 from collections.abc import Callable
-from datetime import UTC, datetime
-from typing import Protocol
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Protocol, cast
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -10,9 +11,23 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.plaid_models import PlaidItem, PlaidTransaction
 from app.providers.plaid import PlaidSyncMutation
 from app.providers.plaid_contract import SyncPage, TransactionData
+from app.services.job_delivery import JobContext, RetryableJobError
+from app.services.job_effects import apply_effect, fence_job, input_digest, read_effect
 
 _ITEM_ERROR = "Plaid Item is missing or not owned"
 _PAGE_ERROR = "Plaid sync exceeded the page bound"
+_RACE_ERROR = "Plaid sync snapshot changed."
+
+
+class _SnapshotChanged(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class _ItemSnapshot:
+    credential_ref: str = field(repr=False)
+    cursor: str | None = field(repr=False)
+    last_synced_at: datetime | None
 
 
 class SyncProvider(Protocol):
@@ -120,29 +135,89 @@ def sync_item(
     heartbeat: Callable[[], None] = _noop,
     max_pages: int = 10,
     max_restarts: int = 2,
+    context: JobContext | None = None,
 ) -> int:
     user_id = _require_int(user_id, "user_id", 1, None)
     max_pages = _require_int(max_pages, "max_pages", 1, 20)
     max_restarts = _require_int(max_restarts, "max_restarts", 0, 3)
-    with factory.begin() as session:
-        item = session.execute(
-            select(PlaidItem)
-            .where(PlaidItem.id == item_id, PlaidItem.user_id == user_id)
-            .with_for_update()
-        ).scalar_one_or_none()
-        if item is None:
-            raise ValueError(_ITEM_ERROR)
+    if context is not None and context.user_id != user_id:
+        raise ValueError(_ITEM_ERROR)
+    if context is not None:
+        heartbeat = context.heartbeat
+    effect_inputs = {
+        "item_id": item_id,
+        "max_pages": max_pages,
+        "max_restarts": max_restarts,
+    }
+    for _ in range(3):
+        with factory.begin() as session:
+            if context is not None:
+                fence_job(session, context)
+                previous = read_effect(
+                    session, context, "sync:0", input_digest(effect_inputs)
+                )
+                if previous is not None:
+                    return cast(int, previous["changed_count"])
+            item = session.scalar(
+                select(PlaidItem).where(
+                    PlaidItem.id == item_id, PlaidItem.user_id == user_id
+                )
+            )
+            if item is None:
+                raise ValueError(_ITEM_ERROR)
+            snapshot = _ItemSnapshot(
+                item.credential_ref, item.cursor, item.last_synced_at
+            )
         heartbeat()
         pages = _collect_pages(
             provider,
-            item.credential_ref,
-            item.cursor,
+            snapshot.credential_ref,
+            snapshot.cursor,
             heartbeat,
             max_pages,
             max_restarts,
         )
-        count = _apply_pages(session, item.id, pages)
-        item.cursor = pages[-1].next_cursor
-        item.last_synced_at = _aware_utc(now())
+        current = _aware_utc(now())
         heartbeat()
-        return count
+
+        def write(
+            session: Session,
+            snapshot: _ItemSnapshot = snapshot,
+            pages: list[SyncPage] = pages,
+            current: datetime = current,
+        ) -> dict[str, object]:
+            owned = session.scalar(
+                select(PlaidItem)
+                .where(PlaidItem.id == item_id, PlaidItem.user_id == user_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if owned is None:
+                raise ValueError(_ITEM_ERROR)
+            if (
+                _ItemSnapshot(owned.credential_ref, owned.cursor, owned.last_synced_at)
+                != snapshot
+            ):
+                raise _SnapshotChanged
+            count = _apply_pages(session, owned.id, pages)
+            owned.cursor = pages[-1].next_cursor
+            prior = owned.last_synced_at
+            if prior is not None:
+                if prior.utcoffset() is None:
+                    prior = prior.replace(tzinfo=UTC)
+                owned.last_synced_at = max(current, prior + timedelta(microseconds=1))
+            else:
+                owned.last_synced_at = current
+            return {"kind": "sync", "changed_count": count}
+
+        try:
+            if context is not None:
+                result = apply_effect(factory, context, "sync:0", effect_inputs, write)
+            else:
+                with factory.begin() as session:
+                    result = write(session)
+            return cast(int, result["changed_count"])
+        except _SnapshotChanged:
+            if context is not None:
+                break
+    raise RetryableJobError(_RACE_ERROR)

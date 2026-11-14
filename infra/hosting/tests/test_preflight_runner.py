@@ -29,7 +29,15 @@ _BACKEND_DIGEST = "sha256:" + "b" * 64
 _FRONTEND_DIGEST = "sha256:" + "c" * 64
 _ERROR = "preflight metadata is invalid"
 _MARKER = "SYNTHETIC_PRIVATE_INPUT"
-_CHECKS = ["caller_account", "certificate", "stack", "backend_image", "frontend_image"]
+_CHECKS = [
+    "caller_account",
+    "certificate",
+    "stack",
+    "backend_image",
+    "frontend_image",
+    "backend_scan",
+    "frontend_scan",
+]
 
 
 class _DictSubclass(dict[str, object]):
@@ -109,6 +117,16 @@ def _task() -> dict[str, object]:
     }
 
 
+def _scan(repository: str, digest: str) -> dict[str, object]:
+    return {
+        "registryId": _ACCOUNT,
+        "repositoryName": repository,
+        "imageId": {"imageDigest": digest},
+        "imageScanStatus": {"status": "COMPLETE"},
+        "imageScanFindings": {"findingSeverityCounts": {}, "findings": []},
+    }
+
+
 def _responses() -> list[object]:
     return [
         {"Account": _ACCOUNT},
@@ -132,6 +150,7 @@ def _responses() -> list[object]:
                 }
             ]
         },
+        _scan("fewia/backend", _BACKEND_DIGEST),
         {
             "imageDetails": [
                 {
@@ -141,6 +160,7 @@ def _responses() -> list[object]:
                 }
             ]
         },
+        _scan("fewia/frontend", _FRONTEND_DIGEST),
         {"tasks": [_task()], "failures": []},
     ]
 
@@ -166,6 +186,21 @@ def _commands() -> list[list[str]]:
         ],
         ["ecs", "describe-tasks", f"--cluster={_CLUSTER}", f"--tasks={_TASK}"],
     ]
+    for index, repository, digest in (
+        (4, "fewia/backend", _BACKEND_DIGEST),
+        (6, "fewia/frontend", _FRONTEND_DIGEST),
+    ):
+        operations.insert(
+            index,
+            [
+                "ecr",
+                "describe-image-scan-findings",
+                f"--registry-id={_ACCOUNT}",
+                f"--repository-name={repository}",
+                f"--image-id=imageDigest={digest}",
+                "--no-paginate",
+            ],
+        )
     return [
         [
             "aws",
@@ -222,8 +257,8 @@ def _runtime_run(invoke: _Invoke, *, active: bool = False) -> list[str]:
     ("phase", "expected", "count"),
     [
         ("foundation", ["caller_account"], 1),
-        ("bootstrap", _CHECKS, 5),
-        ("active", [*_CHECKS, "bootstrap_task"], 6),
+        ("bootstrap", _CHECKS, 7),
+        ("active", [*_CHECKS, "bootstrap_task"], 8),
     ],
 )
 def test_phase_results_and_exact_read_only_call_sequence(
@@ -345,7 +380,7 @@ def test_config_is_reparsed_before_calls(config: DeploymentConfig) -> None:
     assert config == expected
 
 
-@pytest.mark.parametrize("index", range(6))
+@pytest.mark.parametrize("index", range(8))
 @pytest.mark.parametrize(
     "response",
     [None, True, _MARKER, [], {}, RuntimeError(_MARKER), PreflightError(_MARKER)],
@@ -362,7 +397,7 @@ def test_failed_subcheck_or_invoke_halts_later_calls(
         assert invoke.responses == snapshot
 
 
-@pytest.mark.parametrize("index", range(6))
+@pytest.mark.parametrize("index", range(8))
 def test_keyboard_interrupt_propagates(index: int) -> None:
     invoke = _Invoke()
     invoke.responses[index] = KeyboardInterrupt(_MARKER)
@@ -556,7 +591,7 @@ def test_active_binds_all_proof_identities_and_now(field: str, value: str) -> No
     invoke = _Invoke()
     task = _task()
     task[field] = value
-    invoke.responses[5] = {"tasks": [task]}
+    invoke.responses[7] = {"tasks": [task]}
     _assert_invalid(lambda: _runtime_run(invoke, active=True))
     assert invoke.calls == _commands()
 
@@ -569,7 +604,7 @@ def test_active_binds_backend_digest_and_successful_exit() -> None:
         invoke = _Invoke()
         task = _task()
         cast(list[dict[str, object]], task["containers"])[0][field] = value
-        invoke.responses[5] = {"tasks": [task]}
+        invoke.responses[7] = {"tasks": [task]}
         assert_active_invalid(invoke)
         assert invoke.calls == _commands()
 
@@ -590,8 +625,8 @@ def test_active_accepts_nondefault_bound_proof_identities() -> None:
     invoke.responses[2] = {"Stacks": [stack]}
     task = _task()
     task.update(taskArn=task_arn, clusterArn=cluster, taskDefinitionArn=definition)
-    invoke.responses[5] = {"tasks": [task]}
-    invoke.commands[5][-2:] = [f"--cluster={cluster}", f"--tasks={task_arn}"]
+    invoke.responses[7] = {"tasks": [task]}
+    invoke.commands[7][-2:] = [f"--cluster={cluster}", f"--tasks={task_arn}"]
     result = run_preflight(
         _config("active"), invoke, bootstrap_task_arn=task_arn, now=_NOW
     )
@@ -605,7 +640,7 @@ def test_bootstrap_does_not_require_active_proof_outputs() -> None:
     stack["Outputs"] = _outputs()[:3]
     invoke.responses[2] = {"Stacks": [stack]}
     assert _runtime_run(invoke) == _CHECKS
-    assert invoke.calls == _commands()[:5]
+    assert invoke.calls == _commands()[:7]
 
 
 @pytest.mark.parametrize(
@@ -669,3 +704,130 @@ def test_runner_uses_invoke_without_other_io(monkeypatch: pytest.MonkeyPatch) ->
         guarded.setattr(socket, "socket", forbidden)
         guarded.setattr(subprocess, "Popen", forbidden)
         assert _runtime_run(invoke, active=True) == [*_CHECKS, "bootstrap_task"]
+
+
+@pytest.mark.parametrize("index", [4, 6])
+def test_scan_consumes_all_pages_for_each_exact_digest(index: int) -> None:
+    invoke = _Invoke()
+    repository = "fewia/backend" if index == 4 else "fewia/frontend"
+    digest = _BACKEND_DIGEST if index == 4 else _FRONTEND_DIGEST
+    first = _scan(repository, digest)
+    first["nextToken"] = "page2"
+    second = _scan(repository, digest)
+    second["nextToken"] = "page3"
+    third = _scan(repository, digest)
+    for page in (first, second, third):
+        page["imageScanFindings"] = {
+            "findingSeverityCounts": {"LOW": 3},
+            "findings": [{"severity": "LOW"}],
+        }
+    invoke.responses[index : index + 1] = [first, second, third]
+    command = invoke.commands[index]
+    invoke.commands[index + 1 : index + 1] = [
+        [*command, "--next-token=page2"],
+        [*command, "--next-token=page3"],
+    ]
+    assert _runtime_run(invoke, active=True) == [*_CHECKS, "bootstrap_task"]
+    assert invoke.calls == invoke.commands
+
+
+@pytest.mark.parametrize("index", [4, 6])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing",
+        "error",
+        "incomplete",
+        "high",
+        "critical",
+        "finding",
+        "malformed",
+        "repeat",
+        "digest",
+        "repository",
+        "missing-final-page",
+    ],
+)
+def test_later_scan_page_failure_blocks_preflight(index: int, failure: str) -> None:
+    invoke = _Invoke()
+    repository = "fewia/backend" if index == 4 else "fewia/frontend"
+    digest = _BACKEND_DIGEST if index == 4 else _FRONTEND_DIGEST
+    first = _scan(repository, digest)
+    first["nextToken"] = "page2"
+    second: object = _scan(repository, digest)
+    page = cast(dict[str, object], second)
+    if failure == "missing":
+        second = {}
+    elif failure == "error":
+        second = RuntimeError(_MARKER)
+    elif failure == "incomplete":
+        page["imageScanStatus"] = {"status": "IN_PROGRESS"}
+    elif failure in ("high", "critical", "malformed"):
+        severity = "CRITICAL" if failure == "critical" else "HIGH"
+        page["imageScanFindings"] = {
+            "findingSeverityCounts": {severity: "0" if failure == "malformed" else 1},
+            "findings": [],
+        }
+    elif failure == "finding":
+        page["imageScanFindings"] = {
+            "findingSeverityCounts": {},
+            "findings": [{"severity": "HIGH"}],
+        }
+    elif failure == "repeat":
+        page["nextToken"] = "page2"
+    elif failure == "digest":
+        page["imageId"] = {"imageDigest": "sha256:" + "d" * 64}
+    elif failure == "repository":
+        page["repositoryName"] = "fewia/other"
+    elif failure == "missing-final-page":
+        second = None
+    invoke.responses[index : index + 1] = [first, second]
+    invoke.commands.insert(index + 1, [*invoke.commands[index], "--next-token=page2"])
+    _assert_invalid(lambda: _runtime_run(invoke, active=True))
+    assert invoke.calls == invoke.commands[: index + 2]
+
+
+@pytest.mark.parametrize("index", [4, 6])
+def test_scan_rejects_missing_final_page_without_a_token(index: int) -> None:
+    invoke = _Invoke()
+    page = cast(dict[str, object], invoke.responses[index])
+    page["imageScanFindings"] = {
+        "findingSeverityCounts": {"LOW": 2},
+        "findings": [{"severity": "LOW"}],
+    }
+    _assert_invalid(lambda: _runtime_run(invoke, active=True))
+    assert invoke.calls == invoke.commands[: index + 1]
+
+
+def test_scan_rejects_changing_summary_between_pages() -> None:
+    invoke = _Invoke()
+    first = _scan("fewia/backend", _BACKEND_DIGEST)
+    first["nextToken"] = "page2"
+    second = _scan("fewia/backend", _BACKEND_DIGEST)
+    second["imageScanFindings"] = {
+        "findingSeverityCounts": {"LOW": 1},
+        "findings": [{"severity": "LOW"}],
+    }
+    invoke.responses[4:5] = [first, second]
+    invoke.commands.insert(5, [*invoke.commands[4], "--next-token=page2"])
+    _assert_invalid(lambda: _runtime_run(invoke, active=True))
+    assert invoke.calls == invoke.commands[:6]
+
+
+def test_scan_rejects_pages_without_a_final_page_within_the_limit() -> None:
+    invoke = _Invoke()
+    command = invoke.commands[4]
+    pages: list[object] = []
+    commands: list[list[str]] = []
+    for index in range(1000):
+        page = _scan("fewia/backend", _BACKEND_DIGEST)
+        page["nextToken"] = f"page{index + 1}"
+        pages.append(page)
+        commands.append(
+            command.copy() if index == 0 else [*command, f"--next-token=page{index}"]
+        )
+    invoke.responses[4:] = pages
+    invoke.commands[4:] = commands
+    _assert_invalid(lambda: _runtime_run(invoke, active=True))
+    assert len(invoke.calls) == 1004
+    assert invoke.calls == invoke.commands

@@ -2,7 +2,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -12,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
+from test_job_effects import claim_context
 
 from app import evaluation_duplicate as driver
 from app.evaluation_database import FixtureDatabase, fixture_database
@@ -20,7 +21,7 @@ from app.providers import local_sqs, local_sqs_consumer, local_sqs_isolated
 from app.providers.local_artifacts import ArtifactPut
 from app.providers.local_sqs_consumer import QueueMessage
 from app.services.job_consumer import process_one
-from app.services.job_delivery import JobQueue
+from app.services.job_delivery import JobContext, JobQueue
 
 ENDPOINT = "http://127.0.0.1:4566"
 LOCAL_DATABASE = "postgresql+psycopg://localhost/fewia_eval"
@@ -422,7 +423,13 @@ def test_duplicate_deliveries_use_production_worker_and_cached_handoff(
     observed = cast(dict[str, object], report["observed"])
     assert observed["worker_outcomes"] == ["succeeded", "terminal"]
     assert observed["job_status"] == "succeeded"
-    for key in ("job_count", "outbox_count", "evidence_count", "handoff_count"):
+    for key in (
+        "job_count",
+        "outbox_count",
+        "evidence_count",
+        "effect_count",
+        "handoff_count",
+    ):
         assert observed[key] == 1
     for key in ("handler_calls", "provider_calls", "artifact_attempts"):
         assert observed[key] == 1
@@ -561,7 +568,7 @@ def test_failed_first_handler_has_terminal_duplicate_and_safe_failure(
 
     class FailingHandler(DuplicateHandler):
         def __call__(
-            self, payload: dict[str, object], heartbeat: Callable[[], None]
+            self, payload: dict[str, object], context: JobContext
         ) -> dict[str, object]:
             self.handler_calls += 1
             handler_calls.append(True)
@@ -669,8 +676,15 @@ def test_falsified_duplicate_handler_execution_breaks_checks(
     ) -> str:
         outcome = process_one(factory, queue, kind, handler)
         if outcome == "terminal":
+            payload: dict[str, object] = {
+                "case_id": "P05",
+                "user_id": handler.context.user_id,
+            }
             handler(
-                {"case_id": "P05", "user_id": handler.context.user_id}, lambda: None
+                payload,
+                claim_context(
+                    factory, user_id=handler.context.user_id, payload=payload
+                ),
             )
         return outcome
 

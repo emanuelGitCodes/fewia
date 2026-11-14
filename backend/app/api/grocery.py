@@ -14,8 +14,7 @@ from app.api.grocery_models import (
     GroceryJobAccepted,
     PlanJobView,
 )
-from app.demo import DEMO_USER_ID
-from app.deps import get_provider_settings, get_session
+from app.deps import get_current_user, get_provider_settings, get_session
 from app.domain.budget import NEW_YORK
 from app.domain.catalog import CATALOG_VERSION, INGREDIENTS
 from app.domain.grocery import SAMPLE_ESTIMATE_NOTICE, SUPPORTED_RECIPE_IDS
@@ -56,11 +55,11 @@ def _ny_now() -> datetime:
 
 
 def require_spending(
-    session: Session, source: SpendingSource, now: datetime
+    session: Session, source: SpendingSource, now: datetime, user_id: int
 ) -> SpendingInput:
     loaded: SpendingInput | None = None
     try:
-        loaded = spending_input(session, DEMO_USER_ID, source, now)
+        loaded = spending_input(session, user_id, source, now)
     except SpendingUnavailable:
         pass
     if loaded is None:
@@ -72,8 +71,9 @@ def require_spending(
 def read_grocery_config(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[GroceryProviderSettings, Depends(get_provider_settings)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> GroceryConfig:
-    spending = require_spending(session, settings.spending_source, _ny_now())
+    spending = require_spending(session, settings.spending_source, _ny_now(), user.id)
     return GroceryConfig(
         budget_period=spending.period,
         source=settings.spending_source,
@@ -97,14 +97,13 @@ def create_grocery_job(
     body: CreateGroceryJobBody,
     session: Annotated[Session, Depends(get_session)],
     idempotency_key: Annotated[str, Header()],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> GroceryJobAccepted:
-    if session.get(User, DEMO_USER_ID) is None:
-        raise HTTPException(status_code=503, detail=DEMO_NOT_READY_MESSAGE)
     matches = body.matches_stored_caller_fields
     existing: Job | None = None
     conflict = False
     try:
-        existing = reuse_job(session, DEMO_USER_ID, "agent", idempotency_key, matches)
+        existing = reuse_job(session, user.id, "agent", idempotency_key, matches)
     except JobConflict:
         conflict = True
     if conflict:
@@ -112,7 +111,7 @@ def create_grocery_job(
     if existing is not None:
         return GroceryJobAccepted(job_id=existing.id, status=existing.status)
     settings = get_provider_settings()
-    spending = require_spending(session, settings.spending_source, _ny_now())
+    spending = require_spending(session, settings.spending_source, _ny_now(), user.id)
     if body.request.budget_period != spending.period:
         raise HTTPException(status_code=422, detail=PERIOD_MISMATCH_MESSAGE)
     payload = cast(
@@ -128,9 +127,7 @@ def create_grocery_job(
     error_status: int | None = None
     error_detail: str | None = None
     try:
-        job = submit_job(
-            session, DEMO_USER_ID, "agent", idempotency_key, payload, matches
-        )
+        job = submit_job(session, user.id, "agent", idempotency_key, payload, matches)
     except JobConflict:
         error_status = 409
         error_detail = CONFLICT_MESSAGE
@@ -150,9 +147,10 @@ def create_grocery_job(
 def read_grocery_job(
     job_id: UUID,
     session: Annotated[Session, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> PlanJobView:
     job = session.get(Job, str(job_id))
-    if job is None or job.user_id != DEMO_USER_ID or job.kind != "agent":
+    if job is None or job.user_id != user.id or job.kind != "agent":
         raise HTTPException(status_code=404, detail="Job not found")
     result = job.result
     error_detail: dict[str, str] | None = None

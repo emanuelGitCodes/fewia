@@ -4,6 +4,8 @@ from aws_cdk import Duration, RemovalPolicy
 from aws_cdk import aws_cognito as cognito
 from constructs import Construct
 
+SIGNED_OUT_PATH = "/signed-out"
+
 _LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
 
 
@@ -74,7 +76,7 @@ class HostingIdentity(Construct):
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
                 scopes=[cognito.OAuthScope.OPENID],
                 callback_urls=[f"https://{hostname}/oauth2/idpresponse"],
-                logout_urls=[f"https://{hostname}/"],
+                logout_urls=[f"https://{hostname}{SIGNED_OUT_PATH}"],
             ),
             auth_flows=cognito.AuthFlow(user_srp=True),
             prevent_user_existence_errors=True,

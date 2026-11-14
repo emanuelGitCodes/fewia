@@ -1,12 +1,15 @@
-from collections.abc import Callable
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.demo import DEMO_USER_ID
 from app.providers.plaid import PlaidNotReady, PlaidSyncMutation, PlaidUnavailable
-from app.services.job_delivery import JobHandler, LeaseLost, RetryableJobError
+from app.services.job_delivery import (
+    JobContext,
+    JobHandler,
+    LeaseLost,
+    RetryableJobError,
+)
 from app.services.plaid_sync import SyncProvider, sync_item
 
 _UNAVAILABLE = "The Plaid provider is unavailable."
@@ -31,9 +34,7 @@ def make_sync_handler(
     factory: sessionmaker[Session],
     provider: SyncProvider | None,
 ) -> JobHandler:
-    def handle(
-        payload: dict[str, object], heartbeat: Callable[[], None]
-    ) -> dict[str, object]:
+    def handle(payload: dict[str, object], context: JobContext) -> dict[str, object]:
         parsed = SyncJobInput.model_validate(payload)
         if provider is None:
             raise ValueError(_UNAVAILABLE)
@@ -42,8 +43,8 @@ def make_sync_handler(
                 factory,
                 parsed.item_id,
                 provider,
-                user_id=DEMO_USER_ID,
-                heartbeat=heartbeat,
+                user_id=context.user_id,
+                context=context,
             )
         except LeaseLost:
             raise

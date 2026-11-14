@@ -6,9 +6,14 @@ from alembic import context
 from app import (
     evidence_models,  # noqa: F401
     handoff_models,  # noqa: F401
+    job_effect_models,  # noqa: F401
+    job_models,  # noqa: F401
+    kroger_models,  # noqa: F401
+    model_cost_models,  # noqa: F401
     models,  # noqa: F401
     plaid_models,  # noqa: F401
     plan_models,  # noqa: F401
+    security_models,  # noqa: F401
 )
 from app.config import settings
 from app.db import Base

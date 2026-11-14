@@ -7,11 +7,37 @@ import pytest
 
 from app import evaluation_io
 from app.evaluation_io import EvaluationOutput
-from app.evaluation_io_json import canonical_json_bytes, load_json
+from app.evaluation_io_json import canonical_json_bytes, load_json, load_json_with_bytes
 
 
 def test_load_json_is_reexported() -> None:
     assert evaluation_io.load_json is load_json
+
+
+def test_one_read_loader_returns_the_exact_parsed_bytes(tmp_path: Path) -> None:
+    path = tmp_path / "corpus.json"
+    raw = b' { "count" : 3 } \n'
+    path.write_bytes(raw)
+    assert load_json_with_bytes(path) == (raw, {"count": 3})
+
+
+@pytest.mark.parametrize("data", [b'{"a":1,"a":2}', b'{"a":1e999}', b'{"a":NaN}'])
+def test_one_read_loader_retains_json_rejections(tmp_path: Path, data: bytes) -> None:
+    path = tmp_path / "corpus.json"
+    path.write_bytes(data)
+    with pytest.raises(ValueError, match="evaluation JSON is invalid"):
+        load_json_with_bytes(path)
+
+
+def test_one_read_loader_refuses_symlinks_and_oversize_files(tmp_path: Path) -> None:
+    path = tmp_path / "corpus.json"
+    path.write_bytes(b'{"count":3}')
+    link = tmp_path / "link.json"
+    link.symlink_to(path)
+    with pytest.raises(OSError, match="evaluation files are unavailable"):
+        load_json_with_bytes(link)
+    with pytest.raises(ValueError, match="evaluation JSON is invalid"):
+        load_json_with_bytes(path, max_bytes=4)
 
 
 @pytest.mark.parametrize("kind", ["directory", "file", "symlink", "dangling"])

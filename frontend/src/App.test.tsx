@@ -761,7 +761,7 @@ describe("App", () => {
       }),
     );
     expect(buttonNamed(renderer.container, "Send").disabled).toBe(true);
-    expect(buttonNamed(renderer.container, "Retry the same request").disabled).toBe(false);
+    expect(buttonNamed(renderer.container, "Retry chat request").disabled).toBe(false);
     const chatForm = buttonNamed(renderer.container, "Send").closest("form");
     if (chatForm === null) {
       throw new Error("missing Send form");
@@ -769,7 +769,7 @@ describe("App", () => {
     expect((within(chatForm).getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(false);
     expect(childText(renderer.container)).not.toContain(REBUILD_CHAT_GUIDANCE);
     act(() => {
-      fireEvent.click(buttonNamed(renderer.container, "Retry the same request"));
+      fireEvent.click(buttonNamed(renderer.container, "Retry chat request"));
     });
     expect(retry).toHaveBeenCalledTimes(1);
     renderer.unmount();

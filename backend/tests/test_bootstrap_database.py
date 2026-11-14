@@ -183,6 +183,7 @@ def test_default_runner_captures_output_without_shell_or_environment_override(
                 "capture_output": True,
                 "check": False,
                 "shell": False,
+                "env": None,
             },
         )
     ]

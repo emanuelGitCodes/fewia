@@ -4,7 +4,9 @@ import "@fontsource/source-sans-3/latin-600.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { canonicalPath, selectRoot } from "./rootView";
+import { extractPairingTicket } from "./api";
 import "./styles.css";
+const ticket = extractPairingTicket();
 const path = canonicalPath(window.location.pathname);
 if (path !== window.location.pathname) {
   window.history.replaceState(
@@ -14,5 +16,5 @@ if (path !== window.location.pathname) {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>{selectRoot(path)}</StrictMode>,
+  <StrictMode>{selectRoot(path, ticket)}</StrictMode>,
 );

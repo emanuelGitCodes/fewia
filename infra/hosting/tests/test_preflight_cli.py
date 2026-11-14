@@ -54,6 +54,16 @@ _COMMANDS = [
         f"--tasks={_TASK}",
     ],
 ]
+_SCAN_COMMAND = [
+    "aws",
+    "ecr",
+    "describe-image-scan-findings",
+    *_BASE,
+    f"--registry-id={_ACCOUNT}",
+    "--repository-name=fewia/backend",
+    f"--image-id=imageDigest={_DIGEST}",
+    "--no-paginate",
+]
 _ENVIRONMENT = {
     "PATH": "/synthetic/bin",
     "AWS_PAGER": "synthetic-pager",
@@ -126,7 +136,9 @@ def _assert_static_error(call: Callable[[], object]) -> None:
         assert value not in rendered
 
 
-@pytest.mark.parametrize("command", _COMMANDS)
+@pytest.mark.parametrize(
+    "command", [*_COMMANDS, _SCAN_COMMAND, [*_SCAN_COMMAND, "--next-token=page+/=2"]]
+)
 def test_adapter_exact_read_only_subprocess_contract(
     command: list[str], process: _Process
 ) -> None:
@@ -158,6 +170,34 @@ def test_adapter_exact_read_only_subprocess_contract(
     ]
     assert dict(os.environ) == inherited_environment
     assert process.calls[0][1]["env"] is not os.environ
+
+
+@pytest.mark.parametrize("token", ["", "a\n", "a b", "a" * 2049])
+def test_scan_rejects_invalid_pagination_tokens(token: str, process: _Process) -> None:
+    _assert_static_error(
+        lambda: cli._invoke_aws(
+            [*_SCAN_COMMAND, f"--next-token={token}"], profile=_PROFILE
+        )
+    )
+    assert process.calls == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        _SCAN_COMMAND[:-1],
+        [*_SCAN_COMMAND, "--starting-token=page2"],
+        [*_SCAN_COMMAND, "--next-token=page2", "--next-token=page3"],
+        [*_SCAN_COMMAND, "--endpoint-url=https://example.test"],
+        [*_SCAN_COMMAND[:8], "--image-id=imageTag=latest", "--no-paginate"],
+        [*_SCAN_COMMAND[:7], "--repository-name=other\n", *_SCAN_COMMAND[8:]],
+    ],
+)
+def test_scan_rejects_unrestricted_commands(
+    command: list[str], process: _Process
+) -> None:
+    _assert_static_error(lambda: cli._invoke_aws(command, profile=_PROFILE))
+    assert process.calls == []
 
 
 @pytest.mark.parametrize("length", [1, 257])
@@ -419,7 +459,16 @@ def test_cli_passes_exact_config_task_and_aware_utc_to_runner(
     config_path.write_text(json.dumps(asdict(config)), encoding="utf-8")
     expected = ["caller_account"]
     if phase != "foundation":
-        expected.extend(["certificate", "stack", "backend_image", "frontend_image"])
+        expected.extend(
+            [
+                "certificate",
+                "stack",
+                "backend_image",
+                "frontend_image",
+                "backend_scan",
+                "frontend_scan",
+            ]
+        )
     task = _TASK if phase == "active" else None
     if task is not None:
         expected.append("bootstrap_task")

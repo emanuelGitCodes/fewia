@@ -129,6 +129,30 @@ def _entry(
     return entry
 
 
+def runtime_tool_trace(trace: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Use local call IDs in persisted traces; evaluator pairing keeps upstream IDs."""
+    return [
+        {
+            **{
+                key: value
+                for key, value in entry.items()
+                if key
+                in {
+                    "tool",
+                    "outcome",
+                    "sequence",
+                    "revision_index",
+                    "evidence_id",
+                    "evidence_revision_id",
+                    "inputs",
+                }
+            },
+            "tool_use_id": f"call-{index}",
+        }
+        for index, entry in enumerate(trace, start=1)
+    ]
+
+
 def _valid_recipe(value: object) -> str:
     if isinstance(value, str) and value in SUPPORTED_RECIPE_IDS:
         return value
@@ -218,6 +242,7 @@ def _dispatch_plan_tool(
     budget: BudgetResult,
     plan: PlanRevisionInput | None,
     trace: list[dict[str, object]],
+    live_food: str | None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
     payload: dict[str, object] | None
     try:
@@ -229,7 +254,7 @@ def _dispatch_plan_tool(
             cap = None if plan is None else plan.snapshot.plan_cap_cents
             payload = execute_price_lines(call.tool_input, budget, cap, plan)
         elif call.name == INGREDIENT_TOOL:
-            payload = execute_ingredient_facts(call.tool_input)
+            payload = execute_ingredient_facts(call.tool_input, live_food=live_food)
         else:
             payload = execute_get_meal(call.tool_input)
     except (PlanToolError, SubstituteToolError, PriceToolError, IngredientToolError):
@@ -310,9 +335,10 @@ def dispatch(
     *,
     plan: PlanRevisionInput | None = None,
     propose: Propose | None = None,
+    live_food: str | None = None,
 ) -> tuple[dict[str, object] | None, dict[str, object]]:
     if call.name in _PLAN_READ_TOOLS:
-        return _dispatch_plan_tool(call, budget, plan, trace)
+        return _dispatch_plan_tool(call, budget, plan, trace, live_food)
     if call.name == PROPOSAL_TOOL and plan is not None and propose is not None:
         return _dispatch_proposal(call, budget, plan, propose, trace)
     if call.name == CATALOG_TOOL_NAME:

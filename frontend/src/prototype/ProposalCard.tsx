@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from "react";
-import { SAMPLE_ESTIMATE_NOTICE, isAbortError } from "../api";
+import { SAMPLE_ESTIMATE_NOTICE, captureSessionGuard, isAbortError } from "../api";
 import { formatDollars } from "../money";
 import {
   applyProposal,
@@ -94,6 +94,8 @@ export function ProposalCard(props: {
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+  const sessionGuard = useRef<(() => boolean) | null>(null);
+  const actionInFlight = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -104,59 +106,72 @@ export function ProposalCard(props: {
 
   useEffect(() => {
     const ctl = new AbortController();
+    const session = captureSessionGuard();
+    sessionGuard.current = session;
+    actionInFlight.current = false;
     controller.current = ctl;
     setPhase("loading");
     fetchProposal(proposalId, ctl.signal).then(
       (proposal) => {
+        if (ctl.signal.aborted || !session()) return;
         setPreview(proposal.preview);
         setPhase(proposal.status);
       },
       (error: unknown) => {
-        if (!isAbortError(error)) {
+        if (!ctl.signal.aborted && session() && !isAbortError(error)) {
           setPhase("error");
         }
       },
     );
     return () => {
       ctl.abort();
+      if (sessionGuard.current === session) sessionGuard.current = null;
     };
   }, [proposalId]);
 
   // Apply is never aborted: once sent, the server may apply it even if this card unmounts.
   const apply = async (): Promise<void> => {
-    if (busy || preview === null) {
+    const session = sessionGuard.current;
+    if (busy || actionInFlight.current || preview === null || session === null || !session()) {
       return;
     }
     if (state.budgetError !== null) {
       setNote("Enter a valid budget before applying this change.");
       return;
     }
-    const snapshot = preview;
+    let snapshot: ProposalPreview | null = null;
+    actionInFlight.current = true;
     setBusy(true);
     setNote("");
     let outcome: ProposalStatus | "unknown";
     try {
-      await applyProposal(proposalId, new AbortController().signal, state.budgetCents);
+      const applied = await applyProposal(proposalId, new AbortController().signal, state.budgetCents);
+      snapshot = applied.snapshot;
       outcome = "applied";
     } catch (error: unknown) {
+      if (!mounted.current || sessionGuard.current !== session || !session()) return;
       if (error instanceof ProposalConstraintsError) {
-        if (mounted.current) {
-          setBusy(false);
-          setNote(constraintsMessage(error));
-        }
+        actionInFlight.current = false;
+        setBusy(false);
+        setNote(constraintsMessage(error));
         return;
       }
       try {
-        outcome = (await fetchProposal(proposalId, new AbortController().signal)).status;
+        const proposal = await fetchProposal(proposalId, new AbortController().signal);
+        outcome = proposal.status;
+        if (proposal.status === "applied") {
+          snapshot = proposal.preview;
+        }
       } catch {
         outcome = "unknown";
       }
     }
-    if (!mounted.current) {
+    if (!mounted.current || sessionGuard.current !== session || !session()) {
       return;
     }
+    actionInFlight.current = false;
     setBusy(false);
-    if (outcome === "applied") {
+    if (outcome === "applied" && snapshot !== null) {
       onApplied(snapshot);
       setPhase("applied");
     } else if (outcome === "pending") {
@@ -167,18 +182,24 @@ export function ProposalCard(props: {
   };
   const discard = (): void => {
     const signal = controller.current?.signal;
-    if (busy || signal === undefined) {
+    const session = sessionGuard.current;
+    if (busy || actionInFlight.current || signal === undefined || session === null || !session()) {
       return;
     }
+    actionInFlight.current = true;
     setBusy(true);
     setNote("");
     discardProposal(proposalId, signal).then(
       () => {
+        if (!mounted.current || sessionGuard.current !== session || !session()) return;
+        actionInFlight.current = false;
         setBusy(false);
         setPhase("discarded");
       },
       (error: unknown) => {
+        if (!mounted.current || sessionGuard.current !== session || !session()) return;
         if (!isAbortError(error)) {
+          actionInFlight.current = false;
           setBusy(false);
           setNote(DISCARD_ERROR_LINE);
         }

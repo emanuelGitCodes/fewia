@@ -40,7 +40,7 @@ function useMediaQuery(query: string, fallback: boolean): boolean {
   return value;
 }
 
-export function TonightPrototype(): JSX.Element {
+export function TonightPrototype({ onSignOut }: { onSignOut?: () => void } = {}): JSX.Element {
   const [returnPlan] = useState(readReturnPlan);
   const [state, setState] = useState<PlanState>(() => returnPlan.state);
   const [restoreError, setRestoreError] = useState(returnPlan.error);
@@ -225,6 +225,9 @@ export function TonightPrototype(): JSX.Element {
         <div className="tonight-canvas" ref={canvasRef}>
           <header className="tonight-header" ref={headerRef}>
             <p className="tonight-wordmark">FEWIA</p>
+            {onSignOut !== undefined ? (
+              <button type="button" className="tonight-signout" onClick={onSignOut}>Sign out</button>
+            ) : null}
             {restoreError !== null ? <p role="alert">{restoreError}</p> : null}
           </header>
           <main ref={mainRef}>

@@ -2,11 +2,13 @@
 
 from datetime import date, datetime
 from decimal import Decimal
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
     BigInteger,
     CheckConstraint,
+    Connection,
     Date,
     DateTime,
     ForeignKey,
@@ -15,9 +17,12 @@ from sqlalchemy import (
     Numeric,
     Text,
     UniqueConstraint,
+    Uuid,
+    event,
     func,
+    text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Mapper, mapped_column
 
 from app.db import Base
 from app.job_models import Job, JobOutbox  # noqa: F401
@@ -30,12 +35,42 @@ class User(Base):
     """A person who owns daily observations."""
 
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "(auth_issuer IS NULL) = (auth_subject IS NULL)",
+            name="ck_users_auth_identity_pair",
+        ),
+        UniqueConstraint("auth_issuer", "auth_subject", name="uq_users_auth_identity"),
+        CheckConstraint(
+            "status IN ('active', 'disabled', 'deleting')", name="ck_users_status"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    auth_issuer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    auth_subject: Mapped[str | None] = mapped_column(Text, nullable=True)
+    workspace_id: Mapped[UUID] = mapped_column(
+        Uuid, nullable=False, server_default=func.gen_random_uuid()
+    )
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'active'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+@event.listens_for(User, "before_insert")
+def _set_sqlite_user_defaults(
+    _mapper: Mapper[User], connection: Connection, user: User
+) -> None:
+    if connection.dialect.name != "sqlite":
+        return
+    if user.workspace_id is None:
+        user.workspace_id = uuid4()
+    if user.status is None:
+        user.status = "active"
 
 
 class DailyFinance(Base):
