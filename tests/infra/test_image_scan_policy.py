@@ -648,7 +648,8 @@ def test_workflow_keeps_full_scan_and_failure_propagation() -> None:
     scan = workflow_step("Scan an archive of the recorded image ID")
     database = workflow_step("Download and validate the vulnerability database")
     assert source.startswith(
-        "name: Image security\n\non:\n  pull_request:\n  push:\n  workflow_dispatch:\n"
+        "name: Image security\n\non:\n  pull_request:\n  push:\n"
+        "    branches: [main]\n  workflow_dispatch:\n"
     )
     assert "permissions:\n  contents: read\n" in source
     assert source.count("permissions:") == 1
